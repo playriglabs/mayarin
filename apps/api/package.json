@@ -1,0 +1,23 @@
+{
+  "name": "@mayarr/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarr/clearing": "workspace:*",
+    "@mayarr/db": "workspace:*",
+    "@mayarr/ledger": "workspace:*",
+    "@mayarr/payment-intent": "workspace:*",
+    "@mayarr/provider-mock": "workspace:*",
+    "@mayarr/qr-parser": "workspace:*",
+    "@mayarr/settlement": "workspace:*",
+    "@mayarr/shared": "workspace:*",
+    "hono": "^4.6.16",
+    "zod": "^3.24.1"
+  }
+}
