@@ -1,0 +1,30 @@
+{
+  "name": "@mayarr/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./memory": "./src/memory/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "generate": "drizzle-kit generate",
+    "migrate": "bun run src/migrate.ts"
+  },
+  "dependencies": {
+    "@mayarr/clearing": "workspace:*",
+    "@mayarr/ledger": "workspace:*",
+    "@mayarr/payment-intent": "workspace:*",
+    "@mayarr/qr-parser": "workspace:*",
+    "@mayarr/shared": "workspace:*",
+    "drizzle-orm": "^0.38.3",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@mayarr/provider-mock": "workspace:*",
+    "@mayarr/settlement": "workspace:*",
+    "drizzle-kit": "^0.30.1"
+  }
+}
