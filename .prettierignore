@@ -1,0 +1,17 @@
+# Prettier owns Markdown and YAML only.
+# Everything Biome formats — TS, JS, JSON — is off limits, so the two
+# formatters can never disagree about the same file.
+*.ts
+*.tsx
+*.js
+*.mjs
+*.cjs
+*.json
+*.jsonc
+
+node_modules/
+dist/
+coverage/
+packages/db/migrations/
+bun.lock
+bun.lockb

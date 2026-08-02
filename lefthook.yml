@@ -1,0 +1,34 @@
+# Git hooks.
+#
+# pre-commit is fast and fixes in place: it only touches the files being
+# committed. pre-push is the slow, whole-repo gate — typecheck and tests — so a
+# broken build never reaches a shared branch.
+#
+# Install after cloning: bunx lefthook install
+
+pre-commit:
+  parallel: true
+  jobs:
+    # Biome owns TS/JS/JSON: lint, format and import sorting in one pass.
+    - name: biome
+      glob: "*.{ts,tsx,js,mjs,cjs,json}"
+      run: bunx biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+
+    # Prettier owns Markdown and YAML, which Biome does not format.
+    - name: prettier
+      glob: "*.{md,yml,yaml}"
+      run: bunx prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
+
+pre-push:
+  parallel: false
+  jobs:
+    # Whole-repo gates: they take no file list, so they run on every push.
+    # (On a repo with no commits yet these report "skip" — lefthook resolves its
+    # file list against HEAD. They activate from the first commit onward.)
+    - name: typecheck
+      run: bun run typecheck
+
+    - name: test
+      run: bun test
