@@ -1,0 +1,22 @@
+{
+  "name": "@mayarr/clearing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarr/ledger": "workspace:*",
+    "@mayarr/payment-intent": "workspace:*",
+    "@mayarr/settlement": "workspace:*",
+    "@mayarr/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@mayarr/db": "workspace:*",
+    "@mayarr/provider-mock": "workspace:*"
+  }
+}
