@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store
+.idea/
+
+# Editor config is shared so everyone gets the same formatters; personal
+# settings stay out.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+.bun/
+bun.lockb.bak

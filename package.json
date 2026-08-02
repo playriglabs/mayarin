@@ -1,0 +1,36 @@
+{
+  "name": "mayarr",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "packages/core/*",
+    "packages/providers/*"
+  ],
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "scripts": {
+    "prepare": "lefthook install",
+    "dev": "bun run --cwd apps/api dev",
+    "test": "bun test",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "biome lint",
+    "lint:fix": "biome lint --write",
+    "format": "biome check --write && prettier --write \"**/*.{md,yml,yaml}\"",
+    "format:check": "biome check && prettier --check \"**/*.{md,yml,yaml}\"",
+    "check": "bun run format:check && bun run typecheck && bun test",
+    "db:generate": "bun run --cwd packages/db generate",
+    "db:migrate": "bun run --cwd packages/db migrate",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "@types/bun": "^1.2.5",
+    "lefthook": "^2.1.10",
+    "prettier": "^3.9.6",
+    "typescript": "^5.7.3"
+  }
+}

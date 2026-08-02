@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "apps/*/src/**/*.ts",
+    "apps/*/test/**/*.ts",
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "packages/core/*/src/**/*.ts",
+    "packages/core/*/test/**/*.ts",
+    "packages/providers/*/src/**/*.ts",
+    "packages/providers/*/test/**/*.ts",
+    "packages/db/drizzle.config.ts"
+  ]
+}
