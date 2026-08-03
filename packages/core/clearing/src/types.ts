@@ -1,3 +1,4 @@
+import type { ChainId } from "@mayarin/chain";
 import type { SettlementMerchant } from "@mayarin/settlement";
 import type { AssetCode, Money } from "@mayarin/shared";
 
@@ -34,6 +35,22 @@ export interface LockedRate {
   readonly expiresAt?: Date;
 }
 
+/**
+ * The payer's leg, frozen at PRICE_LOCKED.
+ *
+ * Set together or not at all — an address without a locked amount would tell a
+ * payer where to send money but not how much.
+ */
+export interface ClearingDeposit {
+  readonly asset: AssetCode;
+  readonly chain: ChainId;
+  readonly address: string;
+  /** What the payer must send, in the payment asset. */
+  readonly amount: Money;
+  /** Quote asset → payment asset. */
+  readonly rate: LockedRate;
+}
+
 export interface ClearingFailure {
   readonly reason: string;
   readonly code: string;
@@ -64,6 +81,9 @@ export interface ClearingTransaction {
   readonly fee?: Money;
   /** What the merchant actually receives: settlement amount minus fee. */
   readonly netAmount?: Money;
+
+  /** Set at PRICE_LOCKED when the intent names a payment rail. */
+  readonly deposit?: ClearingDeposit;
 
   /** Set at SETTLING, once the adapter has accepted the settlement. */
   readonly providerReference?: string;

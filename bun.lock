@@ -42,6 +42,7 @@
       "name": "@mayarin/clearing",
       "version": "0.1.0",
       "dependencies": {
+        "@mayarin/chain": "workspace:*",
         "@mayarin/ledger": "workspace:*",
         "@mayarin/payment-intent": "workspace:*",
         "@mayarin/settlement": "workspace:*",
@@ -50,6 +51,7 @@
       "devDependencies": {
         "@mayarin/db": "workspace:*",
         "@mayarin/provider-mock": "workspace:*",
+        "@mayarin/provider-mock-chain": "workspace:*",
       },
     },
     "packages/core/ledger": {

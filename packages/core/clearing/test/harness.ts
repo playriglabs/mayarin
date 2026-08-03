@@ -7,12 +7,14 @@
 
 import {
   InMemoryClearingRepository,
+  InMemoryDepositAddressRepository,
   InMemoryLedgerRepository,
   InMemoryPaymentIntentRepository,
 } from "@mayarin/db/memory";
 import { type AccountKind, LedgerService } from "@mayarin/ledger";
-import { PaymentIntentService } from "@mayarin/payment-intent";
+import { PaymentIntentService, type PaymentRail } from "@mayarin/payment-intent";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
+import { FixedDepositAddressDeriver } from "@mayarin/provider-mock-chain";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
 import { ClearingEngine } from "../src/engine.ts";
@@ -57,6 +59,9 @@ export function createHarness(options: HarnessOptions = {}) {
 
   const ledger = new LedgerService({ repository: ledgerRepository, clock });
 
+  const depositAddresses = new InMemoryDepositAddressRepository();
+  const depositDeriver = new FixedDepositAddressDeriver();
+
   const engine = new ClearingEngine({
     repository: clearingRepository,
     intents,
@@ -64,13 +69,17 @@ export function createHarness(options: HarnessOptions = {}) {
     adapters: new SettlementAdapterRegistry([adapter]),
     rates: new StaticRateProvider(options.rates ?? { "IDR/IDRX": 100n }),
     fees: new BasisPointsFeePolicy(options.feeBasisPoints ?? 50),
+    depositAddresses,
+    depositDeriver,
     clock,
     events,
     autoConfirmAssetReceipt: options.autoConfirmAssetReceipt ?? true,
   });
 
   /** Creates and confirms an intent for 50,000.00 IDR, ready to clear. */
-  async function confirmedIntent(overrides: { idempotencyKey?: string } = {}) {
+  async function confirmedIntent(
+    overrides: { idempotencyKey?: string; payment?: PaymentRail } = {},
+  ) {
     const created = await intents.create({
       merchant: {
         id: "ID1020017611473",
@@ -100,6 +109,7 @@ export function createHarness(options: HarnessOptions = {}) {
       intents: intentRepository,
       ledger: ledgerRepository,
       clearing: clearingRepository,
+      depositAddresses,
     },
     confirmedIntent,
     balance,

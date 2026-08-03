@@ -20,6 +20,7 @@
  * The reverse order could record a settlement that never happened.
  */
 
+import type { DepositAddressDeriver, DepositAddressRepository } from "@mayarin/chain";
 import type { LedgerService } from "@mayarin/ledger";
 import type { PaymentIntent, PaymentIntentService } from "@mayarin/payment-intent";
 import type {
@@ -29,6 +30,7 @@ import type {
 } from "@mayarin/settlement";
 import {
   type Clock,
+  ConfigurationError,
   convert,
   type DomainEvent,
   type EventPublisher,
@@ -52,7 +54,7 @@ import {
   type TransitionResult,
   transition,
 } from "./transaction.ts";
-import type { ClearingEvent, ClearingTransaction } from "./types.ts";
+import type { ClearingDeposit, ClearingEvent, ClearingTransaction } from "./types.ts";
 
 export interface ClearingEngineOptions {
   readonly repository: ClearingRepository;
@@ -61,6 +63,13 @@ export interface ClearingEngineOptions {
   readonly adapters: SettlementAdapterRegistry;
   readonly rates: RateProvider;
   readonly fees: FeePolicy;
+  /**
+   * Allocates a per-payment deposit address. Absent for a deployment with no
+   * chain layer, in which case an intent naming a rail is rejected rather than
+   * silently cleared without an address.
+   */
+  readonly depositAddresses?: DepositAddressRepository;
+  readonly depositDeriver?: DepositAddressDeriver;
   readonly clock: Clock;
   readonly events?: EventPublisher;
   /**
@@ -86,6 +95,8 @@ export class ClearingEngine {
   readonly #adapters: SettlementAdapterRegistry;
   readonly #rates: RateProvider;
   readonly #fees: FeePolicy;
+  readonly #depositAddresses: DepositAddressRepository | undefined;
+  readonly #depositDeriver: DepositAddressDeriver | undefined;
   readonly #clock: Clock;
   readonly #events: EventPublisher;
   readonly #autoConfirmAssetReceipt: boolean;
@@ -97,6 +108,8 @@ export class ClearingEngine {
     this.#adapters = options.adapters;
     this.#rates = options.rates;
     this.#fees = options.fees;
+    this.#depositAddresses = options.depositAddresses;
+    this.#depositDeriver = options.depositDeriver;
     this.#clock = options.clock;
     this.#events = options.events ?? noopEventPublisher;
     this.#autoConfirmAssetReceipt = options.autoConfirmAssetReceipt ?? false;
@@ -331,21 +344,91 @@ export class ClearingEngine {
       );
     }
 
+    const deposit = await this.#lockDeposit(transaction, now);
+
     return this.#apply(
       transition(
         transaction,
         "PRICE_LOCKED",
         now,
-        { rate: lockRate(quote, now), settlementAmount, fee, netAmount },
+        {
+          rate: lockRate(quote, now),
+          settlementAmount,
+          fee,
+          netAmount,
+          ...(deposit === undefined ? {} : { deposit }),
+        },
         {
           rate: quote.minorUnitsPerWholeUnit.toString(),
           rateSource: quote.source,
           settlementAmount: serializeMoney(settlementAmount),
           fee: serializeMoney(fee),
           netAmount: serializeMoney(netAmount),
+          ...(deposit === undefined
+            ? {}
+            : {
+                depositAddress: deposit.address,
+                depositChain: deposit.chain,
+                depositAmount: serializeMoney(deposit.amount),
+              }),
         },
       ),
     );
+  }
+
+  /**
+   * Quotes what the payer must send and allocates the address to send it to.
+   *
+   * Both are side effects that run before the state is persisted, matching the
+   * engine's ordering rule: `allocate` is idempotent, so a crash between here
+   * and the write means the resumed step re-derives the same address.
+   */
+  async #lockDeposit(
+    transaction: ClearingTransaction,
+    now: Date,
+  ): Promise<ClearingDeposit | undefined> {
+    const intent = await this.#intents.getById(transaction.paymentIntentId);
+    const rail = intent.payment;
+    if (rail === undefined) return undefined;
+
+    const repository = this.#depositAddresses;
+    const deriver = this.#depositDeriver;
+    if (repository === undefined || deriver === undefined) {
+      throw new ConfigurationError(
+        `Payment intent ${intent.id} requests an on-chain rail but this deployment has no chain layer`,
+        { paymentIntentId: intent.id, chain: rail.chain, asset: rail.asset },
+      );
+    }
+
+    const quote = await this.#rates.quote(
+      transaction.sourceAmount.asset,
+      rail.asset,
+      transaction.sourceAmount,
+    );
+    const amount = convert(transaction.sourceAmount, rail.asset, quote.minorUnitsPerWholeUnit);
+
+    if (!isPositive(amount)) {
+      throw new ValidationError("Deposit amount must be greater than zero", {
+        amount: amount.amount.toString(),
+        asset: amount.asset,
+      });
+    }
+
+    const allocated = await repository.allocate({
+      clearingTransactionId: transaction.id,
+      chain: rail.chain,
+      asset: rail.asset,
+      deriver,
+      now,
+    });
+
+    return {
+      asset: rail.asset,
+      chain: rail.chain,
+      address: allocated.address,
+      amount,
+      rate: lockRate(quote, now),
+    };
   }
 
   /** Hands the payout to the settlement adapter. */
