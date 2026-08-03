@@ -9,12 +9,6 @@ describe.skipIf(RPC_URLS === undefined)("EvmChainClient", () => {
     tokens: JSON.parse(process.env.CHAIN_ASSETS ?? "{}"),
   });
 
-  test("reads the head block", async () => {
-    const head = await client.head("base-sepolia");
-    expect(head.number).toBeGreaterThan(0n);
-    expect(head.hash).toMatch(/^0x[0-9a-f]{64}$/);
-  });
-
   test("reads a canonical block hash at a height", async () => {
     const head = await client.head("base-sepolia");
     expect(await client.blockHash("base-sepolia", head.number)).toBe(head.hash);

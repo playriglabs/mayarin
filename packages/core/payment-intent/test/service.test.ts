@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { InMemoryPaymentIntentRepository } from "@mayarin/db/memory";
 import { FixedClock, money, ValidationError } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
-import { PaymentIntentService, type PaymentRail } from "../src/service.ts";
+import { PaymentIntentService } from "../src/service.ts";
+import type { PaymentRail } from "../src/types.ts";
 
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 
