@@ -1,0 +1,16 @@
+{
+  "name": "@mayarin/provider-stablecoin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/settlement": "workspace:*",
+    "@mayarin/shared": "workspace:*"
+  }
+}
