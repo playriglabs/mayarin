@@ -70,6 +70,24 @@ export function settledPosting(transaction: ClearingTransaction): DraftTransacti
   };
 }
 
+/**
+ * Settled posting for an _internal_ settlement (a stablecoin credit the merchant
+ * holds with Mayarin). The in-flight value moves to a merchant holding
+ * liability — withdrawable on-chain in Phase 4 — instead of back to treasury.
+ * Shares the `SETTLED` idempotency key with `settledPosting`: exactly one of the
+ * two ever runs per transaction, so a resume replays the same posting as a no-op.
+ */
+export function internalSettledPosting(transaction: ClearingTransaction): DraftTransaction {
+  const { netAmount } = requirePricedAmounts(transaction);
+
+  return {
+    description: `Settled payment ${transaction.paymentIntentId} via ${transaction.provider} (internal)`,
+    reference: transaction.id,
+    idempotencyKey: postingIdempotencyKey(transaction, "SETTLED"),
+    entries: [debit("SETTLEMENT_IN_FLIGHT", netAmount), credit("MERCHANT_HOLDING", netAmount)],
+  };
+}
+
 interface PricedAmounts {
   readonly settlementAmount: Money;
   readonly fee: Money;
