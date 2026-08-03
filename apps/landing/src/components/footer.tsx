@@ -41,7 +41,7 @@ export function Footer() {
             <p class="max-w-[34ch] text-sm leading-[1.7] text-slate">
               Programmable clearing infrastructure. Move value, not complexity.
             </p>
-            <p class="label mt-6 text-slate">/maɪˈjɑːr/ · “My-ar”</p>
+            <p class="label mt-6 text-slate">/maɪˈjɑːrɪn/ · “My-ar”</p>
           </div>
 
           <div class="grid grid-cols-2 gap-10 sm:grid-cols-3">
