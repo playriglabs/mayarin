@@ -17,12 +17,11 @@ Establish the programmable clearing infrastructure.
 - Mock Settlement Adapter
 - Event-driven payment state machine
 
-One deliberate stand-in remains: with no wallet integration yet, nothing observes
-the payer's asset arriving on-chain. `ASSET_RECEIPT_MODE=auto` treats a payment
-as funded when it reaches `PAYMENT_PENDING`; `manual` leaves it waiting for
-`recordAssetReceived`, which is the seam Phase 2's wallet watcher plugs into.
-Prices are locked against a configured table until the Liquidity Router replaces
-it with real-time price discovery.
+One deliberate stand-in remains: prices are locked against a configured table
+until the Liquidity Router replaces it with real-time price discovery. The
+wallet watcher Phase 1 left as a seam now exists — see
+[Chain Layer](./chain.md) — so a payment waits for the payer's asset to arrive
+rather than being treated as funded at `PAYMENT_PENDING`.
 
 ---
 
@@ -32,13 +31,13 @@ Introduce blockchain-native payment capabilities.
 
 ### Blockchain
 
-- EVM Wallet Integration
-- Wallet Watcher
-- Asset Receipt Detection
-- Per-intent Deposit Addresses
-- Confirmation Depth & Reorg Policy
-- Liquidity Router
-- Settlement Engine
+- ✓ EVM Wallet Integration
+- ✓ Wallet Watcher
+- ✓ Asset Receipt Detection
+- ✓ Per-intent Deposit Addresses
+- ✓ Confirmation Depth & Reorg Policy
+- · Liquidity Router
+- · Settlement Engine
 
 An exchange withdrawal carries no memo and no calldata, so nothing in the
 transfer itself says which payment it belongs to. Deriving a deposit address per

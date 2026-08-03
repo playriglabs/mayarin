@@ -56,6 +56,8 @@ Value moves through the layers in this order, and the package tree mirrors it:
 ```
 QR Parser → Payment Intent → Liquidity Router (Phase 2) → Clearing Engine
           → Double Entry Ledger → Settlement Adapter → merchant paid
+
+                Chain Layer (Phase 2A) → drives ASSET_RECEIVED via recordAssetReceived
 ```
 
 **Ports and adapters is the load-bearing constraint.** Every package in `packages/core/*` defines
@@ -64,7 +66,10 @@ settlement provider. Drizzle and in-memory implementations live in `packages/db`
 outside `core`, which is what lets a domain package be tested and swapped without a database.
 `apps/api/src/container.ts` is the composition root: the only file that knows which concrete
 adapters this deployment runs. Adding a dependency from `core` to a concrete adapter breaks the
-property the whole layout exists to protect.
+property the whole layout exists to protect. The chain layer follows the same rule one-way:
+`packages/core/chain` knows the clearing engine's `recordAssetReceived` seam only as an injected
+sink, so it never imports `@mayarin/clearing`; `packages/providers/evm` holds the viem
+`ChainClient` and HD deposit-address deriver, outside `core`.
 
 **`packages/core/clearing` is the centre.** A nine-state machine —
 `CREATED → QR_PARSED → PRICE_LOCKED → PAYMENT_PENDING → ASSET_RECEIVED → CLEARING → SETTLING →
@@ -101,15 +106,18 @@ unbalanced one raises `LedgerImbalanceError`. Chart of accounts is in
 **A webhook is a signal, not truth.** It wakes the clearing engine, which then asks the adapter for
 the authoritative status — so a spoofed or replayed webhook cannot settle a payment on its own.
 
-### Phase 1 stand-ins
+### Phase 2 stand-ins
 
-Two seams exist specifically so Phase 2 can plug in without redesign. Do not "fix" them in place:
+One seam remains so Phase 2's later subsystems can plug in without redesign. Do not "fix" it in place:
 
-- No wallet watcher yet, so nothing observes the payer's asset arriving on-chain.
-  `ASSET_RECEIPT_MODE=auto` treats a payment as funded on reaching `PAYMENT_PENDING`; `manual` waits
-  for `recordAssetReceived`, which is the call the watcher will make.
 - Prices are locked against the static `EXCHANGE_RATES` table through the same `RateProvider` port
-  the liquidity router will implement.
+  the Liquidity Router will implement.
+
+The wallet watcher Phase 1 left as a seam now exists (`packages/core/chain` +
+`packages/providers/evm`), so a payment waits for the payer's asset to arrive on
+a per-intent deposit address rather than being treated as funded at
+`PAYMENT_PENDING`. `ASSET_RECEIPT_MODE=auto` is now a boot failure when the
+chain layer is enabled. See `docs/chain.md`.
 
 ## Conventions
 

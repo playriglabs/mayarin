@@ -54,6 +54,40 @@ DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages
 
 ---
 
+## Chain Layer
+
+The chain layer is off by default — an existing deployment boots unchanged. To
+watch a chain, enable it and point it at an RPC. Base Sepolia is the
+out-of-the-box target:
+
+```bash
+CHAIN_ENABLED=true
+ASSET_RECEIPT_MODE=manual
+DEPOSIT_XPUB=xpub6...                       # watch-only BIP-32/44 account xpub
+CHAIN_RPC_URLS={"base-sepolia":"https://sepolia.base.org"}
+CHAIN_ASSETS={"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}
+CHAIN_CONFIRMATIONS={"base-sepolia":6}
+CHAIN_START_BLOCKS={"base-sepolia":"0"}
+WATCHER_INTERVAL_MS=15000
+ADMIN_TOKEN=...
+```
+
+`ASSET_RECEIPT_MODE` must be `manual` once the layer is on; `auto` alongside a
+live watcher would fund payments nobody paid, and the config rejects it at boot.
+With the timer running, the watcher scans each configured `(chain, asset)` pair
+every `WATCHER_INTERVAL_MS`. `WATCHER_INTERVAL_MS=0` disables the timer and
+leaves only the admin trigger:
+
+```bash
+curl -X POST localhost:3000/admin/watcher/tick -H "authorization: Bearer $ADMIN_TOKEN"
+```
+
+Every variable is optional and validated at boot the way `EXCHANGE_RATES` is, so
+a half-configured layer fails to start rather than failing on its first payment.
+See [Chain Layer](./chain.md) for what the watcher does and why.
+
+---
+
 ---
 
 ## Tooling
@@ -105,6 +139,7 @@ formatters, with format-on-save and import organisation wired to Biome.
 ## Related
 
 - [Architecture](./architecture.md)
+- [Chain Layer](./chain.md)
 - [REST API](./api.md)
 
 [← Documentation index](./README.md)

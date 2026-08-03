@@ -65,11 +65,31 @@ Where the engine waits
 | `PAYMENT_PENDING` | the payer's asset to arrive | `recordAssetReceived` (Phase 2: wallet watcher) |
 | `SETTLING`        | the payment rail to confirm | provider webhook, or `resume`                   |
 
+### Three assets, two rate locks
+
+A payment intent carries three assets, not two: the `sourceAmount` the merchant
+quoted, the `settlementAsset` the merchant is paid, and — when the payer pays
+on-chain — the payer's asset on its chain (`payment: { asset, chain }`). At
+`PRICE_LOCKED` the engine quotes twice off the same `sourceAmount`, locking both
+rates in the same step so neither the payer's quote nor the merchant's payout can
+drift mid-payment:
+
+```
+sourceAmount ──quote→settlement──> settlementAmount, fee, netAmount
+             └─quote→payment─────> deposit.amount
+```
+
+When the payer sends the asset the merchant settles in, the two quotes coincide
+and the Liquidity Router has nothing to convert. See [Chain Layer](./chain.md)
+for the deposit addresses and confirmation policy that turn the second quote into
+a received amount.
+
 ---
 
 ## Related
 
 - [Payment Intent](./payment-intent.md)
+- [Chain Layer](./chain.md)
 - [Double Entry Ledger](./ledger.md)
 - [Settlement](./settlement.md)
 

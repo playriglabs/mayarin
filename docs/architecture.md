@@ -221,19 +221,21 @@ packages/
       ✓ payment-intent/   immutable intents and their lifecycle
       ✓ qr-parser/        EMVCo TLV decoder + QRIS profile
       ✓ settlement/       SettlementAdapter port and registry
+      ✓ chain/           chain ports, deposit types, confirmation policy, watcher
       · qr-generator/     Phase 3 EMVCo/QRIS + crypto address QR encoding
       · merchant/         Phase 3 merchants, invoices, payment links
       · routing/          Phase 4 smart routing
 
     blockchain/           Phase 2
 
-      · evm/
-      · wallet/            watcher, deposit-address derivation, receipt detection
+      ✓ evm/             viem chain client and HD deposit-address deriver
+      · wallet/            custody, sweeping (Phase 2D Settlement Engine)
       · contracts/
 
     providers/
 
       ✓ mock/
+      ✓ evm/             viem ChainClient and HdDepositAddressDeriver
       · qris/             Phase 4
       · bank/             Phase 4
       · paynow/           Phase 4
@@ -256,6 +258,12 @@ Two packages are not in the original layout:
 - **`db`** — the domain packages define repository _ports_; their Drizzle and
   in-memory implementations live here. Keeping them out of `core` is what lets a
   domain package be tested, and swapped, without a database.
+
+The chain layer respects the same boundary one-way: `packages/core/chain` knows
+the clearing engine's seam (`recordAssetReceived`) only as an injected sink, so
+it never imports `@mayarin/clearing`. The composition root in `apps/api` is the
+only place that wires a real `WalletWatcher` to the engine, feeding each funded
+intent back through that sink. See [Chain Layer](./chain.md).
 
 Note that `apps/docs/` above is a future documentation _site_, and is not the
 same thing as the repository's `docs/` directory — the Markdown you are reading
@@ -335,6 +343,7 @@ of persisted state.
 
 ## Related
 
+- [Chain Layer](./chain.md)
 - [Clearing Engine](./clearing-engine.md)
 - [Double Entry Ledger](./ledger.md)
 - [Development](./development.md)
