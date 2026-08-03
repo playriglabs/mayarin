@@ -15,7 +15,7 @@
  */
 
 import { type AssetCode, assetDecimals, ConfigurationError, type Money } from "@mayarin/shared";
-import { rateKey } from "./rate.ts";
+import { type RateProvider, type RateQuote, rateKey } from "./rate.ts";
 
 /** A priced conversion of `from` into `to`. */
 export interface PriceQuote {
@@ -152,5 +152,48 @@ export class ConstantProductPriceSource implements PriceSource {
     const minorUnitsPerWholeUnit = (amountOutMinor * scaleFrom) / amountInMinor;
 
     return { from, to, minorUnitsPerWholeUnit, source: this.#source };
+  }
+}
+
+export interface LiquidityRouterOptions {
+  readonly source: PriceSource;
+}
+
+/**
+ * Liquidity router: a `RateProvider` that prices cross-asset quotes through a
+ * pluggable `PriceSource`. Same-asset quotes are the identity rate
+ * (`10^decimals(to)` minor units of `to` per whole unit of `from`) and never
+ * reach the source — one whole unit of X is one whole unit of X regardless of
+ * source. Cross-asset quotes delegate to `source.price` and lift the
+ * `PriceQuote` into a `RateQuote`; the shapes already match.
+ *
+ * Swapping `StaticRateProvider` for `LiquidityRouter` is a one-line change in
+ * the composition root; the clearing engine, `#lockPrice`, `#lockDeposit`, and
+ * `lockRate` do not change.
+ */
+export class LiquidityRouter implements RateProvider {
+  readonly #source: PriceSource;
+
+  constructor(options: LiquidityRouterOptions) {
+    this.#source = options.source;
+  }
+
+  async quote(from: AssetCode, to: AssetCode, amount: Money): Promise<RateQuote> {
+    if (from === to) {
+      return {
+        from,
+        to,
+        minorUnitsPerWholeUnit: 10n ** BigInt(assetDecimals(to)),
+        source: "identity",
+      };
+    }
+    const priced = await this.#source.price(from, to, amount);
+    return {
+      from: priced.from,
+      to: priced.to,
+      minorUnitsPerWholeUnit: priced.minorUnitsPerWholeUnit,
+      source: priced.source,
+      ...(priced.expiresAt === undefined ? {} : { expiresAt: new Date(priced.expiresAt) }),
+    };
   }
 }

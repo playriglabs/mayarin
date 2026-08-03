@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { type AssetCode, ConfigurationError, money } from "@mayarin/shared";
+import { type AssetCode, assetDecimals, ConfigurationError, money } from "@mayarin/shared";
 import {
   ConstantProductPriceSource,
+  LiquidityRouter,
   type PriceQuote,
   type PriceSource,
   TablePriceSource,
@@ -116,6 +117,40 @@ describe("ConstantProductPriceSource", () => {
 
   test("throws on a same-asset pair — identity is the router's job", async () => {
     await expect(source.price("IDRX", "IDRX", money(100n, "IDRX"))).rejects.toBeInstanceOf(
+      ConfigurationError,
+    );
+  });
+});
+
+/** A source that throws if the router ever calls it — for same-asset tests. */
+class ThrowingSource implements PriceSource {
+  async price(from: AssetCode, to: AssetCode): Promise<PriceQuote> {
+    throw new Error(`source should not be called for ${from} -> ${to}`);
+  }
+}
+
+describe("LiquidityRouter", () => {
+  test("same-asset quote is the identity rate and never calls the source", async () => {
+    const router = new LiquidityRouter({ source: new ThrowingSource() });
+    const quote = await router.quote("USDC", "USDC", money(1_000_000n, "USDC"));
+    // one whole unit of USDC is 10^6 minor USDC
+    expect(quote.minorUnitsPerWholeUnit).toBe(10n ** BigInt(assetDecimals("USDC")));
+    expect(quote.source).toBe("identity");
+    expect(quote.from).toBe("USDC");
+    expect(quote.to).toBe("USDC");
+    expect(quote.expiresAt).toBeUndefined();
+  });
+
+  test("cross-asset quote delegates to the source and passes amount through", async () => {
+    const router = new LiquidityRouter({ source: new StubSource() });
+    const quote = await router.quote("IDRX", "USDC", money(5_000n, "IDRX"));
+    expect(quote.minorUnitsPerWholeUnit).toBe(100n);
+    expect(quote.source).toBe("stub");
+  });
+
+  test("surfaces the source's ConfigurationError for an unsupported pair", async () => {
+    const router = new LiquidityRouter({ source: new TablePriceSource({ "IDRX/USDC": 100n }) });
+    await expect(router.quote("USDC", "IDRX", money(1_000_000n, "USDC"))).rejects.toBeInstanceOf(
       ConfigurationError,
     );
   });
