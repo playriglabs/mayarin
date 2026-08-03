@@ -15,3 +15,6 @@ coverage/
 packages/db/migrations/
 bun.lock
 bun.lockb
+
+# Auto-generated session memory, not source.
+.remember/

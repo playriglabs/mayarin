@@ -216,7 +216,7 @@ packages/
 
     core/
 
-      ✓ clearing/         state machine, engine, fees, rate port
+      ✓ clearing/         state machine, engine, fees, rate port, liquidity router
       ✓ ledger/           double-entry accounts, entries, balances
       ✓ payment-intent/   immutable intents and their lifecycle
       ✓ qr-parser/        EMVCo TLV decoder + QRIS profile
@@ -269,8 +269,15 @@ intent back through that sink. See [Chain Layer](./chain.md).
 A [Stablecoin Registry](./stablecoin.md) holds which stablecoins a deployment
 admits and where each lives on-chain, unioning `SETTLEMENT_ASSETS` with
 `CHAIN_ASSETS`. It is the single source the watcher pairs, the intent
-admissibility check, and (later) the liquidity router and settlement engine all
-read from.
+admissibility check, and (later) the settlement engine all read from.
+
+The [Liquidity Router](./liquidity-routing.md) implements the `RateProvider`
+port the clearing engine already locks prices through, but prices cross-asset
+quotes via a pluggable `PriceSource` instead of a flat configured table. The
+composition root wires a `TablePriceSource` (the old `EXCHANGE_RATES` table) by
+default; a DEX or aggregator that implements `PriceSource` can replace it
+without touching the engine. Same-asset quotes are the identity rate and never
+reach the source. Swap execution stays Phase 4 — the router only prices.
 
 Note that `apps/docs/` above is a future documentation _site_, and is not the
 same thing as the repository's `docs/` directory — the Markdown you are reading

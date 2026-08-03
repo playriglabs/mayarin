@@ -17,11 +17,13 @@ Establish the programmable clearing infrastructure.
 - Mock Settlement Adapter
 - Event-driven payment state machine
 
-One deliberate stand-in remains: prices are locked against a configured table
-until the Liquidity Router replaces it with real-time price discovery. The
-wallet watcher Phase 1 left as a seam now exists — see
-[Chain Layer](./chain.md) — so a payment waits for the payer's asset to arrive
-rather than being treated as funded at `PAYMENT_PENDING`.
+The [Liquidity Router](./liquidity-routing.md) has replaced Phase 1's
+configured-table stand-in: it prices quotes through a pluggable price source,
+so the static table is one source among many and a DEX or aggregator can be
+wired in (Phase 4) without touching the clearing engine. The wallet watcher
+Phase 1 left as a seam now exists — see [Chain Layer](./chain.md) — so a payment
+waits for the payer's asset to arrive rather than being treated as funded at
+`PAYMENT_PENDING`.
 
 ---
 
@@ -36,7 +38,7 @@ Introduce blockchain-native payment capabilities.
 - ✓ Asset Receipt Detection
 - ✓ Per-intent Deposit Addresses
 - ✓ Confirmation Depth & Reorg Policy
-- · Liquidity Router
+- ✓ Liquidity Router
 - · Settlement Engine
 
 An exchange withdrawal carries no memo and no calldata, so nothing in the

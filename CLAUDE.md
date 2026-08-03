@@ -108,10 +108,12 @@ the authoritative status — so a spoofed or replayed webhook cannot settle a pa
 
 ### Phase 2 stand-ins
 
-One seam remains so Phase 2's later subsystems can plug in without redesign. Do not "fix" it in place:
-
-- Prices are locked against the static `EXCHANGE_RATES` table through the same `RateProvider` port
-  the Liquidity Router will implement.
+The `RateProvider` port was the seam Phase 2C plugged into without redesign: the
+`LiquidityRouter` now implements it, pricing cross-asset quotes through a
+pluggable `PriceSource` (`packages/core/clearing/src/liquidity.ts`) instead of
+the static `EXCHANGE_RATES` table. The table is still the wired default (via
+`TablePriceSource`); a DEX/aggregator `PriceSource` replaces it in Phase 4. Do
+not "fix" the port in place — swap the source.
 
 The wallet watcher Phase 1 left as a seam now exists (`packages/core/chain` +
 `packages/providers/evm`), so a payment waits for the payer's asset to arrive on

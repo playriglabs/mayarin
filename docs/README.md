@@ -25,17 +25,17 @@ understand why any of it exists.
 Each of Mayarin's components is documented on its own page, in the order value
 moves through them.
 
-| Component                                     | Responsibility                                                     |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| [Money](./money.md)                           | Exact amounts and the asset registry every component shares        |
-| [QR Parser](./qr-parser.md)                   | Decoding payment payloads into a normalized shape                  |
-| [Payment Intent](./payment-intent.md)         | Immutable payment requests and their lifecycle                     |
-| [Chain Layer](./chain.md)                     | Per-intent deposit addresses, the wallet watcher, and reorg policy |
-| [Stablecoin Registry](./stablecoin.md)        | The admissible stablecoins and their on-chain identities           |
-| [Liquidity & Routing](./liquidity-routing.md) | Converting assets into the settlement asset _(planned)_            |
-| [Clearing Engine](./clearing-engine.md)       | The state machine every payment passes through                     |
-| [Double Entry Ledger](./ledger.md)            | Recording every movement of value                                  |
-| [Settlement](./settlement.md)                 | Handing value to a payment rail                                    |
+| Component                                     | Responsibility                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| [Money](./money.md)                           | Exact amounts and the asset registry every component shares              |
+| [QR Parser](./qr-parser.md)                   | Decoding payment payloads into a normalized shape                        |
+| [Payment Intent](./payment-intent.md)         | Immutable payment requests and their lifecycle                           |
+| [Chain Layer](./chain.md)                     | Per-intent deposit addresses, the wallet watcher, and reorg policy       |
+| [Stablecoin Registry](./stablecoin.md)        | The admissible stablecoins and their on-chain identities                 |
+| [Liquidity & Routing](./liquidity-routing.md) | Converting assets into the settlement asset via a pluggable price source |
+| [Clearing Engine](./clearing-engine.md)       | The state machine every payment passes through                           |
+| [Double Entry Ledger](./ledger.md)            | Recording every movement of value                                        |
+| [Settlement](./settlement.md)                 | Handing value to a payment rail                                          |
 
 ---
 
