@@ -16,8 +16,15 @@ pre-commit:
       stage_fixed: true
 
     # Prettier owns Markdown and YAML, which Biome does not format.
+    #
+    # .claude/skills holds symlinks to the real files under .agent/skills.
+    # Prettier hard-errors on a symlink passed by path — only on an explicit
+    # path, not through a glob — so the links are excluded here and the files
+    # they point at are formatted where they actually live.
     - name: prettier
       glob: "*.{md,yml,yaml}"
+      exclude:
+        - ".claude/skills/**"
       run: bunx prettier --write --ignore-unknown {staged_files}
       stage_fixed: true
 

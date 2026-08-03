@@ -1,0 +1,1 @@
+../../../.agent/skills/functional-programming.md

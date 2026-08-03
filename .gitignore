@@ -17,5 +17,11 @@ coverage/
 !.vscode/settings.json
 !.vscode/extensions.json
 
+# Same rule for agents: the shared skills are versioned, the local plugin and
+# permission choices are not.
+.claude/*
+!.claude/skills/
+.claude/settings.local.json
+
 .bun/
 bun.lockb.bak
