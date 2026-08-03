@@ -16,14 +16,17 @@ Cross-asset postings are allowed; each asset must balance on its own.
 Chart of accounts — created on demand per asset, so a new settlement asset needs
 no migration:
 
-| Account                        | Type      | Holds                                         |
-| ------------------------------ | --------- | --------------------------------------------- |
-| `TREASURY:<asset>`             | Asset     | Settlement assets Mayarin holds               |
-| `MERCHANT_PAYABLE:<asset>`     | Liability | Cleared value owed to merchants               |
-| `SETTLEMENT_IN_FLIGHT:<asset>` | Liability | Value handed to a rail, awaiting confirmation |
-| `FEE_REVENUE:<asset>`          | Revenue   | Clearing fees retained by Mayarin             |
+| Account                        | Type      | Holds                                                |
+| ------------------------------ | --------- | ---------------------------------------------------- |
+| `TREASURY:<asset>`             | Asset     | Settlement assets Mayarin holds                      |
+| `MERCHANT_PAYABLE:<asset>`     | Liability | Cleared value owed to merchants                      |
+| `SETTLEMENT_IN_FLIGHT:<asset>` | Liability | Value handed to a rail, awaiting confirmation        |
+| `MERCHANT_HOLDING:<asset>`     | Liability | Stablecoin balances credited to merchants (Phase 2D) |
+| `FEE_REVENUE:<asset>`          | Revenue   | Clearing fees retained by Mayarin                    |
 
-Three postings describe a payment end to end:
+Three postings describe a payment end to end. The first two are the same for
+every settlement; the SETTLED posting depends on whether the rail takes value
+_out_ of Mayarin (`external`) or keeps it _in_ as a merchant balance (`internal`):
 
 ```
 ASSET_RECEIVED   Dr TREASURY               settlement amount
@@ -33,12 +36,19 @@ ASSET_RECEIVED   Dr TREASURY               settlement amount
 CLEARING         Dr MERCHANT_PAYABLE       net
                  Cr SETTLEMENT_IN_FLIGHT   net
 
-SETTLED          Dr SETTLEMENT_IN_FLIGHT   net
-                 Cr TREASURY               net
+SETTLED (external)   Dr SETTLEMENT_IN_FLIGHT   net
+                     Cr TREASURY               net
+
+SETTLED (internal)   Dr SETTLEMENT_IN_FLIGHT   net
+                     Cr MERCHANT_HOLDING       net
 ```
 
 Net effect: treasury keeps the fee, the merchant's claim is extinguished only
 once the rail confirms delivery, and value in flight is visible at all times.
+An external settlement returns the net to treasury (the rail paid the merchant
+outside Mayarin); an internal settlement credits the net to a merchant holding
+liability the merchant can withdraw on-chain in Phase 4, so treasury retains the
+full settlement amount.
 
 ---
 

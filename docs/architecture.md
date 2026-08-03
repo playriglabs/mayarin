@@ -220,7 +220,7 @@ packages/
       ✓ ledger/           double-entry accounts, entries, balances
       ✓ payment-intent/   immutable intents and their lifecycle
       ✓ qr-parser/        EMVCo TLV decoder + QRIS profile
-      ✓ settlement/       SettlementAdapter port and registry
+      ✓ settlement/       SettlementAdapter port (with mode) and registry
       ✓ chain/           chain ports, deposit types, confirmation policy, watcher
       ✓ stablecoin/      StablecoinRegistry port and value types — the admissible set
       · qr-generator/     Phase 3 EMVCo/QRIS + crypto address QR encoding
@@ -278,6 +278,15 @@ composition root wires a `TablePriceSource` (the old `EXCHANGE_RATES` table) by
 default; a DEX or aggregator that implements `PriceSource` can replace it
 without touching the engine. Same-asset quotes are the identity rate and never
 reach the source. Swap execution stays Phase 4 — the router only prices.
+
+The [Settlement Engine](./settlement.md) settles a payment through a
+`SettlementAdapter` whose `mode` says whether value leaves Mayarin
+(`"external"` — the engine credits `TREASURY` back once the rail confirms) or
+stays as a merchant balance (`"internal"` — the engine credits
+`MERCHANT_HOLDING`, a liability the merchant withdraws on-chain in Phase 4). The
+`StablecoinSettlementAdapter` is the internal rail: pure, synchronous, no
+signing — Mayarin watches, it does not sign. A direct-EVM payout is Phase 4 and
+is just another external adapter.
 
 Note that `apps/docs/` above is a future documentation _site_, and is not the
 same thing as the repository's `docs/` directory — the Markdown you are reading

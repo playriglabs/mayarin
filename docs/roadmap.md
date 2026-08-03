@@ -39,7 +39,7 @@ Introduce blockchain-native payment capabilities.
 - ✓ Per-intent Deposit Addresses
 - ✓ Confirmation Depth & Reorg Policy
 - ✓ Liquidity Router
-- · Settlement Engine
+- ✓ Settlement Engine
 
 An exchange withdrawal carries no memo and no calldata, so nothing in the
 transfer itself says which payment it belongs to. Deriving a deposit address per

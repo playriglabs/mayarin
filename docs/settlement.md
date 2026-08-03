@@ -40,9 +40,13 @@ Settlement Adapter
 Provider abstraction.
 
 ```ts
+type SettlementMode = "external" | "internal";
+
 interface SettlementAdapter {
   /** Registry key, also the `:provider` segment of the webhook route. */
   readonly name: string;
+  /** Whether value leaves Mayarin (`external`) or stays as a merchant balance (`internal`). */
+  readonly mode: SettlementMode;
 
   settle(request: SettlementRequest): Promise<SettlementResult>;
 
@@ -67,10 +71,44 @@ A webhook is treated as a _signal_, not as truth. It wakes the clearing engine,
 which then asks the adapter for the authoritative status — so a spoofed or
 replayed webhook cannot settle a payment on its own.
 
+### External vs internal
+
+`mode` tells the clearing engine which `SETTLED` posting to make:
+
+- **`external`** — the rail takes value _out_ of Mayarin (a QRIS payout, a bank
+  transfer, a direct on-chain transfer to the merchant's wallet). Once the rail
+  confirms delivery, the engine credits the in-flight value back to `TREASURY`.
+  The mock rail and a future direct-EVM payout are both external.
+- **`internal`** — the rail keeps value _in_ Mayarin as a merchant balance. The
+  engine credits the in-flight value to `MERCHANT_HOLDING` (a liability), which
+  the merchant can withdraw on-chain in Phase 4. The stablecoin adapter is
+  internal.
+
+The engine branches on `adapter.mode`, not on a concrete class — `mode` is a
+port-level fact, so recognizing it never couples the engine to an adapter
+implementation.
+
+### Stablecoin adapter — watch-only payout
+
+The `StablecoinSettlementAdapter` (`packages/providers/stablecoin`) is the
+internal rail. It holds no `LedgerService` and signs nothing: it records the
+settlement idempotently and reports `SUCCEEDED` synchronously, because an
+internal ledger credit is deterministic. The engine posts the
+`MERCHANT_HOLDING` credit. No private key is loaded and no on-chain transaction
+is signed — the merchant's stablecoin balance is an accounting entry until
+Phase 4 signs a withdrawal. This is the same watch-only posture as the chain
+layer: Mayarin watches, it does not sign.
+
+A real on-chain payout to the merchant's wallet is Phase 4 and uses the same
+`SettlementAdapter` port with `mode: "external"` — a direct-EVM transfer is just
+another external rail.
+
 Possible adapters
 
 ```
-Mock
+Mock (external)
+
+Stablecoin (internal)
 
 QRIS
 
@@ -82,7 +120,7 @@ PromptPay
 
 DuitNow
 
-Direct EVM
+Direct EVM (external)
 
 Tempo
 
