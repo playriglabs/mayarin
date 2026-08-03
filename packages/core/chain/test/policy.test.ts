@@ -82,6 +82,19 @@ describe("classifyDeposit", () => {
       }),
     ).toBe("ORPHANED");
   });
+
+  test("a confirmed deposit is not unwound by a missing canonical hash", () => {
+    expect(
+      classifyDeposit({
+        current: "CONFIRMED",
+        blockNumber: 95n,
+        blockHash: "0xaa",
+        headNumber: 100n,
+        canonicalHash: undefined,
+        policy,
+      }),
+    ).toBe("CONFIRMED");
+  });
 });
 
 describe("isWithinReorgWatch", () => {

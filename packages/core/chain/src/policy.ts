@@ -48,8 +48,10 @@ export function classifyDeposit(input: ClassifyDepositInput): DepositStatus {
 
   // No hash to compare against means the chain has not reached that height yet
   // — during a deep reorg the head can briefly sit below a known deposit. That
-  // is not evidence of an orphan, so hold at PENDING.
-  if (input.canonicalHash === undefined) return "PENDING";
+  // is not evidence of an orphan, so hold at the current status: CONFIRMED is
+  // the finality line, and a lagging or reorged RPC must not unwind it back to
+  // PENDING on missing evidence alone.
+  if (input.canonicalHash === undefined) return input.current;
 
   if (input.canonicalHash !== input.blockHash) return "ORPHANED";
 
