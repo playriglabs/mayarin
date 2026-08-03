@@ -6,6 +6,7 @@
  * test that passes here is not passing for the wrong reason.
  */
 
+export * from "./chain.ts";
 export * from "./clearing.ts";
 export * from "./ledger.ts";
 export * from "./payment-intent.ts";

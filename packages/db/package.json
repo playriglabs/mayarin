@@ -14,6 +14,7 @@
     "migrate": "bun run src/migrate.ts"
   },
   "dependencies": {
+    "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
     "@mayarin/ledger": "workspace:*",
     "@mayarin/payment-intent": "workspace:*",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@mayarin/provider-mock": "workspace:*",
+    "@mayarin/provider-mock-chain": "workspace:*",
     "@mayarin/settlement": "workspace:*",
     "drizzle-kit": "^0.30.1"
   }
