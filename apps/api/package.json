@@ -16,6 +16,7 @@
     "@mayarin/payment-intent": "workspace:*",
     "@mayarin/provider-evm": "workspace:*",
     "@mayarin/provider-mock": "workspace:*",
+    "@mayarin/provider-stablecoin": "workspace:*",
     "@mayarin/qr-parser": "workspace:*",
     "@mayarin/settlement": "workspace:*",
     "@mayarin/stablecoin": "workspace:*",

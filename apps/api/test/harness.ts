@@ -20,6 +20,7 @@ import {
 import { LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
+import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
@@ -58,7 +59,10 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     behaviour: options.behaviour ?? "succeed",
     webhookSecret: WEBHOOK_SECRET,
   });
-  const adapters = new SettlementAdapterRegistry([adapter]);
+  const adapters = new SettlementAdapterRegistry([
+    adapter,
+    new StablecoinSettlementAdapter({ clock }),
+  ]);
   const registry = new InMemoryStablecoinRegistry(config.stablecoins);
 
   const intents = new PaymentIntentService({

@@ -27,6 +27,7 @@ import { LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { EvmChainClient, HdDepositAddressDeriver } from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
+import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import {
   type AssetCode,
@@ -108,6 +109,7 @@ export function createContainer({
         ? {}
         : { webhookSecret: config.mockWebhookSecret }),
     }),
+    new StablecoinSettlementAdapter({ clock }),
   ]);
 
   const engine = new ClearingEngine({

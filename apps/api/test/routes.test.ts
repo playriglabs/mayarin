@@ -142,6 +142,34 @@ describe("POST /payment-intents/:id/confirm", () => {
     expect((await harness.ledger.balance("TREASURY", "IDRX")).balance.amount).toBe(25_000n);
   });
 
+  test("settles internally via the stablecoin adapter, crediting a merchant holding", async () => {
+    const harness = createApiHarness();
+    const created = await harness.request("POST", "/payment-intents", {
+      body: {
+        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        amount: { amount: "50000.00", asset: "IDR" },
+        settlementAsset: "IDRX",
+        provider: "stablecoin",
+      },
+    });
+
+    const { status, body } = await harness.request(
+      "POST",
+      `/payment-intents/${created.body.paymentIntent.id}/confirm`,
+    );
+
+    expect(status).toBe(200);
+    expect(body.clearing.state).toBe("SUCCESS");
+    expect(body.clearing.provider).toBe("stablecoin");
+    // Treasury keeps the full settlement amount; the net is owed to the merchant
+    // as an internal holding, not returned to treasury.
+    expect((await harness.ledger.balance("TREASURY", "IDRX")).balance.amount).toBe(5_000_000n);
+    expect((await harness.ledger.balance("MERCHANT_HOLDING", "IDRX")).balance.amount).toBe(
+      4_975_000n,
+    );
+    expect((await harness.ledger.balance("SETTLEMENT_IN_FLIGHT", "IDRX")).balance.amount).toBe(0n);
+  });
+
   test("404s for an unknown intent", async () => {
     const harness = createApiHarness();
     const { status, body } = await harness.request(
@@ -264,7 +292,11 @@ describe("GET /health", () => {
     const { status, body } = await harness.request("GET", "/health");
 
     expect(status).toBe(200);
-    expect(body).toEqual({ status: "ok", settlementAsset: "IDRX", providers: ["mock"] });
+    expect(body).toEqual({
+      status: "ok",
+      settlementAsset: "IDRX",
+      providers: ["mock", "stablecoin"],
+    });
   });
 });
 
