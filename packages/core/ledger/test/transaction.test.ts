@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { LedgerImbalanceError, money, ValidationError } from "@mayarin/shared";
-import { accountCode, parseAccountCode } from "../src/accounts.ts";
+import {
+  ACCOUNT_KIND_LIST,
+  ACCOUNT_KINDS,
+  accountCode,
+  accountName,
+  parseAccountCode,
+} from "../src/accounts.ts";
 import { computeBalance } from "../src/balance.ts";
 import { assertBalanced, buildTransaction, totalsByAsset } from "../src/transaction.ts";
 import type { DraftEntry, LedgerAccount } from "../src/types.ts";
@@ -48,6 +54,24 @@ describe("accountCode", () => {
   test("rejects unknown kinds and assets", () => {
     expect(() => parseAccountCode("NOPE:IDRX")).toThrow(/account kind/);
     expect(() => parseAccountCode("TREASURY:XYZ")).toThrow(/asset/);
+  });
+});
+
+describe("MERCHANT_HOLDING account kind", () => {
+  test("is declared as a liability", () => {
+    expect(ACCOUNT_KINDS.MERCHANT_HOLDING.type).toBe("LIABILITY");
+    expect(ACCOUNT_KIND_LIST).toContain("MERCHANT_HOLDING");
+  });
+
+  test("round-trips through parseAccountCode", () => {
+    const parsed = parseAccountCode("MERCHANT_HOLDING:USDC");
+    expect(parsed.kind).toBe("MERCHANT_HOLDING");
+    expect(parsed.asset).toBe("USDC");
+    expect(parsed.definition.type).toBe("LIABILITY");
+  });
+
+  test("accountName includes the asset", () => {
+    expect(accountName("MERCHANT_HOLDING", "USDC")).toBe("Merchant holding (USDC)");
   });
 });
 

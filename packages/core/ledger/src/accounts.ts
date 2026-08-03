@@ -41,6 +41,13 @@ export const ACCOUNT_KINDS = {
     name: "Fee revenue",
     description: "Clearing fees retained by Mayarin.",
   },
+  /** Stablecoin balances credited to merchants, withdrawable on-chain in Phase 4. */
+  MERCHANT_HOLDING: {
+    type: "LIABILITY",
+    name: "Merchant holding",
+    description:
+      "Stablecoin balances credited to merchants by an internal settlement, withdrawable on-chain in Phase 4.",
+  },
 } as const satisfies Record<string, AccountKindDefinition>;
 
 export type AccountKind = keyof typeof ACCOUNT_KINDS;
