@@ -30,7 +30,7 @@ describe.skipIf(RPC_URLS === undefined)("EvmChainClient", () => {
     const logs = await client.transfers({
       chain: "base-sepolia",
       asset: "USDC",
-      fromBlock: head.number - 10n,
+      fromBlock: head.number - 5n,
       toBlock: head.number,
       addresses: ["0x0000000000000000000000000000000000000001"],
     });

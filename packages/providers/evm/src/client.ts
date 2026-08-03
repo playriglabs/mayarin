@@ -151,5 +151,7 @@ export class EvmChainClient implements ChainClient {
 }
 
 function isBlockNotFound(error: unknown): boolean {
-  return error instanceof Error && /block.*not found/i.test(error.message);
+  // viem's BlockNotFoundError reads "Block at number X could not be found."; some
+  // providers phrase it "block not found". Match either, case-insensitively.
+  return error instanceof Error && /block.*(?:not found|could not be found)/i.test(error.message);
 }
