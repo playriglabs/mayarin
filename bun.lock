@@ -25,6 +25,7 @@
         "@mayarin/qr-parser": "workspace:*",
         "@mayarin/settlement": "workspace:*",
         "@mayarin/shared": "workspace:*",
+        "@mayarin/stablecoin": "workspace:*",
         "hono": "^4.6.16",
         "zod": "^3.24.1",
       },
@@ -83,6 +84,14 @@
       "name": "@mayarin/settlement",
       "version": "0.1.0",
       "dependencies": {
+        "@mayarin/shared": "workspace:*",
+      },
+    },
+    "packages/core/stablecoin": {
+      "name": "@mayarin/stablecoin",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
         "@mayarin/shared": "workspace:*",
       },
     },
@@ -239,6 +248,8 @@
     "@mayarin/settlement": ["@mayarin/settlement@workspace:packages/core/settlement"],
 
     "@mayarin/shared": ["@mayarin/shared@workspace:packages/shared"],
+
+    "@mayarin/stablecoin": ["@mayarin/stablecoin@workspace:packages/core/stablecoin"],
 
     "@noble/ciphers": ["@noble/ciphers@1.3.0", "", {}, "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw=="],
 

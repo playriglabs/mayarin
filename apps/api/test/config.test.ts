@@ -63,3 +63,43 @@ describe("chain configuration", () => {
     ).toThrow(/RPC/);
   });
 });
+
+describe("stablecoin registry configuration", () => {
+  test("builds the registry from SETTLEMENT_ASSETS unioned with CHAIN_ASSETS", () => {
+    const config = loadConfig({
+      ...BASE,
+      SETTLEMENT_ASSETS: '["IDRX","USDC"]',
+      CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0xAbc"}}',
+    });
+
+    expect(config.stablecoins).toEqual([
+      { asset: "IDRX", onChain: [] },
+      { asset: "USDC", onChain: [{ chain: "base-sepolia", address: "0xabc" }] },
+    ]);
+  });
+
+  test("defaults to IDRX when nothing is configured", () => {
+    const config = loadConfig({ ...BASE });
+    expect(config.stablecoins).toEqual([{ asset: "IDRX", onChain: [] }]);
+  });
+
+  test("refuses a non-stablecoin in SETTLEMENT_ASSETS", () => {
+    expect(() => loadConfig({ ...BASE, SETTLEMENT_ASSETS: '["ETH"]' })).toThrow(/ETH/);
+  });
+
+  test("refuses an unknown asset in SETTLEMENT_ASSETS", () => {
+    expect(() => loadConfig({ ...BASE, SETTLEMENT_ASSETS: '["NOPE"]' })).toThrow(/NOPE/);
+  });
+
+  test("refuses a non-stablecoin in CHAIN_ASSETS", () => {
+    expect(() => loadConfig({ ...BASE, CHAIN_ASSETS: '{"base-sepolia":{"ETH":"0x0"}}' })).toThrow(
+      /ETH/,
+    );
+  });
+
+  test("refuses a default settlement asset outside the admitted set", () => {
+    expect(() =>
+      loadConfig({ ...BASE, SETTLEMENT_ASSETS: '["USDC"]', SETTLEMENT_ASSET: "IDRX" }),
+    ).toThrow(/SETTLEMENT_ASSET/);
+  });
+});

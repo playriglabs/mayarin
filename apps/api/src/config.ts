@@ -6,7 +6,14 @@
  */
 
 import { CHAIN_IDS, type ChainId } from "@mayarin/chain";
-import { type AssetCode, assetCodeSchema, ConfigurationError } from "@mayarin/shared";
+import {
+  type AssetCode,
+  assetCodeSchema,
+  ConfigurationError,
+  getAsset,
+  isAssetCode,
+} from "@mayarin/shared";
+import type { Stablecoin, StablecoinOnChain } from "@mayarin/stablecoin";
 import { z } from "zod";
 
 type RpcUrlMap = Partial<Record<ChainId, string>>;
@@ -36,6 +43,8 @@ const configSchema = z.object({
   port: z.coerce.number().int().positive().default(3000),
   databaseUrl: z.string().min(1),
   settlementAsset: assetCodeSchema.default("IDRX"),
+  /** Admissible settlement set, JSON array of AssetCode. Defaults to IDRX only. */
+  settlementAssets: jsonObject<string[]>("SETTLEMENT_ASSETS", '["IDRX"]'),
   feeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(50),
   defaultProvider: z.string().min(1).default("mock"),
   paymentIntentTtlSeconds: z.coerce.number().int().positive().default(900),
@@ -101,7 +110,66 @@ export interface ChainConfig {
 
 export type Config = RawConfig & {
   readonly chain?: ChainConfig;
+  readonly stablecoins: readonly Stablecoin[];
 };
+
+/**
+ * Resolves the stablecoin registry: the admitted settlement set, unioning
+ * `SETTLEMENT_ASSETS` with the assets named in `CHAIN_ASSETS`, each carrying its
+ * on-chain identities. Every check is a boot-time failure by design — a
+ * deployment that admits a non-stablecoin or a default settlement asset it does
+ * not support is a misconfiguration that must not survive to serve a payment.
+ */
+function resolveStablecoins(data: RawConfig): readonly Stablecoin[] {
+  const issues: string[] = [];
+  const admitted = new Set<AssetCode>();
+
+  for (const raw of data.settlementAssets) {
+    if (!isAssetCode(raw)) {
+      issues.push(`SETTLEMENT_ASSETS names an unknown asset "${raw}"`);
+      continue;
+    }
+    if (getAsset(raw).kind !== "stablecoin") {
+      issues.push(`SETTLEMENT_ASSETS names a non-stablecoin asset "${raw}"`);
+      continue;
+    }
+    admitted.add(raw);
+  }
+
+  const onChain = new Map<AssetCode, StablecoinOnChain[]>();
+  for (const [chain, tokens] of Object.entries(data.chainAssets)) {
+    for (const rawAsset of Object.keys(tokens ?? {})) {
+      if (!isAssetCode(rawAsset)) {
+        issues.push(`CHAIN_ASSETS names an unknown asset "${rawAsset}"`);
+        continue;
+      }
+      if (getAsset(rawAsset).kind !== "stablecoin") {
+        issues.push(`CHAIN_ASSETS names a non-stablecoin asset "${rawAsset}"`);
+        continue;
+      }
+      admitted.add(rawAsset);
+      const address = (tokens?.[rawAsset] ?? "").toLowerCase() as `0x${string}`;
+      const entries = onChain.get(rawAsset) ?? [];
+      entries.push({ chain: chain as ChainId, address });
+      onChain.set(rawAsset, entries);
+    }
+  }
+
+  if (admitted.size === 0) {
+    issues.push("no stablecoins configured: set SETTLEMENT_ASSETS or CHAIN_ASSETS");
+  }
+  if (!admitted.has(data.settlementAsset)) {
+    issues.push(`SETTLEMENT_ASSET "${data.settlementAsset}" is not in the admitted stablecoin set`);
+  }
+
+  if (issues.length > 0) {
+    throw new ConfigurationError(`Invalid stablecoin configuration: ${issues.join("; ")}`, {
+      issues,
+    });
+  }
+
+  return [...admitted].sort().map((asset) => ({ asset, onChain: onChain.get(asset) ?? [] }));
+}
 
 /**
  * Resolves the chain block, or `undefined` when the layer is off.
@@ -174,6 +242,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port: env.PORT,
     databaseUrl: env.DATABASE_URL,
     settlementAsset: env.SETTLEMENT_ASSET,
+    settlementAssets: env.SETTLEMENT_ASSETS,
     feeBasisPoints: env.FEE_BASIS_POINTS,
     defaultProvider: env.DEFAULT_SETTLEMENT_PROVIDER,
     paymentIntentTtlSeconds: env.PAYMENT_INTENT_TTL_SECONDS,
@@ -199,6 +268,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     });
   }
 
+  const stablecoins = resolveStablecoins(result.data);
   const chain = resolveChain(result.data);
-  return { ...result.data, ...(chain === undefined ? {} : { chain }) };
+  return { ...result.data, stablecoins, ...(chain === undefined ? {} : { chain }) };
 }
