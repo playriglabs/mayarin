@@ -44,7 +44,12 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import type { FeePolicy } from "./fees.ts";
-import { assetReceivedPosting, clearingPosting, settledPosting } from "./postings.ts";
+import {
+  assetReceivedPosting,
+  clearingPosting,
+  internalSettledPosting,
+  settledPosting,
+} from "./postings.ts";
 import { lockRate, type RateProvider } from "./rate.ts";
 import type { ClearingRepository } from "./repository.ts";
 import { isTerminal } from "./state-machine.ts";
@@ -462,7 +467,13 @@ export class ClearingEngine {
 
     switch (status.state) {
       case "SUCCEEDED": {
-        await this.#ledger.post(settledPosting(transaction));
+        // Internal settlements keep the value in Mayarin as a merchant holding
+        // liability; external rails return it to treasury once delivery confirms.
+        const posting =
+          adapter.mode === "internal"
+            ? internalSettledPosting(transaction)
+            : settledPosting(transaction);
+        await this.#ledger.post(posting);
         return this.#apply(
           transition(transaction, "SETTLED", this.#clock.now(), {}, { providerReference }),
         );

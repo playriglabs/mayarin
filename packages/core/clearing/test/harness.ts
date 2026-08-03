@@ -15,7 +15,7 @@ import { type AccountKind, LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService, type PaymentRail } from "@mayarin/payment-intent";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { FixedDepositAddressDeriver } from "@mayarin/provider-mock-chain";
-import { SettlementAdapterRegistry } from "@mayarin/settlement";
+import { SettlementAdapterRegistry, type SettlementMode } from "@mayarin/settlement";
 import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
 import { ClearingEngine } from "../src/engine.ts";
 import { BasisPointsFeePolicy } from "../src/fees.ts";
@@ -28,6 +28,8 @@ export interface HarnessOptions {
   readonly feeBasisPoints?: number;
   readonly autoConfirmAssetReceipt?: boolean;
   readonly webhookSecret?: string;
+  /** Settlement mode for the mock adapter. Defaults to `"external"`. */
+  readonly mode?: SettlementMode;
   /** IDR -> IDRX at 1:1 by default; both are 2-decimal. */
   readonly rates?: Readonly<Record<string, bigint>>;
 }
@@ -47,6 +49,7 @@ export function createHarness(options: HarnessOptions = {}) {
   const adapter = new MockSettlementAdapter({
     clock,
     behaviour: options.behaviour ?? "succeed",
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.webhookSecret === undefined ? {} : { webhookSecret: options.webhookSecret }),
   });
 

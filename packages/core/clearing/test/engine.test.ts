@@ -55,6 +55,20 @@ describe("clearing engine — happy path", () => {
     expect(await harness.balance("FEE_REVENUE")).toEqual(IDRX(25_000n));
     expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(IDRX(0n));
     expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(IDRX(0n));
+    expect(await harness.balance("MERCHANT_HOLDING")).toEqual(IDRX(0n));
+  });
+
+  test("an internal settlement credits the merchant holding, not treasury", async () => {
+    const harness = createHarness({ feeBasisPoints: 50, mode: "internal" });
+    await harness.engine.start(await harness.confirmedIntent());
+
+    // Treasury keeps the full settlement amount; the net is owed to the merchant
+    // as a withdrawable holding, and the in-flight claim is extinguished.
+    expect(await harness.balance("TREASURY")).toEqual(IDRX(5_000_000n));
+    expect(await harness.balance("MERCHANT_HOLDING")).toEqual(IDRX(4_975_000n));
+    expect(await harness.balance("FEE_REVENUE")).toEqual(IDRX(25_000n));
+    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(IDRX(0n));
+    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(IDRX(0n));
   });
 
   test("keeps every posting balanced", async () => {
