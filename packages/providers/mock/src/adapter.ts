@@ -13,6 +13,7 @@ import type {
   RefundRequest,
   RefundResult,
   SettlementAdapter,
+  SettlementMode,
   SettlementRequest,
   SettlementResult,
   SettlementState,
@@ -44,6 +45,7 @@ export interface MockSettlementAdapterOptions {
   /** Shared secret for webhook signature verification. Unset disables checking. */
   readonly webhookSecret?: string;
   readonly failureReason?: string;
+  readonly mode?: SettlementMode;
 }
 
 interface MockSettlement {
@@ -59,6 +61,7 @@ export const MOCK_SIGNATURE_HEADER = "x-mayarin-signature";
 
 export class MockSettlementAdapter implements SettlementAdapter {
   readonly name: string;
+  readonly mode: SettlementMode;
   readonly #clock: Clock;
   readonly #settlements = new Map<string, MockSettlement>();
   /** idempotency key -> provider reference, so a replayed settle is not a second payout. */
@@ -69,6 +72,7 @@ export class MockSettlementAdapter implements SettlementAdapter {
 
   constructor(options: MockSettlementAdapterOptions = {}) {
     this.name = options.name ?? "mock";
+    this.mode = options.mode ?? "external";
     this.#clock = options.clock ?? systemClock;
     this.#behaviour = options.behaviour ?? "succeed";
     this.#webhookSecret = options.webhookSecret;

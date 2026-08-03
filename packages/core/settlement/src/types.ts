@@ -110,8 +110,18 @@ export interface SettlementWebhookEvent {
 export interface SettlementAdapter {
   /** Registry key, also the `:provider` path segment of the webhook route. */
   readonly name: string;
+  /**
+   * Whether this rail takes value _out_ of Mayarin (`"external"` — the engine
+   * credits treasury back once the rail confirms) or keeps it _in_ Mayarin as a
+   * merchant balance (`"internal"` — the engine credits a merchant holding
+   * liability). The clearing engine branches on this at the SETTLED posting.
+   */
+  readonly mode: SettlementMode;
   settle(request: SettlementRequest): Promise<SettlementResult>;
   status(providerReference: string): Promise<SettlementStatus>;
   refund(request: RefundRequest): Promise<RefundResult>;
   webhook(context: WebhookContext): Promise<SettlementWebhookEvent | null>;
 }
+
+/** How a settlement adapter moves value at the SETTLED step. */
+export type SettlementMode = "external" | "internal";
