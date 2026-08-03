@@ -11,5 +11,9 @@
   },
   "dependencies": {
     "@mayarin/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@mayarin/db": "workspace:*",
+    "@mayarin/provider-mock-chain": "workspace:*"
   }
 }
