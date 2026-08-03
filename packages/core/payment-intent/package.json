@@ -12,6 +12,10 @@
   "dependencies": {
     "@mayarin/chain": "workspace:*",
     "@mayarin/qr-parser": "workspace:*",
-    "@mayarin/shared": "workspace:*"
+    "@mayarin/shared": "workspace:*",
+    "@mayarin/stablecoin": "workspace:*"
+  },
+  "devDependencies": {
+    "@mayarin/db": "workspace:*"
   }
 }

@@ -16,7 +16,9 @@ import {
   NotFoundError,
   noopEventPublisher,
   serializeMoney,
+  ValidationError,
 } from "@mayarin/shared";
+import type { StablecoinRegistry } from "@mayarin/stablecoin";
 import { PAYMENT_INTENT_EVENT, type PaymentIntentEventType, paymentIntentEvent } from "./events.ts";
 import {
   confirm as confirmIntent,
@@ -46,6 +48,13 @@ export interface PaymentIntentServiceOptions {
   readonly repository: PaymentIntentRepository;
   readonly clock: Clock;
   readonly events?: EventPublisher;
+  /**
+   * Admissible-asset catalog. When injected, the service rejects a settlement
+   * asset it does not admit and a payer leg that is not a deposit asset, before
+   * any state is created. Optional so unit tests of intent mechanics need not
+   * build one; the composition root always injects it.
+   */
+  readonly registry?: StablecoinRegistry;
   readonly defaults: {
     readonly settlementAsset: AssetCode;
     readonly provider: string;
@@ -57,12 +66,14 @@ export class PaymentIntentService {
   readonly #repository: PaymentIntentRepository;
   readonly #clock: Clock;
   readonly #events: EventPublisher;
+  readonly #registry: StablecoinRegistry | undefined;
   readonly #defaults: PaymentIntentServiceOptions["defaults"];
 
   constructor(options: PaymentIntentServiceOptions) {
     this.#repository = options.repository;
     this.#clock = options.clock;
     this.#events = options.events ?? noopEventPublisher;
+    this.#registry = options.registry;
     this.#defaults = options.defaults;
   }
 
@@ -76,6 +87,27 @@ export class PaymentIntentService {
   async create(command: CreatePaymentIntentCommand): Promise<PaymentIntent> {
     const settlementAsset = command.settlementAsset ?? this.#defaults.settlementAsset;
     const provider = command.provider ?? this.#defaults.provider;
+
+    if (this.#registry !== undefined) {
+      if (!(await this.#registry.isSettlementAsset(settlementAsset))) {
+        throw new ValidationError(
+          `Settlement asset ${settlementAsset} is not admitted by the stablecoin registry`,
+          {
+            settlementAsset,
+          },
+        );
+      }
+      if (command.payment !== undefined) {
+        const { asset, chain } = command.payment;
+        if (!(await this.#registry.isDepositAsset(asset, chain))) {
+          throw new ValidationError(
+            `Payer asset ${asset} on ${chain} is not a deposit asset the stablecoin registry admits`,
+            { asset, chain },
+          );
+        }
+      }
+    }
+
     const fingerprint = fingerprintOf({ ...command, settlementAsset, provider });
 
     if (command.idempotencyKey !== undefined) {
