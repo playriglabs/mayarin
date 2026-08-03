@@ -1,4 +1,6 @@
+import { isChainId } from "@mayarin/chain";
 import {
+  type ClearingDeposit,
   type ClearingEvent,
   type ClearingEventType,
   type ClearingRepository,
@@ -6,7 +8,7 @@ import {
   type ClearingTransaction,
   TERMINAL_CLEARING_STATES,
 } from "@mayarin/clearing";
-import { ConcurrencyError } from "@mayarin/shared";
+import { ConcurrencyError, ValidationError } from "@mayarin/shared";
 import { and, asc, eq, notInArray } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import {
@@ -146,6 +148,7 @@ function toRow(transaction: ClearingTransaction): typeof clearingTransactions.$i
     failureReason: transaction.failure?.reason ?? null,
     failureCode: transaction.failure?.code ?? null,
     failureAt: transaction.failure?.at ?? null,
+    ...depositColumns(transaction),
     createdAt: transaction.createdAt,
     updatedAt: transaction.updatedAt,
     version: transaction.version,
@@ -184,6 +187,7 @@ function toDomain(row: Row): ClearingTransaction {
     ...present("settlementAmount", toOptionalMoney(row.settlementAmount, settlementAsset)),
     ...present("fee", toOptionalMoney(row.feeAmount, settlementAsset)),
     ...present("netAmount", toOptionalMoney(row.netAmount, settlementAsset)),
+    ...present("deposit", toDeposit(row)),
     ...present("providerReference", row.providerReference),
     ...(row.failureReason === null || row.failureAt === null
       ? {}
@@ -223,5 +227,74 @@ function toEvent(row: EventRow): ClearingEvent {
     toState: row.toState as ClearingState,
     payload: row.payload,
     occurredAt: row.occurredAt,
+  };
+}
+
+/**
+ * The deposit block is set together or not at all, so a row missing any part of
+ * it has no deposit rather than a half-built one.
+ */
+function toDeposit(row: Row): ClearingDeposit | undefined {
+  const { depositAsset, depositChain, depositAddress, depositAmount } = row;
+  if (
+    depositAsset === null ||
+    depositChain === null ||
+    depositAddress === null ||
+    depositAmount === null ||
+    row.depositRateMinorUnitsPerWholeUnit === null ||
+    row.depositRateSource === null ||
+    row.depositRateLockedAt === null
+  ) {
+    return undefined;
+  }
+
+  if (!isChainId(depositChain)) {
+    throw new ValidationError(`Stored chain "${depositChain}" is not supported`, {
+      chain: depositChain,
+    });
+  }
+
+  return {
+    asset: toAsset(depositAsset),
+    chain: depositChain,
+    address: depositAddress,
+    amount: toMoney(depositAmount, depositAsset),
+    rate: {
+      // Not stored: they are the source asset and the deposit asset, and a
+      // second copy is a second thing that can disagree.
+      from: toAsset(row.sourceAsset),
+      to: toAsset(depositAsset),
+      minorUnitsPerWholeUnit: BigInt(row.depositRateMinorUnitsPerWholeUnit),
+      source: row.depositRateSource,
+      lockedAt: row.depositRateLockedAt,
+      ...(row.depositRateExpiresAt === null ? {} : { expiresAt: row.depositRateExpiresAt }),
+    },
+  };
+}
+
+function depositColumns(transaction: ClearingTransaction) {
+  const deposit = transaction.deposit;
+  if (deposit === undefined) {
+    return {
+      depositAsset: null,
+      depositChain: null,
+      depositAddress: null,
+      depositAmount: null,
+      depositRateMinorUnitsPerWholeUnit: null,
+      depositRateSource: null,
+      depositRateLockedAt: null,
+      depositRateExpiresAt: null,
+    };
+  }
+
+  return {
+    depositAsset: deposit.asset,
+    depositChain: deposit.chain,
+    depositAddress: deposit.address,
+    depositAmount: deposit.amount.amount.toString(),
+    depositRateMinorUnitsPerWholeUnit: deposit.rate.minorUnitsPerWholeUnit.toString(),
+    depositRateSource: deposit.rate.source,
+    depositRateLockedAt: deposit.rate.lockedAt,
+    depositRateExpiresAt: deposit.rate.expiresAt ?? null,
   };
 }

@@ -1,11 +1,13 @@
+import { isChainId } from "@mayarin/chain";
 import type {
   PaymentIntent,
   PaymentIntentRepository,
   PaymentIntentStatus,
+  PaymentRail,
   PaymentSource,
 } from "@mayarin/payment-intent";
 import type { QrScheme } from "@mayarin/qr-parser";
-import { ConcurrencyError } from "@mayarin/shared";
+import { ConcurrencyError, ValidationError } from "@mayarin/shared";
 import { and, eq } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, toAsset, toMoney } from "../mapping.ts";
@@ -76,6 +78,7 @@ function toRow(intent: PaymentIntent): typeof paymentIntents.$inferInsert {
     amountAsset: intent.amount.asset,
     settlementAsset: intent.settlementAsset,
     provider: intent.provider,
+    ...paymentRailColumns(intent),
     sourceType: intent.source.type,
     sourceScheme: intent.source.type === "qr" ? intent.source.scheme : null,
     sourcePayload: intent.source.type === "qr" ? intent.source.payload : null,
@@ -107,6 +110,7 @@ function toDomain(row: Row): PaymentIntent {
     amount: toMoney(row.amount, row.amountAsset),
     settlementAsset: toAsset(row.settlementAsset),
     provider: row.provider,
+    ...present("payment", toPaymentRail(row)),
     source: toSource(row),
     metadata: row.metadata,
     ...present("idempotencyKey", row.idempotencyKey),
@@ -131,4 +135,21 @@ function toSource(row: Row): PaymentSource {
     };
   }
   return { type: "manual" };
+}
+
+function toPaymentRail(row: Row): PaymentRail | undefined {
+  if (row.paymentAsset === null || row.paymentChain === null) return undefined;
+  if (!isChainId(row.paymentChain)) {
+    throw new ValidationError(`Stored chain "${row.paymentChain}" is not supported`, {
+      chain: row.paymentChain,
+    });
+  }
+  return { asset: toAsset(row.paymentAsset), chain: row.paymentChain };
+}
+
+function paymentRailColumns(intent: PaymentIntent) {
+  return {
+    paymentAsset: intent.payment?.asset ?? null,
+    paymentChain: intent.payment?.chain ?? null,
+  };
 }

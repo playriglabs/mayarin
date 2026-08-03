@@ -15,14 +15,25 @@
  */
 
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarin/clearing";
+import {
+  BasisPointsFeePolicy,
+  ClearingEngine,
+  createClearingTransaction,
+  StaticRateProvider,
+} from "@mayarin/clearing";
 import { LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
+import { FixedDepositAddressDeriver } from "@mayarin/provider-mock-chain";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { ConcurrencyError, FixedClock, money } from "@mayarin/shared";
 import { sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
+import {
+  DrizzleDepositAddressRepository,
+  DrizzleDepositRepository,
+  DrizzleWatcherCursorRepository,
+} from "../src/repositories/chain.ts";
 import { DrizzleClearingRepository } from "../src/repositories/clearing.ts";
 import { DrizzleLedgerRepository } from "../src/repositories/ledger.ts";
 import { DrizzlePaymentIntentRepository } from "../src/repositories/payment-intent.ts";
@@ -58,7 +69,7 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
 
   beforeEach(async () => {
     await handle.db.execute(
-      sql`truncate table clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table chain_deposits, deposit_addresses, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   });
 
@@ -197,5 +208,66 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     pendingAdapter.complete(settling.providerReference as string);
     const [recovered] = await pendingEngine.resumeStuck();
     expect(recovered?.transaction.state).toBe("SUCCESS");
+  });
+
+  /** Inserts an intent and a CREATED clearing transaction, returning the transaction id. */
+  async function seedClearingTransaction(): Promise<string> {
+    const intent = await confirmedIntent();
+    const { transaction, event } = createClearingTransaction(intent, clock.now());
+    await clearingRepository.insert(transaction, [event]);
+    return transaction.id;
+  }
+
+  test("allocates one deposit address per clearing transaction", async () => {
+    const repository = new DrizzleDepositAddressRepository(handle.db);
+    const deriver = new FixedDepositAddressDeriver();
+    const transactionId = await seedClearingTransaction();
+
+    const first = await repository.allocate({
+      clearingTransactionId: transactionId,
+      chain: "base-sepolia",
+      asset: "USDC",
+      deriver,
+      now: new Date(),
+    });
+    const again = await repository.allocate({
+      clearingTransactionId: transactionId,
+      chain: "base-sepolia",
+      asset: "USDC",
+      deriver,
+      now: new Date(),
+    });
+
+    expect(again.id).toBe(first.id);
+    expect(again.address).toBe(first.address);
+  });
+
+  test("records a transfer once however often it is seen", async () => {
+    const repository = new DrizzleDepositRepository(handle.db);
+    const log = {
+      chain: "base-sepolia",
+      asset: "USDC",
+      txHash: `0x${Date.now().toString(16)}`,
+      logIndex: 0,
+      blockNumber: 100n,
+      blockHash: "0xb100",
+      from: "0xfrom",
+      to: "0xdeadbeef",
+      amount: 1_000_000n,
+    } as const;
+
+    await repository.record([log], new Date());
+    await repository.record([log], new Date());
+
+    const stored = await repository.listByAddress("base-sepolia", "0xdeadbeef");
+    expect(stored).toHaveLength(1);
+  });
+
+  test("round-trips a watcher cursor", async () => {
+    const repository = new DrizzleWatcherCursorRepository(handle.db);
+    await repository.set("base-sepolia", "USDC", 512n);
+    await repository.set("base-sepolia", "USDC", 900n);
+
+    expect(await repository.get("base-sepolia", "USDC")).toBe(900n);
   });
 });

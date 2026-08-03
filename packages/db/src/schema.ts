@@ -18,6 +18,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -44,6 +45,9 @@ export const paymentIntents = pgTable(
     amountAsset: text("amount_asset").notNull(),
     settlementAsset: text("settlement_asset").notNull(),
     provider: text("provider").notNull(),
+
+    paymentAsset: text("payment_asset"),
+    paymentChain: text("payment_chain"),
 
     sourceType: text("source_type").notNull(),
     sourceScheme: text("source_scheme"),
@@ -99,6 +103,18 @@ export const clearingTransactions = pgTable(
     settlementAmount: minorUnits("settlement_amount"),
     feeAmount: minorUnits("fee_amount"),
     netAmount: minorUnits("net_amount"),
+
+    depositAsset: text("deposit_asset"),
+    depositChain: text("deposit_chain"),
+    depositAddress: text("deposit_address"),
+    depositAmount: minorUnits("deposit_amount"),
+    depositRateMinorUnitsPerWholeUnit: minorUnits("deposit_rate_minor_units_per_whole_unit"),
+    depositRateSource: text("deposit_rate_source"),
+    depositRateLockedAt: timestamp("deposit_rate_locked_at", { withTimezone: true, mode: "date" }),
+    depositRateExpiresAt: timestamp("deposit_rate_expires_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
     providerReference: text("provider_reference"),
     failureReason: text("failure_reason"),
@@ -191,6 +207,75 @@ export const ledgerEntries = pgTable(
   ],
 );
 
+/**
+ * Per-payment deposit addresses.
+ *
+ * `derivationIndex` is the address's identity: persisting it is what makes every
+ * address re-derivable from the extended public key alone after a restore.
+ */
+export const depositAddresses = pgTable(
+  "deposit_addresses",
+  {
+    id: text("id").primaryKey(),
+    clearingTransactionId: text("clearing_transaction_id")
+      .notNull()
+      .references(() => clearingTransactions.id),
+    derivationIndex: integer("derivation_index").notNull(),
+    chain: text("chain").notNull(),
+    asset: text("asset").notNull(),
+    address: text("address").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("deposit_addresses_clearing_idx").on(table.clearingTransactionId),
+    uniqueIndex("deposit_addresses_address_idx").on(table.chain, table.address),
+    uniqueIndex("deposit_addresses_index_idx").on(table.derivationIndex),
+  ],
+);
+
+/**
+ * Observed inbound transfers.
+ *
+ * `(chain, tx_hash, log_index)` is the natural idempotency key: re-scanning a
+ * block range after a crash cannot double-count. Nothing here touches a ledger
+ * account — a deposit is an observation, not a posting.
+ */
+export const chainDeposits = pgTable(
+  "chain_deposits",
+  {
+    id: text("id").primaryKey(),
+    chain: text("chain").notNull(),
+    txHash: text("tx_hash").notNull(),
+    logIndex: integer("log_index").notNull(),
+    address: text("address").notNull(),
+    asset: text("asset").notNull(),
+    amount: minorUnits("amount").notNull(),
+    blockNumber: minorUnits("block_number").notNull(),
+    blockHash: text("block_hash").notNull(),
+    status: text("status").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true, mode: "date" }).notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: "date" }),
+    orphanedAt: timestamp("orphaned_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    uniqueIndex("chain_deposits_log_idx").on(table.chain, table.txHash, table.logIndex),
+    index("chain_deposits_address_idx").on(table.chain, table.address),
+    index("chain_deposits_status_idx").on(table.chain, table.status, table.blockNumber),
+  ],
+);
+
+/** How far the watcher has scanned, per chain and asset. */
+export const watcherCursors = pgTable(
+  "watcher_cursors",
+  {
+    chain: text("chain").notNull(),
+    asset: text("asset").notNull(),
+    lastBlock: minorUnits("last_block").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.chain, table.asset] })],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -198,4 +283,7 @@ export const schema = {
   ledgerAccounts,
   ledgerTransactions,
   ledgerEntries,
+  depositAddresses,
+  chainDeposits,
+  watcherCursors,
 };
