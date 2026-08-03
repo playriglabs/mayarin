@@ -15,6 +15,8 @@
  */
 
 import type { AssetCode, Money } from "@mayarin/shared";
+import { ConfigurationError } from "@mayarin/shared";
+import { rateKey } from "./rate.ts";
 
 /** A priced conversion of `from` into `to`. */
 export interface PriceQuote {
@@ -35,4 +37,38 @@ export interface PriceQuote {
 export interface PriceSource {
   /** Price `amount` of `from` into `to`, or throw if this source cannot. */
   price(from: AssetCode, to: AssetCode, amount: Money): Promise<PriceQuote>;
+}
+
+/**
+ * Table price source: wraps the configured `EXCHANGE_RATES` record keyed
+ * `"from/to"` — the shape `config.exchangeRates` already produces. Cross-asset
+ * only; a same-asset call throws because identity is the `LiquidityRouter`'s
+ * job, and a missing cross-asset pair throws `ConfigurationError` matching
+ * `StaticRateProvider`.
+ */
+export class TablePriceSource implements PriceSource {
+  readonly #rates: ReadonlyMap<string, bigint>;
+  readonly #source: string;
+
+  constructor(rates: Readonly<Record<string, bigint>> = {}, source = "table") {
+    this.#rates = new Map(Object.entries(rates));
+    this.#source = source;
+  }
+
+  async price(from: AssetCode, to: AssetCode, _amount: Money): Promise<PriceQuote> {
+    if (from === to) {
+      throw new ConfigurationError(
+        `TablePriceSource prices cross-asset pairs only: ${from} -> ${to}`,
+        {
+          from,
+          to,
+        },
+      );
+    }
+    const configured = this.#rates.get(rateKey(from, to));
+    if (configured === undefined) {
+      throw new ConfigurationError(`No rate configured for ${from} -> ${to}`, { from, to });
+    }
+    return { from, to, minorUnitsPerWholeUnit: configured, source: this.#source };
+  }
 }
