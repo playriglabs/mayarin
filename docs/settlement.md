@@ -82,8 +82,16 @@ PromptPay
 
 DuitNow
 
+Direct EVM
+
+Tempo
+
 Future Providers
 ```
+
+A rail does not have to be a bank. Phase 4 settles on-chain through the same
+port: an EVM transfer and a QRIS payout are both "hand value to a rail, get a
+provider reference back", so the clearing engine never learns which one it is.
 
 Business logic never depends on provider implementations.
 
@@ -93,11 +101,18 @@ Business logic never depends on provider implementations.
 
 ## Future Payment Rails
 
+Phase 4 targets:
+
 - QRIS
 - Bank Transfer
 - PayNow
 - PromptPay
 - DuitNow
+- Direct EVM
+- Tempo
+
+Beyond that:
+
 - PIX
 - UPI
 - SEPA

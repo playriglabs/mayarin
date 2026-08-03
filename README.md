@@ -109,7 +109,9 @@ Full setup, commands and tooling: [docs/development.md](./docs/development.md).
 Phase 1 is shipped: QR parser, payment intents, clearing engine, double-entry
 ledger and a mock settlement adapter, behind a Hono API on Postgres.
 
-See the [roadmap](./docs/roadmap.md) for what Phase 2 and Phase 3 add.
+Phase 2 takes payments on-chain, Phase 3 adds the merchant, POS and QR SDKs,
+Phase 4 opens the settlement network beyond a single rail, and Phase 5 turns it
+into a commerce platform. See the [roadmap](./docs/roadmap.md) for the detail.
 
 ---
 

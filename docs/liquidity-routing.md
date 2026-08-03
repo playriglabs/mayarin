@@ -5,8 +5,10 @@
 Turning any supported digital asset into the configured settlement asset, as
 cheaply as possible.
 
-> Not yet implemented. Phase 1 locks prices against a configured table through
-> the same `RateProvider` port these components will implement.
+> Not yet implemented — Phase 2. Phase 1 locks prices against a configured table
+> through the same `RateProvider` port these components will implement. Phase 4's
+> smart routing then optimizes over liquidity, settlement, retries and treasury
+> on top of it.
 
 ---
 

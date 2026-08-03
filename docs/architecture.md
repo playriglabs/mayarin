@@ -80,6 +80,8 @@ code lives.
       ├── PayNow
       ├── PromptPay
       ├── DuitNow
+      ├── Direct EVM
+      ├── Tempo
       └── Mock
 
                      │
@@ -94,6 +96,9 @@ code lives.
 ---
 
 ## Payment Flow
+
+The payer scans a merchant QR and Mayarin routes whatever they hold into what
+the merchant settles in.
 
 ```
 Customer
@@ -135,6 +140,62 @@ Settlement Adapter
 Merchant Paid
 ```
 
+### POS crypto checkout _(Phase 2 + 3)_
+
+The other direction: the merchant's terminal issues the QR, and the payer sends
+from an exchange or a self-custody wallet.
+
+```
+Merchant POS quotes a price
+
+↓
+
+Payment Intent          asset, chain and amount locked
+
+↓
+
+Deposit Address         derived per intent
+
+↓
+
+Address QR              EIP-681 / BIP-21, not EMVCo
+
+↓
+
+Payer scans in Binance, sends
+
+↓
+
+Wallet Watcher          sees the transfer
+
+↓
+
+Confirmation Depth      reached
+
+↓
+
+Clearing Engine         ASSET_RECEIVED
+
+↓
+
+Merchant Paid
+```
+
+The address QR is a different payload family from EMVCo — an exchange app has
+never heard of QRIS — but it enters the same `PaymentIntent`, so nothing
+downstream can tell the two flows apart.
+
+Two properties fall out of the existing design. The clearing engine needs no new
+state: the watcher drives the `PAYMENT_PENDING → ASSET_RECEIVED` transition that
+Phase 1 already ships, through the same `recordAssetReceived` seam
+`ASSET_RECEIPT_MODE=manual` exposes today. And when the payer sends the asset the
+merchant already settles in, the Liquidity Router has nothing to convert, so that
+path skips it.
+
+A per-intent deposit address is what makes the payment identifiable. An exchange
+withdrawal leaves from an omnibus hot wallet and carries no memo or calldata, so
+the address is the only thing tying a transfer to an intent.
+
 ---
 
 ---
@@ -147,9 +208,9 @@ Implemented in Phase 1 (`✓`), planned for later phases (`·`):
 apps/
 
   ✓ api/
-  · dashboard/          Phase 2
-  · playground/         Phase 2
-  · docs/               Phase 2
+  · dashboard/          Phase 2 payment explorer, timeline, settlement status
+  · playground/         Phase 3
+  · docs/               Phase 3
 
 packages/
 
@@ -160,22 +221,31 @@ packages/
       ✓ payment-intent/   immutable intents and their lifecycle
       ✓ qr-parser/        EMVCo TLV decoder + QRIS profile
       ✓ settlement/       SettlementAdapter port and registry
-      · routing/          Phase 3 smart routing
+      · qr-generator/     Phase 3 EMVCo/QRIS + crypto address QR encoding
+      · merchant/         Phase 3 merchants, invoices, payment links
+      · routing/          Phase 4 smart routing
 
     blockchain/           Phase 2
 
       · evm/
-      · wallet/
+      · wallet/            watcher, deposit-address derivation, receipt detection
       · contracts/
 
     providers/
 
       ✓ mock/
-      · qris/             Phase 3
-      · bank/             Phase 3
+      · qris/             Phase 4
+      · bank/             Phase 4
+      · paynow/           Phase 4
+      · promptpay/        Phase 4
+      · duitnow/          Phase 4
+      · tempo/            Phase 4 blockchain settlement
+      · tron/             Phase 4
+      · solana/           Phase 4
 
   ✓ db/                 Drizzle schema, repositories, in-memory adapters
-  · sdk/                Phase 2
+  · sdk/                Phase 3 TypeScript client, webhooks, provider SDK
+  · pos/                Phase 3 terminal API, receipts, live payment status
   ✓ shared/             money, assets, ids, errors, events, clock
 ```
 
@@ -212,6 +282,9 @@ now, which lives at the root and has no build step.
 - Arbitrum
 - Optimism
 - Polygon
+- Tempo _(Phase 4)_
+- TRON _(Phase 4, non-EVM)_
+- Solana _(Phase 4, non-EVM)_
 
 #### SDK
 
@@ -230,6 +303,8 @@ now, which lives at the root and has no build step.
 - IDRX
 - USDC
 - USDT
+- JPYC _(Phase 2, JPY)_
+- XSGD _(Phase 2, SGD)_
 
 ### Storage
 
