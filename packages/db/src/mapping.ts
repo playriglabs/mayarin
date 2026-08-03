@@ -7,7 +7,7 @@
  * cannot interpret must never become a balance.
  */
 
-import { type AssetCode, isAssetCode, type Money, ValidationError } from "@mayarr/shared";
+import { type AssetCode, isAssetCode, type Money, ValidationError } from "@mayarin/shared";
 import type { Database, Executor } from "./client.ts";
 
 export function toAsset(value: string): AssetCode {

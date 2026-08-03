@@ -5,7 +5,7 @@
  * becomes a 500 with no internal detail leaked to the caller.
  */
 
-import { isMayarrError } from "@mayarr/shared";
+import { isMayarinError } from "@mayarin/shared";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { ZodError } from "zod";
@@ -37,7 +37,7 @@ export function errorHandler(error: Error, c: Context): Response {
     );
   }
 
-  if (isMayarrError(error)) {
+  if (isMayarinError(error)) {
     return c.json<ErrorBody>(
       {
         error: {

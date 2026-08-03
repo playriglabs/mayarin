@@ -1,4 +1,4 @@
-import type { AssetCode } from "@mayarr/shared";
+import type { AssetCode } from "@mayarin/shared";
 import type { AccountKind } from "./accounts.ts";
 import type { AccountBalance, LedgerAccount, LedgerTransaction } from "./types.ts";
 

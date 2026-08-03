@@ -6,22 +6,22 @@
  * clearing engine without a database.
  */
 
-import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarr/clearing";
+import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarin/clearing";
 import {
   InMemoryClearingRepository,
   InMemoryLedgerRepository,
   InMemoryPaymentIntentRepository,
-} from "@mayarr/db/memory";
-import { LedgerService } from "@mayarr/ledger";
-import { PaymentIntentService } from "@mayarr/payment-intent";
-import { type MockBehaviour, MockSettlementAdapter } from "@mayarr/provider-mock";
-import { SettlementAdapterRegistry } from "@mayarr/settlement";
-import { FixedClock, InMemoryEventBus } from "@mayarr/shared";
+} from "@mayarin/db/memory";
+import { LedgerService } from "@mayarin/ledger";
+import { PaymentIntentService } from "@mayarin/payment-intent";
+import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
+import { SettlementAdapterRegistry } from "@mayarin/settlement";
+import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
 import { createApp } from "../src/app.ts";
 import type { Config } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 
-export const WEBHOOK_SECRET = "whsec_mayarr_test";
+export const WEBHOOK_SECRET = "whsec_mayarin_test";
 
 export interface ApiHarnessOptions {
   readonly behaviour?: MockBehaviour;
@@ -130,7 +130,7 @@ export function qrisPayload(amount = "50000.00"): string {
     tlv("53", "360"),
     tlv("54", amount),
     tlv("58", "ID"),
-    tlv("59", "Warung Kopi Mayarr"),
+    tlv("59", "Warung Kopi Mayarin"),
     tlv("60", "Jakarta"),
   ].join("");
 

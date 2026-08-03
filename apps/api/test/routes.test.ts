@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MOCK_SIGNATURE_HEADER } from "@mayarr/provider-mock";
+import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
 import { createApiHarness, qrisPayload } from "./harness.ts";
 
 describe("POST /payment-intents", () => {
@@ -14,7 +14,7 @@ describe("POST /payment-intents", () => {
       status: "CREATED",
       settlementAsset: "IDRX",
       provider: "mock",
-      merchant: { id: "ID1020017611473", name: "Warung Kopi Mayarr", city: "Jakarta" },
+      merchant: { id: "ID1020017611473", name: "Warung Kopi Mayarin", city: "Jakarta" },
       amount: { amount: "5000000", asset: "IDR", formatted: "50000.00" },
     });
     expect(body.paymentIntent.source).toMatchObject({ type: "qr", scheme: "QRIS" });

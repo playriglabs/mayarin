@@ -1,4 +1,4 @@
-import { ConfigurationError } from "@mayarr/shared";
+import { ConfigurationError } from "@mayarin/shared";
 import type { SettlementAdapter } from "./types.ts";
 
 /**

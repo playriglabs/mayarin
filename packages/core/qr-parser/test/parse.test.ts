@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { money } from "@mayarr/shared";
+import { money } from "@mayarin/shared";
 import { crc16, parseEmvTlv, withCrc } from "../src/emvco.ts";
 import { QrParseError } from "../src/errors.ts";
 import { parseQr } from "../src/parse.ts";
@@ -28,7 +28,7 @@ function dynamicQris(overrides: { amount?: string; currency?: string } = {}): st
       tlv("53", overrides.currency ?? "360"),
       tlv("54", overrides.amount ?? "50000.00"),
       tlv("58", "ID"),
-      tlv("59", "Warung Kopi Mayarr"),
+      tlv("59", "Warung Kopi Mayarin"),
       tlv("60", "Jakarta"),
       tlv("61", "12190"),
       tlv("62", ADDITIONAL_DATA),
@@ -51,7 +51,7 @@ describe("parseQr — dynamic QRIS", () => {
   });
 
   test("normalizes merchant identity", () => {
-    expect(parsed.merchantName).toBe("Warung Kopi Mayarr");
+    expect(parsed.merchantName).toBe("Warung Kopi Mayarin");
     expect(parsed.merchantCity).toBe("Jakarta");
     expect(parsed.countryCode).toBe("ID");
     expect(parsed.merchantCategoryCode).toBe("5411");
@@ -90,7 +90,7 @@ describe("parseQr — static QRIS", () => {
       tlv("26", QRIS_MERCHANT_ACCOUNT),
       tlv("53", "360"),
       tlv("58", "ID"),
-      tlv("59", "Warung Kopi Mayarr"),
+      tlv("59", "Warung Kopi Mayarin"),
       tlv("60", "Jakarta"),
     ].join(""),
   );

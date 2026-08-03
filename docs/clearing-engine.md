@@ -4,7 +4,7 @@
 
 # Clearing Engine
 
-The core of Mayarr.
+The core of Mayarin.
 
 Every payment passes through the clearing engine.
 

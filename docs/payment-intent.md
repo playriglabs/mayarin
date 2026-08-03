@@ -11,7 +11,7 @@ incremented version; nothing is mutated in place.
 {
   id: "pi_01KZ0XNA7SYPQF8QP6K8PZ7TJH",
   status: "CREATED",
-  merchant: { id: "ID1020017611473", name: "Warung Kopi Mayarr", city: "Jakarta", countryCode: "ID" },
+  merchant: { id: "ID1020017611473", name: "Warung Kopi Mayarin", city: "Jakarta", countryCode: "ID" },
   amount: { amount: 5_000_000n, asset: "IDR" },
   settlementAsset: "IDRX",
   provider: "mock",

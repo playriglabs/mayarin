@@ -1,5 +1,5 @@
-import type { PaymentIntent, PaymentIntentRepository } from "@mayarr/payment-intent";
-import { ConcurrencyError, ConflictError } from "@mayarr/shared";
+import type { PaymentIntent, PaymentIntentRepository } from "@mayarin/payment-intent";
+import { ConcurrencyError, ConflictError } from "@mayarin/shared";
 
 /**
  * In-memory payment intent repository.

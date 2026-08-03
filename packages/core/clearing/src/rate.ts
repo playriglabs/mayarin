@@ -6,7 +6,7 @@
  * aggregator sources, so the clearing engine does not change.
  */
 
-import { type AssetCode, assetDecimals, ConfigurationError, type Money } from "@mayarr/shared";
+import { type AssetCode, assetDecimals, ConfigurationError, type Money } from "@mayarin/shared";
 import type { LockedRate } from "./types.ts";
 
 export interface RateQuote {

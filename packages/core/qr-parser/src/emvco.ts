@@ -16,7 +16,7 @@ export interface EmvField {
   readonly value: string;
 }
 
-/** EMVCo root tags Mayarr reads. Scheme-specific meaning lives in profiles. */
+/** EMVCo root tags Mayarin reads. Scheme-specific meaning lives in profiles. */
 export const EMV_TAG = {
   payloadFormatIndicator: "00",
   pointOfInitiationMethod: "01",

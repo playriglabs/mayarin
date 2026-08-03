@@ -2,7 +2,7 @@
 
 # Development
 
-Running Mayarr locally, and the tooling that keeps the codebase consistent.
+Running Mayarin locally, and the tooling that keeps the codebase consistent.
 
 ---
 
@@ -49,7 +49,7 @@ The Postgres integration suite runs the full clearing flow against real
 repositories:
 
 ```bash
-DATABASE_URL=postgres://mayarr:mayarr@localhost:5432/mayarr bun test packages/db
+DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
 ```
 
 ---

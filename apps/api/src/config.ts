@@ -5,7 +5,7 @@
  * should fail to boot, not fail on the first payment.
  */
 
-import { assetCodeSchema, ConfigurationError } from "@mayarr/shared";
+import { assetCodeSchema, ConfigurationError } from "@mayarin/shared";
 import { z } from "zod";
 
 const configSchema = z.object({

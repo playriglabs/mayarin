@@ -1,4 +1,4 @@
-import type { AssetCode, Money } from "@mayarr/shared";
+import type { AssetCode, Money } from "@mayarin/shared";
 
 export const ACCOUNT_TYPES = ["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];

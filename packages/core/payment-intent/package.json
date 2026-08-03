@@ -1,5 +1,5 @@
 {
-  "name": "@mayarr/payment-intent",
+  "name": "@mayarin/payment-intent",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mayarr/qr-parser": "workspace:*",
-    "@mayarr/shared": "workspace:*"
+    "@mayarin/qr-parser": "workspace:*",
+    "@mayarin/shared": "workspace:*"
   }
 }

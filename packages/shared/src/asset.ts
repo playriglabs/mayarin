@@ -1,7 +1,7 @@
 /**
  * Asset registry.
  *
- * Mayarr normalizes every unit of value — fiat, stablecoin or native crypto —
+ * Mayarin normalizes every unit of value — fiat, stablecoin or native crypto —
  * behind a single `AssetCode`. The registry is the only place that knows how
  * many minor units make up one whole unit of an asset, so nothing downstream
  * has to hard-code decimal handling.
@@ -59,7 +59,7 @@ export function assetDecimals(code: AssetCode): number {
 
 /**
  * Resolves the fiat asset a QR payload's ISO 4217 numeric currency code refers
- * to. Returns `undefined` for codes Mayarr does not support yet, so callers can
+ * to. Returns `undefined` for codes Mayarin does not support yet, so callers can
  * reject the payload rather than guess.
  */
 export function assetFromIso4217Numeric(numeric: string): AssetCode | undefined {

@@ -1,5 +1,5 @@
 {
-  "name": "@mayarr/clearing",
+  "name": "@mayarin/clearing",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,13 +10,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mayarr/ledger": "workspace:*",
-    "@mayarr/payment-intent": "workspace:*",
-    "@mayarr/settlement": "workspace:*",
-    "@mayarr/shared": "workspace:*"
+    "@mayarin/ledger": "workspace:*",
+    "@mayarin/payment-intent": "workspace:*",
+    "@mayarin/settlement": "workspace:*",
+    "@mayarin/shared": "workspace:*"
   },
   "devDependencies": {
-    "@mayarr/db": "workspace:*",
-    "@mayarr/provider-mock": "workspace:*"
+    "@mayarin/db": "workspace:*",
+    "@mayarin/provider-mock": "workspace:*"
   }
 }

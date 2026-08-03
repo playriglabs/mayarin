@@ -11,9 +11,9 @@ import {
   type CreatePaymentIntentCommand,
   merchantFromParsedQr,
   sourceFromParsedQr,
-} from "@mayarr/payment-intent";
-import { parseQr } from "@mayarr/qr-parser";
-import { assetCodeSchema, decimalMoneySchema, ValidationError } from "@mayarr/shared";
+} from "@mayarin/payment-intent";
+import { parseQr } from "@mayarin/qr-parser";
+import { assetCodeSchema, decimalMoneySchema, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";

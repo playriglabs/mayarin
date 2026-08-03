@@ -5,8 +5,8 @@
  * event that records it, and the caller persists both atomically.
  */
 
-import type { PaymentIntent } from "@mayarr/payment-intent";
-import { generateId, serializeMoney } from "@mayarr/shared";
+import type { PaymentIntent } from "@mayarin/payment-intent";
+import { generateId, serializeMoney } from "@mayarin/shared";
 import { assertTransition } from "./state-machine.ts";
 import type {
   ClearingEvent,

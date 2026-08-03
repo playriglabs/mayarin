@@ -31,7 +31,7 @@ export function webhookRoutes(container: Container): Hono {
       rawBody,
     });
 
-    // Always acknowledge a well-formed delivery: an event Mayarr has nothing to
+    // Always acknowledge a well-formed delivery: an event Mayarin has nothing to
     // do with must not make the provider retry forever.
     return c.json(
       {

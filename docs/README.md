@@ -2,7 +2,7 @@
 
 # Documentation
 
-Mayarr's reference documentation. Start with the [architecture](./architecture.md)
+Mayarin's reference documentation. Start with the [architecture](./architecture.md)
 if you are here to change code, or the [vision](./vision.md) if you are here to
 understand why any of it exists.
 
@@ -10,19 +10,19 @@ understand why any of it exists.
 
 ## Orientation
 
-| Document                          | Read it when                                                   |
-| --------------------------------- | -------------------------------------------------------------- |
-| [Vision & Rationale](./vision.md) | You want the problem, the goals, and what Mayarr refuses to be |
-| [Architecture](./architecture.md) | You need the layers, the payment flow, and where code lives    |
-| [Development](./development.md)   | You are running it locally or touching the tooling             |
-| [REST API](./api.md)              | You are integrating against it                                 |
-| [Roadmap](./roadmap.md)           | You want to know what is shipped and what is next              |
+| Document                          | Read it when                                                    |
+| --------------------------------- | --------------------------------------------------------------- |
+| [Vision & Rationale](./vision.md) | You want the problem, the goals, and what Mayarin refuses to be |
+| [Architecture](./architecture.md) | You need the layers, the payment flow, and where code lives     |
+| [Development](./development.md)   | You are running it locally or touching the tooling              |
+| [REST API](./api.md)              | You are integrating against it                                  |
+| [Roadmap](./roadmap.md)           | You want to know what is shipped and what is next               |
 
 ---
 
 ## Core Components
 
-Each of Mayarr's components is documented on its own page, in the order value
+Each of Mayarin's components is documented on its own page, in the order value
 moves through them.
 
 | Component                                     | Responsibility                                              |

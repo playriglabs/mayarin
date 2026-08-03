@@ -2,7 +2,7 @@
 
 # Vision & Rationale
 
-Why Mayarr exists, what it refuses to become, and the problem it is pointed at.
+Why Mayarin exists, what it refuses to become, and the problem it is pointed at.
 
 ---
 
@@ -14,7 +14,7 @@ Traditional payment systems understand fiat.
 
 Blockchain understands programmable value.
 
-Mayarr exists between those worlds.
+Mayarin exists between those worlds.
 
 Not another payment gateway.
 
@@ -32,7 +32,7 @@ A programmable clearing layer for modern payments.
 
 **/maɪˈjɑːr/** — _"My-ar"_
 
-Mayarr is inspired by the Indonesian word **"bayar"** (_to pay_), reimagined into a modern, global identity.
+Mayarin is inspired by the Indonesian word **"bayar"** (_to pay_), reimagined into a modern, global identity.
 
 It also draws inspiration from the Latin word:
 
@@ -74,7 +74,7 @@ Crypto
 
 There is no universal infrastructure capable of orchestrating value across both ecosystems.
 
-Mayarr introduces a programmable clearing layer capable of:
+Mayarin introduces a programmable clearing layer capable of:
 
 - Accepting any supported digital asset
 - Routing assets through the most efficient liquidity path
@@ -112,7 +112,7 @@ Developers must integrate every provider independently.
 
 ## Solution
 
-Mayarr introduces a programmable clearing architecture where payment providers become interchangeable adapters.
+Mayarin introduces a programmable clearing architecture where payment providers become interchangeable adapters.
 
 Core responsibilities include:
 
@@ -134,7 +134,7 @@ Instead, every payment flows through a unified clearing engine.
 
 ## Goals
 
-Mayarr is designed around four principles.
+Mayarin is designed around four principles.
 
 - Abstract payment rails
 - Normalize digital assets
@@ -147,7 +147,7 @@ Mayarr is designed around four principles.
 
 ## Non Goals
 
-Mayarr is **not**:
+Mayarin is **not**:
 
 - A cryptocurrency exchange
 - A custodial wallet
@@ -155,7 +155,7 @@ Mayarr is **not**:
 - A payment gateway
 - A blockchain
 
-Instead, Mayarr focuses exclusively on payment orchestration, clearing, and settlement infrastructure.
+Instead, Mayarin focuses exclusively on payment orchestration, clearing, and settlement infrastructure.
 
 ---
 
@@ -165,7 +165,7 @@ Instead, Mayarr focuses exclusively on payment orchestration, clearing, and sett
 
 Most payment gateways process payments.
 
-Mayarr orchestrates payments.
+Mayarin orchestrates payments.
 
 Instead of coupling applications directly with payment providers:
 
@@ -177,7 +177,7 @@ Application
 QRIS
 ```
 
-Mayarr introduces a programmable abstraction:
+Mayarin introduces a programmable abstraction:
 
 ```
 Application
@@ -213,11 +213,11 @@ Settlement providers become interchangeable.
 
 ## Value Proposition
 
-Unlike traditional payment gateways that only process fiat transactions, Mayarr provides a programmable clearing layer capable of orchestrating digital assets, settlement assets, and traditional payment infrastructure through one unified architecture.
+Unlike traditional payment gateways that only process fiat transactions, Mayarin provides a programmable clearing layer capable of orchestrating digital assets, settlement assets, and traditional payment infrastructure through one unified architecture.
 
 Developers integrate once.
 
-Mayarr manages routing, settlement, clearing, accounting, and payment orchestration across multiple providers.
+Mayarin manages routing, settlement, clearing, accounting, and payment orchestration across multiple providers.
 
 ---
 

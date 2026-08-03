@@ -1,6 +1,6 @@
-import type { ClearingEvent, ClearingRepository, ClearingTransaction } from "@mayarr/clearing";
-import { isTerminalState } from "@mayarr/clearing";
-import { ConcurrencyError, ConflictError } from "@mayarr/shared";
+import type { ClearingEvent, ClearingRepository, ClearingTransaction } from "@mayarin/clearing";
+import { isTerminalState } from "@mayarin/clearing";
+import { ConcurrencyError, ConflictError } from "@mayarin/shared";
 
 /**
  * In-memory clearing repository.

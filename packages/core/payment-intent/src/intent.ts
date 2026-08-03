@@ -13,7 +13,7 @@ import {
   isPositive,
   type Money,
   ValidationError,
-} from "@mayarr/shared";
+} from "@mayarin/shared";
 import type {
   MerchantSnapshot,
   PaymentIntent,

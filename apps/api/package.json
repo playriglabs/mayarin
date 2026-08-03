@@ -1,5 +1,5 @@
 {
-  "name": "@mayarr/api",
+  "name": "@mayarin/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,14 +9,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mayarr/clearing": "workspace:*",
-    "@mayarr/db": "workspace:*",
-    "@mayarr/ledger": "workspace:*",
-    "@mayarr/payment-intent": "workspace:*",
-    "@mayarr/provider-mock": "workspace:*",
-    "@mayarr/qr-parser": "workspace:*",
-    "@mayarr/settlement": "workspace:*",
-    "@mayarr/shared": "workspace:*",
+    "@mayarin/clearing": "workspace:*",
+    "@mayarin/db": "workspace:*",
+    "@mayarin/ledger": "workspace:*",
+    "@mayarin/payment-intent": "workspace:*",
+    "@mayarin/provider-mock": "workspace:*",
+    "@mayarin/qr-parser": "workspace:*",
+    "@mayarin/settlement": "workspace:*",
+    "@mayarin/shared": "workspace:*",
     "hono": "^4.6.16",
     "zod": "^3.24.1"
   }

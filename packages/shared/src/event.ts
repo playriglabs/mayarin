@@ -1,7 +1,7 @@
 /**
  * Domain events.
  *
- * Mayarr is event driven: state changes are recorded as facts, and side effects
+ * Mayarin is event driven: state changes are recorded as facts, and side effects
  * (webhooks, notifications, projections) subscribe to those facts instead of
  * being called inline by the clearing engine.
  *

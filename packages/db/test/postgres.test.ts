@@ -8,19 +8,19 @@
  *
  * ```
  * bun run db:up && bun run db:migrate
- * DATABASE_URL=postgres://mayarr:mayarr@localhost:5432/mayarr bun test packages/db
+ * DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
  * ```
  *
  * Skipped when `DATABASE_URL` is not set.
  */
 
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarr/clearing";
-import { LedgerService } from "@mayarr/ledger";
-import { PaymentIntentService } from "@mayarr/payment-intent";
-import { MockSettlementAdapter } from "@mayarr/provider-mock";
-import { SettlementAdapterRegistry } from "@mayarr/settlement";
-import { ConcurrencyError, FixedClock, money } from "@mayarr/shared";
+import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarin/clearing";
+import { LedgerService } from "@mayarin/ledger";
+import { PaymentIntentService } from "@mayarin/payment-intent";
+import { MockSettlementAdapter } from "@mayarin/provider-mock";
+import { SettlementAdapterRegistry } from "@mayarin/settlement";
+import { ConcurrencyError, FixedClock, money } from "@mayarin/shared";
 import { sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
 import { DrizzleClearingRepository } from "../src/repositories/clearing.ts";
@@ -70,7 +70,7 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     const created = await intents.create({
       merchant: {
         id: "ID1020017611473",
-        name: "Warung Kopi Mayarr",
+        name: "Warung Kopi Mayarin",
         city: "Jakarta",
         countryCode: "ID",
         categoryCode: "5411",
@@ -107,7 +107,7 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     const replay = await intents.create({
       merchant: {
         id: "ID1020017611473",
-        name: "Warung Kopi Mayarr",
+        name: "Warung Kopi Mayarin",
         city: "Jakarta",
         countryCode: "ID",
         categoryCode: "5411",

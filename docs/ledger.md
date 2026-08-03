@@ -18,10 +18,10 @@ no migration:
 
 | Account                        | Type      | Holds                                         |
 | ------------------------------ | --------- | --------------------------------------------- |
-| `TREASURY:<asset>`             | Asset     | Settlement assets Mayarr holds                |
+| `TREASURY:<asset>`             | Asset     | Settlement assets Mayarin holds               |
 | `MERCHANT_PAYABLE:<asset>`     | Liability | Cleared value owed to merchants               |
 | `SETTLEMENT_IN_FLIGHT:<asset>` | Liability | Value handed to a rail, awaiting confirmation |
-| `FEE_REVENUE:<asset>`          | Revenue   | Clearing fees retained by Mayarr              |
+| `FEE_REVENUE:<asset>`          | Revenue   | Clearing fees retained by Mayarin             |
 
 Three postings describe a payment end to end:
 

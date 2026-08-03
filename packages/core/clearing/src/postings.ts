@@ -22,8 +22,8 @@
  * it records, so replaying a step cannot double-post.
  */
 
-import { credit, type DraftTransaction, debit } from "@mayarr/ledger";
-import { LedgerImbalanceError, type Money } from "@mayarr/shared";
+import { credit, type DraftTransaction, debit } from "@mayarin/ledger";
+import { LedgerImbalanceError, type Money } from "@mayarin/shared";
 import type { ClearingState, ClearingTransaction } from "./types.ts";
 
 export function postingIdempotencyKey(

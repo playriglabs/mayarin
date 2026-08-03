@@ -9,12 +9,12 @@ import {
   InMemoryClearingRepository,
   InMemoryLedgerRepository,
   InMemoryPaymentIntentRepository,
-} from "@mayarr/db/memory";
-import { type AccountKind, LedgerService } from "@mayarr/ledger";
-import { PaymentIntentService } from "@mayarr/payment-intent";
-import { type MockBehaviour, MockSettlementAdapter } from "@mayarr/provider-mock";
-import { SettlementAdapterRegistry } from "@mayarr/settlement";
-import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarr/shared";
+} from "@mayarin/db/memory";
+import { type AccountKind, LedgerService } from "@mayarin/ledger";
+import { PaymentIntentService } from "@mayarin/payment-intent";
+import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
+import { SettlementAdapterRegistry } from "@mayarin/settlement";
+import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
 import { ClearingEngine } from "../src/engine.ts";
 import { BasisPointsFeePolicy } from "../src/fees.ts";
 import { StaticRateProvider } from "../src/rate.ts";
@@ -74,7 +74,7 @@ export function createHarness(options: HarnessOptions = {}) {
     const created = await intents.create({
       merchant: {
         id: "ID1020017611473",
-        name: "Warung Kopi Mayarr",
+        name: "Warung Kopi Mayarin",
         city: "Jakarta",
         countryCode: "ID",
       },

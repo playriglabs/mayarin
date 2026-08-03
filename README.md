@@ -1,14 +1,14 @@
-# mayarr.xyz
+# mayarin
 
-**/maɪˈjɑːr/** — _"My-ar"_
+**/maɪˈjɑːrɪn/** — _"My-ar-in"_
 
 > **Programmable Clearing Infrastructure**
 >
 > _Move value, not complexity._
 
-Mayarr is a programmable clearing infrastructure that bridges digital assets with traditional payment rails through a modular, provider-agnostic architecture.
+Mayarin is a programmable clearing infrastructure that bridges digital assets with traditional payment rails through a modular, provider-agnostic architecture.
 
-Instead of replacing existing financial systems, Mayarr orchestrates how value moves across wallets, blockchains, stablecoins, and local payment networks.
+Instead of replacing existing financial systems, Mayarin orchestrates how value moves across wallets, blockchains, stablecoins, and local payment networks.
 
 ---
 
@@ -89,7 +89,7 @@ Full setup, commands and tooling: [docs/development.md](./docs/development.md).
 
 | Document                                           | Covers                                                          |
 | -------------------------------------------------- | --------------------------------------------------------------- |
-| [Vision & Rationale](./docs/vision.md)             | Why Mayarr exists, the problem, goals and non-goals             |
+| [Vision & Rationale](./docs/vision.md)             | Why Mayarin exists, the problem, goals and non-goals            |
 | [Architecture](./docs/architecture.md)             | Design principles, system layers, payment flow, monorepo, stack |
 | [Money](./docs/money.md)                           | Exact minor-unit amounts and the asset registry                 |
 | [QR Parser](./docs/qr-parser.md)                   | EMVCo decoding and the QRIS profile                             |
@@ -122,7 +122,6 @@ See the [roadmap](./docs/roadmap.md) for what Phase 2 and Phase 3 add.
 # Closing Statement
 
 > We believe digital assets should not replace existing payment systems.
-
 > They should make them programmable.
 
-Mayarr transforms fragmented payment infrastructure into a unified clearing layer capable of orchestrating value across blockchains, stable assets, and traditional payment rails through one modular architecture.
+Mayarin transforms fragmented payment infrastructure into a unified clearing layer capable of orchestrating value across blockchains, stable assets, and traditional payment rails through one modular architecture.

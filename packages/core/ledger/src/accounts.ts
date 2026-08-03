@@ -7,7 +7,7 @@
  * them.
  */
 
-import { type AssetCode, ConfigurationError, isAssetCode } from "@mayarr/shared";
+import { type AssetCode, ConfigurationError, isAssetCode } from "@mayarin/shared";
 import type { AccountType } from "./types.ts";
 
 export interface AccountKindDefinition {
@@ -17,11 +17,11 @@ export interface AccountKindDefinition {
 }
 
 export const ACCOUNT_KINDS = {
-  /** Settlement assets Mayarr actually holds. */
+  /** Settlement assets Mayarin actually holds. */
   TREASURY: {
     type: "ASSET",
     name: "Treasury",
-    description: "Settlement assets held by Mayarr and available to settle payments.",
+    description: "Settlement assets held by Mayarin and available to settle payments.",
   },
   /** Owed to merchants for cleared payments not yet settled. */
   MERCHANT_PAYABLE: {
@@ -35,11 +35,11 @@ export const ACCOUNT_KINDS = {
     name: "Settlement in flight",
     description: "Value handed to a settlement adapter and awaiting confirmation.",
   },
-  /** Mayarr's take. */
+  /** Mayarin's take. */
   FEE_REVENUE: {
     type: "REVENUE",
     name: "Fee revenue",
-    description: "Clearing fees retained by Mayarr.",
+    description: "Clearing fees retained by Mayarin.",
   },
 } as const satisfies Record<string, AccountKindDefinition>;
 

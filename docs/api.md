@@ -31,7 +31,7 @@ Idempotency-Key: order-4711
     "status": "CREATED",
     "merchant": {
       "id": "ID1020017611473",
-      "name": "Warung Kopi Mayarr",
+      "name": "Warung Kopi Mayarin",
       "city": "Jakarta"
     },
     "amount": { "amount": "5000000", "asset": "IDR", "formatted": "50000.00" },

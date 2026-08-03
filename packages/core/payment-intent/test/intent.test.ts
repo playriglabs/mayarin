@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { InvalidStateTransitionError, money, ValidationError } from "@mayarr/shared";
+import { InvalidStateTransitionError, money, ValidationError } from "@mayarin/shared";
 import type { CreatePaymentIntentInput } from "../src/intent.ts";
 import {
   canTransition,

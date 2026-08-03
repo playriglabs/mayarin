@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { LedgerImbalanceError, money, ValidationError } from "@mayarr/shared";
+import { LedgerImbalanceError, money, ValidationError } from "@mayarin/shared";
 import { accountCode, parseAccountCode } from "../src/accounts.ts";
 import { computeBalance } from "../src/balance.ts";
 import { assertBalanced, buildTransaction, totalsByAsset } from "../src/transaction.ts";

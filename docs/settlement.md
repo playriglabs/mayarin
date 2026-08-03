@@ -55,8 +55,8 @@ interface SettlementAdapter {
 ```
 
 Adapters receive a `SettlementRequest` — merchant, amount in the settlement
-asset, Mayarr's reference, an idempotency key — rather than a `PaymentIntent`.
-A provider package therefore never depends on Mayarr's aggregates, and the intent
+asset, Mayarin's reference, an idempotency key — rather than a `PaymentIntent`.
+A provider package therefore never depends on Mayarin's aggregates, and the intent
 shape can evolve without touching every integration.
 
 Every call returns a result rather than `void`: without the provider reference

@@ -16,7 +16,7 @@ import {
   NotFoundError,
   noopEventPublisher,
   serializeMoney,
-} from "@mayarr/shared";
+} from "@mayarin/shared";
 import { PAYMENT_INTENT_EVENT, type PaymentIntentEventType, paymentIntentEvent } from "./events.ts";
 import {
   confirm as confirmIntent,

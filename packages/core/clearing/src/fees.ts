@@ -5,7 +5,7 @@
  * logic, so it is injected. Phase 1 ships a flat basis-point policy.
  */
 
-import { type Money, multiplyByBasisPoints, ValidationError } from "@mayarr/shared";
+import { type Money, multiplyByBasisPoints, ValidationError } from "@mayarin/shared";
 
 export interface FeeContext {
   readonly merchantId: string;

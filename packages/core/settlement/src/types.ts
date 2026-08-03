@@ -1,4 +1,4 @@
-import type { Money } from "@mayarr/shared";
+import type { Money } from "@mayarin/shared";
 
 /**
  * Lifecycle of a settlement at a provider.
@@ -26,11 +26,11 @@ export interface SettlementMerchant {
  * What an adapter is asked to do.
  *
  * Note this is not a `PaymentIntent`: adapters receive exactly the facts a rail
- * needs, so a provider package never depends on Mayarr's aggregates and the
+ * needs, so a provider package never depends on Mayarin's aggregates and the
  * intent shape can evolve without touching every integration.
  */
 export interface SettlementRequest {
-  /** Mayarr's reference — the clearing transaction being settled. */
+  /** Mayarin's reference — the clearing transaction being settled. */
   readonly clearingTransactionId: string;
   readonly paymentIntentId: string;
   readonly merchant: SettlementMerchant;
@@ -89,11 +89,11 @@ export interface WebhookContext {
  * Normalized outcome of a webhook.
  *
  * `null` means "understood, nothing to do" — providers routinely send events
- * Mayarr does not act on, and that is not an error.
+ * Mayarin does not act on, and that is not an error.
  */
 export interface SettlementWebhookEvent {
   readonly providerReference: string;
-  /** Present when the provider echoes Mayarr's reference. */
+  /** Present when the provider echoes Mayarin's reference. */
   readonly clearingTransactionId?: string;
   readonly state: SettlementState;
   readonly occurredAt: Date;

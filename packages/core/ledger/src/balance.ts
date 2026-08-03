@@ -5,7 +5,7 @@
  * A repository may cache or aggregate them, but this is the definition.
  */
 
-import { subtract, zero } from "@mayarr/shared";
+import { subtract, zero } from "@mayarin/shared";
 import {
   type AccountBalance,
   type LedgerAccount,

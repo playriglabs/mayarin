@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { totalsByAsset } from "@mayarr/ledger";
-import { MOCK_SIGNATURE_HEADER } from "@mayarr/provider-mock";
-import { money } from "@mayarr/shared";
+import { totalsByAsset } from "@mayarin/ledger";
+import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
+import { money } from "@mayarin/shared";
 import { createHarness } from "./harness.ts";
 
 const IDRX = (minorUnits: bigint) => money(minorUnits, "IDRX");
@@ -168,7 +168,7 @@ describe("clearing engine — waiting for the outside world", () => {
 
 describe("clearing engine — webhooks", () => {
   test("a provider webhook drives a pending settlement to SUCCESS", async () => {
-    const secret = "whsec_mayarr_test";
+    const secret = "whsec_mayarin_test";
     const harness = createHarness({ behaviour: "pending", webhookSecret: secret });
     const settling = await harness.engine.start(await harness.confirmedIntent());
 
@@ -186,7 +186,7 @@ describe("clearing engine — webhooks", () => {
   });
 
   test("rejects a webhook with a bad signature", async () => {
-    const harness = createHarness({ behaviour: "pending", webhookSecret: "whsec_mayarr_test" });
+    const harness = createHarness({ behaviour: "pending", webhookSecret: "whsec_mayarin_test" });
     const settling = await harness.engine.start(await harness.confirmedIntent());
     const rawBody = JSON.stringify({
       providerReference: settling.providerReference,

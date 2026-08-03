@@ -16,7 +16,7 @@ import {
   type Money,
   ValidationError,
   zero,
-} from "@mayarr/shared";
+} from "@mayarin/shared";
 import type {
   DraftEntry,
   DraftTransaction,
@@ -58,7 +58,7 @@ export function totalsByAsset(entries: readonly (DraftEntry | LedgerEntry)[]): A
  * Enforces the double-entry invariant.
  *
  * Throws `LedgerImbalanceError` — not a validation error — because an unbalanced
- * posting means Mayarr's own logic tried to create or destroy value.
+ * posting means Mayarin's own logic tried to create or destroy value.
  */
 export function assertBalanced(entries: readonly (DraftEntry | LedgerEntry)[]): void {
   if (entries.length < 2) {

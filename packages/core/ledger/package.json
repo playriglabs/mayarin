@@ -1,5 +1,5 @@
 {
-  "name": "@mayarr/ledger",
+  "name": "@mayarin/ledger",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,6 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mayarr/shared": "workspace:*"
+    "@mayarin/shared": "workspace:*"
   }
 }

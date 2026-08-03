@@ -5,7 +5,7 @@ export default defineConfig({
   schema: "./src/schema.ts",
   out: "./migrations",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://mayarr:mayarr@localhost:5432/mayarr",
+    url: process.env.DATABASE_URL ?? "postgres://mayarin:mayarin@localhost:5433/mayarin",
   },
   strict: true,
   verbose: true,

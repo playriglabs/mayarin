@@ -1,7 +1,7 @@
-import type { AssetCode, Money } from "@mayarr/shared";
+import type { AssetCode, Money } from "@mayarin/shared";
 import type { EmvField } from "./emvco.ts";
 
-/** QR standards Mayarr can decode. New standards are added as profiles. */
+/** QR standards Mayarin can decode. New standards are added as profiles. */
 export type QrScheme = "QRIS" | "EMVCO";
 
 /**

@@ -11,8 +11,8 @@ import {
   type LedgerRepository,
   type LedgerTransaction,
   normalBalanceOf,
-} from "@mayarr/ledger";
-import { type Clock, generateId, NotFoundError, systemClock, zero } from "@mayarr/shared";
+} from "@mayarin/ledger";
+import { type Clock, generateId, NotFoundError, systemClock, zero } from "@mayarin/shared";
 import { asc, eq } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction, toAsset, toMoney } from "../mapping.ts";

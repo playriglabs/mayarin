@@ -6,9 +6,9 @@
  * clients that display use `formatted`.
  */
 
-import type { ClearingEvent, ClearingTransaction } from "@mayarr/clearing";
-import type { PaymentIntent } from "@mayarr/payment-intent";
-import { type Money, toDecimalString } from "@mayarr/shared";
+import type { ClearingEvent, ClearingTransaction } from "@mayarin/clearing";
+import type { PaymentIntent } from "@mayarin/payment-intent";
+import { type Money, toDecimalString } from "@mayarin/shared";
 
 export interface MoneyDto {
   readonly amount: string;

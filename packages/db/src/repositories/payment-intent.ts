@@ -3,9 +3,9 @@ import type {
   PaymentIntentRepository,
   PaymentIntentStatus,
   PaymentSource,
-} from "@mayarr/payment-intent";
-import type { QrScheme } from "@mayarr/qr-parser";
-import { ConcurrencyError } from "@mayarr/shared";
+} from "@mayarin/payment-intent";
+import type { QrScheme } from "@mayarin/qr-parser";
+import { ConcurrencyError } from "@mayarin/shared";
 import { and, eq } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, toAsset, toMoney } from "../mapping.ts";

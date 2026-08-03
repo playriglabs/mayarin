@@ -9,8 +9,8 @@ import {
   type LedgerEntry,
   type LedgerRepository,
   type LedgerTransaction,
-} from "@mayarr/ledger";
-import { type Clock, ConflictError, generateId, NotFoundError, systemClock } from "@mayarr/shared";
+} from "@mayarin/ledger";
+import { type Clock, ConflictError, generateId, NotFoundError, systemClock } from "@mayarin/shared";
 
 /**
  * In-memory ledger repository.

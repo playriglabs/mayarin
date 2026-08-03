@@ -23,7 +23,7 @@ Example
 {
   scheme: "QRIS",
   isStatic: false,
-  merchantName: "Warung Kopi Mayarr",
+  merchantName: "Warung Kopi Mayarin",
   merchantId: "ID1020017611473",
   merchantCity: "Jakarta",
   countryCode: "ID",

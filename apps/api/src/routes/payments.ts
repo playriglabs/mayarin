@@ -7,7 +7,7 @@
  * whichever they were handed.
  */
 
-import { hasPrefix } from "@mayarr/shared";
+import { hasPrefix } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toPaymentDto } from "../serialization.ts";

@@ -5,7 +5,7 @@
  * profile on top of EMVCo, so it is detected rather than parsed separately.
  */
 
-import { assetFromIso4217Numeric, fromDecimalString } from "@mayarr/shared";
+import { assetFromIso4217Numeric, fromDecimalString } from "@mayarin/shared";
 import {
   EMV_TAG,
   type EmvField,

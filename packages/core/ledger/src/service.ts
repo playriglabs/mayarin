@@ -1,12 +1,12 @@
 /**
  * Ledger application service.
  *
- * The only way value is recorded in Mayarr. Callers describe a posting in
+ * The only way value is recorded in Mayarin. Callers describe a posting in
  * business terms (account kind + asset) and the service resolves accounts,
  * enforces the balance invariant, and appends the transaction.
  */
 
-import type { AssetCode, Clock, Money } from "@mayarr/shared";
+import type { AssetCode, Clock, Money } from "@mayarin/shared";
 import { type AccountKind, accountCode, parseAccountCode } from "./accounts.ts";
 import type { LedgerRepository } from "./repository.ts";
 import { buildTransaction } from "./transaction.ts";

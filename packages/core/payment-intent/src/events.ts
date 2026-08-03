@@ -1,4 +1,4 @@
-import { type DomainEvent, generateId, serializeMoney } from "@mayarr/shared";
+import { type DomainEvent, generateId, serializeMoney } from "@mayarin/shared";
 import type { PaymentIntent } from "./types.ts";
 
 export const PAYMENT_INTENT_EVENT = {

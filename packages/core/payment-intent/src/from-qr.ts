@@ -5,8 +5,8 @@
  * accepts a merchant snapshot and an amount, never a payload.
  */
 
-import type { ParsedQr } from "@mayarr/qr-parser";
-import { type Money, ValidationError } from "@mayarr/shared";
+import type { ParsedQr } from "@mayarin/qr-parser";
+import { type Money, ValidationError } from "@mayarin/shared";
 import type { MerchantSnapshot, PaymentSource } from "./types.ts";
 
 export function merchantFromParsedQr(parsed: ParsedQr): MerchantSnapshot {

@@ -18,7 +18,7 @@ import type {
   SettlementState,
   SettlementStatus,
   SettlementWebhookEvent,
-} from "@mayarr/settlement";
+} from "@mayarin/settlement";
 import {
   type Clock,
   generateId,
@@ -26,7 +26,7 @@ import {
   ProviderError,
   systemClock,
   ValidationError,
-} from "@mayarr/shared";
+} from "@mayarin/shared";
 
 /** How a settle() call resolves. */
 export type MockBehaviour =
@@ -55,7 +55,7 @@ interface MockSettlement {
   failureReason?: string;
 }
 
-export const MOCK_SIGNATURE_HEADER = "x-mayarr-signature";
+export const MOCK_SIGNATURE_HEADER = "x-mayarin-signature";
 
 export class MockSettlementAdapter implements SettlementAdapter {
   readonly name: string;

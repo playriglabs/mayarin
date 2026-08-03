@@ -1,5 +1,5 @@
-import type { SettlementMerchant } from "@mayarr/settlement";
-import type { AssetCode, Money } from "@mayarr/shared";
+import type { SettlementMerchant } from "@mayarin/settlement";
+import type { AssetCode, Money } from "@mayarin/shared";
 
 /**
  * Clearing state machine.
@@ -60,7 +60,7 @@ export interface ClearingTransaction {
   readonly rate?: LockedRate;
   /** `sourceAmount` expressed in the settlement asset, frozen at PRICE_LOCKED. */
   readonly settlementAmount?: Money;
-  /** Mayarr's fee, in the settlement asset. */
+  /** Mayarin's fee, in the settlement asset. */
   readonly fee?: Money;
   /** What the merchant actually receives: settlement amount minus fee. */
   readonly netAmount?: Money;

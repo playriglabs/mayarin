@@ -1,5 +1,5 @@
 {
-  "name": "@mayarr/provider-mock",
+  "name": "@mayarin/provider-mock",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mayarr/settlement": "workspace:*",
-    "@mayarr/shared": "workspace:*"
+    "@mayarin/settlement": "workspace:*",
+    "@mayarin/shared": "workspace:*"
   }
 }

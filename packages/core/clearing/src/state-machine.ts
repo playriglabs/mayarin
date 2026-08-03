@@ -7,7 +7,7 @@
  * it was persisted in.
  */
 
-import { InvalidStateTransitionError } from "@mayarr/shared";
+import { InvalidStateTransitionError } from "@mayarin/shared";
 import type { ClearingState, ClearingTransaction } from "./types.ts";
 
 const TRANSITIONS: Readonly<Record<ClearingState, readonly ClearingState[]>> = {

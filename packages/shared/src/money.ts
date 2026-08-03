@@ -1,7 +1,7 @@
 /**
  * Money.
  *
- * Every amount in Mayarr is an exact integer count of an asset's minor units.
+ * Every amount in Mayarin is an exact integer count of an asset's minor units.
  * Floating point never touches a balance: a `Money` is a `bigint` plus the
  * asset it is denominated in, which holds for 2-decimal fiat and 18-decimal
  * ERC-20 balances alike.

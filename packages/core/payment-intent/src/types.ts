@@ -1,5 +1,5 @@
-import type { QrScheme } from "@mayarr/qr-parser";
-import type { AssetCode, Money } from "@mayarr/shared";
+import type { QrScheme } from "@mayarin/qr-parser";
+import type { AssetCode, Money } from "@mayarin/shared";
 
 /**
  * Payment intent lifecycle.
@@ -52,7 +52,7 @@ export interface PaymentIntent {
   readonly merchant: MerchantSnapshot;
   /** What the merchant is owed, denominated in the currency they quoted. */
   readonly amount: Money;
-  /** Asset Mayarr clears and settles this payment in. */
+  /** Asset Mayarin clears and settles this payment in. */
   readonly settlementAsset: AssetCode;
   /** Settlement provider that will pay the merchant. */
   readonly provider: string;

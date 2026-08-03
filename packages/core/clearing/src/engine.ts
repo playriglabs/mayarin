@@ -20,27 +20,27 @@
  * The reverse order could record a settlement that never happened.
  */
 
-import type { LedgerService } from "@mayarr/ledger";
-import type { PaymentIntent, PaymentIntentService } from "@mayarr/payment-intent";
+import type { LedgerService } from "@mayarin/ledger";
+import type { PaymentIntent, PaymentIntentService } from "@mayarin/payment-intent";
 import type {
   SettlementAdapterRegistry,
   SettlementRequest,
   WebhookContext,
-} from "@mayarr/settlement";
+} from "@mayarin/settlement";
 import {
   type Clock,
   convert,
   type DomainEvent,
   type EventPublisher,
   InvalidStateTransitionError,
-  isMayarrError,
+  isMayarinError,
   isPositive,
   NotFoundError,
   noopEventPublisher,
   serializeMoney,
   subtract,
   ValidationError,
-} from "@mayarr/shared";
+} from "@mayarin/shared";
 import type { FeePolicy } from "./fees.ts";
 import { assetReceivedPosting, clearingPosting, settledPosting } from "./postings.ts";
 import { lockRate, type RateProvider } from "./rate.ts";
@@ -218,9 +218,9 @@ export class ClearingEngine {
       } catch (error) {
         // Retryable failures leave the transaction where it is so a later retry
         // — or `resumeStuck` — can pick it up from the same state.
-        if (isMayarrError(error) && error.retryable) throw error;
+        if (isMayarinError(error) && error.retryable) throw error;
         const reason = error instanceof Error ? error.message : String(error);
-        const code = isMayarrError(error) ? error.code : "CLEARING_FAILED";
+        const code = isMayarinError(error) ? error.code : "CLEARING_FAILED";
         return { transaction: await this.#fail(current, reason, code), waiting: false };
       }
 

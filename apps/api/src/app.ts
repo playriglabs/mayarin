@@ -5,7 +5,7 @@
  * a response. No payment logic lives here.
  */
 
-import { NotFoundError } from "@mayarr/shared";
+import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "./container.ts";
 import { errorHandler } from "./errors.ts";

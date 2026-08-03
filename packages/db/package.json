@@ -1,5 +1,5 @@
 {
-  "name": "@mayarr/db",
+  "name": "@mayarin/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,17 +14,17 @@
     "migrate": "bun run src/migrate.ts"
   },
   "dependencies": {
-    "@mayarr/clearing": "workspace:*",
-    "@mayarr/ledger": "workspace:*",
-    "@mayarr/payment-intent": "workspace:*",
-    "@mayarr/qr-parser": "workspace:*",
-    "@mayarr/shared": "workspace:*",
+    "@mayarin/clearing": "workspace:*",
+    "@mayarin/ledger": "workspace:*",
+    "@mayarin/payment-intent": "workspace:*",
+    "@mayarin/qr-parser": "workspace:*",
+    "@mayarin/shared": "workspace:*",
     "drizzle-orm": "^0.38.3",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
-    "@mayarr/provider-mock": "workspace:*",
-    "@mayarr/settlement": "workspace:*",
+    "@mayarin/provider-mock": "workspace:*",
+    "@mayarin/settlement": "workspace:*",
     "drizzle-kit": "^0.30.1"
   }
 }

@@ -6,19 +6,19 @@
  * swappable.
  */
 
-import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarr/clearing";
+import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarin/clearing";
 import {
   createDatabase,
   type DatabaseHandle,
   DrizzleClearingRepository,
   DrizzleLedgerRepository,
   DrizzlePaymentIntentRepository,
-} from "@mayarr/db";
-import { LedgerService } from "@mayarr/ledger";
-import { PaymentIntentService } from "@mayarr/payment-intent";
-import { MockSettlementAdapter } from "@mayarr/provider-mock";
-import { SettlementAdapterRegistry } from "@mayarr/settlement";
-import { type Clock, type EventPublisher, InMemoryEventBus, systemClock } from "@mayarr/shared";
+} from "@mayarin/db";
+import { LedgerService } from "@mayarin/ledger";
+import { PaymentIntentService } from "@mayarin/payment-intent";
+import { MockSettlementAdapter } from "@mayarin/provider-mock";
+import { SettlementAdapterRegistry } from "@mayarin/settlement";
+import { type Clock, type EventPublisher, InMemoryEventBus, systemClock } from "@mayarin/shared";
 import type { Config } from "./config.ts";
 
 export interface Container {

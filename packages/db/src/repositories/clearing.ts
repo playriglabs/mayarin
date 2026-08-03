@@ -5,8 +5,8 @@ import {
   type ClearingState,
   type ClearingTransaction,
   TERMINAL_CLEARING_STATES,
-} from "@mayarr/clearing";
-import { ConcurrencyError } from "@mayarr/shared";
+} from "@mayarin/clearing";
+import { ConcurrencyError } from "@mayarin/shared";
 import { and, asc, eq, notInArray } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import {
