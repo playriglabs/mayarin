@@ -22,6 +22,8 @@ export const ID_PREFIXES = {
   ledgerTransaction: "ltxn",
   ledgerEntry: "lent",
   settlement: "stl",
+  depositAddress: "dad",
+  deposit: "dep",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];
