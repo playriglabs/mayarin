@@ -6,6 +6,7 @@
  * /payment-intents/:id/confirm` hands the intent to the clearing engine.
  */
 
+import { CHAIN_IDS } from "@mayarin/chain";
 import {
   amountFromParsedQr,
   type CreatePaymentIntentCommand,
@@ -34,6 +35,8 @@ const createBodySchema = z
     merchant: merchantSchema.optional(),
     /** Human decimal amount, e.g. `{ "amount": "50000.00", "asset": "IDR" }`. */
     amount: decimalMoneySchema.optional(),
+    /** The rail the payer intends to pay on, e.g. USDC on Base. */
+    payment: z.object({ asset: assetCodeSchema, chain: z.enum(CHAIN_IDS) }).optional(),
     settlementAsset: assetCodeSchema.optional(),
     provider: z.string().min(1).optional(),
     metadata: z.record(z.string(), z.string()).optional(),
@@ -52,6 +55,7 @@ export function paymentIntentRoutes(container: Container): Hono {
 
     const command: CreatePaymentIntentCommand = {
       ...resolveMerchantAndAmount(body),
+      ...(body.payment === undefined ? {} : { payment: body.payment }),
       ...(body.settlementAsset === undefined ? {} : { settlementAsset: body.settlementAsset }),
       ...(body.provider === undefined ? {} : { provider: body.provider }),
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),

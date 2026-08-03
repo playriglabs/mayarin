@@ -277,3 +277,56 @@ describe("unknown routes", () => {
     expect(body.error.code).toBe("NOT_FOUND");
   });
 });
+
+describe("payment rail", () => {
+  test("rejects an unsupported chain", async () => {
+    const harness = createApiHarness();
+    const response = await harness.app.request("/payment-intents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        merchant: {
+          id: "M1",
+          name: "Warung",
+          city: "Jakarta",
+          countryCode: "ID",
+        },
+        amount: { amount: "50000.00", asset: "IDR" },
+        payment: { asset: "USDC", chain: "dogecoin" },
+      }),
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  test("echoes the rail on the created intent", async () => {
+    const harness = createApiHarness();
+    const response = await harness.app.request("/payment-intents", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        merchant: {
+          id: "M1",
+          name: "Warung",
+          city: "Jakarta",
+          countryCode: "ID",
+        },
+        amount: { amount: "50000.00", asset: "IDR" },
+        payment: { asset: "USDC", chain: "base-sepolia" },
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as {
+      paymentIntent: { payment: { asset: string; chain: string } | null };
+    };
+    expect(body.paymentIntent.payment).toEqual({ asset: "USDC", chain: "base-sepolia" });
+  });
+});
+
+describe("admin routes", () => {
+  test("are not registered without an admin token", async () => {
+    const harness = createApiHarness();
+    expect((await harness.app.request("/admin/watcher/tick", { method: "POST" })).status).toBe(404);
+  });
+});

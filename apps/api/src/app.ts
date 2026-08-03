@@ -9,6 +9,7 @@ import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "./container.ts";
 import { errorHandler } from "./errors.ts";
+import { adminRoutes } from "./routes/admin.ts";
 import { paymentIntentRoutes } from "./routes/payment-intents.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
@@ -32,6 +33,11 @@ export function createApp(container: Container): Hono {
   app.route("/payment-intents", paymentIntentRoutes(container));
   app.route("/payments", paymentRoutes(container));
   app.route("/webhooks", webhookRoutes(container));
+
+  const adminToken = container.config.adminToken;
+  if (adminToken !== undefined) {
+    app.route("/admin", adminRoutes(container, adminToken));
+  }
 
   return app;
 }

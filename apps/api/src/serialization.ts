@@ -8,9 +8,10 @@
  * fifty thousand four hundred thirty-two rupiah as `Rp 50.432,00`.
  */
 
+import { type Deposit, isOrphanedAfterConfirmed } from "@mayarin/chain";
 import type { ClearingEvent, ClearingTransaction } from "@mayarin/clearing";
 import type { PaymentIntent } from "@mayarin/payment-intent";
-import { formatMoneyLocale, type Money, toDecimalString } from "@mayarin/shared";
+import { formatMoneyLocale, type Money, toDecimalString, zero } from "@mayarin/shared";
 
 export interface MoneyDto {
   readonly amount: string;
@@ -42,6 +43,7 @@ export function toPaymentIntentDto(intent: PaymentIntent) {
     amount: toMoneyDto(intent.amount),
     settlementAsset: intent.settlementAsset,
     provider: intent.provider,
+    payment: intent.payment ?? null,
     source: intent.source,
     metadata: intent.metadata,
     clearingTransactionId: intent.clearingTransactionId ?? null,
@@ -97,14 +99,65 @@ export function toTimelineDto(events: readonly ClearingEvent[]) {
   }));
 }
 
+/**
+ * The payer's side of a payment.
+ *
+ * `received` counts CONFIRMED deposits only — it is the number the funding rule
+ * uses, so showing anything else would explain the payment incorrectly.
+ * `deposits` is the per-transfer record that makes a half-paid payment
+ * diagnosable.
+ */
+export function toDepositDto(
+  transaction: ClearingTransaction,
+  deposits: readonly Deposit[],
+  headNumber: bigint | undefined,
+  requiredConfirmations: number,
+) {
+  const deposit = transaction.deposit;
+  if (deposit === undefined) return null;
+
+  const received = deposits
+    .filter((entry) => entry.status === "CONFIRMED")
+    .reduce(
+      (total, entry) => ({
+        amount: total.amount + entry.amount.amount,
+        asset: deposit.asset,
+      }),
+      zero(deposit.asset),
+    );
+
+  return {
+    address: deposit.address,
+    chain: deposit.chain,
+    asset: deposit.asset,
+    amount: toMoneyDto(deposit.amount),
+    received: toMoneyDto(received),
+    required: requiredConfirmations,
+    reviewRequired: deposits.some(isOrphanedAfterConfirmed),
+    deposits: deposits.map((entry) => ({
+      txHash: entry.txHash,
+      logIndex: entry.logIndex,
+      amount: toMoneyDto(entry.amount),
+      status: entry.status,
+      confirmations:
+        headNumber === undefined || entry.blockNumber > headNumber
+          ? 0
+          : Number(headNumber - entry.blockNumber) + 1,
+      firstSeenAt: entry.firstSeenAt.toISOString(),
+    })),
+  };
+}
+
 export function toPaymentDto(
   intent: PaymentIntent,
   transaction: ClearingTransaction | null,
   events: readonly ClearingEvent[] = [],
+  deposit: ReturnType<typeof toDepositDto> = null,
 ) {
   return {
     paymentIntent: toPaymentIntentDto(intent),
     clearing: transaction === null ? null : toClearingDto(transaction),
+    deposit,
     timeline: toTimelineDto(events),
   };
 }
