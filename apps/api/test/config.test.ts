@@ -22,7 +22,14 @@ describe("chain configuration", () => {
     });
 
     expect(config.chain?.confirmations["base-sepolia"]).toBe(6);
-    expect(config.chain?.pairs).toEqual([{ chain: "base-sepolia", asset: "USDC" }]);
+    // The watcher pairs now come from the stablecoin registry, not the chain block.
+    expect(config.stablecoins).toEqual([
+      { asset: "IDRX", onChain: [] },
+      {
+        asset: "USDC",
+        onChain: [{ chain: "base-sepolia", address: "0x036cbd53842c5426634e7929541ec2318f3dcf7e" }],
+      },
+    ]);
   });
 
   test("refuses to boot with the watcher on and asset receipt on auto", () => {

@@ -6,6 +6,7 @@
  */
 
 import { ValidationError } from "@mayarin/shared";
+import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 
@@ -27,7 +28,7 @@ export function adminRoutes(container: Container, token: string): Hono {
     }
 
     const results = [];
-    for (const pair of chain.pairs) {
+    for (const pair of pairsOf(container.config.stablecoins)) {
       const watcher = container.watchers.get(pair.chain);
       if (watcher === undefined) continue;
       const result = await watcher.tick(pair.chain, pair.asset);

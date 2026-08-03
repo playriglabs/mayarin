@@ -93,7 +93,6 @@ export type RawConfig = z.infer<typeof configSchema>;
 
 export interface ChainConfig {
   readonly rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
-  readonly tokens: Readonly<Partial<Record<ChainId, Readonly<Partial<Record<AssetCode, string>>>>>>;
   readonly confirmations: Readonly<Record<ChainId, number>>;
   readonly startBlocks: Readonly<Partial<Record<ChainId, bigint>>>;
   readonly xpub: string;
@@ -101,11 +100,6 @@ export interface ChainConfig {
   readonly blockRange: number;
   readonly retentionSeconds: number;
   readonly reorgWatchWindow: number;
-  /** Every (chain, asset) the watcher ticks, derived from CHAIN_ASSETS. */
-  readonly pairs: readonly {
-    readonly chain: ChainId;
-    readonly asset: AssetCode;
-  }[];
 }
 
 export type Config = RawConfig & {
@@ -193,8 +187,8 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
     issues.push("DEPOSIT_XPUB is required when CHAIN_ENABLED is true");
   }
 
-  const pairs: { chain: ChainId; asset: AssetCode }[] = [];
   const confirmations: Partial<Record<ChainId, number>> = {};
+  let tokenCount = 0;
 
   for (const [chain, tokens] of Object.entries(data.chainAssets)) {
     if (!(CHAIN_IDS as readonly string[]).includes(chain)) {
@@ -206,12 +200,10 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
       issues.push(`CHAIN_ASSETS configures ${chainId} but CHAIN_RPC_URLS has no RPC URL for it`);
     }
     confirmations[chainId] = data.chainConfirmations[chainId] ?? 6;
-    for (const asset of Object.keys(tokens ?? {})) {
-      pairs.push({ chain: chainId, asset: asset as AssetCode });
-    }
+    tokenCount += Object.keys(tokens ?? {}).length;
   }
 
-  if (pairs.length === 0) {
+  if (tokenCount === 0) {
     issues.push("CHAIN_ASSETS must configure at least one token when CHAIN_ENABLED is true");
   }
 
@@ -223,7 +215,6 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
 
   return {
     rpcUrls: data.chainRpcUrls,
-    tokens: data.chainAssets,
     confirmations: confirmations as Record<ChainId, number>,
     startBlocks: Object.fromEntries(
       Object.entries(data.chainStartBlocks).map(([chain, block]) => [chain, BigInt(block ?? "0")]),
@@ -233,7 +224,6 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
     blockRange: data.watcherBlockRange,
     retentionSeconds: data.watcherRetentionSeconds,
     reorgWatchWindow: data.watcherReorgWatchWindow,
-    pairs,
   };
 }
 

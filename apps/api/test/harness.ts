@@ -17,6 +17,7 @@ import { PaymentIntentService } from "@mayarin/payment-intent";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
+import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
@@ -41,6 +42,9 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     PAYMENT_INTENT_TTL_SECONDS: "900",
     ASSET_RECEIPT_MODE: options.assetReceiptMode ?? "auto",
     EXCHANGE_RATES: '{"IDR/IDRX":"100"}',
+    // Admit USDC on base-sepolia so payment-rail route tests can use it; the
+    // chain layer itself stays off (CHAIN_ENABLED unset).
+    CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
     MOCK_WEBHOOK_SECRET: WEBHOOK_SECRET,
   });
 
@@ -50,11 +54,13 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     webhookSecret: WEBHOOK_SECRET,
   });
   const adapters = new SettlementAdapterRegistry([adapter]);
+  const registry = new InMemoryStablecoinRegistry(config.stablecoins);
 
   const intents = new PaymentIntentService({
     repository: new InMemoryPaymentIntentRepository(),
     clock,
     events,
+    registry,
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
@@ -86,6 +92,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     engine,
     adapters,
     events,
+    registry,
     watchers: new Map(),
     close: async () => {},
   };

@@ -23,7 +23,19 @@ import { PaymentIntentService } from "@mayarin/payment-intent";
 import { EvmChainClient, HdDepositAddressDeriver } from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
-import { type Clock, type EventPublisher, InMemoryEventBus, systemClock } from "@mayarin/shared";
+import {
+  type AssetCode,
+  type Clock,
+  type EventPublisher,
+  InMemoryEventBus,
+  systemClock,
+} from "@mayarin/shared";
+import {
+  InMemoryStablecoinRegistry,
+  pairsOf,
+  type Stablecoin,
+  type StablecoinRegistry,
+} from "@mayarin/stablecoin";
 import type { Config } from "./config.ts";
 
 export interface Container {
@@ -33,6 +45,8 @@ export interface Container {
   readonly engine: ClearingEngine;
   readonly adapters: SettlementAdapterRegistry;
   readonly events: EventPublisher;
+  /** Admissible stablecoins and their on-chain identities. */
+  readonly registry: StablecoinRegistry;
   /**
    * One watcher per chain, because confirmation depth is per chain: a single
    * watcher would have to pick one depth and apply it to chains that do not
@@ -58,6 +72,7 @@ export function createContainer({
   const handle: DatabaseHandle = createDatabase({ url: config.databaseUrl });
   const events = new InMemoryEventBus();
   const chain = config.chain;
+  const registry = new InMemoryStablecoinRegistry(config.stablecoins);
 
   const depositAddresses =
     chain === undefined ? undefined : new DrizzleDepositAddressRepository(handle.db);
@@ -68,6 +83,7 @@ export function createContainer({
     repository: new DrizzlePaymentIntentRepository(handle.db),
     clock,
     events,
+    registry,
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
@@ -111,7 +127,7 @@ export function createContainer({
     deposits = new DrizzleDepositRepository(handle.db);
     const client = new EvmChainClient({
       rpcUrls: chain.rpcUrls,
-      tokens: chain.tokens,
+      tokens: tokensOf(config.stablecoins),
     });
     const cursors = new DrizzleWatcherCursorRepository(handle.db);
     chainHead = (id: ChainId) => client.head(id);
@@ -124,7 +140,7 @@ export function createContainer({
       },
     };
 
-    for (const chainId of new Set(chain.pairs.map((pair) => pair.chain))) {
+    for (const chainId of new Set(pairsOf(config.stablecoins).map((pair) => pair.chain))) {
       watchers.set(
         chainId,
         new WalletWatcher({
@@ -154,9 +170,25 @@ export function createContainer({
     engine,
     adapters,
     events,
+    registry,
     watchers,
     ...(deposits === undefined ? {} : { deposits }),
     ...(chainHead === undefined ? {} : { chainHead }),
     close: () => handle.close(),
   };
+}
+
+/** Rebuilds the `chain → asset → address` token map the EVM client filters logs by. */
+function tokensOf(
+  stablecoins: readonly Stablecoin[],
+): Partial<Record<ChainId, Partial<Record<AssetCode, string>>>> {
+  const tokens: Partial<Record<ChainId, Partial<Record<AssetCode, string>>>> = {};
+  for (const coin of stablecoins) {
+    for (const entry of coin.onChain) {
+      const perChain = tokens[entry.chain] ?? {};
+      perChain[coin.asset] = entry.address;
+      tokens[entry.chain] = perChain;
+    }
+  }
+  return tokens;
 }
