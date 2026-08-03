@@ -1,0 +1,407 @@
+@import "tailwindcss";
+
+/* The wordmark is the only place the brand face is used; everything else is the
+   editorial serif / grotesk / mono trio. */
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --color-paper: #ffffff;
+  --color-ink: #111111;
+  --color-slate: #666666;
+  --color-line: #eaeaea;
+  --color-void: #050505;
+  --color-accent: #0eeb2e;
+  --color-forest: #1f6f54;
+  /* The illustration plate on dark sections: forest pushed almost to the void. */
+  --color-plate: #0b2016;
+
+  /* On #050505 the hairline has to lift rather than sit at #eaeaea. */
+  --color-line-inverse: #1e1e1e;
+  --color-slate-inverse: #8a8a8a;
+
+  --font-display:
+    "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans:
+    "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-brand: "Clash Display", "Inter", sans-serif;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Lenis owns the scroll; the browser's own smoothing would fight it. */
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+
+  .lenis.lenis-stopped {
+    overflow: hidden;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.6;
+    font-feature-settings:
+      "cv05" 1,
+      "ss03" 1;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-void);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-forest);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+/* Mono eyebrow used to label every section — the one repeated decorative device. */
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+@utility shell {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+
+  @media (width >= 48rem) {
+    padding-inline: 2.5rem;
+  }
+}
+
+/* Hairline grid that anchors the hero without reading as decoration. */
+@utility grid-field {
+  background-image:
+    linear-gradient(to right, var(--color-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+  background-size: 6.5rem 6.5rem;
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 10%, transparent 72%);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0);
+  transition:
+    opacity 700ms var(--ease-out-expo),
+    transform 700ms var(--ease-out-expo);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal[data-in="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* A single green pulse travelling a routing path. */
+.flow-line {
+  stroke-dasharray: 14 182;
+  animation: flow 5.5s linear infinite;
+  animation-delay: var(--flow-delay, 0s);
+}
+
+@keyframes flow {
+  from {
+    stroke-dashoffset: 196;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.flow-dot {
+  animation: pulse 3.2s var(--ease-out-expo) infinite;
+  animation-delay: var(--flow-delay, 0s);
+}
+
+@keyframes pulse {
+  0%,
+  70%,
+  100% {
+    opacity: 0.25;
+  }
+  35% {
+    opacity: 1;
+  }
+}
+
+/* The plane fades out at the horizon and at the edges of the frame; the type
+   sits far enough above it in contrast that no clearing is needed. */
+.wave-canvas {
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 15%,
+      #000 84%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 7%,
+      #000 93%,
+      transparent 100%
+    );
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 15%,
+      #000 84%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      #000 7%,
+      #000 93%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+@media (width < 48rem) {
+  .wave-canvas {
+    -webkit-mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0%,
+        #000 18%,
+        #000 86%,
+        transparent 100%
+      ),
+      linear-gradient(
+        to right,
+        transparent 0%,
+        #000 4%,
+        #000 96%,
+        transparent 100%
+      );
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0%,
+        #000 18%,
+        #000 86%,
+        transparent 100%
+      ),
+      linear-gradient(
+        to right,
+        transparent 0%,
+        #000 4%,
+        #000 96%,
+        transparent 100%
+      );
+  }
+}
+
+/* Logo strip runs from tablet up; below that it stays a static wrapped list. */
+.marquee {
+  animation: marquee 42s linear infinite;
+}
+
+.marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Footer wordmark: letters rise from behind the top edge in sequence, then the
+   accent rail draws itself under them. */
+.wordmark-letter {
+  display: inline-block;
+  transform: translate3d(0, 0.42em, 0);
+  opacity: 0;
+  transition:
+    transform 900ms var(--ease-out-expo),
+    opacity 600ms var(--ease-out-expo),
+    color 250ms ease;
+  transition-delay: calc(var(--letter-index, 0) * 55ms);
+}
+
+.wordmark[data-in="true"] .wordmark-letter {
+  transform: none;
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .wordmark-letter:hover {
+    color: var(--color-forest);
+    transform: translate3d(0, -0.03em, 0);
+    transition-delay: 0ms;
+  }
+}
+
+.wordmark[data-in="true"] .wordmark-rail {
+  transform: scaleX(1);
+}
+
+/* Shiki output: the page owns the frame and the rhythm, the theme owns colour. */
+.code-surface pre {
+  overflow-x: auto;
+  padding: 1.75rem 1.5rem 1.75rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.95;
+  background-color: transparent !important;
+}
+
+.code-surface code {
+  display: grid;
+  counter-reset: line;
+}
+
+/* Line numbers come from a counter, so the copied source stays clean. */
+.code-surface .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 2rem;
+  margin-right: 1.75rem;
+  text-align: right;
+  color: #333333;
+  user-select: none;
+}
+
+@media (width >= 48rem) {
+  .code-surface pre {
+    padding: 2.25rem 2rem 2.25rem 1.5rem;
+    font-size: 0.84375rem;
+  }
+}
+
+/* The clearing walkthrough: a dwell timer drawn as a filling hairline, and a
+   detail panel that cross-fades when the stage changes. */
+.stage-fill {
+  transform-origin: left;
+  animation-name: stage-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes stage-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.stage-enter {
+  animation: stage-enter 520ms var(--ease-out-expo) both;
+}
+
+/* The accent path of a stage diagram draws itself in behind the copy. */
+.stage-draw {
+  stroke-dashoffset: 100;
+  animation: stage-draw 900ms var(--ease-out-expo) 180ms forwards;
+}
+
+@keyframes stage-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes stage-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .wordmark-letter,
+  .wordmark-rail {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .flow-line,
+  .flow-dot,
+  .marquee,
+  .stage-fill,
+  .stage-enter,
+  .stage-draw {
+    animation: none;
+  }
+
+  .stage-draw {
+    stroke-dashoffset: 0;
+  }
+
+  .flow-line {
+    stroke-dasharray: none;
+    opacity: 0.5;
+  }
+}
