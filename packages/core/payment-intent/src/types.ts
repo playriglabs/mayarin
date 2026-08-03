@@ -1,3 +1,4 @@
+import type { ChainId } from "@mayarin/chain";
 import type { QrScheme } from "@mayarin/qr-parser";
 import type { AssetCode, Money } from "@mayarin/shared";
 
@@ -46,6 +47,18 @@ export type PaymentSource =
  * incremented `version`, which is also the optimistic-locking token used by
  * repositories.
  */
+/**
+ * The rail the payer intends to pay on.
+ *
+ * Distinct from both `amount.asset` (what the merchant quoted) and
+ * `settlementAsset` (what the merchant is paid): a payer settling an IDR bill
+ * with USDC on Base involves all three.
+ */
+export interface PaymentRail {
+  readonly asset: AssetCode;
+  readonly chain: ChainId;
+}
+
 export interface PaymentIntent {
   readonly id: string;
   readonly status: PaymentIntentStatus;
@@ -56,6 +69,8 @@ export interface PaymentIntent {
   readonly settlementAsset: AssetCode;
   /** Settlement provider that will pay the merchant. */
   readonly provider: string;
+  /** Absent for a fiat-only intent, which is every Phase 1 intent. */
+  readonly payment?: PaymentRail;
   readonly source: PaymentSource;
   readonly metadata: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;

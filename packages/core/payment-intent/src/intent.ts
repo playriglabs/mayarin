@@ -18,6 +18,7 @@ import type {
   MerchantSnapshot,
   PaymentIntent,
   PaymentIntentStatus,
+  PaymentRail,
   PaymentSource,
 } from "./types.ts";
 
@@ -38,6 +39,7 @@ export interface CreatePaymentIntentInput {
   readonly amount: Money;
   readonly settlementAsset: AssetCode;
   readonly provider: string;
+  readonly payment?: PaymentRail;
   readonly source: PaymentSource;
   readonly metadata?: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;
@@ -69,6 +71,7 @@ export function createPaymentIntent(input: CreatePaymentIntentInput): PaymentInt
     amount: input.amount,
     settlementAsset: input.settlementAsset,
     provider: input.provider,
+    ...(input.payment === undefined ? {} : { payment: input.payment }),
     source: input.source,
     metadata: input.metadata ?? {},
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: input.idempotencyKey }),

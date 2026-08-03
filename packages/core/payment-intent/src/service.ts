@@ -28,7 +28,7 @@ import {
   markProcessing as markIntentProcessing,
 } from "./intent.ts";
 import type { PaymentIntentRepository } from "./repository.ts";
-import type { MerchantSnapshot, PaymentIntent, PaymentSource } from "./types.ts";
+import type { MerchantSnapshot, PaymentIntent, PaymentRail, PaymentSource } from "./types.ts";
 
 export interface CreatePaymentIntentCommand {
   readonly merchant: MerchantSnapshot;
@@ -36,6 +36,7 @@ export interface CreatePaymentIntentCommand {
   readonly source: PaymentSource;
   readonly settlementAsset?: AssetCode;
   readonly provider?: string;
+  readonly payment?: PaymentRail;
   readonly metadata?: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;
   readonly ttlSeconds?: number;
@@ -95,6 +96,7 @@ export class PaymentIntentService {
       amount: command.amount,
       settlementAsset,
       provider,
+      ...(command.payment === undefined ? {} : { payment: command.payment }),
       source: command.source,
       ...(command.metadata === undefined ? {} : { metadata: command.metadata }),
       ...(command.idempotencyKey === undefined ? {} : { idempotencyKey: command.idempotencyKey }),
@@ -201,6 +203,7 @@ function fingerprintOf(
     serializeMoney(command.amount),
     command.settlementAsset,
     command.provider,
+    command.payment === undefined ? "none" : `${command.payment.chain}:${command.payment.asset}`,
     command.source.type === "qr" ? command.source.payload : "manual",
   ]);
   return createHash("sha256").update(canonical).digest("hex");

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mayarin/chain": "workspace:*",
     "@mayarin/qr-parser": "workspace:*",
     "@mayarin/shared": "workspace:*"
   }

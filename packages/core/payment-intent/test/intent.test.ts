@@ -122,3 +122,34 @@ describe("expiry", () => {
     );
   });
 });
+
+describe("payment rail", () => {
+  test("an intent without a rail has no payment leg", () => {
+    const intent = createPaymentIntent({
+      merchant: { id: "M1", name: "Warung", city: "Jakarta", countryCode: "ID" },
+      amount: money(5_000_000n, "IDR"),
+      settlementAsset: "IDRX",
+      provider: "mock",
+      source: { type: "manual" },
+      ttlSeconds: 900,
+      now: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    expect(intent.payment).toBeUndefined();
+  });
+
+  test("carries the payer's asset and chain through creation", () => {
+    const intent = createPaymentIntent({
+      merchant: { id: "M1", name: "Warung", city: "Jakarta", countryCode: "ID" },
+      amount: money(5_000_000n, "IDR"),
+      settlementAsset: "IDRX",
+      provider: "mock",
+      source: { type: "manual" },
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      ttlSeconds: 900,
+      now: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    expect(intent.payment).toEqual({ asset: "USDC", chain: "base-sepolia" });
+  });
+});

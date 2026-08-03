@@ -63,6 +63,7 @@
       "name": "@mayarin/payment-intent",
       "version": "0.1.0",
       "dependencies": {
+        "@mayarin/chain": "workspace:*",
         "@mayarin/qr-parser": "workspace:*",
         "@mayarin/shared": "workspace:*",
       },
