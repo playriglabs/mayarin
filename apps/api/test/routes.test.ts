@@ -34,6 +34,7 @@ describe("POST /payment-intents", () => {
       amount: "2500000",
       asset: "IDR",
       formatted: "25000.00",
+      display: "Rp 25.000,00",
     });
     expect(body.paymentIntent.source).toEqual({ type: "manual" });
   });

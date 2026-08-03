@@ -16,16 +16,39 @@ export interface AssetDefinition {
   readonly decimals: number;
   /** ISO 4217 numeric code. Only defined for fiat assets. */
   readonly iso4217Numeric?: string;
+  /**
+   * Currency symbol written before the digits. Only defined where one is
+   * conventional — a stablecoin is rendered with its code instead.
+   */
+  readonly symbol?: string;
   readonly name: string;
 }
 
 const DEFINITIONS = {
   // Fiat
-  IDR: { kind: "fiat", decimals: 2, iso4217Numeric: "360", name: "Indonesian Rupiah" },
-  USD: { kind: "fiat", decimals: 2, iso4217Numeric: "840", name: "United States Dollar" },
-  SGD: { kind: "fiat", decimals: 2, iso4217Numeric: "702", name: "Singapore Dollar" },
-  THB: { kind: "fiat", decimals: 2, iso4217Numeric: "764", name: "Thai Baht" },
-  MYR: { kind: "fiat", decimals: 2, iso4217Numeric: "458", name: "Malaysian Ringgit" },
+  IDR: {
+    kind: "fiat",
+    decimals: 2,
+    iso4217Numeric: "360",
+    symbol: "Rp",
+    name: "Indonesian Rupiah",
+  },
+  USD: {
+    kind: "fiat",
+    decimals: 2,
+    iso4217Numeric: "840",
+    symbol: "$",
+    name: "United States Dollar",
+  },
+  SGD: { kind: "fiat", decimals: 2, iso4217Numeric: "702", symbol: "S$", name: "Singapore Dollar" },
+  THB: { kind: "fiat", decimals: 2, iso4217Numeric: "764", symbol: "฿", name: "Thai Baht" },
+  MYR: {
+    kind: "fiat",
+    decimals: 2,
+    iso4217Numeric: "458",
+    symbol: "RM",
+    name: "Malaysian Ringgit",
+  },
 
   // Settlement assets
   IDRX: { kind: "stablecoin", decimals: 2, name: "IDRX" },
@@ -55,6 +78,10 @@ export function getAsset(code: AssetCode): AssetDefinition {
 
 export function assetDecimals(code: AssetCode): number {
   return REGISTRY[code].decimals;
+}
+
+export function assetSymbol(code: AssetCode): string | undefined {
+  return REGISTRY[code].symbol;
 }
 
 /**

@@ -34,16 +34,23 @@ Idempotency-Key: order-4711
       "name": "Warung Kopi Mayarin",
       "city": "Jakarta"
     },
-    "amount": { "amount": "5000000", "asset": "IDR", "formatted": "50000.00" },
+    "amount": {
+      "amount": "5000000",
+      "asset": "IDR",
+      "formatted": "50000.00",
+      "display": "Rp 50.000,00"
+    },
     "settlementAsset": "IDRX",
     "expiresAt": "2026-01-01T00:15:00.000Z"
   }
 }
 ```
 
-Money crosses the wire as exact minor units (`amount`) plus a rendered decimal
-(`formatted`). Clients that calculate use the former; clients that display use
-the latter.
+Money crosses the wire in three forms. `amount` is exact minor units — the only
+one to calculate with. `formatted` is a machine-readable decimal, always
+dot-separated and ungrouped. `display` is localized for a human reader and must
+never be parsed: Indonesia writes fifty thousand rupiah as `Rp 50.000,00`, where
+the dot groups thousands and the comma marks the decimal.
 
 ## Confirm Payment
 
@@ -63,13 +70,20 @@ rather than starting a second one.
     "settlementAmount": {
       "amount": "5000000",
       "asset": "IDRX",
-      "formatted": "50000.00"
+      "formatted": "50000.00",
+      "display": "50.000,00 IDRX"
     },
-    "fee": { "amount": "25000", "asset": "IDRX", "formatted": "250.00" },
+    "fee": {
+      "amount": "25000",
+      "asset": "IDRX",
+      "formatted": "250.00",
+      "display": "250,00 IDRX"
+    },
     "netAmount": {
       "amount": "4975000",
       "asset": "IDRX",
-      "formatted": "49750.00"
+      "formatted": "49750.00",
+      "display": "49.750,00 IDRX"
     },
     "providerReference": "stl_01KZ..."
   },
