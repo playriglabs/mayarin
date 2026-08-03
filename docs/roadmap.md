@@ -50,8 +50,6 @@ collides the moment two customers owe the same figure.
 - IDRX
 - USDC
 - USDT
-- JPYC
-- XSGD
 
 ### Dashboard
 
