@@ -9,10 +9,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
     "@mayarin/db": "workspace:*",
     "@mayarin/ledger": "workspace:*",
     "@mayarin/payment-intent": "workspace:*",
+    "@mayarin/provider-evm": "workspace:*",
     "@mayarin/provider-mock": "workspace:*",
     "@mayarin/qr-parser": "workspace:*",
     "@mayarin/settlement": "workspace:*",

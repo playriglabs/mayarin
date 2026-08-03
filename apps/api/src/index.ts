@@ -17,6 +17,26 @@ if (recovered.length > 0) {
   console.log(`[api] resumed ${recovered.length} clearing transaction(s) on startup`);
 }
 
+const chain = config.chain;
+if (chain !== undefined && chain.intervalMs > 0 && container.watchers.size > 0) {
+  setInterval(() => {
+    void (async () => {
+      for (const pair of chain.pairs) {
+        const watcher = container.watchers.get(pair.chain);
+        if (watcher === undefined) continue;
+        try {
+          await watcher.tick(pair.chain, pair.asset);
+        } catch (error) {
+          // A failed pass is not fatal: the cursor was not advanced, so the next
+          // tick re-scans the same range.
+          console.error(`[watcher] ${pair.chain}/${pair.asset} tick failed`, error);
+        }
+      }
+    })();
+  }, chain.intervalMs);
+  console.log(`[watcher] polling ${chain.pairs.length} pair(s) every ${chain.intervalMs}ms`);
+}
+
 const app = createApp(container);
 
 console.log(`[api] listening on http://localhost:${config.port}`);

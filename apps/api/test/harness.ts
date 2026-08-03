@@ -18,7 +18,7 @@ import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-moc
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
 import { createApp } from "../src/app.ts";
-import type { Config } from "../src/config.ts";
+import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 
 export const WEBHOOK_SECRET = "whsec_mayarin_test";
@@ -32,17 +32,17 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   const clock = new FixedClock("2026-01-01T00:00:00.000Z");
   const events = new InMemoryEventBus();
 
-  const config: Config = {
-    port: 0,
-    databaseUrl: "memory://",
-    settlementAsset: "IDRX",
-    feeBasisPoints: 50,
-    defaultProvider: "mock",
-    paymentIntentTtlSeconds: 900,
-    assetReceiptMode: options.assetReceiptMode ?? "auto",
-    exchangeRates: { "IDR/IDRX": 100n },
-    mockWebhookSecret: WEBHOOK_SECRET,
-  };
+  const config: Config = loadConfig({
+    PORT: "3000",
+    DATABASE_URL: "memory://",
+    SETTLEMENT_ASSET: "IDRX",
+    FEE_BASIS_POINTS: "50",
+    DEFAULT_SETTLEMENT_PROVIDER: "mock",
+    PAYMENT_INTENT_TTL_SECONDS: "900",
+    ASSET_RECEIPT_MODE: options.assetReceiptMode ?? "auto",
+    EXCHANGE_RATES: '{"IDR/IDRX":"100"}',
+    MOCK_WEBHOOK_SECRET: WEBHOOK_SECRET,
+  });
 
   const adapter = new MockSettlementAdapter({
     clock,
@@ -86,6 +86,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     engine,
     adapters,
     events,
+    watchers: new Map(),
     close: async () => {},
   };
 

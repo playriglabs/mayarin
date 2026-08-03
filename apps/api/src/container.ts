@@ -6,16 +6,21 @@
  * swappable.
  */
 
+import { type BlockRef, type ChainId, WalletWatcher } from "@mayarin/chain";
 import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarin/clearing";
 import {
   createDatabase,
   type DatabaseHandle,
   DrizzleClearingRepository,
+  DrizzleDepositAddressRepository,
+  DrizzleDepositRepository,
   DrizzleLedgerRepository,
   DrizzlePaymentIntentRepository,
+  DrizzleWatcherCursorRepository,
 } from "@mayarin/db";
 import { LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService } from "@mayarin/payment-intent";
+import { EvmChainClient, HdDepositAddressDeriver } from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { type Clock, type EventPublisher, InMemoryEventBus, systemClock } from "@mayarin/shared";
@@ -28,6 +33,16 @@ export interface Container {
   readonly engine: ClearingEngine;
   readonly adapters: SettlementAdapterRegistry;
   readonly events: EventPublisher;
+  /**
+   * One watcher per chain, because confirmation depth is per chain: a single
+   * watcher would have to pick one depth and apply it to chains that do not
+   * share it. Empty when the chain layer is off.
+   */
+  readonly watchers: ReadonlyMap<ChainId, WalletWatcher>;
+  /** Present only when the chain layer is enabled. */
+  readonly deposits?: DrizzleDepositRepository;
+  /** Current head of a chain, for rendering confirmation counts. */
+  readonly chainHead?: (chain: ChainId) => Promise<BlockRef>;
   close(): Promise<void>;
 }
 
@@ -42,6 +57,12 @@ export function createContainer({
 }: CreateContainerOptions): Container {
   const handle: DatabaseHandle = createDatabase({ url: config.databaseUrl });
   const events = new InMemoryEventBus();
+  const chain = config.chain;
+
+  const depositAddresses =
+    chain === undefined ? undefined : new DrizzleDepositAddressRepository(handle.db);
+  const depositDeriver =
+    chain === undefined ? undefined : new HdDepositAddressDeriver({ xpub: chain.xpub });
 
   const intents = new PaymentIntentService({
     repository: new DrizzlePaymentIntentRepository(handle.db),
@@ -78,7 +99,53 @@ export function createContainer({
     clock,
     events,
     autoConfirmAssetReceipt: config.assetReceiptMode === "auto",
+    ...(depositAddresses === undefined ? {} : { depositAddresses }),
+    ...(depositDeriver === undefined ? {} : { depositDeriver }),
   });
+
+  const watchers = new Map<ChainId, WalletWatcher>();
+  let deposits: DrizzleDepositRepository | undefined;
+  let chainHead: ((chain: ChainId) => Promise<BlockRef>) | undefined;
+
+  if (chain !== undefined && depositAddresses !== undefined) {
+    deposits = new DrizzleDepositRepository(handle.db);
+    const client = new EvmChainClient({
+      rpcUrls: chain.rpcUrls,
+      tokens: chain.tokens,
+    });
+    const cursors = new DrizzleWatcherCursorRepository(handle.db);
+    chainHead = (id: ChainId) => client.head(id);
+
+    // The watcher speaks to the engine through a sink rather than importing it:
+    // `@mayarin/chain` must not depend on `@mayarin/clearing`.
+    const sink = {
+      fund: async (clearingTransactionId: string) => {
+        await engine.recordAssetReceived(clearingTransactionId);
+      },
+    };
+
+    for (const chainId of new Set(chain.pairs.map((pair) => pair.chain))) {
+      watchers.set(
+        chainId,
+        new WalletWatcher({
+          client,
+          addresses: depositAddresses,
+          deposits,
+          cursors,
+          sink,
+          clock,
+          events,
+          policy: {
+            depth: chain.confirmations[chainId],
+            reorgWatchWindow: chain.reorgWatchWindow,
+          },
+          blockRange: chain.blockRange,
+          retentionSeconds: chain.retentionSeconds,
+          startBlocks: chain.startBlocks,
+        }),
+      );
+    }
+  }
 
   return {
     config,
@@ -87,6 +154,9 @@ export function createContainer({
     engine,
     adapters,
     events,
+    watchers,
+    ...(deposits === undefined ? {} : { deposits }),
+    ...(chainHead === undefined ? {} : { chainHead }),
     close: () => handle.close(),
   };
 }

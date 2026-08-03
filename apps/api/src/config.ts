@@ -5,8 +5,32 @@
  * should fail to boot, not fail on the first payment.
  */
 
-import { assetCodeSchema, ConfigurationError } from "@mayarin/shared";
+import { CHAIN_IDS, type ChainId } from "@mayarin/chain";
+import { type AssetCode, assetCodeSchema, ConfigurationError } from "@mayarin/shared";
 import { z } from "zod";
+
+type RpcUrlMap = Partial<Record<ChainId, string>>;
+type TokenMap = Partial<Record<ChainId, Partial<Record<AssetCode, string>>>>;
+type ConfirmationMap = Partial<Record<ChainId, number>>;
+type StartBlockMap = Partial<Record<ChainId, string>>;
+
+/** Parses a JSON env var into a plain object, failing the boot rather than the first request. */
+function jsonObject<T>(name: string, fallback: string) {
+  return z
+    .string()
+    .default(fallback)
+    .transform((value, ctx): T => {
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${name} must be valid JSON`,
+        });
+        return z.NEVER;
+      }
+    });
+}
 
 const configSchema = z.object({
   port: z.coerce.number().int().positive().default(3000),
@@ -39,10 +63,111 @@ const configSchema = z.object({
         return z.NEVER;
       }
     }),
+  chainEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  chainRpcUrls: jsonObject<RpcUrlMap>("CHAIN_RPC_URLS", "{}"),
+  chainAssets: jsonObject<TokenMap>("CHAIN_ASSETS", "{}"),
+  chainConfirmations: jsonObject<ConfirmationMap>("CHAIN_CONFIRMATIONS", "{}"),
+  chainStartBlocks: jsonObject<StartBlockMap>("CHAIN_START_BLOCKS", "{}"),
+  depositXpub: z.string().min(1).optional(),
+  watcherIntervalMs: z.coerce.number().int().min(0).default(15_000),
+  watcherBlockRange: z.coerce.number().int().positive().default(2_000),
+  watcherRetentionSeconds: z.coerce.number().int().positive().default(86_400),
+  watcherReorgWatchWindow: z.coerce.number().int().positive().default(2),
+  adminToken: z.string().min(16).optional(),
   mockWebhookSecret: z.string().min(1).optional(),
 });
 
-export type Config = z.infer<typeof configSchema>;
+export type RawConfig = z.infer<typeof configSchema>;
+
+export interface ChainConfig {
+  readonly rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
+  readonly tokens: Readonly<Partial<Record<ChainId, Readonly<Partial<Record<AssetCode, string>>>>>>;
+  readonly confirmations: Readonly<Record<ChainId, number>>;
+  readonly startBlocks: Readonly<Partial<Record<ChainId, bigint>>>;
+  readonly xpub: string;
+  readonly intervalMs: number;
+  readonly blockRange: number;
+  readonly retentionSeconds: number;
+  readonly reorgWatchWindow: number;
+  /** Every (chain, asset) the watcher ticks, derived from CHAIN_ASSETS. */
+  readonly pairs: readonly {
+    readonly chain: ChainId;
+    readonly asset: AssetCode;
+  }[];
+}
+
+export type Config = RawConfig & {
+  readonly chain?: ChainConfig;
+};
+
+/**
+ * Resolves the chain block, or `undefined` when the layer is off.
+ *
+ * Every check here is a boot-time failure by design: a deployment that watches
+ * nothing, or auto-confirms payments while a watcher is running, is a
+ * misconfiguration that must not survive to serve a single payment.
+ */
+function resolveChain(data: RawConfig): ChainConfig | undefined {
+  if (!data.chainEnabled) return undefined;
+
+  const issues: string[] = [];
+
+  if (data.assetReceiptMode === "auto") {
+    issues.push(
+      "ASSET_RECEIPT_MODE must be `manual` when CHAIN_ENABLED is true: auto-confirming " +
+        "alongside a live watcher would fund payments nobody paid",
+    );
+  }
+  if (data.depositXpub === undefined) {
+    issues.push("DEPOSIT_XPUB is required when CHAIN_ENABLED is true");
+  }
+
+  const pairs: { chain: ChainId; asset: AssetCode }[] = [];
+  const confirmations: Partial<Record<ChainId, number>> = {};
+
+  for (const [chain, tokens] of Object.entries(data.chainAssets)) {
+    if (!(CHAIN_IDS as readonly string[]).includes(chain)) {
+      issues.push(`CHAIN_ASSETS names an unsupported chain "${chain}"`);
+      continue;
+    }
+    const chainId = chain as ChainId;
+    if (data.chainRpcUrls[chainId] === undefined) {
+      issues.push(`CHAIN_ASSETS configures ${chainId} but CHAIN_RPC_URLS has no RPC URL for it`);
+    }
+    confirmations[chainId] = data.chainConfirmations[chainId] ?? 6;
+    for (const asset of Object.keys(tokens ?? {})) {
+      pairs.push({ chain: chainId, asset: asset as AssetCode });
+    }
+  }
+
+  if (pairs.length === 0) {
+    issues.push("CHAIN_ASSETS must configure at least one token when CHAIN_ENABLED is true");
+  }
+
+  if (issues.length > 0) {
+    throw new ConfigurationError(`Invalid chain configuration: ${issues.join("; ")}`, {
+      issues,
+    });
+  }
+
+  return {
+    rpcUrls: data.chainRpcUrls,
+    tokens: data.chainAssets,
+    confirmations: confirmations as Record<ChainId, number>,
+    startBlocks: Object.fromEntries(
+      Object.entries(data.chainStartBlocks).map(([chain, block]) => [chain, BigInt(block ?? "0")]),
+    ),
+    xpub: data.depositXpub ?? "",
+    intervalMs: data.watcherIntervalMs,
+    blockRange: data.watcherBlockRange,
+    retentionSeconds: data.watcherRetentionSeconds,
+    reorgWatchWindow: data.watcherReorgWatchWindow,
+    pairs,
+  };
+}
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const result = configSchema.safeParse({
@@ -54,6 +179,17 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     paymentIntentTtlSeconds: env.PAYMENT_INTENT_TTL_SECONDS,
     assetReceiptMode: env.ASSET_RECEIPT_MODE,
     exchangeRates: env.EXCHANGE_RATES,
+    chainEnabled: env.CHAIN_ENABLED,
+    chainRpcUrls: env.CHAIN_RPC_URLS,
+    chainAssets: env.CHAIN_ASSETS,
+    chainConfirmations: env.CHAIN_CONFIRMATIONS,
+    chainStartBlocks: env.CHAIN_START_BLOCKS,
+    depositXpub: env.DEPOSIT_XPUB,
+    watcherIntervalMs: env.WATCHER_INTERVAL_MS,
+    watcherBlockRange: env.WATCHER_BLOCK_RANGE,
+    watcherRetentionSeconds: env.WATCHER_RETENTION_SECONDS,
+    watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,
+    adminToken: env.ADMIN_TOKEN,
     mockWebhookSecret: env.MOCK_WEBHOOK_SECRET,
   });
 
@@ -63,5 +199,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     });
   }
 
-  return result.data;
+  const chain = resolveChain(result.data);
+  return { ...result.data, ...(chain === undefined ? {} : { chain }) };
 }
