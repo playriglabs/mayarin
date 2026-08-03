@@ -6,7 +6,12 @@
  * clearing engine without a database.
  */
 
-import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarin/clearing";
+import {
+  BasisPointsFeePolicy,
+  ClearingEngine,
+  LiquidityRouter,
+  TablePriceSource,
+} from "@mayarin/clearing";
 import {
   InMemoryClearingRepository,
   InMemoryLedgerRepository,
@@ -78,7 +83,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     intents,
     ledger,
     adapters,
-    rates: new StaticRateProvider(config.exchangeRates),
+    rates: new LiquidityRouter({ source: new TablePriceSource(config.exchangeRates) }),
     fees: new BasisPointsFeePolicy(config.feeBasisPoints),
     clock,
     events,

@@ -7,7 +7,12 @@
  */
 
 import { type BlockRef, type ChainId, WalletWatcher } from "@mayarin/chain";
-import { BasisPointsFeePolicy, ClearingEngine, StaticRateProvider } from "@mayarin/clearing";
+import {
+  BasisPointsFeePolicy,
+  ClearingEngine,
+  LiquidityRouter,
+  TablePriceSource,
+} from "@mayarin/clearing";
 import {
   createDatabase,
   type DatabaseHandle,
@@ -110,7 +115,7 @@ export function createContainer({
     intents,
     ledger,
     adapters,
-    rates: new StaticRateProvider(config.exchangeRates),
+    rates: new LiquidityRouter({ source: new TablePriceSource(config.exchangeRates) }),
     fees: new BasisPointsFeePolicy(config.feeBasisPoints),
     clock,
     events,
