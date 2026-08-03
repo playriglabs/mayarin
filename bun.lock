@@ -103,6 +103,14 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/providers/mock-chain": {
+      "name": "@mayarin/provider-mock-chain",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/shared": {
       "name": "@mayarin/shared",
       "version": "0.1.0",
@@ -195,6 +203,8 @@
     "@mayarin/payment-intent": ["@mayarin/payment-intent@workspace:packages/core/payment-intent"],
 
     "@mayarin/provider-mock": ["@mayarin/provider-mock@workspace:packages/providers/mock"],
+
+    "@mayarin/provider-mock-chain": ["@mayarin/provider-mock-chain@workspace:packages/providers/mock-chain"],
 
     "@mayarin/qr-parser": ["@mayarin/qr-parser@workspace:packages/core/qr-parser"],
 
