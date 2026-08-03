@@ -31,6 +31,7 @@ moves through them.
 | [QR Parser](./qr-parser.md)                   | Decoding payment payloads into a normalized shape                  |
 | [Payment Intent](./payment-intent.md)         | Immutable payment requests and their lifecycle                     |
 | [Chain Layer](./chain.md)                     | Per-intent deposit addresses, the wallet watcher, and reorg policy |
+| [Stablecoin Registry](./stablecoin.md)        | The admissible stablecoins and their on-chain identities           |
 | [Liquidity & Routing](./liquidity-routing.md) | Converting assets into the settlement asset _(planned)_            |
 | [Clearing Engine](./clearing-engine.md)       | The state machine every payment passes through                     |
 | [Double Entry Ledger](./ledger.md)            | Recording every movement of value                                  |

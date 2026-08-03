@@ -222,6 +222,7 @@ packages/
       ✓ qr-parser/        EMVCo TLV decoder + QRIS profile
       ✓ settlement/       SettlementAdapter port and registry
       ✓ chain/           chain ports, deposit types, confirmation policy, watcher
+      ✓ stablecoin/      StablecoinRegistry port and value types — the admissible set
       · qr-generator/     Phase 3 EMVCo/QRIS + crypto address QR encoding
       · merchant/         Phase 3 merchants, invoices, payment links
       · routing/          Phase 4 smart routing
@@ -264,6 +265,12 @@ the clearing engine's seam (`recordAssetReceived`) only as an injected sink, so
 it never imports `@mayarin/clearing`. The composition root in `apps/api` is the
 only place that wires a real `WalletWatcher` to the engine, feeding each funded
 intent back through that sink. See [Chain Layer](./chain.md).
+
+A [Stablecoin Registry](./stablecoin.md) holds which stablecoins a deployment
+admits and where each lives on-chain, unioning `SETTLEMENT_ASSETS` with
+`CHAIN_ASSETS`. It is the single source the watcher pairs, the intent
+admissibility check, and (later) the liquidity router and settlement engine all
+read from.
 
 Note that `apps/docs/` above is a future documentation _site_, and is not the
 same thing as the repository's `docs/` directory — the Markdown you are reading
@@ -344,6 +351,7 @@ of persisted state.
 ## Related
 
 - [Chain Layer](./chain.md)
+- [Stablecoin Registry](./stablecoin.md)
 - [Clearing Engine](./clearing-engine.md)
 - [Double Entry Ledger](./ledger.md)
 - [Development](./development.md)

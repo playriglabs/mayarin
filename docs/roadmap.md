@@ -46,9 +46,14 @@ collides the moment two customers owe the same figure.
 
 ### Stablecoin Settlement
 
-- IDRX
-- USDC
-- USDT
+- ✓ IDRX
+- ✓ USDC
+- ✓ USDT
+
+A [Stablecoin Registry](./stablecoin.md) now holds the admissible set and each
+stablecoin's on-chain identities, unioning `SETTLEMENT_ASSETS` with
+`CHAIN_ASSETS`. A merchant can be paid in any admitted stablecoin; a payer leg
+must be a deposit asset the registry knows.
 
 ### Dashboard
 
