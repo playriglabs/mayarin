@@ -7,9 +7,21 @@ import type { PaymentIntent } from "./types.ts";
  * `update` takes the version the caller read so a lost update surfaces as a
  * `ConcurrencyError` instead of overwriting another writer's transition.
  */
+export interface ListPaymentIntentsOptions {
+  /** When set, restricts to one merchant's intents — the dashboard scope filter. */
+  readonly merchantId?: string;
+  /** Caps the page size; defaults to the adapter's own bound. */
+  readonly limit?: number;
+}
+
 export interface PaymentIntentRepository {
   insert(intent: PaymentIntent): Promise<void>;
   findById(id: string): Promise<PaymentIntent | null>;
   findByIdempotencyKey(key: string): Promise<PaymentIntent | null>;
   update(intent: PaymentIntent, expectedVersion: number): Promise<void>;
+  /**
+   * Lists intents newest-first. Scoped to a merchant when `merchantId` is set,
+   * which is what backs the dashboard's merchant/admin visibility split.
+   */
+  list(options?: ListPaymentIntentsOptions): Promise<readonly PaymentIntent[]>;
 }

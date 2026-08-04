@@ -1,5 +1,6 @@
 import { isChainId } from "@mayarin/chain";
 import type {
+  ListPaymentIntentsOptions,
   PaymentIntent,
   PaymentIntentRepository,
   PaymentIntentStatus,
@@ -8,7 +9,7 @@ import type {
 } from "@mayarin/payment-intent";
 import type { QrScheme } from "@mayarin/qr-parser";
 import { ConcurrencyError, ValidationError } from "@mayarin/shared";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, toAsset, toMoney } from "../mapping.ts";
 import { paymentIntents } from "../schema.ts";
@@ -62,6 +63,21 @@ export class DrizzlePaymentIntentRepository implements PaymentIntentRepository {
         expectedVersion,
       });
     }
+  }
+
+  async list(options: ListPaymentIntentsOptions = {}): Promise<readonly PaymentIntent[]> {
+    const limit = options.limit ?? 100;
+    const rows = await this.#db
+      .select()
+      .from(paymentIntents)
+      .where(
+        options.merchantId === undefined
+          ? undefined
+          : eq(paymentIntents.merchantId, options.merchantId),
+      )
+      .orderBy(desc(paymentIntents.createdAt))
+      .limit(limit);
+    return rows.map(toDomain);
   }
 }
 
