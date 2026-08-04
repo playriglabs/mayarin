@@ -27,7 +27,7 @@ waits for the payer's asset to arrive rather than being treated as funded at
 
 ---
 
-## Phase 2 — On-chain Payments
+## Phase 2 — On-chain Payments ✅ shipped
 
 Introduce blockchain-native payment capabilities.
 

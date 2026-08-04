@@ -17,6 +17,7 @@ whole is the design record and is expected to stay in sync with the code.
 bun install                     # also installs lefthook git hooks
 
 bun run dev                     # API with hot reload (apps/api)
+bun run dev:all                 # turbo dev: payment API + dashboard API + dashboard UI, concurrently
 bun run typecheck               # tsc --noEmit across every workspace package
 bun test                        # whole suite
 bun run format                  # biome --write + prettier --write
@@ -27,6 +28,7 @@ bun run db:up                   # Postgres in Docker, host port 5433
 bun run db:down
 bun run db:generate             # drizzle-kit generate, after editing packages/db/src/schema.ts
 bun run db:migrate              # applies packages/db/migrations
+bun run db:studio               # drizzle-kit studio (tunnel to local.drizzle.studio)
 ```
 
 Running one test file or one test:

@@ -30,7 +30,7 @@ A programmable clearing layer for modern payments.
 
 ## Name & Meaning
 
-**/maɪˈjɑːrɪn/** — _"My-ar"_
+**/maɪˈjɑːrɪn/** — _"My-ar-in"_
 
 Mayarin is inspired by the Indonesian word **"bayar"** (_to pay_), reimagined into a modern, global identity.
 
