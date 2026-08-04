@@ -11,6 +11,14 @@ already exposes the `recordAssetReceived` seam; the watcher is the thing that
 now calls it, replacing the Phase 1 stand-in where `auto` treated a payment as
 funded the moment it reached `PAYMENT_PENDING`.
 
+> **Execution paths.** This is the **deposit-matching** path — shipped, and the
+> **fallback** once Phase 3 lands. The **on-chain** path (Phase 3, primary)
+> routes the customer's payment through `PaymentRouter.sol`, which atomically
+> swaps and settles and emits a `PaymentCompleted` event an indexer consumes.
+> The deposit-address + watcher path remains for direct transfers and chains
+> without a deployed contract. The chain client and reorg policy below feed both
+> paths.
+
 ---
 
 ## Per-intent deposit addresses

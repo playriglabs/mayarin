@@ -1,5 +1,11 @@
 # Phase 2B — Stablecoin Registry: implementation plan
 
+> **Historical design record — 2026-08-03.** This documents Phase 2 as shipped.
+> The product has since pivoted to crypto-commerce infrastructure with on-chain
+> execution (Phase 3, `PaymentRouter.sol`) as the primary path. The stablecoin
+> registry remains load-bearing and unchanged in direction. See
+> [Roadmap](../../roadmap.md).
+
 > Design: `docs/superpowers/specs/2026-08-03-phase2b-stablecoin-registry-design.md`.
 > Rhythm: TDD. Write a failing test, watch it fail, implement, run
 > `bun run typecheck && bun test`, commit. One task per commit.

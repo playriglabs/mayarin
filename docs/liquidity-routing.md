@@ -12,7 +12,7 @@ size of the payment (no slippage), and had no seam for real price discovery.
 
 Phase 2C replaces it with a **Liquidity Router**: a `RateProvider` that prices a
 quote through a pluggable **price source**, so the static table becomes one
-source among many and a DEX or aggregator can be wired in (Phase 4) without
+source among many and a DEX or aggregator can be wired in (Phase 3) without
 touching the clearing engine.
 
 ---
@@ -84,17 +84,25 @@ is no longer the wired default.
 
 ---
 
-## Smart Routing — Phase 4
+## On-Chain Execution — Phase 3
 
-The router prices a single hop `from → to`. Phase 4's smart routing optimizes
-over liquidity, settlement, retries and treasury on top of it:
+The router prices a single hop `from → to`; it only _prices_ today. Phase 3
+moves execution on-chain:
 
-- Select the best liquidity source across `Uniswap`, `0x API`, `1inch`, `LI.FI`.
-- Compose multi-hop paths `A → bridge → C` across the registry's admitted
-  stablecoins; the `PriceSource` surface does not preclude it.
-- Execute the swap on-chain — the router only _prices_ today; an actual swap
-  that realises the locked rate is Phase 4.
-- Retry failed settlements and optimize treasury allocation.
+- `PaymentRouter.sol` receives the customer's asset, swaps via an approved DEX
+  router, and settles to the merchant's wallet atomically — see
+  [Architecture](./architecture.md).
+- The **Execution Engine** is an off-chain planner: it selects the venue
+  (`Uniswap`, `0x API`), fetches the executable quote that becomes `minOut`, and
+  builds the calldata the contract executes. Swap logic is not duplicated
+  off-chain.
+- The executable `minOut` comes from the DEX quote; a **Price Oracle** (Pyth,
+  Chainlink) is a deviation guard, not the fill price. Do not trust the oracle
+  for the fill; trust the DEX, guard with the oracle.
+- The `LiquidityRouter`'s same-asset identity stays; its cross-asset delegation
+  moves to the Execution Engine. Multi-hop paths (`A → bridge → C`) across the
+  registry's admitted stablecoins are a later extension the `PriceSource`
+  surface does not preclude.
 
 ---
 

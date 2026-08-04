@@ -1,5 +1,11 @@
 # Phase 2D — Settlement Engine: implementation plan
 
+> **Historical design record — 2026-08-03.** This documents Phase 2 as shipped.
+> The product has since pivoted to crypto-commerce infrastructure. On-chain
+> settlement to the merchant's managed wallet (Phase 3, `PaymentRouter.sol`) is
+> the primary path; the off-chain `SettlementAdapter` port remains as the
+> fallback deposit-matching path's settlement. See [Roadmap](../../roadmap.md).
+
 > Design: `docs/superpowers/specs/2026-08-03-phase2d-settlement-engine-design.md`.
 > Rhythm: TDD. Write a failing test, watch it fail, implement, run
 > `bun run typecheck && bun test`, commit. One task per commit.

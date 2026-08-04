@@ -1,5 +1,11 @@
 # Phase 2A — Chain Layer
 
+> **Historical design record — 2026-08-03.** This documents Phase 2 as shipped.
+> The product has since pivoted to crypto-commerce infrastructure with on-chain
+> execution (Phase 3, `PaymentRouter.sol`) as the primary path. The deposit-
+> matching path described here is the **fallback**; the ledger, stablecoin
+> registry, and chain client remain load-bearing. See [Roadmap](../../roadmap.md).
+
 Design record for the first of Phase 2's five subsystems: per-intent deposit
 addresses, an EVM wallet watcher, and the confirmation and reorg policy that
 decides when a payer's asset counts as received.

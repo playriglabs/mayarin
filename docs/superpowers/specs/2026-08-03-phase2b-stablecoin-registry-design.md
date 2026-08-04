@@ -1,5 +1,10 @@
 # Phase 2B — Stablecoin Registry
 
+> **Historical design record — 2026-08-03.** This documents Phase 2 as shipped.
+> The product has since pivoted to crypto-commerce infrastructure. The stablecoin
+> registry remains load-bearing and unchanged in direction. See
+> [Roadmap](../../roadmap.md).
+
 > Status: design record. Sibling to the Phase 2A chain-layer spec; sourced from
 > the seams mapped in `docs/superpowers/specs/2026-08-03-phase2-chain-layer-design.md`
 > and the live codebase.

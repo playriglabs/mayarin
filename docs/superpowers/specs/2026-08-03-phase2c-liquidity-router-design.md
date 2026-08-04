@@ -1,5 +1,11 @@
 # Phase 2C — Liquidity Router
 
+> **Historical design record — 2026-08-03.** This documents Phase 2 as shipped.
+> The product has since pivoted to crypto-commerce infrastructure. The
+> `LiquidityRouter`'s same-asset identity stays; its cross-asset delegation
+> moves to the Phase 3 **Execution Engine**, and swap execution moves on-chain
+> to `PaymentRouter.sol`. The router only prices. See [Roadmap](../../roadmap.md).
+
 > Status: design record. Builds on the Phase 2A chain layer and the Phase 2B
 > stablecoin registry.
 

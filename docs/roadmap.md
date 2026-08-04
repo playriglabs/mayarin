@@ -4,204 +4,385 @@
 
 # Roadmap
 
-## Phase 1 — Foundation ✅ shipped
+Mayarin is **crypto commerce infrastructure**. Merchants price in their local
+currency and settle in a stablecoin; customers pay with any supported crypto
+asset. Mayarin bridges the two without requiring merchants to understand
+blockchain.
 
-Establish the programmable clearing infrastructure.
+The platform is developed in layers. Each phase expands the platform without
+changing the core payment intent, allowing new assets, chains, liquidity
+venues, and wallet providers to be added through adapters.
 
-### Core
-
-- Payment Intent
-- QR Parser (EMVCo / QRIS)
-- Clearing Engine
-- Double Entry Ledger
-- Mock Settlement Adapter
-- Event-driven payment state machine
-
-The [Liquidity Router](./liquidity-routing.md) has replaced Phase 1's
-configured-table stand-in: it prices quotes through a pluggable price source,
-so the static table is one source among many and a DEX or aggregator can be
-wired in (Phase 4) without touching the clearing engine. The wallet watcher
-Phase 1 left as a seam now exists — see [Chain Layer](./chain.md) — so a payment
-waits for the payer's asset to arrive rather than being treated as funded at
-`PAYMENT_PENDING`.
+> **Scope note.** Fiat payment rails (QRIS, bank transfer) and fiat off-ramp
+> providers are intentionally **out of the MVP**. The MVP serves merchants who
+> can hold and use stablecoins. A stablecoin → fiat off-ramp is a later,
+> explicit phase — not an assumption baked into the core.
 
 ---
 
-## Phase 2 — On-chain Payments ✅ shipped
+## Phase 1 — Core Infrastructure ✅ Shipped
 
-Introduce blockchain-native payment capabilities.
+Build the programmable payment foundation.
 
-### Blockchain
+### Core
 
-- ✓ EVM Wallet Integration
+- ✓ Payment Intent
+- ✓ QR Parser (EMVCo / QRIS)
+- ✓ Clearing Engine
+- ✓ Double Entry Ledger
+- ✓ Mock Settlement Adapter
+- ✓ Event-driven Payment State Machine
+
+### Architecture
+
+- ✓ Provider-agnostic architecture
+- ✓ Idempotent payment processing
+- ✓ Resumable transactions
+- ✓ Plugin-based adapters
+
+The payment intent is the single source of truth for payment orchestration.
+Every payment flows through the same lifecycle regardless of payer asset,
+chain, or settlement wallet provider.
+
+---
+
+## Phase 2 — Chain Interface & Quoting Seams ✅ Shipped
+
+Ship the blockchain interface, finality policy, and the quote/liquidity/
+settlement seams later phases plug into — without redesign.
+
+### Chain Interface
+
+- ✓ EVM ChainClient (head, blockHash, transfers)
+- ✓ Confirmation Depth & Reorg Policy
+
+The chain client reads the chain; the finality policy decides when observed
+value counts as received. Both feed the Phase 3 indexer — the contract emits
+the event, the indexer consumes it, and the same reorg policy bounds what is
+treated as final.
+
+### Deposit Matching (fallback path)
+
+- ✓ Per-intent Deposit Addresses
 - ✓ Wallet Watcher
 - ✓ Asset Receipt Detection
-- ✓ Per-intent Deposit Addresses
-- ✓ Confirmation Depth & Reorg Policy
-- ✓ Liquidity Router
-- ✓ Settlement Engine
 
-An exchange withdrawal carries no memo and no calldata, so nothing in the
-transfer itself says which payment it belongs to. Deriving a deposit address per
-payment intent is what makes the match unambiguous; matching on amount alone
-collides the moment two customers owe the same figure.
+The off-chain payment-detection path: the customer transfers to a per-intent
+deposit address, a watcher detects receipt, and the clearing engine settles
+off-chain. **Superseded as the primary path by Phase 3's on-chain execution**
+— retained for direct transfers and chains without a deployed PaymentRouter.
 
-### Stablecoin Settlement
+### Stablecoin Registry
 
 - ✓ IDRX
 - ✓ USDC
 - ✓ USDT
 
-A [Stablecoin Registry](./stablecoin.md) now holds the admissible set and each
-stablecoin's on-chain identities, unioning `SETTLEMENT_ASSETS` with
-`CHAIN_ASSETS`. A merchant can be paid in any admitted stablecoin; a payer leg
-must be a deposit asset the registry knows.
+The Stablecoin Registry defines supported settlement assets and maintains
+their on-chain identities across supported blockchain networks.
 
-### Dashboard
+### Quote & Liquidity Seams
 
-- Payment Explorer
-- Transaction Timeline
-- Settlement Status
+- ✓ Rate Provider port
+- ✓ Price Source port (Table, Constant-Product)
+- ✓ Liquidity Router (same-asset identity, cross-asset delegation)
 
----
+The off-chain quote seams. A DEX/aggregator `PriceSource` replaces the static
+table in Phase 3; the executable `minOut` comes from the DEX, the oracle is a
+deviation guard. The `LiquidityRouter`'s same-asset identity stays; its
+cross-asset delegation moves to the Execution Engine.
 
-## Phase 3 — Merchant Infrastructure
+### Settlement Seams
 
-Expand Mayarin into a programmable merchant platform.
+- ✓ Settlement Adapter port
+- ✓ Mock Settlement Adapter
+- ✓ Stablecoin (internal) Settlement Adapter
 
-### Merchant SDK
+The off-chain settlement seams. Phase 3's on-chain settlement (contract →
+merchant Safe) supersedes these for the contract path; the adapter port is
+retained for the fallback deposit-address path and the future fiat off-ramp.
 
-- Merchant API
-- Invoice API
-- Payment Links
-- Webhooks
+### Architecture note — two execution paths
 
-### POS SDK
-
-- Dynamic QR Generation
-- Static QR Support
-- Payment Terminal API
-- Real-time Payment Status
-- Receipt API
-
-### QR SDK
-
-- QRIS Parser
-- QRIS Generator
-- EMVCo Parser
-- EMVCo Generator
-- Crypto Address QR (EIP-681 / BIP-21)
-- QR Validation
-
-A crypto QR is a different payload family from EMVCo, not another EMVCo profile.
-An exchange app scans an address URI; it has never heard of QRIS. Both families
-share the parser's profile seam, but a payload is one or the other.
-
-### Crypto Payments
-
-- Crypto → Fiat
-- Crypto → Crypto
-- Wallet-to-Wallet Payments
-- Configurable Settlement Assets
-- Underpayment & Overpayment Handling
-- Wrong-chain Recovery
-
-### POS crypto checkout
-
-The end-to-end flow this enables, and the one place the roadmap's phases
-interleave rather than stack:
-
-```
-Merchant POS quotes a price
-  ↓ lock asset, chain and amount        Phase 1  PRICE_LOCKED
-  ↓ derive a deposit address            Phase 2  per-intent addresses
-  ↓ render an address QR                Phase 3  QR SDK
-Payer scans it in Binance, sends
-  ↓ watcher sees the transfer           Phase 2  wallet watcher
-  ↓ enough confirmations                Phase 2  confirmation depth
-  ↓ recordAssetReceived                 Phase 1  shipped
-Payment success
-```
-
-Two consequences worth stating. The clearing engine needs no new state — the
-watcher drives the `PAYMENT_PENDING → ASSET_RECEIVED` transition that already
-exists. And when the payer sends the same asset the merchant settles in, the
-Liquidity Router has nothing to convert, so that path skips it entirely.
+Phase 2 shipped the **off-chain orchestration** path (deposit address →
+watcher → off-chain clearing → settlement adapter). Phase 3 introduces the
+**on-chain execution** path (PaymentRouter → atomic swap → settle to merchant
+Safe → event → indexer → ledger). The contract path is primary for supported
+assets and chains; the deposit-address path remains as fallback. The ledger
+and stablecoin registry are shared by both.
 
 ---
 
-## Phase 4 — Global Settlement Network
+## Phase 3 — On-Chain Execution 🚧 In Progress
 
-Scale beyond a single payment rail.
+Move value movement on-chain. The backend orchestrates; the contract executes.
 
-### Settlement Providers
+### PaymentRouter Smart Contract
 
-- QRIS
-- Bank Transfer
-- PayNow
-- PromptPay
-- DuitNow
+- ☐ Stateless, atomic receive → swap → settle
+- ☐ Backend-signed EIP-712 order (`intentId`, `minOut`, `fee`, `merchantSafe`, `refundTo`, `deadline`)
+- ☐ Hard revert on `minOut` miss — no treasury FX risk, no top-up
+- ☐ Zero resting balance — the contract is never a custodian
+- ☐ `payEth(order)` (native value) + `payERC20(order, permit)` via Permit2
+- ☐ On-chain idempotency — `intentId` consumed, replay rejected
+- ☐ Whitelisted input assets and DEX routers
+- ☐ Bounded, timelocked admin — add/remove routers, set fee recipient, pause only; never redirect funds
 
-### Blockchain Providers
+The contract is the **keystone**. Atomicity + hard revert is what makes
+"merchant always receives the settlement asset" safe without Mayarin running a
+treasury FX book. If that one property slips — async swap, resting balance, or
+top-up on miss — the risk model inverts and Mayarin becomes a custodial desk
+with an uncapitalized treasury. Spec it as an invariant.
 
-- Direct EVM
-- TRON
-- Solana
-- Tempo
-- Future Stablecoin Infrastructure
+### Execution Engine
 
-Non-EVM chains are not optional here. Exchange users withdraw USDT on TRON
-because the fee is cents, so a payer told to send USDT will often send it on a
-chain Phase 2's EVM watcher cannot see.
+- ☐ Determine whether a swap is required (same-asset → no-op)
+- ☐ Select execution provider (0x, Uniswap)
+- ☐ Fetch executable quote → `minOut`
+- ☐ Build calldata for PaymentRouter
+- ☐ Slippage policy and MEV protection (private mempool / Flashbots Protect)
 
-### Smart Routing
+The Execution Engine is an **off-chain planner**, not an executor. It picks
+the venue and builds calldata; the contract executes. Do not duplicate swap
+logic in both places. Strategy selection routes by latency tolerance —
+immediate (POS) vs batched
 
-- Liquidity Optimization
-- Settlement Optimization
-- Retry Strategy
-- Treasury Optimization
+### Quote Engine
+
+- ☐ Compose PriceOracle (reference + deviation guard) + DEX quote (executable `minOut`)
+- ☐ Lock quote → signed order with TTL and slippage bound
+- ☐ Quote-signing key as a custody-adjacent trust root (HSM/KMS, rotation, multisig)
+
+The hard lock is the **merchant's settlement amount** (fiat → stablecoin
+`minOut`). The customer's payer-asset amount is a **display estimate**, not a
+custody lock — the contract swaps whatever arrives. This supersedes the
+two-lock deposit model for the contract path.
+
+### Price Oracle (adapter)
+
+- ☐ Pyth Network (production — pull-based, on-chain verifiable)
+- ☐ Chainlink (off-chain reference)
+
+The Price Oracle is a **data dependency**, not a standalone service. The
+executable `minOut` comes from the DEX quote; the oracle is a deviation guard.
+Do not trust the oracle for the fill; trust the DEX, guard with the oracle.
+
+### Indexer & Event Ingestion
+
+- ☐ Reliable event ingestion (Ponder / dedicated indexer)
+- ☐ Idempotent — keyed by `(chain, txHash, logIndex)`
+- ☐ Reorg handling and backfill
+- ☐ Reconciliation — ledger derived from on-chain truth, divergence detected and surfaced
+
+The ledger is now a **derived view** of on-chain reality, not the source of
+truth. Divergence handling (missed event, reorg, indexing lag, under/over
+payment) is first-class, not an edge case.
+
+### Gas Abstraction
+
+- ☐ Relayer / paymaster / zerodev for merchant smart-account wallets
+- ☐ Merchant never needs native gas to receive or withdraw settlement
+
+A merchant whose wallet starts empty cannot move their stablecoin. Gas
+abstraction is required for the "no wallet, no seed phrase" experience to
+function.
 
 ---
 
-## Phase 5 — Commerce Infrastructure
+## Phase 4 — Commerce Platform
 
-Transform Mayarin into a universal payment platform.
+Expose the commerce and developer surface on top of the execution layer.
 
-### Payment Rails
+### Commerce Layer
 
-- QRIS
-- Bank Transfer
-- Wallet Payments
-- Crypto Address Payments
-- Cross-border Payments
+- ☐ Product Catalog (first-class module, optional)
+- ☐ Prices in merchant `pricingCurrency` (IDR initially; multi-currency by design like MYR, THB)
+- ☐ Carts and totals → produce Payment Intents
+- ☐ Payment Links
 
-### Merchant Platform
+The commerce layer is a **thin optional layer** that produces Payment Intents.
+It depends on `payment-intent`, never the reverse. The contract boundary is
+the **Payment Intent, not the Product** — third-party developers can build
+storefronts, POS, and checkout directly on the payment primitives and skip
+the catalog entirely. Making the catalog load-bearing would make Mayarin a
+commerce platform (Shopify), not payment infrastructure (Stripe).
 
-- Merchant Dashboard
-- Multi-store Support
-- Team Management
-- Reporting & Analytics
-- Settlement Reports
+### Wallet Infrastructure
 
-### Developer Platform
+- ☐ Wallet Provider abstraction
+- ☐ Managed smart-account provisioning (Safe default)
+- ☐ Policy-gated signing — backend proposes within policy, never signs raw
+- ☐ Connect-existing wallet (Safe, EOA) — additive, not a rewrite
 
-- TypeScript SDK
-- REST API
-- Webhooks
-- Plugins
-- Provider SDK
+Merchants never connect MetaMask, import keys, or manage seed phrases. A
+managed settlement wallet is provisioned on account creation. **Safe smart
+account** is the wallet shape — self-custodial, chain-enforced policy,
+relayer-paid gas — giving Stripe-smooth onboarding without Mayarin becoming a
+custodian. **Turnkey** is the wallet provider: an MPC policy engine that
+provisions and signs for managed wallets under policy. **Tempo** is an
+alternative MPC wallet-infra backend, considered as a swappable option behind
+the same port.
+
+### Settlement
+
+- ☐ On-chain settlement to merchant smart account
+- ☐ Fee extraction on-chain (`minOut − fee` to merchant, fee to treasury)
+- ☐ Excess refund to customer (`refundTo`)
+
+### Notifications
+
+- ☐ Webhook delivery to merchant integrations (signed, retry, idempotent)
+- ☐ Real-time payment status
+
+### Developer SDK
+
+- ☐ One Client SDK (TypeScript) — commerce, payment, QR helpers
+- ☐ POS and Merchant presets, not separate packages
+- ☐ REST API
+- ☐ Webhooks
+
+### Merchant Dashboard
+
+- ☐ Product and catalog management
+- ☐ Payment explorer and transaction timeline
+- ☐ Settlement status
+- ☐ Merchant analytics
+
+The dashboard is one first-party application built on the same primitives any
+third-party developer can use.
+
+### Compliance
+
+- No KYC for now or using didit later.
+- ☐ Immutable audit trail (ledger + on-chain events)
+
+Even crypto-only, Mayarin has compliance surface — stablecoin issuers can
+freeze, and screening is expected by acquirers, issuers, and regulators. The
+architecture makes compliance cheap, not absent.
+
+---
+
+## Phase 5 — Multi-Asset, Multi-Chain
+
+Expand the execution surface across assets, venues, and chains.
+
+### Payer Assets
+
+- ☐ ERC-20 payer assets via Permit2 (USDT, IDRX, other stablecoins)
+- ☐ Native assets beyond ETH
+- ☐ Asset whitelist governance
+
+### Execution Venues
+
+- ☐ Uniswap, 0x Protocol
+- ☐ Strategy selection by latency tolerance and MEV exposure
+- ☐ Smart routing — liquidity, fee, and network optimization
+
+### Blockchain Networks
+
+- ☐ Additional EVM chains
+- ☐ Solana
+- ☐ TRON
+
+Cross-chain payment (customer pays on chain A, merchant settles on chain B)
+requires a bridge with its own trust model. It is **not** handled by a single
+PaymentRouter deployment — design the cross-chain path explicitly when reached.
+
+### Wallet Providers
+
+- ☐ Turnkey (MPC policy engine — the wallet provider)
+- ☐ Tempo (MPC wallet infra — alternative backend, considered)
+- ☐ Connect-existing (Safe, EOA)
+
+### Settlement Assets
+
+- ☐ Configurable settlement asset per merchant
+- ☐ Settlement policy (single default; split settlement as additive extension)
+
+Each provider implements a common interface, allowing Mayarin to remain
+provider-agnostic while supporting multiple execution paths.
+
+---
+
+## Phase 6 — Scale & Open Infrastructure
+
+Harden and open the platform.
+
+### Treasury
+
+- ☐ Fee recipient and gas funding only — **not** a liquidity/FX book
+- ☐ Treasury dashboard
+- ☐ Reconciliation and reporting
+
+If treasury ever funds slippage gaps or holds inventory to make conversions,
+Mayarin becomes a custodial FX desk. Keep treasury minimal; conversions happen
+on-chain via DEX.
+
+### Platform
+
+- ☐ Observability and audit logs
+- ☐ Event streaming
+- ☐ High availability and multi-region deployments
+
+### Open Extension
+
+- ☐ Adapter marketplace
+- ☐ Custom provider SDK
+- ☐ Plugin SDK
+
+### Future — Stablecoin → Fiat Off-Ramp
+
+- ☐ Off-ramp to local bank (explicit, separate custody/trust model)
+
+The off-ramp is the part of the merchant journey that necessarily involves a
+custodial hop (an acquirer holds stablecoin transiently). It is a deliberate
+later phase with its own regulatory perimeter, not an MVP assumption.
 
 ---
 
 # Long-term Vision
 
-Mayarin aims to become a universal programmable payment infrastructure.
+Mayarin aims to become programmable crypto commerce infrastructure.
 
-- One SDK, One API.
-- Multiple payment rails.
-- Multiple settlement providers.
-- Multiple blockchain networks.
-- Developers integrate once while Mayarin orchestrates liquidity, clearing, settlement, and payment execution behind the scenes.
+```
+                Integrate Once
+
+                      │
+                      ▼
+
+                   Mayarin
+
+      Payment Orchestration Layer
+
+      • Payment Intent
+      • Quote Engine
+      • Execution Engine
+      • PaymentRouter (on-chain)
+      • Double-entry Ledger (derived)
+      • Wallet Infrastructure
+
+                      │
+
+      ┌───────────────┼────────────────┐
+
+      ▼               ▼                ▼
+
+ Blockchain       DEX Liquidity    Wallet
+ Networks                          Providers
+```
+
+One SDK.
+
+One API.
+
+Any payer asset.
+
+Stablecoin settlement.
+
+Developers integrate once while Mayarin orchestrates quoting, execution,
+settlement, accounting, and wallet provisioning behind the scenes. The
+merchant prices in their local currency and receives their chosen stablecoin;
+the customer pays with whatever asset they hold.
 
 ---
 
@@ -210,20 +391,22 @@ Mayarin aims to become a universal programmable payment infrastructure.
 ## Track 1 — Payments & Financial Infrastructure
 
 - Payment orchestration
-- Clearing infrastructure
-- Settlement abstraction
-- Treasury management
-- Merchant payment rails
+- On-chain settlement
+- Stablecoin commerce
+- Merchant infrastructure
 - POS infrastructure
-- Financial operations
+- Treasury management
+
+---
 
 ## Track 2 — Web3 Applications & AI
 
 - Stablecoin payments
 - Crypto-to-crypto payments
-- Cross-chain settlement
-- Smart payment routing
-- Modular Web3 infrastructure
+- On-chain payment routing
+- Modular blockchain infrastructure
+- Smart payment execution
+- Multi-venue liquidity routing
 
 ---
 
@@ -231,5 +414,8 @@ Mayarin aims to become a universal programmable payment infrastructure.
 
 - [Architecture](./architecture.md)
 - [Vision & Rationale](./vision.md)
+- [Chain Layer](./chain.md)
+- [Liquidity Routing](./liquidity-routing.md)
+- [Stablecoin Registry](./stablecoin.md)
 
 [← Documentation index](./README.md)
