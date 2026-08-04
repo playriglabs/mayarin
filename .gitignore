@@ -23,5 +23,10 @@ coverage/
 !.claude/skills/
 .claude/settings.local.json
 
+.astro
 .bun/
 bun.lockb.bak
+
+# Turborepo local cache + artifacts
+.turbo
+node_modules/.cache/turbo

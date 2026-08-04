@@ -11,13 +11,15 @@
   "engines": {
     "bun": ">=1.2.0"
   },
+  "packageManager": "bun@1.2.5",
   "scripts": {
     "prepare": "lefthook install",
     "dev": "bun run --cwd apps/api dev",
+    "dev:all": "turbo dev --filter=@mayarin/api --filter=@mayarin/dashboard-api --filter=@mayarin/dashboard",
     "dev:landing": "bun run --cwd apps/landing dev",
     "build:landing": "bun run --cwd apps/landing build",
     "test": "bun test",
-    "typecheck": "bun run --filter '*' typecheck",
+    "typecheck": "turbo typecheck",
     "lint": "biome lint",
     "lint:fix": "biome lint --write",
     "format": "biome check --write && prettier --write \"**/*.{md,yml,yaml}\"",
@@ -25,6 +27,8 @@
     "check": "bun run format:check && bun run typecheck && bun test",
     "db:generate": "bun run --cwd packages/db generate",
     "db:migrate": "bun run --cwd packages/db migrate",
+    "db:studio": "bun run --cwd packages/db studio",
+    "seed:merchant": "bun --env-file=../../.env run --cwd apps/dashboard-api scripts/seed-merchant.ts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down"
   },
@@ -33,6 +37,7 @@
     "@types/bun": "^1.2.5",
     "lefthook": "^2.1.10",
     "prettier": "^3.9.6",
+    "turbo": "^2.10.8",
     "typescript": "^5.7.3"
   }
 }
