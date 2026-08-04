@@ -10,8 +10,8 @@ export function Hero() {
 
       <div class="shell relative flex flex-col items-center text-center">
         <Reveal>
-          <p class="label inline-flex items-center gap-2.5 rounded-full border border-line px-4 py-2 text-[0.625rem] tracking-[0.14em] whitespace-nowrap text-slate sm:text-[0.6875rem] sm:tracking-[0.18em]">
-            <span aria-hidden="true" class="inline-block size-1.5 rounded-full bg-accent" />
+          <p class="label inline-flex items-center gap-2.5 text-[0.625rem] tracking-[0.14em] whitespace-nowrap text-slate sm:text-[0.6875rem] sm:tracking-[0.18em]">
+            <span aria-hidden="true" class="inline-block size-1.5 bg-accent" />
             Crypto commerce infrastructure
           </p>
         </Reveal>
@@ -24,22 +24,22 @@ export function Hero() {
 
         <Reveal delay={160}>
           <p class="mt-8 max-w-[62ch] text-lg leading-[1.6] text-slate">
-            Merchants price in local currency and settle in a stablecoin. Customers pay with any
-            supported crypto. One clearing layer bridges the two.
+            Merchants price in local currency. Customers pay with any supported crypto assets.
+            Settlement happens in stablecoins.
           </p>
         </Reveal>
 
         <Reveal delay={240} class="mt-10 flex items-center gap-3">
           <a
             href="#start"
-            class="btn-fill [--btn-fill:var(--color-forest)] label inline-flex h-14 cursor-pointer items-center rounded-full bg-ink px-8 text-white"
+            class="btn-fill [--btn-fill:var(--color-forest)] label inline-flex h-14 cursor-pointer items-center bg-ink px-8 text-white"
           >
             Start building
           </a>
           <a
             href="#start"
             aria-label="Start building"
-            class="inline-flex size-14 cursor-pointer items-center justify-center rounded-full border border-black/20 text-ink transition-colors duration-200 hover:border-ink"
+            class="inline-flex size-14 cursor-pointer items-center justify-center border border-black/20 text-ink transition-colors duration-200 hover:border-ink"
           >
             <ArrowRight width="16" height="16" />
           </a>

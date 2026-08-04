@@ -20,7 +20,7 @@ export function CodeBlock({ snippet }: { snippet: Snippet }) {
     <div class="border border-line-inverse bg-[#080808]">
       <div class="flex items-center justify-between border-b border-line-inverse px-5 py-3.5">
         <div class="flex items-center gap-3">
-          <span aria-hidden="true" class="size-1.5 rounded-full bg-accent" />
+          <span aria-hidden="true" class="size-1.5 bg-accent" />
           <span class="label text-slate-inverse">{snippet.filename}</span>
         </div>
         <button

@@ -15,26 +15,27 @@ const LOGOS: Logo[] = [
     src: "/images/logos/arbitrum.svg",
     name: "Arbitrum",
     lockup: true,
-    class: "h-4 md:h-[1.35rem]",
+    class: "h-12 md:h-[4rem]",
   },
-  { src: "/images/logos/polygon.svg", name: "Polygon", lockup: true, class: "h-4 md:h-[1.35rem]" },
+  { src: "/images/logos/solana.svg", name: "Solana", lockup: true, class: "h-4 md:h-[1.35rem]" },
+  { src: "/images/logos/polygon.svg", name: "Polygon", lockup: true, class: "h-6 md:h-[2rem]" },
   {
     src: "/images/logos/pyth.svg",
     name: "Pyth Network",
     lockup: true,
-    class: "h-4 md:h-[1.35rem]",
+    class: "h-8 md:h-[2.5rem]",
   },
   {
     src: "/images/logos/chainlink.svg",
     name: "Chainlink",
     lockup: true,
-    class: "h-4 md:h-[1.35rem]",
+    class: "h-6 md:h-[2rem]",
   },
-  { src: "/images/logos/uniswap.svg", name: "Uniswap", lockup: true, class: "h-4 md:h-[1.35rem]" },
+  { src: "/images/logos/uniswap.svg", name: "Uniswap", lockup: true, class: "h-8 md:h-[3rem]" },
   { src: "/images/logos/0x.svg", name: "0x Protocol", lockup: true, class: "h-4 md:h-[1.35rem]" },
   { src: "/images/logos/alchemy.svg", name: "Alchemy" },
   { src: "/images/logos/viem.svg", name: "viem", lockup: true, class: "h-4 md:h-[1.25rem]" },
-  { src: "/images/logos/turnkey.svg", name: "Turnkey", lockup: true, class: "h-4 md:h-[1.35rem]" },
+  { src: "/images/logos/turnkey.svg", name: "Turnkey", lockup: true, class: "h-5 md:h-[1.5rem]" },
 ];
 
 /** Enough copies that the first half always overflows the widest viewport. */

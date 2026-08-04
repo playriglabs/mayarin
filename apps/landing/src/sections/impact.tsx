@@ -37,7 +37,7 @@ export function Impact() {
         </div>
 
         <p class="label mt-2 flex items-center justify-center gap-2.5 text-slate leading-5">
-          <span aria-hidden="true" class="inline-block size-1.5 rounded-full bg-accent" />
+          <span aria-hidden="true" class="inline-block size-1.5 bg-accent" />
           Jakarta outward, through Asia — drag to spin
         </p>
       </Reveal>

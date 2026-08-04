@@ -112,7 +112,7 @@ export function Button({
     <a
       href={href}
       class={clsx(
-        "inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-full px-7 text-sm font-medium transition-colors duration-200",
+        "inline-flex h-12 cursor-pointer items-center justify-center gap-2 px-7 text-sm font-medium transition-colors duration-200",
         buttonVariants[variant],
         className,
       )}
