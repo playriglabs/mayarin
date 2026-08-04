@@ -1,4 +1,5 @@
 import type { ChainId } from "@mayarin/chain";
+import type { ExecutionPath } from "@mayarin/payment-intent";
 import type { SettlementMerchant } from "@mayarin/settlement";
 import type { AssetCode, Money } from "@mayarin/shared";
 
@@ -72,6 +73,13 @@ export interface ClearingTransaction {
   readonly sourceAmount: Money;
   readonly settlementAsset: AssetCode;
   readonly provider: string;
+  /**
+   * How the payer's rail is executed, copied from the intent at creation so
+   * every step knows the path without reloading the intent (matching
+   * `provider`). Absent for a fiat-only transaction. Only `"deposit-match"` is
+   * implemented; `"on-chain-contract"` is a Phase 3 stub.
+   */
+  readonly executionPath?: ExecutionPath;
 
   /** Set at PRICE_LOCKED. */
   readonly rate?: LockedRate;

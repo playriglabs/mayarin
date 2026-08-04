@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { money } from "@mayarin/shared";
 import { createHarness } from "./harness.ts";
+
+const IDRX = (minorUnits: bigint) => money(minorUnits, "IDRX");
 
 describe("deposit leg", () => {
   test("an intent with no rail locks the price exactly as before", async () => {
@@ -75,5 +78,25 @@ describe("deposit leg", () => {
 
     expect(transaction.state).toBe("FAILED");
     expect(transaction.failure?.code).toBe("CONFIGURATION_ERROR");
+  });
+
+  test("the on-chain-contract path is a stub that fails before moving value", async () => {
+    const harness = createHarness({
+      autoConfirmAssetReceipt: false,
+      rates: { "IDR/IDRX": 100n, "IDR/USDC": 320n },
+    });
+    const intent = await harness.confirmedIntent({
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      executionPath: "on-chain-contract",
+    });
+
+    const transaction = await harness.engine.start(intent);
+
+    expect(transaction.state).toBe("FAILED");
+    expect(transaction.failure?.code).toBe("CONFIGURATION_ERROR");
+    expect(transaction.failure?.reason).toContain("not implemented");
+    // No deposit address allocated, no value posted.
+    expect(transaction.deposit).toBeUndefined();
+    expect(await harness.balance("TREASURY")).toEqual(IDRX(0n));
   });
 });
