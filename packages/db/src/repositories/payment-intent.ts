@@ -1,5 +1,6 @@
 import { isChainId } from "@mayarin/chain";
 import type {
+  ExecutionPath,
   ListPaymentIntentsOptions,
   PaymentIntent,
   PaymentIntentRepository,
@@ -94,6 +95,7 @@ function toRow(intent: PaymentIntent): typeof paymentIntents.$inferInsert {
     amountAsset: intent.amount.asset,
     settlementAsset: intent.settlementAsset,
     provider: intent.provider,
+    executionPath: intent.executionPath ?? null,
     ...paymentRailColumns(intent),
     sourceType: intent.source.type,
     sourceScheme: intent.source.type === "qr" ? intent.source.scheme : null,
@@ -126,6 +128,7 @@ function toDomain(row: Row): PaymentIntent {
     amount: toMoney(row.amount, row.amountAsset),
     settlementAsset: toAsset(row.settlementAsset),
     provider: row.provider,
+    ...present("executionPath", row.executionPath as ExecutionPath | null),
     ...present("payment", toPaymentRail(row)),
     source: toSource(row),
     metadata: row.metadata,

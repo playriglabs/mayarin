@@ -48,6 +48,8 @@ export const paymentIntents = pgTable(
 
     paymentAsset: text("payment_asset"),
     paymentChain: text("payment_chain"),
+    // How the payment rail is executed. Null for a fiat-only intent.
+    executionPath: text("execution_path"),
 
     sourceType: text("source_type").notNull(),
     sourceScheme: text("source_scheme"),
@@ -92,6 +94,8 @@ export const clearingTransactions = pgTable(
     sourceAsset: text("source_asset").notNull(),
     settlementAsset: text("settlement_asset").notNull(),
     provider: text("provider").notNull(),
+    // Copied from the intent at creation; null for a fiat-only transaction.
+    executionPath: text("execution_path"),
 
     rateFrom: text("rate_from"),
     rateTo: text("rate_to"),
