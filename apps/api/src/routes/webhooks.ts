@@ -12,7 +12,7 @@
 
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
-import { toClearingDto } from "../serialization.ts";
+import { toClearingDto } from "../dto/clearing.ts";
 
 export function webhookRoutes(container: Container): Hono {
   const app = new Hono();

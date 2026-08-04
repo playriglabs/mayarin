@@ -1,24 +1,20 @@
 /**
  * Admin routes.
  *
- * Registered only when `ADMIN_TOKEN` is set — an unconfigured deployment
- * returns 404 rather than exposing an unauthenticated trigger.
+ * Registered only when `ADMIN_TOKEN` is set — an unconfigured deployment returns
+ * 404 rather than exposing an unauthenticated trigger.
  */
 
 import { ValidationError } from "@mayarin/shared";
 import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
+import { adminTokenMiddleware } from "../middleware/admin-token.ts";
 
 export function adminRoutes(container: Container, token: string): Hono {
   const app = new Hono();
 
-  app.use("*", async (c, next) => {
-    if (c.req.header("authorization") !== `Bearer ${token}`) {
-      return c.json({ error: { code: "UNAUTHORIZED", message: "Invalid admin token" } }, 401);
-    }
-    await next();
-  });
+  app.use("*", adminTokenMiddleware(token));
 
   /** Forces one watcher pass over every configured pair. */
   app.post("/watcher/tick", async (c) => {

@@ -361,4 +361,17 @@ describe("admin routes", () => {
     const harness = createApiHarness();
     expect((await harness.app.request("/admin/watcher/tick", { method: "POST" })).status).toBe(404);
   });
+
+  test("reject a missing or wrong admin token with 401 UNAUTHORIZED", async () => {
+    const harness = createApiHarness({ adminToken: "a-very-long-admin-token-secret" });
+    const wrong = await harness.app.request("/admin/watcher/tick", {
+      method: "POST",
+      headers: { authorization: "Bearer wrong-token" },
+    });
+    expect(wrong.status).toBe(401);
+    expect((await wrong.json()).error.code).toBe("UNAUTHORIZED");
+
+    const none = await harness.app.request("/admin/watcher/tick", { method: "POST" });
+    expect(none.status).toBe(401);
+  });
 });

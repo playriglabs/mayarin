@@ -43,12 +43,14 @@ import {
   type StablecoinRegistry,
 } from "@mayarin/stablecoin";
 import type { Config } from "./config.ts";
+import { PaymentAppService } from "./services/payment.ts";
 
 export interface Container {
   readonly config: Config;
   readonly intents: PaymentIntentService;
   readonly ledger: LedgerService;
   readonly engine: ClearingEngine;
+  readonly paymentApp: PaymentAppService;
   readonly adapters: SettlementAdapterRegistry;
   readonly events: EventPublisher;
   /** Admissible stablecoins and their on-chain identities. */
@@ -170,11 +172,21 @@ export function createContainer({
     }
   }
 
+  const paymentApp = new PaymentAppService({
+    intents,
+    engine,
+    ledger,
+    ...(deposits === undefined ? {} : { deposits }),
+    ...(chainHead === undefined ? {} : { chainHead }),
+    ...(chain === undefined ? {} : { chainConfig: chain }),
+  });
+
   return {
     config,
     intents,
     ledger,
     engine,
+    paymentApp,
     adapters,
     events,
     registry,

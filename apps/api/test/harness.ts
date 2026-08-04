@@ -12,13 +12,11 @@ import {
   LiquidityRouter,
   TablePriceSource,
 } from "@mayarin/clearing";
-import {
-  InMemoryClearingRepository,
-  InMemoryLedgerRepository,
-  InMemoryPaymentIntentRepository,
-} from "@mayarin/db/memory";
+import { InMemoryClearingRepository } from "@mayarin/clearing/testing";
 import { LedgerService } from "@mayarin/ledger";
+import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
 import { PaymentIntentService } from "@mayarin/payment-intent";
+import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
@@ -27,12 +25,14 @@ import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
+import { PaymentAppService } from "../src/services/payment.ts";
 
 export const WEBHOOK_SECRET = "whsec_mayarin_test";
 
 export interface ApiHarnessOptions {
   readonly behaviour?: MockBehaviour;
   readonly assetReceiptMode?: Config["assetReceiptMode"];
+  readonly adminToken?: string;
 }
 
 export function createApiHarness(options: ApiHarnessOptions = {}) {
@@ -52,6 +52,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     // chain layer itself stays off (CHAIN_ENABLED unset).
     CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
     MOCK_WEBHOOK_SECRET: WEBHOOK_SECRET,
+    ...(options.adminToken === undefined ? {} : { ADMIN_TOKEN: options.adminToken }),
   });
 
   const adapter = new MockSettlementAdapter({
@@ -99,6 +100,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     intents,
     ledger,
     engine,
+    paymentApp: new PaymentAppService({ intents, engine, ledger }),
     adapters,
     events,
     registry,

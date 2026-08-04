@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import type { Container } from "./container.ts";
 import { errorHandler } from "./errors.ts";
 import { adminRoutes } from "./routes/admin.ts";
+import { healthRoutes } from "./routes/health.ts";
 import { paymentIntentRoutes } from "./routes/payment-intents.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
@@ -22,14 +23,7 @@ export function createApp(container: Container): Hono {
     throw new NotFoundError("Route not found");
   });
 
-  app.get("/health", (c) =>
-    c.json({
-      status: "ok",
-      settlementAsset: container.config.settlementAsset,
-      providers: container.adapters.names(),
-    }),
-  );
-
+  app.route("/", healthRoutes(container));
   app.route("/payment-intents", paymentIntentRoutes(container));
   app.route("/payments", paymentRoutes(container));
   app.route("/webhooks", webhookRoutes(container));
