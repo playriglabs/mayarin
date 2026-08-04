@@ -16,7 +16,7 @@ export function FinalCta() {
               d={`M-20 ${y} H420 C540 ${y} 560 200 680 200 H1220`}
               pathLength={196}
               fill="none"
-              stroke="rgba(255,255,255,0.2)"
+              stroke="rgba(255,255,255,0.15)"
               stroke-width="1.25"
               vector-effect="non-scaling-stroke"
             />

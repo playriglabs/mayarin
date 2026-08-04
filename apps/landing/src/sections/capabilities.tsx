@@ -93,7 +93,7 @@ export function Capabilities() {
             data-scramble-cell
             class="group bg-paper transition-colors duration-300 hover:bg-[#fafafa]"
           >
-            <Reveal delay={(index % 3) * 70} class="h-full p-8 md:p-10">
+            <Reveal delay={(index % 3) * 70} class="h-full py-5 px-4 md:p-10">
               <span class="block text-ink transition-transform duration-500 ease-out-expo group-hover:translate-x-1">
                 {glyphs[capability.glyph]}
               </span>

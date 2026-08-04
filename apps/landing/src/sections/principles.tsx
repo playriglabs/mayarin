@@ -50,7 +50,7 @@ export function Principles() {
             delay={index * 60}
             class="grid gap-4 border-t border-line py-8 last:border-b md:grid-cols-[1fr_1.15fr] md:gap-16 md:py-12"
           >
-            <h3 class="text-[clamp(1.5rem,2.8vw,2.125rem)] leading-[1.12]">{principle.title}</h3>
+            <h3 class="text-[clamp(2rem,2.8vw,2.125rem)] leading-[1.12]">{principle.title}</h3>
             <p class="max-w-[56ch] text-[0.9375rem] leading-[1.8] text-slate">{principle.body}</p>
           </Reveal>
         ))}

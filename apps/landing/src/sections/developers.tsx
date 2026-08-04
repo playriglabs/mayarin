@@ -34,7 +34,7 @@ export function Developers() {
       {/* Heading and the way in sit together, so the code below gets full width. */}
       <div class="mt-7 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:items-end lg:gap-20">
         <Reveal delay={60}>
-          <h2 class="max-w-[16ch] text-[clamp(2.25rem,5.2vw,4.25rem)]">
+          <h2 class="max-w-[16ch] text-[clamp(3rem,5.2vw,4.25rem)]">
             An integration you can hold in your head.
           </h2>
         </Reveal>

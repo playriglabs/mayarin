@@ -288,7 +288,7 @@ export function HowItWorks() {
                 </span>
               </div>
               <div class="p-6">
-                <h3 class="text-[1.625rem] leading-[1.05] text-white">{item.title}</h3>
+                <h3 class="text-[2rem] leading-[1.05] text-white">{item.title}</h3>
                 <p class="mt-3 text-sm leading-[1.7] text-slate-inverse">{item.body}</p>
                 <div class="mt-6">
                   <StateChips states={item.states} />

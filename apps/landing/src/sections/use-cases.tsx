@@ -53,7 +53,7 @@ export function UseCases() {
             class="group grid grid-cols-1 gap-4 border-b border-line py-8 transition-colors duration-300 md:grid-cols-[6rem_1fr_1.1fr] md:items-center md:gap-8 md:py-10"
           >
             <span class="label text-slate text-base">{useCase.index}</span>
-            <h3 class="font-display top text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.1]">
+            <h3 class="font-display top text-[clamp(2rem,3vw,2.25rem)] leading-[1.1]">
               {useCase.title}
             </h3>
             <p class="max-w-[52ch] text-[0.9375rem] leading-[1.7] text-slate">{useCase.body}</p>
