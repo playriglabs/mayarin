@@ -1,0 +1,16 @@
+{
+  "name": "@mayarin/provider-argon2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/auth": "workspace:*",
+    "@node-rs/argon2": "^2.0.0"
+  }
+}
