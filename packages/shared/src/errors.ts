@@ -99,3 +99,15 @@ export class ConfigurationError extends MayarinError {
   readonly code = "CONFIGURATION_ERROR";
   readonly httpStatus = 500;
 }
+
+/** Authentication is missing or invalid — no session, expired/revoked session, bad credentials. */
+export class UnauthorizedError extends MayarinError {
+  readonly code = "UNAUTHORIZED";
+  readonly httpStatus = 401;
+}
+
+/** The caller is authenticated but lacks the role or scope for this resource. */
+export class ForbiddenError extends MayarinError {
+  readonly code = "FORBIDDEN";
+  readonly httpStatus = 403;
+}

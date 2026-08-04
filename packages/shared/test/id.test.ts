@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { generateId, hasPrefix, timestampFromId, ulid } from "../src/id.ts";
+import { idSchema } from "../src/schema.ts";
 
 describe("generateId", () => {
   test("prefixes and produces a 26-character ULID", () => {
@@ -26,5 +27,31 @@ describe("generateId", () => {
     const now = 1_700_000_000_000;
     expect(timestampFromId(generateId("ltxn", now)).getTime()).toBe(now);
     expect(timestampFromId(ulid(now)).getTime()).toBe(now);
+  });
+});
+
+describe("auth id prefixes", () => {
+  test("user, session and merchant ids carry their prefix", () => {
+    const user = generateId("usr");
+    const session = generateId("ses");
+    const merchant = generateId("mrc");
+    expect(user).toMatch(/^usr_[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(session).toMatch(/^ses_[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(merchant).toMatch(/^mrc_[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(hasPrefix(user, "usr")).toBe(true);
+    expect(hasPrefix(session, "ses")).toBe(true);
+    expect(hasPrefix(merchant, "mrc")).toBe(true);
+  });
+
+  test("idSchema accepts the matching prefix and rejects others", () => {
+    const userId = generateId("usr");
+    const sessionId = generateId("ses");
+    const merchantId = generateId("mrc");
+    expect(idSchema("usr").parse(userId)).toBe(userId);
+    expect(idSchema("ses").parse(sessionId)).toBe(sessionId);
+    expect(idSchema("mrc").parse(merchantId)).toBe(merchantId);
+    expect(() => idSchema("usr").parse(sessionId)).toThrow();
+    expect(() => idSchema("ses").parse(generateId("pi"))).toThrow();
+    expect(() => idSchema("mrc").parse(generateId("pi"))).toThrow();
   });
 });
