@@ -50,10 +50,19 @@ const configSchema = z.object({
   paymentIntentTtlSeconds: z.coerce.number().int().positive().default(900),
   /**
    * `auto` treats a payment as funded when it reaches PAYMENT_PENDING — the
-   * Phase 1 stand-in for the wallet watcher Phase 2 introduces. `manual` leaves
-   * the payment waiting until something records the receipt.
+   * stand-in for the wallet watcher that confirms a deposit-match payment's
+   * asset arrived. `manual` leaves the payment waiting until something records
+   * the receipt. Deposit-matching is the fallback execution path; the Phase 3
+   * on-chain-contract path funds atomically and does not wait here.
    */
   assetReceiptMode: z.enum(["auto", "manual"]).default("auto"),
+  /**
+   * How a payment rail is executed. `deposit-match` (the fallback) watches a
+   * per-intent deposit address; `on-chain-contract` is the Phase 3 primary path
+   * that settles atomically via PaymentRouter.sol. Only `deposit-match` is
+   * implemented today; the engine fails a contract-path payment until Phase 3.
+   */
+  executionPath: z.enum(["deposit-match", "on-chain-contract"]).default("deposit-match"),
   /** Minor units of the target asset per whole unit of the source asset. */
   exchangeRates: z
     .string()
@@ -237,6 +246,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     defaultProvider: env.DEFAULT_SETTLEMENT_PROVIDER,
     paymentIntentTtlSeconds: env.PAYMENT_INTENT_TTL_SECONDS,
     assetReceiptMode: env.ASSET_RECEIPT_MODE,
+    executionPath: env.EXECUTION_PATH,
     exchangeRates: env.EXCHANGE_RATES,
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,

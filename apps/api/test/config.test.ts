@@ -110,3 +110,17 @@ describe("stablecoin registry configuration", () => {
     ).toThrow(/SETTLEMENT_ASSET/);
   });
 });
+
+describe("execution path configuration", () => {
+  test("defaults to deposit-match", () => {
+    expect(loadConfig({ ...BASE }).executionPath).toBe("deposit-match");
+  });
+
+  test("accepts the on-chain-contract path as a configured default", () => {
+    // No boot guard: the engine stub fails a contract-path payment at runtime,
+    // so the slot is reserved for Phase 3 to flip without a config redesign.
+    expect(loadConfig({ ...BASE, EXECUTION_PATH: "on-chain-contract" }).executionPath).toBe(
+      "on-chain-contract",
+    );
+  });
+});
