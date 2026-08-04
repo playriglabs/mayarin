@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import type { ComponentChildren } from "preact";
 import { Reveal } from "../components/reveal.tsx";
 import { Label, Lede, Section, SectionHeading } from "../components/ui.tsx";
@@ -38,13 +39,14 @@ function Node({
 }) {
   return (
     <div
-      class={`flex h-14 items-center justify-center border px-5 text-center text-sm ${
+      class={clsx(
+        "flex h-14 items-center justify-center border px-5 text-center text-sm",
         emphasis
           ? "border-ink bg-ink font-medium text-white"
           : muted
             ? "border-line bg-paper text-slate"
-            : "border-line bg-paper text-ink"
-      }`}
+            : "border-line bg-paper text-ink",
+      )}
     >
       {children}
     </div>
@@ -54,7 +56,7 @@ function Node({
 function Connector({ accent = false }: { accent?: boolean }) {
   return (
     <div aria-hidden="true" class="flex h-8 items-center justify-center">
-      <span class={`h-full w-px ${accent ? "bg-accent" : "bg-line"}`} />
+      <span class={clsx("h-full w-px", accent ? "bg-accent" : "bg-line")} />
     </div>
   );
 }

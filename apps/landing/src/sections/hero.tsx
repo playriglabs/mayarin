@@ -17,21 +17,21 @@ export function Hero() {
         </Reveal>
 
         <Reveal delay={80}>
-          <h1 class="mt-10 max-w-[16ch] text-[clamp(2.75rem,7vw,6.5rem)] leading-[0.98]">
+          <h1 class="mt-10 max-w-[16ch] text-[clamp(2.8rem,7vw,6.5rem)] leading-[0.98]">
             Clearing infrastructure for money <em class="italic">in motion</em>.
           </h1>
         </Reveal>
 
         <Reveal delay={160}>
           <p class="mt-8 max-w-[62ch] text-lg leading-[1.6] text-slate">
-            One integration moves value across digital assets, banks and local payment rails.
+            One integration moves value across digital assets, money and local payment rails.
           </p>
         </Reveal>
 
         <Reveal delay={240} class="mt-10 flex items-center gap-3">
           <a
             href="#start"
-            class="label inline-flex h-14 cursor-pointer items-center rounded-full bg-ink px-8 text-white transition-colors duration-200 hover:bg-forest"
+            class="btn-fill [--btn-fill:var(--color-forest)] label inline-flex h-14 cursor-pointer items-center rounded-full bg-ink px-8 text-white"
           >
             Start building
           </a>

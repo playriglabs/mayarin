@@ -8,6 +8,7 @@ import { Developers } from "./sections/developers.tsx";
 import { FinalCta } from "./sections/final-cta.tsx";
 import { Hero } from "./sections/hero.tsx";
 import { HowItWorks } from "./sections/how-it-works.tsx";
+import { Impact } from "./sections/impact.tsx";
 import { Principles } from "./sections/principles.tsx";
 import { Trust } from "./sections/trust.tsx";
 import { UseCases } from "./sections/use-cases.tsx";
@@ -34,6 +35,7 @@ export function App() {
         <Architecture />
         <Developers />
         <UseCases />
+        <Impact />
         <Principles />
         <FinalCta />
       </main>

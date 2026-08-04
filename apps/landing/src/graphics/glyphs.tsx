@@ -28,17 +28,23 @@ export const glyphs = {
       <circle cx="19" cy="16" r="2" fill="var(--color-accent)" stroke="none" />
     </Glyph>
   ),
+  /** A predicate on the rail: the condition resolves and one branch is taken. */
   settlement: (
     <Glyph>
-      <path d="M3 16h11m4 0h11" />
-      <rect x="12" y="10" width="8" height="12" />
-      <path d="M23 12l4 4-4 4" />
+      <path d="M2 16h5" />
+      <path d="M12 11l5 5-5 5-5-5z" />
+      <path d="M17 16c6 0 5-9 11-9" />
+      <path d="M17 16c6 0 5 9 11 9" stroke-dasharray="2 3" />
+      <circle cx="28" cy="7" r="2" fill="var(--color-accent)" stroke="none" />
     </Glyph>
   ),
+  /** Two sides that have to come out level — balances, then reconciliation. */
   treasury: (
     <Glyph>
-      <path d="M4 9h24M4 16h17M4 23h20" />
-      <circle cx="27" cy="16" r="2" fill="var(--color-accent)" stroke="none" />
+      <path d="M16 6v19M6 11h20M11 25h10" />
+      <path d="M6 11v2M26 11v2" />
+      <path d="M2 13a4 4 0 0 0 8 0M22 13a4 4 0 0 0 8 0" />
+      <circle cx="16" cy="11" r="2" fill="var(--color-accent)" stroke="none" />
     </Glyph>
   ),
   ledger: (
@@ -70,11 +76,14 @@ export const glyphs = {
       <circle cx="16" cy="9" r="2" fill="var(--color-accent)" stroke="none" />
     </Glyph>
   ),
+  /** Each transition returns a new value; the versions behind it still stand. */
   intent: (
     <Glyph>
-      <circle cx="16" cy="16" r="12" stroke-dasharray="2 4" />
-      <circle cx="16" cy="16" r="6" />
-      <circle cx="16" cy="16" r="1.75" fill="var(--color-accent)" stroke="none" />
+      <path d="M7.6 22.4l5.8-4.8M18.6 13.4l5.8-4.8" />
+      <circle cx="5" cy="25" r="3.2" />
+      <circle cx="16" cy="16" r="3.2" />
+      <circle cx="27" cy="7" r="3.2" />
+      <circle cx="27" cy="7" r="1.6" fill="var(--color-accent)" stroke="none" />
     </Glyph>
   ),
   adapters: (
@@ -84,19 +93,24 @@ export const glyphs = {
       <path d="M13 16h6" />
     </Glyph>
   ),
+  /** States around a cycle, one of them current — resumable from wherever it stopped. */
   clearing: (
     <Glyph>
-      <path d="M6 26a14 14 0 0 1 20-20" />
-      <path d="M26 6v7h-7" />
-      <circle cx="16" cy="16" r="2.25" fill="var(--color-accent)" stroke="none" />
-      <path d="M4 16h8m8 0h8" stroke-dasharray="2 4" />
+      <path d="M16 5A11 11 0 1 1 5 16" />
+      <circle cx="16" cy="5" r="2" />
+      <circle cx="27" cy="16" r="2" />
+      <circle cx="16" cy="27" r="2" />
+      <circle cx="5" cy="16" r="2.25" fill="var(--color-accent)" stroke="none" />
     </Glyph>
   ),
+  /** A one-way gate: replay it as often as you like, value passes exactly once. */
   engine: (
     <Glyph>
-      <rect x="4" y="8" width="24" height="16" />
-      <path d="M4 14h24M11 8v6M21 8v6" />
-      <circle cx="16" cy="19" r="2" fill="var(--color-accent)" stroke="none" />
+      <path d="M2 16h10" />
+      <path d="M12 10l8 6-8 6z" />
+      <path d="M20 10v12" />
+      <path d="M20 16h6" />
+      <circle cx="27" cy="16" r="2" fill="var(--color-accent)" stroke="none" />
     </Glyph>
   ),
 } as const;

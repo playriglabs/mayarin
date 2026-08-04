@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Reveal } from "../components/reveal.tsx";
 import { Label, Lede, Section, SectionHeading } from "../components/ui.tsx";
@@ -73,7 +74,7 @@ function StateChips({ states, tone = "dark" }: { states: string[]; tone?: "dark"
               ›
             </span>
           ) : null}
-          <span class={`label border px-2.5 py-1.5 ${chip}`}>{state}</span>
+          <span class={clsx("label border px-2.5 py-1.5", chip)}>{state}</span>
         </span>
       ))}
     </div>
@@ -190,16 +191,18 @@ export function HowItWorks() {
               >
                 <span class="flex items-baseline gap-6">
                   <span
-                    class={`label transition-colors duration-300 ${
-                      selected ? "text-accent" : "text-slate-inverse"
-                    }`}
+                    class={clsx(
+                      "label transition-colors duration-300",
+                      selected ? "text-accent" : "text-slate-inverse",
+                    )}
                   >
                     {item.index}
                   </span>
                   <span
-                    class={`font-sans text-lg tracking-[-0.01em] transition-colors duration-300 lg:text-xl ${
-                      selected ? "text-white" : "text-slate-inverse group-hover:text-white"
-                    }`}
+                    class={clsx(
+                      "font-sans text-lg tracking-[-0.01em] transition-colors duration-300 lg:text-xl",
+                      selected ? "text-white" : "text-slate-inverse group-hover:text-white",
+                    )}
                   >
                     {item.title}
                   </span>
@@ -210,7 +213,7 @@ export function HowItWorks() {
                   {selected ? (
                     <span
                       key={`${item.index}:${running}`}
-                      class={`block h-full origin-left bg-accent ${running ? "stage-fill" : ""}`}
+                      class={clsx("block h-full origin-left bg-accent", running && "stage-fill")}
                       style={running ? `animation-duration:${DWELL_MS}ms` : undefined}
                     />
                   ) : null}
@@ -258,13 +261,14 @@ export function HowItWorks() {
               {STAGES.map((item, index) => (
                 <span
                   key={item.index}
-                  class={`h-0.75 flex-1 transition-colors duration-500 ${
+                  class={clsx(
+                    "h-0.75 flex-1 transition-colors duration-500",
                     index === active
                       ? "bg-accent"
                       : index < active
                         ? "bg-accent/10"
-                        : "bg-line-inverse/10"
-                  }`}
+                        : "bg-line-inverse/10",
+                  )}
                 />
               ))}
             </div>

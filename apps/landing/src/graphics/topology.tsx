@@ -1,5 +1,19 @@
 const SOURCES = ["Digital assets", "Stablecoins", "Wallets"];
-const RAILS = ["QRIS", "Bank transfer", "PayNow", "PromptPay"];
+
+/**
+ * The right-hand side is settlement, not acceptance. QRIS, PayNow and PromptPay
+ * are QR schemes the parser *decodes* on the way in — putting them here read as
+ * though a merchant gets paid over the same rail the payer scanned.
+ *
+ * What a settlement adapter actually produces is one of two postings, and the
+ * mode is the port-level fact the clearing engine branches on: `external` moves
+ * value out of Mayarin, `internal` keeps it as a merchant balance.
+ */
+const RAILS = [
+  { label: "Bank transfer", mode: "external" },
+  { label: "On-chain transfer", mode: "external" },
+  { label: "Merchant balance", mode: "internal" },
+];
 
 const inbound = [
   "M104 140 H316 C436 140 480 280 600 280",
@@ -8,14 +22,13 @@ const inbound = [
 ];
 
 const outbound = [
-  "M600 280 C724 280 764 110 884 110 H1096",
-  "M600 280 C724 280 768 230 884 230 H1096",
-  "M600 280 C724 280 768 330 884 330 H1096",
-  "M600 280 C724 280 764 450 884 450 H1096",
+  "M600 280 C724 280 764 140 884 140 H1096",
+  "M600 280 H1096",
+  "M600 280 C724 280 764 420 884 420 H1096",
 ];
 
 const inboundY = [140, 280, 420];
-const outboundY = [110, 230, 330, 450];
+const outboundY = [140, 280, 420];
 
 /**
  * Wide routing topology: many sources of value collapse into a single clearing
@@ -27,7 +40,7 @@ function TopologyWide() {
       viewBox="0 0 1200 560"
       class="hidden h-auto w-full md:block"
       role="img"
-      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node out to QRIS, bank transfer, PayNow and PromptPay rails."
+      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node, then settled out as an external bank transfer, an external on-chain transfer, or an internal merchant balance."
     >
       <title>Mayarin routing topology</title>
 
@@ -82,14 +95,26 @@ function TopologyWide() {
           <rect x="1092" y={y - 4} width="8" height="8" fill="var(--color-ink)" />
           <text
             x="1096"
-            y={y - 20}
+            y={y - 34}
             text-anchor="end"
             fill="var(--color-slate)"
             font-family="var(--font-mono)"
             font-size="12"
             letter-spacing="1.6"
           >
-            {RAILS[index]?.toUpperCase()}
+            {RAILS[index]?.label.toUpperCase()}
+          </text>
+          <text
+            x="1096"
+            y={y - 16}
+            text-anchor="end"
+            fill="var(--color-slate)"
+            opacity="0.55"
+            font-family="var(--font-mono)"
+            font-size="10"
+            letter-spacing="1.2"
+          >
+            {RAILS[index]?.mode.toUpperCase()}
           </text>
         </g>
       ))}
@@ -139,14 +164,13 @@ const mobileIn = [
 ];
 
 const mobileOut = [
-  "M170 244 C170 300 52 300 52 356",
-  "M170 244 C170 300 131 300 131 356",
-  "M170 244 C170 300 209 300 209 356",
-  "M170 244 C170 300 288 300 288 356",
+  "M170 244 C170 300 60 300 60 356",
+  "M170 244 V356",
+  "M170 244 C170 300 280 300 280 356",
 ];
 
 const mobileSources = ["ASSETS", "STABLES", "WALLETS"];
-const mobileRails = ["QRIS", "BANK", "PAYNOW", "PROMPT"];
+const mobileRails = ["BANK", "ON-CHAIN", "BALANCE"];
 
 function TopologyCompact() {
   return (
@@ -154,7 +178,7 @@ function TopologyCompact() {
       viewBox="0 0 340 400"
       class="h-auto w-full"
       role="img"
-      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node out to local payment rails."
+      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node, then settled out as a bank transfer, an on-chain transfer, or a merchant balance."
     >
       <title>Mayarin routing topology</title>
 
@@ -190,7 +214,7 @@ function TopologyCompact() {
         </g>
       ))}
 
-      {[52, 131, 209, 288].map((x, index) => (
+      {[60, 170, 280].map((x, index) => (
         <g key={x}>
           <rect x={x - 3.5} y="352" width="7" height="7" fill="var(--color-ink)" />
           <text

@@ -1,4 +1,5 @@
 import { snippets } from "virtual:code-snippets";
+import clsx from "clsx";
 import { useState } from "preact/hooks";
 import { CodeBlock } from "../components/code-block.tsx";
 import { Reveal } from "../components/reveal.tsx";
@@ -70,11 +71,12 @@ export function Developers() {
               aria-controls={`snippet-panel-${item.id}`}
               tabIndex={index === active ? 0 : -1}
               onClick={() => setActive(index)}
-              class={`-mb-px cursor-pointer border-b py-3.5 text-sm transition-colors duration-200 ${
+              class={clsx(
+                "-mb-px cursor-pointer border-b py-3.5 text-sm transition-colors duration-200",
                 index === active
                   ? "border-accent text-white"
-                  : "border-transparent text-slate-inverse hover:text-white"
-              }`}
+                  : "border-transparent text-slate-inverse hover:text-white",
+              )}
             >
               {item.tab}
             </button>

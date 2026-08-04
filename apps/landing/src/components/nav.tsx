@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useState } from "preact/hooks";
 import { Wordmark } from "./logo.tsx";
 import { ArrowRight } from "./ui.tsx";
@@ -36,11 +37,12 @@ export function Nav() {
 
   return (
     <header
-      class={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
+      class={clsx(
+        "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
         lifted || open
           ? "border-b border-line bg-paper/85 backdrop-blur-md"
-          : "border-b border-transparent"
-      }`}
+          : "border-b border-transparent",
+      )}
     >
       {/* Three tracks, the outer two equal: the menu stays on the page's centre
           line however wide the wordmark or the CTA get. */}
@@ -54,7 +56,7 @@ export function Nav() {
             <a
               key={link.href}
               href={link.href}
-              class="text-sm text-slate transition-colors duration-200 hover:text-ink"
+              class="text-sm text-slate transition-colors duration-200 hover:text-forest"
             >
               {link.label}
             </a>
@@ -64,7 +66,7 @@ export function Nav() {
         <div class="hidden justify-end lg:flex">
           <a
             href="#start"
-            class="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-forest"
+            class="btn-fill [--btn-fill:var(--color-forest)] inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white"
           >
             Try our app
             <ArrowRight />
@@ -100,9 +102,10 @@ export function Nav() {
             ))}
             <a
               href="#start"
-              class="mt-6 mb-2 inline-flex h-12 items-center justify-center bg-ink text-sm font-medium text-white"
+              class="btn-fill [--btn-fill:var(--color-forest)] mt-6 mb-2 inline-flex h-12 items-center justify-center gap-2 bg-ink text-sm font-medium text-white"
             >
               Try our app
+              <ArrowRight />
             </a>
           </nav>
         </div>
