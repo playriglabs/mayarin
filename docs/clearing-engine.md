@@ -93,7 +93,11 @@ custody lock — `PaymentRouter.sol` swaps whatever the customer sends. Atomicit
 plus a hard revert on `minOut` miss removes the treasury FX risk the two-lock
 model carries between lock and receipt. The state machine above is unchanged;
 the difference is where execution happens (contract vs. off-chain) and which
-lock is hard.
+lock is hard. The path is a discriminator on the payment intent
+(`ExecutionPath`: `deposit-match` | `on-chain-contract`), persisted on the
+clearing transaction and set from the `EXECUTION_PATH` config default; the
+contract variant is a throwing stub at the lock step until Phase 3 implements
+it, so a contract-path payment fails cleanly without moving value.
 
 ---
 

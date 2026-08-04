@@ -17,7 +17,9 @@ funded the moment it reached `PAYMENT_PENDING`.
 > swaps and settles and emits a `PaymentCompleted` event an indexer consumes.
 > The deposit-address + watcher path remains for direct transfers and chains
 > without a deployed contract. The chain client and reorg policy below feed both
-> paths.
+> paths. The path is selected per intent (`ExecutionPath` on `PaymentIntent`,
+> defaulted from the `EXECUTION_PATH` config slot); `on-chain-contract` is a
+> throwing stub until Phase 3, so deposit-matching is the only path that runs.
 
 ---
 
