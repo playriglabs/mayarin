@@ -251,7 +251,7 @@
   }
 }
 
-/* Logo strip runs from tablet up; below that it stays a static wrapped list. */
+/* Logo strip runs at every width, full-bleed on phones. */
 .marquee {
   animation: marquee 42s linear infinite;
 }
@@ -269,17 +269,49 @@
   }
 }
 
+/* Filled buttons wipe their hover colour up from the baseline rather than
+   cross-fading it — the same upward motion the rest of the page moves in. The
+   colour is passed per button as `--btn-fill`, so one rule serves the light and
+   the dark CTA alike. Outline buttons are deliberately left out: they have no
+   background to wipe. */
+.btn-fill {
+  position: relative;
+  /* Contains the negative z-index below, so it can never slip behind an
+     ancestor's background. */
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.btn-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Paints over the button's own background but under its label. */
+  z-index: -1;
+  background-color: var(--btn-fill);
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  transition: transform 420ms var(--ease-out-expo);
+}
+
+.btn-fill:hover::after {
+  transform: scaleY(1);
+}
+
 /* Footer wordmark: letters rise from behind the top edge in sequence, then the
    accent rail draws itself under them. */
 .wordmark-letter {
   display: inline-block;
   transform: translate3d(0, 0.42em, 0);
   opacity: 0;
+  /* The stagger belongs to the entrance alone. Left on the shorthand it also
+     delayed the hover *release* by up to six letters' worth of it, which is
+     what made pointing at the wordmark feel stuck. */
   transition:
-    transform 900ms var(--ease-out-expo),
-    opacity 600ms var(--ease-out-expo),
-    color 250ms ease;
-  transition-delay: calc(var(--letter-index, 0) * 55ms);
+    transform 900ms var(--ease-out-expo) calc(var(--letter-index, 0) * 55ms),
+    opacity 600ms var(--ease-out-expo) calc(var(--letter-index, 0) * 55ms),
+    translate 160ms ease-out,
+    color 160ms ease-out;
 }
 
 .wordmark[data-in="true"] .wordmark-letter {
@@ -288,10 +320,11 @@
 }
 
 @media (hover: hover) {
+  /* Lifts with `translate`, not `transform`. They are separate animatable
+     properties, so hover never inherits the 900ms rise the entrance needs. */
   .wordmark-letter:hover {
     color: var(--color-forest);
-    transform: translate3d(0, -0.03em, 0);
-    transition-delay: 0ms;
+    translate: 0 -0.03em;
   }
 }
 
@@ -394,6 +427,17 @@
   .stage-enter,
   .stage-draw {
     animation: none;
+  }
+
+  /* A stopped marquee cannot reveal the logos it has clipped, so hand the
+     track back to the reader. */
+  .marquee-track {
+    overflow-x: auto;
+  }
+
+  /* Keep the hover colour, drop the wipe. */
+  .btn-fill::after {
+    transition: none;
   }
 
   .stage-draw {

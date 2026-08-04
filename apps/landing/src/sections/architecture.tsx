@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { Reveal } from "../components/reveal.tsx";
 import { Label, Lede, Section, SectionHeading } from "../components/ui.tsx";
 
@@ -53,24 +54,26 @@ export function Architecture() {
         </Reveal>
       </div>
 
-      <Reveal delay={80} class="mt-12 border border-line p-5 md:mt-16 md:p-12">
+      <Reveal delay={80} class="mt-12 border border-line p-5 md:mt-16 md:p-9">
         {LAYERS.map((layer, index) => (
-          <div key={layer.tag} class={index > 0 ? "mt-5 md:mt-6" : ""}>
+          <div key={layer.tag} class={clsx(index > 0 && "mt-5 md:mt-6")}>
             <div class="flex flex-col gap-4 md:flex-row md:items-center md:gap-8">
               <span class="label w-40 shrink-0 text-slate">{layer.tag}</span>
               <div
-                class={`grid flex-1 gap-px bg-line ${
+                class={clsx(
+                  "grid flex-1 gap-px bg-line",
                   layer.items.length > 4
                     ? "grid-cols-2 md:grid-cols-3"
-                    : "grid-cols-2 md:grid-cols-4"
-                }`}
+                    : "grid-cols-2 md:grid-cols-4",
+                )}
               >
                 {layer.items.map((item) => (
                   <div
                     key={item}
-                    class={`flex h-16 items-center justify-center px-3 text-center text-[0.8125rem] ${
-                      layer.emphasis ? "bg-ink font-medium text-white" : "bg-paper text-ink"
-                    }`}
+                    class={clsx(
+                      "flex h-16 items-center justify-center px-3 text-center text-[0.8125rem]",
+                      layer.emphasis ? "bg-ink font-medium text-white" : "bg-paper text-ink",
+                    )}
                   >
                     {item}
                   </div>
@@ -117,7 +120,7 @@ export function Architecture() {
           "Every core package is testable without infrastructure",
         ].map((note) => (
           <p key={note} class="flex items-center gap-2.5 text-sm text-slate">
-            <span aria-hidden="true" class="size-[5px] bg-accent" />
+            <span aria-hidden="true" class="size-1.25 bg-accent" />
             {note}
           </p>
         ))}

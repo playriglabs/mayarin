@@ -1,4 +1,5 @@
 import { Reveal } from "../components/reveal.tsx";
+import { ScrambleText } from "../components/scramble-text.tsx";
 import { Label, Lede, Section, SectionHeading } from "../components/ui.tsx";
 import { type GlyphName, glyphs } from "../graphics/glyphs.tsx";
 
@@ -89,14 +90,15 @@ export function Capabilities() {
         {CAPABILITIES.map((capability, index) => (
           <div
             key={capability.name}
+            data-scramble-cell
             class="group bg-paper transition-colors duration-300 hover:bg-[#fafafa]"
           >
             <Reveal delay={(index % 3) * 70} class="h-full p-8 md:p-10">
-              <span class="block text-ink transition-transform duration-500 ease-[var(--ease-out-expo)] group-hover:translate-x-1">
+              <span class="block text-ink transition-transform duration-500 ease-out-expo group-hover:translate-x-1">
                 {glyphs[capability.glyph]}
               </span>
               <h3 class="mt-8 font-sans text-[0.9375rem] font-medium tracking-[-0.01em]">
-                {capability.name}
+                <ScrambleText text={capability.name} trigger="[data-scramble-cell]" />
               </h3>
               <p class="mt-3 max-w-[34ch] text-sm leading-[1.7] text-slate">{capability.body}</p>
             </Reveal>
