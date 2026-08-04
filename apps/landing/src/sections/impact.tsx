@@ -25,8 +25,8 @@ export function Impact() {
         </Reveal>
         <Reveal delay={120}>
           <Lede class="md:mb-3 md:max-w-[36ch]">
-            Local rails stay stubbornly local. The clearing path does not — reaching a new market is
-            a corridor to open, not a stack to rebuild.
+            Assets and chains are the new borders. The clearing path crosses them — adding a chain
+            or asset is an adapter, not a rebuild.
           </Lede>
         </Reveal>
       </div>

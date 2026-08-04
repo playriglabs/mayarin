@@ -19,6 +19,7 @@ const LOGOS: Logo[] = [
   { src: "/images/logos/0x.svg", name: "0x Protocol", lockup: true, class: "h-4 md:h-[1.35rem]" },
   { src: "/images/logos/alchemy.svg", name: "Alchemy" },
   { src: "/images/logos/viem.svg", name: "viem", lockup: true, class: "h-4 md:h-[1.25rem]" },
+  { src: "/images/logos/turnkey.svg", name: "Turnkey", lockup: true, class: "h-4 md:h-[1.35rem]" },
 ];
 
 /** Enough copies that the first half always overflows the widest viewport. */

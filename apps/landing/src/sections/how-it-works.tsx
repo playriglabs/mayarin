@@ -18,7 +18,7 @@ const STAGES: Stage[] = [
   {
     index: "01",
     title: "Application",
-    body: "Your product states what should happen: who pays, who gets paid, and in which asset. Nothing about rails, providers or corridors leaks into your code.",
+    body: "Your product states what should happen: who pays, who gets paid, and in which asset. Nothing about rails, providers or chains leaks into your code.",
     states: ["CREATED"],
     artifact: "POST /payment-intents · Idempotency-Key",
   },
@@ -32,7 +32,7 @@ const STAGES: Stage[] = [
   {
     index: "03",
     title: "Liquidity Routing",
-    body: "The payer's asset is priced and routed into a settlement asset the destination rail will actually accept. The rate is locked before anyone is asked to pay.",
+    body: "The payer's crypto asset is priced and routed into the settlement stablecoin the merchant is paid in. The rate is locked before anyone is asked to pay.",
     states: ["PRICE_LOCKED", "PAYMENT_PENDING", "ASSET_RECEIVED"],
     artifact: "rate locked · deposit address derived per intent",
   },
@@ -52,8 +52,8 @@ const STAGES: Stage[] = [
   },
   {
     index: "06",
-    title: "Payment Rail",
-    body: "The merchant is paid on QRIS, a bank rail, or any rail an adapter reaches. The event log left behind is the audit trail, not a reconstruction of one.",
+    title: "Merchant payout",
+    body: "The merchant is paid in the settlement stablecoin to their wallet. The event log left behind is the audit trail, not a reconstruction of one.",
     states: ["SUCCESS"],
     artifact: "terminal state · every transition replayable",
   },

@@ -12,7 +12,7 @@ export function Hero() {
         <Reveal>
           <p class="label inline-flex items-center gap-2.5 rounded-full border border-line px-4 py-2 text-[0.625rem] tracking-[0.14em] whitespace-nowrap text-slate sm:text-[0.6875rem] sm:tracking-[0.18em]">
             <span aria-hidden="true" class="inline-block size-1.5 rounded-full bg-accent" />
-            Programmable clearing infrastructure
+            Crypto commerce infrastructure
           </p>
         </Reveal>
 
@@ -24,7 +24,8 @@ export function Hero() {
 
         <Reveal delay={160}>
           <p class="mt-8 max-w-[62ch] text-lg leading-[1.6] text-slate">
-            One integration moves value across digital assets, money and local payment rails.
+            Merchants price in local currency and settle in a stablecoin. Customers pay with any
+            supported crypto. One clearing layer bridges the two.
           </p>
         </Reveal>
 

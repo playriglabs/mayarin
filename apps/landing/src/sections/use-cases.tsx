@@ -5,7 +5,7 @@ const USE_CASES = [
   {
     index: "01",
     title: "Merchant platforms",
-    body: "Accept a stablecoin, pay the merchant in local currency on the rail they already bank with.",
+    body: "Price in local currency, settle in a stablecoin — customers pay any supported crypto.",
   },
   {
     index: "02",
@@ -15,12 +15,12 @@ const USE_CASES = [
   {
     index: "03",
     title: "Wallets",
-    body: "Turn a balance into a payment at any QR acceptance point, with clearing handled off the client.",
+    body: "Turn a balance into a payment at any merchant, with clearing handled off the client.",
   },
   {
     index: "04",
     title: "Stablecoin platforms",
-    body: "Give issued value somewhere to go: local rails, merchant payouts, treasury movements.",
+    body: "Give issued value somewhere to go: merchant payouts, treasury movements, on-chain settlement.",
   },
   {
     index: "05",
@@ -30,7 +30,7 @@ const USE_CASES = [
   {
     index: "06",
     title: "Cross-border commerce",
-    body: "Route across corridors and providers per payment, priced at lock time, settled per corridor rules.",
+    body: "Route across assets and chains per payment, priced at lock time, settled in the merchant's stablecoin.",
   },
 ];
 

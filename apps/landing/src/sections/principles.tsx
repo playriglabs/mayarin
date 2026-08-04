@@ -4,11 +4,11 @@ import { Label, Lede, Section, SectionHeading } from "../components/ui.tsx";
 const PRINCIPLES = [
   {
     title: "Abstract the rail",
-    body: "A rail is an implementation detail of getting paid. Products should express intent; the infrastructure decides how that intent reaches a bank, a QR standard or a chain.",
+    body: "A rail is an implementation detail of getting paid. Products should express intent; the infrastructure decides how that intent reaches a chain or a settlement wallet.",
   },
   {
     title: "Stay provider-agnostic",
-    body: "Every provider is temporary. Ports keep the domain independent of who is currently cheapest, fastest or licensed in a given corridor.",
+    body: "Every provider is temporary. Ports keep the domain independent of who is currently cheapest, fastest or licensed in a given market.",
   },
   {
     title: "Make settlement programmable",

@@ -337,7 +337,7 @@ export function Globe({ class: className = "" }: { class?: string }) {
       <canvas
         ref={canvasRef}
         class="size-full cursor-grab touch-pan-y contain-[layout_paint_size]"
-        aria-label="Rotating globe. A payment corridor runs from Jakarta out through Singapore, Kuala Lumpur, Bangkok, Manila, Hong Kong, Seoul and Tokyo, on to San Francisco, New York and São Paulo, then London, Frankfurt, Dubai and Mumbai before closing back to Jakarta."
+        aria-label="Rotating globe. Mayarin's merchant footprint runs from Jakarta out through Singapore, Kuala Lumpur, Bangkok, Manila, Hong Kong, Seoul and Tokyo, on to San Francisco, New York and São Paulo, then London, Frankfurt, Dubai and Mumbai before closing back to Jakarta."
         role="img"
       />
 

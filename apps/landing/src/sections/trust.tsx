@@ -37,8 +37,8 @@ export function Trust() {
         </Reveal>
         <Reveal delay={120}>
           <Lede class="md:mb-3 md:max-w-[34ch]">
-            Many sources of value collapse into one clearing path, then fan back out to the rail a
-            merchant actually gets paid on.
+            Many sources of value collapse into one clearing path, then fan back out to the
+            stablecoin a merchant actually gets paid in.
           </Lede>
         </Reveal>
       </div>

@@ -1,17 +1,14 @@
 const SOURCES = ["Digital assets", "Stablecoins", "Wallets"];
 
 /**
- * The right-hand side is settlement, not acceptance. QRIS, PayNow and PromptPay
- * are QR schemes the parser *decodes* on the way in — putting them here read as
- * though a merchant gets paid over the same rail the payer scanned.
- *
- * What a settlement adapter actually produces is one of two postings, and the
- * mode is the port-level fact the clearing engine branches on: `external` moves
- * value out of Mayarin, `internal` keeps it as a merchant balance.
+ * The right-hand side is settlement, not acceptance. The merchant is paid in a
+ * stablecoin — the variation is custody, not rail: a self-custody wallet payout
+ * or a treasury sweep (both external, value leaves Mayarin) or an internal
+ * merchant balance. Fiat off-ramps are a later phase, not baked into the core.
  */
 const RAILS = [
-  { label: "Bank transfer", mode: "external" },
-  { label: "On-chain transfer", mode: "external" },
+  { label: "Self-custody wallet", mode: "external" },
+  { label: "Treasury sweep", mode: "external" },
   { label: "Merchant balance", mode: "internal" },
 ];
 
@@ -40,7 +37,7 @@ function TopologyWide() {
       viewBox="0 0 1200 560"
       class="hidden h-auto w-full md:block"
       role="img"
-      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node, then settled out as an external bank transfer, an external on-chain transfer, or an internal merchant balance."
+      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node, then settled out as a self-custody wallet payout, a treasury sweep, or an internal merchant balance."
     >
       <title>Mayarin routing topology</title>
 
@@ -170,7 +167,7 @@ const mobileOut = [
 ];
 
 const mobileSources = ["ASSETS", "STABLES", "WALLETS"];
-const mobileRails = ["BANK", "ON-CHAIN", "BALANCE"];
+const mobileRails = ["WALLET", "TREASURY", "BALANCE"];
 
 function TopologyCompact() {
   return (
@@ -178,7 +175,7 @@ function TopologyCompact() {
       viewBox="0 0 340 400"
       class="h-auto w-full"
       role="img"
-      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node, then settled out as a bank transfer, an on-chain transfer, or a merchant balance."
+      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node, then settled out as a self-custody wallet payout, a treasury sweep, or a merchant balance."
     >
       <title>Mayarin routing topology</title>
 

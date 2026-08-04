@@ -10,7 +10,7 @@ const MAYARIN = [
   "Payment Intent",
   "Clearing Engine",
   "Settlement Layer",
-  "Payment Rails",
+  "Stablecoin payout",
 ];
 
 const DIFFERENCES = [

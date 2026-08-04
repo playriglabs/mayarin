@@ -28,10 +28,10 @@ const LAYERS = [
 const ADAPTERS = [
   "Postgres",
   "Chain clients",
-  "QRIS",
-  "Bank rails",
+  "Stablecoin rails",
   "Settlement providers",
   "Price feeds",
+  "Wallet providers",
 ];
 
 export function Architecture() {
