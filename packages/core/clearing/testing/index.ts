@@ -1,13 +1,15 @@
-import type { ClearingEvent, ClearingRepository, ClearingTransaction } from "@mayarin/clearing";
-import { isTerminalState } from "@mayarin/clearing";
-import { ConcurrencyError, ConflictError } from "@mayarin/shared";
-
 /**
- * In-memory clearing repository.
+ * Reference in-memory fake for the clearing repository, shipped in a segregated
+ * `/testing` subpath so domain `src/` stays pure.
  *
  * State changes and their events are stored together, as the Postgres
  * implementation writes them in one database transaction.
  */
+
+import { ConcurrencyError, ConflictError } from "@mayarin/shared";
+import type { ClearingEvent, ClearingRepository, ClearingTransaction } from "../src/index.ts";
+import { isTerminalState } from "../src/index.ts";
+
 export class InMemoryClearingRepository implements ClearingRepository {
   readonly #byId = new Map<string, ClearingTransaction>();
   readonly #byPaymentIntentId = new Map<string, string>();

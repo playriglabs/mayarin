@@ -1,13 +1,19 @@
-import type { PaymentIntent, PaymentIntentRepository } from "@mayarin/payment-intent";
-import { ConcurrencyError, ConflictError } from "@mayarin/shared";
-
 /**
- * In-memory payment intent repository.
+ * Reference in-memory fake for the payment-intent repository, shipped in a
+ * segregated `/testing` subpath so domain `src/` stays pure.
  *
  * Mirrors the guarantees of the Postgres implementation — unique idempotency
  * keys, optimistic locking — so tests exercise the same failure modes without a
  * database.
  */
+
+import { ConcurrencyError, ConflictError } from "@mayarin/shared";
+import type {
+  ListPaymentIntentsOptions,
+  PaymentIntent,
+  PaymentIntentRepository,
+} from "../src/index.ts";
+
 export class InMemoryPaymentIntentRepository implements PaymentIntentRepository {
   readonly #byId = new Map<string, PaymentIntent>();
   readonly #byIdempotencyKey = new Map<string, string>();
@@ -49,5 +55,15 @@ export class InMemoryPaymentIntentRepository implements PaymentIntentRepository 
       });
     }
     this.#byId.set(intent.id, intent);
+  }
+
+  async list(options: ListPaymentIntentsOptions = {}): Promise<readonly PaymentIntent[]> {
+    const limit = options.limit ?? 100;
+    const all = [...this.#byId.values()];
+    const scoped =
+      options.merchantId === undefined
+        ? all
+        : all.filter((intent) => intent.merchant.id === options.merchantId);
+    return scoped.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
   }
 }

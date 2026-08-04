@@ -5,7 +5,6 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./memory": "./src/memory/index.ts",
     "./schema": "./src/schema.ts"
   },
   "scripts": {
@@ -25,7 +24,6 @@
   },
   "devDependencies": {
     "@mayarin/provider-mock": "workspace:*",
-    "@mayarin/provider-mock-chain": "workspace:*",
     "@mayarin/settlement": "workspace:*",
     "drizzle-kit": "^0.30.1"
   }

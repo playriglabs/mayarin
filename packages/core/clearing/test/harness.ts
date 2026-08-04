@@ -6,20 +6,20 @@
  */
 
 import {
-  InMemoryClearingRepository,
+  FixedDepositAddressDeriver,
   InMemoryDepositAddressRepository,
-  InMemoryLedgerRepository,
-  InMemoryPaymentIntentRepository,
-} from "@mayarin/db/memory";
+} from "@mayarin/chain/testing";
 import { type AccountKind, LedgerService } from "@mayarin/ledger";
+import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
 import { PaymentIntentService, type PaymentRail } from "@mayarin/payment-intent";
+import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
-import { FixedDepositAddressDeriver } from "@mayarin/provider-mock-chain";
 import { SettlementAdapterRegistry, type SettlementMode } from "@mayarin/settlement";
 import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
 import { ClearingEngine } from "../src/engine.ts";
 import { BasisPointsFeePolicy } from "../src/fees.ts";
 import { StaticRateProvider } from "../src/rate.ts";
+import { InMemoryClearingRepository } from "../testing/index.ts";
 
 export const NOW = "2026-01-01T00:00:00.000Z";
 

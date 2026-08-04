@@ -7,8 +7,8 @@
  * reorg tests pass without the policy ever being exercised.
  */
 
-import type { BlockRef, ChainClient, ChainId, TransferLog, TransferQuery } from "@mayarin/chain";
 import type { AssetCode } from "@mayarin/shared";
+import type { BlockRef, ChainClient, ChainId, TransferLog, TransferQuery } from "../src/index.ts";
 
 interface PendingTransfer {
   readonly asset: AssetCode;

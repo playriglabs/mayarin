@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
+import { WalletWatcher } from "../src/watcher.ts";
 import {
+  FakeChainClient,
+  FixedDepositAddressDeriver,
   InMemoryDepositAddressRepository,
   InMemoryDepositRepository,
   InMemoryWatcherCursorRepository,
   type WatchedTransactionState,
-} from "@mayarin/db/memory";
-import { FakeChainClient, FixedDepositAddressDeriver } from "@mayarin/provider-mock-chain";
-import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
-import { WalletWatcher } from "../src/watcher.ts";
+} from "../testing/index.ts";
 
 const CHAIN = "base-sepolia" as const;
 const ASSET = "USDC" as const;

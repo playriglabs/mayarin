@@ -6,6 +6,7 @@
  * test that passes here is not passing for the wrong reason.
  */
 
+import { type AssetCode, generateId, type Money, zero } from "@mayarin/shared";
 import type {
   AllocateDepositAddress,
   ChainId,
@@ -17,8 +18,7 @@ import type {
   TransferLog,
   WatchedAddress,
   WatcherCursorRepository,
-} from "@mayarin/chain";
-import { type AssetCode, generateId, type Money, zero } from "@mayarin/shared";
+} from "../src/index.ts";
 
 /** What the address repository needs to know about a clearing transaction. */
 export interface WatchedTransactionState {

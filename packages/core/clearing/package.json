@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./testing/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -17,8 +18,6 @@
     "@mayarin/shared": "workspace:*"
   },
   "devDependencies": {
-    "@mayarin/db": "workspace:*",
-    "@mayarin/provider-mock": "workspace:*",
-    "@mayarin/provider-mock-chain": "workspace:*"
+    "@mayarin/provider-mock": "workspace:*"
   }
 }

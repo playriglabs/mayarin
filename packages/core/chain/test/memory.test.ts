@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import type { TransferLog } from "@mayarin/chain";
-import { FixedDepositAddressDeriver } from "@mayarin/provider-mock-chain";
 import { money } from "@mayarin/shared";
+import type { TransferLog } from "../src/index.ts";
 import {
+  FixedDepositAddressDeriver,
   InMemoryDepositAddressRepository,
   InMemoryDepositRepository,
   InMemoryWatcherCursorRepository,
-} from "../src/memory/chain.ts";
+} from "../testing/index.ts";
 
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 const CHAIN = "base-sepolia" as const;

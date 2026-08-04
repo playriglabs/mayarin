@@ -15,6 +15,7 @@
  */
 
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { FixedDepositAddressDeriver } from "@mayarin/chain/testing";
 import {
   BasisPointsFeePolicy,
   ClearingEngine,
@@ -24,7 +25,6 @@ import {
 import { LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
-import { FixedDepositAddressDeriver } from "@mayarin/provider-mock-chain";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { ConcurrencyError, FixedClock, money } from "@mayarin/shared";
 import { sql } from "drizzle-orm";

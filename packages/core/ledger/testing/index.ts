@@ -1,3 +1,12 @@
+/**
+ * Reference in-memory fake for the ledger repository, shipped in a segregated
+ * `/testing` subpath so domain `src/` stays pure.
+ *
+ * Append-only, like the real thing: transactions are never rewritten and
+ * balances are always recomputed from entries.
+ */
+
+import { type Clock, ConflictError, generateId, NotFoundError, systemClock } from "@mayarin/shared";
 import {
   ACCOUNT_KINDS,
   type AccountBalance,
@@ -9,15 +18,8 @@ import {
   type LedgerEntry,
   type LedgerRepository,
   type LedgerTransaction,
-} from "@mayarin/ledger";
-import { type Clock, ConflictError, generateId, NotFoundError, systemClock } from "@mayarin/shared";
+} from "../src/index.ts";
 
-/**
- * In-memory ledger repository.
- *
- * Append-only, like the real thing: transactions are never rewritten and
- * balances are always recomputed from entries.
- */
 export class InMemoryLedgerRepository implements LedgerRepository {
   readonly #accountsByCode = new Map<string, LedgerAccount>();
   readonly #accountsById = new Map<string, LedgerAccount>();

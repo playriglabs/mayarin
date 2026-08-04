@@ -62,14 +62,17 @@ QR Parser → Payment Intent → Liquidity Router (Phase 2) → Clearing Engine
 
 **Ports and adapters is the load-bearing constraint.** Every package in `packages/core/*` defines
 repository and provider _ports_ and depends on nothing concrete — no Postgres, no HTTP, no specific
-settlement provider. Drizzle and in-memory implementations live in `packages/db`, deliberately
-outside `core`, which is what lets a domain package be tested and swapped without a database.
-`apps/api/src/container.ts` is the composition root: the only file that knows which concrete
-adapters this deployment runs. Adding a dependency from `core` to a concrete adapter breaks the
-property the whole layout exists to protect. The chain layer follows the same rule one-way:
-`packages/core/chain` knows the clearing engine's `recordAssetReceived` seam only as an injected
-sink, so it never imports `@mayarin/clearing`; `packages/providers/evm` holds the viem
-`ChainClient` and HD deposit-address deriver, outside `core`.
+settlement provider. The Drizzle (Postgres) implementations live in `packages/db`, deliberately
+outside `core`, which is what lets a domain package be swapped without reworking the persistence
+layer. The reference in-memory fakes ship with their port, in each core package's segregated
+`/testing` subpath (`@mayarin/<pkg>/testing`) — outside domain `src/`, which stays pure — so a
+domain package is testable without a database AND without depending on `@mayarin/db` (which would
+form a `core ↔ db` cycle and break Turbo's topological `^typecheck` caching). `apps/api/src/container.ts`
+is the composition root: the only file that knows which concrete adapters this deployment runs.
+Adding a dependency from `core` to a concrete adapter breaks the property the whole layout exists to
+protect. The chain layer follows the same rule one-way: `packages/core/chain` knows the clearing
+engine's `recordAssetReceived` seam only as an injected sink, so it never imports `@mayarin/clearing`;
+`packages/providers/evm` holds the viem `ChainClient` and HD deposit-address deriver, outside `core`.
 
 **`packages/core/clearing` is the centre.** A nine-state machine —
 `CREATED → QR_PARSED → PRICE_LOCKED → PAYMENT_PENDING → ASSET_RECEIVED → CLEARING → SETTLING →

@@ -5,7 +5,7 @@
  * about. The real BIP-32 derivation lives in `@mayarin/provider-evm`.
  */
 
-import type { DepositAddressDeriver } from "@mayarin/chain";
+import type { DepositAddressDeriver } from "../src/index.ts";
 
 export class FixedDepositAddressDeriver implements DepositAddressDeriver {
   derive(index: number): string {
