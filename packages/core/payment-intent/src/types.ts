@@ -59,6 +59,18 @@ export interface PaymentRail {
   readonly chain: ChainId;
 }
 
+/**
+ * How a payment rail is executed.
+ *
+ * `"deposit-match"` is the fallback path: the payer's asset arrives at a
+ * per-intent deposit address and the watcher drives `ASSET_RECEIVED` — no swap
+ * runs, the conversion is accounting only. `"on-chain-contract"` is the Phase 3
+ * primary path: `PaymentRouter.sol` receives, swaps and settles atomically in one
+ * transaction. Only `"deposit-match"` is implemented today; the contract path is
+ * a throwing stub until Phase 3.
+ */
+export type ExecutionPath = "deposit-match" | "on-chain-contract";
+
 export interface PaymentIntent {
   readonly id: string;
   readonly status: PaymentIntentStatus;
@@ -71,6 +83,13 @@ export interface PaymentIntent {
   readonly provider: string;
   /** Absent for a fiat-only intent, which is every Phase 1 intent. */
   readonly payment?: PaymentRail;
+  /**
+   * How the `payment` rail is executed. Present iff `payment` is present;
+   * `undefined` for a fiat-only intent, which has no on-chain execution path.
+   * Defaults to `"deposit-match"` (the fallback) until Phase 3 wires the
+   * contract path.
+   */
+  readonly executionPath?: ExecutionPath;
   readonly source: PaymentSource;
   readonly metadata: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;

@@ -11,7 +11,12 @@ function service(admitted: ReturnType<typeof registry>) {
   return new PaymentIntentService({
     repository: new InMemoryPaymentIntentRepository(),
     clock: new FixedClock(NOW),
-    defaults: { settlementAsset: "IDRX", provider: "mock", ttlSeconds: 900 },
+    defaults: {
+      settlementAsset: "IDRX",
+      provider: "mock",
+      executionPath: "deposit-match",
+      ttlSeconds: 900,
+    },
     registry: new InMemoryStablecoinRegistry(admitted),
   });
 }
@@ -87,7 +92,12 @@ describe("PaymentIntentService admissibility", () => {
     const intents = new PaymentIntentService({
       repository: new InMemoryPaymentIntentRepository(),
       clock: new FixedClock(NOW),
-      defaults: { settlementAsset: "IDRX", provider: "mock", ttlSeconds: 900 },
+      defaults: {
+        settlementAsset: "IDRX",
+        provider: "mock",
+        executionPath: "deposit-match",
+        ttlSeconds: 900,
+      },
     });
     const intent = await intents.create({
       merchant,
@@ -96,5 +106,66 @@ describe("PaymentIntentService admissibility", () => {
       settlementAsset: "IDRX",
     });
     expect(intent.settlementAsset).toBe("IDRX");
+  });
+});
+
+describe("PaymentIntentService execution path", () => {
+  const rail: PaymentRail = { asset: "USDC", chain: "base-sepolia" };
+
+  test("defaults to deposit-match for an intent that names a payment rail", async () => {
+    const intent = await service(registry()).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      payment: rail,
+    });
+    expect(intent.executionPath).toBe("deposit-match");
+  });
+
+  test("carries no execution path for a fiat-only intent", async () => {
+    const intent = await service(registry()).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      settlementAsset: "IDRX",
+    });
+    expect(intent.executionPath).toBeUndefined();
+  });
+
+  test("accepts the on-chain-contract path for an admitted rail", async () => {
+    const intent = await service(registry()).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      payment: rail,
+      executionPath: "on-chain-contract",
+    });
+    expect(intent.executionPath).toBe("on-chain-contract");
+  });
+
+  test("rejects the on-chain-contract path without a payment rail", async () => {
+    await expect(
+      service(registry()).create({
+        merchant,
+        amount: money(5_000_000n, "IDR"),
+        source: { type: "manual" },
+        executionPath: "on-chain-contract",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test("distinguishes intents that differ only by execution path", async () => {
+    const base = {
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" as const },
+      payment: rail,
+    };
+    const deposit = await service(registry()).create(base);
+    const contract = await service(registry()).create({
+      ...base,
+      executionPath: "on-chain-contract",
+    });
+    expect(deposit.requestFingerprint).not.toBe(contract.requestFingerprint);
   });
 });

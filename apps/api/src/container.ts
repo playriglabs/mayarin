@@ -95,6 +95,7 @@ export function createContainer({
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
+      executionPath: "deposit-match",
       ttlSeconds: config.paymentIntentTtlSeconds,
     },
   });

@@ -56,7 +56,12 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
   const intents = new PaymentIntentService({
     repository: intentRepository,
     clock,
-    defaults: { settlementAsset: "IDRX", provider: "mock", ttlSeconds: 900 },
+    defaults: {
+      settlementAsset: "IDRX",
+      provider: "mock",
+      executionPath: "deposit-match",
+      ttlSeconds: 900,
+    },
   });
   const ledger = new LedgerService({ repository: ledgerRepository, clock });
   const adapter = new MockSettlementAdapter({ clock });

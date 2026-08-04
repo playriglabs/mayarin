@@ -57,7 +57,12 @@ export function createHarness(options: HarnessOptions = {}) {
     repository: intentRepository,
     clock,
     events,
-    defaults: { settlementAsset: "IDRX", provider: "mock", ttlSeconds: 900 },
+    defaults: {
+      settlementAsset: "IDRX",
+      provider: "mock",
+      executionPath: "deposit-match",
+      ttlSeconds: 900,
+    },
   });
 
   const ledger = new LedgerService({ repository: ledgerRepository, clock });
