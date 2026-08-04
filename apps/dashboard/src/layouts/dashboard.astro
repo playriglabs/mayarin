@@ -1,0 +1,47 @@
+---
+import LogoutButton from "../components/logout-button.tsx";
+import type { UserDto } from "../types/user";
+import "../styles/global.css";
+
+const user: UserDto | undefined = Astro.locals.user;
+if (user === undefined) return Astro.redirect("/login");
+
+const isAdmin = user.permissions.includes("admin:access");
+const roleLabel = isAdmin ? "Administrator" : "Merchant";
+const navItems = [
+  { href: "/", label: "Dashboard" },
+  { href: "/payments", label: "Payments" },
+  ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mayarin Dashboard</title>
+  </head>
+  <body class="min-h-full">
+    <header class="border-b border-stone-200 bg-white">
+      <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
+        <div class="flex items-center gap-6">
+          <span class="text-lg font-semibold text-stone-800">Mayarin</span>
+          <nav class="flex gap-4 text-sm text-stone-600">
+            {navItems.map((item) => (
+              <a href={item.href} class="hover:text-stone-900">{item.label}</a>
+            ))}
+          </nav>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <span class="text-stone-600">{user.email}</span>
+          <span class="rounded bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{roleLabel}</span>
+          <LogoutButton client:load />
+        </div>
+      </div>
+    </header>
+    <main class="mx-auto max-w-5xl px-6 py-8">
+      <slot />
+    </main>
+  </body>
+</html>

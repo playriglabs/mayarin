@@ -1,0 +1,26 @@
+{
+  "name": "@mayarin/dashboard-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun --env-file=../../.env run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/auth": "workspace:*",
+    "@mayarin/clearing": "workspace:*",
+    "@mayarin/db": "workspace:*",
+    "@mayarin/payment-intent": "workspace:*",
+    "@mayarin/provider-argon2": "workspace:*",
+    "@mayarin/shared": "workspace:*",
+    "effect": "^3.0.0",
+    "hono": "^4.6.16",
+    "ts-pattern": "^5.0.0",
+    "zod": "^3.24.1"
+  }
+}

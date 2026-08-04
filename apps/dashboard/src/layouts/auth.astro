@@ -1,0 +1,17 @@
+---
+import "../styles/global.css";
+// Auth layout: for the login page. A logged-in user has no business here.
+if (Astro.locals.user !== undefined) return Astro.redirect("/");
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in — Mayarin Dashboard</title>
+  </head>
+  <body class="flex min-h-full items-center justify-center px-4 py-12">
+    <slot />
+  </body>
+</html>

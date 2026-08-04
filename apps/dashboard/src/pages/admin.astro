@@ -1,0 +1,29 @@
+---
+import CreateUserForm from "../components/create-user-form.tsx";
+import UsersTable from "../components/users-table.tsx";
+import Protected from "../layouts/dashboard.astro";
+
+const user = Astro.locals.user;
+// `admin:access` is enforced in middleware (a caller without it never reaches
+// here). `users:manage` gates whether the grant form mounts at all — a caller
+// who can list but not create sees the table only.
+const canManageUsers = user?.permissions.includes("users:manage") ?? false;
+---
+
+<Protected>
+  <section class="flex flex-col gap-8">
+    <div>
+      <h1 class="text-2xl font-semibold text-stone-800">Admin</h1>
+      <p class="text-sm text-stone-500">Manage accounts in this merchant.</p>
+    </div>
+
+    <UsersTable client:load />
+
+    {canManageUsers && <CreateUserForm client:load />}
+    {!canManageUsers && (
+      <p class="text-sm text-stone-400">
+        You can view accounts but need the <code>users:manage</code> permission to create new ones.
+      </p>
+    )}
+  </section>
+</Protected>
