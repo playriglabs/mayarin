@@ -26,9 +26,14 @@ import { LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
-import { ConcurrencyError, FixedClock, money } from "@mayarin/shared";
+import { ConcurrencyError, FixedClock, generateId, money } from "@mayarin/shared";
 import { sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
+import {
+  DrizzleMerchantRepository,
+  DrizzleSessionRepository,
+  DrizzleUserRepository,
+} from "../src/repositories/auth.ts";
 import {
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
@@ -69,7 +74,7 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
 
   beforeEach(async () => {
     await handle.db.execute(
-      sql`truncate table chain_deposits, deposit_addresses, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table sessions, users, chain_deposits, deposit_addresses, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   });
 
@@ -269,5 +274,185 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     await repository.set("base-sepolia", "USDC", 900n);
 
     expect(await repository.get("base-sepolia", "USDC")).toBe(900n);
+  });
+
+  describe("auth repositories", () => {
+    test("inserts and finds a merchant", async () => {
+      const merchants = new DrizzleMerchantRepository(handle.db);
+      const now = clock.now();
+      const merchant = {
+        id: generateId("mrc", now.getTime()),
+        name: "Acme",
+        createdAt: now,
+        updatedAt: now,
+      };
+      await merchants.insert(merchant);
+      expect((await merchants.findById(merchant.id))?.name).toBe("Acme");
+      expect((await merchants.list()).length).toBeGreaterThanOrEqual(1);
+    });
+
+    test("inserts and finds a user by id and email", async () => {
+      const merchants = new DrizzleMerchantRepository(handle.db);
+      const users = new DrizzleUserRepository(handle.db);
+      const now = clock.now();
+      const merchantId = generateId("mrc", now.getTime());
+      await merchants.insert({
+        id: merchantId,
+        name: "Acme",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const user = {
+        id: generateId("usr", now.getTime()),
+        email: "admin@mayarin.local",
+        passwordHash: "$argon2id$hashed",
+        merchantId,
+        permissions: ["payments:read", "admin:access"] as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await users.insert(user);
+
+      expect((await users.findById(user.id))?.email).toBe("admin@mayarin.local");
+      const found = await users.findByEmail("admin@mayarin.local");
+      expect(found?.id).toBe(user.id);
+      expect(found?.permissions).toEqual(["payments:read", "admin:access"]);
+    });
+
+    test("rejects a duplicate email", async () => {
+      const merchants = new DrizzleMerchantRepository(handle.db);
+      const users = new DrizzleUserRepository(handle.db);
+      const now = clock.now();
+      const merchantId = generateId("mrc", now.getTime());
+      await merchants.insert({
+        id: merchantId,
+        name: "Acme",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const base = {
+        email: "dup@mayarin.local",
+        passwordHash: "$argon2id$hashed",
+        merchantId,
+        permissions: ["payments:read"] as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await users.insert({ ...base, id: generateId("usr", now.getTime()) });
+      await expect(
+        users.insert({ ...base, id: generateId("usr", now.getTime() + 1) }),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("lists users by merchant and touches updatedAt", async () => {
+      const merchants = new DrizzleMerchantRepository(handle.db);
+      const users = new DrizzleUserRepository(handle.db);
+      const now = clock.now();
+      const merchantId = generateId("mrc", now.getTime());
+      await merchants.insert({
+        id: merchantId,
+        name: "Acme",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const admin = {
+        id: generateId("usr", now.getTime()),
+        email: "a2@mayarin.local",
+        passwordHash: "$argon2id$hashed",
+        merchantId,
+        permissions: ["payments:read"] as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await users.insert(admin);
+
+      expect((await users.listByMerchant(merchantId)).length).toBe(1);
+      const later = new Date("2026-03-01T00:00:00.000Z");
+      await users.touchUpdatedAt(admin.id, later);
+      expect((await users.findById(admin.id))?.updatedAt).toEqual(later);
+    });
+
+    test("inserts, verifies and revokes a session", async () => {
+      const merchants = new DrizzleMerchantRepository(handle.db);
+      const userRepo = new DrizzleUserRepository(handle.db);
+      const sessionRepo = new DrizzleSessionRepository(handle.db);
+      const now = clock.now();
+      const merchantId = generateId("mrc", now.getTime());
+      await merchants.insert({
+        id: merchantId,
+        name: "Acme",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const userId = generateId("usr", now.getTime());
+      await userRepo.insert({
+        id: userId,
+        email: "s@mayarin.local",
+        passwordHash: "$argon2id$hashed",
+        merchantId,
+        permissions: ["payments:read"] as const,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const session = {
+        id: generateId("ses", now.getTime()),
+        userId,
+        csrfToken: "csrf-token",
+        expiresAt: new Date("2026-12-01T00:00:00.000Z"),
+        createdAt: now,
+      };
+      await sessionRepo.insert(session);
+      expect((await sessionRepo.findById(session.id))?.userId).toBe(userId);
+
+      const revokedAt = new Date("2026-01-02T00:00:00.000Z");
+      await sessionRepo.revoke(session.id, revokedAt);
+      expect((await sessionRepo.findById(session.id))?.revokedAt).toEqual(revokedAt);
+    });
+
+    test("deleteExpired removes only past sessions", async () => {
+      const merchants = new DrizzleMerchantRepository(handle.db);
+      const userRepo = new DrizzleUserRepository(handle.db);
+      const sessionRepo = new DrizzleSessionRepository(handle.db);
+      const now = clock.now();
+      const merchantId = generateId("mrc", now.getTime());
+      await merchants.insert({
+        id: merchantId,
+        name: "Acme",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const userId = generateId("usr", now.getTime());
+      await userRepo.insert({
+        id: userId,
+        email: "e2@mayarin.local",
+        passwordHash: "$argon2id$hashed",
+        merchantId,
+        permissions: ["payments:read"] as const,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const past = {
+        id: generateId("ses", now.getTime()),
+        userId,
+        csrfToken: "t",
+        expiresAt: new Date("2025-01-01T00:00:00.000Z"),
+        createdAt: now,
+      };
+      const future = {
+        id: generateId("ses", now.getTime() + 1),
+        userId,
+        csrfToken: "t",
+        expiresAt: new Date("2027-01-01T00:00:00.000Z"),
+        createdAt: now,
+      };
+      await sessionRepo.insert(past);
+      await sessionRepo.insert(future);
+
+      expect(await sessionRepo.deleteExpired(now)).toBe(1);
+      expect(await sessionRepo.findById(past.id)).toBeNull();
+      expect(await sessionRepo.findById(future.id)).not.toBeNull();
+    });
   });
 });

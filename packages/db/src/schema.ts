@@ -276,6 +276,72 @@ export const watcherCursors = pgTable(
   (table) => [primaryKey({ columns: [table.chain, table.asset] })],
 );
 
+/**
+ * Merchant account tenants. Every dashboard user belongs to one merchant; the
+ * merchant id also keys which payments the user can see (`payment_intents.
+ * merchant_id` must equal it). New merchants get an `mrc_<ulid>` id; historical
+ * payment-merchant ids are preserved as-is on migration.
+ */
+export const merchants = pgTable(
+  "merchants",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [index("merchants_name_idx").on(table.name)],
+);
+
+/**
+ * Dashboard users. Every user is a merchant account: `merchantId` is required and
+ * references `merchants.id`. `permissions` is a flat flag set gating surfaces
+ * within that merchant (no cross-merchant access). Password hashes are argon2id
+ * strings. No `version` column — user edits are rare and last-writer-wins is
+ * acceptable.
+ */
+export const users = pgTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    permissions: text("permissions").array().notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("users_email_idx").on(table.email),
+    index("users_merchant_idx").on(table.merchantId),
+  ],
+);
+
+/**
+ * Server-side sessions backing the dashboard's session cookie. `csrfToken` is the
+ * double-submit token mirrored in the `mayarin_csrf` cookie. `revokedAt` marks a
+ * logged-out session; `expiresAt` is the hard expiry the session service checks.
+ */
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    csrfToken: text("csrf_token").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("sessions_user_idx").on(table.userId),
+    index("sessions_expires_idx").on(table.expiresAt),
+  ],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -286,4 +352,7 @@ export const schema = {
   depositAddresses,
   chainDeposits,
   watcherCursors,
+  merchants,
+  users,
+  sessions,
 };

@@ -1,4 +1,5 @@
 export * from "./client.ts";
+export * from "./repositories/auth.ts";
 export * from "./repositories/chain.ts";
 export * from "./repositories/clearing.ts";
 export * from "./repositories/ledger.ts";

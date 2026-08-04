@@ -15,6 +15,20 @@
       "when": 1785745350665,
       "tag": "0001_perfect_inhumans",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785771740724,
+      "tag": "0002_great_vivisector",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785835656475,
+      "tag": "0003_little_wildside",
+      "breakpoints": true
     }
   ]
 }

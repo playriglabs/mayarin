@@ -10,9 +10,11 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "generate": "drizzle-kit generate",
-    "migrate": "bun run src/migrate.ts"
+    "migrate": "bun run src/migrate.ts",
+    "studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@mayarin/auth": "workspace:*",
     "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
     "@mayarin/ledger": "workspace:*",
