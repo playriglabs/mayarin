@@ -64,13 +64,21 @@ export function Nav() {
         </nav>
 
         <div class="hidden justify-end lg:flex">
-          <a
-            href="#start"
-            class="btn-fill [--btn-fill:var(--color-forest)] inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white"
-          >
-            Try our app
-            <ArrowRight />
-          </a>
+          <div class="flex items-center gap-2.5">
+            <a
+              href="#start"
+              class="inline-flex h-10 cursor-pointer items-center rounded-full border border-ink bg-transparent px-5 text-sm font-medium text-ink transition-colors duration-200 hover:bg-ink hover:text-white"
+            >
+              Request demo
+            </a>
+            <a
+              href="/login"
+              class="btn-fill [--btn-fill:var(--color-forest)] inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-white"
+            >
+              Sign in
+              <ArrowRight />
+            </a>
+          </div>
         </div>
 
         <button
@@ -102,9 +110,15 @@ export function Nav() {
             ))}
             <a
               href="#start"
-              class="btn-fill [--btn-fill:var(--color-forest)] mt-6 mb-2 inline-flex h-12 items-center justify-center gap-2 bg-ink text-sm font-medium text-white"
+              class="mt-6 inline-flex h-12 items-center justify-center rounded-full border border-ink bg-transparent px-5 text-sm font-medium text-ink transition-colors duration-200 hover:bg-ink hover:text-white"
             >
-              Try our app
+              Request demo
+            </a>
+            <a
+              href="/login"
+              class="btn-fill [--btn-fill:var(--color-forest)] mt-2 mb-2 inline-flex h-12 items-center justify-center gap-2 bg-ink text-sm font-medium text-white"
+            >
+              Sign in
               <ArrowRight />
             </a>
           </nav>
