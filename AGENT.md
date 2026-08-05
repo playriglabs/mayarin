@@ -31,6 +31,7 @@ bun run dev                     # API with hot reload (apps/api)
 bun run dev:all                 # turbo dev: payment API + dashboard API + dashboard UI, concurrently
 bun run typecheck               # tsc --noEmit across every workspace package
 bun test                        # whole suite
+bun run test:contracts          # forge test in packages/contracts/payment-router (needs Foundry, not managed by bun)
 bun run format                  # biome --write + prettier --write
 bun run format:check            # non-mutating
 bun run check                   # format:check + typecheck + test

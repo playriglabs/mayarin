@@ -6,7 +6,8 @@
     "apps/*",
     "packages/*",
     "packages/core/*",
-    "packages/providers/*"
+    "packages/providers/*",
+    "packages/contracts/*"
   ],
   "engines": {
     "bun": ">=1.2.0"
@@ -25,6 +26,7 @@
     "deploy:studio": "bun run --cwd apps/studio deploy",
     "dev:content": "turbo dev --filter=@mayarin/blog --filter=@mayarin/studio",
     "test": "bun test",
+    "test:contracts": "bun run --cwd packages/contracts/payment-router test",
     "typecheck": "turbo typecheck",
     "lint": "biome lint",
     "lint:fix": "biome lint --write",

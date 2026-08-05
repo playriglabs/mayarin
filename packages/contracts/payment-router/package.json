@@ -1,0 +1,11 @@
+{
+  "name": "@mayarin/contracts-payment-router",
+  "private": true,
+  "version": "0.0.0",
+  "description": "PaymentRouter.sol — Phase 3 on-chain execution layer (RFC #4)",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "gas": "forge snapshot"
+  }
+}

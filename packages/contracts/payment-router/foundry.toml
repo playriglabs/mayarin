@@ -1,0 +1,21 @@
+[profile.default]
+solc = "0.8.28"
+evm_version = "cancun"
+src = "src"
+test = "test"
+out = "out"
+libs = ["dependencies"]
+optimizer = true
+optimizer_runs = 200
+remappings = ["forge-std/=dependencies/forge-std-1.9.4/src/"]
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = false
+
+[soldeer]
+remappings_generate = false
+
+[dependencies]
+forge-std = "1.9.4"
