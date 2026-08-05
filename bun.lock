@@ -214,6 +214,16 @@
         "@node-rs/argon2": "^2.0.0",
       },
     },
+    "packages/providers/chainlink": {
+      "name": "@mayarin/provider-chainlink",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "@mayarin/clearing": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+        "viem": "^2.21.0",
+      },
+    },
     "packages/providers/evm": {
       "name": "@mayarin/provider-evm",
       "version": "0.1.0",
@@ -814,6 +824,8 @@
     "@mayarin/payment-intent": ["@mayarin/payment-intent@workspace:packages/core/payment-intent"],
 
     "@mayarin/provider-argon2": ["@mayarin/provider-argon2@workspace:packages/providers/argon2"],
+
+    "@mayarin/provider-chainlink": ["@mayarin/provider-chainlink@workspace:packages/providers/chainlink"],
 
     "@mayarin/provider-evm": ["@mayarin/provider-evm@workspace:packages/providers/evm"],
 
