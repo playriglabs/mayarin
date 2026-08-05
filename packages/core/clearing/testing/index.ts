@@ -6,9 +6,41 @@
  * implementation writes them in one database transaction.
  */
 
-import { ConcurrencyError, ConflictError } from "@mayarin/shared";
-import type { ClearingEvent, ClearingRepository, ClearingTransaction } from "../src/index.ts";
-import { isTerminalState } from "../src/index.ts";
+import {
+  type AssetCode,
+  ConcurrencyError,
+  ConfigurationError,
+  ConflictError,
+} from "@mayarin/shared";
+import type {
+  ClearingEvent,
+  ClearingRepository,
+  ClearingTransaction,
+  OraclePrice,
+  PriceOracle,
+} from "../src/index.ts";
+import { isTerminalState, rateKey } from "../src/index.ts";
+
+/**
+ * Reference in-memory oracle: serves the configured observations verbatim.
+ * Freshness is the caller's judgement (the guard takes `now`), so a test can
+ * hand this oracle an old `observedAt` to exercise staleness.
+ */
+export class FixedPriceOracle implements PriceOracle {
+  readonly #prices: ReadonlyMap<string, OraclePrice>;
+
+  constructor(prices: readonly OraclePrice[]) {
+    this.#prices = new Map(prices.map((price) => [rateKey(price.from, price.to), price]));
+  }
+
+  async reference(from: AssetCode, to: AssetCode): Promise<OraclePrice> {
+    const price = this.#prices.get(rateKey(from, to));
+    if (price === undefined) {
+      throw new ConfigurationError(`No reference price for ${from} -> ${to}`, { from, to });
+    }
+    return price;
+  }
+}
 
 export class InMemoryClearingRepository implements ClearingRepository {
   readonly #byId = new Map<string, ClearingTransaction>();

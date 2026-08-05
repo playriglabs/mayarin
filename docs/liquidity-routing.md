@@ -98,7 +98,11 @@ moves execution on-chain:
   off-chain.
 - The executable `minOut` comes from the DEX quote; a **Price Oracle** (Pyth,
   Chainlink) is a deviation guard, not the fill price. Do not trust the oracle
-  for the fill; trust the DEX, guard with the oracle.
+  for the fill; trust the DEX, guard with the oracle. The `PriceOracle` port and
+  the pure guard (`assertFresh`, `assertWithinDeviation`,
+  `guardExecutablePrice`) ship in `packages/core/clearing/src/oracle.ts` (RFC
+  #7); a stale or deviated price fails as a retryable `ProviderError`, and the
+  Pyth/Chainlink adapters live in `packages/providers/*` behind the port.
 - The `LiquidityRouter`'s same-asset identity stays; its cross-asset delegation
   moves to the Execution Engine. Multi-hop paths (`A → bridge → C`) across the
   registry's admitted stablecoins are a later extension the `PriceSource`
