@@ -1,0 +1,56 @@
+---
+import "../styles/global.css";
+import Nav from "../components/nav.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const siteName = "Mayarin";
+const fullTitle = title === siteName ? title : `${title} — ${siteName}`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <Nav />
+    <main>
+      <slot />
+    </main>
+    <footer
+      class="border-t border-[var(--color-line)] px-6 py-10 text-sm text-[var(--color-slate)]"
+    >
+      <div class="mx-auto max-w-3xl">
+        <p>Mayarin — programmable crypto-commerce infrastructure.</p>
+        <p class="mt-2">
+          <a
+            href="https://mayarin.xyz/"
+            class="text-[var(--color-forest)] underline underline-offset-2"
+            >mayarin.xyz</a
+          >
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* Mirrors apps/landing/src/styles.css tokens so the blog reads as the same
+ * site. Kept deliberately minimal — only what blog chrome + prose needs. */
+@theme {
+  --color-paper: #ffffff;
+  --color-ink: #111111;
+  --color-slate: #666666;
+  --color-line: #eaeaea;
+  --color-void: #050505;
+  --color-accent: #0eeb2e;
+  --color-forest: #1f6f54;
+
+  --font-display:
+    "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans:
+    "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-void);
+  }
+}
+
+/* Shiki output from Astro markdown uses inline styles; this keeps the surface
+ * consistent with landing's .code-surface. */
+.astro-code {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  background: var(--color-void) !important;
+  border-radius: 0.5rem;
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+}
+
+/* Long-form prose for post bodies. */
+.prose {
+  max-width: 44rem;
+}
+.prose h1,
+.prose h2,
+.prose h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.prose h1 {
+  font-size: 2.5rem;
+  margin: 0 0 0.5rem;
+}
+.prose h2 {
+  font-size: 1.75rem;
+  margin: 2.5rem 0 1rem;
+}
+.prose h3 {
+  font-size: 1.25rem;
+  margin: 2rem 0 0.75rem;
+}
+.prose p {
+  margin: 0 0 1.25rem;
+  color: var(--color-ink);
+}
+.prose a {
+  color: var(--color-forest);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.prose ul,
+.prose ol {
+  margin: 0 0 1.25rem;
+  padding-left: 1.25rem;
+}
+.prose li {
+  margin-bottom: 0.5rem;
+}
+.prose code:not(pre code) {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-line);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+}
