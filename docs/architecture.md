@@ -315,6 +315,36 @@ wallets under policy; the merchant's wallet is a self-custodial Safe smart
 account. The "reveal private key" feature is disabled; layered signing security
 is added later. For now, Turnkey is sufficient.
 
+**Custody boundary — enforced, not asserted.** "Self-custodial" requires the
+merchant to _control_ the Safe, not merely be its beneficiary. The Safe signer
+set always includes a merchant-controlled signer (merchant passkey or device
+key, provisioned via Turnkey); Turnkey is a co-signer and policy engine, never
+the sole signer. Mayarin-via-Turnkey cannot move merchant funds without the
+merchant. A merchant-controlled recovery path lets the merchant add their own
+signer or rotate to full self-custody on exit — _provisioned, not custodial._
+This is what separates Mayarin from a custodian.
+
+- **Merchant is a Safe signer.** Turnkey provisions the Safe with a
+  merchant-controlled key in the signer set. The backend proposes transactions
+  within policy; Turnkey enforces; the merchant co-signs. No key the backend
+  holds can move merchant funds alone.
+- **Merchant-controlled recovery.** The merchant can add their own signer or
+  recover the Safe without Mayarin, so Mayarin cannot lock a merchant out.
+- **Signer allowlists `merchantSafe`.** The PaymentRouter signer (RFC #6,
+  HSM-held) only signs an `Order` whose `merchantSafe` is a known
+  merchant-owned Safe. The contract trusts the signer; the signer trusts only
+  known merchant Safes — the off-chain defense against a compromised signer
+  redirecting settlement (see `packages/contracts/payment-router/README.md`).
+- **Fee Safe ≠ merchant Safes.** `feeRecipient` (Mayarin revenue) is a separate
+  treasury Safe, never a merchant Safe. The contract splits `minOut − fee`
+  (merchant) and `fee` (treasury) into separate buckets; wallet infra keeps
+  them separate too.
+- **Sequencing.** The Phase 3 contract settles to `merchantSafe` today, but
+  managed provisioning is Phase 4 (#11). Until #11 lands, the contract path
+  uses a merchant-provided address (connect-existing / self-custody merchant).
+  The contract is agnostic — `merchantSafe` is opaque — so #11 makes managed
+  onboarding production-grade without a contract change.
+
 #### Liquidity
 
 - Uniswap
