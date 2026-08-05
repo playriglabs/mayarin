@@ -6,6 +6,10 @@
   "scripts": {
     "build": "forge build",
     "test": "forge test",
-    "gas": "forge snapshot"
+    "gas": "forge snapshot",
+    "install-deps": "forge soldeer install"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "^5.3.0"
   }
 }

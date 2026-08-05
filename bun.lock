@@ -119,9 +119,19 @@
         "typescript": "^5.6.0",
       },
     },
+    "packages/contracts/abis": {
+      "name": "@mayarin/contracts",
+      "version": "0.1.0",
+      "dependencies": {
+        "viem": "^2.21.0",
+      },
+    },
     "packages/contracts/payment-router": {
       "name": "@mayarin/contracts-payment-router",
       "version": "0.0.0",
+      "devDependencies": {
+        "@openzeppelin/contracts": "^5.3.0",
+      },
     },
     "packages/core/auth": {
       "name": "@mayarin/auth",
@@ -862,6 +872,8 @@
 
     "@mayarin/clearing": ["@mayarin/clearing@workspace:packages/core/clearing"],
 
+    "@mayarin/contracts": ["@mayarin/contracts@workspace:packages/contracts/abis"],
+
     "@mayarin/contracts-payment-router": ["@mayarin/contracts-payment-router@workspace:packages/contracts/payment-router"],
 
     "@mayarin/dashboard": ["@mayarin/dashboard@workspace:apps/dashboard"],
@@ -987,6 +999,8 @@
     "@octokit/request-error": ["@octokit/request-error@7.1.1", "", { "dependencies": { "@octokit/types": "^17.0.0" } }, "sha512-+eaY7G2VVpSf2pc5Gn1+mph837V/d/TYTJAgWL9Tb0ogGYcpN3IlAVFgjL+Vv93F/sevrxkvsYCedtpLdcFLzA=="],
 
     "@octokit/types": ["@octokit/types@17.0.0", "", { "dependencies": { "@octokit/openapi-types": "^28.0.0" } }, "sha512-ByP1v7YL5SMveFPP7+sj0/ZuWCOOg/Chs4NafOMpq6WNIM/hdGY0S7C0TCGDBWu1aGmOxmUIhMx3cO+IdwYZ1Q=="],
+
+    "@openzeppelin/contracts": ["@openzeppelin/contracts@5.6.1", "", {}, "sha512-Ly6SlsVJ3mj+b18W3R8gNufB7dTICT105fJhodGAGgyC2oqnBAhqSiNDJ8V8DLY05cCz81GLI0CU5vNYA1EC/w=="],
 
     "@oslojs/encoding": ["@oslojs/encoding@1.1.0", "", {}, "sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ=="],
 

@@ -4,10 +4,15 @@ evm_version = "cancun"
 src = "src"
 test = "test"
 out = "out"
-libs = ["dependencies"]
+libs = ["dependencies", "../../../node_modules/@openzeppelin/contracts"]
 optimizer = true
 optimizer_runs = 200
-remappings = ["forge-std/=dependencies/forge-std-1.9.4/src/"]
+via_ir = true
+remappings = [
+    "forge-std/=dependencies/forge-std-1.9.4/src/",
+    # OpenZeppelin via npm (canonical distribution); bun hoists to repo-root node_modules.
+    "@openzeppelin/contracts/=../../../node_modules/@openzeppelin/contracts/",
+]
 
 [fmt]
 line_length = 100
@@ -19,3 +24,11 @@ remappings_generate = false
 
 [dependencies]
 forge-std = "1.9.4"
+
+[fuzz]
+runs = 1000
+
+[invariant]
+runs = 256
+depth = 20
+fail_on_revert = false

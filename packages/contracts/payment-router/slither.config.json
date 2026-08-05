@@ -1,0 +1,7 @@
+{
+  "filter_paths": "node_modules,dependencies,test/helpers,test/PaymentRouter.t.sol,test/PayERC20.t.sol,test/Admin.t.sol,test/Invariants.t.sol",
+  "solc_remaps": [
+    "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+    "forge-std/=dependencies/forge-std-1.9.4/src/"
+  ]
+}
