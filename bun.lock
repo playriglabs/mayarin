@@ -235,6 +235,15 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/providers/pyth": {
+      "name": "@mayarin/provider-pyth",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/clearing": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+        "zod": "^3.24.1",
+      },
+    },
     "packages/providers/stablecoin": {
       "name": "@mayarin/provider-stablecoin",
       "version": "0.1.0",
@@ -809,6 +818,8 @@
     "@mayarin/provider-evm": ["@mayarin/provider-evm@workspace:packages/providers/evm"],
 
     "@mayarin/provider-mock": ["@mayarin/provider-mock@workspace:packages/providers/mock"],
+
+    "@mayarin/provider-pyth": ["@mayarin/provider-pyth@workspace:packages/providers/pyth"],
 
     "@mayarin/provider-stablecoin": ["@mayarin/provider-stablecoin@workspace:packages/providers/stablecoin"],
 
