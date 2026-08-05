@@ -2,54 +2,45 @@
 
 **/maɪˈjɑːrɪn/** — _"My-ar-in"_
 
-> **Programmable Clearing Infrastructure**
+> **Programmable Crypto-Commerce Infrastructure**
 >
-> _Move value, not complexity._
+> _Price in fiat. Settle in stablecoins. Pay with anything._
 
-Mayarin is a programmable clearing infrastructure that bridges digital assets with traditional payment rails through a modular, provider-agnostic architecture.
+Mayarin is programmable crypto-commerce infrastructure: merchants price in their local currency and settle in a stablecoin; customers pay with any supported crypto asset. Mayarin bridges the two without requiring merchants to understand blockchain.
 
-Instead of replacing existing financial systems, Mayarin orchestrates how value moves across wallets, blockchains, stablecoins, and local payment networks.
+A provider-agnostic clearing layer orchestrates value across wallets, blockchains, and stablecoins through one modular architecture. Fiat payment rails (QRIS, bank transfer) and a stablecoin → fiat off-ramp are intentionally out of the MVP — later, explicit phases with their own custody perimeter.
 
 ---
 
 # Vision
 
 ```
-             Any Digital Asset
+              Any Payer Asset
 
- BTC • ETH • USDC • USDT • IDRX
+   ETH • USDC • USDT • IDRX • …
 
-                  │
-                  ▼
+                   │
+                   ▼
 
-          Liquidity Router
+     ┌─────────────┴─────────────┐
 
-                  │
-                  ▼
+     ▼                           ▼
 
-         Settlement Asset
+ Off-chain orchestration     On-chain execution
+ deposit address → watcher    PaymentRouter → atomic swap
+ (fallback path)             (primary path)
 
-                  │
-                  ▼
+     └─────────────┬─────────────┘
+                   ▼
 
-         Settlement Engine
+       Settlement Asset (stablecoin)
 
-                  │
-                  ▼
+                   │
+                   ▼
 
-          Clearing Engine
+       Merchant Smart Account
 
-                  │
-                  ▼
-
-        Settlement Adapter
-
-      ├── QRIS
-      ├── Bank Transfer
-      ├── PayNow
-      ├── PromptPay
-      ├── DuitNow
-      └── Future Rails
+     ├── USDC   ├── USDT   └── IDRX
 ```
 
 ---
@@ -87,31 +78,60 @@ Full setup, commands and tooling: [docs/development.md](./docs/development.md).
 
 # Documentation
 
-| Document                                           | Covers                                                          |
-| -------------------------------------------------- | --------------------------------------------------------------- |
-| [Vision & Rationale](./docs/vision.md)             | Why Mayarin exists, the problem, goals and non-goals            |
-| [Architecture](./docs/architecture.md)             | Design principles, system layers, payment flow, monorepo, stack |
-| [Money](./docs/money.md)                           | Exact minor-unit amounts and the asset registry                 |
-| [QR Parser](./docs/qr-parser.md)                   | EMVCo decoding and the QRIS profile                             |
-| [Payment Intent](./docs/payment-intent.md)         | Immutable payment requests and their lifecycle                  |
-| [Clearing Engine](./docs/clearing-engine.md)       | The nine-state machine, idempotency, resumability               |
-| [Double Entry Ledger](./docs/ledger.md)            | Chart of accounts and the postings behind every payment         |
-| [Settlement](./docs/settlement.md)                 | The provider abstraction and the rails behind it                |
-| [Liquidity & Routing](./docs/liquidity-routing.md) | Turning any asset into the settlement asset _(planned)_         |
-| [REST API](./docs/api.md)                          | Endpoints, request and response shapes, error codes             |
-| [Development](./docs/development.md)               | Running locally, commands, formatting, git hooks                |
-| [Roadmap](./docs/roadmap.md)                       | What is shipped and what comes next                             |
+| Document                                           | Covers                                                             |
+| -------------------------------------------------- | ------------------------------------------------------------------ |
+| [Vision & Rationale](./docs/vision.md)             | Why Mayarin exists, the problem, goals and non-goals               |
+| [Architecture](./docs/architecture.md)             | Design principles, system layers, payment flow, monorepo, stack    |
+| [Money](./docs/money.md)                           | Exact minor-unit amounts and the asset registry                    |
+| [QR Parser](./docs/qr-parser.md)                   | EMVCo decoding and the QRIS profile                                |
+| [Payment Intent](./docs/payment-intent.md)         | Immutable payment requests and their lifecycle                     |
+| [Chain Layer](./docs/chain.md)                     | Per-intent deposit addresses, wallet watcher, reorg policy         |
+| [Stablecoin Registry](./docs/stablecoin.md)        | Admissible stablecoins and their on-chain identities               |
+| [Liquidity & Routing](./docs/liquidity-routing.md) | Turning any asset into the settlement asset via a pluggable source |
+| [Clearing Engine](./docs/clearing-engine.md)       | The nine-state machine, idempotency, resumability                  |
+| [Double Entry Ledger](./docs/ledger.md)            | Chart of accounts and the postings behind every payment            |
+| [Settlement](./docs/settlement.md)                 | The provider abstraction and the adapters behind it                |
+| [REST API](./docs/api.md)                          | Endpoints, request and response shapes, error codes                |
+| [Development](./docs/development.md)               | Running locally, commands, formatting, git hooks                   |
+| [Roadmap](./docs/roadmap.md)                       | What is shipped and what comes next                                |
 
 ---
 
 # Status
 
-Phase 1 is shipped: QR parser, payment intents, clearing engine, double-entry
-ledger and a mock settlement adapter, behind a Hono API on Postgres.
+**Phase 1 — Core Infrastructure ✅ Shipped.** QR parser, payment intents, clearing
+engine, double-entry ledger and a mock settlement adapter, behind a Hono API on
+Postgres.
 
-Phase 2 takes payments on-chain, Phase 3 adds the merchant, POS and QR SDKs,
-Phase 4 opens the settlement network beyond a single rail, and Phase 5 turns it
-into a commerce platform. See the [roadmap](./docs/roadmap.md) for the detail.
+**Phase 2 — Chain Interface & Quoting Seams ✅ Shipped.** EVM chain client,
+finality + reorg policy, per-intent deposit addresses, wallet watcher, stablecoin
+registry (IDRX/USDC/USDT), RateProvider/PriceSource ports + LiquidityRouter, and
+stablecoin settlement adapter.
+
+**Phase 3 — On-Chain Execution 🚧 In Progress.** PaymentRouter contract,
+execution engine, quote engine, Pyth/Chainlink oracle, indexer, gas abstraction.
+
+**Phase 4 — Commerce Platform.** Commerce layer, wallet infrastructure
+(Safe/Turnkey), on-chain settlement + fee/refund split, notifications, developer
+SDK, merchant dashboard, compliance.
+
+**Phase 5 — Multi-Asset, Multi-Chain.** More payer assets + venues + chains +
+wallet providers; configurable settlement assets.
+
+See the [roadmap](./docs/roadmap.md) for the detail.
+
+---
+
+# RFCs & Issue Board
+
+Feature work is tracked as RFC issues — full specs with goals, non-goals,
+acceptance criteria, and dependencies, assigned by phase:
+
+- **Phase 3** — On-Chain Execution ([#4–#9](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Aphase-3+label%3Arfc))
+- **Phase 4** — Commerce Platform ([#10–#16](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Aphase-4+label%3Arfc))
+- **Phase 5** — Multi-Asset, Multi-Chain ([#17–#21](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Aphase-5+label%3Arfc))
+
+[Open the board →](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Arfc)
 
 ---
 
@@ -126,4 +146,7 @@ into a commerce platform. See the [roadmap](./docs/roadmap.md) for the detail.
 > We believe digital assets should not replace existing payment systems.
 > They should make them programmable.
 
-Mayarin transforms fragmented payment infrastructure into a unified clearing layer capable of orchestrating value across blockchains, stable assets, and traditional payment rails through one modular architecture.
+Mayarin turns fragmented crypto-payment infrastructure into a unified clearing
+layer that orchestrates quoting, execution, settlement, accounting, and wallet
+provisioning behind one API — so the merchant prices in their local currency and
+receives their chosen stablecoin while the customer pays with whatever asset they hold.
