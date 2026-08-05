@@ -232,7 +232,7 @@ packages/
       ✓ argon2/           Argon2PasswordHasher
       · turnkey/          Phase 4 wallet provider (MPC policy engine)
       · zerodev/          Phase 3 gas abstraction / paymaster / relayer
-      · swap-0x/          Phase 3 0x Protocol swap source
+      ✓ swap-0x/          ZeroExSwapVenue — SwapVenue over the 0x Swap API v2 price read
       · swap-uniswap/     Phase 3 Uniswap swap source
       ✓ pyth/             PythPriceOracle — Hermes reference read for the deviation guard
       ✓ chainlink/        ChainlinkPriceOracle — AggregatorV3 reference read via viem
