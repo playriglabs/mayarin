@@ -1,6 +1,7 @@
 export * from "./engine.ts";
 export * from "./fees.ts";
 export * from "./liquidity.ts";
+export * from "./oracle.ts";
 export * from "./postings.ts";
 export * from "./rate.ts";
 export * from "./repository.ts";
