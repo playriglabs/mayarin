@@ -247,6 +247,41 @@ the same port.
 - ☐ Payment explorer and transaction timeline
 - ☐ Settlement status
 - ☐ Merchant analytics
+- ☐ Overview
+- ☐ Orders
+- ☐ Wallets
+- ☐ Customers
+- ☐ Analytics
+- ☐ Payment Links
+- ☐ Developers
+- ☐ Settings
+
+So we have this feature for our product
+
+Commerce
+├── Overview
+├── Products
+├── Orders
+├── POS Checkout
+├── Payment Links
+
+Payments
+├── Transactions
+├── Settlement
+├── Wallet
+├── Refunds (future)
+
+Analytics
+├── Revenue
+├── Payment Analytics
+├── Asset Analytics
+├── Customer Insights
+
+Developers
+├── API Keys
+├── Webhooks
+├── SDK
+├── Event Logs
 
 The dashboard is one first-party application built on the same primitives any
 third-party developer can use.
