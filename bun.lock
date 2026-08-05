@@ -171,6 +171,14 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/core/quote": {
+      "name": "@mayarin/quote",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/clearing": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/core/settlement": {
       "name": "@mayarin/settlement",
       "version": "0.1.0",
@@ -836,6 +844,8 @@
     "@mayarin/provider-stablecoin": ["@mayarin/provider-stablecoin@workspace:packages/providers/stablecoin"],
 
     "@mayarin/qr-parser": ["@mayarin/qr-parser@workspace:packages/core/qr-parser"],
+
+    "@mayarin/quote": ["@mayarin/quote@workspace:packages/core/quote"],
 
     "@mayarin/settlement": ["@mayarin/settlement@workspace:packages/core/settlement"],
 

@@ -218,7 +218,7 @@ packages/
       ✓ stablecoin/       StablecoinRegistry port and value types — the admissible set
       ✓ auth/             merchant/user/session domain, PasswordHasher port
       · commerce/         Phase 4 product catalog, prices, carts → payment intents
-      · quote/            Phase 3 quote engine (lock, TTL, slippage, signing)
+      ✓ quote/            quote engine — guarded composition shipped; lock, TTL, signing follow (#39–#41)
       · execution/        Phase 3 execution engine (DEX routing, calldata)
 
     contracts/            Phase 3 PaymentRouter.sol — on-chain execution layer
