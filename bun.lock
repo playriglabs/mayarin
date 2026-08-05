@@ -147,6 +147,14 @@
         "@mayarin/provider-mock": "workspace:*",
       },
     },
+    "packages/core/execution": {
+      "name": "@mayarin/execution",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/clearing": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/core/ledger": {
       "name": "@mayarin/ledger",
       "version": "0.1.0",
@@ -824,6 +832,8 @@
     "@mayarin/dashboard-api": ["@mayarin/dashboard-api@workspace:apps/dashboard-api"],
 
     "@mayarin/db": ["@mayarin/db@workspace:packages/db"],
+
+    "@mayarin/execution": ["@mayarin/execution@workspace:packages/core/execution"],
 
     "@mayarin/landing": ["@mayarin/landing@workspace:apps/landing"],
 
