@@ -11,7 +11,11 @@ import {
 } from "@mayarin/chain/testing";
 import { type AccountKind, LedgerService } from "@mayarin/ledger";
 import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
-import { PaymentIntentService, type PaymentRail } from "@mayarin/payment-intent";
+import {
+  type ExecutionPath,
+  PaymentIntentService,
+  type PaymentRail,
+} from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry, type SettlementMode } from "@mayarin/settlement";
@@ -57,7 +61,12 @@ export function createHarness(options: HarnessOptions = {}) {
     repository: intentRepository,
     clock,
     events,
-    defaults: { settlementAsset: "IDRX", provider: "mock", ttlSeconds: 900 },
+    defaults: {
+      settlementAsset: "IDRX",
+      provider: "mock",
+      executionPath: "deposit-match",
+      ttlSeconds: 900,
+    },
   });
 
   const ledger = new LedgerService({ repository: ledgerRepository, clock });
@@ -81,7 +90,11 @@ export function createHarness(options: HarnessOptions = {}) {
 
   /** Creates and confirms an intent for 50,000.00 IDR, ready to clear. */
   async function confirmedIntent(
-    overrides: { idempotencyKey?: string; payment?: PaymentRail } = {},
+    overrides: {
+      idempotencyKey?: string;
+      payment?: PaymentRail;
+      executionPath?: ExecutionPath;
+    } = {},
   ) {
     const created = await intents.create({
       merchant: {

@@ -53,8 +53,9 @@ so a Phase 2A deployment still boots.
 Every asset in either must be a known stablecoin (`kind === "stablecoin"` in
 `packages/shared/src/asset.ts`). Configuring `ETH` as a settlement asset, or
 pointing `CHAIN_ASSETS` at an `ETH` contract, fails to start — the same boot-time
-validation posture as `EXCHANGE_RATES` and the chain layer. Native crypto is
-Phase 4.
+validation posture as `EXCHANGE_RATES` and the chain layer. The registry is
+stablecoin-only; native crypto (ETH) is a **payer** asset on the Phase 3
+on-chain path, never a settlement asset.
 
 ---
 

@@ -80,8 +80,10 @@ export interface ClearingEngineOptions {
   /**
    * Treats a payment as funded the moment it reaches `PAYMENT_PENDING`.
    *
-   * Phase 1 stand-in for the wallet watcher that Phase 2's EVM integration will
-   * provide. With this off, something must call `recordAssetReceived`.
+   * Stand-in for the wallet watcher that confirms a deposit-match payment's
+   * asset arrived. Deposit-matching is the fallback execution path; Phase 3's
+   * on-chain-contract path funds atomically and does not wait here. With this
+   * off, something must call `recordAssetReceived`.
    */
   readonly autoConfirmAssetReceipt?: boolean;
 }
@@ -392,6 +394,17 @@ export class ClearingEngine {
     transaction: ClearingTransaction,
     now: Date,
   ): Promise<ClearingDeposit | undefined> {
+    if (transaction.executionPath === "on-chain-contract") {
+      // Phase 3 plug-in point: the contract path locks a hard settlement
+      // `minOut` and builds PaymentRouter calldata instead of allocating a
+      // deposit address. Until then a contract-path payment fails here, before
+      // any side effect, so it cannot move value.
+      throw new ConfigurationError(
+        "on-chain-contract execution path is not implemented until Phase 3",
+        { paymentIntentId: transaction.paymentIntentId, executionPath: transaction.executionPath },
+      );
+    }
+
     const intent = await this.#intents.getById(transaction.paymentIntentId);
     const rail = intent.payment;
     if (rail === undefined) return undefined;

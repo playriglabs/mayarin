@@ -74,6 +74,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
+      executionPath: config.executionPath,
       ttlSeconds: config.paymentIntentTtlSeconds,
     },
   });

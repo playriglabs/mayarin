@@ -8,6 +8,7 @@ import {
   type ClearingTransaction,
   TERMINAL_CLEARING_STATES,
 } from "@mayarin/clearing";
+import type { ExecutionPath } from "@mayarin/payment-intent";
 import { ConcurrencyError, ValidationError } from "@mayarin/shared";
 import { and, asc, eq, notInArray } from "drizzle-orm";
 import type { Executor } from "../client.ts";
@@ -135,6 +136,7 @@ function toRow(transaction: ClearingTransaction): typeof clearingTransactions.$i
     sourceAsset: transaction.sourceAmount.asset,
     settlementAsset: transaction.settlementAsset,
     provider: transaction.provider,
+    executionPath: transaction.executionPath ?? null,
     rateFrom: transaction.rate?.from ?? null,
     rateTo: transaction.rate?.to ?? null,
     rateMinorUnitsPerWholeUnit: transaction.rate?.minorUnitsPerWholeUnit.toString() ?? null,
@@ -172,6 +174,7 @@ function toDomain(row: Row): ClearingTransaction {
     sourceAmount: toMoney(row.sourceAmount, row.sourceAsset),
     settlementAsset,
     provider: row.provider,
+    ...present("executionPath", row.executionPath as ExecutionPath | null),
     ...(rateMinorUnits === undefined || row.rateFrom === null || row.rateTo === null
       ? {}
       : {

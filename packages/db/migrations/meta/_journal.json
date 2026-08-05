@@ -29,6 +29,13 @@
       "when": 1785835656475,
       "tag": "0003_little_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785859784890,
+      "tag": "0004_lowly_jamie_braddock",
+      "breakpoints": true
     }
   ]
 }

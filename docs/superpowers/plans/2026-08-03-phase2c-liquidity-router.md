@@ -1,5 +1,11 @@
 # Phase 2C — Liquidity Router: implementation plan
 
+> **Historical design record — 2026-08-03.** This documents Phase 2 as shipped.
+> The product has since pivoted to crypto-commerce infrastructure. The
+> `LiquidityRouter`'s same-asset identity stays; its cross-asset delegation
+> moves to the Phase 3 **Execution Engine**, and swap execution moves on-chain
+> to `PaymentRouter.sol`. The router only prices. See [Roadmap](../../roadmap.md).
+
 > Design: `docs/superpowers/specs/2026-08-03-phase2c-liquidity-router-design.md`.
 > Rhythm: TDD. Write a failing test, watch it fail, implement, run
 > `bun run typecheck && bun test`, commit. One task per commit.

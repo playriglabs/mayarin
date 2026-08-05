@@ -17,12 +17,17 @@ code lives.
 - Composable
 - Resumable Transactions
 - Plugin Architecture
-
----
+- On-Chain Execution — value moves on a smart contract; the backend orchestrates
+- Trust-Minimized — the backend never holds keys to user assets
 
 ---
 
 ## System Architecture
+
+Two execution paths share the same intent, ledger, and stablecoin registry. The
+**on-chain** path (Phase 3, primary) routes the customer's payment through a
+smart contract that atomically swaps and settles. The **deposit-matching** path
+(Phase 2, shipped, fallback) watches a per-intent deposit address.
 
 ```
                  Client SDK
@@ -43,138 +48,136 @@ code lives.
 
 ────────────────────────────────────────
 
-               QR Parser
+             Quote Engine          ── Price Oracle (adapter)
+                                  ── DEX quote (executable minOut)
 
                      │
 
 ────────────────────────────────────────
 
-           Liquidity Router
+          PaymentRouter.sol        (on-chain execution, Phase 3)
+
+                     │
+
+              Execution Engine     ── 0x, Uniswap (pluggable)
 
                      │
 
 ────────────────────────────────────────
 
-          Settlement Engine
+            Wallet Provider         ── Turnkey (MPC policy engine)
+                                    ── Tempo (MPC, alternative)
 
                      │
 
 ────────────────────────────────────────
 
-           Clearing Engine
+              Indexer               ── observes PaymentCompleted
+
+                     │
+
+         Double Entry Ledger        (derived from on-chain truth)
 
                      │
 
 ────────────────────────────────────────
 
-         Double Entry Ledger
-
-                     │
-
-────────────────────────────────────────
-
-         Settlement Adapter
-
-      ├── QRIS
-      ├── Bank Transfer
-      ├── PayNow
-      ├── PromptPay
-      ├── DuitNow
-      ├── Direct EVM
-      ├── Tempo
-      └── Mock
-
-                     │
-
-────────────────────────────────────────
-
-                Merchant
+                Merchant Wallet     (Safe smart account, self-custodial)
 ```
 
----
+The backend creates intents, locks quotes, builds calldata, observes events,
+and keeps the ledger. It never signs a payment movement — the contract does.
 
 ---
 
 ## Payment Flow
 
-The payer scans a merchant QR and Mayarin routes whatever they hold into what
-the merchant settles in.
+The merchant prices in their local currency and settles in a stablecoin; the
+customer pays with any supported asset. When the assets differ, the contract
+converts on-chain before settlement.
 
 ```
-Customer
+Merchant prices            IDR 50.000
 
 ↓
 
-Scan Merchant QR
+Price Engine               IDR → USDC          (merchant's settlement amount)
 
 ↓
 
-QR Parser
+Quote Engine               locks minOut + TTL + slippage
 
 ↓
 
-Payment Intent
+Customer chooses asset     ETH
 
 ↓
 
-Liquidity Router
+Quote Engine               derives ETH display amount   (estimate, not a lock)
 
 ↓
 
-Settlement Asset
+Payment QR / Request       EIP-681 / PaymentRouter calldata
 
 ↓
 
-Settlement Engine
+Customer pays              → PaymentRouter.sol
 
 ↓
 
-Clearing Engine
+Swap (if needed)           ETH → USDC, atomic, hard revert on minOut miss
 
 ↓
 
-Settlement Adapter
+Merchant receives          USDC in their managed wallet
 
 ↓
 
-Merchant Paid
+PaymentCompleted event     → Indexer → Ledger → Dashboard
 ```
 
-### POS crypto checkout _(Phase 2 + 3)_
+The hard lock is the **merchant's settlement amount** (`minOut`). The customer's
+payer-asset amount is a **display estimate** — the contract swaps whatever
+arrives, so the customer's quote is not a custody lock. Atomicity plus a hard
+revert on `minOut` miss is what makes "merchant always receives the settlement
+asset" safe without a treasury FX book.
 
-The other direction: the merchant's terminal issues the QR, and the payer sends
-from an exchange or a self-custody wallet.
+### Deposit-matching path _(Phase 2, fallback)_
+
+For direct transfers and chains without a deployed `PaymentRouter`, the shipped
+off-chain path remains: the customer sends to a per-intent deposit address, a
+watcher detects receipt, and the clearing engine settles off-chain.
 
 ```
-Merchant POS quotes a price
+Payment Intent            asset, chain and amount locked
 
 ↓
 
-Payment Intent          asset, chain and amount locked
+Deposit Address           derived per intent
 
 ↓
 
-Deposit Address         derived per intent
+Address QR                EIP-681 / BIP-21
 
 ↓
 
-Address QR              EIP-681 / BIP-21, not EMVCo
+Payer sends               (exchange withdrawal or self-custody wallet)
 
 ↓
 
-Payer scans in Binance, sends
+Wallet Watcher            sees the transfer
 
 ↓
 
-Wallet Watcher          sees the transfer
+Confirmation Depth        reached
 
 ↓
 
-Confirmation Depth      reached
+Clearing Engine           ASSET_RECEIVED
 
 ↓
 
-Clearing Engine         ASSET_RECEIVED
+Settlement Adapter        off-chain
 
 ↓
 
@@ -183,79 +186,66 @@ Merchant Paid
 
 The address QR is a different payload family from EMVCo — an exchange app has
 never heard of QRIS — but it enters the same `PaymentIntent`, so nothing
-downstream can tell the two flows apart.
-
-Two properties fall out of the existing design. The clearing engine needs no new
-state: the watcher drives the `PAYMENT_PENDING → ASSET_RECEIVED` transition that
-Phase 1 already ships, through the same `recordAssetReceived` seam
-`ASSET_RECEIPT_MODE=manual` exposes today. And when the payer sends the asset the
-merchant already settles in, the Liquidity Router has nothing to convert, so that
-path skips it.
-
-A per-intent deposit address is what makes the payment identifiable. An exchange
-withdrawal leaves from an omnibus hot wallet and carries no memo or calldata, so
-the address is the only thing tying a transfer to an intent.
-
----
+downstream can tell the two flows apart. A per-intent deposit address is what
+makes the payment identifiable: an exchange withdrawal leaves an omnibus hot
+wallet with no memo or calldata, so the address is the only thing tying a
+transfer to an intent.
 
 ---
 
 ## Monorepo Structure
 
-Implemented in Phase 1 (`✓`), planned for later phases (`·`):
+Implemented and shipped (`✓`), planned for later phases (`·`):
 
 ```
 apps/
 
-  ✓ api/
-  · dashboard/          Phase 2 payment explorer, timeline, settlement status
-  · playground/         Phase 3
-  · docs/               Phase 3
+  ✓ api/                 payment clearing API (Hono)
+  ✓ dashboard-api/       merchant dashboard API (Hono + Effect)
+  ✓ dashboard/           merchant dashboard UI (Astro + React)
+  ✓ landing/             marketing site
 
 packages/
 
     core/
 
-      ✓ clearing/         state machine, engine, fees, rate port, liquidity router
+      ✓ clearing/         state machine, engine, fees, rate/liquidity ports
       ✓ ledger/           double-entry accounts, entries, balances
       ✓ payment-intent/   immutable intents and their lifecycle
       ✓ qr-parser/        EMVCo TLV decoder + QRIS profile
       ✓ settlement/       SettlementAdapter port (with mode) and registry
-      ✓ chain/           chain ports, deposit types, confirmation policy, watcher
-      ✓ stablecoin/      StablecoinRegistry port and value types — the admissible set
-      · qr-generator/     Phase 3 EMVCo/QRIS + crypto address QR encoding
-      · merchant/         Phase 3 merchants, invoices, payment links
-      · routing/          Phase 4 smart routing
+      ✓ chain/            chain ports, deposit types, confirmation policy, watcher
+      ✓ stablecoin/       StablecoinRegistry port and value types — the admissible set
+      ✓ auth/             merchant/user/session domain, PasswordHasher port
+      · commerce/         Phase 4 product catalog, prices, carts → payment intents
+      · quote/            Phase 3 quote engine (lock, TTL, slippage, signing)
+      · execution/        Phase 3 execution engine (DEX routing, calldata)
 
-    blockchain/           Phase 2
-
-      ✓ evm/             viem chain client and HD deposit-address deriver
-      · wallet/            custody, sweeping (Phase 2D Settlement Engine)
-      · contracts/
+    contracts/            Phase 3 PaymentRouter.sol — on-chain execution layer
+      · payment-router/
 
     providers/
 
-      ✓ mock/
+      ✓ mock/             MockSettlementAdapter
       ✓ evm/             viem ChainClient and HdDepositAddressDeriver
-      · qris/             Phase 4
-      · bank/             Phase 4
-      · paynow/           Phase 4
-      · promptpay/        Phase 4
-      · duitnow/          Phase 4
-      · tempo/            Phase 4 blockchain settlement
-      · tron/             Phase 4
-      · solana/           Phase 4
+      ✓ stablecoin/       StablecoinSettlementAdapter (internal)
+      ✓ argon2/           Argon2PasswordHasher
+      · turnkey/          Phase 4 wallet provider (MPC policy engine)
+      · zerodev/          Phase 3 gas abstraction / paymaster / relayer
+      · swap-0x/          Phase 3 0x Protocol swap source
+      · swap-uniswap/     Phase 3 Uniswap swap source
+      · pyth/             Phase 3 Pyth price oracle
+      · chainlink/         Phase 3 Chainlink price oracle
 
-  ✓ db/                 Drizzle schema, repositories, in-memory adapters
-  · sdk/                Phase 3 TypeScript client, webhooks, provider SDK
-  · pos/                Phase 3 terminal API, receipts, live payment status
-  ✓ shared/             money, assets, ids, errors, events, clock
+  ✓ db/                   Drizzle schema, repositories, in-memory adapters
+  · sdk/                  Phase 4 TypeScript client SDK (commerce + payment + QR)
+  ✓ shared/              money, assets, ids, errors, events, clock
 ```
 
-Two packages are not in the original layout:
+Two packages worth noting:
 
-- **`core/qr-parser`** — the QR parser is a core component in this document but
-  was missing from the tree.
+- **`core/qr-parser`** — the QR parser is a core component but was missing from
+  the original tree.
 - **`db`** — the domain packages define repository _ports_; their Drizzle and
   in-memory implementations live here. Keeping them out of `core` is what lets a
   domain package be tested, and swapped, without a database.
@@ -263,36 +253,28 @@ Two packages are not in the original layout:
 The chain layer respects the same boundary one-way: `packages/core/chain` knows
 the clearing engine's seam (`recordAssetReceived`) only as an injected sink, so
 it never imports `@mayarin/clearing`. The composition root in `apps/api` is the
-only place that wires a real `WalletWatcher` to the engine, feeding each funded
-intent back through that sink. See [Chain Layer](./chain.md).
+only place that wires a real `WalletWatcher` to the engine. See
+[Chain Layer](./chain.md).
 
 A [Stablecoin Registry](./stablecoin.md) holds which stablecoins a deployment
 admits and where each lives on-chain, unioning `SETTLEMENT_ASSETS` with
 `CHAIN_ASSETS`. It is the single source the watcher pairs, the intent
-admissibility check, and (later) the settlement engine all read from.
+admissibility check, and (later) the execution engine all read from.
 
-The [Liquidity Router](./liquidity-routing.md) implements the `RateProvider`
-port the clearing engine already locks prices through, but prices cross-asset
-quotes via a pluggable `PriceSource` instead of a flat configured table. The
-composition root wires a `TablePriceSource` (the old `EXCHANGE_RATES` table) by
-default; a DEX or aggregator that implements `PriceSource` can replace it
-without touching the engine. Same-asset quotes are the identity rate and never
-reach the source. Swap execution stays Phase 4 — the router only prices.
+The [Quote / Liquidity](./liquidity-routing.md) ports the clearing engine already
+locks prices through are the seams Phase 3 plugs into: a DEX `PriceSource`
+replaces the static table for the executable `minOut`, an oracle becomes the
+deviation guard, and the `LiquidityRouter`'s same-asset identity stays. Swap
+execution moves on-chain to `PaymentRouter.sol` in Phase 3 — the router only
+prices today.
 
 The [Settlement Engine](./settlement.md) settles a payment through a
 `SettlementAdapter` whose `mode` says whether value leaves Mayarin
-(`"external"` — the engine credits `TREASURY` back once the rail confirms) or
-stays as a merchant balance (`"internal"` — the engine credits
-`MERCHANT_HOLDING`, a liability the merchant withdraws on-chain in Phase 4). The
-`StablecoinSettlementAdapter` is the internal rail: pure, synchronous, no
-signing — Mayarin watches, it does not sign. A direct-EVM payout is Phase 4 and
-is just another external adapter.
-
-Note that `apps/docs/` above is a future documentation _site_, and is not the
-same thing as the repository's `docs/` directory — the Markdown you are reading
-now, which lives at the root and has no build step.
-
----
+(`"external"`) or stays as a merchant balance (`"internal"` — the engine credits
+`MERCHANT_HOLDING`, a liability the merchant withdraws on-chain). The on-chain
+path (Phase 3) supersedes the off-chain adapters for supported assets: the
+contract settles directly to the merchant's managed wallet, and the off-chain
+adapters remain as the fallback path's settlement.
 
 ---
 
@@ -313,29 +295,47 @@ now, which lives at the root and has no build step.
 - Arbitrum
 - Optimism
 - Polygon
-- Tempo _(Phase 4)_
-- TRON _(Phase 4, non-EVM)_
-- Solana _(Phase 4, non-EVM)_
+- Solana _(future, non-EVM)_
+- TRON _(future, non-EVM)_
 
 #### SDK
 
 - Viem
 - Wagmi
-- WalletConnect
+
+#### Wallet Infrastructure
+
+- Turnkey (MPC policy engine — the wallet provider)
+- Tempo (MPC, alternative backend)
+- Safe (smart-account wallet shape, self-custodial)
+
+The backend never holds user keys. Turnkey provisions and signs for managed
+wallets under policy; the merchant's wallet is a self-custodial Safe smart
+account. The "reveal private key" feature is disabled; layered signing security
+is added later. For now, Turnkey is sufficient.
 
 #### Liquidity
 
 - Uniswap
 - 0x API
-- 1inch API
+
+#### Price Oracles
+
+- Pyth Network (production — pull-based, on-chain verifiable)
+- Chainlink (off-chain reference)
+
+#### Gas Abstraction
+
+- ZeroDev (relayer / paymaster)
+
+A merchant whose wallet starts empty cannot move their stablecoin. Gas
+abstraction is required for the "no wallet, no seed phrase" experience.
 
 #### Settlement Assets
 
 - IDRX
 - USDC
 - USDT
-- JPYC _(Phase 2, JPY)_
-- XSGD _(Phase 2, SGD)_
 
 ### Storage
 

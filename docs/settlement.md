@@ -75,14 +75,13 @@ replayed webhook cannot settle a payment on its own.
 
 `mode` tells the clearing engine which `SETTLED` posting to make:
 
-- **`external`** — the rail takes value _out_ of Mayarin (a QRIS payout, a bank
-  transfer, a direct on-chain transfer to the merchant's wallet). Once the rail
-  confirms delivery, the engine credits the in-flight value back to `TREASURY`.
-  The mock rail and a future direct-EVM payout are both external.
+- **`external`** — the rail takes value _out_ of Mayarin (a direct on-chain
+  transfer to the merchant's wallet). Once the rail confirms delivery, the
+  engine credits the in-flight value back to `TREASURY`. The mock rail and a
+  direct-EVM payout are both external.
 - **`internal`** — the rail keeps value _in_ Mayarin as a merchant balance. The
   engine credits the in-flight value to `MERCHANT_HOLDING` (a liability), which
-  the merchant can withdraw on-chain in Phase 4. The stablecoin adapter is
-  internal.
+  the merchant can withdraw on-chain. The stablecoin adapter is internal.
 
 The engine branches on `adapter.mode`, not on a concrete class — `mode` is a
 port-level fact, so recognizing it never couples the engine to an adapter
@@ -99,9 +98,12 @@ is signed — the merchant's stablecoin balance is an accounting entry until
 Phase 4 signs a withdrawal. This is the same watch-only posture as the chain
 layer: Mayarin watches, it does not sign.
 
-A real on-chain payout to the merchant's wallet is Phase 4 and uses the same
+A real on-chain payout to the merchant's wallet is Phase 3 and uses the same
 `SettlementAdapter` port with `mode: "external"` — a direct-EVM transfer is just
-another external rail.
+another external rail. The on-chain path supersedes the off-chain adapters for
+supported assets: `PaymentRouter.sol` settles directly to the merchant's managed
+wallet, and the off-chain adapters remain as the fallback deposit-matching
+path's settlement.
 
 Possible adapters
 
@@ -110,25 +112,13 @@ Mock (external)
 
 Stablecoin (internal)
 
-QRIS
-
-Bank Transfer
-
-PayNow
-
-PromptPay
-
-DuitNow
-
 Direct EVM (external)
-
-Tempo
 
 Future Providers
 ```
 
-A rail does not have to be a bank. Phase 4 settles on-chain through the same
-port: an EVM transfer and a QRIS payout are both "hand value to a rail, get a
+A rail does not have to be a bank. The on-chain path settles through the same
+port: an EVM transfer to a merchant wallet is "hand value to a rail, get a
 provider reference back", so the clearing engine never learns which one it is.
 
 Business logic never depends on provider implementations.
@@ -137,24 +127,13 @@ Business logic never depends on provider implementations.
 
 ---
 
-## Future Payment Rails
+## Out of MVP
 
-Phase 4 targets:
-
-- QRIS
-- Bank Transfer
-- PayNow
-- PromptPay
-- DuitNow
-- Direct EVM
-- Tempo
-
-Beyond that:
-
-- PIX
-- UPI
-- SEPA
-- ACH
+Fiat payment rails (QRIS, bank transfer, PayNow, PromptPay, DuitNow, PIX, UPI,
+SEPA, ACH) and a stablecoin → fiat off-ramp are intentionally **out of the MVP**.
+The MVP serves merchants who can hold and use stablecoins. A fiat off-ramp is a
+later, explicit phase with its own custody and regulatory perimeter — not an
+assumption baked into the settlement port.
 
 ---
 

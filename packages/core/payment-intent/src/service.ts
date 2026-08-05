@@ -30,7 +30,13 @@ import {
   markProcessing as markIntentProcessing,
 } from "./intent.ts";
 import type { PaymentIntentRepository } from "./repository.ts";
-import type { MerchantSnapshot, PaymentIntent, PaymentRail, PaymentSource } from "./types.ts";
+import type {
+  ExecutionPath,
+  MerchantSnapshot,
+  PaymentIntent,
+  PaymentRail,
+  PaymentSource,
+} from "./types.ts";
 
 export interface CreatePaymentIntentCommand {
   readonly merchant: MerchantSnapshot;
@@ -39,6 +45,8 @@ export interface CreatePaymentIntentCommand {
   readonly settlementAsset?: AssetCode;
   readonly provider?: string;
   readonly payment?: PaymentRail;
+  /** How the `payment` rail is executed. Ignored for a fiat-only intent. */
+  readonly executionPath?: ExecutionPath;
   readonly metadata?: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;
   readonly ttlSeconds?: number;
@@ -58,6 +66,8 @@ export interface PaymentIntentServiceOptions {
   readonly defaults: {
     readonly settlementAsset: AssetCode;
     readonly provider: string;
+    /** Default execution path for an intent that names a `payment` rail. */
+    readonly executionPath: ExecutionPath;
     readonly ttlSeconds: number;
   };
 }
@@ -88,6 +98,19 @@ export class PaymentIntentService {
     const settlementAsset = command.settlementAsset ?? this.#defaults.settlementAsset;
     const provider = command.provider ?? this.#defaults.provider;
 
+    if (command.executionPath === "on-chain-contract" && command.payment === undefined) {
+      throw new ValidationError("on-chain-contract execution path requires a payment rail", {
+        executionPath: command.executionPath,
+      });
+    }
+    // The execution path only applies to an on-chain rail. A fiat-only intent
+    // (no `payment`) has no payer asset to execute, so it carries no path even
+    // if a default is configured.
+    const executionPath =
+      command.payment !== undefined
+        ? (command.executionPath ?? this.#defaults.executionPath)
+        : undefined;
+
     if (this.#registry !== undefined) {
       if (!(await this.#registry.isSettlementAsset(settlementAsset))) {
         throw new ValidationError(
@@ -108,7 +131,7 @@ export class PaymentIntentService {
       }
     }
 
-    const fingerprint = fingerprintOf({ ...command, settlementAsset, provider });
+    const fingerprint = fingerprintOf(command, settlementAsset, provider, executionPath);
 
     if (command.idempotencyKey !== undefined) {
       const existing = await this.#repository.findByIdempotencyKey(command.idempotencyKey);
@@ -129,6 +152,7 @@ export class PaymentIntentService {
       settlementAsset,
       provider,
       ...(command.payment === undefined ? {} : { payment: command.payment }),
+      ...(executionPath === undefined ? {} : { executionPath }),
       source: command.source,
       ...(command.metadata === undefined ? {} : { metadata: command.metadata }),
       ...(command.idempotencyKey === undefined ? {} : { idempotencyKey: command.idempotencyKey }),
@@ -228,14 +252,18 @@ export class PaymentIntentService {
  * whom, so a retry that only differs there is still the same payment.
  */
 function fingerprintOf(
-  command: CreatePaymentIntentCommand & { settlementAsset: AssetCode; provider: string },
+  command: CreatePaymentIntentCommand,
+  settlementAsset: AssetCode,
+  provider: string,
+  executionPath: ExecutionPath | undefined,
 ): string {
   const canonical = JSON.stringify([
     command.merchant.id,
     serializeMoney(command.amount),
-    command.settlementAsset,
-    command.provider,
+    settlementAsset,
+    provider,
     command.payment === undefined ? "none" : `${command.payment.chain}:${command.payment.asset}`,
+    executionPath ?? "default",
     command.source.type === "qr" ? command.source.payload : "manual",
   ]);
   return createHash("sha256").update(canonical).digest("hex");

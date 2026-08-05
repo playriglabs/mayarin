@@ -56,7 +56,12 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
   const intents = new PaymentIntentService({
     repository: intentRepository,
     clock,
-    defaults: { settlementAsset: "IDRX", provider: "mock", ttlSeconds: 900 },
+    defaults: {
+      settlementAsset: "IDRX",
+      provider: "mock",
+      executionPath: "deposit-match",
+      ttlSeconds: 900,
+    },
   });
   const ledger = new LedgerService({ repository: ledgerRepository, clock });
   const adapter = new MockSettlementAdapter({ clock });
@@ -106,6 +111,39 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     expect(loaded.amount).toEqual(money(5_000_000n, "IDR"));
     expect(loaded.source).toEqual({ type: "qr", scheme: "QRIS", payload: "00020101021226..." });
     expect(loaded.merchant.categoryCode).toBe("5411");
+  });
+
+  test("round-trips the execution path on an intent and its clearing transaction", async () => {
+    const created = await intents.create({
+      merchant: {
+        id: "ID1020017611473",
+        name: "Warung Kopi Mayarin",
+        city: "Jakarta",
+        countryCode: "ID",
+        categoryCode: "5411",
+      },
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "qr", scheme: "QRIS", payload: "00020101021226..." },
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      executionPath: "on-chain-contract",
+    });
+    const loaded = await intents.getById(created.id);
+    expect(loaded.executionPath).toBe("on-chain-contract");
+
+    const { transaction, event } = createClearingTransaction(loaded, clock.now());
+    await clearingRepository.insert(transaction, [event]);
+    expect((await clearingRepository.findById(transaction.id))?.executionPath).toBe(
+      "on-chain-contract",
+    );
+  });
+
+  test("a fiat-only intent and its transaction carry no execution path", async () => {
+    const intent = await confirmedIntent();
+    expect(intent.executionPath).toBeUndefined();
+
+    const { transaction, event } = createClearingTransaction(intent, clock.now());
+    await clearingRepository.insert(transaction, [event]);
+    expect((await clearingRepository.findById(transaction.id))?.executionPath).toBeUndefined();
   });
 
   test("enforces optimistic locking", async () => {

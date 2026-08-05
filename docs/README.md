@@ -51,4 +51,4 @@ moves through them.
 
 ---
 
-> **Build once. Settle anywhere.**
+> **Price in fiat. Settle in stablecoins. Pay with anything.**

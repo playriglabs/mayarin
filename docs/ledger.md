@@ -47,8 +47,18 @@ Net effect: treasury keeps the fee, the merchant's claim is extinguished only
 once the rail confirms delivery, and value in flight is visible at all times.
 An external settlement returns the net to treasury (the rail paid the merchant
 outside Mayarin); an internal settlement credits the net to a merchant holding
-liability the merchant can withdraw on-chain in Phase 4, so treasury retains the
-full settlement amount.
+liability the merchant can withdraw on-chain, so treasury retains the full
+settlement amount.
+
+### Derived from on-chain _(Phase 3)_
+
+The postings above are the shipped off-chain path. Once `PaymentRouter.sol`
+executes on-chain, the ledger becomes a **derived view** of on-chain truth: an
+indexer consumes `PaymentCompleted` events and posts the entries, keyed
+idempotently by `(chain, txHash, logIndex)`. The double-entry invariant is
+unchanged; what changes is the source — the chain is truth, the ledger is a
+derived, reconciled projection. Divergence (missed event, reorg, indexing lag,
+under/over payment) is detected and surfaced, not silently absorbed.
 
 ---
 

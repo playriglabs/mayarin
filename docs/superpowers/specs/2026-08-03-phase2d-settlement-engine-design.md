@@ -1,5 +1,11 @@
 # Phase 2D — Settlement Engine
 
+> **Historical design record — 2026-08-03.** This documents Phase 2 as shipped.
+> The product has since pivoted to crypto-commerce infrastructure. On-chain
+> settlement to the merchant's managed wallet (Phase 3, `PaymentRouter.sol`) is
+> the primary path; the off-chain `SettlementAdapter` port remains as the
+> fallback deposit-matching path's settlement. See [Roadmap](../../roadmap.md).
+
 > Status: design record. Builds on the Phase 2A chain layer, the Phase 2B
 > stablecoin registry, and the Phase 2C liquidity router.
 

@@ -74,7 +74,12 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     repository: intents,
     clock,
     events,
-    defaults: { settlementAsset: "IDRX", provider: "mock", ttlSeconds: 900 },
+    defaults: {
+      settlementAsset: "IDRX",
+      provider: "mock",
+      executionPath: "deposit-match",
+      ttlSeconds: 900,
+    },
   });
 
   const sessionService = new SessionService({

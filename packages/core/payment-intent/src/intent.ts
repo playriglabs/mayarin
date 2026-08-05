@@ -15,6 +15,7 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import type {
+  ExecutionPath,
   MerchantSnapshot,
   PaymentIntent,
   PaymentIntentStatus,
@@ -40,6 +41,8 @@ export interface CreatePaymentIntentInput {
   readonly settlementAsset: AssetCode;
   readonly provider: string;
   readonly payment?: PaymentRail;
+  /** How the `payment` rail is executed. Absent for a fiat-only intent. */
+  readonly executionPath?: ExecutionPath;
   readonly source: PaymentSource;
   readonly metadata?: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;
@@ -72,6 +75,7 @@ export function createPaymentIntent(input: CreatePaymentIntentInput): PaymentInt
     settlementAsset: input.settlementAsset,
     provider: input.provider,
     ...(input.payment === undefined ? {} : { payment: input.payment }),
+    ...(input.executionPath === undefined ? {} : { executionPath: input.executionPath }),
     source: input.source,
     metadata: input.metadata ?? {},
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: input.idempotencyKey }),

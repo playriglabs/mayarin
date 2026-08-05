@@ -84,6 +84,21 @@ and the Liquidity Router has nothing to convert. See [Chain Layer](./chain.md)
 for the deposit addresses and confirmation policy that turn the second quote into
 a received amount.
 
+### On-chain execution _(Phase 3, primary path)_
+
+The two-lock model above is the shipped deposit-matching path. The on-chain path
+simplifies it: the hard lock is the **merchant's settlement amount** (`minOut`),
+and the customer's payer-asset amount becomes a **display estimate**, not a
+custody lock — `PaymentRouter.sol` swaps whatever the customer sends. Atomicity
+plus a hard revert on `minOut` miss removes the treasury FX risk the two-lock
+model carries between lock and receipt. The state machine above is unchanged;
+the difference is where execution happens (contract vs. off-chain) and which
+lock is hard. The path is a discriminator on the payment intent
+(`ExecutionPath`: `deposit-match` | `on-chain-contract`), persisted on the
+clearing transaction and set from the `EXECUTION_PATH` config default; the
+contract variant is a throwing stub at the lock step until Phase 3 implements
+it, so a contract-path payment fails cleanly without moving value.
+
 ---
 
 ## Related
