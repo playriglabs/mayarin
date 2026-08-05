@@ -219,7 +219,7 @@ packages/
       ✓ auth/             merchant/user/session domain, PasswordHasher port
       · commerce/         Phase 4 product catalog, prices, carts → payment intents
       ✓ quote/            quote engine — guarded composition shipped; lock, TTL, signing follow (#39–#41)
-      ✓ execution/        execution engine — SwapVenue port + planner shipped; venues, selection, calldata follow (#45–#49)
+      ✓ execution/        execution engine — SwapVenue port, planner, venue selection shipped; venue adapters + calldata follow (#45–#47, #49)
 
     contracts/            Phase 3 PaymentRouter.sol — on-chain execution layer
       · payment-router/
