@@ -288,6 +288,16 @@
         "zod": "^3.24.1",
       },
     },
+    "packages/providers/swap-lifi": {
+      "name": "@mayarin/provider-swap-lifi",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/clearing": "workspace:*",
+        "@mayarin/execution": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+        "zod": "^3.24.1",
+      },
+    },
     "packages/providers/swap-uniswap": {
       "name": "@mayarin/provider-swap-uniswap",
       "version": "0.1.0",
@@ -875,6 +885,8 @@
     "@mayarin/provider-stablecoin": ["@mayarin/provider-stablecoin@workspace:packages/providers/stablecoin"],
 
     "@mayarin/provider-swap-0x": ["@mayarin/provider-swap-0x@workspace:packages/providers/swap-0x"],
+
+    "@mayarin/provider-swap-lifi": ["@mayarin/provider-swap-lifi@workspace:packages/providers/swap-lifi"],
 
     "@mayarin/provider-swap-uniswap": ["@mayarin/provider-swap-uniswap@workspace:packages/providers/swap-uniswap"],
 

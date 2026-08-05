@@ -234,6 +234,7 @@ packages/
       · zerodev/          Phase 3 gas abstraction / paymaster / relayer
       ✓ swap-0x/          ZeroExSwapVenue — SwapVenue over the 0x Swap API v2 price read
       ✓ swap-uniswap/     UniswapSwapVenue — SwapVenue over the QuoterV2 exact-input read
+      ✓ swap-lifi/        LifiSwapVenue — SwapVenue over the LiFi quote API, same-chain only
       ✓ pyth/             PythPriceOracle — Hermes reference read for the deviation guard
       ✓ chainlink/        ChainlinkPriceOracle — AggregatorV3 reference read via viem
 
