@@ -218,7 +218,7 @@ packages/
       ✓ stablecoin/       StablecoinRegistry port and value types — the admissible set
       ✓ auth/             merchant/user/session domain, PasswordHasher port
       · commerce/         Phase 4 product catalog, prices, carts → payment intents
-      ✓ quote/            quote engine — guarded composition shipped; lock, TTL, signing follow (#39–#41)
+      ✓ quote/            quote engine — guarded composition, lock, EIP-712 order assembly + OrderSigner port shipped; signer custody follows (#41)
       ✓ execution/        execution engine — SwapVenue port, planner, venue selection shipped; venue adapters + calldata follow (#45–#47, #49)
 
     contracts/            Phase 3 PaymentRouter.sol — on-chain execution layer
