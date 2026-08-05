@@ -234,7 +234,7 @@ packages/
       · zerodev/          Phase 3 gas abstraction / paymaster / relayer
       · swap-0x/          Phase 3 0x Protocol swap source
       · swap-uniswap/     Phase 3 Uniswap swap source
-      · pyth/             Phase 3 Pyth price oracle
+      ✓ pyth/             PythPriceOracle — Hermes reference read for the deviation guard
       · chainlink/         Phase 3 Chainlink price oracle
 
   ✓ db/                   Drizzle schema, repositories, in-memory adapters
