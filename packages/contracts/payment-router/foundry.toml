@@ -4,18 +4,30 @@ evm_version = "cancun"
 src = "src"
 test = "test"
 out = "out"
-libs = ["dependencies"]
+libs = ["lib", "../../../node_modules/@openzeppelin/contracts"]
 optimizer = true
 optimizer_runs = 200
-remappings = ["forge-std/=dependencies/forge-std-1.9.4/src/"]
+via_ir = true
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    # OpenZeppelin via npm (canonical distribution); bun hoists to repo-root node_modules.
+    "@openzeppelin/contracts/=../../../node_modules/@openzeppelin/contracts/",
+]
+
+# Read-only access to the sibling ABI package, so the EIP-712 order-hash vectors
+# (#24) have one committed source that both this suite and the TS suite assert
+# against instead of two copies that can drift.
+fs_permissions = [{access = "read", path = "../abis/vectors"}]
 
 [fmt]
 line_length = 100
 tab_width = 4
 bracket_spacing = false
 
-[soldeer]
-remappings_generate = false
+[fuzz]
+runs = 1000
 
-[dependencies]
-forge-std = "1.9.4"
+[invariant]
+runs = 256
+depth = 20
+fail_on_revert = false

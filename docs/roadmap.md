@@ -213,6 +213,8 @@ commerce platform (Shopify), not payment infrastructure (Stripe).
 - ☐ Managed smart-account provisioning (Safe default)
 - ☐ Policy-gated signing — backend proposes within policy, never signs raw
 - ☐ Connect-existing wallet (Safe, EOA) — additive, not a rewrite
+- ☐ Merchant is a Safe signer (Turnkey co-signs, never sole) + merchant-controlled recovery — self-custody enforced
+- ☐ PaymentRouter signer allowlists `merchantSafe` to known merchant-owned Safes (RFC #6)
 
 Merchants never connect MetaMask, import keys, or manage seed phrases. A
 managed settlement wallet is provisioned on account creation. **Safe smart
@@ -222,6 +224,17 @@ custodian. **Turnkey** is the wallet provider: an MPC policy engine that
 provisions and signs for managed wallets under policy. **Tempo** is an
 alternative MPC wallet-infra backend, considered as a swappable option behind
 the same port.
+
+**Custody boundary.** Self-custody is enforced, not asserted: the Safe signer
+set always includes a merchant-controlled key (Turnkey is a co-signer/policy
+engine, never the sole signer), and a merchant-controlled recovery path lets
+the merchant rotate to self-custody on exit — _provisioned, not custodial._
+The PaymentRouter signer (#6, HSM-held) only signs Orders whose `merchantSafe`
+is a known merchant-owned Safe, and `feeRecipient` is a separate treasury Safe,
+not a merchant Safe. The Phase 3 contract settles to `merchantSafe` today;
+until #11 lands, the contract path uses a merchant-provided address (the
+contract treats `merchantSafe` as opaque), so #11 makes managed onboarding
+production-grade without a contract change.
 
 ### Settlement
 

@@ -1,0 +1,12 @@
+{
+  "remappings": [
+    "@openzeppelin/contracts/=/Users/ky/Desktop/mayarr/node_modules/@openzeppelin/contracts/",
+    "forge-std/=/Users/ky/Desktop/mayarr/packages/contracts/payment-router/dependencies/forge-std-1.9.4/src/"
+  ],
+  "evmVersion": "cancun",
+  "viaIR": true,
+  "optimizer": {
+    "enabled": true,
+    "runs": 200
+  }
+}
