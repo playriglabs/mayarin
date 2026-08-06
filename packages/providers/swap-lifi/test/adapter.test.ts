@@ -207,3 +207,76 @@ describe("LifiSwapVenue", () => {
     expect(venue(fn).quote("ETH", "USDC", ONE_ETH)).rejects.toThrow(ProviderError);
   });
 });
+
+const PAYMENT_ROUTER = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";
+const LIFI_DIAMOND = "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE";
+
+const ROUTE_REQUEST = {
+  payerAsset: "ETH",
+  settlementAsset: "USDC",
+  amount: ONE_ETH,
+  recipient: PAYMENT_ROUTER,
+  minOut: 3_700_000_000n,
+} as const;
+
+function routeBody(overrides: Partial<{ to: string; data: string; value?: string }> = {}) {
+  return {
+    transactionRequest: {
+      to: overrides.to ?? LIFI_DIAMOND,
+      data: overrides.data ?? "0xcafebabe",
+      ...(overrides.value === undefined ? {} : { value: overrides.value }),
+    },
+  };
+}
+
+describe("LifiSwapVenue.route", () => {
+  test("prices for the router on both sides and returns the transaction", async () => {
+    const { calls, fn } = stubFetch(() => json(routeBody()));
+    const route = await venue(fn).route(ROUTE_REQUEST);
+
+    expect(route).toEqual({
+      venue: "lifi",
+      to: LIFI_DIAMOND,
+      data: "0xcafebabe",
+      value: 0n,
+    });
+    expect(calls[0]?.url).toContain(`fromAddress=${PAYMENT_ROUTER}`);
+    expect(calls[0]?.url).toContain(`toAddress=${PAYMENT_ROUTER}`);
+    expect(calls[0]?.url).toContain("fromChain=8453");
+    expect(calls[0]?.url).toContain("toChain=8453");
+  });
+
+  test("a hex native value reaches the route as a bigint", async () => {
+    const { fn } = stubFetch(() => json(routeBody({ value: "0xde0b6b3a7640000" })));
+    const route = await venue(fn).route(ROUTE_REQUEST);
+
+    expect(route.value).toBe(10n ** 18n);
+  });
+
+  test("a malformed recipient is refused before any network call", async () => {
+    const { calls, fn } = stubFetch(() => json(routeBody()));
+
+    expect(venue(fn).route({ ...ROUTE_REQUEST, recipient: "0xdeadbeef" })).rejects.toThrow(
+      ValidationError,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  test("a response without a transaction request is a ProviderError", async () => {
+    const { fn } = stubFetch(() => json(quoteBody()));
+
+    expect(venue(fn).route(ROUTE_REQUEST)).rejects.toThrow(ProviderError);
+  });
+
+  test("a pair with no configured tokens throws ConfigurationError", async () => {
+    const { fn } = stubFetch(() => json(routeBody()));
+    const request = {
+      ...ROUTE_REQUEST,
+      payerAsset: "USDC",
+      settlementAsset: "ETH",
+      amount: money(1_000_000n, "USDC"),
+    } as const;
+
+    expect(venue(fn).route(request)).rejects.toThrow(ConfigurationError);
+  });
+});

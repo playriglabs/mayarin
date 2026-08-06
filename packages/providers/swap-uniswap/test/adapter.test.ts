@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { money, ValidationError } from "@mayarin/shared";
+import { decodeFunctionData, parseAbi } from "viem";
 import { type UniswapPool, UniswapSwapVenue } from "../src/adapter.ts";
 import { scaleSwapRate } from "../src/quoter.ts";
 
@@ -78,6 +79,86 @@ describe("UniswapSwapVenue validation", () => {
     const venue = new UniswapSwapVenue({ rpcUrls: {}, quoters: {}, pools: ETH_USDC_POOL });
 
     expect(venue.quote("ETH", "USDC", money(0n, "ETH"))).rejects.toThrow(ValidationError);
+  });
+});
+
+const SWAP_ROUTER = "0x2626664c2603336E57B271c5C0b26F421741e481";
+const PAYMENT_ROUTER = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
+
+const ROUTE_REQUEST = {
+  payerAsset: "ETH",
+  settlementAsset: "USDC",
+  amount: ONE_ETH,
+  recipient: PAYMENT_ROUTER,
+  minOut: 3_700_000_000n,
+} as const;
+
+function routingVenue(pools: Record<string, UniswapPool> = ETH_USDC_POOL) {
+  return new UniswapSwapVenue({
+    rpcUrls: {},
+    quoters: {},
+    routers: { base: SWAP_ROUTER },
+    pools,
+  });
+}
+
+describe("UniswapSwapVenue.route", () => {
+  test("encodes exactInputSingle with the router as recipient and the lock as the floor", async () => {
+    const route = await routingVenue().route(ROUTE_REQUEST);
+
+    expect(route.venue).toBe("uniswap");
+    expect(route.to).toBe(SWAP_ROUTER);
+    expect(route.value).toBe(0n);
+
+    const decoded = decodeFunctionData({
+      abi: parseAbi([
+        "struct ExactInputSingleParams { address tokenIn; address tokenOut; uint24 fee; address recipient; uint256 amountIn; uint256 amountOutMinimum; uint160 sqrtPriceLimitX96; }",
+        "function exactInputSingle(ExactInputSingleParams params) payable returns (uint256 amountOut)",
+      ]),
+      data: route.data,
+    });
+    expect(decoded.functionName).toBe("exactInputSingle");
+    expect(decoded.args[0]).toEqual({
+      tokenIn: WETH,
+      tokenOut: USDC,
+      fee: 500,
+      recipient: PAYMENT_ROUTER,
+      amountIn: 10n ** 18n,
+      amountOutMinimum: 3_700_000_000n,
+      sqrtPriceLimitX96: 0n,
+    });
+  });
+
+  test("a nativeIn pool carries the amount as native value", async () => {
+    const venue = routingVenue({
+      "ETH/USDC": { chain: "base", tokenIn: WETH, tokenOut: USDC, fee: 500, nativeIn: true },
+    });
+
+    const route = await venue.route(ROUTE_REQUEST);
+    expect(route.value).toBe(10n ** 18n);
+  });
+
+  test("a pool on a chain with no router throws ConfigurationError", async () => {
+    const venue = new UniswapSwapVenue({ rpcUrls: {}, quoters: {}, pools: ETH_USDC_POOL });
+
+    expect(venue.route(ROUTE_REQUEST)).rejects.toThrow(/No Uniswap router/i);
+  });
+
+  test("a pair with no configured pool throws ConfigurationError", async () => {
+    const request = {
+      ...ROUTE_REQUEST,
+      payerAsset: "USDC",
+      settlementAsset: "ETH",
+      amount: money(1_000_000n, "USDC"),
+    } as const;
+
+    expect(routingVenue().route(request)).rejects.toThrow(/No Uniswap pool/i);
+  });
+
+  test("a malformed recipient is refused", async () => {
+    expect(routingVenue().route({ ...ROUTE_REQUEST, recipient: "0xnope" })).rejects.toThrow(
+      ValidationError,
+    );
   });
 });
 

@@ -27,6 +27,26 @@ export const lifiQuoteResponseSchema = z.object({
 
 export type LifiQuoteResponse = z.infer<typeof lifiQuoteResponseSchema>;
 
+const addressString = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
+const hexData = z.custom<`0x${string}`>(
+  (value) => typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value),
+);
+/** LiFi serialises the native value as 0x-prefixed hex, unlike 0x's decimal. */
+const hexQuantity = z.string().regex(/^0x[0-9a-fA-F]+$/);
+
+/** The same `/v1/quote` response, read for execution (#57): the transaction. */
+export const lifiRouteResponseSchema = z.object({
+  transactionRequest: z.object({
+    /** The LiFi diamond the `PaymentRouter` calls and approves. */
+    to: addressString,
+    data: hexData,
+    /** Native value as a hex quantity; absent for ERC-20 sells. */
+    value: hexQuantity.optional(),
+  }),
+});
+
+export type LifiRouteResponse = z.infer<typeof lifiRouteResponseSchema>;
+
 /**
  * Lifts a priced swap (`fromAmount` minor units of `from` into `toAmount`
  * minor units of `to`) into minor units of `to` per whole unit of `from`:
