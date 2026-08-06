@@ -11,28 +11,24 @@
  * re-declares them, so a contract change surfaces as a type error rather than a
  * silently wrong selector.
  *
- * **What this does not do.** The `route` is an input, not something this module
- * fetches. The venue adapters are quote-only today — `SwapVenue.quote()` returns
- * a `PriceQuote` with no calldata — so producing an executable route is #57. Given
- * one, this builds the call.
+ * **Where the route comes from.** A `SwapRouteSource` (#57): the venue
+ * adapters produce the exact-output `ExecutableRoute`, and this module
+ * consumes that port type directly — one route shape across the codebase.
+ * Freshness (`expiresAt`) stays the submitter's check, because encoding is
+ * pure and has no clock.
  */
 
 import { type Order, paymentRouterAbi } from "@mayarin/contracts";
+import type { ExecutableRoute } from "@mayarin/execution";
 import { ValidationError } from "@mayarin/shared";
-import { type Address, encodeAbiParameters, encodeFunctionData, type Hex, zeroAddress } from "viem";
-
-/**
- * An executable swap: the DEX router to call and the calldata that performs the
- * swap. The route must deliver the settlement asset **to the PaymentRouter** —
- * the contract measures its own balance delta, so a route paying the merchant
- * directly settles nothing and reverts on `minOut`.
- */
-export interface SwapRoute {
-  /** Whitelisted DEX router. Rejected on-chain if not whitelisted. */
-  readonly router: Address;
-  /** Calldata that performs the swap, recipient = the PaymentRouter. */
-  readonly callData: Hex;
-}
+import {
+  type Address,
+  encodeAbiParameters,
+  encodeFunctionData,
+  getAddress,
+  type Hex,
+  zeroAddress,
+} from "viem";
 
 /** A transaction ready to submit — everything except gas, nonce and chain. */
 export interface RouterCall {
@@ -112,10 +108,10 @@ export function buildPayEthCall(args: {
   readonly paymentRouter: Address;
   readonly order: Order;
   readonly signature: Hex;
-  readonly route: SwapRoute;
+  readonly route: ExecutableRoute;
   readonly value: bigint;
 }): RouterCall {
-  requireRoute(args.route);
+  const router = requireRoute(args.route);
   if (args.value <= 0n) {
     throw new ValidationError("payEth needs a positive native value", {
       value: args.value.toString(),
@@ -126,7 +122,7 @@ export function buildPayEthCall(args: {
     data: encodeFunctionData({
       abi: paymentRouterAbi,
       functionName: "payEth",
-      args: [args.order, args.signature, args.route.router, args.route.callData],
+      args: [args.order, args.signature, router, args.route.callData],
     }),
     value: args.value,
   };
@@ -148,7 +144,7 @@ export function buildPayERC20Call(args: {
   readonly signature: Hex;
   readonly permit: Permit2Single;
   readonly permitSignature: Hex;
-  readonly route?: SwapRoute;
+  readonly route?: ExecutableRoute;
 }): RouterCall {
   if (args.permit.spender !== args.paymentRouter) {
     throw new ValidationError("The permit spender must be the PaymentRouter", {
@@ -156,9 +152,7 @@ export function buildPayERC20Call(args: {
       paymentRouter: args.paymentRouter,
     });
   }
-  if (args.route) {
-    requireRoute(args.route);
-  }
+  const router = args.route ? requireRoute(args.route) : zeroAddress;
   return {
     to: args.paymentRouter,
     data: encodeFunctionData({
@@ -168,7 +162,7 @@ export function buildPayERC20Call(args: {
         args.order,
         encodePermitData(args.permit, args.permitSignature),
         args.signature,
-        args.route?.router ?? zeroAddress,
+        router,
         args.route?.callData ?? "0x",
       ],
     }),
@@ -176,12 +170,27 @@ export function buildPayERC20Call(args: {
   };
 }
 
-/** Mirrors the contract's `NoRoute` check, so a bad route fails before it costs gas. */
-function requireRoute(route: SwapRoute): void {
-  if (route.router === zeroAddress || route.callData === "0x") {
+/**
+ * Mirrors the contract's `NoRoute` check, so a bad route fails before it
+ * costs gas, and returns the checksummed router address the encoder needs —
+ * the port carries `router` as a plain string.
+ */
+function requireRoute(route: ExecutableRoute): Address {
+  let router: Address;
+  try {
+    router = getAddress(route.router);
+  } catch (error) {
+    throw new ValidationError(
+      "The route router is not a valid address",
+      { router: route.router },
+      { cause: error },
+    );
+  }
+  if (router === zeroAddress || route.callData === "0x") {
     throw new ValidationError("A cross-asset payment needs a router and swap calldata", {
       router: route.router,
       callDataLength: route.callData.length,
     });
   }
+  return router;
 }

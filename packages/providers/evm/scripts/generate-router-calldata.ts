@@ -18,6 +18,8 @@
  */
 
 import type { Order } from "@mayarin/contracts";
+import type { ExecutableRoute } from "@mayarin/execution";
+import { money } from "@mayarin/shared";
 import { privateKeyToAccount } from "viem/accounts";
 import { buildPayERC20Call, buildPayEthCall, type Permit2Single } from "../src/payment-router.ts";
 
@@ -62,11 +64,18 @@ const crossAssetPermit: Permit2Single = {
   sigDeadline: 2_000_000_000n,
 };
 
+const route: ExecutableRoute = {
+  router: dex,
+  callData: swapCallData,
+  expectedIn: money(value, "ETH"),
+  source: "fixture",
+};
+
 const payEth = buildPayEthCall({
   paymentRouter,
   order,
   signature,
-  route: { router: dex, callData: swapCallData },
+  route,
   value,
 });
 
@@ -76,7 +85,7 @@ const payErc20Cross = buildPayERC20Call({
   signature,
   permit: crossAssetPermit,
   permitSignature,
-  route: { router: dex, callData: swapCallData },
+  route,
 });
 
 const payErc20Same = buildPayERC20Call({

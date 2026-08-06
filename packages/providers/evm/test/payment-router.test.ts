@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { type Order, paymentRouterAbi } from "@mayarin/contracts";
-import { ValidationError } from "@mayarin/shared";
+import type { ExecutableRoute } from "@mayarin/execution";
+import { money, ValidationError } from "@mayarin/shared";
 import { decodeFunctionData, zeroAddress } from "viem";
 import {
   buildPayERC20Call,
   buildPayEthCall,
   encodePermitData,
   type Permit2Single,
-  type SwapRoute,
 } from "../src/payment-router.ts";
 
 const PAYMENT_ROUTER = "0x00000000000000000000000000000000000c0de5" as const;
@@ -26,7 +26,13 @@ const order: Order = {
 
 const signature = `0x${"ab".repeat(65)}` as const;
 const permitSignature = `0x${"cd".repeat(65)}` as const;
-const route: SwapRoute = { router: DEX, callData: "0xdeadbeef" };
+// The port's exact-output route shape (#57).
+const route: ExecutableRoute = {
+  router: DEX,
+  callData: "0xdeadbeef",
+  expectedIn: money(10n ** 18n, "ETH"),
+  source: "test",
+};
 
 /** viem checksums addresses when it decodes; compare on a single casing. */
 function lowerOrder(o: Order): Order {
@@ -75,7 +81,7 @@ describe("buildPayEthCall", () => {
         paymentRouter: PAYMENT_ROUTER,
         order,
         signature,
-        route: { router: zeroAddress, callData: "0xdeadbeef" },
+        route: { ...route, router: zeroAddress },
         value: 1n,
       }),
     ).toThrow(ValidationError);
@@ -85,7 +91,19 @@ describe("buildPayEthCall", () => {
         paymentRouter: PAYMENT_ROUTER,
         order,
         signature,
-        route: { router: DEX, callData: "0x" },
+        route: { ...route, callData: "0x" },
+        value: 1n,
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  test("rejects a malformed router address before encoding", () => {
+    expect(() =>
+      buildPayEthCall({
+        paymentRouter: PAYMENT_ROUTER,
+        order,
+        signature,
+        route: { ...route, router: "not-an-address" },
         value: 1n,
       }),
     ).toThrow(ValidationError);
