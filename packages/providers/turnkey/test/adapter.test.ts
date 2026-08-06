@@ -19,6 +19,7 @@ const typedData: OrderTypedData = {
   primaryType: "Order",
   message: {
     intentId: "0x0000000000000000000000000000000000000000000000000000000000000001",
+    settlementToken: "0x000000000000000000000000000000000000c0de",
     minOut: 100_000_000n,
     fee: 1_000_000n,
     merchantSafe: "0x000000000000000000000000000000000000bEEF",

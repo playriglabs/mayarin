@@ -13,7 +13,7 @@ library OrderHash {
     /// @dev Primary type. Field order MUST match `IPaymentRouter.Order` exactly;
     ///      changing either side without the other breaks signature verification.
     string internal constant ORDER_TYPE =
-        "Order(bytes32 intentId,uint256 minOut,uint256 fee,address merchantSafe,address refundTo,uint256 deadline)";
+        "Order(bytes32 intentId,address settlementToken,uint256 minOut,uint256 fee,address merchantSafe,address refundTo,uint256 deadline)";
 
     bytes32 internal constant ORDER_TYPEHASH = keccak256(bytes(ORDER_TYPE));
 
@@ -25,6 +25,7 @@ library OrderHash {
             abi.encode(
                 ORDER_TYPEHASH,
                 order.intentId,
+                order.settlementToken,
                 order.minOut,
                 order.fee,
                 order.merchantSafe,

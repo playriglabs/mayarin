@@ -54,6 +54,7 @@ contract PaymentRouterTest is Harness {
 
         IPaymentRouter.Order memory o = IPaymentRouter.Order({
             intentId: vm.parseJsonBytes32(json, ".order.intentId"),
+            settlementToken: vm.parseJsonAddress(json, ".order.settlementToken"),
             minOut: vm.parseJsonUint(json, ".order.minOut"),
             fee: vm.parseJsonUint(json, ".order.fee"),
             merchantSafe: vm.parseJsonAddress(json, ".order.merchantSafe"),

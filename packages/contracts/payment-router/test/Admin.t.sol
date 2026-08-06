@@ -77,7 +77,7 @@ contract AdminTest is Test, SigHelpers {
             guardian: guardian,
             feeRecipient_: treasury,
             signer_: signerAddr,
-            settlementToken_: address(usdc),
+            settlementAssets: _oneSettlementAsset(address(usdc)),
             permit2_: address(permit2)
         });
 
@@ -122,7 +122,7 @@ contract AdminTest is Test, SigHelpers {
         view
         returns (IPaymentRouter.Order memory)
     {
-        return makeOrder(INTENT, minOut, fee, merchant, customer, deadline);
+        return makeOrder(INTENT, address(usdc), minOut, fee, merchant, customer, deadline);
     }
 
     function _sign(IPaymentRouter.Order memory o) internal returns (bytes memory) {
@@ -302,7 +302,7 @@ contract AdminTest is Test, SigHelpers {
 
         // A fresh intent is blocked while paused.
         bytes32 id2 = keccak256("intent-admin-2");
-        IPaymentRouter.Order memory o2 = makeOrder(id2, 100e6, 1e6, merchant, customer, block.timestamp + 3600);
+        IPaymentRouter.Order memory o2 = makeOrder(id2, address(usdc), 100e6, 1e6, merchant, customer, block.timestamp + 3600);
         bytes memory sig2 = signOrder(address(router), o2, signerPk);
         vm.prank(customer);
         vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));

@@ -16,6 +16,7 @@ const WETH = "0x000000000000000000000000000000000000e701" as const;
 
 const order: Order = {
   intentId: "0x0000000000000000000000000000000000000000000000000000000000000001",
+  settlementToken: "0x000000000000000000000000000000000000c0de",
   minOut: 100_000_000n,
   fee: 1_000_000n,
   merchantSafe: "0x000000000000000000000000000000000000bEEF",
@@ -31,6 +32,7 @@ const route: SwapRoute = { router: DEX, callData: "0xdeadbeef" };
 function lowerOrder(o: Order): Order {
   return {
     ...o,
+    settlementToken: o.settlementToken.toLowerCase() as Order["settlementToken"],
     merchantSafe: o.merchantSafe.toLowerCase() as Order["merchantSafe"],
     refundTo: o.refundTo.toLowerCase() as Order["refundTo"],
   };

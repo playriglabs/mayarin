@@ -31,6 +31,7 @@ const usdc = "0x000000000000000000000000000000000000c0de" as const;
 /** Far-future deadline, so the contract gets past the expiry check to the signature. */
 const order: Order = {
   intentId: "0x0000000000000000000000000000000000000000000000000000000000000001",
+  settlementToken: "0x000000000000000000000000000000000000c0de",
   minOut: 100_000_000n,
   fee: 1_000_000n,
   merchantSafe: "0x000000000000000000000000000000000000bEEF",
@@ -92,6 +93,7 @@ const fixture = {
     "Verified from Solidity in packages/contracts/payment-router/test/RouterCalldata.t.sol.",
   order: {
     intentId: order.intentId,
+    settlementToken: order.settlementToken,
     minOut: order.minOut.toString(),
     fee: order.fee.toString(),
     merchantSafe: order.merchantSafe,

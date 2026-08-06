@@ -62,10 +62,6 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     // Immutables
     // ---------------------------------------------------------------------
 
-    /// @dev The single settlement asset for this router instance. `minOut` and
-    ///      `fee` are denominated in this token's minor units. One router per
-    ///      (chain, settlement asset); multiple assets need separate instances.
-    IERC20 public immutable settlementToken;
     /// @dev Canonical Uniswap Permit2; the contract pulls ERC-20 inputs through it.
     IPermit2 public immutable permit2;
 
@@ -86,6 +82,11 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     mapping(address => bool) public isRouterWhitelisted;
     /// @dev Admissible ERC-20 input assets. Native is always admissible (payEth).
     mapping(address => bool) public isInputAssetWhitelisted;
+    /// @dev Admissible settlement assets — what a merchant may be paid in. Each
+    ///      order names one, so a single router serves merchants settling in
+    ///      different stablecoins. Whitelisting bounds the signer: it can choose
+    ///      among admitted assets, never introduce one.
+    mapping(address => bool) public isSettlementAssetWhitelisted;
 
     // ---------------------------------------------------------------------
     // Events
@@ -109,6 +110,8 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     event RouterRemoved(address indexed router);
     event InputAssetWhitelisted(address indexed asset);
     event InputAssetRemoved(address indexed asset);
+    event SettlementAssetWhitelisted(address indexed asset);
+    event SettlementAssetRemoved(address indexed asset);
     event FeeRecipientUpdated(address indexed feeRecipient);
     event SignerUpdated(address indexed signer);
 
@@ -124,9 +127,11 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     error NoRoute();
     error RouterNotWhitelisted(address router);
     error AssetNotWhitelisted(address asset);
+    error SettlementAssetNotWhitelisted(address asset);
     error MinOutNotMet(uint256 output, uint256 minOut);
     error RestingBalance(uint256 native, uint256 token);
     error NativeRefundFailed();
+    error NoSettlementAsset();
     error UnexpectedNative();
     error ZeroAddress();
 
@@ -157,28 +162,40 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     /// @param guardian         Instant pause/unpause holder (multisig).
     /// @param feeRecipient_    Treasury.
     /// @param signer_          Backend quote-signing key.
-    /// @param settlementToken_ The settlement ERC-20 (e.g. USDC on Base).
+    /// @param settlementAssets Stablecoins merchants may settle in, whitelisted at
+    ///                         deploy. Bootstrap only: without at least one the
+    ///                         router cannot serve any payment, and adding one
+    ///                         later costs the full timelock delay. Everything
+    ///                         after this goes through `addSettlementAsset`.
     /// @param permit2_         Canonical Permit2 address for this chain.
     constructor(
         address timelock,
         address guardian,
         address feeRecipient_,
         address signer_,
-        address settlementToken_,
+        address[] memory settlementAssets,
         address permit2_
     ) EIP712("Mayarin PaymentRouter", "1") {
         if (
             timelock == address(0) || guardian == address(0) || feeRecipient_ == address(0)
-                || signer_ == address(0) || settlementToken_ == address(0) || permit2_ == address(0)
+                || signer_ == address(0) || permit2_ == address(0)
         ) {
             revert ZeroAddress();
+        }
+        if (settlementAssets.length == 0) {
+            revert NoSettlementAsset();
         }
         // Role management is itself delayed: DEFAULT_ADMIN lives on the timelock,
         // so granting a new guardian/config requires a timelock operation.
         _grantRole(DEFAULT_ADMIN_ROLE, timelock);
         _grantRole(GUARDIAN_ROLE, guardian);
         _grantRole(CONFIG_ROLE, timelock);
-        settlementToken = IERC20(settlementToken_);
+        for (uint256 index = 0; index < settlementAssets.length; index += 1) {
+            address asset = settlementAssets[index];
+            if (asset == address(0)) revert ZeroAddress();
+            isSettlementAssetWhitelisted[asset] = true;
+            emit SettlementAssetWhitelisted(asset);
+        }
         permit2 = IPermit2(permit2_);
         feeRecipient = feeRecipient_;
         signer = signer_;
@@ -221,7 +238,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         // what the contract held before this call.
         Baseline memory baseline = Baseline({
             native: address(this).balance - msg.value,
-            settlement: settlementToken.balanceOf(address(this)),
+            settlement: IERC20(order.settlementToken).balanceOf(address(this)),
             input: 0
         });
         _execute(order, address(0), msg.value, router, data, true, baseline);
@@ -240,7 +257,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         address inputAsset = permit.details.token;
         uint256 inputAmount = permit.details.amount;
         if (!isInputAssetWhitelisted[inputAsset]) revert AssetNotWhitelisted(inputAsset);
-        bool sameAsset = inputAsset == address(settlementToken);
+        bool sameAsset = inputAsset == order.settlementToken;
         if (!sameAsset && (router == address(0) || data.length == 0)) revert NoRoute();
 
         // Effect before interactions: consume the intent first so a reentrant or
@@ -251,7 +268,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         // Same-asset needs no separate input baseline: input == settlement there.
         Baseline memory baseline = Baseline({
             native: address(this).balance,
-            settlement: settlementToken.balanceOf(address(this)),
+            settlement: IERC20(order.settlementToken).balanceOf(address(this)),
             input: sameAsset ? 0 : IERC20(inputAsset).balanceOf(address(this))
         });
 
@@ -276,6 +293,9 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
             revert InvalidOrder();
         }
         if (order.fee >= order.minOut) revert FeeExceedsSettlement(); // merchant must be > 0
+        if (!isSettlementAssetWhitelisted[order.settlementToken]) {
+            revert SettlementAssetNotWhitelisted(order.settlementToken);
+        }
         if (consumed[order.intentId]) revert AlreadyConsumed();
         consumed[order.intentId] = true;
 
@@ -297,7 +317,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         bool isNative,
         Baseline memory baseline
     ) internal {
-        bool sameAsset = !isNative && inputAsset == address(settlementToken);
+        bool sameAsset = !isNative && inputAsset == order.settlementToken;
 
         uint256 output;
         if (sameAsset) {
@@ -316,7 +336,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
             // The swap delivered into this contract; the settlement baseline is
             // its balance before the call (the Permit2 pull moved a different
             // token), so the delta is exactly what the route produced.
-            output = settlementToken.balanceOf(address(this)) - baseline.settlement;
+            output = IERC20(order.settlementToken).balanceOf(address(this)) - baseline.settlement;
         }
 
         if (output < order.minOut) revert MinOutNotMet(output, order.minOut);
@@ -325,10 +345,11 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         uint256 refund = output - order.minOut;
 
         // Send all output out — zero resting balance.
-        settlementToken.safeTransfer(order.merchantSafe, settled);
-        settlementToken.safeTransfer(feeRecipient, order.fee);
+        IERC20 settlement = IERC20(order.settlementToken);
+        settlement.safeTransfer(order.merchantSafe, settled);
+        settlement.safeTransfer(feeRecipient, order.fee);
         if (refund > 0) {
-            settlementToken.safeTransfer(order.refundTo, refund);
+            settlement.safeTransfer(order.refundTo, refund);
         }
 
         _returnResidue(order, inputAsset, isNative, sameAsset, baseline);
@@ -338,7 +359,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
             merchantSafe: order.merchantSafe,
             refundTo: order.refundTo,
             inputAsset: inputAsset,
-            settlementAsset: address(settlementToken),
+            settlementAsset: order.settlementToken,
             inputAmount: inputAmount,
             settledAmount: settled,
             fee: order.fee,
@@ -392,7 +413,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         }
 
         uint256 nativeBal = address(this).balance;
-        uint256 tokenBal = settlementToken.balanceOf(address(this));
+        uint256 tokenBal = IERC20(order.settlementToken).balanceOf(address(this));
         if (nativeBal != baseline.native || tokenBal != baseline.settlement) {
             revert RestingBalance(nativeBal, tokenBal);
         }
@@ -433,6 +454,17 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     function removeInputAsset(address asset) external onlyRole(CONFIG_ROLE) {
         isInputAssetWhitelisted[asset] = false;
         emit InputAssetRemoved(asset);
+    }
+
+    function addSettlementAsset(address asset) external onlyRole(CONFIG_ROLE) {
+        if (asset == address(0)) revert ZeroAddress();
+        isSettlementAssetWhitelisted[asset] = true;
+        emit SettlementAssetWhitelisted(asset);
+    }
+
+    function removeSettlementAsset(address asset) external onlyRole(CONFIG_ROLE) {
+        isSettlementAssetWhitelisted[asset] = false;
+        emit SettlementAssetRemoved(asset);
     }
 
     function setFeeRecipient(address recipient) external onlyRole(CONFIG_ROLE) {

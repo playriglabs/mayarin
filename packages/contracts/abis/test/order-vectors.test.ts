@@ -31,6 +31,7 @@ const domain = {
 
 const order = {
   intentId: vectors.order.intentId as `0x${string}`,
+  settlementToken: vectors.order.settlementToken as `0x${string}`,
   minOut: BigInt(vectors.order.minOut),
   fee: BigInt(vectors.order.fee),
   merchantSafe: vectors.order.merchantSafe as `0x${string}`,

@@ -70,21 +70,29 @@ implementation):
    production, set once in the timelock constructor. Tests use a small delay +
    `vm.warp`.
 3. **Route/calldata** — unsigned, caller-supplied as args to `payEth`/`payERC20`.
-   The `Order` struct stays RFC-shaped (`intentId, minOut, fee, merchantSafe,
-refundTo, deadline`) — no route in the signed payload. Safety: the contract
+   No route in the signed payload. Safety: the contract
    measures the actual settlement-token balance diff after the swap and reverts
    if `output < minOut`, so an unsigned route can never settle below the lock.
 4. **EIP-712 domain** — `EIP712Domain("Mayarin PaymentRouter", "1", block.chainid,
 address(this))` via OZ `EIP712`.
-5. **Order typehash** — `Order(bytes32 intentId, uint256 minOut, uint256 fee,
-address merchantSafe, address refundTo, uint256 deadline)`.
-6. **`PaymentCompleted`** — `event PaymentCompleted(bytes32 indexed intentId,
+5. **Order typehash** — `Order(bytes32 intentId, address settlementToken,
+uint256 minOut, uint256 fee, address merchantSafe, address refundTo,
+uint256 deadline)`.
+6. **Settlement asset is per order, not per deployment.** One router serves every
+   merchant, and each merchant chooses the stablecoin they settle in, so
+   `settlementToken` is a signed field checked against a whitelist. Signed,
+   because otherwise a payer could redirect settlement to a worthless token and
+   still satisfy `minOut`. Whitelisted, because the quote signer should be able
+   to pick among assets governance admitted and never introduce one — it bounds
+   what a compromised signer can do. The constructor takes at least one asset as
+   bootstrap; everything after goes through the timelock.
+7. **`PaymentCompleted`** — `event PaymentCompleted(bytes32 indexed intentId,
 address indexed merchantSafe, address indexed refundTo, address inputAsset,
 address settlementAsset, uint256 inputAmount, uint256 settledAmount,
 uint256 fee, uint256 refundAmount, uint256 deadline)`. `inputAsset`/
    `settlementAsset` are `address(0)` for native. The indexer's idempotency key
    `(chain, txHash, logIndex)` comes from the log itself.
-7. **Settlement math** — `output` = settlement balance diff after swap;
+8. **Settlement math** — `output` = settlement balance diff after swap;
    `require(output >= minOut)`; merchant gets `minOut − fee`, treasury gets
    `fee`, `refundTo` gets `output − minOut`. Sum `== output` (conservation).
    `require(fee < minOut)` mirrors the clearing engine's "rejects a fee that
@@ -98,15 +106,15 @@ uint256 fee, uint256 refundAmount, uint256 deadline)`. `inputAsset`/
    the difference back as USDC even though they paid in ETH. Checkout copy and
    the payer-facing receipt need to say so.
 
-8. **Decimals** — the contract works in raw `uint256` minor units; no decimal
+9. **Decimals** — the contract works in raw `uint256` minor units; no decimal
    math. Cross-asset comparison happens only post-swap, in settlement-asset
    terms. This maps directly onto `Money.amount` (bigint) on the TS side.
-9. **Permit2** — pulls via the canonical Permit2 address
-   `0x0000000000001fF3684F28c67538d4D072C22734`; the contract declares only the
-   minimal `IAllowanceTransfer` slice it calls. Unit tests use a `MockPermit2`; a
-   fork test gated by `BASE_SEPOLIA_RPC_URL` (skip when unset, mirroring the
-   repo's `DATABASE_URL`-gated db tests) exercises the real Permit2.
-10. **Residue and `receive()`** — the contract accepts native **only from a
+10. **Permit2** — pulls via the canonical Permit2 address
+    `0x0000000000001fF3684F28c67538d4D072C22734`; the contract declares only the
+    minimal `IAllowanceTransfer` slice it calls. Unit tests use a `MockPermit2`; a
+    fork test gated by `BASE_SEPOLIA_RPC_URL` (skip when unset, mirroring the
+    repo's `DATABASE_URL`-gated db tests) exercises the real Permit2.
+11. **Residue and `receive()`** — the contract accepts native **only from a
     whitelisted router**, because exact-output routes hand the unspent remainder
     back to `msg.sender` mid-swap (Uniswap's `refundETH`); without the hook the
     whole payment would revert inside the route. It is a pass-through, not a
@@ -116,7 +124,7 @@ uint256 fee, uint256 refundAmount, uint256 deadline)`. `inputAsset`/
     Note the asset: residue is returned in the asset it arrived as, while
     `PaymentCompleted.refundAmount` is always settlement-asset excess above
     `minOut`.
-11. **Oracle manipulation** — no on-chain oracle. `minOut` is signed by the
+12. **Oracle manipulation** — no on-chain oracle. `minOut` is signed by the
     backend Quote Engine (#6 composes Pyth/Chainlink + DEX off-chain). The
     on-chain defense is the signed `minOut` + hard revert; nothing on-chain to
     manipulate.
@@ -141,7 +149,7 @@ no sweep, so dust sent to it is unsweepable (`test_no_sweep_dust_cannot_be_extra
 
 ```bash
 forge build                 # compile (solc 0.8.28, cancun, via_ir, 200 runs)
-forge test                  # unit + fuzz + invariant (55 tests, 1 RPC-gated skip)
+forge test                  # unit + fuzz + invariant (68 tests, 1 RPC-gated skip)
 forge test --match-contract AdminTest      # one suite
 forge snapshot               # write .gas-snapshot
 forge snapshot --check       # CI: fail if gas changed
@@ -171,24 +179,25 @@ bun install                             # OpenZeppelin, via the repo-root node_m
 The pre-implementation security checklist, mapped to where it is enforced and
 tested:
 
-| Check                             | Implementation                                                                                                                                   | Test                                                                                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| ReentrancyGuard                   | OZ `nonReentrant` on `payEth`/`payERC20`; CEI (consume before external calls)                                                                    | `Invariants.t.sol` `test_reentrancy_*`                                                                                            |
-| Pausable                          | OZ `Pausable`; `whenNotPaused` on pays; pause never traps value                                                                                  | `Admin.t.sol` `test_guardian_pause_instant_and_blocks_pays`                                                                       |
-| SafeERC20                         | OZ `SafeERC20.forceApprove` (exact approval, reset to 0 after; avoids USDT/USDC fee-on-transfer/allowance bug); `safeTransfer` for settle/refund | `PayERC20.t.sol`, `Invariants.t.sol` approval reset                                                                               |
-| Oracle manipulation               | none on-chain; signed `minOut` + hard revert                                                                                                     | `Invariants.t.sol` `test_fuzz_manipulated_route_cannot_settle_below_minOut`                                                       |
-| Approval attack                   | exact `inputAmount` approval to whitelisted router, reset to 0 after; whitelist is the trust boundary                                            | `Invariants.t.sol` reentrancy handler, zero resting                                                                               |
-| Wrong token / whitelist           | input-asset whitelist mapping; native always admissible                                                                                          | `PayERC20.t.sol` `test_payERC20_nonWhitelisted_asset_reverts`                                                                     |
-| Exact amount (actual vs expected) | measure balance diff; `minOut−fee`/`fee`/`output−minOut` split; conservation                                                                     | `Invariants.t.sol` `invariant_no_custody_beyond_donations`, fuzz boundary                                                         |
-| Donation griefing                 | resting-balance assertion is delta-vs-baseline, not absolute zero; donated dust is inert and unsweepable                                         | `Residue.t.sol` (4 donation tests + fuzz), `Invariants.t.sol` `donate` handler action                                             |
-| Residue custody                   | unconsumed input and route-refunded native returned to `refundTo`; `receive()` restricted to whitelisted routers                                 | `Residue.t.sol` `test_payERC20_partial_fill_input_residue_refunded`, `test_payEth_native_refund_from_route_forwarded_to_refundTo` |
-| Replay                            | `consumed[intentId]`; cross-chain blocked by EIP-712 domain                                                                                      | `PaymentRouter.t.sol` + `PayERC20.t.sol` replay, `Invariants.t.sol` `test_fuzz_replay_rejected`                                   |
-| Expired quote                     | `require(block.timestamp <= deadline)`                                                                                                           | `PaymentRouter.t.sol` `test_reverts_expired_deadline`                                                                             |
-| Decimal                           | raw `uint256` minor units; no decimal math; 6-dec USDC + 18-dec WETH input                                                                       | `PayERC20.t.sol` `test_payERC20_decimal_18_to_6_no_decimal_math`                                                                  |
+| Check                             | Implementation                                                                                                                                   | Test                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| ReentrancyGuard                   | OZ `nonReentrant` on `payEth`/`payERC20`; CEI (consume before external calls)                                                                    | `Invariants.t.sol` `test_reentrancy_*`                                                                                                   |
+| Pausable                          | OZ `Pausable`; `whenNotPaused` on pays; pause never traps value                                                                                  | `Admin.t.sol` `test_guardian_pause_instant_and_blocks_pays`                                                                              |
+| SafeERC20                         | OZ `SafeERC20.forceApprove` (exact approval, reset to 0 after; avoids USDT/USDC fee-on-transfer/allowance bug); `safeTransfer` for settle/refund | `PayERC20.t.sol`, `Invariants.t.sol` approval reset                                                                                      |
+| Oracle manipulation               | none on-chain; signed `minOut` + hard revert                                                                                                     | `Invariants.t.sol` `test_fuzz_manipulated_route_cannot_settle_below_minOut`                                                              |
+| Approval attack                   | exact `inputAmount` approval to whitelisted router, reset to 0 after; whitelist is the trust boundary                                            | `Invariants.t.sol` reentrancy handler, zero resting                                                                                      |
+| Settlement redirect               | `settlementToken` is a signed EIP-712 field and must be whitelisted; tampering breaks the signature                                              | `MultiSettlement.t.sol` `test_settlement_token_is_covered_by_the_signature`, `test_reverts_when_the_settlement_asset_is_not_whitelisted` |
+| Wrong token / whitelist           | input-asset whitelist mapping; native always admissible                                                                                          | `PayERC20.t.sol` `test_payERC20_nonWhitelisted_asset_reverts`                                                                            |
+| Exact amount (actual vs expected) | measure balance diff; `minOut−fee`/`fee`/`output−minOut` split; conservation                                                                     | `Invariants.t.sol` `invariant_no_custody_beyond_donations`, fuzz boundary                                                                |
+| Donation griefing                 | resting-balance assertion is delta-vs-baseline, not absolute zero; donated dust is inert and unsweepable                                         | `Residue.t.sol` (4 donation tests + fuzz), `Invariants.t.sol` `donate` handler action                                                    |
+| Residue custody                   | unconsumed input and route-refunded native returned to `refundTo`; `receive()` restricted to whitelisted routers                                 | `Residue.t.sol` `test_payERC20_partial_fill_input_residue_refunded`, `test_payEth_native_refund_from_route_forwarded_to_refundTo`        |
+| Replay                            | `consumed[intentId]`; cross-chain blocked by EIP-712 domain                                                                                      | `PaymentRouter.t.sol` + `PayERC20.t.sol` replay, `Invariants.t.sol` `test_fuzz_replay_rejected`                                          |
+| Expired quote                     | `require(block.timestamp <= deadline)`                                                                                                           | `PaymentRouter.t.sol` `test_reverts_expired_deadline`                                                                                    |
+| Decimal                           | raw `uint256` minor units; no decimal math; 6-dec USDC + 18-dec WETH input                                                                       | `PayERC20.t.sol` `test_payERC20_decimal_18_to_6_no_decimal_math`                                                                         |
 
 ## Static analysis
 
-- **Foundry** — `forge build` green; `forge test` 55/55 (unit + fuzz @1000 runs +
+- **Foundry** — `forge build` green; `forge test` 68/68 (unit + fuzz @1000 runs +
   invariant @256×20). `forge snapshot` committed to `.gas-snapshot`.
 - **Slither** (0.11.6) — `slither . --config slither.config.json`. One finding:
   `locked-ether` (Informational/Low) — the contract has a payable function and

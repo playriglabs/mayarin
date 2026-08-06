@@ -40,6 +40,7 @@ contract RouterCalldataTest is Harness {
         fixture = vm.readFile(FIXTURE_PATH);
         fixtureOrder = IPaymentRouter.Order({
             intentId: vm.parseJsonBytes32(fixture, ".order.intentId"),
+            settlementToken: vm.parseJsonAddress(fixture, ".order.settlementToken"),
             minOut: vm.parseJsonUint(fixture, ".order.minOut"),
             fee: vm.parseJsonUint(fixture, ".order.fee"),
             merchantSafe: vm.parseJsonAddress(fixture, ".order.merchantSafe"),
@@ -106,10 +107,14 @@ contract RouterCalldataTest is Harness {
     // ------------------------------------------------------------------
 
     function test_contract_decodes_payEth_calldata() public {
-        // Whitelist the fixture's router so the call cannot stop at
-        // RouterNotWhitelisted before reaching signature verification.
-        vm.prank(admin);
+        // Whitelist the fixture's router and settlement asset so the call cannot
+        // stop at RouterNotWhitelisted or SettlementAssetNotWhitelisted before
+        // reaching signature verification. The fixture is address-agnostic, so
+        // its addresses are not the harness defaults.
+        vm.startPrank(admin);
         router.addRouter(fixtureDex);
+        router.addSettlementAsset(fixtureOrder.settlementToken);
+        vm.stopPrank();
 
         uint256 value = vm.parseJsonUint(fixture, ".value");
         vm.deal(customer, value);
@@ -122,8 +127,10 @@ contract RouterCalldataTest is Harness {
     }
 
     function test_contract_decodes_payERC20_calldata() public {
-        vm.prank(admin);
+        vm.startPrank(admin);
         router.addInputAsset(vm.parseJsonAddress(fixture, ".weth"));
+        router.addSettlementAsset(fixtureOrder.settlementToken);
+        vm.stopPrank();
 
         vm.prank(customer);
         (bool ok, bytes memory ret) =

@@ -12,8 +12,16 @@ interface IPaymentRouter {
     ///      enforces `minOut` with a hard revert, so an unsigned route can never
     ///      settle below the lock; it can only cause a revert (payer loses gas,
     ///      never funds). All amounts are raw minor units (no decimal math here).
+    ///
+    ///      `settlementToken` IS signed, because it names who gets paid in what:
+    ///      one router serves every merchant, and each merchant chooses the
+    ///      stablecoin they settle in. Leaving it caller-supplied would let a
+    ///      payer redirect settlement to a worthless token and still satisfy
+    ///      `minOut`. It must also be whitelisted, so a compromised signer cannot
+    ///      settle a merchant into an asset governance never admitted.
     struct Order {
         bytes32 intentId; // backend-issued, globally unique per intent
+        address settlementToken; // what the merchant is paid in; must be whitelisted
         uint256 minOut; // hard-locked settlement-asset amount (minor units)
         uint256 fee; // treasury take (minor units); must be < minOut so merchant > 0
         address merchantSafe; // receives `minOut − fee`
@@ -24,7 +32,8 @@ interface IPaymentRouter {
     /// @dev Emitted on successful settlement. The Indexer's idempotency key is
     ///      `(chain, txHash, logIndex)` — those come from the log envelope, not
     ///      the event fields. `intentId`/`merchantSafe`/`refundTo` are indexed for
-    ///      filtering. `inputAsset`/`settlementAsset` are `address(0)` for native.
+    ///      filtering. `inputAsset` is `address(0)` for native; `settlementAsset`
+    ///      is the order's signed `settlementToken` and is never zero.
     ///      Conservation: `settledAmount + fee + refundAmount == output == input`
     ///      for the same-asset path, and `== swap output` for the cross-asset path.
     event PaymentCompleted(

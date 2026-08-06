@@ -14,6 +14,7 @@ import {
 import { FakeOrderSigner } from "../testing/index.ts";
 
 const INTENT_ID: `0x${string}` = `0x${"11".repeat(32)}`;
+const SETTLEMENT_TOKEN: `0x${string}` = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const MERCHANT_SAFE: `0x${string}` = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
 const REFUND_TO: `0x${string}` = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const ROUTER: `0x${string}` = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";
@@ -39,7 +40,13 @@ function lock(overrides: Partial<LockedQuote> = {}): LockedQuote {
 }
 
 function context(overrides: Partial<OrderContext> = {}): OrderContext {
-  return { intentId: INTENT_ID, merchantSafe: MERCHANT_SAFE, refundTo: REFUND_TO, ...overrides };
+  return {
+    intentId: INTENT_ID,
+    settlementToken: SETTLEMENT_TOKEN,
+    merchantSafe: MERCHANT_SAFE,
+    refundTo: REFUND_TO,
+    ...overrides,
+  };
 }
 
 describe("assembleOrder", () => {
@@ -48,6 +55,7 @@ describe("assembleOrder", () => {
 
     expect(order).toEqual({
       intentId: INTENT_ID,
+      settlementToken: SETTLEMENT_TOKEN,
       minOut: 50_000_000n,
       fee: 500_000n,
       merchantSafe: MERCHANT_SAFE,
