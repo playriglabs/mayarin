@@ -43,6 +43,7 @@ import {
   type StablecoinRegistry,
 } from "@mayarin/stablecoin";
 import type { Config } from "./config.ts";
+import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./contract-layer.ts";
 import { createQuoteLayer, type QuoteLayer } from "./quote-layer.ts";
 import { PaymentAppService } from "./services/payment.ts";
 
@@ -72,6 +73,8 @@ export interface Container {
    * `EXCHANGE_RATES` table, which is the development default.
    */
   readonly quote?: QuoteLayer;
+  /** Contract-path checkout (#61). Present only when `CONTRACT_PATH_ENABLED` is true. */
+  readonly checkout?: ContractCheckout;
   close(): Promise<void>;
 }
 
@@ -122,19 +125,47 @@ export function createContainer({
     new StablecoinSettlementAdapter({ clock }),
   ]);
 
+  const quote = createQuoteLayer(config, clock);
+  const fees = new BasisPointsFeePolicy(config.feeBasisPoints);
+
+  // `resolveContract` guarantees the quote layer exists when the contract
+  // block does; the narrowing here is for the compiler, not a real branch.
+  const contractPlanner =
+    config.contract !== undefined && quote !== undefined
+      ? new ApiContractPlanner({
+          contract: config.contract,
+          quote,
+          fees,
+          stablecoins: registry,
+          clock,
+        })
+      : undefined;
+
   const engine = new ClearingEngine({
     repository: new DrizzleClearingRepository(handle.db),
     intents,
     ledger,
     adapters,
     rates: new LiquidityRouter({ source: new TablePriceSource(config.exchangeRates) }),
-    fees: new BasisPointsFeePolicy(config.feeBasisPoints),
+    fees,
     clock,
     events,
     autoConfirmAssetReceipt: config.assetReceiptMode === "auto",
     ...(depositAddresses === undefined ? {} : { depositAddresses }),
     ...(depositDeriver === undefined ? {} : { depositDeriver }),
+    ...(contractPlanner === undefined ? {} : { contractPlanner }),
   });
+
+  const checkout =
+    config.contract === undefined
+      ? undefined
+      : new ContractCheckout({
+          engine,
+          intents,
+          contract: config.contract,
+          routeSources: createRouteSources(config),
+          clock,
+        });
 
   const watchers = new Map<ChainId, WalletWatcher>();
   let deposits: DrizzleDepositRepository | undefined;
@@ -180,8 +211,6 @@ export function createContainer({
     }
   }
 
-  const quote = createQuoteLayer(config, clock);
-
   const paymentApp = new PaymentAppService({
     intents,
     engine,
@@ -204,6 +233,7 @@ export function createContainer({
     ...(deposits === undefined ? {} : { deposits }),
     ...(chainHead === undefined ? {} : { chainHead }),
     ...(quote === undefined ? {} : { quote }),
+    ...(checkout === undefined ? {} : { checkout }),
     close: () => handle.close(),
   };
 }

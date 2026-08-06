@@ -57,6 +57,13 @@ export type PaymentSource =
 export interface PaymentRail {
   readonly asset: AssetCode;
   readonly chain: ChainId;
+  /**
+   * The address the payer pays from, needed by the on-chain-contract path:
+   * the signed order's `refundTo` returns execution excess and unconsumed
+   * input there. The deposit-match path has no use for it — any sender can
+   * fund a deposit address.
+   */
+  readonly payerAddress?: string;
 }
 
 /**

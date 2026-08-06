@@ -101,6 +101,22 @@ Accepts either a payment intent id (`pi_…`) or a clearing transaction id
 (`clr_…`). Returns what was owed, how far along paying it is, and the ordered
 timeline of how it got there.
 
+## Contract-Path Submit Payload
+
+```
+GET /payments/:id/contract-call
+```
+
+The on-chain-contract path's checkout payload (#61), for a payment waiting at
+`PAYMENT_PENDING`. Accepts either id, like the status route. Returns the
+signed EIP-712 order, the deployed `PaymentRouter` address and chain, and a
+**fresh executable route** — fetched per call, never cached, because a route
+goes stale much faster than a price. For a native payer the response includes
+`transaction`, a ready `payEth` call `{to, data, value}`. An ERC-20 payer
+assembles `payERC20` client-side: only their wallet can sign the Permit2
+authorisation. A `404` means the contract path is not enabled on this
+deployment; a `410` means the quote lock expired — request a new payment.
+
 ## Settlement Webhook
 
 ```

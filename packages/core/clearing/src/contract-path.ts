@@ -22,14 +22,24 @@ import type { ChainId } from "@mayarin/chain";
 import type { AssetCode, Money } from "@mayarin/shared";
 import type { LockedRate } from "./types.ts";
 
-/** The signed EIP-712 order fields the engine persists with the transaction. */
+/**
+ * The signed EIP-712 order, complete, as the engine persists it with the
+ * transaction. Complete on purpose: the checkout endpoint rebuilds the exact
+ * struct the signature covers, so every signed field must be here.
+ */
 export interface ContractOrder {
   /** Backend-issued bytes32 hex; the contract consumes it on success. */
   readonly intentId: string;
+  /** On-chain address of the settlement stablecoin the order settles in. */
+  readonly settlementToken: string;
   /** The merchant's hard lock, gross, in settlement-asset minor units. */
   readonly minOut: bigint;
   /** The fee the contract splits out of `minOut`, in minor units. */
   readonly fee: bigint;
+  /** Receives `minOut − fee`. */
+  readonly merchantSafe: string;
+  /** Receives execution excess and unconsumed input — the payer's address. */
+  readonly refundTo: string;
   /** Unix seconds; on-chain `block.timestamp` must be `<= deadline`. */
   readonly deadline: bigint;
   readonly signature: string;
@@ -63,6 +73,8 @@ export interface ContractLockRequest {
   readonly payerAsset: AssetCode;
   /** The chain the payment executes on, from the intent's rail. */
   readonly chain: ChainId;
+  /** The payer's address, from the intent's rail — the order's `refundTo`. */
+  readonly payerAddress: string;
 }
 
 /**
