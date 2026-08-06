@@ -13,6 +13,10 @@ node_modules/
 dist/
 coverage/
 packages/db/migrations/
+
+# Vendored Solidity dependencies (forge-std submodule). Formatting these would
+# dirty the submodule working tree on every `bun run format`.
+packages/contracts/*/lib/
 bun.lock
 bun.lockb
 
