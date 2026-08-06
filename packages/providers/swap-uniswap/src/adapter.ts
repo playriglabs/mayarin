@@ -18,7 +18,7 @@
 import type { ChainId } from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
-import type { SwapVenue } from "@mayarin/execution";
+import type { RouteRequest, RoutingSwapVenue, SwapRoute } from "@mayarin/execution";
 import {
   type AssetCode,
   assetDecimals,
@@ -30,6 +30,7 @@ import {
 import {
   type Chain,
   createPublicClient,
+  encodeFunctionData,
   getAddress,
   http,
   type PublicClient,
@@ -46,10 +47,19 @@ const QUOTER_V2_ABI = parseAbi([
   "function quoteExactInputSingle(QuoteExactInputSingleParams params) view returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
 ]);
 
+// SwapRouter02 dropped the per-call deadline of the V1 router; order TTL is
+// enforced by the PaymentRouter's signed `deadline` instead.
+const SWAP_ROUTER_02_ABI = parseAbi([
+  "struct ExactInputSingleParams { address tokenIn; address tokenOut; uint24 fee; address recipient; uint256 amountIn; uint256 amountOutMinimum; uint160 sqrtPriceLimitX96; }",
+  "function exactInputSingle(ExactInputSingleParams params) payable returns (uint256 amountOut)",
+]);
+
 const CHAINS: Record<ChainId, Chain> = {
   base,
   "base-sepolia": baseSepolia,
 };
+
+const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 
 /** The pool one configured pair trades through. */
 export interface UniswapPool {
@@ -58,26 +68,35 @@ export interface UniswapPool {
   readonly tokenOut: string;
   /** Fee tier in hundredths of a basis point, e.g. 500 for 0.05%. */
   readonly fee: number;
+  /**
+   * The pair sells the chain's native asset: the route carries the amount as
+   * native value, and SwapRouter02 wraps it against the WETH `tokenIn`.
+   */
+  readonly nativeIn?: boolean;
 }
 
 export interface UniswapSwapVenueOptions {
   readonly rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
   /** QuoterV2 contract address per chain. */
   readonly quoters: Readonly<Partial<Record<ChainId, string>>>;
+  /** SwapRouter02 contract address per chain; needed by `route` only. */
+  readonly routers?: Readonly<Partial<Record<ChainId, string>>>;
   /** Pair (`rateKey(from, to)`) to pool, e.g. `"ETH/USDC": { chain, …, fee }`. */
   readonly pools: Readonly<Record<string, UniswapPool>>;
 }
 
-export class UniswapSwapVenue implements SwapVenue {
+export class UniswapSwapVenue implements RoutingSwapVenue {
   readonly name = "uniswap";
   readonly #rpcUrls: UniswapSwapVenueOptions["rpcUrls"];
   readonly #quoters: UniswapSwapVenueOptions["quoters"];
+  readonly #routers: NonNullable<UniswapSwapVenueOptions["routers"]>;
   readonly #pools: ReadonlyMap<string, UniswapPool>;
   readonly #clients = new Map<ChainId, PublicClient>();
 
   constructor(options: UniswapSwapVenueOptions) {
     this.#rpcUrls = options.rpcUrls;
     this.#quoters = options.quoters;
+    this.#routers = options.routers ?? {};
     this.#pools = new Map(Object.entries(options.pools));
   }
 
@@ -140,6 +159,68 @@ export class UniswapSwapVenue implements SwapVenue {
     }
 
     return { from, to, minorUnitsPerWholeUnit, source: this.name };
+  }
+
+  /**
+   * Encodes `SwapRouter02.exactInputSingle` locally — no network call. The
+   * signed lock rides as `amountOutMinimum`, so a doomed fill reverts inside
+   * the swap instead of at the contract's own `minOut` assert; the contract
+   * stays the enforcement. `recipient` is the `PaymentRouter`, which grants
+   * the router an exact allowance (or forwards native value for a
+   * `nativeIn` pool).
+   */
+  async route(request: RouteRequest): Promise<SwapRoute> {
+    const { payerAsset: from, settlementAsset: to, amount, recipient } = request;
+    if (amount.asset !== from) {
+      throw new ValidationError(
+        `The amount asset ${amount.asset} must equal the sell asset ${from}`,
+        { amountAsset: amount.asset, from },
+      );
+    }
+    if (amount.amount <= 0n) {
+      throw new ValidationError(`The sell amount must be positive`, {
+        from,
+        to,
+        amount: amount.amount.toString(),
+      });
+    }
+    if (!ADDRESS_PATTERN.test(recipient)) {
+      throw new ValidationError("The recipient must be a 20-byte hex address", { recipient });
+    }
+
+    const pool = this.#pools.get(rateKey(from, to));
+    if (pool === undefined) {
+      throw new ConfigurationError(`No Uniswap pool configured for ${from} -> ${to}`, { from, to });
+    }
+    const routerAddress = this.#routers[pool.chain];
+    if (routerAddress === undefined) {
+      throw new ConfigurationError(`No Uniswap router configured for ${pool.chain}`, {
+        chain: pool.chain,
+      });
+    }
+
+    const data = encodeFunctionData({
+      abi: SWAP_ROUTER_02_ABI,
+      functionName: "exactInputSingle",
+      args: [
+        {
+          tokenIn: getAddress(pool.tokenIn),
+          tokenOut: getAddress(pool.tokenOut),
+          fee: pool.fee,
+          recipient: getAddress(recipient),
+          amountIn: amount.amount,
+          amountOutMinimum: request.minOut,
+          sqrtPriceLimitX96: 0n,
+        },
+      ],
+    });
+
+    return {
+      venue: this.name,
+      to: getAddress(routerAddress),
+      data,
+      value: pool.nativeIn === true ? amount.amount : 0n,
+    };
   }
 
   #clientFor(chain: ChainId): PublicClient {

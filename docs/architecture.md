@@ -219,7 +219,7 @@ packages/
       ✓ auth/             merchant/user/session domain, PasswordHasher port
       · commerce/         Phase 4 product catalog, prices, carts → payment intents
       ✓ quote/            quote engine — guarded composition, lock, EIP-712 order assembly + OrderSigner port shipped; signer custody follows (#41)
-      ✓ execution/        execution engine — SwapVenue port, planner, venue selection shipped; venue adapters + calldata follow (#45–#47, #49)
+      ✓ execution/        execution engine — SwapVenue port, planner, venue selection, executable-route port (#57)
 
     contracts/            Phase 3 PaymentRouter.sol — on-chain execution layer
       · payment-router/
@@ -232,9 +232,9 @@ packages/
       ✓ argon2/           Argon2PasswordHasher
       · turnkey/          Phase 4 wallet provider (MPC policy engine)
       · zerodev/          Phase 3 gas abstraction / paymaster / relayer
-      ✓ swap-0x/          ZeroExSwapVenue — SwapVenue over the 0x Swap API v2 price read
-      ✓ swap-uniswap/     UniswapSwapVenue — SwapVenue over the QuoterV2 exact-input read
-      ✓ swap-lifi/        LifiSwapVenue — SwapVenue over the LiFi quote API, same-chain only
+      ✓ swap-0x/          ZeroExSwapVenue — 0x v2 price read + AllowanceHolder route
+      ✓ swap-uniswap/     UniswapSwapVenue — QuoterV2 read + SwapRouter02 route encoding
+      ✓ swap-lifi/        LifiSwapVenue — LiFi quote + route, same-chain only
       ✓ pyth/             PythPriceOracle — Hermes reference read for the deviation guard
       ✓ chainlink/        ChainlinkPriceOracle — AggregatorV3 reference read via viem
 
