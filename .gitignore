@@ -30,3 +30,8 @@ bun.lockb.bak
 # Turborepo local cache + artifacts
 .turbo
 node_modules/.cache/turbo
+
+# Foundry build artifacts + soldeer-vendored deps (soldeer.lock is committed)
+packages/contracts/*/out/
+packages/contracts/*/cache/
+packages/contracts/*/dependencies/
