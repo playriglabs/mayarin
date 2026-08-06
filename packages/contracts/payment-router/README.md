@@ -90,6 +90,14 @@ uint256 fee, uint256 refundAmount, uint256 deadline)`. `inputAsset`/
    `require(fee < minOut)` mirrors the clearing engine's "rejects a fee that
    would consume the whole payment" — merchant always > 0. All `uint256`,
    checked arithmetic.
+
+   The refund is paid **in the settlement asset**, because that is the only asset
+   the contract holds after the swap. This is a product-visible consequence, not
+   just an implementation detail: the quote lock (#39) grosses the payer estimate
+   up by `slippageBps`, so a normal fill overpays slightly and the payer receives
+   the difference back as USDC even though they paid in ETH. Checkout copy and
+   the payer-facing receipt need to say so.
+
 8. **Decimals** — the contract works in raw `uint256` minor units; no decimal
    math. Cross-asset comparison happens only post-swap, in settlement-asset
    terms. This maps directly onto `Money.amount` (bigint) on the TS side.
