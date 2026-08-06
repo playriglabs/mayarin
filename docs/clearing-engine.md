@@ -95,9 +95,31 @@ model carries between lock and receipt. The state machine above is unchanged;
 the difference is where execution happens (contract vs. off-chain) and which
 lock is hard. The path is a discriminator on the payment intent
 (`ExecutionPath`: `deposit-match` | `on-chain-contract`), persisted on the
-clearing transaction and set from the `EXECUTION_PATH` config default; the
-contract variant is a throwing stub at the lock step until Phase 3 implements
-it, so a contract-path payment fails cleanly without moving value.
+clearing transaction and set from the `EXECUTION_PATH` config default.
+
+The engine walks the contract path through a port (#61). A
+`ContractPaymentPlanner`, injected like the deposit layer, prices both legs,
+locks, and signs the EIP-712 order at `PRICE_LOCKED`; the signed fields
+(`intentId`, `minOut`, `fee`, `deadline`, signature) persist on the
+transaction. The route and the router calldata are **not** part of the lock —
+a route goes stale faster than a price, so the checkout API builds it per
+attempt at submit time.
+
+Rules specific to the contract path:
+
+- **`ASSET_RECEIPT_MODE` never applies.** The contract funds atomically:
+  receive, swap and settle happen in one transaction. `auto` receipt
+  confirmation is ignored on this path; only `recordPaymentCompleted` — the
+  seam the indexer (#8) calls when it ingests `PaymentCompleted` — advances a
+  waiting payment.
+- **No settlement adapter.** The contract paid the merchant Safe on-chain.
+  `SETTLING` records the transaction hash as the provider reference and the
+  ledger books the settlement as an external delivery.
+- **Expiry fails, never re-quotes.** Past the lock deadline plus a grace for
+  indexing lag (default 60 s), the engine fails the payment with
+  `QUOTE_EXPIRED`. A new price needs the payer's consent, so the flow starts
+  over with a fresh quote. The contract enforces the same deadline on-chain,
+  so a payment failed here cannot settle later.
 
 ---
 

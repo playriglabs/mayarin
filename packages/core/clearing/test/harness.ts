@@ -20,6 +20,7 @@ import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry, type SettlementMode } from "@mayarin/settlement";
 import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
+import type { ContractPaymentPlanner } from "../src/contract-path.ts";
 import { ClearingEngine } from "../src/engine.ts";
 import { BasisPointsFeePolicy } from "../src/fees.ts";
 import { StaticRateProvider } from "../src/rate.ts";
@@ -36,6 +37,9 @@ export interface HarnessOptions {
   readonly mode?: SettlementMode;
   /** IDR -> IDRX at 1:1 by default; both are 2-decimal. */
   readonly rates?: Readonly<Record<string, bigint>>;
+  /** Contract-path planner (#61). Absent by default, like a chainless deployment. */
+  readonly contractPlanner?: ContractPaymentPlanner;
+  readonly contractExpiryGraceSeconds?: number;
 }
 
 export function createHarness(options: HarnessOptions = {}) {
@@ -83,6 +87,10 @@ export function createHarness(options: HarnessOptions = {}) {
     fees: new BasisPointsFeePolicy(options.feeBasisPoints ?? 50),
     depositAddresses,
     depositDeriver,
+    ...(options.contractPlanner === undefined ? {} : { contractPlanner: options.contractPlanner }),
+    ...(options.contractExpiryGraceSeconds === undefined
+      ? {}
+      : { contractExpiryGraceSeconds: options.contractExpiryGraceSeconds }),
     clock,
     events,
     autoConfirmAssetReceipt: options.autoConfirmAssetReceipt ?? true,

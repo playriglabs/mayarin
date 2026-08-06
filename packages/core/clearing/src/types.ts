@@ -2,6 +2,7 @@ import type { ChainId } from "@mayarin/chain";
 import type { ExecutionPath } from "@mayarin/payment-intent";
 import type { SettlementMerchant } from "@mayarin/settlement";
 import type { AssetCode, Money } from "@mayarin/shared";
+import type { ContractOrder } from "./contract-path.ts";
 
 /**
  * Clearing state machine.
@@ -59,6 +60,24 @@ export interface ClearingFailure {
 }
 
 /**
+ * The contract path's lock record, frozen at PRICE_LOCKED (#61).
+ *
+ * The counterpart of `ClearingDeposit` for the on-chain-contract path: the
+ * signed order the checkout submits, the payer's display estimate, and the
+ * deadline the engine enforces off-chain exactly as the contract enforces it
+ * on-chain.
+ */
+export interface ClearingContract {
+  readonly order: ContractOrder;
+  /** What the payer is shown, slippage-grossed. Never a custody lock. */
+  readonly payerEstimate: Money;
+  /** Past this (plus grace) the engine fails the payment with `QUOTE_EXPIRED`. */
+  readonly expiresAt: Date;
+  /** Set when `PaymentCompleted` is recorded; doubles as `providerReference`. */
+  readonly txHash?: string;
+}
+
+/**
  * The execution record of a payment.
  *
  * The payment intent says what is owed; this says how far along paying it we
@@ -92,6 +111,9 @@ export interface ClearingTransaction {
 
   /** Set at PRICE_LOCKED when the intent names a payment rail. */
   readonly deposit?: ClearingDeposit;
+
+  /** Set at PRICE_LOCKED on the on-chain-contract path (#61). */
+  readonly contract?: ClearingContract;
 
   /** Set at SETTLING, once the adapter has accepted the settlement. */
   readonly providerReference?: string;

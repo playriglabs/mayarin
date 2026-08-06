@@ -16,10 +16,32 @@ import type {
   ClearingEvent,
   ClearingRepository,
   ClearingTransaction,
+  ContractLock,
+  ContractLockRequest,
+  ContractPaymentPlanner,
   OraclePrice,
   PriceOracle,
 } from "../src/index.ts";
 import { isTerminalState, rateKey } from "../src/index.ts";
+
+/**
+ * Reference in-memory contract planner (#61): serves a configured lock — or
+ * derives one per request — and records each request, so an engine test can
+ * assert what reached the planner without the quote/execution stack.
+ */
+export class FakeContractPlanner implements ContractPaymentPlanner {
+  readonly calls: ContractLockRequest[] = [];
+  readonly #lock: ContractLock | ((request: ContractLockRequest) => ContractLock);
+
+  constructor(lock: ContractLock | ((request: ContractLockRequest) => ContractLock)) {
+    this.#lock = lock;
+  }
+
+  async lock(request: ContractLockRequest): Promise<ContractLock> {
+    this.calls.push(request);
+    return typeof this.#lock === "function" ? this.#lock(request) : this.#lock;
+  }
+}
 
 /**
  * Reference in-memory oracle: serves the configured observations verbatim.

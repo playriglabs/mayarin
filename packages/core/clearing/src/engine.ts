@@ -39,10 +39,12 @@ import {
   isPositive,
   NotFoundError,
   noopEventPublisher,
+  QuoteExpiredError,
   serializeMoney,
   subtract,
   ValidationError,
 } from "@mayarin/shared";
+import type { ContractPaymentPlanner } from "./contract-path.ts";
 import type { FeePolicy } from "./fees.ts";
 import {
   assetReceivedPosting,
@@ -75,6 +77,19 @@ export interface ClearingEngineOptions {
    */
   readonly depositAddresses?: DepositAddressRepository;
   readonly depositDeriver?: DepositAddressDeriver;
+  /**
+   * Prices, locks and signs the on-chain-contract path (#61). Absent for a
+   * deployment without the contract layer, in which case a contract-path
+   * intent is refused rather than silently cleared without a signed order.
+   */
+  readonly contractPlanner?: ContractPaymentPlanner;
+  /**
+   * How long past the lock deadline the engine keeps waiting for a
+   * `PaymentCompleted` signal before failing with `QUOTE_EXPIRED`. Covers
+   * indexing lag: the contract enforces the deadline on-chain, so a payment
+   * included at the deadline can still signal a few seconds later.
+   */
+  readonly contractExpiryGraceSeconds?: number;
   readonly clock: Clock;
   readonly events?: EventPublisher;
   /**
@@ -104,6 +119,8 @@ export class ClearingEngine {
   readonly #fees: FeePolicy;
   readonly #depositAddresses: DepositAddressRepository | undefined;
   readonly #depositDeriver: DepositAddressDeriver | undefined;
+  readonly #contractPlanner: ContractPaymentPlanner | undefined;
+  readonly #contractExpiryGraceSeconds: number;
   readonly #clock: Clock;
   readonly #events: EventPublisher;
   readonly #autoConfirmAssetReceipt: boolean;
@@ -117,6 +134,8 @@ export class ClearingEngine {
     this.#fees = options.fees;
     this.#depositAddresses = options.depositAddresses;
     this.#depositDeriver = options.depositDeriver;
+    this.#contractPlanner = options.contractPlanner;
+    this.#contractExpiryGraceSeconds = options.contractExpiryGraceSeconds ?? 60;
     this.#clock = options.clock;
     this.#events = options.events ?? noopEventPublisher;
     this.#autoConfirmAssetReceipt = options.autoConfirmAssetReceipt ?? false;
@@ -192,6 +211,33 @@ export class ClearingEngine {
   }
 
   /**
+   * Records that the contract settled this payment on-chain (#61).
+   *
+   * The seam the indexer (#8) calls when it ingests `PaymentCompleted`.
+   * Unlike a webhook, the signal is authoritative: the indexer read the
+   * event from the chain itself. A late signal still settles — the
+   * contract's own deadline already bounded when the payment could execute,
+   * and the expiry grace covers the indexing lag.
+   */
+  async recordPaymentCompleted(
+    id: string,
+    completion: { readonly txHash: string },
+  ): Promise<ClearingProgress> {
+    const transaction = await this.getById(id);
+    if (transaction.executionPath !== "on-chain-contract") {
+      throw new ValidationError(`Clearing transaction ${id} is not on the on-chain-contract path`, {
+        id,
+        executionPath: transaction.executionPath,
+      });
+    }
+    if (transaction.state !== "PAYMENT_PENDING") {
+      // Already past this point: nothing to record, just keep going.
+      return this.#advance(transaction);
+    }
+    return this.#advance(transaction, { assetReceived: true, contractTxHash: completion.txHash });
+  }
+
+  /**
    * Handles an inbound provider webhook.
    *
    * The webhook is treated as a *signal*, not as truth: it wakes the engine,
@@ -226,7 +272,7 @@ export class ClearingEngine {
 
   async #advance(
     start: ClearingTransaction,
-    signals: { assetReceived?: boolean } = {},
+    signals: { assetReceived?: boolean; contractTxHash?: string } = {},
   ): Promise<ClearingProgress> {
     let current = start;
 
@@ -259,7 +305,7 @@ export class ClearingEngine {
    */
   async #step(
     transaction: ClearingTransaction,
-    signals: { assetReceived?: boolean },
+    signals: { assetReceived?: boolean; contractTxHash?: string },
   ): Promise<ClearingTransaction | null> {
     switch (transaction.state) {
       case "CREATED":
@@ -282,6 +328,30 @@ export class ClearingEngine {
         return this.#apply(transition(transaction, "PAYMENT_PENDING", this.#clock.now()));
 
       case "PAYMENT_PENDING": {
+        if (transaction.executionPath === "on-chain-contract") {
+          // The contract path funds atomically on-chain, so auto-confirm
+          // never applies here: only a recorded `PaymentCompleted` advances.
+          if (signals.assetReceived !== true) {
+            this.#assertContractNotExpired(transaction);
+            return null;
+          }
+          const contract = requireContract(transaction);
+          await this.#ledger.post(assetReceivedPosting(transaction));
+          const txHash = signals.contractTxHash;
+          return this.#apply(
+            transition(
+              transaction,
+              "ASSET_RECEIVED",
+              this.#clock.now(),
+              { contract: { ...contract, ...(txHash === undefined ? {} : { txHash }) } },
+              {
+                settlementAmount: serializeMoney(requireAmount(transaction, "settlementAmount")),
+                ...(txHash === undefined ? {} : { txHash }),
+              },
+            ),
+          );
+        }
+
         if (!this.#autoConfirmAssetReceipt && signals.assetReceived !== true) return null;
         await this.#ledger.post(assetReceivedPosting(transaction));
         return this.#apply(
@@ -303,10 +373,14 @@ export class ClearingEngine {
       }
 
       case "CLEARING":
-        return this.#settle(transaction);
+        return transaction.executionPath === "on-chain-contract"
+          ? this.#settleContract(transaction)
+          : this.#settle(transaction);
 
       case "SETTLING":
-        return this.#confirmSettlement(transaction);
+        return transaction.executionPath === "on-chain-contract"
+          ? this.#confirmContract(transaction)
+          : this.#confirmSettlement(transaction);
 
       case "SETTLED": {
         const intent = await this.#intents.getById(transaction.paymentIntentId);
@@ -322,6 +396,9 @@ export class ClearingEngine {
 
   /** Quotes and freezes the settlement amount, fee and net payout. */
   async #lockPrice(transaction: ClearingTransaction): Promise<ClearingTransaction> {
+    if (transaction.executionPath === "on-chain-contract") {
+      return this.#lockContract(transaction);
+    }
     const quote = await this.#rates.quote(
       transaction.sourceAmount.asset,
       transaction.settlementAsset,
@@ -394,17 +471,8 @@ export class ClearingEngine {
     transaction: ClearingTransaction,
     now: Date,
   ): Promise<ClearingDeposit | undefined> {
-    if (transaction.executionPath === "on-chain-contract") {
-      // Phase 3 plug-in point: the contract path locks a hard settlement
-      // `minOut` and builds PaymentRouter calldata instead of allocating a
-      // deposit address. Until then a contract-path payment fails here, before
-      // any side effect, so it cannot move value.
-      throw new ConfigurationError(
-        "on-chain-contract execution path is not implemented until Phase 3",
-        { paymentIntentId: transaction.paymentIntentId, executionPath: transaction.executionPath },
-      );
-    }
-
+    // The on-chain-contract path never reaches here: `#lockPrice` branches to
+    // `#lockContract`, which locks a signed order instead of an address.
     const intent = await this.#intents.getById(transaction.paymentIntentId);
     const rail = intent.payment;
     if (rail === undefined) return undefined;
@@ -447,6 +515,164 @@ export class ClearingEngine {
       amount,
       rate: lockRate(quote, now),
     };
+  }
+
+  /**
+   * Locks the contract path (#61): the planner prices both legs, locks, and
+   * signs the order. The engine checks the signed numbers against the lock —
+   * the fee inside the order is what the contract splits on-chain, so a
+   * planner that disagrees with itself must not reach a payer.
+   *
+   * `lock` is a side effect before the persist, like `allocate` on the
+   * deposit path. It is not idempotent — a crash in between re-locks with a
+   * fresh order — but the orphaned order is harmless: the payer never saw
+   * it, and the contract consumes an `intentId` only on success.
+   */
+  async #lockContract(transaction: ClearingTransaction): Promise<ClearingTransaction> {
+    const planner = this.#contractPlanner;
+    if (planner === undefined) {
+      throw new ConfigurationError(
+        `Payment intent ${transaction.paymentIntentId} takes the on-chain-contract path but this deployment has no contract planner`,
+        { paymentIntentId: transaction.paymentIntentId },
+      );
+    }
+
+    const intent = await this.#intents.getById(transaction.paymentIntentId);
+    const rail = intent.payment;
+    if (rail === undefined) {
+      throw new ValidationError(
+        `Payment intent ${intent.id} takes the on-chain-contract path but names no payment rail`,
+        { paymentIntentId: intent.id },
+      );
+    }
+
+    const lock = await planner.lock({
+      clearingTransactionId: transaction.id,
+      paymentIntentId: intent.id,
+      merchantId: transaction.merchant.id,
+      sourceAmount: transaction.sourceAmount,
+      settlementAsset: transaction.settlementAsset,
+      payerAsset: rail.asset,
+      chain: rail.chain,
+    });
+
+    if (
+      lock.order.minOut !== lock.settlementAmount.amount ||
+      lock.order.fee !== lock.fee.amount ||
+      lock.settlementAmount.asset !== transaction.settlementAsset ||
+      lock.fee.asset !== transaction.settlementAsset
+    ) {
+      throw new ValidationError("The signed order disagrees with the lock it came from", {
+        orderMinOut: lock.order.minOut.toString(),
+        settlementAmount: lock.settlementAmount.amount.toString(),
+        orderFee: lock.order.fee.toString(),
+        fee: lock.fee.amount.toString(),
+        lockAsset: lock.settlementAmount.asset,
+        settlementAsset: transaction.settlementAsset,
+      });
+    }
+
+    const netAmount = subtract(lock.settlementAmount, lock.fee);
+    if (!isPositive(netAmount)) {
+      throw new ValidationError(
+        "Fee consumes the entire settlement amount; nothing would reach the merchant",
+        {
+          settlementAmount: lock.settlementAmount.amount.toString(),
+          fee: lock.fee.amount.toString(),
+          asset: lock.settlementAmount.asset,
+        },
+      );
+    }
+
+    return this.#apply(
+      transition(
+        transaction,
+        "PRICE_LOCKED",
+        this.#clock.now(),
+        {
+          rate: lock.rate,
+          settlementAmount: lock.settlementAmount,
+          fee: lock.fee,
+          netAmount,
+          contract: {
+            order: lock.order,
+            payerEstimate: lock.payerEstimate,
+            expiresAt: lock.expiresAt,
+          },
+        },
+        {
+          rate: lock.rate.minorUnitsPerWholeUnit.toString(),
+          rateSource: lock.rate.source,
+          settlementAmount: serializeMoney(lock.settlementAmount),
+          fee: serializeMoney(lock.fee),
+          netAmount: serializeMoney(netAmount),
+          payerEstimate: serializeMoney(lock.payerEstimate),
+          orderIntentId: lock.order.intentId,
+          orderDeadline: lock.order.deadline.toString(),
+          orderSigner: lock.order.signer,
+          expiresAt: lock.expiresAt.toISOString(),
+        },
+      ),
+    );
+  }
+
+  /**
+   * The contract already settled on-chain; SETTLING records the reference.
+   * No settlement adapter is involved anywhere on this path.
+   */
+  async #settleContract(transaction: ClearingTransaction): Promise<ClearingTransaction> {
+    const txHash = transaction.contract?.txHash;
+    if (txHash === undefined) {
+      throw new ValidationError(
+        `Clearing transaction ${transaction.id} is CLEARING on the contract path without a completion tx hash`,
+        { id: transaction.id },
+      );
+    }
+    return this.#apply(
+      transition(
+        transaction,
+        "SETTLING",
+        this.#clock.now(),
+        { providerReference: txHash },
+        { providerReference: txHash },
+      ),
+    );
+  }
+
+  /** Books the on-chain settlement: value left Mayarin's flow to the merchant Safe. */
+  async #confirmContract(transaction: ClearingTransaction): Promise<ClearingTransaction> {
+    const providerReference = transaction.providerReference;
+    if (providerReference === undefined) {
+      throw new ValidationError(
+        `Clearing transaction ${transaction.id} is SETTLING without a provider reference`,
+        { id: transaction.id },
+      );
+    }
+    await this.#ledger.post(settledPosting(transaction));
+    return this.#apply(
+      transition(transaction, "SETTLED", this.#clock.now(), {}, { providerReference }),
+    );
+  }
+
+  /**
+   * Fails a contract-path payment whose lock passed its deadline plus grace.
+   * The contract enforces the same deadline on-chain, so no settlement can
+   * arrive for a payment failed here once the grace covers indexing lag.
+   */
+  #assertContractNotExpired(transaction: ClearingTransaction): void {
+    const contract = transaction.contract;
+    if (contract === undefined) return;
+    const graceMs = this.#contractExpiryGraceSeconds * 1_000;
+    if (this.#clock.now().getTime() > contract.expiresAt.getTime() + graceMs) {
+      throw new QuoteExpiredError(
+        `Quote lock for clearing transaction ${transaction.id} expired before the payment completed`,
+        {
+          id: transaction.id,
+          expiresAt: contract.expiresAt.toISOString(),
+          graceSeconds: this.#contractExpiryGraceSeconds,
+        },
+      );
+    }
   }
 
   /** Hands the payout to the settlement adapter. */
@@ -573,4 +799,15 @@ function requireAmount(
     );
   }
   return value;
+}
+
+function requireContract(transaction: ClearingTransaction) {
+  const contract = transaction.contract;
+  if (contract === undefined) {
+    throw new InvalidStateTransitionError(
+      `Clearing transaction ${transaction.id} reached ${transaction.state} on the contract path without a lock`,
+      { id: transaction.id, state: transaction.state },
+    );
+  }
+  return contract;
 }
