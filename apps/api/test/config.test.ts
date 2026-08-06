@@ -116,12 +116,79 @@ describe("execution path configuration", () => {
     expect(loadConfig({ ...BASE }).executionPath).toBe("deposit-match");
   });
 
-  test("accepts the on-chain-contract path as a configured default", () => {
-    // No boot guard: the engine stub fails a contract-path payment at runtime,
-    // so the slot is reserved for Phase 3 to flip without a config redesign.
-    expect(loadConfig({ ...BASE, EXECUTION_PATH: "on-chain-contract" }).executionPath).toBe(
-      "on-chain-contract",
+  test("refuses on-chain-contract as the default while the contract path is off", () => {
+    // Every payment would fail at the lock step — a boot failure, not a
+    // per-payment one (#61).
+    expect(() => loadConfig({ ...BASE, EXECUTION_PATH: "on-chain-contract" })).toThrow(
+      /CONTRACT_PATH_ENABLED/,
     );
+  });
+});
+
+describe("contract path configuration", () => {
+  const QUOTE = {
+    QUOTE_ENABLED: "true",
+    QUOTE_VENUES: '["0x"]',
+    ZERO_EX_API_KEY: "key",
+    ZERO_EX_CHAIN_ID: "8453",
+    ZERO_EX_PAIRS: '{"ETH/USDC":{"sellToken":"0xe","buyToken":"0xu"}}',
+    PYTH_FEEDS: '{"ETH/USDC":"ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"}',
+    QUOTE_SIGNER: "local",
+    QUOTE_SIGNER_PRIVATE_KEY: `0x${"11".repeat(32)}`,
+    NODE_ENV: "development",
+  } as const;
+  const CONTRACT = {
+    CONTRACT_PATH_ENABLED: "true",
+    PAYMENT_ROUTERS: '{"base":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0"}',
+    MERCHANT_SAFE_ADDRESS: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  } as const;
+
+  test("is absent unless enabled", () => {
+    expect(loadConfig({ ...BASE }).contract).toBeUndefined();
+  });
+
+  test("resolves with a router, a Safe and a route-capable venue", () => {
+    const config = loadConfig({ ...BASE, ...QUOTE, ...CONTRACT });
+    expect(config.contract?.paymentRouters.base).toBe("0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0");
+    expect(config.contract?.merchantSafe).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+  });
+
+  test("requires the quote layer", () => {
+    expect(() => loadConfig({ ...BASE, ...CONTRACT })).toThrow(/QUOTE_ENABLED/);
+  });
+
+  test("requires a deployed router and a well-formed Safe", () => {
+    expect(() => loadConfig({ ...BASE, ...QUOTE, ...CONTRACT, PAYMENT_ROUTERS: "{}" })).toThrow(
+      /PAYMENT_ROUTERS/,
+    );
+    expect(() =>
+      loadConfig({ ...BASE, ...QUOTE, ...CONTRACT, MERCHANT_SAFE_ADDRESS: "not-an-address" }),
+    ).toThrow(/MERCHANT_SAFE_ADDRESS/);
+  });
+
+  test("refuses a venue set with no route-capable venue — LiFi is price-only", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...QUOTE,
+        ...CONTRACT,
+        QUOTE_VENUES: '["lifi"]',
+        LIFI_PAIRS: '{"ETH/USDC":{"chainId":8453,"fromToken":"0xe","toToken":"0xu"}}',
+        LIFI_FROM_ADDRESS: "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0",
+      }),
+    ).toThrow(/route-capable/);
+  });
+
+  test("the uniswap venue needs SwapRouter02 addresses to serve routes", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...QUOTE,
+        ...CONTRACT,
+        QUOTE_VENUES: '["uniswap"]',
+        UNISWAP_POOLS: '{"ETH/USDC":{"chain":"base","tokenIn":"0xe","tokenOut":"0xu","fee":500}}',
+      }),
+    ).toThrow(/UNISWAP_SWAP_ROUTERS/);
   });
 });
 

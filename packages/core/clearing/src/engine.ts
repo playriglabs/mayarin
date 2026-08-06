@@ -545,6 +545,14 @@ export class ClearingEngine {
         { paymentIntentId: intent.id },
       );
     }
+    if (rail.payerAddress === undefined) {
+      // The signed order's `refundTo` returns the payer's change; without an
+      // address there is nowhere safe to sign it to.
+      throw new ValidationError(
+        `Payment intent ${intent.id} takes the on-chain-contract path but its rail names no payer address`,
+        { paymentIntentId: intent.id },
+      );
+    }
 
     const lock = await planner.lock({
       clearingTransactionId: transaction.id,
@@ -554,6 +562,7 @@ export class ClearingEngine {
       settlementAsset: transaction.settlementAsset,
       payerAsset: rail.asset,
       chain: rail.chain,
+      payerAddress: rail.payerAddress,
     });
 
     if (

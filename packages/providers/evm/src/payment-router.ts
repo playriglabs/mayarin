@@ -27,8 +27,20 @@ import {
   encodeFunctionData,
   getAddress,
   type Hex,
+  keccak256,
+  stringToBytes,
   zeroAddress,
 } from "viem";
+
+/**
+ * Derives the order's bytes32 `intentId` from the clearing transaction id.
+ * Deterministic on purpose: one payment, one `intentId` — a re-lock after a
+ * crash signs the same id, and the contract's idempotency (`intentId`
+ * consumed on success) keys on the same value the backend can re-derive.
+ */
+export function deriveIntentId(clearingTransactionId: string): Hex {
+  return keccak256(stringToBytes(clearingTransactionId));
+}
 
 /** A transaction ready to submit — everything except gas, nonce and chain. */
 export interface RouterCall {

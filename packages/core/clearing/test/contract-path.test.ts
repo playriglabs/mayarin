@@ -5,6 +5,7 @@ import { FakeContractPlanner } from "../testing/index.ts";
 import { createHarness, NOW } from "./harness.ts";
 
 const TX_HASH = `0x${"77".repeat(32)}`;
+const PAYER_ADDRESS = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
 const LOCK_TTL_MS = 120_000;
 
 /** A lock the planner would produce for the harness's 50,000.00 IDR intent. */
@@ -25,8 +26,11 @@ function contractLock(overrides: Partial<ContractLock> = {}): ContractLock {
     expiresAt,
     order: {
       intentId: `0x${"11".repeat(32)}`,
+      settlementToken: "0x000000000000000000000000000000000000c0de",
       minOut: 5_000_000n,
       fee: 25_000n,
+      merchantSafe: "0x000000000000000000000000000000000000bEEF",
+      refundTo: PAYER_ADDRESS,
       deadline: BigInt(Math.floor(expiresAt.getTime() / 1_000)),
       signature: `0x${"ab".repeat(65)}`,
       signer: "0x00000000000000000000000000000000000000a1",
@@ -41,7 +45,7 @@ function contractHarness(options: Parameters<typeof createHarness>[0] = {}) {
 
   async function contractIntent() {
     return harness.confirmedIntent({
-      payment: { asset: "ETH", chain: "base" },
+      payment: { asset: "ETH", chain: "base", payerAddress: PAYER_ADDRESS },
       executionPath: "on-chain-contract",
     });
   }
@@ -91,7 +95,7 @@ describe("contract path: lock", () => {
   test("a deployment without a planner refuses the contract path", async () => {
     const harness = createHarness();
     const intent = await harness.confirmedIntent({
-      payment: { asset: "ETH", chain: "base" },
+      payment: { asset: "ETH", chain: "base", payerAddress: PAYER_ADDRESS },
       executionPath: "on-chain-contract",
     });
 
@@ -109,7 +113,7 @@ describe("contract path: lock", () => {
     });
     const harness = createHarness({ contractPlanner: planner });
     const intent = await harness.confirmedIntent({
-      payment: { asset: "ETH", chain: "base" },
+      payment: { asset: "ETH", chain: "base", payerAddress: PAYER_ADDRESS },
       executionPath: "on-chain-contract",
     });
 

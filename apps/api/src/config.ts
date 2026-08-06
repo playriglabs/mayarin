@@ -159,6 +159,25 @@ const configSchema = z.object({
   turnkeyApiPrivateKey: z.string().min(1).optional(),
   /** Development only. Refused when `NODE_ENV` is not `development`. */
   quoteSignerPrivateKey: z.string().min(1).optional(),
+
+  // --- Contract execution path (#61) --------------------------------------
+  /**
+   * Off by default. Requires the quote layer: the contract path locks
+   * through the quote engine and signs with the quote signer.
+   */
+  contractPathEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /** Deployed `PaymentRouter` address per chain. */
+  paymentRouters: jsonObject<Partial<Record<ChainId, string>>>("PAYMENT_ROUTERS", "{}"),
+  /**
+   * The Safe that receives settlements. One address for the whole deployment
+   * — per-merchant wallets arrive with Phase 4 (#11).
+   */
+  merchantSafeAddress: z.string().min(1).optional(),
+  /** `SwapRouter02` address per chain, for the Uniswap route source. */
+  uniswapSwapRouters: jsonObject<Partial<Record<ChainId, string>>>("UNISWAP_SWAP_ROUTERS", "{}"),
   nodeEnv: z.string().default("development"),
 });
 
@@ -188,9 +207,16 @@ export interface QuoteConfig {
   readonly signer: "turnkey" | "local";
 }
 
+/** Resolved contract-path configuration. Present only when `CONTRACT_PATH_ENABLED=true`. */
+export interface ContractConfig {
+  readonly paymentRouters: Readonly<Partial<Record<ChainId, string>>>;
+  readonly merchantSafe: string;
+}
+
 export type Config = RawConfig & {
   readonly chain?: ChainConfig;
   readonly quote?: QuoteConfig;
+  readonly contract?: ContractConfig;
   readonly stablecoins: readonly Stablecoin[];
 };
 
@@ -281,6 +307,73 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     slippageBps: data.quoteSlippageBps,
     ttlSeconds: data.quoteTtlSeconds,
     signer: data.quoteSigner,
+  };
+}
+
+const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
+
+/**
+ * Resolves the contract execution path (#61), failing the boot rather than
+ * the first payment. The path needs the quote layer (it locks and signs
+ * through it), a deployed router per served chain, a settlement Safe, and at
+ * least one venue that can produce an executable route.
+ */
+function resolveContract(
+  data: RawConfig,
+  quote: QuoteConfig | undefined,
+): ContractConfig | undefined {
+  if (!data.contractPathEnabled) {
+    return undefined;
+  }
+
+  const issues: string[] = [];
+
+  if (quote === undefined) {
+    issues.push(
+      "CONTRACT_PATH_ENABLED requires QUOTE_ENABLED: the path locks through the quote engine",
+    );
+  }
+
+  const routers = Object.entries(data.paymentRouters);
+  if (routers.length === 0) {
+    issues.push("PAYMENT_ROUTERS must configure at least one deployed PaymentRouter address");
+  }
+  for (const [chain, address] of routers) {
+    if (!(CHAIN_IDS as readonly string[]).includes(chain)) {
+      issues.push(`PAYMENT_ROUTERS names an unsupported chain "${chain}"`);
+    }
+    if (address === undefined || !ADDRESS_PATTERN.test(address)) {
+      issues.push(`PAYMENT_ROUTERS has a malformed address for "${chain}"`);
+    }
+  }
+
+  if (data.merchantSafeAddress === undefined) {
+    issues.push("MERCHANT_SAFE_ADDRESS is required when CONTRACT_PATH_ENABLED is true");
+  } else if (!ADDRESS_PATTERN.test(data.merchantSafeAddress)) {
+    issues.push("MERCHANT_SAFE_ADDRESS is not a valid address");
+  }
+
+  const routeCapable = (quote?.venues ?? []).filter(
+    (venue) => venue === "0x" || venue === "uniswap",
+  );
+  if (quote !== undefined && routeCapable.length === 0) {
+    issues.push(
+      "the contract path needs a route-capable venue (0x or uniswap); LiFi is price-only",
+    );
+  }
+  if (routeCapable.includes("uniswap") && Object.keys(data.uniswapSwapRouters).length === 0) {
+    issues.push("UNISWAP_SWAP_ROUTERS is required when the uniswap venue serves routes");
+  }
+
+  if (issues.length > 0) {
+    throw new ConfigurationError(`Invalid contract-path configuration: ${issues.join("; ")}`, {
+      issues,
+    });
+  }
+
+  return {
+    paymentRouters: data.paymentRouters,
+    merchantSafe: data.merchantSafeAddress ?? "",
   };
 }
 
@@ -454,6 +547,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     turnkeyApiPublicKey: env.TURNKEY_API_PUBLIC_KEY,
     turnkeyApiPrivateKey: env.TURNKEY_API_PRIVATE_KEY,
     quoteSignerPrivateKey: env.QUOTE_SIGNER_PRIVATE_KEY,
+    contractPathEnabled: env.CONTRACT_PATH_ENABLED,
+    paymentRouters: env.PAYMENT_ROUTERS,
+    merchantSafeAddress: env.MERCHANT_SAFE_ADDRESS,
+    uniswapSwapRouters: env.UNISWAP_SWAP_ROUTERS,
     nodeEnv: env.NODE_ENV,
   });
 
@@ -466,10 +563,21 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const stablecoins = resolveStablecoins(result.data);
   const chain = resolveChain(result.data);
   const quote = resolveQuote(result.data);
+  const contract = resolveContract(result.data, quote);
+
+  if (result.data.executionPath === "on-chain-contract" && contract === undefined) {
+    throw new ConfigurationError(
+      "EXECUTION_PATH defaults to on-chain-contract but CONTRACT_PATH_ENABLED is false: " +
+        "every payment would fail at the lock step",
+      {},
+    );
+  }
+
   return {
     ...result.data,
     stablecoins,
     ...(chain === undefined ? {} : { chain }),
     ...(quote === undefined ? {} : { quote }),
+    ...(contract === undefined ? {} : { contract }),
   };
 }
