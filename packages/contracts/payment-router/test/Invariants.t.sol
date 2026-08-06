@@ -55,7 +55,7 @@ contract InvariantsTest is Test, SigHelpers {
             guardian: guardian,
             feeRecipient_: treasury,
             signer_: signerAddr,
-            settlementToken_: address(usdc),
+            settlementAssets: _oneSettlementAsset(address(usdc)),
             permit2_: address(permit2)
         });
 
@@ -104,7 +104,7 @@ contract InvariantsTest is Test, SigHelpers {
         minOut = bound(minOut, 2e6, 10_000e6);
         uint256 fee = 1e6;
         bytes32 id = keccak256(abi.encode("exact", minOut));
-        IPaymentRouter.Order memory o = makeOrder(id, minOut, fee, merchant, customer, block.timestamp + 3600);
+        IPaymentRouter.Order memory o = makeOrder(id, address(usdc), minOut, fee, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         vm.deal(customer, 100 ether);
         uint256 customerBefore = customer.balance;
@@ -121,7 +121,7 @@ contract InvariantsTest is Test, SigHelpers {
         minOut = bound(minOut, 2e6, 10_000e6);
         uint256 output = minOut - 1; // exactly one minor unit short
         bytes32 id = keccak256(abi.encode("miss", minOut));
-        IPaymentRouter.Order memory o = makeOrder(id, minOut, 1e6, merchant, customer, block.timestamp + 3600);
+        IPaymentRouter.Order memory o = makeOrder(id, address(usdc), minOut, 1e6, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         vm.deal(customer, 100 ether);
         vm.prank(customer);
@@ -135,7 +135,7 @@ contract InvariantsTest is Test, SigHelpers {
     function test_fuzz_replay_rejected(uint256 seed) public {
         bytes32 id = keccak256(abi.encode("replay", seed));
         uint256 minOut = 100e6;
-        IPaymentRouter.Order memory o = makeOrder(id, minOut, 1e6, merchant, customer, block.timestamp + 3600);
+        IPaymentRouter.Order memory o = makeOrder(id, address(usdc), minOut, 1e6, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         vm.deal(customer, 100 ether);
         vm.prank(customer);
@@ -153,7 +153,7 @@ contract InvariantsTest is Test, SigHelpers {
         minOut = bound(minOut, 2e6, 10_000e6);
         output = bound(output, 0, minOut - 1); // a bad/manipulated route delivers below minOut
         bytes32 id = keccak256(abi.encode("manip", minOut, output));
-        IPaymentRouter.Order memory o = makeOrder(id, minOut, 1e6, merchant, customer, block.timestamp + 3600);
+        IPaymentRouter.Order memory o = makeOrder(id, address(usdc), minOut, 1e6, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         vm.deal(customer, 100 ether);
         vm.prank(customer);
@@ -173,7 +173,7 @@ contract InvariantsTest is Test, SigHelpers {
         uint256 minOut = 100e6;
         uint256 fee = 1e6;
         uint256 output = 120e6;
-        IPaymentRouter.Order memory o = makeOrder(id, minOut, fee, merchant, customer, block.timestamp + 3600);
+        IPaymentRouter.Order memory o = makeOrder(id, address(usdc), minOut, fee, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         bytes memory swapData = _ethData(output);
 
@@ -208,7 +208,7 @@ contract InvariantsTest is Test, SigHelpers {
         vm.prank(customer);
         weth.approve(address(permit2), type(uint256).max);
         IPermit2.PermitSingle memory p = _permit(address(weth), inputAmount, 0);
-        IPaymentRouter.Order memory o = makeOrder(id, minOut, fee, merchant, customer, block.timestamp + 3600);
+        IPaymentRouter.Order memory o = makeOrder(id, address(usdc), minOut, fee, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         bytes memory swapData = _ercData(inputAmount, output);
 
@@ -306,7 +306,7 @@ contract PayHandler is Test, SigHelpers {
         nonceCounter++;
 
         IPaymentRouter.Order memory o =
-            makeOrder(intentId, minOut_, fee, merchant, customer, block.timestamp + 3600);
+            makeOrder(intentId, address(usdc), minOut_, fee, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         vm.deal(customer, 100 ether);
         vm.prank(customer);
@@ -337,7 +337,7 @@ contract PayHandler is Test, SigHelpers {
         });
         permitNonce++;
         IPaymentRouter.Order memory o =
-            makeOrder(intentId, minOut_, fee, merchant, customer, block.timestamp + 3600);
+            makeOrder(intentId, address(usdc), minOut_, fee, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         vm.prank(customer);
         try router.payERC20(
@@ -366,7 +366,7 @@ contract PayHandler is Test, SigHelpers {
         });
         permitNonce++;
         IPaymentRouter.Order memory o =
-            makeOrder(intentId, minOut_, fee, merchant, customer, block.timestamp + 3600);
+            makeOrder(intentId, address(usdc), minOut_, fee, merchant, customer, block.timestamp + 3600);
         bytes memory sig = signOrder(address(router), o, signerPk);
         vm.prank(customer);
         try router.payERC20(o, abi.encode(p, ""), sig, address(0), "") {} catch {}

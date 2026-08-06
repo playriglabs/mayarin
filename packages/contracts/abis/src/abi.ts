@@ -27,9 +27,9 @@ export const paymentRouterAbi = [
         internalType: "address",
       },
       {
-        name: "settlementToken_",
-        type: "address",
-        internalType: "address",
+        name: "settlementAssets",
+        type: "address[]",
+        internalType: "address[]",
       },
       {
         name: "permit2_",
@@ -38,6 +38,10 @@ export const paymentRouterAbi = [
       },
     ],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "receive",
+    stateMutability: "payable",
   },
   {
     type: "function",
@@ -84,6 +88,19 @@ export const paymentRouterAbi = [
     inputs: [
       {
         name: "router",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "addSettlementAsset",
+    inputs: [
+      {
+        name: "asset",
         type: "address",
         internalType: "address",
       },
@@ -280,6 +297,25 @@ export const paymentRouterAbi = [
   },
   {
     type: "function",
+    name: "isSettlementAssetWhitelisted",
+    inputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "pause",
     inputs: [],
     outputs: [],
@@ -311,6 +347,11 @@ export const paymentRouterAbi = [
             name: "intentId",
             type: "bytes32",
             internalType: "bytes32",
+          },
+          {
+            name: "settlementToken",
+            type: "address",
+            internalType: "address",
           },
           {
             name: "minOut",
@@ -376,6 +417,11 @@ export const paymentRouterAbi = [
             name: "intentId",
             type: "bytes32",
             internalType: "bytes32",
+          },
+          {
+            name: "settlementToken",
+            type: "address",
+            internalType: "address",
           },
           {
             name: "minOut",
@@ -464,6 +510,19 @@ export const paymentRouterAbi = [
   },
   {
     type: "function",
+    name: "removeSettlementAsset",
+    inputs: [
+      {
+        name: "asset",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "renounceRole",
     inputs: [
       {
@@ -523,19 +582,6 @@ export const paymentRouterAbi = [
     ],
     outputs: [],
     stateMutability: "nonpayable",
-  },
-  {
-    type: "function",
-    name: "settlementToken",
-    inputs: [],
-    outputs: [
-      {
-        name: "",
-        type: "address",
-        internalType: "contract IERC20",
-      },
-    ],
-    stateMutability: "view",
   },
   {
     type: "function",
@@ -703,6 +749,37 @@ export const paymentRouterAbi = [
   },
   {
     type: "event",
+    name: "ResidueRefunded",
+    inputs: [
+      {
+        name: "intentId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "asset",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "to",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
     name: "RoleAdminChanged",
     inputs: [
       {
@@ -795,6 +872,32 @@ export const paymentRouterAbi = [
     inputs: [
       {
         name: "router",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "SettlementAssetRemoved",
+    inputs: [
+      {
+        name: "asset",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "SettlementAssetWhitelisted",
+    inputs: [
+      {
+        name: "asset",
         type: "address",
         indexed: true,
         internalType: "address",
@@ -945,7 +1048,17 @@ export const paymentRouterAbi = [
   },
   {
     type: "error",
+    name: "NativeRefundFailed",
+    inputs: [],
+  },
+  {
+    type: "error",
     name: "NoRoute",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NoSettlementAsset",
     inputs: [],
   },
   {
@@ -993,6 +1106,17 @@ export const paymentRouterAbi = [
   },
   {
     type: "error",
+    name: "SettlementAssetNotWhitelisted",
+    inputs: [
+      {
+        name: "asset",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
     name: "StringTooLong",
     inputs: [
       {
@@ -1001,6 +1125,11 @@ export const paymentRouterAbi = [
         internalType: "string",
       },
     ],
+  },
+  {
+    type: "error",
+    name: "UnexpectedNative",
+    inputs: [],
   },
   {
     type: "error",

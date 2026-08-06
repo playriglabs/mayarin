@@ -13,6 +13,8 @@ import type { paymentRouterAbi } from "./abi.js";
  */
 export interface Order {
   readonly intentId: `0x${string}`;
+  /** The stablecoin the merchant is paid in; signed, and whitelisted on-chain. */
+  readonly settlementToken: Address;
   readonly minOut: bigint;
   readonly fee: bigint;
   readonly merchantSafe: Address;

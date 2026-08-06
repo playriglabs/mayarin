@@ -124,3 +124,147 @@ describe("execution path configuration", () => {
     );
   });
 });
+
+describe("quote configuration", () => {
+  const PYTH_FEEDS =
+    '{"ETH/USDC":"ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"}';
+  const TURNKEY = {
+    TURNKEY_ORGANIZATION_ID: "org-1",
+    TURNKEY_SIGN_WITH: "key-1",
+    TURNKEY_SIGNER_ADDRESS: "0x000000000000000000000000000000000000a11c",
+    TURNKEY_API_PUBLIC_KEY: "02aaaa",
+    TURNKEY_API_PRIVATE_KEY: "33".repeat(32),
+  } as const;
+  const ZERO_EX = {
+    ZERO_EX_API_KEY: "key",
+    ZERO_EX_CHAIN_ID: "8453",
+    ZERO_EX_PAIRS: '{"ETH/USDC":{"sellToken":"0xe","buyToken":"0xu"}}',
+  } as const;
+
+  test("is absent unless enabled", () => {
+    expect(loadConfig({ ...BASE }).quote).toBeUndefined();
+  });
+
+  test("parses the quote block when enabled", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      ...TURNKEY,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      QUOTE_ORACLE: "pyth",
+      PYTH_FEEDS,
+      QUOTE_SLIPPAGE_BPS: "30",
+      QUOTE_TTL_SECONDS: "45",
+    });
+
+    expect(config.quote).toEqual({
+      venues: ["0x"],
+      oracle: "pyth",
+      deviationBps: 100,
+      maxReferenceAgeSeconds: 60,
+      peggedPairs: [],
+      fxMaxAgeSeconds: 300,
+      slippageBps: 30,
+      ttlSeconds: 45,
+      signer: "turnkey",
+    });
+  });
+
+  test("refuses a venue with no pairs — it would price nothing", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...TURNKEY,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        ZERO_EX_API_KEY: "key",
+        ZERO_EX_CHAIN_ID: "8453",
+      }),
+    ).toThrow(/ZERO_EX_PAIRS/);
+  });
+
+  test("refuses an oracle with no feeds — it could not guard a deviation", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        ...TURNKEY,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        QUOTE_ORACLE: "chainlink",
+      }),
+    ).toThrow(/CHAINLINK_FEEDS/);
+  });
+
+  test("refuses an unsupported venue rather than ignoring it", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...TURNKEY,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["sushiswap"]',
+        PYTH_FEEDS,
+      }),
+    ).toThrow(/unsupported venue "sushiswap"/);
+  });
+
+  test("refuses turnkey signing with no credentials", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+      }),
+    ).toThrow(/TURNKEY_ORGANIZATION_ID/);
+  });
+
+  // The promise docs/quote-signing.md makes. An in-process signing key can
+  // authorize settlement amounts, so production must not be able to opt into it
+  // by setting one environment variable.
+  test("refuses the local signer outside development", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_SIGNER: "local",
+        QUOTE_SIGNER_PRIVATE_KEY: `0x${"44".repeat(32)}`,
+        NODE_ENV: "production",
+      }),
+    ).toThrow(/refused when NODE_ENV is "production"/);
+  });
+
+  test("allows the local signer in development, with a key", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      PYTH_FEEDS,
+      QUOTE_SIGNER: "local",
+      QUOTE_SIGNER_PRIVATE_KEY: `0x${"44".repeat(32)}`,
+      NODE_ENV: "development",
+    });
+    expect(config.quote?.signer).toBe("local");
+  });
+
+  test("refuses the local signer without a key", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_SIGNER: "local",
+        NODE_ENV: "development",
+      }),
+    ).toThrow(/QUOTE_SIGNER_PRIVATE_KEY/);
+  });
+});

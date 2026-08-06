@@ -1,13 +1,15 @@
 /**
- * Reference in-memory venue, in the segregated `/testing` subpath so domain
+ * Reference in-memory fakes, in the segregated `/testing` subpath so domain
  * `src/` stays pure. The venue serves configured quotes verbatim and records
  * each call, so a test can make sure that the no-swap path calls no venue.
+ * The route source does the same for executable routes, so a test can assert
+ * the recipient and the bounds that reached the venue without HTTP stubs.
  */
 
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import { type AssetCode, ConfigurationError, type Money } from "@mayarin/shared";
-import type { RouteRequest, RoutingSwapVenue, SwapRoute, SwapVenue } from "../src/index.ts";
+import type { ExecutableRoute, RouteRequest, SwapRouteSource, SwapVenue } from "../src/index.ts";
 
 export interface RecordedVenueCall {
   readonly from: AssetCode;
@@ -36,25 +38,21 @@ export class FixedSwapVenue implements SwapVenue {
 }
 
 /**
- * Routing venue: serves configured routes verbatim, keyed by pair, and
- * records each request so a test can assert the recipient and the floor that
- * reached the venue.
+ * Route source: serves configured exact-output routes verbatim, keyed by
+ * pair (`rateKey(payerAsset, settlementAsset)`), and records each request.
  */
-export class FixedRoutingVenue extends FixedSwapVenue implements RoutingSwapVenue {
-  readonly routeCalls: RouteRequest[] = [];
-  readonly #routes: ReadonlyMap<string, SwapRoute>;
+export class FixedRouteSource implements SwapRouteSource {
+  readonly name: string;
+  readonly calls: RouteRequest[] = [];
+  readonly #routes: ReadonlyMap<string, ExecutableRoute>;
 
-  constructor(
-    name: string,
-    quotes: readonly PriceQuote[],
-    routes: Readonly<Record<string, SwapRoute>> = {},
-  ) {
-    super(name, quotes);
+  constructor(name: string, routes: Readonly<Record<string, ExecutableRoute>> = {}) {
+    this.name = name;
     this.#routes = new Map(Object.entries(routes));
   }
 
-  async route(request: RouteRequest): Promise<SwapRoute> {
-    this.routeCalls.push(request);
+  async route(request: RouteRequest): Promise<ExecutableRoute> {
+    this.calls.push(request);
     const route = this.#routes.get(rateKey(request.payerAsset, request.settlementAsset));
     if (route === undefined) {
       throw new ConfigurationError(

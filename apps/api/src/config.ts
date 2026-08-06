@@ -96,6 +96,70 @@ const configSchema = z.object({
   watcherReorgWatchWindow: z.coerce.number().int().positive().default(2),
   adminToken: z.string().min(16).optional(),
   mockWebhookSecret: z.string().min(1).optional(),
+
+  // --- Quote layer (RFC #6/#7, wired in the container) -------------------
+  /**
+   * Off by default, like the chain layer. A deployment that has not configured
+   * a venue, an oracle and a signer should boot without a quote engine rather
+   * than boot with a half-built one.
+   */
+  quoteEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /** Venue adapters to price against, in preference order for tie-breaks. */
+  quoteVenues: jsonObject<string[]>("QUOTE_VENUES", "[]"),
+  /** Reference oracle for the deviation guard. */
+  quoteOracle: z.enum(["pyth", "chainlink"]).default("pyth"),
+  /** How far the venue price may sit from the oracle before the quote fails. */
+  quoteDeviationBps: z.coerce.number().int().min(1).max(10_000).default(100),
+  /** How stale a reference may be and still vouch for a price. */
+  quoteMaxReferenceAgeSeconds: z.coerce.number().int().positive().default(60),
+  /**
+   * Fiat/stablecoin pairs that are the same currency in two representations,
+   * e.g. `["IDR/IDRX"]`. Declared, never inferred: whether an issuer holds its
+   * peg is a judgement about that issuer, not something an asset code implies.
+   */
+  quotePeggedPairs: jsonObject<string[]>("QUOTE_PEGGED_PAIRS", "[]"),
+  /**
+   * Staleness bound for the FX leg. Separate from the swap leg's bound because
+   * an FX feed and a DEX quote go stale at very different rates.
+   */
+  quoteFxMaxAgeSeconds: z.coerce.number().int().positive().default(300),
+  /** Slippage bound on the payer estimate. Never moves the merchant's `minOut`. */
+  quoteSlippageBps: z.coerce.number().int().min(0).max(9_999).default(50),
+  /** Lock TTL, which becomes the order `deadline`. */
+  quoteTtlSeconds: z.coerce.number().int().positive().default(60),
+  /** Pyth pair to Hermes feed id. */
+  pythFeeds: jsonObject<Record<string, string>>("PYTH_FEEDS", "{}"),
+  /** Chainlink pair to `{ chain, address }`. */
+  chainlinkFeeds: jsonObject<Record<string, { chain: ChainId; address: string }>>(
+    "CHAINLINK_FEEDS",
+    "{}",
+  ),
+  zeroExApiKey: z.string().min(1).optional(),
+  zeroExChainId: z.coerce.number().int().positive().optional(),
+  zeroExPairs: jsonObject<Record<string, unknown>>("ZERO_EX_PAIRS", "{}"),
+  uniswapQuoters: jsonObject<Partial<Record<ChainId, string>>>("UNISWAP_QUOTERS", "{}"),
+  uniswapPools: jsonObject<Record<string, unknown>>("UNISWAP_POOLS", "{}"),
+  lifiPairs: jsonObject<Record<string, unknown>>("LIFI_PAIRS", "{}"),
+  lifiFromAddress: z.string().min(1).optional(),
+  lifiApiKey: z.string().min(1).optional(),
+
+  // --- Quote signing (RFC #6 — #41) --------------------------------------
+  /**
+   * `turnkey` keeps the key in an enclave. `local` holds it in this process and
+   * is refused outside development — see `docs/quote-signing.md`.
+   */
+  quoteSigner: z.enum(["turnkey", "local"]).default("turnkey"),
+  turnkeyOrganizationId: z.string().min(1).optional(),
+  turnkeySignWith: z.string().min(1).optional(),
+  turnkeySignerAddress: z.string().min(1).optional(),
+  turnkeyApiPublicKey: z.string().min(1).optional(),
+  turnkeyApiPrivateKey: z.string().min(1).optional(),
+  /** Development only. Refused when `NODE_ENV` is not `development`. */
+  quoteSignerPrivateKey: z.string().min(1).optional(),
+  nodeEnv: z.string().default("development"),
 });
 
 export type RawConfig = z.infer<typeof configSchema>;
@@ -111,10 +175,114 @@ export interface ChainConfig {
   readonly reorgWatchWindow: number;
 }
 
+/** Resolved quote-layer configuration. Present only when `QUOTE_ENABLED=true`. */
+export interface QuoteConfig {
+  readonly venues: readonly string[];
+  readonly oracle: "pyth" | "chainlink";
+  readonly deviationBps: number;
+  readonly maxReferenceAgeSeconds: number;
+  readonly peggedPairs: readonly string[];
+  readonly fxMaxAgeSeconds: number;
+  readonly slippageBps: number;
+  readonly ttlSeconds: number;
+  readonly signer: "turnkey" | "local";
+}
+
 export type Config = RawConfig & {
   readonly chain?: ChainConfig;
+  readonly quote?: QuoteConfig;
   readonly stablecoins: readonly Stablecoin[];
 };
+
+const SUPPORTED_VENUES = ["0x", "uniswap", "lifi"] as const;
+
+/**
+ * Resolves the quote layer, failing the boot rather than the first quote.
+ *
+ * A half-configured quote engine is worse than none: a venue with no pairs
+ * prices nothing, an oracle with no feeds cannot guard, and a signer with no key
+ * produces orders the contract rejects. Every one of those is a deployment
+ * mistake that should never reach a payer.
+ */
+function resolveQuote(data: RawConfig): QuoteConfig | undefined {
+  if (!data.quoteEnabled) {
+    return undefined;
+  }
+
+  const issues: string[] = [];
+
+  if (data.quoteVenues.length === 0) {
+    issues.push("QUOTE_VENUES must name at least one venue when QUOTE_ENABLED is true");
+  }
+  for (const venue of data.quoteVenues) {
+    if (!(SUPPORTED_VENUES as readonly string[]).includes(venue)) {
+      issues.push(`QUOTE_VENUES names an unsupported venue "${venue}"`);
+      continue;
+    }
+    if (venue === "0x") {
+      if (data.zeroExApiKey === undefined)
+        issues.push("ZERO_EX_API_KEY is required for the 0x venue");
+      if (data.zeroExChainId === undefined)
+        issues.push("ZERO_EX_CHAIN_ID is required for the 0x venue");
+      if (Object.keys(data.zeroExPairs).length === 0)
+        issues.push("ZERO_EX_PAIRS must configure at least one pair");
+    }
+    if (venue === "uniswap" && Object.keys(data.uniswapPools).length === 0) {
+      issues.push("UNISWAP_POOLS must configure at least one pool for the uniswap venue");
+    }
+    if (venue === "lifi") {
+      if (data.lifiFromAddress === undefined)
+        issues.push("LIFI_FROM_ADDRESS is required for the lifi venue");
+      if (Object.keys(data.lifiPairs).length === 0)
+        issues.push("LIFI_PAIRS must configure at least one pair");
+    }
+  }
+
+  if (data.quoteOracle === "pyth" && Object.keys(data.pythFeeds).length === 0) {
+    issues.push("PYTH_FEEDS must configure at least one feed when QUOTE_ORACLE is pyth");
+  }
+  if (data.quoteOracle === "chainlink" && Object.keys(data.chainlinkFeeds).length === 0) {
+    issues.push("CHAINLINK_FEEDS must configure at least one feed when QUOTE_ORACLE is chainlink");
+  }
+
+  if (data.quoteSigner === "turnkey") {
+    if (data.turnkeyOrganizationId === undefined)
+      issues.push("TURNKEY_ORGANIZATION_ID is required");
+    if (data.turnkeySignWith === undefined) issues.push("TURNKEY_SIGN_WITH is required");
+    if (data.turnkeySignerAddress === undefined) issues.push("TURNKEY_SIGNER_ADDRESS is required");
+    if (data.turnkeyApiPublicKey === undefined) issues.push("TURNKEY_API_PUBLIC_KEY is required");
+    if (data.turnkeyApiPrivateKey === undefined) issues.push("TURNKEY_API_PRIVATE_KEY is required");
+  } else {
+    // The promise `docs/quote-signing.md` makes: the composition root refuses an
+    // in-process signing key outside development. Anything that can read the
+    // process could otherwise authorize settlement amounts.
+    if (data.nodeEnv !== "development") {
+      issues.push(
+        `QUOTE_SIGNER=local holds the quote-signing key in this process and is refused when ` +
+          `NODE_ENV is "${data.nodeEnv}"; use QUOTE_SIGNER=turnkey outside development`,
+      );
+    }
+    if (data.quoteSignerPrivateKey === undefined) {
+      issues.push("QUOTE_SIGNER_PRIVATE_KEY is required when QUOTE_SIGNER is local");
+    }
+  }
+
+  if (issues.length > 0) {
+    throw new ConfigurationError(`Invalid quote configuration: ${issues.join("; ")}`, { issues });
+  }
+
+  return {
+    venues: data.quoteVenues,
+    oracle: data.quoteOracle,
+    deviationBps: data.quoteDeviationBps,
+    maxReferenceAgeSeconds: data.quoteMaxReferenceAgeSeconds,
+    peggedPairs: data.quotePeggedPairs,
+    fxMaxAgeSeconds: data.quoteFxMaxAgeSeconds,
+    slippageBps: data.quoteSlippageBps,
+    ttlSeconds: data.quoteTtlSeconds,
+    signer: data.quoteSigner,
+  };
+}
 
 /**
  * Resolves the stablecoin registry: the admitted settlement set, unioning
@@ -260,6 +428,33 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,
     adminToken: env.ADMIN_TOKEN,
     mockWebhookSecret: env.MOCK_WEBHOOK_SECRET,
+    quoteEnabled: env.QUOTE_ENABLED,
+    quoteVenues: env.QUOTE_VENUES,
+    quoteOracle: env.QUOTE_ORACLE,
+    quoteDeviationBps: env.QUOTE_DEVIATION_BPS,
+    quoteMaxReferenceAgeSeconds: env.QUOTE_MAX_REFERENCE_AGE_SECONDS,
+    quotePeggedPairs: env.QUOTE_PEGGED_PAIRS,
+    quoteFxMaxAgeSeconds: env.QUOTE_FX_MAX_AGE_SECONDS,
+    quoteSlippageBps: env.QUOTE_SLIPPAGE_BPS,
+    quoteTtlSeconds: env.QUOTE_TTL_SECONDS,
+    pythFeeds: env.PYTH_FEEDS,
+    chainlinkFeeds: env.CHAINLINK_FEEDS,
+    zeroExApiKey: env.ZERO_EX_API_KEY,
+    zeroExChainId: env.ZERO_EX_CHAIN_ID,
+    zeroExPairs: env.ZERO_EX_PAIRS,
+    uniswapQuoters: env.UNISWAP_QUOTERS,
+    uniswapPools: env.UNISWAP_POOLS,
+    lifiPairs: env.LIFI_PAIRS,
+    lifiFromAddress: env.LIFI_FROM_ADDRESS,
+    lifiApiKey: env.LIFI_API_KEY,
+    quoteSigner: env.QUOTE_SIGNER,
+    turnkeyOrganizationId: env.TURNKEY_ORGANIZATION_ID,
+    turnkeySignWith: env.TURNKEY_SIGN_WITH,
+    turnkeySignerAddress: env.TURNKEY_SIGNER_ADDRESS,
+    turnkeyApiPublicKey: env.TURNKEY_API_PUBLIC_KEY,
+    turnkeyApiPrivateKey: env.TURNKEY_API_PRIVATE_KEY,
+    quoteSignerPrivateKey: env.QUOTE_SIGNER_PRIVATE_KEY,
+    nodeEnv: env.NODE_ENV,
   });
 
   if (!result.success) {
@@ -270,5 +465,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 
   const stablecoins = resolveStablecoins(result.data);
   const chain = resolveChain(result.data);
-  return { ...result.data, stablecoins, ...(chain === undefined ? {} : { chain }) };
+  const quote = resolveQuote(result.data);
+  return {
+    ...result.data,
+    stablecoins,
+    ...(chain === undefined ? {} : { chain }),
+    ...(quote === undefined ? {} : { quote }),
+  };
 }

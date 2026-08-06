@@ -33,6 +33,13 @@ export type Hex = `0x${string}`;
 export interface Order {
   /** Backend-issued, globally unique per intent (bytes32). */
   readonly intentId: Hex;
+  /**
+   * The stablecoin the merchant is paid in. Signed, because one router serves
+   * every merchant and each chooses their own settlement asset — leaving it
+   * caller-supplied would let a payer redirect settlement to a worthless token
+   * and still satisfy `minOut`. The contract also requires it to be whitelisted.
+   */
+  readonly settlementToken: Hex;
   /** Hard-locked settlement-asset amount (minor units). */
   readonly minOut: bigint;
   /** Treasury take (minor units); the lock guarantees `fee < minOut`. */
@@ -52,6 +59,7 @@ export const ORDER_DOMAIN_VERSION = "1";
 export const ORDER_TYPES = {
   Order: [
     { name: "intentId", type: "bytes32" },
+    { name: "settlementToken", type: "address" },
     { name: "minOut", type: "uint256" },
     { name: "fee", type: "uint256" },
     { name: "merchantSafe", type: "address" },
@@ -62,7 +70,7 @@ export const ORDER_TYPES = {
 
 /** The primary type string, byte-for-byte the `ORDER_TYPE` in `OrderHash.sol`. */
 export const ORDER_TYPE_STRING =
-  "Order(bytes32 intentId,uint256 minOut,uint256 fee,address merchantSafe,address refundTo,uint256 deadline)";
+  "Order(bytes32 intentId,address settlementToken,uint256 minOut,uint256 fee,address merchantSafe,address refundTo,uint256 deadline)";
 
 /** Derives the type string from `ORDER_TYPES`, so a test can pin both to each other. */
 export function orderTypeString(): string {
@@ -108,6 +116,8 @@ export function orderTypedData(domain: OrderDomain, order: Order): OrderTypedDat
 export interface OrderContext {
   /** Backend-issued bytes32 intent id. */
   readonly intentId: Hex;
+  /** On-chain address of the merchant's settlement stablecoin. */
+  readonly settlementToken: Hex;
   readonly merchantSafe: Hex;
   readonly refundTo: Hex;
 }
@@ -137,6 +147,11 @@ export function assembleOrder(lock: LockedQuote, context: OrderContext, now: Dat
       intentId: context.intentId,
     });
   }
+  if (!ADDRESS_PATTERN.test(context.settlementToken)) {
+    throw new ValidationError("The settlement token must be a 20-byte hex address", {
+      settlementToken: context.settlementToken,
+    });
+  }
   if (!ADDRESS_PATTERN.test(context.merchantSafe)) {
     throw new ValidationError("The merchant Safe must be a 20-byte hex address", {
       merchantSafe: context.merchantSafe,
@@ -150,6 +165,7 @@ export function assembleOrder(lock: LockedQuote, context: OrderContext, now: Dat
 
   return {
     intentId: context.intentId,
+    settlementToken: context.settlementToken,
     minOut: lock.minOut.amount,
     fee: lock.fee.amount,
     merchantSafe: context.merchantSafe,

@@ -43,6 +43,7 @@ import {
   type StablecoinRegistry,
 } from "@mayarin/stablecoin";
 import type { Config } from "./config.ts";
+import { createQuoteLayer, type QuoteLayer } from "./quote-layer.ts";
 import { PaymentAppService } from "./services/payment.ts";
 
 export interface Container {
@@ -65,6 +66,12 @@ export interface Container {
   readonly deposits?: DrizzleDepositRepository;
   /** Current head of a chain, for rendering confirmation counts. */
   readonly chainHead?: (chain: ChainId) => Promise<BlockRef>;
+  /**
+   * Venue-priced, oracle-guarded quoting and order signing. Present only when
+   * `QUOTE_ENABLED` is true; without it the engine prices from the static
+   * `EXCHANGE_RATES` table, which is the development default.
+   */
+  readonly quote?: QuoteLayer;
   close(): Promise<void>;
 }
 
@@ -173,6 +180,8 @@ export function createContainer({
     }
   }
 
+  const quote = createQuoteLayer(config, clock);
+
   const paymentApp = new PaymentAppService({
     intents,
     engine,
@@ -194,6 +203,7 @@ export function createContainer({
     watchers,
     ...(deposits === undefined ? {} : { deposits }),
     ...(chainHead === undefined ? {} : { chainHead }),
+    ...(quote === undefined ? {} : { quote }),
     close: () => handle.close(),
   };
 }

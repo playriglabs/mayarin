@@ -19,12 +19,20 @@
         "@mayarin/chain": "workspace:*",
         "@mayarin/clearing": "workspace:*",
         "@mayarin/db": "workspace:*",
+        "@mayarin/execution": "workspace:*",
         "@mayarin/ledger": "workspace:*",
         "@mayarin/payment-intent": "workspace:*",
+        "@mayarin/provider-chainlink": "workspace:*",
         "@mayarin/provider-evm": "workspace:*",
         "@mayarin/provider-mock": "workspace:*",
+        "@mayarin/provider-pyth": "workspace:*",
         "@mayarin/provider-stablecoin": "workspace:*",
+        "@mayarin/provider-swap-0x": "workspace:*",
+        "@mayarin/provider-swap-lifi": "workspace:*",
+        "@mayarin/provider-swap-uniswap": "workspace:*",
+        "@mayarin/provider-turnkey": "workspace:*",
         "@mayarin/qr-parser": "workspace:*",
+        "@mayarin/quote": "workspace:*",
         "@mayarin/settlement": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "@mayarin/stablecoin": "workspace:*",
@@ -262,6 +270,9 @@
       "version": "0.1.0",
       "dependencies": {
         "@mayarin/chain": "workspace:*",
+        "@mayarin/contracts": "workspace:*",
+        "@mayarin/execution": "workspace:*",
+        "@mayarin/quote": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "@noble/curves": "1.9.1",
         "viem": "^2.21.0",
@@ -324,6 +335,17 @@
         "@mayarin/execution": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "viem": "^2.21.0",
+      },
+    },
+    "packages/providers/turnkey": {
+      "name": "@mayarin/provider-turnkey",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/quote": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+        "@noble/curves": "1.9.1",
+        "viem": "^2.21.0",
+        "zod": "^3.24.1",
       },
     },
     "packages/shared": {
@@ -910,6 +932,8 @@
     "@mayarin/provider-swap-lifi": ["@mayarin/provider-swap-lifi@workspace:packages/providers/swap-lifi"],
 
     "@mayarin/provider-swap-uniswap": ["@mayarin/provider-swap-uniswap@workspace:packages/providers/swap-uniswap"],
+
+    "@mayarin/provider-turnkey": ["@mayarin/provider-turnkey@workspace:packages/providers/turnkey"],
 
     "@mayarin/qr-parser": ["@mayarin/qr-parser@workspace:packages/core/qr-parser"],
 

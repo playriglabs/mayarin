@@ -17,7 +17,11 @@ remappings = [
 # Read-only access to the sibling ABI package, so the EIP-712 order-hash vectors
 # (#24) have one committed source that both this suite and the TS suite assert
 # against instead of two copies that can drift.
-fs_permissions = [{access = "read", path = "../abis/vectors"}]
+fs_permissions = [
+    {access = "read", path = "../abis/vectors"},
+    # The #49 calldata fixture, emitted by packages/providers/evm.
+    {access = "read", path = "./test/fixtures"},
+]
 
 [fmt]
 line_length = 100

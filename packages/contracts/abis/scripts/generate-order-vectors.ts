@@ -17,7 +17,12 @@
  * Run via `bun run build:order-vectors`.
  */
 
-import { ORDER_DOMAIN_NAME, ORDER_DOMAIN_VERSION, ORDER_TYPES } from "@mayarin/quote";
+import {
+  ORDER_DOMAIN_NAME,
+  ORDER_DOMAIN_VERSION,
+  ORDER_TYPES,
+  orderTypeString,
+} from "@mayarin/quote";
 import { hashDomain, hashStruct, hashTypedData, keccak256, toHex } from "viem";
 
 const OUT_REL = "../vectors/order-hash.json";
@@ -31,6 +36,7 @@ const domain = {
 
 const order = {
   intentId: "0x0000000000000000000000000000000000000000000000000000000000000001",
+  settlementToken: "0x000000000000000000000000000000000000c0de",
   minOut: 100_000_000n, // 100 USDC, 6 decimals
   fee: 1_000_000n, // 1 USDC
   merchantSafe: "0x000000000000000000000000000000000000bEEF",
@@ -38,8 +44,9 @@ const order = {
   deadline: 57005n, // 0xDEAD — a literal, so the vector never depends on a clock
 } as const;
 
-const typeString =
-  "Order(bytes32 intentId,uint256 minOut,uint256 fee,address merchantSafe,address refundTo,uint256 deadline)";
+// Derived from ORDER_TYPES, never hand-written: a literal here would be a third
+// copy of the field list, and the one most likely to be forgotten on a change.
+const typeString = orderTypeString();
 
 const vectors = {
   _comment:
@@ -67,6 +74,7 @@ const vectors = {
   }),
   order: {
     intentId: order.intentId,
+    settlementToken: order.settlementToken,
     minOut: order.minOut.toString(),
     fee: order.fee.toString(),
     merchantSafe: order.merchantSafe,

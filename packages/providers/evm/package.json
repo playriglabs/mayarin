@@ -7,10 +7,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:router-calldata": "bun run scripts/generate-router-calldata.ts"
   },
   "dependencies": {
     "@mayarin/chain": "workspace:*",
+    "@mayarin/contracts": "workspace:*",
+    "@mayarin/execution": "workspace:*",
+    "@mayarin/quote": "workspace:*",
     "@mayarin/shared": "workspace:*",
     "@noble/curves": "1.9.1",
     "viem": "^2.21.0"

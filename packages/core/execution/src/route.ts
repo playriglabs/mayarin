@@ -1,64 +1,83 @@
 /**
- * Executable swap route (RFC #5 — #57).
+ * Executable swap routes (RFC #5 — #57).
  *
- * The quote/route split is deliberate: a quote prices a pair and is cheap; a
- * route commits to a fill and returns the calldata the `PaymentRouter` runs.
- * `SwapVenue.quote` feeds planning and selection (#44/#48); `route` feeds the
- * router call builder (#49). A venue that can only price stays a plain
- * `SwapVenue`; a venue that can also execute implements `RoutingSwapVenue`.
+ * `SwapVenue.quote` answers "what is the price?". This port answers "what
+ * transaction performs the swap?" — and the two are deliberately separate,
+ * because the second commits to a fill, costs a firmer API call, and goes stale
+ * far faster than a price does.
  *
- * Freshness: a route is more perishable than a price. The rule is build per
- * payment attempt, never cache — `expiresAt` is set only when the venue
- * states a validity window, and its absence means "rebuild before every
- * send", not "valid forever".
+ * **Routes are exact-output.** The merchant's `minOut` is a hard lock the
+ * contract enforces by reverting, so the route is asked to deliver exactly that
+ * much settlement asset and no more. The payer sends a little extra to absorb
+ * movement, and whatever the route does not consume comes back to them **in the
+ * asset they paid with** — `PaymentRouter` returns unconsumed input and
+ * route-refunded native to `refundTo`. Exact-input would work too, but it hands
+ * the payer their change as a dust balance of the settlement stablecoin, which
+ * for a coffee is a worse answer than a few cents of ETH back.
  *
- * The contract owns enforcement. It measures its own settlement-balance
- * delta and hard-reverts below the signed `minOut`, so a route that pays the
- * wrong recipient settles nothing, and the route's own floor can only make a
- * doomed fill revert earlier (cheaper), never change what the merchant
- * receives.
+ * Not every venue can do this. Exact-output needs the venue to price backwards
+ * from a target output, and aggregators built around "spend this much" cannot.
+ * A venue that cannot serve an exact-output route says so rather than quietly
+ * returning an exact-input one that would leave the payer holding stablecoin
+ * dust.
  */
 
 import type { AssetCode, Money } from "@mayarin/shared";
-import type { SwapVenue } from "./venue.ts";
 
+/**
+ * What the caller needs a route for. `recipient` is always the PaymentRouter:
+ * the contract measures its own settlement-balance delta, so a route paying the
+ * merchant directly settles nothing and reverts on `minOut`.
+ */
 export interface RouteRequest {
   readonly payerAsset: AssetCode;
   readonly settlementAsset: AssetCode;
-  /** Sell amount, in `payerAsset` minor units. */
-  readonly amount: Money;
+  /** Exactly what the swap must deliver — the merchant's locked `minOut`. */
+  readonly exactOut: Money;
   /**
-   * The deployed `PaymentRouter`: the swap output must land there, because
-   * the contract measures its own balance delta. For an ERC-20 sell the
-   * contract also grants the route's `to` an exact allowance.
+   * The most payer asset the route may consume. The payer's estimate, already
+   * grossed up by the slippage bound; the route must not spend past it.
    */
+  readonly maxIn: Money;
+  /** The PaymentRouter address the swap must deliver into. */
   readonly recipient: string;
-  /**
-   * The signed lock, in `settlementAsset` minor units. Embedded as the
-   * route's own floor where the venue supports one; the contract's hard
-   * revert stays the enforcement either way.
-   */
-  readonly minOut: bigint;
 }
 
-/** The transaction fragment `payEth`/`payERC20` forward to the venue's router. */
-export interface SwapRoute {
-  readonly venue: string;
-  /** The contract the `PaymentRouter` calls — and approves, for an ERC-20 sell. */
-  readonly to: string;
-  readonly data: `0x${string}`;
-  /** Native value the call carries; `0n` for an ERC-20 sell. */
-  readonly value: bigint;
-  /** Set only when the venue states route validity; absent means rebuild per attempt. */
+/**
+ * A route ready to hand to `payEth`/`payERC20` as their `router` and `data`
+ * arguments.
+ */
+export interface ExecutableRoute {
+  /** The DEX router to call. Must be whitelisted on-chain or the payment reverts. */
+  readonly router: string;
+  /** Calldata performing the swap, delivering `exactOut` to `recipient`. */
+  readonly callData: `0x${string}`;
+  /**
+   * What the venue expects to consume. An estimate, not a commitment — the
+   * contract refunds whatever is left, so this is for display and for checking
+   * the route stayed within `maxIn`.
+   */
+  readonly expectedIn: Money;
+  /** Which venue produced this, matching `SwapVenue.name`. */
+  readonly source: string;
+  /**
+   * When the route stops being safe to submit, if the venue says. Routes go
+   * stale much faster than prices; a caller holding one past this should ask
+   * again rather than let the payment revert on-chain.
+   */
   readonly expiresAt?: Date;
 }
 
-/** A venue that can execute, not only price. */
-export interface RoutingSwapVenue extends SwapVenue {
+/**
+ * Produces executable routes. Implemented by venue adapters alongside
+ * `SwapVenue`, in `packages/providers/*`, so the network stays out of core.
+ */
+export interface SwapRouteSource {
+  /** Matches the `SwapVenue.name` of the same venue. */
+  readonly name: string;
   /**
-   * An executable route for the request. The same error rules as `quote`:
-   * a pair the venue cannot serve is a `ConfigurationError`, a venue fault
-   * is a retryable `ProviderError`.
+   * An exact-output route, or a `ConfigurationError` if this venue cannot serve
+   * the pair or cannot price exact-output at all.
    */
-  route(request: RouteRequest): Promise<SwapRoute>;
+  route(request: RouteRequest): Promise<ExecutableRoute>;
 }

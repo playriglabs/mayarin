@@ -68,7 +68,7 @@ abstract contract Harness is Test, SigHelpers {
             guardian: admin,
             feeRecipient_: treasury,
             signer_: signerAddr,
-            settlementToken_: address(usdc),
+            settlementAssets: _oneSettlementAsset(address(usdc)),
             permit2_: address(permit2)
         });
 
@@ -90,7 +90,7 @@ abstract contract Harness is Test, SigHelpers {
         uint256 fee,
         uint256 deadline
     ) internal view returns (IPaymentRouter.Order memory) {
-        return makeOrder(intentId, minOut, fee, merchant, customer, deadline);
+        return makeOrder(intentId, address(usdc), minOut, fee, merchant, customer, deadline);
     }
 
     function sign(IPaymentRouter.Order memory o) internal returns (bytes memory) {

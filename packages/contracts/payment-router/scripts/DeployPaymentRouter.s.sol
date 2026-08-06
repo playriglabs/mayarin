@@ -33,7 +33,8 @@ import {PaymentRouter} from "../src/PaymentRouter.sol";
 ///        GUARDIAN          instant-pause holder (separate multisig/EOA)
 ///        FEE_RECIPIENT     treasury destination for `fee`
 ///        SIGNER            backend quote-signing key (RFC #6 custody: HSM/KMS)
-///        SETTLEMENT_TOKEN  settlement ERC-20 (USDC on Base Sepolia — verify the
+///        SETTLEMENT_TOKENS comma-separated settlement ERC-20s, at least one
+///                          (e.g. USDC on Base Sepolia — verify the
 ///                          address on-chain before deploy)
 ///      Optional env:
 ///        TIMELOCK_DELAY    config-change delay in seconds (default 48h = 172800;
@@ -56,7 +57,10 @@ contract DeployPaymentRouter is Script {
         address guardian = vm.envAddress("GUARDIAN");
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
         address signer = vm.envAddress("SIGNER");
-        address settlementToken = vm.envAddress("SETTLEMENT_TOKEN");
+        // Comma-separated, e.g. SETTLEMENT_TOKENS=0xUSDC,0xIDRX. At least one is
+        // required: a router with no admitted settlement asset can serve no
+        // payment, and adding one later costs the full timelock delay.
+        address[] memory settlementTokens = vm.envAddress("SETTLEMENT_TOKENS", ",");
         uint256 delay = vm.envOr("TIMELOCK_DELAY", DEFAULT_DELAY);
 
         vm.startBroadcast();
@@ -75,7 +79,7 @@ contract DeployPaymentRouter is Script {
             guardian: guardian,
             feeRecipient_: feeRecipient,
             signer_: signer,
-            settlementToken_: settlementToken,
+            settlementAssets: settlementTokens,
             permit2_: PERMIT2
         });
 
@@ -83,7 +87,9 @@ contract DeployPaymentRouter is Script {
 
         console2.log("TimelockController:", address(timelock));
         console2.log("PaymentRouter:    ", address(router));
-        console2.log("Settlement token: ", settlementToken);
+        for (uint256 index = 0; index < settlementTokens.length; index += 1) {
+            console2.log("Settlement asset: ", settlementTokens[index]);
+        }
         console2.log("Permit2:          ", PERMIT2);
 
         // Post-deploy config (router/input-asset whitelist, feeRecipient, signer

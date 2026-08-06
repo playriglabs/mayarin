@@ -28,9 +28,16 @@ abstract contract SigHelpers is Test {
         return abi.encodePacked(r, s, v);
     }
 
+    /// @dev The constructor's bootstrap whitelist, for suites that admit one asset.
+    function _oneSettlementAsset(address asset) internal pure returns (address[] memory assets) {
+        assets = new address[](1);
+        assets[0] = asset;
+    }
+
     /// @dev Builds an `Order` with sensible defaults; tests override fields.
     function makeOrder(
         bytes32 intentId,
+        address settlementToken,
         uint256 minOut,
         uint256 fee,
         address merchantSafe,
@@ -39,6 +46,7 @@ abstract contract SigHelpers is Test {
     ) public pure returns (IPaymentRouter.Order memory) {
         return IPaymentRouter.Order({
             intentId: intentId,
+            settlementToken: settlementToken,
             minOut: minOut,
             fee: fee,
             merchantSafe: merchantSafe,

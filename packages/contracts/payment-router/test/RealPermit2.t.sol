@@ -91,7 +91,7 @@ contract RealPermit2Test is Test, SigHelpers {
             guardian: admin,
             feeRecipient_: treasury,
             signer_: signerAddr,
-            settlementToken_: address(token),
+            settlementAssets: _oneSettlementAsset(address(token)),
             permit2_: PERMIT2
         });
 
@@ -165,7 +165,7 @@ contract RealPermit2Test is Test, SigHelpers {
         bytes memory permitSig = signPermit2(p, customerPk);
 
         IPaymentRouter.Order memory o =
-            makeOrder(INTENT, minOut, fee, merchant, customer, expires);
+            makeOrder(INTENT, address(token), minOut, fee, merchant, customer, expires);
         bytes memory orderSig = signOrder(address(router), o, signerPk);
 
         uint256 m0 = token.balanceOf(merchant);
