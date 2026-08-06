@@ -4,12 +4,12 @@ evm_version = "cancun"
 src = "src"
 test = "test"
 out = "out"
-libs = ["dependencies", "../../../node_modules/@openzeppelin/contracts"]
+libs = ["lib", "../../../node_modules/@openzeppelin/contracts"]
 optimizer = true
 optimizer_runs = 200
 via_ir = true
 remappings = [
-    "forge-std/=dependencies/forge-std-1.9.4/src/",
+    "forge-std/=lib/forge-std/src/",
     # OpenZeppelin via npm (canonical distribution); bun hoists to repo-root node_modules.
     "@openzeppelin/contracts/=../../../node_modules/@openzeppelin/contracts/",
 ]
@@ -23,12 +23,6 @@ fs_permissions = [{access = "read", path = "../abis/vectors"}]
 line_length = 100
 tab_width = 4
 bracket_spacing = false
-
-[soldeer]
-remappings_generate = false
-
-[dependencies]
-forge-std = "1.9.4"
 
 [fuzz]
 runs = 1000

@@ -1,0 +1,3 @@
+[submodule "packages/contracts/payment-router/lib/forge-std"]
+	path = packages/contracts/payment-router/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std

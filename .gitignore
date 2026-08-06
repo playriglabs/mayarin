@@ -31,8 +31,8 @@ bun.lockb.bak
 .turbo
 node_modules/.cache/turbo
 
-# Foundry build artifacts + soldeer-vendored deps (soldeer.lock is committed)
+# Foundry build artifacts. `lib/` is NOT ignored — forge-std is a git submodule,
+# pinned by commit in .gitmodules.
 packages/contracts/*/out/
 packages/contracts/*/cache/
-packages/contracts/*/dependencies/
 packages/contracts/*/broadcast/

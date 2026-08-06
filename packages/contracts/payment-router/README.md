@@ -140,7 +140,6 @@ no sweep, so dust sent to it is unsweepable (`test_no_sweep_dust_cannot_be_extra
 ## Commands
 
 ```bash
-forge soldeer install       # first run only — fetches forge-std into dependencies/
 forge build                 # compile (solc 0.8.28, cancun, via_ir, 200 runs)
 forge test                  # unit + fuzz + invariant (55 tests, 1 RPC-gated skip)
 forge test --match-contract AdminTest      # one suite
@@ -158,6 +157,14 @@ bun run build:order-vectors  # regenerate vectors/order-hash.json (see below)
 
 Foundry is required (not managed by bun):
 `curl -L https://foundry.paradigm.xyz | bash && foundryup`.
+
+A fresh clone needs the submodule and the npm packages before `forge test`:
+
+```bash
+git clone --recurse-submodules <repo>   # or, in an existing clone:
+git submodule update --init --recursive
+bun install                             # OpenZeppelin, via the repo-root node_modules
+```
 
 ## Security-check mapping
 
@@ -206,31 +213,29 @@ cancun` — supported on Base, the primary chain). Bump deliberately, in its
   own commit.
 - **License**: MIT per-file SPDX headers. The contract source is publicly
   verified on-chain at deploy time (#29), so headers are mandatory.
-- **Dependencies**: OpenZeppelin 5.3 arrives via npm
-  (`@openzeppelin/contracts` devDependency, hoisted to the repo-root
-  `node_modules`) with an explicit remapping in `foundry.toml` — soldeer's OZ
-  registry was unavailable, so npm is the source. Permit2 is a minimal
-  inline interface (`src/interfaces/IPermit2.sol`) — no Uniswap source
-  dependency. `forge-std` comes through soldeer (`[dependencies]`, vendored into
-  `dependencies/`, locked by `soldeer.lock`).
+- **Dependencies** come from two sources, both of them ones the repo or the
+  ecosystem already depends on:
+  - **OpenZeppelin 5.3** via npm (`@openzeppelin/contracts` devDependency,
+    hoisted to the repo-root `node_modules`), remapped explicitly in
+    `foundry.toml`. The repo already runs on npm packages, so this adds nothing
+    new to the build path.
+  - **forge-std** as a git submodule at `lib/forge-std`, pinned to `v1.9.4`
+    (commit `1eea5bae`) in `.gitmodules`. This is the canonical Foundry layout.
+  - **Permit2** is a minimal inline interface (`src/interfaces/IPermit2.sol`) —
+    no Uniswap source dependency at all.
 
-  `dependencies/` is gitignored, so a fresh clone must run `forge soldeer install`
-  before `forge test` — CI needs that step too. If the soldeer registry is
-  unreachable (it has failed with `error during IO operation: not connected`), the
-  pinned artifact URL and its sha256 are both in `soldeer.lock` and can be fetched
-  directly, which is what the lockfile is for:
+  soldeer used to supply forge-std and was dropped: its registry is not reliably
+  reachable (it failed with `error during IO operation: not connected` on a
+  network where GitHub and S3 both responded), and a test-only library is not
+  worth a third package manager in the build path. GitHub is already a hard
+  dependency of the repo, so a submodule adds no new point of failure.
 
-  ```bash
-  curl -sSL -o /tmp/forge-std.zip "$(grep -m1 '^url' soldeer.lock | cut -d'"' -f2)"
-  shasum -a 256 /tmp/forge-std.zip   # must match `checksum` in soldeer.lock
-  unzip -q -o /tmp/forge-std.zip -d dependencies/forge-std-1.9.4
-  ```
+  `lib/` is therefore **not** gitignored. A fresh clone needs
+  `--recurse-submodules` (or `git submodule update --init --recursive`) plus
+  `bun install`; CI needs `actions/checkout` with `submodules: recursive`.
 
-  `dependencies/` is gitignored;
-  `soldeer.lock` is committed.
-
-- **Remappings** are declared explicitly in `foundry.toml`
-  (`remappings_generate = false`) so the build is deterministic.
+- **Remappings** are declared explicitly in `foundry.toml` so the build is
+  deterministic.
 
 ## `@mayarin/contracts` ABI export
 
@@ -261,7 +266,23 @@ typechecks without a build step.
 
 ## CI story
 
-Not wired yet: a CI job installs Foundry via `foundry-rs/foundry-toolchain`,
-runs `forge build`, `forge test`, `forge snapshot --check`, and `slither . --config
-slither.config.json`. Solidity is intentionally outside `bun run check` — the TS
-pipeline stays Foundry-free, and the pre-push hook is unchanged.
+Not wired yet. The job:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    submodules: recursive # forge-std lives in lib/, see Policies
+- uses: foundry-rs/foundry-toolchain@v1
+- run: bun install # OpenZeppelin, into the repo-root node_modules
+- run: forge build
+- run: forge test
+- run: forge snapshot --check # fail if gas moved
+- run: slither . --config slither.config.json
+```
+
+The checkout and `bun install` steps are load-bearing, not boilerplate: without
+the submodule `forge-std/Test.sol` does not resolve, and without `bun install`
+the OpenZeppelin remapping points at nothing.
+
+Solidity is intentionally outside `bun run check` — the TS pipeline stays
+Foundry-free, and the pre-push hook is unchanged.
