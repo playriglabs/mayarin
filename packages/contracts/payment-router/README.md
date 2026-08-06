@@ -140,6 +140,7 @@ no sweep, so dust sent to it is unsweepable (`test_no_sweep_dust_cannot_be_extra
 ## Commands
 
 ```bash
+forge soldeer install       # first run only — fetches forge-std into dependencies/
 forge build                 # compile (solc 0.8.28, cancun, via_ir, 200 runs)
 forge test                  # unit + fuzz + invariant (55 tests, 1 RPC-gated skip)
 forge test --match-contract AdminTest      # one suite
@@ -211,8 +212,23 @@ cancun` — supported on Base, the primary chain). Bump deliberately, in its
   registry was unavailable, so npm is the source. Permit2 is a minimal
   inline interface (`src/interfaces/IPermit2.sol`) — no Uniswap source
   dependency. `forge-std` comes through soldeer (`[dependencies]`, vendored into
-  `dependencies/`, locked by `soldeer.lock`). `dependencies/` is gitignored;
+  `dependencies/`, locked by `soldeer.lock`).
+
+  `dependencies/` is gitignored, so a fresh clone must run `forge soldeer install`
+  before `forge test` — CI needs that step too. If the soldeer registry is
+  unreachable (it has failed with `error during IO operation: not connected`), the
+  pinned artifact URL and its sha256 are both in `soldeer.lock` and can be fetched
+  directly, which is what the lockfile is for:
+
+  ```bash
+  curl -sSL -o /tmp/forge-std.zip "$(grep -m1 '^url' soldeer.lock | cut -d'"' -f2)"
+  shasum -a 256 /tmp/forge-std.zip   # must match `checksum` in soldeer.lock
+  unzip -q -o /tmp/forge-std.zip -d dependencies/forge-std-1.9.4
+  ```
+
+  `dependencies/` is gitignored;
   `soldeer.lock` is committed.
+
 - **Remappings** are declared explicitly in `foundry.toml`
   (`remappings_generate = false`) so the build is deterministic.
 
