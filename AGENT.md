@@ -166,3 +166,8 @@ directly).
 - Biome owns TS/JS/JSON; Prettier owns Markdown/YAML. `packages/db/migrations` is excluded from
   Biome.
 - Commit messages carry no Claude or Anthropic attribution trailer.
+
+## Something that you should understand
+
+- "I prefer stupid simple code instead of smart one"
+- "No need to create fallback and backward compatibility unless user asking to do so"
