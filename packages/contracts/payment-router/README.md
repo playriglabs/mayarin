@@ -19,7 +19,8 @@ Value moves in one transaction, in this order:
 ```
 receive (native or Permit2 pull) → optional swap (whitelisted router)
   → measure settlement balance diff → split minOut−fee / fee / output−minOut
-  → enforce zero resting balance → emit PaymentCompleted
+  → return residue (unconsumed input, route's native refund) to refundTo
+  → assert balances back at the call's baseline → emit PaymentCompleted
 ```
 
 Three invariants hold it together (specified in RFC #4, enforced and tested in
@@ -29,9 +30,22 @@ Three invariants hold it together (specified in RFC #4, enforced and tested in
   makes "merchant always receives the settlement asset" safe without a treasury
   FX book. A bad or manipulated route can only cause a revert (payer loses gas,
   never funds).
-- **Zero resting balance** — the contract never custodies value. Every path
-  sends all measured swap `output` out; a residual native or token balance
-  reverts (`RestingBalance`). There is no withdraw/sweep, by design.
+- **Zero resting balance** — the contract never custodies value. Every path sends
+  all measured swap `output` out, returns unconsumed input and any native the
+  route hands back to `refundTo` (`ResidueRefunded`), and then asserts its
+  balances equal the **baseline captured at the start of the call**; anything
+  else reverts (`RestingBalance`). There is no withdraw/sweep, by design.
+
+  The baseline is what makes the invariant hold. Asserting absolute zero instead
+  is a permanent-DoS bug: anyone can transfer tokens to any address and
+  force-send ETH with `SELFDESTRUCT`, so 1 wei of USDC sent to the router would
+  make every later payment revert, with no sweep and no admin path to recover —
+  redeploy or nothing. Measured against a baseline, a donation is inert: never
+  consumed, never counted as swap output
+  (`test_donated_dust_is_not_counted_as_swap_output`), never blocking
+  (`Residue.t.sol`, and the `donate` action interleaved into the stateful
+  invariant). It stays stuck and unsweepable, which is the intended property.
+
 - **Idempotent** — `intentId` is consumed (effect) before any external call, so a
   replay reverts (`AlreadyConsumed`). Cross-chain replay is blocked by the
   EIP-712 domain (`verifyingContract` + `chainId`).
@@ -84,7 +98,17 @@ uint256 fee, uint256 refundAmount, uint256 deadline)`. `inputAsset`/
    minimal `IAllowanceTransfer` slice it calls. Unit tests use a `MockPermit2`; a
    fork test gated by `BASE_SEPOLIA_RPC_URL` (skip when unset, mirroring the
    repo's `DATABASE_URL`-gated db tests) exercises the real Permit2.
-10. **Oracle manipulation** — no on-chain oracle. `minOut` is signed by the
+10. **Residue and `receive()`** — the contract accepts native **only from a
+    whitelisted router**, because exact-output routes hand the unspent remainder
+    back to `msg.sender` mid-swap (Uniswap's `refundETH`); without the hook the
+    whole payment would revert inside the route. It is a pass-through, not a
+    deposit: `_returnResidue` forwards it to `refundTo` in the same transaction,
+    alongside any input a partial fill left behind. Both emit `ResidueRefunded`
+    — additive, so `PaymentCompleted`'s shape is untouched for the Indexer (#8).
+    Note the asset: residue is returned in the asset it arrived as, while
+    `PaymentCompleted.refundAmount` is always settlement-asset excess above
+    `minOut`.
+11. **Oracle manipulation** — no on-chain oracle. `minOut` is signed by the
     backend Quote Engine (#6 composes Pyth/Chainlink + DEX off-chain). The
     on-chain defense is the signed `minOut` + hard revert; nothing on-chain to
     manipulate.
@@ -109,7 +133,7 @@ no sweep, so dust sent to it is unsweepable (`test_no_sweep_dust_cannot_be_extra
 
 ```bash
 forge build                 # compile (solc 0.8.28, cancun, via_ir, 200 runs)
-forge test                  # unit + fuzz + invariant (45 tests)
+forge test                  # unit + fuzz + invariant (54 tests, 1 RPC-gated skip)
 forge test --match-contract AdminTest      # one suite
 forge snapshot               # write .gas-snapshot
 forge snapshot --check       # CI: fail if gas changed
@@ -130,22 +154,24 @@ Foundry is required (not managed by bun):
 The pre-implementation security checklist, mapped to where it is enforced and
 tested:
 
-| Check                             | Implementation                                                                                                                                   | Test                                                                                            |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| ReentrancyGuard                   | OZ `nonReentrant` on `payEth`/`payERC20`; CEI (consume before external calls)                                                                    | `Invariants.t.sol` `test_reentrancy_*`                                                          |
-| Pausable                          | OZ `Pausable`; `whenNotPaused` on pays; pause never traps value                                                                                  | `Admin.t.sol` `test_guardian_pause_instant_and_blocks_pays`                                     |
-| SafeERC20                         | OZ `SafeERC20.forceApprove` (exact approval, reset to 0 after; avoids USDT/USDC fee-on-transfer/allowance bug); `safeTransfer` for settle/refund | `PayERC20.t.sol`, `Invariants.t.sol` approval reset                                             |
-| Oracle manipulation               | none on-chain; signed `minOut` + hard revert                                                                                                     | `Invariants.t.sol` `test_fuzz_manipulated_route_cannot_settle_below_minOut`                     |
-| Approval attack                   | exact `inputAmount` approval to whitelisted router, reset to 0 after; whitelist is the trust boundary                                            | `Invariants.t.sol` reentrancy handler, zero resting                                             |
-| Wrong token / whitelist           | input-asset whitelist mapping; native always admissible                                                                                          | `PayERC20.t.sol` `test_payERC20_nonWhitelisted_asset_reverts`                                   |
-| Exact amount (actual vs expected) | measure balance diff; `minOut−fee`/`fee`/`output−minOut` split; conservation                                                                     | `Invariants.t.sol` `invariant_zero_resting_balance`, fuzz boundary                              |
-| Replay                            | `consumed[intentId]`; cross-chain blocked by EIP-712 domain                                                                                      | `PaymentRouter.t.sol` + `PayERC20.t.sol` replay, `Invariants.t.sol` `test_fuzz_replay_rejected` |
-| Expired quote                     | `require(block.timestamp <= deadline)`                                                                                                           | `PaymentRouter.t.sol` `test_reverts_expired_deadline`                                           |
-| Decimal                           | raw `uint256` minor units; no decimal math; 6-dec USDC + 18-dec WETH input                                                                       | `PayERC20.t.sol` `test_payERC20_decimal_18_to_6_no_decimal_math`                                |
+| Check                             | Implementation                                                                                                                                   | Test                                                                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| ReentrancyGuard                   | OZ `nonReentrant` on `payEth`/`payERC20`; CEI (consume before external calls)                                                                    | `Invariants.t.sol` `test_reentrancy_*`                                                                                            |
+| Pausable                          | OZ `Pausable`; `whenNotPaused` on pays; pause never traps value                                                                                  | `Admin.t.sol` `test_guardian_pause_instant_and_blocks_pays`                                                                       |
+| SafeERC20                         | OZ `SafeERC20.forceApprove` (exact approval, reset to 0 after; avoids USDT/USDC fee-on-transfer/allowance bug); `safeTransfer` for settle/refund | `PayERC20.t.sol`, `Invariants.t.sol` approval reset                                                                               |
+| Oracle manipulation               | none on-chain; signed `minOut` + hard revert                                                                                                     | `Invariants.t.sol` `test_fuzz_manipulated_route_cannot_settle_below_minOut`                                                       |
+| Approval attack                   | exact `inputAmount` approval to whitelisted router, reset to 0 after; whitelist is the trust boundary                                            | `Invariants.t.sol` reentrancy handler, zero resting                                                                               |
+| Wrong token / whitelist           | input-asset whitelist mapping; native always admissible                                                                                          | `PayERC20.t.sol` `test_payERC20_nonWhitelisted_asset_reverts`                                                                     |
+| Exact amount (actual vs expected) | measure balance diff; `minOut−fee`/`fee`/`output−minOut` split; conservation                                                                     | `Invariants.t.sol` `invariant_no_custody_beyond_donations`, fuzz boundary                                                         |
+| Donation griefing                 | resting-balance assertion is delta-vs-baseline, not absolute zero; donated dust is inert and unsweepable                                         | `Residue.t.sol` (4 donation tests + fuzz), `Invariants.t.sol` `donate` handler action                                             |
+| Residue custody                   | unconsumed input and route-refunded native returned to `refundTo`; `receive()` restricted to whitelisted routers                                 | `Residue.t.sol` `test_payERC20_partial_fill_input_residue_refunded`, `test_payEth_native_refund_from_route_forwarded_to_refundTo` |
+| Replay                            | `consumed[intentId]`; cross-chain blocked by EIP-712 domain                                                                                      | `PaymentRouter.t.sol` + `PayERC20.t.sol` replay, `Invariants.t.sol` `test_fuzz_replay_rejected`                                   |
+| Expired quote                     | `require(block.timestamp <= deadline)`                                                                                                           | `PaymentRouter.t.sol` `test_reverts_expired_deadline`                                                                             |
+| Decimal                           | raw `uint256` minor units; no decimal math; 6-dec USDC + 18-dec WETH input                                                                       | `PayERC20.t.sol` `test_payERC20_decimal_18_to_6_no_decimal_math`                                                                  |
 
 ## Static analysis
 
-- **Foundry** — `forge build` green; `forge test` 45/45 (unit + fuzz @1000 runs +
+- **Foundry** — `forge build` green; `forge test` 54/54 (unit + fuzz @1000 runs +
   invariant @256×20). `forge snapshot` committed to `.gas-snapshot`.
 - **Slither** (0.11.6) — `slither . --config slither.config.json`. One finding:
   `locked-ether` (Informational/Low) — the contract has a payable function and

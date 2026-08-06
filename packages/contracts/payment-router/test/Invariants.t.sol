@@ -76,13 +76,24 @@ contract InvariantsTest is Test, SigHelpers {
     // Stateful invariant
     // ------------------------------------------------------------------
 
-    /// @dev The contract never custodies value. Holds after every handler op
-    ///      because a successful pay sends all measured `output` out (split
-    ///      merchant/treasury/refund sums to `output`) and a reverted pay rolls
-    ///      its state back. This is the conservation guarantee.
-    function invariant_zero_resting_balance() public {
-        assertEq(address(router).balance, 0, "native resting");
-        assertEq(usdc.balanceOf(address(router)), 0, "token resting");
+    /// @dev The contract never custodies value it was not simply given. Holds
+    ///      after every handler op because a successful pay sends all measured
+    ///      `output` out (split merchant/treasury/refund sums to `output`),
+    ///      returns any unconsumed input, and a reverted pay rolls its state back.
+    ///
+    ///      Donations are the one balance the contract can hold, and the handler
+    ///      makes them: a third party can move tokens to any address and can
+    ///      force-send ETH with `SELFDESTRUCT`, so "always exactly zero" is not a
+    ///      property any contract can have. What it can have — and what this
+    ///      asserts — is that donated value is inert: it is never consumed, never
+    ///      counted as swap output, and never blocks a payment. Anything above the
+    ///      donated total would be custody.
+    function invariant_no_custody_beyond_donations() public view {
+        assertEq(address(router).balance, handler.donatedNative(), "native custody");
+        assertEq(
+            usdc.balanceOf(address(router)), handler.donatedSettlement(), "settlement custody"
+        );
+        assertEq(weth.balanceOf(address(router)), 0, "input custody");
     }
 
     // ------------------------------------------------------------------
@@ -259,6 +270,11 @@ contract PayHandler is Test, SigHelpers {
     bytes32 public lastIntent;
     uint48 public permitNonce;
 
+    /// @dev Running total of what the handler has donated to the router, so the
+    ///      invariant can tell an inert donation apart from actual custody.
+    uint256 public donatedSettlement;
+    uint256 public donatedNative;
+
     constructor(
         PaymentRouter router_,
         MockERC20 usdc_,
@@ -354,5 +370,19 @@ contract PayHandler is Test, SigHelpers {
         bytes memory sig = signOrder(address(router), o, signerPk);
         vm.prank(customer);
         try router.payERC20(o, abi.encode(p, ""), sig, address(0), "") {} catch {}
+    }
+
+    /// @dev The griefing move, interleaved with real payments: donate settlement
+    ///      tokens and force-send native. Neither goes through `receive()` — a
+    ///      token transfer needs no consent and `vm.deal` models `SELFDESTRUCT` —
+    ///      so no access check can stop it. Against an absolute-zero resting
+    ///      check this would have bricked every later call in the sequence.
+    function donate(uint256 tokenDust, uint256 nativeDust) external {
+        uint256 tokens = bound(tokenDust, 1, 1_000e6);
+        uint256 native = bound(nativeDust, 1, 1 ether);
+        usdc.mint(address(router), tokens);
+        vm.deal(address(router), address(router).balance + native);
+        donatedSettlement += tokens;
+        donatedNative += native;
     }
 }

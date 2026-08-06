@@ -153,4 +153,32 @@ abstract contract Harness is Test, SigHelpers {
     function ethSwapData(uint256 output) internal view returns (bytes memory) {
         return abi.encodeWithSelector(MockRouter.swapFromETH.selector, address(usdc), output, address(router));
     }
+
+    /// @dev Exact-output native swap: delivers `output` and hands `nativeRefund`
+    ///      of the unspent value back to the PaymentRouter mid-call.
+    function ethSwapDataWithRefund(uint256 output, uint256 nativeRefund)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodeWithSelector(
+            MockRouter.swapFromETHWithRefund.selector,
+            address(usdc),
+            output,
+            address(router),
+            nativeRefund
+        );
+    }
+
+    /// @dev Partial fill: the router consumes only `consume` of the `inputAmount`
+    ///      the PaymentRouter holds, stranding the rest.
+    function ercPartialSwapData(address inputToken, uint256 consume, uint256 output)
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodeWithSelector(
+            MockRouter.partialSwap.selector, inputToken, consume, address(usdc), output, address(router)
+        );
+    }
 }

@@ -12,7 +12,9 @@ import {PaymentRouter} from "../../src/PaymentRouter.sol";
 abstract contract SigHelpers is Test {
     /// @dev The EIP-712 digest the contract verifies, for test-vector export.
     function orderDigest(address router, IPaymentRouter.Order memory order) public view returns (bytes32) {
-        bytes32 domainSeparator = PaymentRouter(router).domainSeparatorV4();
+        // `payable` cast: the router has a `receive()` so exact-output routes can
+        // hand native back mid-swap.
+        bytes32 domainSeparator = PaymentRouter(payable(router)).domainSeparatorV4();
         return keccak256(abi.encodePacked(hex"1901", domainSeparator, OrderHash.structHash(order)));
     }
 

@@ -24,7 +24,14 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 ///        is what makes "merchant always receives the settlement asset" safe
 ///        without a treasury FX book.
 ///      - **Zero resting balance** — the contract never custodies value. Every
-///        path sends all swap output out; a residual native/token balance reverts.
+///        path sends all swap output out, returns unconsumed input and
+///        router-refunded native to `refundTo`, and then asserts its balances are
+///        exactly what they were when the call began. The assertion is against
+///        that per-call baseline, not against absolute zero: a third party can
+///        donate tokens or force-send ETH to any address, and an absolute-zero
+///        assertion would let 1 wei brick every pay path permanently. Donated
+///        dust stays stuck (there is no sweep, by design) but cannot block a
+///        payment.
 ///      - **Idempotent** — `intentId` is consumed (effect) before any external
 ///        call; a replay reverts. Cross-chain replay is blocked by the EIP-712
 ///        domain (`verifyingContract` + `chainId`).
@@ -85,7 +92,19 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     // ---------------------------------------------------------------------
 
     /// @dev `PaymentCompleted` is inherited from `IPaymentRouter` (the public
-    ///      event the Indexer ingests). Admin observability events below.
+    ///      event the Indexer ingests).
+    ///
+    ///      Residue is value that arrived during the call and is not part of the
+    ///      settlement split: input the router did not consume on a partial fill,
+    ///      or native an exact-output route handed back. It goes to `refundTo`,
+    ///      so it is a second, separate movement from `PaymentCompleted.refundAmount`
+    ///      (which is always settlement-asset excess above `minOut`). Additive —
+    ///      `PaymentCompleted`'s shape is unchanged for the Indexer (#8).
+    event ResidueRefunded(
+        bytes32 indexed intentId, address indexed asset, address indexed to, uint256 amount
+    );
+
+    /// @dev Admin observability.
     event RouterWhitelisted(address indexed router);
     event RouterRemoved(address indexed router);
     event InputAssetWhitelisted(address indexed asset);
@@ -107,7 +126,26 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     error AssetNotWhitelisted(address asset);
     error MinOutNotMet(uint256 output, uint256 minOut);
     error RestingBalance(uint256 native, uint256 token);
+    error NativeRefundFailed();
+    error UnexpectedNative();
     error ZeroAddress();
+
+    // ---------------------------------------------------------------------
+    // Types
+    // ---------------------------------------------------------------------
+
+    /// @dev Balances held at the start of a pay call, before any value arrives.
+    ///      Everything the contract measures afterwards is a delta against this,
+    ///      so pre-existing donated dust neither counts as swap output nor trips
+    ///      the resting-balance assertion.
+    struct Baseline {
+        uint256 native;
+        uint256 settlement;
+        /// @dev Input-asset balance before the Permit2 pull. Unused (0) on the
+        ///      native and same-asset paths, where the input needs no separate
+        ///      accounting.
+        uint256 input;
+    }
 
     // ---------------------------------------------------------------------
     // Constructor
@@ -150,6 +188,18 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     // Pay paths
     // ---------------------------------------------------------------------
 
+    /// @dev Accepts native only from a whitelisted router. Exact-output routes
+    ///      hand back the unspent remainder to `msg.sender` mid-swap (Uniswap's
+    ///      `refundETH` is the canonical case); without this the whole payment
+    ///      would revert inside the route. `_returnResidue` forwards whatever
+    ///      arrives to `refundTo` in the same transaction, so this is a pass-through,
+    ///      not a deposit. Every other sender is rejected, which keeps casual
+    ///      donations out; a `SELFDESTRUCT` force-send bypasses this hook entirely,
+    ///      which is exactly why the resting-balance check is baseline-relative.
+    receive() external payable {
+        if (!isRouterWhitelisted[msg.sender]) revert UnexpectedNative();
+    }
+
     /// @dev Public EIP-712 domain separator (OZ `_domainSeparatorV4` is internal).
     ///      Exposed so the Quote Engine (#6) and tests can compute the exact digest
     ///      the contract verifies, and the indexer/TS side can cross-check.
@@ -167,7 +217,14 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         // Native input always differs from the (ERC-20) settlement asset → swap.
         if (router == address(0) || data.length == 0) revert NoRoute();
         _prepare(order, signature);
-        _execute(order, address(0), msg.value, router, data, true);
+        // `msg.value` is already in `address(this).balance`; subtract it to get
+        // what the contract held before this call.
+        Baseline memory baseline = Baseline({
+            native: address(this).balance - msg.value,
+            settlement: settlementToken.balanceOf(address(this)),
+            input: 0
+        });
+        _execute(order, address(0), msg.value, router, data, true, baseline);
     }
 
     /// @inheritdoc IPaymentRouter
@@ -190,12 +247,20 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         // replayed call reverts (defense in depth on top of nonReentrant).
         _prepare(order, signature);
 
+        // Measured before the pull, so the pulled input is a delta, not a balance.
+        // Same-asset needs no separate input baseline: input == settlement there.
+        Baseline memory baseline = Baseline({
+            native: address(this).balance,
+            settlement: settlementToken.balanceOf(address(this)),
+            input: sameAsset ? 0 : IERC20(inputAsset).balanceOf(address(this))
+        });
+
         // Interaction: authorize via the payer's Permit2 sig, then pull the input.
         // The permit's `spender` must be this contract or `transferFrom` reverts.
         permit2.permit(msg.sender, permit, permitSig);
         permit2.transferFrom(msg.sender, address(this), uint160(inputAmount), inputAsset);
 
-        _execute(order, inputAsset, inputAmount, router, data, false);
+        _execute(order, inputAsset, inputAmount, router, data, false, baseline);
     }
 
     // ---------------------------------------------------------------------
@@ -229,7 +294,8 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         uint256 inputAmount,
         address router,
         bytes calldata data,
-        bool isNative
+        bool isNative,
+        Baseline memory baseline
     ) internal {
         bool sameAsset = !isNative && inputAsset == address(settlementToken);
 
@@ -239,7 +305,6 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
             output = inputAmount;
         } else {
             if (!isRouterWhitelisted[router]) revert RouterNotWhitelisted(router);
-            uint256 before = settlementToken.balanceOf(address(this));
             if (isNative) {
                 _call(router, inputAmount, data);
             } else {
@@ -248,8 +313,10 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
                 _call(router, 0, data);
                 IERC20(inputAsset).forceApprove(router, 0);
             }
-            uint256 after_ = settlementToken.balanceOf(address(this));
-            output = after_ - before;
+            // The swap delivered into this contract; the settlement baseline is
+            // its balance before the call (the Permit2 pull moved a different
+            // token), so the delta is exactly what the route produced.
+            output = settlementToken.balanceOf(address(this)) - baseline.settlement;
         }
 
         if (output < order.minOut) revert MinOutNotMet(output, order.minOut);
@@ -264,13 +331,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
             settlementToken.safeTransfer(order.refundTo, refund);
         }
 
-        // Enforce zero resting balance. Native: the contract forwarded all
-        // msg.value and must hold none. Token: the split sent out exactly
-        // `output`, so the settlement-token balance is back to its pre-swap value
-        // (zero in normal operation). A residual reverts — no silent custody.
-        uint256 nativeBal = address(this).balance;
-        uint256 tokenBal = settlementToken.balanceOf(address(this));
-        if (nativeBal != 0 || tokenBal != 0) revert RestingBalance(nativeBal, tokenBal);
+        _returnResidue(order, inputAsset, isNative, sameAsset, baseline);
 
         emit PaymentCompleted({
             intentId: order.intentId,
@@ -284,6 +345,57 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
             refundAmount: refund,
             deadline: order.deadline
         });
+    }
+
+    /// @dev Returns everything that arrived during this call and is not part of
+    ///      the settlement split, then asserts the contract holds exactly what it
+    ///      held when the call began.
+    ///
+    ///      Two residues are possible. A router that partially fills leaves
+    ///      unconsumed input behind — the approval is already reset to 0, so it
+    ///      would otherwise sit here forever with no way out. An exact-output
+    ///      native route hands back the unspent remainder. Both belong to the
+    ///      payer, so both go to `refundTo`.
+    ///
+    ///      The final check is delta-based on purpose. Asserting absolute zero
+    ///      would mean anyone could permanently disable the contract by sending
+    ///      it 1 wei of the settlement token or force-sending ETH: the donation
+    ///      is not swap output, nothing distributes it, and there is no sweep —
+    ///      so every subsequent payment would revert with no recovery short of
+    ///      redeploying. Against a baseline, a donation is inert: it stays stuck
+    ///      (still no sweep — `test_no_sweep_dust_cannot_be_extracted`) and
+    ///      payments keep clearing.
+    function _returnResidue(
+        Order calldata order,
+        address inputAsset,
+        bool isNative,
+        bool sameAsset,
+        Baseline memory baseline
+    ) internal {
+        if (!isNative && !sameAsset) {
+            uint256 inputNow = IERC20(inputAsset).balanceOf(address(this));
+            if (inputNow > baseline.input) {
+                uint256 residue = inputNow - baseline.input;
+                IERC20(inputAsset).safeTransfer(order.refundTo, residue);
+                emit ResidueRefunded(order.intentId, inputAsset, order.refundTo, residue);
+            }
+        }
+
+        uint256 nativeNow = address(this).balance;
+        if (nativeNow > baseline.native) {
+            uint256 residue = nativeNow - baseline.native;
+            // Last movement of the call, behind `nonReentrant`, with the intent
+            // already consumed — a reentrant `refundTo` cannot re-enter a pay path.
+            (bool ok,) = order.refundTo.call{value: residue}("");
+            if (!ok) revert NativeRefundFailed();
+            emit ResidueRefunded(order.intentId, address(0), order.refundTo, residue);
+        }
+
+        uint256 nativeBal = address(this).balance;
+        uint256 tokenBal = settlementToken.balanceOf(address(this));
+        if (nativeBal != baseline.native || tokenBal != baseline.settlement) {
+            revert RestingBalance(nativeBal, tokenBal);
+        }
     }
 
     /// @dev Low-level call to `router` with optional native value; bubbles the

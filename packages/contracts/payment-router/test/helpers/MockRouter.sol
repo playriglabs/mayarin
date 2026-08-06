@@ -40,6 +40,36 @@ contract MockRouter {
         _maybeReenter();
     }
 
+    /// @dev Exact-output native swap: keeps what it needed and hands the unspent
+    ///      remainder back to `msg.sender` mid-call, the way Uniswap's `refundETH`
+    ///      does. Exercises the PaymentRouter's `receive()` + native-residue path.
+    function swapFromETHWithRefund(
+        address outputToken,
+        uint256 outputAmount,
+        address recipient,
+        uint256 refundAmount
+    ) external payable {
+        IERC20(outputToken).transfer(recipient, outputAmount);
+        (bool ok,) = msg.sender.call{value: refundAmount}("");
+        require(ok, "mock: refund rejected");
+        _maybeReenter();
+    }
+
+    /// @dev Partial fill: pulls only `consumeAmount` of what the caller approved
+    ///      and holds, leaving the remainder stranded in the caller. Aggregators
+    ///      do this when a route fills against less liquidity than quoted.
+    function partialSwap(
+        address inputToken,
+        uint256 consumeAmount,
+        address outputToken,
+        uint256 outputAmount,
+        address recipient
+    ) external {
+        IERC20(inputToken).transferFrom(msg.sender, address(this), consumeAmount);
+        IERC20(outputToken).transfer(recipient, outputAmount);
+        _maybeReenter();
+    }
+
     /// @dev Always reverts — exercises the revert-reason bubble-up path. The
     ///      non-payable variant is for the ERC-20 path (value == 0); the payable
     ///      variant is for the native path (the compiler's nonpayable guard would
