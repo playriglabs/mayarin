@@ -1,0 +1,19 @@
+{
+  "name": "@mayarin/provider-turnkey",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/quote": "workspace:*",
+    "@mayarin/shared": "workspace:*",
+    "@noble/curves": "1.9.1",
+    "viem": "^2.21.0",
+    "zod": "^3.24.1"
+  }
+}

@@ -13,6 +13,7 @@
   "dependencies": {
     "@mayarin/chain": "workspace:*",
     "@mayarin/contracts": "workspace:*",
+    "@mayarin/quote": "workspace:*",
     "@mayarin/shared": "workspace:*",
     "@noble/curves": "1.9.1",
     "viem": "^2.21.0"

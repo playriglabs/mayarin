@@ -263,6 +263,7 @@
       "dependencies": {
         "@mayarin/chain": "workspace:*",
         "@mayarin/contracts": "workspace:*",
+        "@mayarin/quote": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "@noble/curves": "1.9.1",
         "viem": "^2.21.0",
@@ -325,6 +326,17 @@
         "@mayarin/execution": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "viem": "^2.21.0",
+      },
+    },
+    "packages/providers/turnkey": {
+      "name": "@mayarin/provider-turnkey",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/quote": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+        "@noble/curves": "1.9.1",
+        "viem": "^2.21.0",
+        "zod": "^3.24.1",
       },
     },
     "packages/shared": {
@@ -911,6 +923,8 @@
     "@mayarin/provider-swap-lifi": ["@mayarin/provider-swap-lifi@workspace:packages/providers/swap-lifi"],
 
     "@mayarin/provider-swap-uniswap": ["@mayarin/provider-swap-uniswap@workspace:packages/providers/swap-uniswap"],
+
+    "@mayarin/provider-turnkey": ["@mayarin/provider-turnkey@workspace:packages/providers/turnkey"],
 
     "@mayarin/qr-parser": ["@mayarin/qr-parser@workspace:packages/core/qr-parser"],
 
