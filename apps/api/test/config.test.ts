@@ -163,6 +163,8 @@ describe("quote configuration", () => {
       oracle: "pyth",
       deviationBps: 100,
       maxReferenceAgeSeconds: 60,
+      peggedPairs: [],
+      fxMaxAgeSeconds: 300,
       slippageBps: 30,
       ttlSeconds: 45,
       signer: "turnkey",

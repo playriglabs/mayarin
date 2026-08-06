@@ -30,6 +30,7 @@ function engine(overrides: Partial<ConstructorParameters<typeof QuoteEngine>[0]>
     venue: new TablePriceSource({ "ETH/USDC": 3_700_000_000n }, "dex"),
     oracle: new FixedPriceOracle([reference()]),
     policy: POLICY,
+    fiat: { pegged: ["IDR/IDRX"], maxAgeMs: 60_000 },
     clock: new FixedClock(NOW),
     ...overrides,
   });
@@ -108,5 +109,94 @@ describe("QuoteEngine.compose", () => {
     expect(blind.compose("ETH", "USDC", money(10n ** 18n, "ETH"))).rejects.toThrow(
       ConfigurationError,
     );
+  });
+});
+
+describe("quoteFiatPrice — both legs", () => {
+  // A coffee at Rp 35.000, merchant settles in USDC, payer pays ETH.
+  const PRICE = money(35_000_00n, "IDR");
+
+  function twoLegEngine() {
+    return engine({
+      oracle: new FixedPriceOracle([
+        reference(), // ETH/USDC, guards the swap leg
+        {
+          from: "IDR",
+          to: "USDC",
+          minorUnitsPerWholeUnit: 61n,
+          source: "pyth",
+          observedAt: NOW,
+        },
+      ]),
+    });
+  }
+
+  test("prices a fiat amount into settlement, then into the payer asset", async () => {
+    const quote = await twoLegEngine().quoteFiatPrice({
+      price: PRICE,
+      settlementAsset: "USDC",
+      payerAsset: "ETH",
+      probe: money(10n ** 15n, "ETH"),
+    });
+
+    // Fiat leg: 35_000 whole IDR × 61 = 2.135000 USDC.
+    expect(quote.settlement.settlementAmount).toEqual(money(2_135_000n, "USDC"));
+    expect(quote.settlement.kind).toBe("oracle");
+
+    // Swap leg: the venue rate the payer estimate will be derived from.
+    expect("composed" in quote).toBe(true);
+    if ("composed" in quote) {
+      expect(quote.composed.from).toBe("ETH");
+      expect(quote.composed.to).toBe("USDC");
+      expect(quote.composed.executable.minorUnitsPerWholeUnit).toBe(3_700_000_000n);
+    }
+  });
+
+  test("a payer already holding the settlement asset has no swap leg", async () => {
+    const quote = await twoLegEngine().quoteFiatPrice({
+      price: PRICE,
+      settlementAsset: "USDC",
+      payerAsset: "USDC",
+      probe: money(2_135_000n, "USDC"),
+    });
+
+    expect(quote.settlement.settlementAmount).toEqual(money(2_135_000n, "USDC"));
+    expect("composed" in quote).toBe(false);
+  });
+
+  test("an IDR price settling into IDRX takes the peg and never touches USD", async () => {
+    const quote = await twoLegEngine().quoteFiatPrice({
+      price: PRICE,
+      settlementAsset: "IDRX",
+      payerAsset: "IDRX",
+      probe: money(35_000_00n, "IDRX"),
+    });
+
+    expect(quote.settlement.kind).toBe("pegged");
+    expect(quote.settlement.settlementAmount).toEqual(money(35_000_00n, "IDRX"));
+  });
+
+  test("a stale FX reference fails the whole quote, before any lock exists", async () => {
+    const stale = engine({
+      oracle: new FixedPriceOracle([
+        reference(),
+        {
+          from: "IDR",
+          to: "USDC",
+          minorUnitsPerWholeUnit: 61n,
+          source: "pyth",
+          observedAt: new Date(NOW.getTime() - 120_000),
+        },
+      ]),
+    });
+
+    await expect(
+      stale.quoteFiatPrice({
+        price: PRICE,
+        settlementAsset: "USDC",
+        payerAsset: "ETH",
+        probe: money(10n ** 15n, "ETH"),
+      }),
+    ).rejects.toThrow(ProviderError);
   });
 });

@@ -57,6 +57,10 @@ export function createQuoteLayer(config: Config, clock: Clock): QuoteLayer | und
         maxDeviationBps: quote.deviationBps,
         maxAgeMs: quote.maxReferenceAgeSeconds * 1_000,
       },
+      fiat: {
+        pegged: quote.peggedPairs,
+        maxAgeMs: quote.fxMaxAgeSeconds * 1_000,
+      },
       clock,
     }),
     venues,

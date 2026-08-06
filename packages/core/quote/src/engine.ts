@@ -29,6 +29,7 @@ import type {
 } from "@mayarin/clearing";
 import { guardExecutablePrice } from "@mayarin/clearing";
 import { type AssetCode, type Clock, ConfigurationError, type Money } from "@mayarin/shared";
+import { type FiatPricePolicy, priceInSettlement, type SettlementPrice } from "./fx.ts";
 
 /** A deviation-guarded executable quote, with the reference that vouched for it. */
 export interface ComposedQuote {
@@ -47,20 +48,84 @@ export interface QuoteEngineOptions {
   /** Reference side: Pyth, Chainlink, or a fake. */
   readonly oracle: PriceOracle;
   readonly policy: DeviationPolicy;
+  /** Governs the fiat leg: which pairs are pegged, and reference staleness. */
+  readonly fiat: FiatPricePolicy;
   readonly clock: Clock;
+}
+
+/**
+ * Both legs of a merchant-priced payment.
+ *
+ * The merchant prices in fiat and the payer pays in crypto, and those are two
+ * different conversions with two different sources — an FX rate no DEX can
+ * serve, and a swap price no oracle should be trusted to fill. Keeping them
+ * separate in the result means a lock can record which source produced which
+ * number, rather than presenting one blended rate whose provenance is lost.
+ */
+export interface FiatQuote {
+  /** Fiat leg: the merchant's price in the asset they settle in. */
+  readonly settlement: SettlementPrice;
+  /** Swap leg: the guarded executable price from payer asset into settlement. */
+  readonly composed: ComposedQuote;
 }
 
 export class QuoteEngine {
   readonly #venue: PriceSource;
   readonly #oracle: PriceOracle;
   readonly #policy: DeviationPolicy;
+  readonly #fiat: FiatPricePolicy;
   readonly #clock: Clock;
 
   constructor(options: QuoteEngineOptions) {
     this.#venue = options.venue;
     this.#oracle = options.oracle;
     this.#policy = options.policy;
+    this.#fiat = options.fiat;
     this.#clock = options.clock;
+  }
+
+  /**
+   * Prices a merchant's fiat amount for a payer paying in `payerAsset`.
+   *
+   * Two legs, because the product spans two kinds of conversion:
+   *
+   * 1. **Fiat → settlement** through the oracle (or a peg). No venue can price
+   *    this; there is no IDR pool on any DEX.
+   * 2. **Payer asset → settlement** through the venue, guarded by the oracle.
+   *
+   * `probe` is the payer-asset amount the venue is asked to price. Venue quotes
+   * are size-aware, so a rate only means something at a size — and the size we
+   * ultimately want is what this call is computing. The caller supplies a probe
+   * near the expected order size; `lockQuote` then derives the real payer
+   * estimate from the returned rate. A probe far from the true size gives a rate
+   * that priced different depth, which is a real (if second-order) inaccuracy,
+   * not something to paper over here.
+   *
+   * When the payer already holds the settlement asset there is no swap leg at
+   * all: `composed` is absent and the contract takes its same-asset no-op path.
+   */
+  async quoteFiatPrice(args: {
+    readonly price: Money;
+    readonly settlementAsset: AssetCode;
+    readonly payerAsset: AssetCode;
+    readonly probe: Money;
+  }): Promise<FiatQuote | Omit<FiatQuote, "composed">> {
+    const settlement = await priceInSettlement(
+      this.#oracle,
+      args.price,
+      args.settlementAsset,
+      this.#fiat,
+      this.#clock.now(),
+    );
+
+    if (args.payerAsset === args.settlementAsset) {
+      return { settlement };
+    }
+
+    return {
+      settlement,
+      composed: await this.compose(args.payerAsset, args.settlementAsset, args.probe),
+    };
   }
 
   /**

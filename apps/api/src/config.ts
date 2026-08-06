@@ -115,6 +115,17 @@ const configSchema = z.object({
   quoteDeviationBps: z.coerce.number().int().min(1).max(10_000).default(100),
   /** How stale a reference may be and still vouch for a price. */
   quoteMaxReferenceAgeSeconds: z.coerce.number().int().positive().default(60),
+  /**
+   * Fiat/stablecoin pairs that are the same currency in two representations,
+   * e.g. `["IDR/IDRX"]`. Declared, never inferred: whether an issuer holds its
+   * peg is a judgement about that issuer, not something an asset code implies.
+   */
+  quotePeggedPairs: jsonObject<string[]>("QUOTE_PEGGED_PAIRS", "[]"),
+  /**
+   * Staleness bound for the FX leg. Separate from the swap leg's bound because
+   * an FX feed and a DEX quote go stale at very different rates.
+   */
+  quoteFxMaxAgeSeconds: z.coerce.number().int().positive().default(300),
   /** Slippage bound on the payer estimate. Never moves the merchant's `minOut`. */
   quoteSlippageBps: z.coerce.number().int().min(0).max(9_999).default(50),
   /** Lock TTL, which becomes the order `deadline`. */
@@ -170,6 +181,8 @@ export interface QuoteConfig {
   readonly oracle: "pyth" | "chainlink";
   readonly deviationBps: number;
   readonly maxReferenceAgeSeconds: number;
+  readonly peggedPairs: readonly string[];
+  readonly fxMaxAgeSeconds: number;
   readonly slippageBps: number;
   readonly ttlSeconds: number;
   readonly signer: "turnkey" | "local";
@@ -263,6 +276,8 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     oracle: data.quoteOracle,
     deviationBps: data.quoteDeviationBps,
     maxReferenceAgeSeconds: data.quoteMaxReferenceAgeSeconds,
+    peggedPairs: data.quotePeggedPairs,
+    fxMaxAgeSeconds: data.quoteFxMaxAgeSeconds,
     slippageBps: data.quoteSlippageBps,
     ttlSeconds: data.quoteTtlSeconds,
     signer: data.quoteSigner,
@@ -418,6 +433,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     quoteOracle: env.QUOTE_ORACLE,
     quoteDeviationBps: env.QUOTE_DEVIATION_BPS,
     quoteMaxReferenceAgeSeconds: env.QUOTE_MAX_REFERENCE_AGE_SECONDS,
+    quotePeggedPairs: env.QUOTE_PEGGED_PAIRS,
+    quoteFxMaxAgeSeconds: env.QUOTE_FX_MAX_AGE_SECONDS,
     quoteSlippageBps: env.QUOTE_SLIPPAGE_BPS,
     quoteTtlSeconds: env.QUOTE_TTL_SECONDS,
     pythFeeds: env.PYTH_FEEDS,
