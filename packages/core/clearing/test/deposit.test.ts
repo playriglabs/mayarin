@@ -80,7 +80,7 @@ describe("deposit leg", () => {
     expect(transaction.failure?.code).toBe("CONFIGURATION_ERROR");
   });
 
-  test("the on-chain-contract path is a stub that fails before moving value", async () => {
+  test("the on-chain-contract path without a planner fails before moving value", async () => {
     const harness = createHarness({
       autoConfirmAssetReceipt: false,
       rates: { "IDR/IDRX": 100n, "IDR/USDC": 320n },
@@ -94,7 +94,7 @@ describe("deposit leg", () => {
 
     expect(transaction.state).toBe("FAILED");
     expect(transaction.failure?.code).toBe("CONFIGURATION_ERROR");
-    expect(transaction.failure?.reason).toContain("not implemented");
+    expect(transaction.failure?.reason).toContain("no contract planner");
     // No deposit address allocated, no value posted.
     expect(transaction.deposit).toBeUndefined();
     expect(await harness.balance("TREASURY")).toEqual(IDRX(0n));

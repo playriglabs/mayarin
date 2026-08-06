@@ -111,3 +111,13 @@ export class ForbiddenError extends MayarinError {
   readonly code = "FORBIDDEN";
   readonly httpStatus = 403;
 }
+
+/**
+ * A locked quote passed its deadline before the payment completed. Not
+ * retryable: a new price needs the payer's consent, so the flow starts over
+ * with a fresh quote instead of the engine silently re-pricing.
+ */
+export class QuoteExpiredError extends MayarinError {
+  readonly code = "QUOTE_EXPIRED";
+  readonly httpStatus = 410;
+}
