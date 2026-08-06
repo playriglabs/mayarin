@@ -133,7 +133,7 @@ no sweep, so dust sent to it is unsweepable (`test_no_sweep_dust_cannot_be_extra
 
 ```bash
 forge build                 # compile (solc 0.8.28, cancun, via_ir, 200 runs)
-forge test                  # unit + fuzz + invariant (54 tests, 1 RPC-gated skip)
+forge test                  # unit + fuzz + invariant (55 tests, 1 RPC-gated skip)
 forge test --match-contract AdminTest      # one suite
 forge snapshot               # write .gas-snapshot
 forge snapshot --check       # CI: fail if gas changed
@@ -144,6 +144,7 @@ From the repo root:
 ```bash
 bun run test:contracts       # forge test
 bun run build:contracts-abi  # forge build → regenerate @mayarin/contracts ABI
+bun run build:order-vectors  # regenerate vectors/order-hash.json (see below)
 ```
 
 Foundry is required (not managed by bun):
@@ -171,7 +172,7 @@ tested:
 
 ## Static analysis
 
-- **Foundry** — `forge build` green; `forge test` 54/54 (unit + fuzz @1000 runs +
+- **Foundry** — `forge build` green; `forge test` 55/55 (unit + fuzz @1000 runs +
   invariant @256×20). `forge snapshot` committed to `.gas-snapshot`.
 - **Slither** (0.11.6) — `slither . --config slither.config.json`. One finding:
   `locked-ether` (Informational/Low) — the contract has a payable function and
@@ -215,6 +216,15 @@ typed ABI and domain types downstream RFCs consume:
 - `paymentRouterAbi` — the full ABI, `as const` (viem narrows signatures/topics).
 - `Order` — the on-chain struct shape (matches the EIP-712 typehash).
 - `PaymentCompletedArgs` / `PaymentCompletedEvent` — typed event for log decoding.
+- `vectors/order-hash.json` — the #24 order-hash test vectors: type string,
+  typehash, a fixed domain, a canonical order, and its struct hash and digest.
+
+The vectors are one committed file asserted from both sides. `test/order-vectors.test.ts`
+re-derives every value from the `ORDER_TYPES` that `@mayarin/quote` declares (#40);
+`PaymentRouter.t.sol` `test_order_hash_vectors_match_the_exported_file` re-derives
+them from `OrderHash.sol` and the EIP-712 domain formula. If the quote engine's
+field list and the contract's typehash ever drift, one of the two suites fails —
+instead of signatures silently failing verification on-chain.
 
 Regenerate after any `src/PaymentRouter.sol` change:
 

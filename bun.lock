@@ -125,6 +125,9 @@
       "dependencies": {
         "viem": "^2.21.0",
       },
+      "devDependencies": {
+        "@mayarin/quote": "workspace:*",
+      },
     },
     "packages/contracts/payment-router": {
       "name": "@mayarin/contracts-payment-router",

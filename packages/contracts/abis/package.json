@@ -9,9 +9,13 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build:abi": "bun run scripts/generate-abi.ts"
+    "build:abi": "bun run scripts/generate-abi.ts",
+    "build:order-vectors": "bun run scripts/generate-order-vectors.ts"
   },
   "dependencies": {
     "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@mayarin/quote": "workspace:*"
   }
 }

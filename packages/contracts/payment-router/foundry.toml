@@ -14,6 +14,11 @@ remappings = [
     "@openzeppelin/contracts/=../../../node_modules/@openzeppelin/contracts/",
 ]
 
+# Read-only access to the sibling ABI package, so the EIP-712 order-hash vectors
+# (#24) have one committed source that both this suite and the TS suite assert
+# against instead of two copies that can drift.
+fs_permissions = [{access = "read", path = "../abis/vectors"}]
+
 [fmt]
 line_length = 100
 tab_width = 4

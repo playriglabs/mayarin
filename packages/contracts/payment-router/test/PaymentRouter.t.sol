@@ -15,6 +15,10 @@ import {Harness} from "./helpers/Harness.sol";
 contract PaymentRouterTest is Harness {
     bytes32 internal constant INTENT = keccak256("intent-1");
 
+    /// @dev Committed vectors, shared with the TS side. Readable because
+    ///      `foundry.toml` grants read permission on the sibling ABI package.
+    string internal constant VECTORS_PATH = "../abis/vectors/order-hash.json";
+
     function setUp() public override {
         super.setUp();
         // The test contract pays native; give it ETH.
@@ -27,29 +31,79 @@ contract PaymentRouterTest is Harness {
     // #24 — Order domain, signature verification, event
     // ------------------------------------------------------------------
 
-    function test_order_hash_vectors() public {
-        // Stable test vectors: the typehash and a canonical struct hash. Run with
-        // `forge test -vvv --match-test test_order_hash_vectors` to export them.
+    /// @dev The contract half of the #24 round-trip. The sibling ABI package's
+    ///      `vectors/order-hash.json` is the single committed source; the TS side
+    ///      re-derives it from what the quote package declares
+    ///      (`test/order-vectors.test.ts`), and this re-derives it from what the
+    ///      contract computes. Drift between the quote engine's field list and
+    ///      this typehash breaks one of the two suites instead of surfacing as
+    ///      signatures failing verification on-chain.
+    function test_order_hash_vectors_match_the_exported_file() public view {
+        string memory json = vm.readFile(VECTORS_PATH);
+
         assertEq(
+            vm.parseJsonString(json, ".typeString"),
+            OrderHash.ORDER_TYPE,
+            "type string must match the library's primary type"
+        );
+        assertEq(
+            vm.parseJsonBytes32(json, ".typeHash"),
             OrderHash.ORDER_TYPEHASH,
-            keccak256(
-                "Order(bytes32 intentId,uint256 minOut,uint256 fee,address merchantSafe,address refundTo,uint256 deadline)"
-            ),
             "typehash must match the documented primary type"
         );
-        IPaymentRouter.Order memory o =
-            makeOrder(bytes32(uint256(0x1)), 100e6, 1e6, address(0xBEEF), address(0xCAFE), 0xDEAD);
-        bytes32 sh = OrderHash.structHash(o);
-        bytes32 domain = router.domainSeparatorV4();
-        bytes32 digest = keccak256(abi.encodePacked(hex"1901", domain, sh));
-        console2.log("domainSeparator:");
-        console2.logBytes32(domain);
-        console2.log("structHash:");
-        console2.logBytes32(sh);
-        console2.log("digest:");
-        console2.logBytes32(digest);
-        // Determinism: re-computing yields the same digest.
-        assertEq(digest, orderDigest(address(router), o));
+
+        IPaymentRouter.Order memory o = IPaymentRouter.Order({
+            intentId: vm.parseJsonBytes32(json, ".order.intentId"),
+            minOut: vm.parseJsonUint(json, ".order.minOut"),
+            fee: vm.parseJsonUint(json, ".order.fee"),
+            merchantSafe: vm.parseJsonAddress(json, ".order.merchantSafe"),
+            refundTo: vm.parseJsonAddress(json, ".order.refundTo"),
+            deadline: vm.parseJsonUint(json, ".order.deadline")
+        });
+        assertEq(OrderHash.structHash(o), vm.parseJsonBytes32(json, ".structHash"), "structHash");
+
+        // The vector fixes the domain, so rebuild the separator from its stated
+        // chain id and verifying contract rather than from this test's router.
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256(bytes(vm.parseJsonString(json, ".domain.name"))),
+                keccak256(bytes(vm.parseJsonString(json, ".domain.version"))),
+                vm.parseJsonUint(json, ".domain.chainId"),
+                vm.parseJsonAddress(json, ".domain.verifyingContract")
+            )
+        );
+        assertEq(
+            domainSeparator, vm.parseJsonBytes32(json, ".domainSeparator"), "domainSeparator"
+        );
+        assertEq(
+            keccak256(abi.encodePacked(hex"1901", domainSeparator, OrderHash.structHash(o))),
+            vm.parseJsonBytes32(json, ".digest"),
+            "digest"
+        );
+    }
+
+    /// @dev The same formula the vector pins, applied to the live deployment:
+    ///      `domainSeparatorV4()` is what `_prepare` actually verifies against, so
+    ///      it must agree with the reconstruction above for this router's own
+    ///      chain id and address.
+    function test_live_domain_separator_uses_the_pinned_formula() public view {
+        assertEq(
+            router.domainSeparatorV4(),
+            keccak256(
+                abi.encode(
+                    keccak256(
+                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                    ),
+                    keccak256(bytes("Mayarin PaymentRouter")),
+                    keccak256(bytes("1")),
+                    block.chainid,
+                    address(router)
+                )
+            )
+        );
     }
 
     function test_reverts_wrong_signer() public {
