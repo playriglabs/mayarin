@@ -262,6 +262,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@mayarin/chain": "workspace:*",
+        "@mayarin/contracts": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "@noble/curves": "1.9.1",
         "viem": "^2.21.0",
