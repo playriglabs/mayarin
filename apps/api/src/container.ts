@@ -18,6 +18,7 @@ import {
   ClearingEngine,
   LiquidityRouter,
   TablePriceSource,
+  TreasuryExecutor,
 } from "@mayarin/clearing";
 import {
   createDatabase,
@@ -34,13 +35,19 @@ import {
 } from "@mayarin/db";
 import { LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService } from "@mayarin/payment-intent";
-import { EvmChainClient, HdDepositAddressDeriver } from "@mayarin/provider-evm";
+import {
+  Create2DepositAddressDeriver,
+  EvmChainClient,
+  EvmTreasuryExecutionPort,
+  HdDepositAddressDeriver,
+} from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import {
   type AssetCode,
   type Clock,
+  ConfigurationError,
   type EventPublisher,
   InMemoryEventBus,
   systemClock,
@@ -51,6 +58,8 @@ import {
   type Stablecoin,
   type StablecoinRegistry,
 } from "@mayarin/stablecoin";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
 import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./contract-layer.ts";
 import { createQuoteLayer, type QuoteLayer } from "./quote-layer.ts";
@@ -101,6 +110,78 @@ export interface CreateContainerOptions {
   readonly clock?: Clock;
 }
 
+/**
+ * The chain treasury execution runs on.
+ *
+ * One chain today: `PAYMENT_ROUTERS` is validated to name at least one, and the
+ * executor is wired per deployment rather than per payment. A multi-chain
+ * operator would key the deriver by chain instead, which is a change to this
+ * function and nothing else.
+ */
+function firstRouterChain(config: Config): ChainId {
+  const [chain] = Object.keys(config.paymentRouters) as ChainId[];
+  if (chain === undefined) {
+    throw new ConfigurationError("No PAYMENT_ROUTERS configured", {});
+  }
+  return chain;
+}
+
+/**
+ * Builds the treasury executor, or nothing when the deployment has no operator.
+ *
+ * `resolveContract` has already refused a half-configured executor, so the
+ * narrowing here is for the compiler rather than a real branch.
+ */
+function createTreasuryExecutor(deps: {
+  config: Config;
+  ledger: LedgerService;
+  depositAddresses: DrizzleDepositAddressRepository | undefined;
+}): TreasuryExecutor | undefined {
+  const { config, ledger, depositAddresses } = deps;
+
+  if (!config.treasuryExecutionEnabled) return undefined;
+  if (config.operatorPrivateKey === undefined || depositAddresses === undefined) return undefined;
+
+  const chainId = firstRouterChain(config);
+  const rpcUrl = config.chain?.rpcUrls[chainId];
+  if (rpcUrl === undefined) {
+    throw new ConfigurationError(`No CHAIN_RPC_URLS entry for ${chainId}`, { chain: chainId });
+  }
+
+  const account = privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
+  const transport = http(rpcUrl);
+  const routes = createRouteSources(config).values().next().value;
+
+  if (routes === undefined) {
+    throw new ConfigurationError("Treasury execution needs a route-capable venue", {});
+  }
+
+  const port = new EvmTreasuryExecutionPort({
+    publicClient: createPublicClient({ transport }),
+    walletClient: createWalletClient({ account, transport }),
+    account,
+    lookup: {
+      async indexFor(clearingTransactionId) {
+        const allocated = await depositAddresses.findByClearingTransactionId(clearingTransactionId);
+        return allocated?.derivationIndex;
+      },
+    },
+    routes,
+    forwarderFactories: config.depositForwarders,
+    paymentRouters: config.paymentRouters,
+    tokens: config.chainAssets,
+    // Every chain the router runs on is EVM, so the native asset is ETH.
+    nativeAssets: Object.fromEntries(
+      Object.keys(config.paymentRouters).map((chain) => [chain, "ETH" as AssetCode]),
+    ),
+    ...(config.chain?.confirmations[chainId] === undefined
+      ? {}
+      : { confirmations: config.chain.confirmations[chainId] }),
+  });
+
+  return new TreasuryExecutor({ port, ledger, maxAttempts: config.treasuryMaxAttempts });
+}
+
 export function createContainer({
   config,
   clock = systemClock,
@@ -112,8 +193,20 @@ export function createContainer({
 
   const depositAddresses =
     chain === undefined ? undefined : new DrizzleDepositAddressRepository(handle.db);
+  // With treasury execution on, a deposit address must be a forwarder the
+  // operator can deploy and sweep. An HD-derived EOA receives exactly the
+  // quoted amount and cannot pay the gas to move it — the whole reason the
+  // forwarder exists — so the deriver swaps rather than the port changing.
+  const forwarderFactory = config.depositForwarders[firstRouterChain(config)];
   const depositDeriver =
-    chain === undefined ? undefined : new HdDepositAddressDeriver({ xpub: chain.xpub });
+    chain === undefined
+      ? undefined
+      : config.treasuryExecutionEnabled && forwarderFactory !== undefined
+        ? new Create2DepositAddressDeriver({
+            factory: forwarderFactory,
+            initCodeHash: config.depositForwarderInitCodeHash ?? "0x",
+          })
+        : new HdDepositAddressDeriver({ xpub: chain.xpub });
 
   const merchantPolicies = new DrizzleMerchantAssetPolicySource(
     new DrizzleMerchantRepository(handle.db),
@@ -167,6 +260,12 @@ export function createContainer({
         })
       : undefined;
 
+  const treasuryExecutor = createTreasuryExecutor({
+    config,
+    ledger,
+    depositAddresses,
+  });
+
   const engine = new ClearingEngine({
     repository: new DrizzleClearingRepository(handle.db),
     intents,
@@ -180,6 +279,8 @@ export function createContainer({
     ...(depositAddresses === undefined ? {} : { depositAddresses }),
     ...(depositDeriver === undefined ? {} : { depositDeriver }),
     ...(contractPlanner === undefined ? {} : { contractPlanner }),
+    ...(treasuryExecutor === undefined ? {} : { treasuryExecutor }),
+    ...(config.treasuryAddress === undefined ? {} : { treasuryAddress: config.treasuryAddress }),
   });
 
   const checkout =

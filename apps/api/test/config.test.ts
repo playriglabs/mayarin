@@ -400,3 +400,76 @@ describe("quote configuration", () => {
     ).toThrow(/QUOTE_SIGNER_PRIVATE_KEY/);
   });
 });
+
+describe("treasury execution configuration", () => {
+  const CONTRACT = {
+    ...BASE,
+    CHAIN_ENABLED: "true",
+    ASSET_RECEIPT_MODE: "manual",
+    CHAIN_RPC_URLS: '{"base-sepolia":"https://sepolia.base.org"}',
+    CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
+    DEPOSIT_XPUB: XPUB,
+    QUOTE_ENABLED: "true",
+    QUOTE_VENUES: '["uniswap"]',
+    PYTH_FEEDS: '{"ETH/USDC":"0xff"}',
+    UNISWAP_POOLS:
+      '{"ETH/USDC":{"chain":"base-sepolia","tokenIn":"0x4200000000000000000000000000000000000006","tokenOut":"0x036CbD53842c5426634e7929541eC2318f3dCF7e","fee":3000}}',
+    UNISWAP_QUOTERS: '{"base-sepolia":"0xC5290058841028F1614F3A6F0F5816cAd0df5E27"}',
+    UNISWAP_SWAP_ROUTERS: '{"base-sepolia":"0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4"}',
+    QUOTE_SIGNER: "local",
+    QUOTE_SIGNER_PRIVATE_KEY: `0x${"11".repeat(32)}`,
+    SETTLEMENT_ASSET: "USDC",
+    CONTRACT_PATH_ENABLED: "true",
+    PAYMENT_ROUTERS: '{"base-sepolia":"0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9"}',
+  } as const;
+
+  const EXECUTOR = {
+    TREASURY_EXECUTION_ENABLED: "true",
+    TREASURY_ADDRESS: "0x616e2B9Bc83D60790E70CbaAc6c8612AFc6A7896",
+    OPERATOR_PRIVATE_KEY: `0x${"22".repeat(32)}`,
+    DEPOSIT_FORWARDERS: '{"base-sepolia":"0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519"}',
+    DEPOSIT_FORWARDER_INIT_CODE_HASH: `0x${"33".repeat(32)}`,
+  } as const;
+
+  test("is off by default, leaving the deposit path as it was", () => {
+    expect(loadConfig({ ...CONTRACT }).treasuryExecutionEnabled).toBe(false);
+  });
+
+  test("accepts a complete executor configuration", () => {
+    const config = loadConfig({ ...CONTRACT, ...EXECUTOR });
+
+    expect(config.treasuryExecutionEnabled).toBe(true);
+    expect(config.treasuryAddress).toBe("0x616e2B9Bc83D60790E70CbaAc6c8612AFc6A7896");
+    expect(config.treasuryMaxAttempts).toBe(3);
+  });
+
+  test.each([
+    ["TREASURY_ADDRESS", "TREASURY_ADDRESS"],
+    ["OPERATOR_PRIVATE_KEY", "OPERATOR_PRIVATE_KEY"],
+    ["DEPOSIT_FORWARDER_INIT_CODE_HASH", "DEPOSIT_FORWARDER_INIT_CODE_HASH"],
+  ])("refuses a half-configured executor: missing %s", (missing, message) => {
+    // A half-configured executor fails per payment, with the payer's asset
+    // already sitting at a deposit address. Boot is the only safe place.
+    const env: Record<string, string | undefined> = { ...CONTRACT, ...EXECUTOR };
+    env[missing] = undefined;
+
+    expect(() => loadConfig(env)).toThrow(new RegExp(message));
+  });
+
+  test("refuses a router chain with no forwarder factory", () => {
+    expect(() => loadConfig({ ...CONTRACT, ...EXECUTOR, DEPOSIT_FORWARDERS: "{}" })).toThrow(
+      /DEPOSIT_FORWARDERS/,
+    );
+  });
+
+  test("refuses execution without the quote layer that prices and signs it", () => {
+    expect(() =>
+      loadConfig({
+        ...CONTRACT,
+        ...EXECUTOR,
+        QUOTE_ENABLED: "false",
+        CONTRACT_PATH_ENABLED: "false",
+      }),
+    ).toThrow(/quote layer/);
+  });
+});

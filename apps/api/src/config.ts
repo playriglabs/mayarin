@@ -172,6 +172,23 @@ const configSchema = z.object({
   /** Deployed `PaymentRouter` address per chain. */
   paymentRouters: jsonObject<Partial<Record<ChainId, string>>>("PAYMENT_ROUTERS", "{}"),
   /**
+   * Treasury execution (#69/#81): converts a matched deposit into the
+   * settlement asset instead of settling it internally.
+   */
+  treasuryExecutionEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /** Deployed `DepositForwarderFactory` per chain. */
+  depositForwarders: jsonObject<Partial<Record<ChainId, string>>>("DEPOSIT_FORWARDERS", "{}"),
+  /** `DepositForwarderFactory.INIT_CODE_HASH()`, which deposit addresses derive from. */
+  depositForwarderInitCodeHash: z.string().min(1).optional(),
+  /** Receives swap output above `minOut` — the deposit path's `refundTo`. */
+  treasuryAddress: z.string().min(1).optional(),
+  /** The operator key. Pays gas and is the one key that can move funds. */
+  operatorPrivateKey: z.string().min(1).optional(),
+  treasuryMaxAttempts: z.coerce.number().int().positive().default(3),
+  /**
    * The Safe that receives settlements. One address for the whole deployment
    * — per-merchant wallets arrive with Phase 4 (#11).
    */
@@ -524,6 +541,62 @@ function withoutEmpty(env: Record<string, string | undefined>): Record<string, s
   );
 }
 
+/**
+ * Treasury execution's own requirements.
+ *
+ * Checked outside `resolveContract` because that function returns early when
+ * the contract path is off — which is exactly the misconfiguration worth
+ * catching: an executor with no router to call would fail per payment, with
+ * the payer's asset already sitting at a deposit address.
+ */
+function assertTreasuryExecution(data: RawConfig, quote: QuoteConfig | undefined): void {
+  if (!data.treasuryExecutionEnabled) return;
+
+  const issues: string[] = [];
+
+  if (!data.contractPathEnabled) {
+    issues.push(
+      "TREASURY_EXECUTION_ENABLED needs CONTRACT_PATH_ENABLED: the executor settles by calling PaymentRouter",
+    );
+  }
+  if (quote === undefined) {
+    issues.push(
+      "TREASURY_EXECUTION_ENABLED needs the quote layer: the deposit path is priced and signed by the same planner the contract path uses",
+    );
+  }
+  if (data.treasuryAddress === undefined) {
+    issues.push("TREASURY_ADDRESS is required when TREASURY_EXECUTION_ENABLED is true");
+  }
+  if (data.operatorPrivateKey === undefined) {
+    issues.push("OPERATOR_PRIVATE_KEY is required when TREASURY_EXECUTION_ENABLED is true");
+  }
+  if (data.depositForwarderInitCodeHash === undefined) {
+    issues.push(
+      "DEPOSIT_FORWARDER_INIT_CODE_HASH is required when TREASURY_EXECUTION_ENABLED is true",
+    );
+  }
+  for (const chain of Object.keys(data.paymentRouters)) {
+    if (data.depositForwarders[chain as ChainId] === undefined) {
+      issues.push(`DEPOSIT_FORWARDERS has no factory for ${chain}, which has a PaymentRouter`);
+    }
+  }
+  if (Object.keys(data.depositForwarders).length === 0) {
+    // A deposit address must be a forwarder the operator can deploy and sweep.
+    // An HD-derived EOA cannot pay its own gas, which is the entire reason the
+    // forwarder exists, so an xpub-derived address would take deposits nothing
+    // can move.
+    issues.push(
+      "TREASURY_EXECUTION_ENABLED derives deposit addresses from DEPOSIT_FORWARDERS, not DEPOSIT_XPUB",
+    );
+  }
+
+  if (issues.length > 0) {
+    throw new ConfigurationError(`Invalid treasury execution configuration: ${issues.join("; ")}`, {
+      issues,
+    });
+  }
+}
+
 export function loadConfig(rawEnv: Record<string, string | undefined> = process.env): Config {
   const env = withoutEmpty(rawEnv);
   const result = configSchema.safeParse({
@@ -577,6 +650,12 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     quoteSignerPrivateKey: env.QUOTE_SIGNER_PRIVATE_KEY,
     contractPathEnabled: env.CONTRACT_PATH_ENABLED,
     paymentRouters: env.PAYMENT_ROUTERS,
+    treasuryExecutionEnabled: env.TREASURY_EXECUTION_ENABLED,
+    depositForwarders: env.DEPOSIT_FORWARDERS,
+    depositForwarderInitCodeHash: env.DEPOSIT_FORWARDER_INIT_CODE_HASH,
+    treasuryAddress: env.TREASURY_ADDRESS,
+    operatorPrivateKey: env.OPERATOR_PRIVATE_KEY,
+    treasuryMaxAttempts: env.TREASURY_MAX_ATTEMPTS,
     uniswapSwapRouters: env.UNISWAP_SWAP_ROUTERS,
     nodeEnv: env.NODE_ENV,
   });
@@ -591,6 +670,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
   const chain = resolveChain(result.data);
   const quote = resolveQuote(result.data);
   const contract = resolveContract(result.data, quote, stablecoins);
+  assertTreasuryExecution(result.data, quote);
 
   if (result.data.executionPath === "on-chain-contract" && contract === undefined) {
     throw new ConfigurationError(

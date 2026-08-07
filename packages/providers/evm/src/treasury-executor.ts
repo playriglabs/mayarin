@@ -118,9 +118,15 @@ const PERMIT2_TYPES = {
   ],
 } as const;
 
-/** Resolves a deposit address back to the index its salt derives from. */
+/**
+ * Resolves a payment to the derivation index its deposit salt comes from.
+ *
+ * Keyed by clearing transaction rather than by address because that is what
+ * `DepositAddressRepository` already indexes — adding an address lookup would
+ * be a second index over the same row.
+ */
 export interface DepositIndexLookup {
-  indexForAddress(address: string): Promise<number | undefined>;
+  indexFor(clearingTransactionId: string): Promise<number | undefined>;
 }
 
 export interface EvmTreasuryExecutionPortOptions {
@@ -155,7 +161,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       request.chain,
       "forwarder factory",
     );
-    const index = await this.#options.lookup.indexForAddress(request.depositAddress);
+    const index = await this.#options.lookup.indexFor(request.clearingTransactionId);
 
     if (index === undefined) {
       // The salt derives from the index, so without it the forwarder cannot be
@@ -163,7 +169,11 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       // funds are already sitting at that address.
       throw new ConfigurationError(
         `No derivation index recorded for deposit address ${request.depositAddress}`,
-        { depositAddress: request.depositAddress, chain: request.chain },
+        {
+          clearingTransactionId: request.clearingTransactionId,
+          depositAddress: request.depositAddress,
+          chain: request.chain,
+        },
       );
     }
 

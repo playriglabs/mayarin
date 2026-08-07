@@ -122,7 +122,7 @@ function harness(
     walletClient: walletClient as any,
     account: ACCOUNT,
     lookup: {
-      async indexForAddress() {
+      async indexFor() {
         return options.index === undefined && !("index" in options) ? 3 : options.index;
       },
     },
