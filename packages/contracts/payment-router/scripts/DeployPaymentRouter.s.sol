@@ -54,8 +54,17 @@ import {PaymentRouter} from "../src/PaymentRouter.sol";
 ///      `PERMIT2` is the canonical Uniswap Permit2 address — identical on every
 ///      chain Uniswap deployed it, including Base Sepolia.
 contract DeployPaymentRouter is Script {
-    /// @dev Canonical Uniswap Permit2 — same address on every chain where deployed.
-    address internal constant PERMIT2 = 0x0000000000001fF3684f28c67538d4D072C22734;
+    /// @dev Canonical Uniswap Permit2, verified on Base Sepolia: it answers
+    ///      `DOMAIN_SEPARATOR()` and `allowance(address,address,address)`
+    ///      returning `(uint160,uint48,uint48)` — the `IAllowanceTransfer` shape
+    ///      the router calls. Same address on every chain Permit2 is deployed to.
+    ///
+    ///      This is a constructor argument and `permit2` is `immutable`, so
+    ///      getting it wrong costs a redeploy — and would not fail loudly: a
+    ///      call to an address with no code returns empty data and succeeds, so
+    ///      the pull would silently move nothing and the payment would revert
+    ///      later with `MinOutNotMet`, pointing at the swap rather than at this.
+    address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     /// @dev Default config-change delay: 48 hours (production). Override with
     ///      `TIMELOCK_DELAY` for a testnet where a shorter delay is operationally

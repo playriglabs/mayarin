@@ -110,7 +110,7 @@ uint256 fee, uint256 refundAmount, uint256 deadline)`. `inputAsset`/
    math. Cross-asset comparison happens only post-swap, in settlement-asset
    terms. This maps directly onto `Money.amount` (bigint) on the TS side.
 10. **Permit2** — pulls via the canonical Permit2 address
-    `0x0000000000001fF3684F28c67538d4D072C22734`; the contract declares only the
+    `0x000000000022D473030F116dDEE9F6B43aC78BA3`; the contract declares only the
     minimal `IAllowanceTransfer` slice it calls. Unit tests use a `MockPermit2`; a
     fork test gated by `BASE_SEPOLIA_RPC_URL` (skip when unset, mirroring the
     repo's `DATABASE_URL`-gated db tests) exercises the real Permit2.

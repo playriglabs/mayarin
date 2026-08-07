@@ -24,7 +24,7 @@ import {SigHelpers} from "./helpers/SigHelpers.sol";
 ///      settlement keeps it self-contained and deterministic.
 contract RealPermit2Test is Test, SigHelpers {
     /// @dev Canonical Uniswap Permit2 — same address on every chain where deployed.
-    address internal constant PERMIT2 = 0x0000000000001fF3684f28c67538d4D072C22734;
+    address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     PaymentRouter public router;
     MockERC20 public token; // settlement + input (same-asset path)
@@ -80,8 +80,12 @@ contract RealPermit2Test is Test, SigHelpers {
         signerAddr = vm.addr(signerPk);
         treasury = makeAddr("treasury");
         merchant = makeAddr("merchant");
-        customerPk = 0xCAB;
-        customer = vm.addr(customerPk);
+        // Derived from a label rather than a small vanity key: real Permit2
+        // dispatches on `code.length`, so a payer address that happens to hold a
+        // contract on the fork takes the ERC-1271 path instead of ECDSA
+        // recovery. `0xCAB` does exactly that on Base Sepolia.
+        (customer, customerPk) = makeAddrAndKey("customer");
+        require(customer.code.length == 0, "payer must be an EOA on this fork");
 
         // Settlement token = input token (same-asset path → no DEX needed).
         token = new MockERC20("Test Settle", "TST", 6);
