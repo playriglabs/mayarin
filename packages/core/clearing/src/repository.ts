@@ -16,6 +16,14 @@ export interface ClearingRepository {
   ): Promise<void>;
   findById(id: string): Promise<ClearingTransaction | null>;
   findByPaymentIntentId(paymentIntentId: string): Promise<ClearingTransaction | null>;
+  /**
+   * The transaction whose signed order carries this on-chain `intentId`.
+   *
+   * How the indexer resolves a `PaymentCompleted` log to a payment: the log
+   * names the id the backend signed, and nothing else on the chain identifies
+   * the payment.
+   */
+  findByContractIntentId(intentId: string): Promise<ClearingTransaction | null>;
   findByProviderReference(
     provider: string,
     providerReference: string,

@@ -194,19 +194,23 @@ rather than re-signing, and on-chain truth is `PaymentCompleted`.
 
 ### Indexer & Event Ingestion
 
-- ☐ Reliable event ingestion (Ponder / dedicated indexer)
-- ☐ Idempotent — keyed by `(chain, txHash, logIndex)`
-- ☐ Reorg handling and backfill
-- ☐ Reconciliation — ledger derived from on-chain truth, divergence detected and surfaced
+- ✓ Reliable event ingestion — `SettlementIndexer` over the existing `ChainClient`, not a separate service
+- ✓ Idempotent — keyed by `(chain, txHash, logIndex)`, the identity the log envelope carries
+- ✓ Reorg handling and backfill — the same `policy.ts` a deposit uses, unchanged
+- ✓ Reconciliation — a confirmed log matching no payment is surfaced as `chain.settlement.unmatched`
 
 The ledger is now a **derived view** of on-chain reality, not the source of
 truth. Divergence handling (missed event, reorg, indexing lag, under/over
 payment) is first-class, not an edge case.
 
-Nothing here is built. The consumer seam exists — `recordPaymentCompleted` on
-the clearing engine — and the contract emits the event, but no process
-listens, so no payment completes end to end on the contract path yet. This and
-the Base Sepolia deploy (#29) are the whole of what Phase 3 has left.
+Ponder was considered and rejected. The case against an indexer in
+`docs/chain.md` is about deposit addresses — derived continuously off-chain, so
+no static filter covers them. The router is the opposite: one known address
+emitting one event, so a pass is the same three RPC calls the wallet watcher
+already makes, and the reorg policy is reused rather than reimplemented in a
+second service with its own datastore.
+
+The Base Sepolia deploy (#29) is what Phase 3 has left.
 
 ---
 

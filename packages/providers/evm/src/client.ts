@@ -6,7 +6,16 @@
  * lets it be tested without a network.
  */
 
-import type { BlockRef, ChainClient, ChainId, TransferLog, TransferQuery } from "@mayarin/chain";
+import type {
+  BlockRef,
+  ChainClient,
+  ChainId,
+  SettlementLog,
+  SettlementQuery,
+  TransferLog,
+  TransferQuery,
+} from "@mayarin/chain";
+import { paymentRouterAbi } from "@mayarin/contracts";
 import { type AssetCode, ConfigurationError, ProviderError } from "@mayarin/shared";
 import {
   type Chain,
@@ -20,6 +29,16 @@ import { base, baseSepolia } from "viem/chains";
 
 const TRANSFER_EVENT = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 value)",
+);
+
+/**
+ * Taken from the generated ABI rather than re-declared: a hand-written
+ * signature that drifts from the contract yields the wrong topic hash, and the
+ * failure mode is silence — the filter simply matches nothing.
+ */
+const PAYMENT_COMPLETED_EVENT = paymentRouterAbi.find(
+  (entry): entry is Extract<typeof entry, { type: "event"; name: "PaymentCompleted" }> =>
+    entry.type === "event" && entry.name === "PaymentCompleted",
 );
 
 // Typed as the generic `Chain` rather than `base | baseSepolia` so the public
@@ -100,6 +119,58 @@ export class EvmChainClient implements ChainClient {
           from: (log.args.from ?? "").toLowerCase(),
           to: log.args.to.toLowerCase(),
           amount: log.args.value,
+        },
+      ];
+    });
+  }
+
+  async settlements(query: SettlementQuery): Promise<SettlementLog[]> {
+    if (PAYMENT_COMPLETED_EVENT === undefined) {
+      throw new ConfigurationError("The PaymentRouter ABI declares no PaymentCompleted event", {});
+    }
+
+    const logs = await this.#rpc(
+      query.chain,
+      this.#clientFor(query.chain).getLogs({
+        address: getAddress(query.router),
+        event: PAYMENT_COMPLETED_EVENT,
+        fromBlock: query.fromBlock,
+        toBlock: query.toBlock,
+      }),
+    );
+
+    return logs.flatMap((log) => {
+      // A log without a block or a transaction is a pending log, which
+      // `getLogs` over a closed range should never return. Dropping it is
+      // safer than recording a settlement with no place on the chain.
+      if (log.blockNumber === null || log.blockHash === null || log.transactionHash === null) {
+        return [];
+      }
+      if (log.logIndex === null) return [];
+
+      const { intentId, merchantSafe, settledAmount, fee, refundAmount } = log.args;
+      if (
+        intentId === undefined ||
+        merchantSafe === undefined ||
+        settledAmount === undefined ||
+        fee === undefined ||
+        refundAmount === undefined
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          chain: query.chain,
+          txHash: log.transactionHash,
+          logIndex: log.logIndex,
+          blockNumber: log.blockNumber,
+          blockHash: log.blockHash,
+          intentId: intentId.toLowerCase(),
+          merchantSafe: merchantSafe.toLowerCase(),
+          settledAmount,
+          fee,
+          refundAmount,
         },
       ];
     });

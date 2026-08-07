@@ -17,6 +17,10 @@ import type {
   DepositRepository,
   DepositStatus,
   DepositStatusUpdate,
+  SettlementEvent,
+  SettlementEventRepository,
+  SettlementLog,
+  SettlementStatusUpdate,
   TransferLog,
   WatchedAddress,
   WatcherCursorRepository,
@@ -30,13 +34,14 @@ import {
   ValidationError,
   zero,
 } from "@mayarin/shared";
-import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Database } from "../client.ts";
-import { toAsset, toMoney } from "../mapping.ts";
+import { present, toAsset, toMoney } from "../mapping.ts";
 import {
   chainDeposits,
   clearingTransactions,
   depositAddresses,
+  settlementEvents,
   watcherCursors,
 } from "../schema.ts";
 
@@ -247,22 +252,22 @@ export class DrizzleWatcherCursorRepository implements WatcherCursorRepository {
     this.#db = db;
   }
 
-  async get(chain: ChainId, asset: AssetCode): Promise<bigint | null> {
+  async get(chain: ChainId, stream: string): Promise<bigint | null> {
     const [row] = await this.#db
       .select()
       .from(watcherCursors)
-      .where(and(eq(watcherCursors.chain, chain), eq(watcherCursors.asset, asset)))
+      .where(and(eq(watcherCursors.chain, chain), eq(watcherCursors.asset, stream)))
       .limit(1);
 
     return row === undefined ? null : BigInt(row.lastBlock);
   }
 
-  async set(chain: ChainId, asset: AssetCode, block: bigint): Promise<void> {
+  async set(chain: ChainId, stream: string, block: bigint): Promise<void> {
     await this.#db
       .insert(watcherCursors)
       .values({
         chain,
-        asset,
+        asset: stream,
         lastBlock: block.toString(),
         updatedAt: new Date(),
       })
@@ -309,5 +314,138 @@ function toDeposit(row: typeof chainDeposits.$inferSelect): Deposit {
     firstSeenAt: row.firstSeenAt,
     ...(row.confirmedAt === null ? {} : { confirmedAt: row.confirmedAt }),
     ...(row.orphanedAt === null ? {} : { orphanedAt: row.orphanedAt }),
+  };
+}
+
+/**
+ * Settlement events read from a `PaymentRouter` (#8).
+ *
+ * `record` upserts on `(chain, tx_hash, log_index)` and deliberately does
+ * nothing on conflict: a re-scanned range must not reset a status that
+ * reclassification already moved forward.
+ */
+export class DrizzleSettlementEventRepository implements SettlementEventRepository {
+  readonly #db: Database;
+
+  constructor(db: Database) {
+    this.#db = db;
+  }
+
+  async record(logs: readonly SettlementLog[], now: Date): Promise<SettlementEvent[]> {
+    if (logs.length === 0) return [];
+
+    await this.#db
+      .insert(settlementEvents)
+      .values(
+        logs.map((log) => ({
+          id: generateId("stl", now.getTime()),
+          chain: log.chain,
+          txHash: log.txHash,
+          logIndex: log.logIndex,
+          blockNumber: log.blockNumber.toString(),
+          blockHash: log.blockHash,
+          intentId: log.intentId,
+          merchantSafe: log.merchantSafe,
+          settledAmount: log.settledAmount.toString(),
+          fee: log.fee.toString(),
+          refundAmount: log.refundAmount.toString(),
+          status: "PENDING",
+          firstSeenAt: now,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [settlementEvents.chain, settlementEvents.txHash, settlementEvents.logIndex],
+      });
+
+    const rows = await this.#db
+      .select()
+      .from(settlementEvents)
+      .where(
+        inArray(
+          settlementEvents.txHash,
+          logs.map((log) => log.txHash),
+        ),
+      );
+
+    return rows.map(toSettlementEvent);
+  }
+
+  async listProbable(chain: ChainId, limit: number): Promise<SettlementEvent[]> {
+    const rows = await this.#db
+      .select()
+      .from(settlementEvents)
+      .where(and(eq(settlementEvents.chain, chain), ne(settlementEvents.status, "ORPHANED")))
+      .orderBy(asc(settlementEvents.blockNumber))
+      .limit(limit);
+
+    return rows.map(toSettlementEvent);
+  }
+
+  async updateStatuses(updates: readonly SettlementStatusUpdate[]): Promise<void> {
+    for (const update of updates) {
+      await this.#db
+        .update(settlementEvents)
+        .set({
+          status: update.status,
+          ...(update.status === "CONFIRMED" ? { confirmedAt: update.at } : {}),
+          ...(update.status === "ORPHANED" ? { orphanedAt: update.at } : {}),
+        })
+        .where(eq(settlementEvents.id, update.id));
+    }
+  }
+
+  async listCompletable(chain: ChainId, limit: number): Promise<SettlementEvent[]> {
+    const rows = await this.#db
+      .select()
+      .from(settlementEvents)
+      .where(
+        and(
+          eq(settlementEvents.chain, chain),
+          eq(settlementEvents.status, "CONFIRMED"),
+          isNull(settlementEvents.completedAt),
+        ),
+      )
+      .orderBy(asc(settlementEvents.blockNumber))
+      .limit(limit);
+
+    return rows.map(toSettlementEvent);
+  }
+
+  async markCompleted(id: string, at: Date): Promise<void> {
+    await this.#db
+      .update(settlementEvents)
+      .set({ completedAt: at })
+      .where(eq(settlementEvents.id, id));
+  }
+
+  async findByIntentId(intentId: string): Promise<SettlementEvent | null> {
+    const [row] = await this.#db
+      .select()
+      .from(settlementEvents)
+      .where(eq(settlementEvents.intentId, intentId))
+      .limit(1);
+
+    return row === undefined ? null : toSettlementEvent(row);
+  }
+}
+
+function toSettlementEvent(row: typeof settlementEvents.$inferSelect): SettlementEvent {
+  return {
+    id: row.id,
+    chain: row.chain as ChainId,
+    txHash: row.txHash,
+    logIndex: row.logIndex,
+    blockNumber: BigInt(row.blockNumber),
+    blockHash: row.blockHash,
+    intentId: row.intentId,
+    merchantSafe: row.merchantSafe,
+    settledAmount: BigInt(row.settledAmount),
+    fee: BigInt(row.fee),
+    refundAmount: BigInt(row.refundAmount),
+    status: row.status as DepositStatus,
+    firstSeenAt: row.firstSeenAt,
+    ...present("confirmedAt", row.confirmedAt),
+    ...present("orphanedAt", row.orphanedAt),
+    ...present("completedAt", row.completedAt),
   };
 }

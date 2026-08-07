@@ -39,6 +39,23 @@ if (chain !== undefined && chain.intervalMs > 0 && container.watchers.size > 0) 
   console.log(`[watcher] polling ${pairs.length} pair(s) every ${chain.intervalMs}ms`);
 }
 
+// The indexer runs on the same interval and for the same reason: a failed pass
+// leaves the cursor where it was, so the next one re-scans the same range.
+if (chain !== undefined && chain.intervalMs > 0 && container.indexers.size > 0) {
+  setInterval(() => {
+    void (async () => {
+      for (const [indexedChain, indexer] of container.indexers) {
+        try {
+          await indexer.tick(indexedChain);
+        } catch (error) {
+          console.error(`[indexer] ${indexedChain} tick failed`, error);
+        }
+      }
+    })();
+  }, chain.intervalMs);
+  console.log(`[indexer] polling ${container.indexers.size} router(s) every ${chain.intervalMs}ms`);
+}
+
 const app = createApp(container);
 
 console.log(`[api] listening on http://localhost:${config.port}`);

@@ -98,16 +98,60 @@ skipping it, and re-scanning is free because recording upserts on
 `recordAssetReceived` already returns early when the transaction is not in
 `PAYMENT_PENDING`, so a second tick over an already-funded address does nothing.
 
-There is deliberately no indexer **on this path**. (The contract path is the
-opposite case — a single known address emitting `PaymentCompleted`, which is
-exactly what an indexer is for; see #8.) Per-intent HD addresses are created
+There is deliberately no indexer **on this path**. Per-intent HD addresses are created
 continuously and derived off-chain, so neither a static address filter nor a
 factory pattern covers them, and indexing every `Transfer` on a token contract
 means backfilling millions to find the tens that matter. What the watcher
 actually needs per pass is a handful of RPC calls — `eth_blockNumber`, one
 cursor-bounded `eth_getLogs`, and `eth_getBlockByNumber` for the reorg probe.
-Should a case for an indexer appear later, it is another `ChainClient`
-implementation, not a redesign.
+The contract path is the opposite case, and `SettlementIndexer` below is what
+it needed — which turned out to be another pass over the same `ChainClient`,
+not a redesign.
+
+---
+
+## The settlement indexer
+
+`SettlementIndexer.tick(chain)` is one pass over one chain's `PaymentRouter`,
+and it mirrors the watcher above:
+
+```
+1. read the cursor and the head; bound the scan to [cursor+1, min(head, +blockRange)]
+2. fetch PaymentCompleted logs from the router and record them (upsert, status PENDING)
+3. reclassify each recorded settlement against the current block hashes
+4. tell the clearing engine about any settlement past the confirmation depth
+5. write the cursor
+```
+
+**Why this is not a separate indexer service.** The argument above is about
+deposit addresses: derived continuously off-chain, so no static filter covers
+them. None of it holds for the router, which is **one known address emitting one
+event**. A pass costs the same three RPC calls the watcher makes, and
+`policy.ts` classifies a settlement with no changes at all — the finality
+question is identical. A service with its own datastore would add
+infrastructure without adding capability, and would put the reorg policy in two
+places.
+
+What differs from a deposit is the matching, and it is simpler: a
+`PaymentCompleted` log names its own `intentId`, so there is nothing to match on
+amount or address. The cursor is keyed by the router address rather than an
+asset, which is why `WatcherCursorRepository` takes a `stream` string.
+
+**Confirmation depth applies here too.** A settlement below the depth has told
+the clearing engine nothing and can vanish freely. Only at depth does it advance
+a payment. Settling at one confirmation would mean a reorg could unsettle a
+payment the merchant had already been told about — and `SETTLED → unsettled` is
+not a legal transition.
+
+A settlement reorged away after it completed a payment is published as
+`chain.settlement.orphaned` with `wasCompleted: true`: the merchant has been
+paid on-chain, so this is a fact for a human, not a state to undo.
+
+**Reconciliation.** The router only emits `PaymentCompleted` for an order this
+backend signed, so a confirmed log naming an `intentId` no payment claims means
+the chain and the database disagree — money moved for a payment that is not
+recorded. That is published as `chain.settlement.unmatched` and **not retried**:
+repeating the lookup every pass would bury the finding rather than surface it.
 
 ---
 

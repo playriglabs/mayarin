@@ -1,13 +1,14 @@
 /**
  * Chain ports.
  *
- * Three narrow interfaces, deliberately: reading the chain, deriving an
- * address, and telling something that money arrived. Keeping them apart is what
- * lets `core/chain` stay free of both viem and the clearing engine.
+ * Narrow interfaces, deliberately: reading the chain, deriving an address, and
+ * telling something that value arrived or that a payment settled. Keeping them
+ * apart is what lets `core/chain` stay free of both viem and the clearing
+ * engine.
  */
 
 import type { AssetCode } from "@mayarin/shared";
-import type { BlockRef, ChainId, TransferLog } from "./types.ts";
+import type { BlockRef, ChainId, SettlementLog, TransferLog } from "./types.ts";
 
 export interface TransferQuery {
   readonly chain: ChainId;
@@ -18,11 +19,29 @@ export interface TransferQuery {
   readonly addresses: readonly string[];
 }
 
+/**
+ * A scan for `PaymentCompleted` logs.
+ *
+ * Unlike `TransferQuery` this needs no address list. The router is a single
+ * known contract, so the filter is one address and one topic — which is why
+ * this path needs no indexer service to make it tractable, unlike per-intent
+ * deposit addresses that are created continuously.
+ */
+export interface SettlementQuery {
+  readonly chain: ChainId;
+  /** The deployed `PaymentRouter` whose logs are read. */
+  readonly router: string;
+  readonly fromBlock: bigint;
+  readonly toBlock: bigint;
+}
+
 export interface ChainClient {
   head(chain: ChainId): Promise<BlockRef>;
   /** Canonical hash at a height, or `null` past the head. Drives the reorg probe. */
   blockHash(chain: ChainId, number: bigint): Promise<string | null>;
   transfers(query: TransferQuery): Promise<TransferLog[]>;
+  /** `PaymentCompleted` logs emitted by the router in the range. */
+  settlements(query: SettlementQuery): Promise<SettlementLog[]>;
 }
 
 /**
@@ -44,4 +63,20 @@ export interface DepositAddressDeriver {
  */
 export interface AssetReceiptSink {
   fund(clearingTransactionId: string): Promise<void>;
+}
+
+/**
+ * What the indexer calls once a `PaymentCompleted` log is final.
+ *
+ * Takes the **on-chain** `intentId` rather than a clearing transaction id:
+ * resolving one to the other means reading a clearing transaction, and
+ * `core/chain` must not import `@mayarin/clearing`. The composition root does
+ * the lookup and calls `ClearingEngine.recordPaymentCompleted`.
+ *
+ * Returns whether a payment was found, so the indexer can tell "settled" from
+ * "this log belongs to no payment we know about" — which is a reconciliation
+ * finding, not a no-op.
+ */
+export interface PaymentCompletionSink {
+  complete(intentId: string, completion: { readonly txHash: string }): Promise<boolean>;
 }

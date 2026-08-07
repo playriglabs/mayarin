@@ -291,6 +291,42 @@ export const chainDeposits = pgTable(
 );
 
 /** How far the watcher has scanned, per chain and asset. */
+/**
+ * `PaymentCompleted` logs read from a `PaymentRouter` (#8).
+ *
+ * Keyed by `(chain, tx_hash, log_index)` — the identity the log envelope itself
+ * carries, so replaying a block range cannot record a settlement twice. The
+ * amounts are the on-chain truth the ledger reconciles against: what the
+ * merchant was actually paid, not what was quoted.
+ */
+export const settlementEvents = pgTable(
+  "settlement_events",
+  {
+    id: text("id").primaryKey(),
+    chain: text("chain").notNull(),
+    txHash: text("tx_hash").notNull(),
+    logIndex: integer("log_index").notNull(),
+    blockNumber: minorUnits("block_number").notNull(),
+    blockHash: text("block_hash").notNull(),
+    intentId: text("intent_id").notNull(),
+    merchantSafe: text("merchant_safe").notNull(),
+    settledAmount: minorUnits("settled_amount").notNull(),
+    fee: minorUnits("fee").notNull(),
+    refundAmount: minorUnits("refund_amount").notNull(),
+    status: text("status").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true, mode: "date" }).notNull(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: "date" }),
+    orphanedAt: timestamp("orphaned_at", { withTimezone: true, mode: "date" }),
+    /** Set once the clearing engine has been told; keeps completion at-most-once. */
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    uniqueIndex("settlement_events_log_idx").on(table.chain, table.txHash, table.logIndex),
+    index("settlement_events_intent_idx").on(table.intentId),
+    index("settlement_events_probe_idx").on(table.chain, table.status, table.blockNumber),
+  ],
+);
+
 export const watcherCursors = pgTable(
   "watcher_cursors",
   {
