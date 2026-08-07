@@ -17,7 +17,7 @@ Fiat payment rails (QRIS, bank transfer) and a stablecoin → fiat off-ramp are
 intentionally **out of the MVP** — later, explicit phases with their own custody
 perimeter.
 
-Phase 1 and Phase 2 are shipped; Phase 3 (on-chain execution) is in progress.
+Phases 1 through 3 are shipped; Phase 4 (commerce platform) is next.
 `docs/roadmap.md` is the authority on what each phase adds; `docs/` as a whole is
 the design record and is expected to stay in sync with the code. RFC issues
 (#4–#21 on GitHub, labeled `rfc` + `phase-N`) track Phase 3–5 feature work.
@@ -128,9 +128,10 @@ the authoritative status — so a spoofed or replayed webhook cannot settle a pa
 The `RateProvider` port is the seam later phases plug into without redesign: the
 `LiquidityRouter` implements it, pricing cross-asset quotes through a pluggable
 `PriceSource` (`packages/core/clearing/src/liquidity.ts`) instead of the static
-`EXCHANGE_RATES` table. The table is still the wired default (via `TablePriceSource`);
-a DEX/aggregator `PriceSource` replaces it in Phase 3. Do not "fix" the port in
-place — swap the source.
+`EXCHANGE_RATES` table. The table remains the default for a deployment with
+`QUOTE_ENABLED=false`; with the quote layer on, a DEX `PriceSource`
+(Uniswap/0x/LiFi) serves it, guarded against a Pyth or Chainlink reference. Do
+not "fix" the port in place — swap the source.
 
 The wallet watcher exists (`packages/core/chain` + `packages/providers/evm`), so a
 payment waits for the payer's asset to arrive on a per-intent deposit address
@@ -139,9 +140,10 @@ rather than being treated as funded at `PAYMENT_PENDING`.
 `docs/chain.md`.
 
 The stablecoin settlement adapter (`packages/providers/stablecoin`) is wired as
-the off-chain settlement path. Phase 3's on-chain settlement (contract → merchant
-Safe) supersedes it for the contract path; the adapter port is retained for the
-fallback deposit-address path and the future fiat off-ramp.
+the off-chain settlement path. On-chain settlement (contract → merchant Safe)
+supersedes it wherever `PaymentRouter` executes — the contract path always, and
+the deposit path once a treasury executor is wired. The adapter port is retained
+for a deployment with no executor and for the future fiat off-ramp.
 
 ## Conventions
 
