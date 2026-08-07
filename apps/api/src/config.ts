@@ -504,7 +504,28 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
   };
 }
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
+/**
+ * An env var present but empty is unset.
+ *
+ * A dotenv file documents its keys by listing them — `TURNKEY_SIGN_WITH=` says
+ * "this is the name, fill it in". Zod sees `""`, which is present, so
+ * `.optional()` never applies and `.min(1)` fails. The result is a boot that
+ * dies on a variable the deployment does not use and never intended to set:
+ * `.env.example` itself could not boot, and neither could any file copied from
+ * it until every unused key was deleted rather than left blank.
+ *
+ * Collapsing `""` to `undefined` here makes the schema mean what it reads as.
+ * A genuinely required key still fails — as "required" rather than as a length
+ * complaint, which is the more useful message anyway.
+ */
+function withoutEmpty(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  return Object.fromEntries(
+    Object.entries(env).map(([key, value]) => [key, value === "" ? undefined : value]),
+  );
+}
+
+export function loadConfig(rawEnv: Record<string, string | undefined> = process.env): Config {
+  const env = withoutEmpty(rawEnv);
   const result = configSchema.safeParse({
     port: env.PORT,
     databaseUrl: env.DATABASE_URL,
