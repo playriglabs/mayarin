@@ -1,0 +1,186 @@
+import { describe, expect, test } from "bun:test";
+import { assertBalanced } from "@mayarin/ledger";
+import { money } from "@mayarin/shared";
+import type { ContractLock } from "../src/contract-path.ts";
+import type { ExecutionResult, TreasuryExecutionPort } from "../src/treasury.ts";
+import { FakeContractPlanner } from "../testing/index.ts";
+import { createHarness, NOW } from "./harness.ts";
+
+/**
+ * The deposit path when a treasury executor is wired (#81).
+ *
+ * The payment is priced once, by the planner, which also signs the order. The
+ * lock's `payerEstimate` becomes the deposit amount, so the payer sends a
+ * slippage-grossed figure, the swap clears `minOut`, and the excess goes to
+ * `refundTo` — the treasury — where `FX_RESULT` books it.
+ */
+
+const TREASURY = "0x0000000000000000000000000000000000007a5b";
+const GAS = money(594_366_000_000n, "ETH");
+/** Grossed above what 50,000.00 IDRX needs, so a normal fill leaves change. */
+const PAYER_ESTIMATE = money(8_400_000_000_000_000n, "ETH");
+
+function depositLock(): ContractLock {
+  const lockedAt = new Date(NOW);
+  const expiresAt = new Date(lockedAt.getTime() + 120_000);
+  return {
+    settlementAmount: money(5_000_000n, "IDRX"),
+    fee: money(25_000n, "IDRX"),
+    rate: {
+      from: "ETH",
+      to: "IDRX",
+      minorUnitsPerWholeUnit: 60_000_000_00n,
+      source: "uniswap",
+      lockedAt,
+    },
+    payerEstimate: PAYER_ESTIMATE,
+    expiresAt,
+    order: {
+      intentId: `0x${"11".repeat(32)}`,
+      settlementToken: "0x000000000000000000000000000000000000c0de",
+      minOut: 5_000_000n,
+      fee: 25_000n,
+      merchantSafe: "0x000000000000000000000000000000000000bEEF",
+      // The engine passes the treasury as `payerAddress`; the planner signs it
+      // into `refundTo`. Pinned here so a regression in that wiring is visible.
+      refundTo: TREASURY,
+      deadline: BigInt(Math.floor(expiresAt.getTime() / 1_000)),
+      signature: `0x${"ab".repeat(65)}`,
+      signer: "0x00000000000000000000000000000000000000a1",
+    },
+  };
+}
+
+function executingPort(output = money(5_000_000n, "IDRX")): TreasuryExecutionPort & {
+  results: ExecutionResult[];
+} {
+  const results: ExecutionResult[] = [];
+  return {
+    results,
+    async sweep() {},
+    async execute() {
+      const result = { txHash: `0x${"fe".repeat(32)}`, output, gasCost: GAS };
+      results.push(result);
+      return result;
+    },
+  };
+}
+
+function executableHarness(port: TreasuryExecutionPort, output?: undefined) {
+  void output;
+  const planner = new FakeContractPlanner(depositLock());
+  const harness = createHarness({
+    contractPlanner: planner,
+    treasuryPort: port,
+    treasuryAddress: TREASURY,
+  });
+
+  async function depositIntent() {
+    return harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } });
+  }
+
+  return { harness, planner, depositIntent };
+}
+
+function assertEveryPostingBalances(harness: ReturnType<typeof createHarness>) {
+  const entries = harness.repositories.ledger.entries();
+  const byTransaction = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    byTransaction.set(entry.transactionId, [
+      ...(byTransaction.get(entry.transactionId) ?? []),
+      entry,
+    ]);
+  }
+  for (const group of byTransaction.values()) {
+    expect(() => assertBalanced(group)).not.toThrow();
+  }
+}
+
+describe("locking a deposit that will be executed", () => {
+  test("prices through the planner and signs an order, rather than quoting twice", async () => {
+    const { harness, planner, depositIntent } = executableHarness(executingPort());
+
+    const transaction = await harness.engine.start(await depositIntent());
+
+    expect(planner.calls).toHaveLength(1);
+    // One pricing pass. The RateProvider is not consulted for this payment, so
+    // there is no second price that could disagree with the signed order.
+    expect(transaction.contract?.order.minOut).toBe(5_000_000n);
+    expect(transaction.settlementAmount).toEqual(money(5_000_000n, "IDRX"));
+  });
+
+  test("signs refundTo to the treasury, since the payer has no address here", async () => {
+    const { harness, planner, depositIntent } = executableHarness(executingPort());
+
+    const transaction = await harness.engine.start(await depositIntent());
+
+    expect(planner.calls[0]?.payerAddress).toBe(TREASURY);
+    expect(transaction.contract?.order.refundTo).toBe(TREASURY);
+  });
+
+  test("the deposit amount is the grossed payer estimate, not the settlement amount", async () => {
+    const { harness, depositIntent } = executableHarness(executingPort());
+
+    const transaction = await harness.engine.start(await depositIntent());
+
+    // What the payer must send. Grossed by slippage so a normal fill clears
+    // `minOut`; the excess is what `refundTo` receives.
+    expect(transaction.deposit?.amount).toEqual(PAYER_ESTIMATE);
+    expect(transaction.deposit?.asset).toBe("ETH");
+    expect(transaction.deposit?.address).toBeDefined();
+  });
+
+  test("settles end to end, with the executor submitting the persisted order", async () => {
+    const port = executingPort();
+    const { harness, depositIntent } = executableHarness(port);
+
+    const transaction = await harness.engine.start(await depositIntent());
+
+    expect(transaction.state).toBe("SUCCESS");
+    expect(port.results).toHaveLength(1);
+    assertEveryPostingBalances(harness);
+  });
+
+  test("a swap above minOut books the excess as Mayarin's, not the merchant's", async () => {
+    const port = executingPort(money(5_080_000n, "IDRX"));
+    const { harness, depositIntent } = executableHarness(port);
+
+    await harness.engine.start(await depositIntent());
+
+    expect(await harness.balance("FX_RESULT")).toEqual(money(80_000n, "IDRX"));
+    expect(await harness.balance("FEE_REVENUE")).toEqual(money(25_000n, "IDRX"));
+    assertEveryPostingBalances(harness);
+  });
+
+  test("the payer asset nets out once converted", async () => {
+    const { harness, depositIntent } = executableHarness(executingPort());
+
+    await harness.engine.start(await depositIntent());
+
+    expect((await harness.ledger.balance("PAYER_ASSET_HELD", "ETH")).balance).toEqual(
+      money(0n, "ETH"),
+    );
+    expect((await harness.ledger.balance("GAS_EXPENSE", "ETH")).balance).toEqual(GAS);
+  });
+});
+
+describe("without an executor the deposit path is untouched", () => {
+  test("prices through the RateProvider and signs nothing", async () => {
+    const planner = new FakeContractPlanner(depositLock());
+    const harness = createHarness({
+      contractPlanner: planner,
+      rates: { "IDR/IDRX": 100n, "IDR/ETH": 320n },
+    });
+
+    const transaction = await harness.engine.start(
+      await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
+    );
+
+    // A planner being available is not enough — without an executor there is
+    // nothing to convert the deposit, so the original path stays.
+    expect(planner.calls).toHaveLength(0);
+    expect(transaction.contract).toBeUndefined();
+    expect(transaction.state).toBe("SUCCESS");
+    assertEveryPostingBalances(harness);
+  });
+});
