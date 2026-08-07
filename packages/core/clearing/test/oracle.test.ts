@@ -10,7 +10,7 @@ function reference(overrides: Partial<OraclePrice> = {}): OraclePrice {
   return {
     from: "ETH",
     to: "USDC",
-    minorUnitsPerWholeUnit: 3_700_000_000n,
+    scaledRate: 3_700_000_000n,
     source: "pyth",
     observedAt: NOW,
     ...overrides,
@@ -21,7 +21,7 @@ function executable(overrides: Partial<ExecutablePrice> = {}): ExecutablePrice {
   return {
     from: "ETH",
     to: "USDC",
-    minorUnitsPerWholeUnit: 3_700_000_000n,
+    scaledRate: 3_700_000_000n,
     source: "dex",
     ...overrides,
   };
@@ -32,7 +32,7 @@ describe("PriceOracle port", () => {
     const oracle = new FixedPriceOracle([reference()]);
     const price = await oracle.reference("ETH", "USDC");
 
-    expect(price.minorUnitsPerWholeUnit).toBe(3_700_000_000n);
+    expect(price.scaledRate).toBe(3_700_000_000n);
     expect(price.source).toBe("pyth");
     expect(price.observedAt).toEqual(NOW);
   });
@@ -46,12 +46,12 @@ describe("PriceOracle port", () => {
   test("the reverse pair is a separate observation — no symmetry inference", async () => {
     const oracle = new FixedPriceOracle([
       reference(),
-      reference({ from: "USDC", to: "ETH", minorUnitsPerWholeUnit: 270_000_000_000_000n }),
+      reference({ from: "USDC", to: "ETH", scaledRate: 270_000_000_000_000n }),
     ]);
 
     const forward = await oracle.reference("ETH", "USDC");
     const back = await oracle.reference("USDC", "ETH");
-    expect(forward.minorUnitsPerWholeUnit).not.toBe(back.minorUnitsPerWholeUnit);
+    expect(forward.scaledRate).not.toBe(back.scaledRate);
   });
 });
 
@@ -98,32 +98,28 @@ describe("assertWithinDeviation", () => {
 
   test("a deviation of exactly the limit passes — the bound is inclusive", () => {
     // 50 bps of 10_000 is exactly 50.
-    const ref = reference({ minorUnitsPerWholeUnit: 10_000n });
-    expect(() =>
-      assertWithinDeviation(executable({ minorUnitsPerWholeUnit: 10_050n }), ref, 50),
-    ).not.toThrow();
-    expect(() =>
-      assertWithinDeviation(executable({ minorUnitsPerWholeUnit: 9_950n }), ref, 50),
-    ).not.toThrow();
+    const ref = reference({ scaledRate: 10_000n });
+    expect(() => assertWithinDeviation(executable({ scaledRate: 10_050n }), ref, 50)).not.toThrow();
+    expect(() => assertWithinDeviation(executable({ scaledRate: 9_950n }), ref, 50)).not.toThrow();
   });
 
   test("one minor unit beyond the limit rejects, in either direction", () => {
-    const ref = reference({ minorUnitsPerWholeUnit: 10_000n });
-    expect(() =>
-      assertWithinDeviation(executable({ minorUnitsPerWholeUnit: 10_051n }), ref, 50),
-    ).toThrow(ProviderError);
-    expect(() =>
-      assertWithinDeviation(executable({ minorUnitsPerWholeUnit: 9_949n }), ref, 50),
-    ).toThrow(ProviderError);
+    const ref = reference({ scaledRate: 10_000n });
+    expect(() => assertWithinDeviation(executable({ scaledRate: 10_051n }), ref, 50)).toThrow(
+      ProviderError,
+    );
+    expect(() => assertWithinDeviation(executable({ scaledRate: 9_949n }), ref, 50)).toThrow(
+      ProviderError,
+    );
   });
 
   test("the comparison is exact — no rounding hides a sub-bps overshoot", () => {
     // Allowed difference is 50 bps of 10_001 = 50.005 exactly; 51 exceeds it
     // even though floor(51 * 10_000 / 10_001) is still 50 bps.
-    const ref = reference({ minorUnitsPerWholeUnit: 10_001n });
-    expect(() =>
-      assertWithinDeviation(executable({ minorUnitsPerWholeUnit: 10_052n }), ref, 50),
-    ).toThrow(ProviderError);
+    const ref = reference({ scaledRate: 10_001n });
+    expect(() => assertWithinDeviation(executable({ scaledRate: 10_052n }), ref, 50)).toThrow(
+      ProviderError,
+    );
   });
 
   test("a pair mismatch is a wiring bug, not a market condition", () => {
@@ -133,9 +129,9 @@ describe("assertWithinDeviation", () => {
   });
 
   test("a non-positive reference rate is a wiring bug", () => {
-    expect(() =>
-      assertWithinDeviation(executable(), reference({ minorUnitsPerWholeUnit: 0n }), 50),
-    ).toThrow(ConfigurationError);
+    expect(() => assertWithinDeviation(executable(), reference({ scaledRate: 0n }), 50)).toThrow(
+      ConfigurationError,
+    );
   });
 });
 
@@ -150,7 +146,7 @@ describe("guardExecutablePrice", () => {
     const stale = reference({
       observedAt: new Date(NOW.getTime() - 60_000),
       // Deviation would also fail; the error must still be the staleness one.
-      minorUnitsPerWholeUnit: 1n,
+      scaledRate: 1n,
     });
     try {
       guardExecutablePrice(executable(), stale, policy, NOW);
@@ -162,7 +158,7 @@ describe("guardExecutablePrice", () => {
   });
 
   test("a deviated executable price fails the guard", () => {
-    const drifted = executable({ minorUnitsPerWholeUnit: 3_900_000_000n });
+    const drifted = executable({ scaledRate: 3_900_000_000n });
     expect(() => guardExecutablePrice(drifted, reference(), policy, NOW)).toThrow(ProviderError);
   });
 });

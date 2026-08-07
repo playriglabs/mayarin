@@ -1,25 +1,25 @@
 import { describe, expect, test } from "bun:test";
-import { isMayarinError, ProviderError } from "@mayarin/shared";
+import { isMayarinError, ProviderError, RATE_SCALE } from "@mayarin/shared";
 import { assertUsableRound, scaleAnswer } from "../src/aggregator.ts";
 
 describe("scaleAnswer", () => {
-  test("a feed with more decimals than the target divides half-up", () => {
-    // 8-dp feed into 6-dp USDC: shift -2. 123.45 -> 123, 123.55 -> 124.
-    expect(scaleAnswer(12_345n, 8, 6)).toBe(123n);
-    expect(scaleAnswer(12_355n, 8, 6)).toBe(124n);
+  test("a fractional rate keeps its fraction instead of rounding to a whole unit", () => {
+    // 8-dp feed into 6-dp USDC is 123.45, which used to round to 123.
+    expect(scaleAnswer(12_345n, 8, 6)).toBe(123_450_000_000n);
+    expect(scaleAnswer(12_355n, 8, 6)).toBe(123_550_000_000n);
   });
 
   test("matching decimals pass the answer through", () => {
-    expect(scaleAnswer(370_000_000_000n, 6, 6)).toBe(370_000_000_000n);
+    expect(scaleAnswer(370_000_000_000n, 6, 6)).toBe(370_000_000_000n * RATE_SCALE);
   });
 
   test("a feed with fewer decimals than the target multiplies exactly", () => {
     // 3700 USD at 2-dp feed into 6-dp minor units: ×10^4.
-    expect(scaleAnswer(370_000n, 2, 6)).toBe(3_700_000_000n);
+    expect(scaleAnswer(370_000n, 2, 6)).toBe(3_700_000_000n * RATE_SCALE);
   });
 
   test("a typical ETH/USD read: 8-dp feed into 6-dp minor units", () => {
-    expect(scaleAnswer(370_000_000_000n, 8, 6)).toBe(3_700_000_000n);
+    expect(scaleAnswer(370_000_000_000n, 8, 6)).toBe(3_700_000_000n * RATE_SCALE);
   });
 });
 

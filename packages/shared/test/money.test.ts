@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { RATE_SCALE } from "@mayarin/shared";
 import { ValidationError } from "../src/errors.ts";
 import {
   add,
@@ -9,10 +10,12 @@ import {
   fromDecimalString,
   money,
   multiplyByBasisPoints,
+  scaledRateFrom,
   serializeMoney,
   subtract,
   sum,
   toDecimalString,
+  unscaleRate,
   zero,
 } from "../src/money.ts";
 
@@ -118,7 +121,7 @@ describe("multiplyByBasisPoints", () => {
 describe("convert", () => {
   test("uses target minor units per whole source unit", () => {
     // 1 USDC = 16,000.00 IDRX -> 2.50 USDC = 40,000.00 IDRX
-    expect(convert(money(2_500_000n, "USDC"), "IDRX", 1_600_000n)).toEqual(
+    expect(convert(money(2_500_000n, "USDC"), "IDRX", 1_600_000n * RATE_SCALE)).toEqual(
       money(4_000_000n, "IDRX"),
     );
   });
@@ -137,5 +140,55 @@ describe("serialization", () => {
 
   test("rejects unknown assets", () => {
     expect(() => deserializeMoney({ amount: "1", asset: "XYZ" as never })).toThrow(ValidationError);
+  });
+});
+
+describe("rate precision (#90)", () => {
+  test("a rate too small to survive as an integer keeps its value", () => {
+    // IDR into 6-decimal USDC lands near 56 minor units per rupiah. As one
+    // integer per whole source unit that rounded to 56, costing ~19 bps —
+    // more than a third of the 50 bps fee — on every IDR-priced payment.
+    const exact = 56.105526488;
+    const scaled = scaledRateFrom(56_105_526_488n, RATE_SCALE);
+
+    expect(unscaleRate(scaled)).toBeCloseTo(exact, 9);
+  });
+
+  test("the error it leaves is below a hundredth of a basis point", () => {
+    const scaled = 56_105_526_488n;
+    const priced = convert(money(50_000_00n, "IDR"), "USDC", scaled);
+    const exact = 50_000 * 56.105526488;
+
+    const bps = (Math.abs(Number(priced.amount) - exact) / exact) * 10_000;
+    expect(bps).toBeLessThan(0.01);
+  });
+
+  test("the same price under a whole-unit integer rate is ~19 bps out", () => {
+    // Pins what the change fixed, so a regression to integer rates is visible
+    // as a number rather than as a vague loss of precision.
+    const priced = convert(money(50_000_00n, "IDR"), "USDC", 56n * RATE_SCALE);
+    const exact = 50_000 * 56.105526488;
+
+    const bps = (Math.abs(Number(priced.amount) - exact) / exact) * 10_000;
+    expect(bps).toBeGreaterThan(18);
+  });
+
+  test("a high-value pair is unaffected either way", () => {
+    const scaled = 3_700_000_000n * RATE_SCALE;
+    expect(convert(money(10n ** 18n, "ETH"), "USDC", scaled)).toEqual(
+      money(3_700_000_000n, "USDC"),
+    );
+  });
+
+  test("scaledRateFrom rounds down when asked, so a venue rate is never optimistic", () => {
+    expect(scaledRateFrom(10n, 3n, "down")).toBe(3_333_333_333n);
+    expect(scaledRateFrom(10n, 3n)).toBe(3_333_333_333n);
+    expect(scaledRateFrom(20n, 3n, "down")).toBe(6_666_666_666n);
+    expect(scaledRateFrom(20n, 3n)).toBe(6_666_666_667n);
+  });
+
+  test("refuses a non-positive denominator rather than dividing by zero", () => {
+    expect(() => scaledRateFrom(1n, 0n)).toThrow(ValidationError);
+    expect(() => scaledRateFrom(1n, -1n)).toThrow(ValidationError);
   });
 });

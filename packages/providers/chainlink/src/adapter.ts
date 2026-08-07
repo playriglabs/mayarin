@@ -83,8 +83,8 @@ export class ChainlinkPriceOracle implements PriceOracle {
 
     assertUsableRound({ answer, updatedAt }, from, to);
 
-    const minorUnitsPerWholeUnit = scaleAnswer(answer, feedDecimals, assetDecimals(to));
-    if (minorUnitsPerWholeUnit <= 0n) {
+    const scaledRate = scaleAnswer(answer, feedDecimals, assetDecimals(to));
+    if (scaledRate <= 0n) {
       throw new ProviderError(
         `Chainlink answer for ${from} -> ${to} rounds to zero minor units of ${to}`,
         { from, to, answer: answer.toString(), feedDecimals },
@@ -94,7 +94,7 @@ export class ChainlinkPriceOracle implements PriceOracle {
     return {
       from,
       to,
-      minorUnitsPerWholeUnit,
+      scaledRate,
       source: "chainlink",
       observedAt: new Date(Number(updatedAt) * 1_000),
     };

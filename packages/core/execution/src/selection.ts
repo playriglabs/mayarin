@@ -155,7 +155,7 @@ async function bestQuote(
   }
 
   return candidates.reduce((lead, candidate) =>
-    candidate.quote.minorUnitsPerWholeUnit > lead.quote.minorUnitsPerWholeUnit ? candidate : lead,
+    candidate.quote.scaledRate > lead.quote.scaledRate ? candidate : lead,
   );
 }
 

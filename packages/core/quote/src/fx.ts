@@ -31,6 +31,7 @@ import {
   getAsset,
   type Money,
   money,
+  RATE_SCALE,
   ValidationError,
 } from "@mayarin/shared";
 
@@ -114,7 +115,7 @@ export async function priceInSettlement(
 
   return {
     price,
-    settlementAmount: convertCeil(price, settlementAsset, reference.minorUnitsPerWholeUnit),
+    settlementAmount: convertCeil(price, settlementAsset, reference.scaledRate),
     kind: "oracle",
     source: reference.source,
     observedAt: reference.observedAt,
@@ -142,13 +143,16 @@ function rescale(value: Money, target: AssetCode): Money {
  * can land a minor unit below the merchant's price; here the direction has to be
  * one-way.
  */
-function convertCeil(value: Money, target: AssetCode, rateMinorUnitsPerWholeUnit: bigint): Money {
-  if (rateMinorUnitsPerWholeUnit <= 0n) {
+function convertCeil(value: Money, target: AssetCode, scaledRate: bigint): Money {
+  if (scaledRate <= 0n) {
     throw new ValidationError("The FX rate must be positive", {
-      rate: rateMinorUnitsPerWholeUnit.toString(),
+      rate: scaledRate.toString(),
     });
   }
-  const sourceScale = 10n ** BigInt(assetDecimals(value.asset));
-  const numerator = value.amount * rateMinorUnitsPerWholeUnit;
-  return money((numerator + sourceScale - 1n) / sourceScale, target);
+  // `RATE_SCALE` divides out here as it does in `convert`; the ceiling applies
+  // to the whole divisor, not to the asset scale alone, or the rate's fraction
+  // would be rounded up a second time.
+  const divisor = 10n ** BigInt(assetDecimals(value.asset)) * RATE_SCALE;
+  const numerator = value.amount * scaledRate;
+  return money((numerator + divisor - 1n) / divisor, target);
 }

@@ -1,3 +1,4 @@
+import { scaledRateFrom } from "@mayarin/shared";
 /**
  * 0x Swap API v2 wire format and pure rate scaling.
  *
@@ -36,5 +37,9 @@ export type ZeroExPriceResponse = z.infer<typeof zeroExPriceResponseSchema>;
  * conservative direction for a rate that feeds `minOut`.
  */
 export function scaleSwapRate(sellAmount: bigint, buyAmount: bigint, fromDecimals: number): bigint {
-  return (buyAmount * 10n ** BigInt(fromDecimals)) / sellAmount;
+  // Scaled, so a low-value source unit keeps its precision, and still rounded
+  // down: an executable rate must never be optimistic, or the `minOut` derived
+  // from it is set higher than the venue can fill. The floor is now at
+  // RATE_DECIMALS rather than at a whole minor unit.
+  return scaledRateFrom(buyAmount * 10n ** BigInt(fromDecimals), sellAmount, "down");
 }

@@ -88,10 +88,10 @@ export class PythPriceOracle implements PriceOracle {
       });
     }
 
-    const minorUnitsPerWholeUnit = invert
+    const scaledRate = invert
       ? invertPythPrice(significand, entry.price.expo, assetDecimals(to))
       : scalePythPrice(significand, entry.price.expo, assetDecimals(to));
-    if (minorUnitsPerWholeUnit <= 0n) {
+    if (scaledRate <= 0n) {
       throw new ProviderError(
         `Pyth price for ${from} -> ${to} rounds to zero minor units of ${to}`,
         { from, to, feedId, price: entry.price.price, expo: entry.price.expo },
@@ -101,7 +101,7 @@ export class PythPriceOracle implements PriceOracle {
     return {
       from,
       to,
-      minorUnitsPerWholeUnit,
+      scaledRate,
       source: "pyth",
       observedAt: new Date(entry.price.publish_time * 1_000),
     };

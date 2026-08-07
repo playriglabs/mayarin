@@ -45,7 +45,7 @@ export function toClearingDto(transaction: ClearingTransaction) {
         : {
             from: transaction.rate.from,
             to: transaction.rate.to,
-            minorUnitsPerWholeUnit: transaction.rate.minorUnitsPerWholeUnit.toString(),
+            scaledRate: transaction.rate.scaledRate.toString(),
             source: transaction.rate.source,
             lockedAt: transaction.rate.lockedAt.toISOString(),
           },

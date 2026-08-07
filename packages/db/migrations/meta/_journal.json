@@ -64,6 +64,13 @@
       "when": 1786087206981,
       "tag": "0008_sloppy_elektra",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786117854433,
+      "tag": "0009_scaled_rate",
+      "breakpoints": true
     }
   ]
 }

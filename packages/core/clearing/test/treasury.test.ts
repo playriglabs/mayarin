@@ -35,7 +35,7 @@ function depositTransaction(): ClearingTransaction {
       rate: {
         from: "IDR",
         to: "ETH",
-        minorUnitsPerWholeUnit: 2_857_142_857n,
+        scaledRate: 2_857_142_857n,
         source: "test",
         lockedAt: NOW,
       },

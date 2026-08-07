@@ -99,7 +99,7 @@ export const clearingTransactions = pgTable(
 
     rateFrom: text("rate_from"),
     rateTo: text("rate_to"),
-    rateMinorUnitsPerWholeUnit: minorUnits("rate_minor_units_per_whole_unit"),
+    rateScaled: minorUnits("rate_scaled"),
     rateSource: text("rate_source"),
     rateLockedAt: timestamp("rate_locked_at", { withTimezone: true, mode: "date" }),
     rateExpiresAt: timestamp("rate_expires_at", { withTimezone: true, mode: "date" }),
@@ -112,7 +112,7 @@ export const clearingTransactions = pgTable(
     depositChain: text("deposit_chain"),
     depositAddress: text("deposit_address"),
     depositAmount: minorUnits("deposit_amount"),
-    depositRateMinorUnitsPerWholeUnit: minorUnits("deposit_rate_minor_units_per_whole_unit"),
+    depositRateScaled: minorUnits("deposit_rate_scaled"),
     depositRateSource: text("deposit_rate_source"),
     depositRateLockedAt: timestamp("deposit_rate_locked_at", { withTimezone: true, mode: "date" }),
     depositRateExpiresAt: timestamp("deposit_rate_expires_at", {

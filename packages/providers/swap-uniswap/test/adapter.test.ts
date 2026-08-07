@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { money, ValidationError } from "@mayarin/shared";
+import { money, RATE_SCALE, ValidationError } from "@mayarin/shared";
 import { type UniswapPool, UniswapSwapVenue } from "../src/adapter.ts";
 import { scaleSwapRate } from "../src/quoter.ts";
 
@@ -16,16 +16,17 @@ const ONE_ETH = money(10n ** 18n, "ETH");
 
 describe("scaleSwapRate", () => {
   test("a whole-unit sell is the amount out itself", () => {
-    expect(scaleSwapRate(10n ** 18n, 3_700_000_000n, 18)).toBe(3_700_000_000n);
+    expect(scaleSwapRate(10n ** 18n, 3_700_000_000n, 18)).toBe(3_700_000_000n * RATE_SCALE);
   });
 
   test("a partial sell scales up to the whole-unit rate", () => {
-    expect(scaleSwapRate(5n * 10n ** 17n, 1_850_000_000n, 18)).toBe(3_700_000_000n);
+    expect(scaleSwapRate(5n * 10n ** 17n, 1_850_000_000n, 18)).toBe(3_700_000_000n * RATE_SCALE);
   });
 
   test("the division floors, never overstating the rate", () => {
     // 10 minor units out for 3 minor units in, 0-decimal from: 10/3 -> 3.
-    expect(scaleSwapRate(3n, 10n, 0)).toBe(3n);
+    // 10/3 floors at RATE_DECIMALS: 3.333333333, never 3.333333334.
+    expect(scaleSwapRate(3n, 10n, 0)).toBe(3_333_333_333n);
   });
 });
 
@@ -96,7 +97,7 @@ describe.skipIf(parsedUrls.base === undefined)("UniswapSwapVenue live", () => {
     });
 
     const quote = await venue.quote("ETH", "USDC", ONE_ETH);
-    expect(quote.minorUnitsPerWholeUnit > 0n).toBe(true);
+    expect(quote.scaledRate > 0n).toBe(true);
     expect(quote.source).toBe("uniswap");
   });
 });

@@ -71,7 +71,7 @@ export interface ClearingDto {
   readonly rate: {
     readonly from: string;
     readonly to: string;
-    readonly minorUnitsPerWholeUnit: string;
+    readonly scaledRate: string;
     readonly source: string;
     readonly lockedAt: string;
   } | null;

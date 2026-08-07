@@ -1,3 +1,4 @@
+import { scaledRateFrom } from "@mayarin/shared";
 /**
  * LiFi quote API wire format and pure rate scaling.
  *
@@ -36,5 +37,9 @@ export type LifiQuoteResponse = z.infer<typeof lifiQuoteResponseSchema>;
  * as the 0x and Uniswap adapters.
  */
 export function scaleSwapRate(fromAmount: bigint, toAmount: bigint, fromDecimals: number): bigint {
-  return (toAmount * 10n ** BigInt(fromDecimals)) / fromAmount;
+  // Scaled, so a low-value source unit keeps its precision, and still rounded
+  // down: an executable rate must never be optimistic, or the `minOut` derived
+  // from it is set higher than the venue can fill. The floor is now at
+  // RATE_DECIMALS rather than at a whole minor unit.
+  return scaledRateFrom(toAmount * 10n ** BigInt(fromDecimals), fromAmount, "down");
 }

@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { type AssetCode, assetDecimals, ConfigurationError, money } from "@mayarin/shared";
+import {
+  type AssetCode,
+  assetDecimals,
+  ConfigurationError,
+  money,
+  RATE_SCALE,
+} from "@mayarin/shared";
 import {
   ConstantProductPriceSource,
   LiquidityRouter,
@@ -17,20 +23,21 @@ class StubSource implements PriceSource {
     return {
       from,
       to,
-      minorUnitsPerWholeUnit: 100n,
+      scaledRate: 100n,
       source: "stub",
     };
   }
 }
 
 describe("PriceSource port", () => {
-  test("price returns a PriceQuote shaped from/to/minorUnitsPerWholeUnit/source", async () => {
+  test("price returns a PriceQuote shaped from/to/scaledRate/source", async () => {
     const source = new StubSource();
     const quote = await source.price("IDRX", "USDC", money(1_000n, "IDRX"));
 
     expect(quote.from).toBe("IDRX");
     expect(quote.to).toBe("USDC");
-    expect(quote.minorUnitsPerWholeUnit).toBe(100n);
+    // Whatever a source returns is already scaled; the port does not rescale.
+    expect(quote.scaledRate).toBe(100n);
     expect(quote.source).toBe("stub");
     expect(quote.expiresAt).toBeUndefined();
   });
@@ -47,7 +54,7 @@ describe("TablePriceSource", () => {
 
   test("returns the configured rate for a cross-asset pair", async () => {
     const quote = await source.price("IDRX", "USDC", money(10_000n, "IDRX"));
-    expect(quote.minorUnitsPerWholeUnit).toBe(100_0000n);
+    expect(quote.scaledRate).toBe(100_0000n * RATE_SCALE);
     expect(quote.source).toBe("table");
     expect(quote.from).toBe("IDRX");
     expect(quote.to).toBe("USDC");
@@ -84,7 +91,7 @@ describe("ConstantProductPriceSource", () => {
     // 1.00 whole IDRX (100 minor): out = 100*640_000/(1_000_000+100) = 63n
     // rate = 63*100/100 = 63 minor USDC per whole IDRX
     const quote = await source.price("IDRX", "USDC", money(100n, "IDRX"));
-    expect(quote.minorUnitsPerWholeUnit).toBe(63n);
+    expect(quote.scaledRate).toBe(63n * RATE_SCALE);
     expect(quote.source).toBe("constant-product");
   });
 
@@ -92,21 +99,22 @@ describe("ConstantProductPriceSource", () => {
     // 10,000.00 whole IDRX (1_000_000 minor): out = 1_000_000*640_000/2_000_000 = 320_000n
     // rate = 320_000*100/1_000_000 = 32 minor USDC per whole IDRX
     const quote = await source.price("IDRX", "USDC", money(1_000_000n, "IDRX"));
-    expect(quote.minorUnitsPerWholeUnit).toBe(32n);
+    expect(quote.scaledRate).toBe(32n * RATE_SCALE);
   });
 
   test("a fee reduces the output", async () => {
-    // High-rate reverse pool so a 30bps fee moves the integer rate by ≥1 unit:
-    // 0.64 USDC (640_000 minor) <-> 10,000.00 IDRX (1_000_000 minor).
+    // 0.64 USDC (640_000 minor) <-> 10,000.00 IDRX (1_000_000 minor). The fee
+    // no longer has to move a whole minor unit to be visible — RATE_DECIMALS
+    // resolves it directly.
     const feePools = { "USDC/IDRX": { reserveFrom: 640_000n, reserveTo: 1_000_000n } };
     const free = new ConstantProductPriceSource(feePools);
     const taxed = new ConstantProductPriceSource(feePools, { feeBps: 30 });
     // 0.10 whole USDC (100_000 minor).
     const freeQuote = await free.price("USDC", "IDRX", money(100_000n, "USDC"));
     const taxedQuote = await taxed.price("USDC", "IDRX", money(100_000n, "USDC"));
-    expect(freeQuote.minorUnitsPerWholeUnit).toBe(1_351_350n);
-    expect(taxedQuote.minorUnitsPerWholeUnit).toBe(1_347_840n);
-    expect(taxedQuote.minorUnitsPerWholeUnit).toBeLessThan(freeQuote.minorUnitsPerWholeUnit);
+    expect(freeQuote.scaledRate).toBe(1_351_350_000_000_000n);
+    expect(taxedQuote.scaledRate).toBe(1_347_840_000_000_000n);
+    expect(taxedQuote.scaledRate).toBeLessThan(freeQuote.scaledRate);
   });
 
   test("a missing reverse pool throws — no symmetry inference", async () => {
@@ -133,8 +141,8 @@ describe("LiquidityRouter", () => {
   test("same-asset quote is the identity rate and never calls the source", async () => {
     const router = new LiquidityRouter({ source: new ThrowingSource() });
     const quote = await router.quote("USDC", "USDC", money(1_000_000n, "USDC"));
-    // one whole unit of USDC is 10^6 minor USDC
-    expect(quote.minorUnitsPerWholeUnit).toBe(10n ** BigInt(assetDecimals("USDC")));
+    // one whole unit of USDC is 10^6 minor USDC, carrying RATE_DECIMALS
+    expect(quote.scaledRate).toBe(10n ** BigInt(assetDecimals("USDC")) * RATE_SCALE);
     expect(quote.source).toBe("identity");
     expect(quote.from).toBe("USDC");
     expect(quote.to).toBe("USDC");
@@ -144,7 +152,8 @@ describe("LiquidityRouter", () => {
   test("cross-asset quote delegates to the source and passes amount through", async () => {
     const router = new LiquidityRouter({ source: new StubSource() });
     const quote = await router.quote("IDRX", "USDC", money(5_000n, "IDRX"));
-    expect(quote.minorUnitsPerWholeUnit).toBe(100n);
+    // Whatever a source returns is already scaled; the port does not rescale.
+    expect(quote.scaledRate).toBe(100n);
     expect(quote.source).toBe("stub");
   });
 

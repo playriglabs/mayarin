@@ -95,15 +95,15 @@ export class LifiSwapVenue implements SwapVenue {
       throw new ProviderError(`LiFi priced a zero sell amount for ${from} -> ${to}`, { from, to });
     }
 
-    const minorUnitsPerWholeUnit = scaleSwapRate(fromAmount, toAmount, assetDecimals(from));
-    if (minorUnitsPerWholeUnit <= 0n) {
+    const scaledRate = scaleSwapRate(fromAmount, toAmount, assetDecimals(from));
+    if (scaledRate <= 0n) {
       throw new ProviderError(
         `LiFi quote for ${from} -> ${to} rounds to zero minor units of ${to}`,
         { from, to, fromAmount: body.estimate.fromAmount, toAmount: body.estimate.toAmount },
       );
     }
 
-    return { from, to, minorUnitsPerWholeUnit, source: this.name };
+    return { from, to, scaledRate, source: this.name };
   }
 
   async #quote(pair: LifiPair, from: AssetCode, to: AssetCode, fromAmount: bigint) {

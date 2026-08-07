@@ -4,6 +4,7 @@ import {
   isMayarinError,
   money,
   ProviderError,
+  RATE_SCALE,
   ValidationError,
 } from "@mayarin/shared";
 import { type ZeroExPair, ZeroExSwapVenue } from "../src/adapter.ts";
@@ -58,16 +59,17 @@ function venue(fetchFn: typeof fetch, pairs: Record<string, ZeroExPair> = ETH_US
 
 describe("scaleSwapRate", () => {
   test("a whole-unit sell is the buy amount itself", () => {
-    expect(scaleSwapRate(10n ** 18n, 3_700_000_000n, 18)).toBe(3_700_000_000n);
+    expect(scaleSwapRate(10n ** 18n, 3_700_000_000n, 18)).toBe(3_700_000_000n * RATE_SCALE);
   });
 
   test("a partial sell scales up to the whole-unit rate", () => {
-    expect(scaleSwapRate(5n * 10n ** 17n, 1_850_000_000n, 18)).toBe(3_700_000_000n);
+    expect(scaleSwapRate(5n * 10n ** 17n, 1_850_000_000n, 18)).toBe(3_700_000_000n * RATE_SCALE);
   });
 
   test("the division floors, never overstating the rate", () => {
     // 10 minor units out for 3 minor units in, 0-decimal from: 10/3 -> 3.
-    expect(scaleSwapRate(3n, 10n, 0)).toBe(3n);
+    // 10/3 floors at RATE_DECIMALS: 3.333333333, never 3.333333334.
+    expect(scaleSwapRate(3n, 10n, 0)).toBe(3_333_333_333n);
   });
 });
 
@@ -79,7 +81,7 @@ describe("ZeroExSwapVenue", () => {
     expect(quote).toEqual({
       from: "ETH",
       to: "USDC",
-      minorUnitsPerWholeUnit: 3_700_000_000n,
+      scaledRate: 3_700_000_000n * RATE_SCALE,
       source: "0x",
     });
     expect(calls[0]?.url).toContain("/swap/permit2/price?");
@@ -117,7 +119,7 @@ describe("ZeroExSwapVenue", () => {
     );
     const quote = await venue(fn).quote("ETH", "USDC", ONE_ETH);
 
-    expect(quote.minorUnitsPerWholeUnit).toBe(3_700_000_000n);
+    expect(quote.scaledRate).toBe(3_700_000_000n * RATE_SCALE);
   });
 
   test("a pair with no configured tokens throws ConfigurationError", async () => {

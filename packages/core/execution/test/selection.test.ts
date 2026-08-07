@@ -18,7 +18,7 @@ import { FixedSwapVenue } from "../testing/index.ts";
 const ONE_ETH = money(10n ** 18n, "ETH");
 
 function ethUsdc(source: string, rate: bigint): PriceQuote {
-  return { from: "ETH", to: "USDC", minorUnitsPerWholeUnit: rate, source };
+  return { from: "ETH", to: "USDC", scaledRate: rate, source };
 }
 
 function venue(name: string, rate: bigint): FixedSwapVenue {
@@ -49,7 +49,7 @@ describe("selectVenue, batched (best-quote)", () => {
     const selection = await selectVenue(venues, "ETH", "USDC", ONE_ETH, "batched");
 
     expect(selection.venue.name).toBe("uniswap");
-    expect(selection.quote.minorUnitsPerWholeUnit).toBe(3_700_000_000n);
+    expect(selection.quote.scaledRate).toBe(3_700_000_000n);
   });
 
   test("asks every venue with the payment amount", async () => {
@@ -95,7 +95,7 @@ describe("selectVenue, immediate (first-quote)", () => {
     const selection = await selectVenue(venues, "ETH", "USDC", ONE_ETH, "immediate");
 
     expect(selection.venue.name).toBe("0x");
-    expect(selection.quote.minorUnitsPerWholeUnit).toBe(3_690_000_000n);
+    expect(selection.quote.scaledRate).toBe(3_690_000_000n);
   });
 
   test("a venue rejection drops out of the race", async () => {

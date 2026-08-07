@@ -8,6 +8,7 @@ import {
   isMayarinError,
   money,
   ProviderError,
+  RATE_SCALE,
 } from "@mayarin/shared";
 import { QuoteEngine } from "../src/engine.ts";
 
@@ -18,7 +19,7 @@ function reference(overrides: Partial<OraclePrice> = {}): OraclePrice {
   return {
     from: "ETH",
     to: "USDC",
-    minorUnitsPerWholeUnit: 3_700_000_000n,
+    scaledRate: 3_700_000_000n * RATE_SCALE,
     source: "pyth",
     observedAt: NOW,
     ...overrides,
@@ -40,7 +41,7 @@ describe("QuoteEngine.compose", () => {
   test("composes the venue's executable price with the oracle's reference", async () => {
     const composed = await engine().compose("ETH", "USDC", money(10n ** 18n, "ETH"));
 
-    expect(composed.executable.minorUnitsPerWholeUnit).toBe(3_700_000_000n);
+    expect(composed.executable.scaledRate).toBe(3_700_000_000n * RATE_SCALE);
     expect(composed.executable.source).toBe("dex");
     expect(composed.reference.source).toBe("pyth");
     expect(composed.composedAt).toEqual(NOW);
@@ -81,7 +82,7 @@ describe("QuoteEngine.compose", () => {
 
     // 0.1 ETH barely moves the pool (~1 bps) — within the 50 bps bound.
     const small = await pooled.compose("ETH", "USDC", money(10n ** 17n, "ETH"));
-    expect(small.executable.minorUnitsPerWholeUnit).toBeLessThanOrEqual(3_700_000_000n);
+    expect(small.executable.scaledRate).toBeLessThanOrEqual(3_700_000_000n * RATE_SCALE);
 
     // 100 ETH moves it ~900 bps — the guard rejects before any lock exists.
     expect(pooled.compose("ETH", "USDC", money(100n * 10n ** 18n, "ETH"))).rejects.toThrow(
@@ -123,7 +124,7 @@ describe("quoteFiatPrice — both legs", () => {
         {
           from: "IDR",
           to: "USDC",
-          minorUnitsPerWholeUnit: 61n,
+          scaledRate: 61n * RATE_SCALE,
           source: "pyth",
           observedAt: NOW,
         },
@@ -148,7 +149,7 @@ describe("quoteFiatPrice — both legs", () => {
     if ("composed" in quote) {
       expect(quote.composed.from).toBe("ETH");
       expect(quote.composed.to).toBe("USDC");
-      expect(quote.composed.executable.minorUnitsPerWholeUnit).toBe(3_700_000_000n);
+      expect(quote.composed.executable.scaledRate).toBe(3_700_000_000n * RATE_SCALE);
     }
   });
 
@@ -183,7 +184,7 @@ describe("quoteFiatPrice — both legs", () => {
         {
           from: "IDR",
           to: "USDC",
-          minorUnitsPerWholeUnit: 61n,
+          scaledRate: 61n * RATE_SCALE,
           source: "pyth",
           observedAt: new Date(NOW.getTime() - 120_000),
         },
