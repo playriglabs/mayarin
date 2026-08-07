@@ -24,6 +24,7 @@ import {
   ConfigurationError,
   type Money,
   money,
+  RATE_SCALE,
   ValidationError,
 } from "@mayarin/shared";
 import type { ComposedQuote } from "./engine.ts";
@@ -132,17 +133,22 @@ export function isExpired(lock: LockedQuote, now: Date): boolean {
 
 /**
  * Payer minor units whose worst-tolerated fill still covers `minOut`:
- * `ceil(minOut × 10^payerDecimals / rate)`, grossed up by
+ * `ceil(minOut × 10^payerDecimals × RATE_SCALE / scaledRate)`, grossed up by
  * `ceil(x × 10_000 / (10_000 − slippageBps))`. Both roundings are ceilings —
  * shorting the estimate would quote a payment the contract then reverts.
+ *
+ * `RATE_SCALE` multiplies into the numerator here, where `convert` divides it
+ * out. This is the inverse direction: `convert` multiplies by the rate, and
+ * this divides by it, so the scale has to move the other way or the estimate
+ * comes out 10^RATE_DECIMALS too small.
  */
 function payerEstimateMinor(
   minOutMinor: bigint,
-  rate: bigint,
+  scaledRate: bigint,
   payerDecimals: number,
   slippageBps: number,
 ): bigint {
-  const exact = divideCeil(minOutMinor * 10n ** BigInt(payerDecimals), rate);
+  const exact = divideCeil(minOutMinor * 10n ** BigInt(payerDecimals) * RATE_SCALE, scaledRate);
   return divideCeil(exact * 10_000n, BigInt(10_000 - slippageBps));
 }
 

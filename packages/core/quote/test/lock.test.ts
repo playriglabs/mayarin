@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { OraclePrice, PriceQuote } from "@mayarin/clearing";
-import { ConfigurationError, money, ValidationError } from "@mayarin/shared";
+import { ConfigurationError, money, RATE_SCALE, ValidationError } from "@mayarin/shared";
 import type { ComposedQuote } from "../src/engine.ts";
 import { isExpired, type LockTerms, lockQuote } from "../src/lock.ts";
 
 const NOW = new Date("2026-08-05T10:00:00.000Z");
-const RATE = 3_700_000_000n; // minor USDC per whole ETH
+// Scaled, as every rate is. An unscaled literal here is what let a
+// 10^RATE_DECIMALS error in `payerEstimateMinor` pass the whole suite: the
+// fixture and the function were consistently wrong together.
+const RATE = 3_700_000_000n * RATE_SCALE; // minor USDC per whole ETH
 
 function composed(overrides: Partial<ComposedQuote> = {}): ComposedQuote {
   const executable: PriceQuote = {
@@ -138,5 +141,21 @@ describe("isExpired", () => {
 
     expect(isExpired(lock, lock.deadline)).toBe(false);
     expect(isExpired(lock, new Date(lock.deadline.getTime() + 1))).toBe(true);
+  });
+});
+
+describe("payer estimate magnitude", () => {
+  test("is the amount a human would expect, not a power of ten away from it", () => {
+    // 3,700 USDC per ETH. A 3.70 USDC lock is a thousandth of an ETH.
+    // Asserted in absolute terms so an error in how the rate is scaled shows up
+    // here even if the fixture and the formula agree with each other — which is
+    // exactly how a 10^RATE_DECIMALS error passed the rest of this file.
+    const lock = lockQuote(
+      composed(),
+      terms({ settlementAmount: money(3_700_000n, "USDC"), fee: money(0n, "USDC") }),
+      NOW,
+    );
+
+    expect(lock.payerEstimate.amount).toEqual(money(10n ** 15n, "ETH"));
   });
 });
