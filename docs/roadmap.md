@@ -113,7 +113,7 @@ and stablecoin registry are shared by both.
 
 ---
 
-## Phase 3 — On-Chain Execution 🚧 In Progress
+## Phase 3 — On-Chain Execution ✅ Shipped
 
 Move value movement on-chain. The backend orchestrates; the contract executes.
 
@@ -127,7 +127,7 @@ Move value movement on-chain. The backend orchestrates; the contract executes.
 - ✓ On-chain idempotency — `intentId` consumed, replay rejected
 - ✓ Whitelisted input assets and DEX routers
 - ✓ Bounded, timelocked admin — add/remove routers, set fee recipient, pause only; never redirect funds
-- ☐ Deployed and verified on Base Sepolia (#29)
+- ✓ Deployed and verified on Base Sepolia (#29)
 
 The contract is the **keystone**. Atomicity + hard revert is what makes
 "merchant always receives the settlement asset" safe without Mayarin running a
@@ -210,33 +210,47 @@ emitting one event, so a pass is the same three RPC calls the wallet watcher
 already makes, and the reorg policy is reused rather than reimplemented in a
 second service with its own datastore.
 
-### What Phase 3 has left
+### What Phase 3 shipped
 
-The Base Sepolia deploy (#29) is **done** — `PaymentRouter` and its
-`TimelockController` are live and verified; addresses and on-chain
+`PaymentRouter` and its `TimelockController` are live and verified on Base
+Sepolia, alongside a `DepositForwarderFactory`; addresses and on-chain
 configuration are in [`docs/chain.md`](./chain.md).
 
-Two open RFCs remain, and they are the same gap seen from two sides: the
-deposit path detects the payer's asset and stops.
+**Both execution paths settle end to end, on-chain and through the API.**
 
-- ☐ **Treasury execution (#69)** — nothing moves a matched deposit into the
-  router. The contract executes atomically, but only when someone calls it, and
-  on the deposit path nobody does. Blocked on a decision rather than on code:
-  a deposit address receives exactly the quoted amount, so it cannot also pay
-  gas. The RFC recommends a CREATE2 forwarder — one operator key instead of one
-  per address, and no pre-funding — but gross-up and pre-funding are still on
-  the table, and the choice shapes the executor.
-- ☐ **Ledger accounting for the deposit-path swap (#70)** — the ledger books the
-  settlement asset when the payer's asset is confirmed, before any swap has run,
-  so between those moments the books state a balance that does not exist while
-  the asset actually held is recorded nowhere. Masked today only because Phase 2
-  is watch-only; it becomes real the moment #69 lands. Needs an account for the
-  held payer asset, one for the FX result, one for sponsored gas, and a stated
-  rule for what "balanced" means when a posting's legs are in different assets.
+- ✓ **Contract path** — the payer connects a wallet and submits the router call
+  themselves; the settlement indexer (#8) reads `PaymentCompleted` back.
+- ✓ **Deposit path** — the payer makes a plain transfer to a per-intent address,
+  and a treasury executor (#69) converts it. A deposit address receives exactly
+  the quoted amount and so cannot pay its own gas; a **CREATE2 forwarder**
+  removes the problem rather than paying for it, with one operator key instead
+  of one per address and no pre-funding.
+- ✓ **Both payer assets** — native ETH, swapped through Uniswap, and a
+  same-asset ERC-20 deposit that skips the DEX entirely.
+- ✓ **The books describe what is actually held** (#70). Between receipt and swap
+  the deposit path holds the payer's asset, not the settlement asset, and
+  `PAYER_ASSET_HELD` / `PAYER_ASSET_OBLIGATION` say so. `FX_RESULT` names the
+  difference between the locked price and the swap achieved — a credit when the
+  swap beat the lock, a debit when it fell short — and `GAS_EXPENSE` books what
+  the operator paid.
 
-Both are Phase 3 by label, and #70 is a consequence of #69 rather than an
-independent workstream — the accounting hole only opens once a swap actually
-runs. Phase 4 work that does not touch the deposit path is not gated on either.
+### What Phase 3 deliberately leaves open
+
+- **Gas abstraction (#9) is Phase 4**, not an omission here. `payERC20` binds
+  the Permit2 owner to `msg.sender`, so a relayer cannot submit for the payer.
+  That is a contract change, and it must land before mainnet or before this
+  address escapes into an SDK or a merchant integration — `verifyingContract` is
+  part of the EIP-712 domain, so a new address invalidates every previously
+  signed order.
+- **`DepositForwarder` has had static analysis but no adversarial review.**
+  Slither and Mythril are clean (see the contract package README); a review pass
+  by someone other than the author is not done, and `PaymentRouter` had one.
+- **Deploying the factory pins `INIT_CODE_HASH`.** Every deposit address derives
+  from it, so a bytecode change afterwards leaves the factory unable to deploy to
+  addresses already issued. Finalize, then deploy, then derive.
+- **Only top-level native transfers are detected.** ETH moved by a contract — an
+  exchange sweeping through a router — is an internal transaction no block body
+  shows. `trace_block` sees those and is not on every provider tier.
 
 ---
 

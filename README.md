@@ -108,8 +108,12 @@ finality + reorg policy, per-intent deposit addresses, wallet watcher, stablecoi
 registry (IDRX/USDC/USDT), RateProvider/PriceSource ports + LiquidityRouter, and
 stablecoin settlement adapter.
 
-**Phase 3 — On-Chain Execution 🚧 In Progress.** PaymentRouter contract,
-execution engine, quote engine, Pyth/Chainlink oracle, indexer, gas abstraction.
+**Phase 3 — On-Chain Execution ✅ Shipped.** PaymentRouter contract deployed and
+verified on Base Sepolia, quote engine with Pyth/Chainlink oracle guard,
+settlement indexer, CREATE2 deposit forwarder and treasury executor. Both
+execution paths settle end to end: the payer connects a wallet, or makes a plain
+transfer to a per-intent address that the executor converts. Gas abstraction
+(#9) moved to Phase 4 — it is a contract change, not infrastructure.
 
 **Phase 4 — Commerce Platform.** Commerce layer, wallet infrastructure
 (Safe/Turnkey), on-chain settlement + fee/refund split, notifications, developer
@@ -127,7 +131,7 @@ See the [roadmap](./docs/roadmap.md) for the detail.
 Feature work is tracked as RFC issues — full specs with goals, non-goals,
 acceptance criteria, and dependencies, assigned by phase:
 
-- **Phase 3** — On-Chain Execution ([#4–#9](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Aphase-3+label%3Arfc))
+- **Phase 3** — On-Chain Execution ✅ ([closed](https://github.com/playriglabs/mayarin/issues?q=is%3Aissue+label%3Aphase-3))
 - **Phase 4** — Commerce Platform ([#10–#16](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Aphase-4+label%3Arfc))
 - **Phase 5** — Multi-Asset, Multi-Chain ([#17–#21](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Aphase-5+label%3Arfc))
 
