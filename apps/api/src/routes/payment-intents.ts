@@ -33,6 +33,7 @@ export function paymentIntentRoutes(container: Container): Hono {
       ...resolveMerchantAndAmount(body),
       ...(body.payment === undefined ? {} : { payment: body.payment }),
       ...(body.settlementAsset === undefined ? {} : { settlementAsset: body.settlementAsset }),
+      ...(body.executionPath === undefined ? {} : { executionPath: body.executionPath }),
       ...(body.provider === undefined ? {} : { provider: body.provider }),
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
       ...(body.ttlSeconds === undefined ? {} : { ttlSeconds: body.ttlSeconds }),

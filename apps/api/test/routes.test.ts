@@ -375,3 +375,69 @@ describe("admin routes", () => {
     expect(none.status).toBe(401);
   });
 });
+
+describe("execution path selection", () => {
+  test("defaults to the deployment path when the request names none", async () => {
+    const harness = createApiHarness();
+    const { status, body } = await harness.request("POST", "/payment-intents", {
+      body: {
+        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        amount: { amount: "25000.00", asset: "IDR" },
+        payment: { asset: "USDC", chain: "base-sepolia" },
+      },
+    });
+
+    expect(status).toBe(201);
+    expect(body.paymentIntent.executionPath).toBe("deposit-match");
+  });
+
+  test("takes the path the request asks for, over the deployment default", async () => {
+    // The path is a per-payer decision, not a per-deployment one: a marketplace
+    // checkout where the payer connects a wallet and a payer who pastes an
+    // address into an exchange withdrawal cannot share one setting.
+    const harness = createApiHarness();
+    const { status, body } = await harness.request("POST", "/payment-intents", {
+      body: {
+        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        amount: { amount: "25000.00", asset: "IDR" },
+        payment: {
+          asset: "USDC",
+          chain: "base-sepolia",
+          payerAddress: "0x1111111111111111111111111111111111111111",
+        },
+        executionPath: "on-chain-contract",
+      },
+    });
+
+    expect(status).toBe(201);
+    expect(body.paymentIntent.executionPath).toBe("on-chain-contract");
+  });
+
+  test("rejects an unknown execution path", async () => {
+    const harness = createApiHarness();
+    const { status } = await harness.request("POST", "/payment-intents", {
+      body: {
+        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        amount: { amount: "25000.00", asset: "IDR" },
+        payment: { asset: "USDC", chain: "base-sepolia" },
+        executionPath: "teleport",
+      },
+    });
+
+    expect(status).toBe(400);
+  });
+
+  test("a fiat-only intent carries no path even when one is asked for", async () => {
+    const harness = createApiHarness();
+    const { status, body } = await harness.request("POST", "/payment-intents", {
+      body: {
+        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        amount: { amount: "25000.00", asset: "IDR" },
+        executionPath: "deposit-match",
+      },
+    });
+
+    expect(status).toBe(201);
+    expect(body.paymentIntent.executionPath).toBeNull();
+  });
+});

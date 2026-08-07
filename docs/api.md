@@ -17,6 +17,17 @@ disagrees is rejected rather than silently overriding the merchant's quote.
 An `Idempotency-Key` header makes creation replay-safe: the same request returns
 the original intent, the same key with different parameters is a `409`.
 
+`executionPath` selects how the `payment` rail is executed, **per payer rather
+than per deployment**. A marketplace checkout where the payer connects a wallet
+takes `on-chain-contract` and needs `payment.payerAddress`, which becomes the
+signed order's `refundTo`. A payer who scans a QR or pastes an address into an
+exchange withdrawal can only take `deposit-match`. Omitted, the deployment
+default stands; the resolved value comes back on the intent, and is `null` for a
+fiat-only intent that has no rail to execute.
+
+`settlementAsset` defaults to the merchant's own configured asset before the
+deployment default — an explicit request still wins over both.
+
 ```http
 POST /payment-intents
 Idempotency-Key: order-4711
