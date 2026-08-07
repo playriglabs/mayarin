@@ -16,13 +16,18 @@ Cross-asset postings are allowed; each asset must balance on its own.
 Chart of accounts — created on demand per asset, so a new settlement asset needs
 no migration:
 
-| Account                        | Type      | Holds                                                |
-| ------------------------------ | --------- | ---------------------------------------------------- |
-| `TREASURY:<asset>`             | Asset     | Settlement assets Mayarin holds                      |
-| `MERCHANT_PAYABLE:<asset>`     | Liability | Cleared value owed to merchants                      |
-| `SETTLEMENT_IN_FLIGHT:<asset>` | Liability | Value handed to a rail, awaiting confirmation        |
-| `MERCHANT_HOLDING:<asset>`     | Liability | Stablecoin balances credited to merchants (Phase 2D) |
-| `FEE_REVENUE:<asset>`          | Revenue   | Clearing fees retained by Mayarin                    |
+| Account                          | Type      | Holds                                                |
+| -------------------------------- | --------- | ---------------------------------------------------- |
+| `TREASURY:<asset>`               | Asset     | Settlement assets Mayarin holds                      |
+| `MERCHANT_PAYABLE:<asset>`       | Liability | Cleared value owed to merchants                      |
+| `SETTLEMENT_IN_FLIGHT:<asset>`   | Liability | Value handed to a rail, awaiting confirmation        |
+| `MERCHANT_HOLDING:<asset>`       | Liability | Stablecoin balances credited to merchants (Phase 2D) |
+| `FEE_REVENUE:<asset>`            | Revenue   | Clearing fees retained by Mayarin                    |
+| `PAYER_ASSET_HELD:<asset>`       | Asset     | Payer asset received, not yet converted              |
+| `PAYER_ASSET_OBLIGATION:<asset>` | Liability | Payer assets held against an unconverted payment     |
+| `FX_RESULT:<asset>`              | Revenue   | Locked price vs the swap achieved; debit is a loss   |
+| `GAS_EXPENSE:<asset>`            | Expense   | Network fees Mayarin pays on a payer's behalf        |
+| `OPERATOR_GAS:<asset>`           | Asset     | Native balance the executor spends gas from          |
 
 Three postings describe a payment end to end. The first two are the same for
 every settlement; the SETTLED posting depends on whether the rail takes value
@@ -78,6 +83,62 @@ asset arrived**, which is usually not the settlement asset, and `address(0)`
 for native. Reconciling settlement needs only `PaymentCompleted`; a complete
 picture of what the payer received back needs both, and the two cannot be
 summed because they are denominated differently.
+
+---
+
+## The deposit path books receipt and swap separately
+
+The three postings above assume the settlement asset is acquired at the moment
+the payer's asset is confirmed. That holds on the contract path, where receive,
+swap and settle are one atomic transaction.
+
+On the deposit path they are seconds apart. The payer's ETH sits at a deposit
+address until the treasury executor converts it, and booking `TREASURY` at
+receipt would state a settlement balance that does not exist while the asset
+actually held is recorded nowhere. So the deposit path splits the receipt:
+
+```
+ASSET_RECEIVED   Dr PAYER_ASSET_HELD:ETH        deposit amount
+                 Cr PAYER_ASSET_OBLIGATION:ETH  deposit amount
+
+SWAPPED          Dr PAYER_ASSET_OBLIGATION:ETH  deposit amount
+                 Cr PAYER_ASSET_HELD:ETH        deposit amount
+                 Dr TREASURY:USDC               swap output, measured on-chain
+                 Cr MERCHANT_PAYABLE:USDC       net
+                 Cr FEE_REVENUE:USDC            fee
+                 Cr FX_RESULT:USDC              output − settlement, when the swap beat the lock
+
+GAS              Dr GAS_EXPENSE:ETH             gas the operator paid
+                 Cr OPERATOR_GAS:ETH            gas the operator paid
+```
+
+`CLEARING` and `SETTLED` are unchanged — `MERCHANT_PAYABLE` is credited by the
+swap instead of the receipt, one step later.
+
+**The split is conditional on an executor being wired.** The two postings are a
+pair: the receipt stops crediting `MERCHANT_PAYABLE` and the swap starts. A
+deployment with no executor keeps the original posting, where settlement
+genuinely is acquired at receipt; splitting without converting would leave
+`CLEARING` debiting a payable nothing had credited.
+
+**The merchant's net and the fee are always the locked figures.** A swap that
+underperformed debits `FX_RESULT` rather than paying the merchant less; one that
+beat the lock credits it. One account whose sign carries the direction, rather
+than two that must be netted to find out which way the exposure went. This is
+the exposure `threat-model.md` depends on being visible — absorbing it into
+treasury is what made it invisible.
+
+**What "balanced" means here needed no new rule.** `assertBalanced` already sums
+debits and credits per asset, so the requirement is not that ETH equal USDC —
+no rate could make that true at the instant a rate is what is being discovered.
+It is that each asset balance within itself: the payer-asset legs cancel
+exactly, and the settlement-asset legs sum to what the swap actually delivered.
+
+**A failed swap leaves the position visible.** If execution cannot meet `minOut`
+within its attempt bound, nothing is booked: the payer's asset stays in
+`PAYER_ASSET_HELD`, denominated in what is actually held, against an obligation
+that has not been discharged. Before these accounts existed, the same failure
+recorded a settlement balance that never existed.
 
 ---
 

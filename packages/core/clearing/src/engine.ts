@@ -49,6 +49,7 @@ import type { FeePolicy } from "./fees.ts";
 import {
   assetReceivedPosting,
   clearingPosting,
+  depositAssetReceivedPosting,
   internalSettledPosting,
   settledPosting,
 } from "./postings.ts";
@@ -61,6 +62,7 @@ import {
   type TransitionResult,
   transition,
 } from "./transaction.ts";
+import type { TreasuryExecutor } from "./treasury.ts";
 import type { ClearingDeposit, ClearingEvent, ClearingTransaction } from "./types.ts";
 
 export interface ClearingEngineOptions {
@@ -90,6 +92,13 @@ export interface ClearingEngineOptions {
    * included at the deadline can still signal a few seconds later.
    */
   readonly contractExpiryGraceSeconds?: number;
+  /**
+   * Moves a matched deposit into the router (#69). Absent for a deployment
+   * without treasury execution, in which case the deposit path books the payer
+   * asset it holds and stops there — the pre-#69 behaviour, minus the claim to
+   * a settlement balance it had not acquired.
+   */
+  readonly treasuryExecutor?: TreasuryExecutor;
   readonly clock: Clock;
   readonly events?: EventPublisher;
   /**
@@ -120,6 +129,7 @@ export class ClearingEngine {
   readonly #depositAddresses: DepositAddressRepository | undefined;
   readonly #depositDeriver: DepositAddressDeriver | undefined;
   readonly #contractPlanner: ContractPaymentPlanner | undefined;
+  readonly #treasuryExecutor: TreasuryExecutor | undefined;
   readonly #contractExpiryGraceSeconds: number;
   readonly #clock: Clock;
   readonly #events: EventPublisher;
@@ -135,6 +145,7 @@ export class ClearingEngine {
     this.#depositAddresses = options.depositAddresses;
     this.#depositDeriver = options.depositDeriver;
     this.#contractPlanner = options.contractPlanner;
+    this.#treasuryExecutor = options.treasuryExecutor;
     this.#contractExpiryGraceSeconds = options.contractExpiryGraceSeconds ?? 60;
     this.#clock = options.clock;
     this.#events = options.events ?? noopEventPublisher;
@@ -358,7 +369,19 @@ export class ClearingEngine {
         }
 
         if (!this.#autoConfirmAssetReceipt && signals.assetReceived !== true) return null;
-        await this.#ledger.post(assetReceivedPosting(transaction));
+        // Split the receipt only when something will actually convert the
+        // deposit. The two postings are a pair: the receipt stops crediting
+        // `MERCHANT_PAYABLE` and the swap starts, so booking the first without
+        // the second would leave `clearingPosting` debiting a payable nothing
+        // had credited — worse books than the hole this fixes.
+        //
+        // Without an executor the deposit path settles internally, acquiring
+        // the settlement asset at receipt, and the original posting is correct.
+        await this.#ledger.post(
+          this.#splitsDepositReceipt(transaction)
+            ? depositAssetReceivedPosting(transaction)
+            : assetReceivedPosting(transaction),
+        );
         return this.#apply(
           transition(
             transaction,
@@ -373,8 +396,12 @@ export class ClearingEngine {
       }
 
       case "ASSET_RECEIVED": {
-        await this.#ledger.post(clearingPosting(transaction));
-        return this.#apply(transition(transaction, "CLEARING", this.#clock.now()));
+        // The swap must be booked before `clearingPosting`, which debits the
+        // `MERCHANT_PAYABLE` the swap credits. On the deposit path the receipt
+        // no longer credits it — that is the whole point of splitting them.
+        const executed = await this.#executeTreasury(transaction);
+        await this.#ledger.post(clearingPosting(executed));
+        return this.#apply(transition(executed, "CLEARING", this.#clock.now()));
       }
 
       case "CLEARING":
@@ -634,6 +661,50 @@ export class ClearingEngine {
    * The contract already settled on-chain; SETTLING records the reference.
    * No settlement adapter is involved anywhere on this path.
    */
+  /**
+   * Converts a matched deposit into the settlement asset (#69).
+   *
+   * A no-op for anything that is not a deposit-path payment with an executor
+   * wired: the contract path already swapped and settled atomically on-chain,
+   * and a fiat receipt has nothing to convert.
+   *
+   * Runs as a side effect *before* the state is persisted, like every other
+   * step in this engine. A crash between the submission and the transition
+   * means the resumed step sweeps a drained forwarder (a no-op) and resubmits
+   * an order the contract has already consumed (`AlreadyConsumed`) — which is
+   * why the on-chain guard matters more than any flag this engine could keep.
+   */
+  async #executeTreasury(transaction: ClearingTransaction): Promise<ClearingTransaction> {
+    const executor = this.#treasuryExecutor;
+
+    if (executor === undefined || !this.#splitsDepositReceipt(transaction)) return transaction;
+
+    const execution = await executor.execute(transaction);
+    const contract = transaction.contract;
+
+    // The executor knows its own `txHash`, so the deposit path does not wait on
+    // the settlement indexer to learn it (#8 serves the contract path, where
+    // the payer submitted the transaction and Mayarin did not see it).
+    return contract === undefined
+      ? transaction
+      : { ...transaction, contract: { ...contract, txHash: execution.txHash } };
+  }
+
+  /**
+   * Whether this payment's receipt and swap are booked separately.
+   *
+   * One predicate for both halves, so the receipt posting and the swap can
+   * never disagree about which scheme a payment is on — that disagreement is
+   * the only way this design can produce unbalanced books.
+   */
+  #splitsDepositReceipt(transaction: ClearingTransaction): boolean {
+    return (
+      this.#treasuryExecutor !== undefined &&
+      transaction.deposit !== undefined &&
+      transaction.executionPath !== "on-chain-contract"
+    );
+  }
+
   async #settleContract(transaction: ClearingTransaction): Promise<ClearingTransaction> {
     const txHash = transaction.contract?.txHash;
     if (txHash === undefined) {
