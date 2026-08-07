@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import type { OraclePrice, PriceOracle } from "@mayarin/clearing";
 import { FixedPriceOracle } from "@mayarin/clearing/testing";
-import { ConfigurationError, money, ProviderError, ValidationError } from "@mayarin/shared";
+import {
+  ConfigurationError,
+  money,
+  ProviderError,
+  RATE_SCALE,
+  ValidationError,
+} from "@mayarin/shared";
 import { fiatPairKey, priceInSettlement } from "../src/fx.ts";
 
 const NOW = new Date("2026-08-06T12:00:00.000Z");
@@ -12,7 +18,7 @@ function idrUsdc(overrides: Partial<OraclePrice> = {}): OraclePrice {
   return {
     from: "IDR",
     to: "USDC",
-    minorUnitsPerWholeUnit: 61n,
+    scaledRate: 61n * RATE_SCALE,
     source: "pyth",
     observedAt: NOW,
     ...overrides,

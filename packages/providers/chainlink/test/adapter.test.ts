@@ -46,7 +46,7 @@ describe.skipIf(RPC_URLS === undefined)("ChainlinkPriceOracle live", () => {
     });
 
     const price = await oracle.reference("ETH", "USDC");
-    expect(price.minorUnitsPerWholeUnit > 0n).toBe(true);
+    expect(price.scaledRate > 0n).toBe(true);
     expect(price.source).toBe("chainlink");
     expect(price.observedAt.getTime()).toBeGreaterThan(0);
   });

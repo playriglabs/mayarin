@@ -7,7 +7,7 @@
  * checks be tested without a network.
  */
 
-import { type AssetCode, ProviderError } from "@mayarin/shared";
+import { type AssetCode, ProviderError, scaledRateFrom } from "@mayarin/shared";
 
 /** The fields of `latestRoundData()` the adapter consumes. */
 export interface AggregatorRound {
@@ -48,9 +48,8 @@ export function assertUsableRound(round: AggregatorRound, from: AssetCode, to: A
  * nearest-value is the honest scaling.
  */
 export function scaleAnswer(answer: bigint, feedDecimals: number, toDecimals: number): bigint {
-  const shift = toDecimals - feedDecimals;
-  if (shift >= 0) return answer * 10n ** BigInt(shift);
-  const divisor = 10n ** BigInt(-shift);
-  const half = divisor / 2n;
-  return (answer + half) / divisor;
+  // answer / 10^feedDecimals is the rate in whole units; multiplying by
+  // 10^toDecimals lands in the target's minor units. `scaledRateFrom` carries
+  // RATE_DECIMALS of fraction on top, so a coarse pair keeps its precision.
+  return scaledRateFrom(answer * 10n ** BigInt(toDecimals), 10n ** BigInt(feedDecimals));
 }

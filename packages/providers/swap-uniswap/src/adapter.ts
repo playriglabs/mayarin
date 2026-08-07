@@ -131,15 +131,15 @@ export class UniswapSwapVenue implements SwapVenue {
       throw new ProviderError(`Uniswap quoted zero out for ${from} -> ${to}`, { from, to });
     }
 
-    const minorUnitsPerWholeUnit = scaleSwapRate(amount.amount, amountOut, assetDecimals(from));
-    if (minorUnitsPerWholeUnit <= 0n) {
+    const scaledRate = scaleSwapRate(amount.amount, amountOut, assetDecimals(from));
+    if (scaledRate <= 0n) {
       throw new ProviderError(
         `Uniswap quote for ${from} -> ${to} rounds to zero minor units of ${to}`,
         { from, to, amountIn: amount.amount.toString(), amountOut: amountOut.toString() },
       );
     }
 
-    return { from, to, minorUnitsPerWholeUnit, source: this.name };
+    return { from, to, scaledRate, source: this.name };
   }
 
   #clientFor(chain: ChainId): PublicClient {

@@ -31,7 +31,7 @@ export interface LockedRate {
   readonly from: AssetCode;
   readonly to: AssetCode;
   /** Minor units of `to` per one whole unit of `from`. */
-  readonly minorUnitsPerWholeUnit: bigint;
+  readonly scaledRate: bigint;
   readonly source: string;
   readonly lockedAt: Date;
   readonly expiresAt?: Date;

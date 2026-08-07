@@ -45,6 +45,7 @@ import {
   type Money,
   money,
   QuoteExpiredError,
+  RATE_SCALE,
   ValidationError,
 } from "@mayarin/shared";
 import type { StablecoinRegistry } from "@mayarin/stablecoin";
@@ -147,7 +148,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         rate: {
           from: request.settlementAsset,
           to: request.settlementAsset,
-          minorUnitsPerWholeUnit: 10n ** BigInt(assetDecimals(request.settlementAsset)),
+          scaledRate: 10n ** BigInt(assetDecimals(request.settlementAsset)) * RATE_SCALE,
           source: fiat.settlement.source,
           lockedAt: now,
           expiresAt,
@@ -177,7 +178,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       rate: {
         from: request.payerAsset,
         to: request.settlementAsset,
-        minorUnitsPerWholeUnit: locked.executableRate,
+        scaledRate: locked.executableRate,
         source: locked.executableSource,
         lockedAt: now,
         expiresAt: locked.deadline,

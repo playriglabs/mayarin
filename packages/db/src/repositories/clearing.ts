@@ -150,7 +150,7 @@ function toRow(transaction: ClearingTransaction): typeof clearingTransactions.$i
     executionPath: transaction.executionPath ?? null,
     rateFrom: transaction.rate?.from ?? null,
     rateTo: transaction.rate?.to ?? null,
-    rateMinorUnitsPerWholeUnit: transaction.rate?.minorUnitsPerWholeUnit.toString() ?? null,
+    rateScaled: transaction.rate?.scaledRate.toString() ?? null,
     rateSource: transaction.rate?.source ?? null,
     rateLockedAt: transaction.rate?.lockedAt ?? null,
     rateExpiresAt: transaction.rate?.expiresAt ?? null,
@@ -171,7 +171,7 @@ function toRow(transaction: ClearingTransaction): typeof clearingTransactions.$i
 
 function toDomain(row: Row): ClearingTransaction {
   const settlementAsset = toAsset(row.settlementAsset);
-  const rateMinorUnits = toBigint(row.rateMinorUnitsPerWholeUnit);
+  const rateMinorUnits = toBigint(row.rateScaled);
 
   return {
     id: row.id,
@@ -193,7 +193,7 @@ function toDomain(row: Row): ClearingTransaction {
           rate: {
             from: toAsset(row.rateFrom),
             to: toAsset(row.rateTo),
-            minorUnitsPerWholeUnit: rateMinorUnits,
+            scaledRate: rateMinorUnits,
             source: row.rateSource ?? "unknown",
             lockedAt: row.rateLockedAt ?? row.updatedAt,
             ...present("expiresAt", row.rateExpiresAt),
@@ -257,7 +257,7 @@ function toDeposit(row: Row): ClearingDeposit | undefined {
     depositChain === null ||
     depositAddress === null ||
     depositAmount === null ||
-    row.depositRateMinorUnitsPerWholeUnit === null ||
+    row.depositRateScaled === null ||
     row.depositRateSource === null ||
     row.depositRateLockedAt === null
   ) {
@@ -280,7 +280,7 @@ function toDeposit(row: Row): ClearingDeposit | undefined {
       // second copy is a second thing that can disagree.
       from: toAsset(row.sourceAsset),
       to: toAsset(depositAsset),
-      minorUnitsPerWholeUnit: BigInt(row.depositRateMinorUnitsPerWholeUnit),
+      scaledRate: BigInt(row.depositRateScaled),
       source: row.depositRateSource,
       lockedAt: row.depositRateLockedAt,
       ...(row.depositRateExpiresAt === null ? {} : { expiresAt: row.depositRateExpiresAt }),
@@ -374,7 +374,7 @@ function depositColumns(transaction: ClearingTransaction) {
       depositChain: null,
       depositAddress: null,
       depositAmount: null,
-      depositRateMinorUnitsPerWholeUnit: null,
+      depositRateScaled: null,
       depositRateSource: null,
       depositRateLockedAt: null,
       depositRateExpiresAt: null,
@@ -386,7 +386,7 @@ function depositColumns(transaction: ClearingTransaction) {
     depositChain: deposit.chain,
     depositAddress: deposit.address,
     depositAmount: deposit.amount.amount.toString(),
-    depositRateMinorUnitsPerWholeUnit: deposit.rate.minorUnitsPerWholeUnit.toString(),
+    depositRateScaled: deposit.rate.scaledRate.toString(),
     depositRateSource: deposit.rate.source,
     depositRateLockedAt: deposit.rate.lockedAt,
     depositRateExpiresAt: deposit.rate.expiresAt ?? null,

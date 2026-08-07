@@ -6,14 +6,20 @@
  * aggregator sources, so the clearing engine does not change.
  */
 
-import { type AssetCode, assetDecimals, ConfigurationError, type Money } from "@mayarin/shared";
+import {
+  type AssetCode,
+  assetDecimals,
+  ConfigurationError,
+  type Money,
+  RATE_SCALE,
+} from "@mayarin/shared";
 import type { LockedRate } from "./types.ts";
 
 export interface RateQuote {
   readonly from: AssetCode;
   readonly to: AssetCode;
   /** Minor units of `to` per one whole unit of `from`. */
-  readonly minorUnitsPerWholeUnit: bigint;
+  readonly scaledRate: bigint;
   readonly source: string;
   readonly expiresAt?: Date;
 }
@@ -45,7 +51,8 @@ export class StaticRateProvider implements RateProvider {
     return {
       from,
       to,
-      minorUnitsPerWholeUnit: this.#rateFor(from, to),
+      // Configured in the readable whole-unit form, like `EXCHANGE_RATES`.
+      scaledRate: this.#rateFor(from, to) * RATE_SCALE,
       source: this.#source,
     };
   }
@@ -69,7 +76,7 @@ export function lockRate(quote: RateQuote, now: Date): LockedRate {
   return {
     from: quote.from,
     to: quote.to,
-    minorUnitsPerWholeUnit: quote.minorUnitsPerWholeUnit,
+    scaledRate: quote.scaledRate,
     source: quote.source,
     lockedAt: new Date(now),
     ...(quote.expiresAt === undefined ? {} : { expiresAt: new Date(quote.expiresAt) }),

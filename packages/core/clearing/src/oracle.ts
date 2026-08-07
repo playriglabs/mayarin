@@ -22,7 +22,7 @@ export interface OraclePrice {
   readonly from: AssetCode;
   readonly to: AssetCode;
   /** Minor units of `to` per one whole unit of `from`. */
-  readonly minorUnitsPerWholeUnit: bigint;
+  readonly scaledRate: bigint;
   readonly source: string;
   /** When the oracle observed the price — publish time, not fetch time. */
   readonly observedAt: Date;
@@ -42,7 +42,7 @@ export interface ExecutablePrice {
   readonly from: AssetCode;
   readonly to: AssetCode;
   /** Minor units of `to` per one whole unit of `from`. */
-  readonly minorUnitsPerWholeUnit: bigint;
+  readonly scaledRate: bigint;
   readonly source: string;
 }
 
@@ -103,15 +103,15 @@ export function assertWithinDeviation(
       },
     );
   }
-  if (reference.minorUnitsPerWholeUnit <= 0n) {
+  if (reference.scaledRate <= 0n) {
     throw new ConfigurationError(
       `Oracle reference rate for ${reference.from} -> ${reference.to} is not positive`,
       { from: reference.from, to: reference.to, source: reference.source },
     );
   }
 
-  const executableRate = executable.minorUnitsPerWholeUnit;
-  const referenceRate = reference.minorUnitsPerWholeUnit;
+  const executableRate = executable.scaledRate;
+  const referenceRate = reference.scaledRate;
   const difference =
     executableRate >= referenceRate
       ? executableRate - referenceRate

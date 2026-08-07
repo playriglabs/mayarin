@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { totalsByAsset } from "@mayarin/ledger";
 import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
-import { money } from "@mayarin/shared";
+import { money, RATE_SCALE } from "@mayarin/shared";
 import { createHarness } from "./harness.ts";
 
 const IDRX = (minorUnits: bigint) => money(minorUnits, "IDRX");
@@ -25,7 +25,7 @@ describe("clearing engine — happy path", () => {
     expect(transaction.settlementAmount).toEqual(IDRX(5_000_000n));
     expect(transaction.fee).toEqual(IDRX(25_000n));
     expect(transaction.netAmount).toEqual(IDRX(4_975_000n));
-    expect(transaction.rate?.minorUnitsPerWholeUnit).toBe(100n);
+    expect(transaction.rate?.scaledRate).toBe(100n * RATE_SCALE);
   });
 
   test("records the full history in order", async () => {

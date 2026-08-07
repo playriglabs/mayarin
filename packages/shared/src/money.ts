@@ -149,23 +149,81 @@ export function multiplyByBasisPoints(
 }
 
 /**
- * Converts an amount into another asset at an integer rate expressed in the
- * target asset's minor units per *whole* unit of the source asset.
+ * Fractional digits every conversion rate carries.
+ *
+ * A rate is the target's minor units per *whole* source unit — exact when a
+ * whole source unit is worth a lot (`ETH/USDC` is about 3.7 billion) and far
+ * too coarse when it is worth very little. `IDR/USDC` is about 56, so rounding
+ * it to an integer costs ~25 bps, against a 50 bps fee, and it worsens as the
+ * rupiah weakens.
+ *
+ * Nine digits puts that error below a billionth of the rate for every pair the
+ * registry admits, which is smaller than the minor unit any of them settle in.
+ * The alternative — a numerator/denominator per rate — is exact but doubles
+ * what every rate must persist, compare and serialize, to remove an error that
+ * was already immaterial at this scale.
+ */
+export const RATE_DECIMALS = 9;
+
+/** `10 ** RATE_DECIMALS`, the factor a scaled rate carries. */
+export const RATE_SCALE = 10n ** BigInt(RATE_DECIMALS);
+
+/**
+ * Builds a scaled rate from an exact ratio, half-up.
+ *
+ * Producers know their rate as a ratio — a Pyth significand over a power of
+ * ten, a pool's reserves, a table entry. Scaling here keeps the rounding in one
+ * place instead of each adapter reinventing it, usually by truncating.
+ *
+ * Half-up by default, which is right for an oracle reference: it feeds a
+ * deviation guard, and nearest-value is the honest reading. A venue quote
+ * passes `"down"` instead, so an executable rate is never optimistic and the
+ * `minOut` derived from it is never set too high.
+ */
+export function scaledRateFrom(
+  numerator: bigint,
+  denominator: bigint,
+  rounding: Rounding = "half-up",
+): bigint {
+  if (denominator <= 0n) {
+    throw new ValidationError("A rate denominator must be positive", {
+      denominator: denominator.toString(),
+    });
+  }
+  if (numerator < 0n) {
+    throw new ValidationError("A rate numerator must not be negative", {
+      numerator: numerator.toString(),
+    });
+  }
+  return divideRounded(numerator * RATE_SCALE, denominator, rounding);
+}
+
+/** The whole-unit rate a scaled rate represents, for display and diagnostics. */
+export function unscaleRate(scaledRate: bigint): number {
+  return Number(scaledRate) / Number(RATE_SCALE);
+}
+
+/**
+ * Converts an amount into another asset.
+ *
+ * `scaledRate` is the target asset's minor units per *whole* unit of the source
+ * asset, carrying `RATE_DECIMALS` fractional digits. The scale divides out
+ * here, so a caller never sees it in the result.
  */
 export function convert(
   value: Money,
   target: AssetCode,
-  rateMinorUnitsPerWholeUnit: bigint,
+  scaledRate: bigint,
   rounding: Rounding = "half-up",
 ): Money {
-  if (rateMinorUnitsPerWholeUnit <= 0n) {
+  if (scaledRate <= 0n) {
     throw new ValidationError("Conversion rate must be positive", {
-      rate: rateMinorUnitsPerWholeUnit.toString(),
+      rate: scaledRate.toString(),
     });
   }
   const sourceScale = 10n ** BigInt(assetDecimals(value.asset));
   return {
-    amount: divideRounded(value.amount * rateMinorUnitsPerWholeUnit, sourceScale, rounding),
+    amount: divideRounded(value.amount * scaledRate, sourceScale * RATE_SCALE, rounding),
     asset: target,
   };
 }

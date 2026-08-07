@@ -29,7 +29,7 @@ import { LedgerService } from "@mayarin/ledger";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
-import { ConcurrencyError, FixedClock, generateId, money } from "@mayarin/shared";
+import { ConcurrencyError, FixedClock, generateId, money, RATE_SCALE } from "@mayarin/shared";
 import { sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
 import {
@@ -294,7 +294,7 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     const transaction = await engine.start(await confirmedIntent());
 
     const reloaded = await engine.getById(transaction.id);
-    expect(reloaded.rate?.minorUnitsPerWholeUnit).toBe(100n);
+    expect(reloaded.rate?.scaledRate).toBe(100n * RATE_SCALE);
     expect(reloaded.rate?.from).toBe("IDR");
     expect(reloaded.rate?.to).toBe("IDRX");
 

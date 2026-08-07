@@ -7,7 +7,7 @@ import { FixedSwapVenue } from "../testing/index.ts";
 const ETH_USDC: PriceQuote = {
   from: "ETH",
   to: "USDC",
-  minorUnitsPerWholeUnit: 3_700_000_000n,
+  scaledRate: 3_700_000_000n,
   source: "0x",
 };
 

@@ -18,7 +18,7 @@ function contractLock(overrides: Partial<ContractLock> = {}): ContractLock {
     rate: {
       from: "ETH",
       to: "IDRX",
-      minorUnitsPerWholeUnit: 60_000_000_00n,
+      scaledRate: 60_000_000_00n,
       source: "0x",
       lockedAt,
     },

@@ -109,14 +109,14 @@ export function lockQuote(composed: ComposedQuote, terms: LockTerms, now: Date):
       amount: money(
         payerEstimateMinor(
           terms.settlementAmount.amount,
-          composed.executable.minorUnitsPerWholeUnit,
+          composed.executable.scaledRate,
           assetDecimals(composed.from),
           terms.slippageBps,
         ),
         composed.from,
       ),
     },
-    executableRate: composed.executable.minorUnitsPerWholeUnit,
+    executableRate: composed.executable.scaledRate,
     executableSource: composed.executable.source,
     referenceSource: composed.reference.source,
     slippageBps: terms.slippageBps,

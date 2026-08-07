@@ -8,7 +8,7 @@
  * `adapter.ts`.
  */
 
-import { ValidationError } from "@mayarin/shared";
+import { scaledRateFrom, ValidationError } from "@mayarin/shared";
 import { z } from "zod";
 
 export const hermesPriceSchema = z.object({
@@ -48,10 +48,9 @@ export function normalizeFeedId(id: string): string {
  */
 export function scalePythPrice(significand: bigint, expo: number, toDecimals: number): bigint {
   const shift = expo + toDecimals;
-  if (shift >= 0) return significand * 10n ** BigInt(shift);
-  const divisor = 10n ** BigInt(-shift);
-  const half = divisor / 2n;
-  return (significand + half) / divisor;
+  return shift >= 0
+    ? scaledRateFrom(significand * 10n ** BigInt(shift), 1n)
+    : scaledRateFrom(significand, 10n ** BigInt(-shift));
 }
 
 /**
@@ -72,7 +71,7 @@ export function scalePythPrice(significand: bigint, expo: number, toDecimals: nu
  * enough to quantise coarsely — `IDR → USDC` lands near 62.5 minor units per
  * rupiah — carries an error of roughly `0.5 / rate`, which for IDR is ~0.8%:
  * larger than the 50 bps fee. The loss is in the rate representation
- * (`minorUnitsPerWholeUnit`, one integer per whole source unit), not in this
+ * (`scaledRate`, one integer per whole source unit), not in this
  * function, and inverting is what makes it reachable rather than what causes it.
  * `quantisationBps` reports it so a caller can refuse a rate too coarse to price
  * with.
@@ -85,21 +84,15 @@ export function invertPythPrice(significand: bigint, expo: number, toDecimals: n
   }
 
   const shift = toDecimals - expo;
-  if (shift >= 0) {
-    const numerator = 10n ** BigInt(shift);
-    return (numerator + significand / 2n) / significand;
-  }
-
-  // A feed whose exponent exceeds the target's decimals: the reciprocal is
-  // smaller than one minor unit before rounding, so scale the denominator up.
-  const denominator = significand * 10n ** BigInt(-shift);
-  return (1n + denominator / 2n) / denominator;
+  return shift >= 0
+    ? scaledRateFrom(10n ** BigInt(shift), significand)
+    : scaledRateFrom(1n, significand * 10n ** BigInt(-shift));
 }
 
 /**
  * How much precision an integer rate lost, in basis points.
  *
- * `minorUnitsPerWholeUnit` is one integer per whole source unit, so a rate near
+ * `scaledRate` is one integer per whole source unit, so a rate near
  * 62 quantises ~100× more coarsely than one near 6200. For a source currency
  * whose whole unit is worth very little — rupiah against a dollar stablecoin —
  * that error can exceed the fee, and it is silent unless something measures it.

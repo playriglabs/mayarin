@@ -462,7 +462,7 @@ export class ClearingEngine {
     const settlementAmount = convert(
       transaction.sourceAmount,
       transaction.settlementAsset,
-      quote.minorUnitsPerWholeUnit,
+      quote.scaledRate,
     );
     const fee = this.#fees.feeFor(settlementAmount, {
       merchantId: transaction.merchant.id,
@@ -496,7 +496,7 @@ export class ClearingEngine {
           ...(deposit === undefined ? {} : { deposit }),
         },
         {
-          rate: quote.minorUnitsPerWholeUnit.toString(),
+          rate: quote.scaledRate.toString(),
           rateSource: quote.source,
           settlementAmount: serializeMoney(settlementAmount),
           fee: serializeMoney(fee),
@@ -640,7 +640,7 @@ export class ClearingEngine {
           },
         },
         {
-          rate: lock.rate.minorUnitsPerWholeUnit.toString(),
+          rate: lock.rate.scaledRate.toString(),
           rateSource: lock.rate.source,
           settlementAmount: serializeMoney(lock.settlementAmount),
           fee: serializeMoney(lock.fee),
@@ -679,7 +679,7 @@ export class ClearingEngine {
       rail.asset,
       transaction.sourceAmount,
     );
-    const amount = convert(transaction.sourceAmount, rail.asset, quote.minorUnitsPerWholeUnit);
+    const amount = convert(transaction.sourceAmount, rail.asset, quote.scaledRate);
 
     if (!isPositive(amount)) {
       throw new ValidationError("Deposit amount must be greater than zero", {
@@ -798,7 +798,7 @@ export class ClearingEngine {
           },
         },
         {
-          rate: lock.rate.minorUnitsPerWholeUnit.toString(),
+          rate: lock.rate.scaledRate.toString(),
           rateSource: lock.rate.source,
           settlementAmount: serializeMoney(lock.settlementAmount),
           fee: serializeMoney(lock.fee),

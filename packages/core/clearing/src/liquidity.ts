@@ -14,7 +14,14 @@
  * `PriceSource`, keeping the network boundary out of core.
  */
 
-import { type AssetCode, assetDecimals, ConfigurationError, type Money } from "@mayarin/shared";
+import {
+  type AssetCode,
+  assetDecimals,
+  ConfigurationError,
+  type Money,
+  RATE_SCALE,
+  scaledRateFrom,
+} from "@mayarin/shared";
 import { type RateProvider, type RateQuote, rateKey } from "./rate.ts";
 
 /** A priced conversion of `from` into `to`. */
@@ -22,7 +29,7 @@ export interface PriceQuote {
   readonly from: AssetCode;
   readonly to: AssetCode;
   /** Minor units of `to` per one whole unit of `from`. */
-  readonly minorUnitsPerWholeUnit: bigint;
+  readonly scaledRate: bigint;
   readonly source: string;
   readonly expiresAt?: Date;
 }
@@ -68,7 +75,10 @@ export class TablePriceSource implements PriceSource {
     if (configured === undefined) {
       throw new ConfigurationError(`No rate configured for ${from} -> ${to}`, { from, to });
     }
-    return { from, to, minorUnitsPerWholeUnit: configured, source: this.#source };
+    // `EXCHANGE_RATES` is written in the readable form — minor units of `to`
+    // per whole unit of `from` — so it is scaled here rather than making every
+    // deployment write nine zeros.
+    return { from, to, scaledRate: configured * RATE_SCALE, source: this.#source };
   }
 }
 
@@ -93,7 +103,7 @@ export interface ConstantProductPriceSourceOptions {
  * Reserves are BigInt minor units; the output amount is computed with integer
  * division that rounds in favour of the pool (the truncated remainder stays in
  * the pool, so the source never overstates what a swap yields). The returned
- * `minorUnitsPerWholeUnit` is derived from the input/output so the engine's
+ * `scaledRate` is derived from the input/output so the engine's
  * existing `convert` math — which already reasons in minor-units-per-whole-unit
  * — stays exact. No `number`, no `Math`, no rounding error reaches a balance.
  *
@@ -136,7 +146,7 @@ export class ConstantProductPriceSource implements PriceSource {
       return {
         from,
         to,
-        minorUnitsPerWholeUnit: (pool.reserveTo * scaleFrom) / pool.reserveFrom,
+        scaledRate: scaledRateFrom(pool.reserveTo * scaleFrom, pool.reserveFrom),
         source: this.#source,
       };
     }
@@ -148,10 +158,11 @@ export class ConstantProductPriceSource implements PriceSource {
       (amountInAfterFee * pool.reserveTo) / (pool.reserveFrom + amountInAfterFee);
 
     // minor units of `to` per one whole unit of `from`, so convert() reproduces
-    // amountOutMinor exactly (up to its own half-up rounding).
-    const minorUnitsPerWholeUnit = (amountOutMinor * scaleFrom) / amountInMinor;
+    // amountOutMinor exactly (up to its own half-up rounding). Rounded down at
+    // RATE_DECIMALS: an executable rate must never read better than the pool.
+    const scaledRate = scaledRateFrom(amountOutMinor * scaleFrom, amountInMinor, "down");
 
-    return { from, to, minorUnitsPerWholeUnit, source: this.#source };
+    return { from, to, scaledRate, source: this.#source };
   }
 }
 
@@ -183,7 +194,7 @@ export class LiquidityRouter implements RateProvider {
       return {
         from,
         to,
-        minorUnitsPerWholeUnit: 10n ** BigInt(assetDecimals(to)),
+        scaledRate: 10n ** BigInt(assetDecimals(to)) * RATE_SCALE,
         source: "identity",
       };
     }
@@ -191,7 +202,7 @@ export class LiquidityRouter implements RateProvider {
     return {
       from: priced.from,
       to: priced.to,
-      minorUnitsPerWholeUnit: priced.minorUnitsPerWholeUnit,
+      scaledRate: priced.scaledRate,
       source: priced.source,
       ...(priced.expiresAt === undefined ? {} : { expiresAt: new Date(priced.expiresAt) }),
     };

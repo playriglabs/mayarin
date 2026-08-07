@@ -24,13 +24,13 @@ const ETH_IDRX_RATE = 6_000_000_000n;
 function createPlanner(settlementAddress: string | null = MERCHANT_SAFE) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
-    { from: "ETH", to: "IDRX", minorUnitsPerWholeUnit: ETH_IDRX_RATE, source: "0x" },
+    { from: "ETH", to: "IDRX", scaledRate: ETH_IDRX_RATE, source: "0x" },
   ]);
   const oracle = new FixedPriceOracle([
     {
       from: "ETH",
       to: "IDRX",
-      minorUnitsPerWholeUnit: ETH_IDRX_RATE,
+      scaledRate: ETH_IDRX_RATE,
       source: "pyth",
       observedAt: NOW,
     },

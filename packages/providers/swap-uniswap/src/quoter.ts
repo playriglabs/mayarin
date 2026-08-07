@@ -1,3 +1,4 @@
+import { scaledRateFrom } from "@mayarin/shared";
 /**
  * Pure quoter arithmetic.
  *
@@ -16,5 +17,9 @@
  * as the 0x adapter.
  */
 export function scaleSwapRate(amountIn: bigint, amountOut: bigint, fromDecimals: number): bigint {
-  return (amountOut * 10n ** BigInt(fromDecimals)) / amountIn;
+  // Scaled, so a low-value source unit keeps its precision, and still rounded
+  // down: an executable rate must never be optimistic, or the `minOut` derived
+  // from it is set higher than the venue can fill. The floor is now at
+  // RATE_DECIMALS rather than at a whole minor unit.
+  return scaledRateFrom(amountOut * 10n ** BigInt(fromDecimals), amountIn, "down");
 }

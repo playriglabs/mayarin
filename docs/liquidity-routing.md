@@ -61,13 +61,25 @@ Two sources ship now:
 invariant is evaluated over BigInt pool reserves; the output amount is integer
 division, rounding in favour of the pool (the truncated remainder stays in the
 pool, so the source never overstates what a swap yields). The returned
-`minorUnitsPerWholeUnit` is derived from the input/output so the engine's
-existing `convert` math — which already reasons in minor-units-per-whole-unit —
-stays exact. No `number`, no `Math`, no rounding error reaches a balance.
+`scaledRate` is derived from the input/output so the engine's existing `convert`
+math stays exact. No `number`, no `Math`, no rounding error reaches a balance.
 
-A quote is `minorUnitsPerWholeUnit`: minor units of `to` per whole unit of
-`from`. This already encodes the decimal difference (USDC at 6 dp vs IDRX at 2
-dp), so the router and sources never assume two assets share a unit.
+A quote is a `scaledRate`: minor units of `to` per whole unit of `from`, carrying
+`RATE_DECIMALS` fractional digits. The minor-units part already encodes the
+decimal difference (USDC at 6 dp vs IDRX at 2 dp), so the router and sources
+never assume two assets share a unit.
+
+**The fraction is not decoration.** A rate is exact as a plain integer only when
+a whole source unit is worth a lot: `ETH/USDC` is about 3.7 billion, so rounding
+it costs nothing. `IDR/USDC` is about 56, and rounding _that_ to an integer cost
+~19 bps on every IDR-priced payment — more than a third of the 50 bps fee, and
+worse as the rupiah weakens. Nine fractional digits put the error below a
+hundredth of a basis point for every pair the registry admits.
+
+A venue rate rounds **down** and an oracle reference rounds **half-up**. The
+directions differ on purpose: an executable rate that reads better than the
+venue can fill would set `minOut` above what the swap delivers, while a
+reference feeds a deviation guard, where nearest-value is the honest reading.
 
 ---
 

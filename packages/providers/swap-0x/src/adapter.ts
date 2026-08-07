@@ -92,8 +92,8 @@ export class ZeroExSwapVenue implements SwapVenue {
       throw new ProviderError(`0x priced a zero sell amount for ${from} -> ${to}`, { from, to });
     }
 
-    const minorUnitsPerWholeUnit = scaleSwapRate(sellAmount, buyAmount, assetDecimals(from));
-    if (minorUnitsPerWholeUnit <= 0n) {
+    const scaledRate = scaleSwapRate(sellAmount, buyAmount, assetDecimals(from));
+    if (scaledRate <= 0n) {
       throw new ProviderError(`0x price for ${from} -> ${to} rounds to zero minor units of ${to}`, {
         from,
         to,
@@ -102,7 +102,7 @@ export class ZeroExSwapVenue implements SwapVenue {
       });
     }
 
-    return { from, to, minorUnitsPerWholeUnit, source: this.name };
+    return { from, to, scaledRate, source: this.name };
   }
 
   async #price(pair: ZeroExPair, from: AssetCode, to: AssetCode, sellAmount: bigint) {

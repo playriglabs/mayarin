@@ -11,13 +11,13 @@ function composed(overrides: Partial<ComposedQuote> = {}): ComposedQuote {
   const executable: PriceQuote = {
     from: "ETH",
     to: "USDC",
-    minorUnitsPerWholeUnit: RATE,
+    scaledRate: RATE,
     source: "dex",
   };
   const reference: OraclePrice = {
     from: "ETH",
     to: "USDC",
-    minorUnitsPerWholeUnit: RATE,
+    scaledRate: RATE,
     source: "pyth",
     observedAt: NOW,
   };
