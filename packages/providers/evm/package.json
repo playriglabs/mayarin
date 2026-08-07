@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@mayarin/chain": "workspace:*",
+    "@mayarin/clearing": "workspace:*",
     "@mayarin/contracts": "workspace:*",
     "@mayarin/execution": "workspace:*",
     "@mayarin/quote": "workspace:*",
