@@ -140,6 +140,9 @@ describe("contract path configuration", () => {
   const CONTRACT = {
     CONTRACT_PATH_ENABLED: "true",
     PAYMENT_ROUTERS: '{"base":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0"}',
+    // The settlement asset must be deployed on a router chain, or no order
+    // could ever name it.
+    CHAIN_ASSETS: '{"base":{"IDRX":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
   } as const;
 
   test("is absent unless enabled", () => {
@@ -159,6 +162,32 @@ describe("contract path configuration", () => {
     expect(() => loadConfig({ ...BASE, ...QUOTE, ...CONTRACT, PAYMENT_ROUTERS: "{}" })).toThrow(
       /PAYMENT_ROUTERS/,
     );
+  });
+
+  test("refuses a settlement asset that is on no chain with a router", () => {
+    // Otherwise the misconfiguration surfaces per payment, at the moment a
+    // payer is waiting, rather than at boot.
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...QUOTE,
+        ...CONTRACT,
+        CHAIN_ASSETS: '{"base-sepolia":{"IDRX":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
+      }),
+    ).toThrow(/has no CHAIN_ASSETS address on any chain in PAYMENT_ROUTERS/);
+  });
+
+  test("accepts a settlement asset deployed on one of several router chains", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...QUOTE,
+      ...CONTRACT,
+      PAYMENT_ROUTERS:
+        '{"base":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0","base-sepolia":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0"}',
+      CHAIN_ASSETS: '{"base-sepolia":{"IDRX":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
+    });
+
+    expect(config.contract?.paymentRouters["base-sepolia"]).toBeDefined();
   });
 
   test("refuses a venue set with no route-capable venue — LiFi is price-only", () => {
