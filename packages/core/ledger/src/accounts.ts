@@ -48,6 +48,65 @@ export const ACCOUNT_KINDS = {
     description:
       "Stablecoin balances credited to merchants by an internal settlement, withdrawable on-chain in Phase 4.",
   },
+
+  // ---------------------------------------------------------------------
+  // The deposit path's intermediate position.
+  //
+  // On the contract path receive/swap/settle are one atomic transaction, so
+  // no intermediate position exists to represent. On the deposit path the
+  // payer's asset sits at a deposit address until the executor converts it,
+  // and between those two moments `TREASURY` — "settlement assets held by
+  // Mayarin" — is not what is held.
+  // ---------------------------------------------------------------------
+
+  /** The payer's asset, received and not yet converted. Denominated in the payer's asset, never the settlement asset. */
+  PAYER_ASSET_HELD: {
+    type: "ASSET",
+    name: "Payer asset held",
+    description:
+      "The payer's asset received at a deposit address and not yet swapped into the settlement asset.",
+  },
+  /**
+   * The counter-account to `PAYER_ASSET_HELD`.
+   *
+   * The asset is held but not owned: it is committed to converting into a
+   * specific payment's settlement. Crediting a liability rather than revenue
+   * says exactly that, and keeps the receipt from touching the settlement
+   * asset at all — which is the point, since none has been acquired yet.
+   */
+  PAYER_ASSET_OBLIGATION: {
+    type: "LIABILITY",
+    name: "Payer asset obligation",
+    description: "Payer assets held against an unconverted payment obligation.",
+  },
+  /**
+   * The difference between the price locked and the swap actually achieved.
+   *
+   * `REVENUE`, so a credit balance is a gain. A loss is a debit, leaving the
+   * account with a negative balance — which is the honest presentation: it is
+   * one account whose sign says which way the exposure went, not two accounts
+   * that must be netted to find out. This is the exposure `docs/threat-model.md`
+   * depends on being visible; absorbing it into treasury is what made it
+   * invisible.
+   */
+  FX_RESULT: {
+    type: "REVENUE",
+    name: "FX result",
+    description:
+      "Gain or loss between the locked price and the swap actually achieved. Debit balance is a loss.",
+  },
+  /** Gas Mayarin pays on a payer's behalf. */
+  GAS_EXPENSE: {
+    type: "EXPENSE",
+    name: "Gas expense",
+    description: "Network fees Mayarin pays to execute a payment it did not charge the payer for.",
+  },
+  /** The operator key's native balance, which gas is drawn from. */
+  OPERATOR_GAS: {
+    type: "ASSET",
+    name: "Operator gas balance",
+    description: "Native asset held by the executor operator key and spent on gas.",
+  },
 } as const satisfies Record<string, AccountKindDefinition>;
 
 export type AccountKind = keyof typeof ACCOUNT_KINDS;

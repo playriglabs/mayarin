@@ -20,17 +20,67 @@
  *
  * Each posting's idempotency key is derived from the transaction and the state
  * it records, so replaying a step cannot double-post.
+ *
+ * ## The deposit path books two steps, not one
+ *
+ * The sequence above holds when the settlement asset is acquired at the moment
+ * the payer's asset is confirmed — true on the contract path, where receive,
+ * swap and settle are one atomic transaction.
+ *
+ * On the deposit path they are seconds apart. The payer's ETH sits at a deposit
+ * address until the treasury executor converts it, and posting `TREASURY` at
+ * receipt would state a settlement balance that does not exist while the asset
+ * actually held is recorded nowhere. So the deposit path splits it:
+ *
+ * ```
+ * ASSET_RECEIVED   Dr PAYER_ASSET_HELD:ETH        (deposit amount)
+ *                  Cr PAYER_ASSET_OBLIGATION:ETH  (deposit amount)
+ *
+ * SWAPPED          Dr PAYER_ASSET_OBLIGATION:ETH  (deposit amount)
+ *                  Cr PAYER_ASSET_HELD:ETH        (deposit amount)
+ *                  Dr TREASURY:USDC               (swap output)
+ *                  Cr MERCHANT_PAYABLE:USDC       (net)
+ *                  Cr FEE_REVENUE:USDC            (fee)
+ *                  Cr FX_RESULT:USDC              (output − settlement, when the swap beat the lock)
+ * ```
+ *
+ * `CLEARING` and `SETTLED` are unchanged: `MERCHANT_PAYABLE` is credited by the
+ * swap instead of by the receipt, one step later, and everything downstream
+ * reads the same.
+ *
+ * ## What "balanced" means across assets
+ *
+ * The swap posting names two assets, and it needs no new rule — `assertBalanced`
+ * already sums debits and credits **per asset** (`totalsByAsset`). So the
+ * requirement is not that ETH somehow equals USDC, which no exchange rate could
+ * make true at the instant a rate is what is being discovered. It is that each
+ * asset balances within itself: the ETH legs cancel exactly, and the USDC legs
+ * sum to the swap's actual output.
+ *
+ * `FX_RESULT` is what makes the USDC side balance when the output differs from
+ * the locked settlement amount. A swap that beat the lock credits it (a gain);
+ * one that fell short debits it (a loss). Either way the merchant's `net` and
+ * the `fee` are exactly what was locked — the difference is Mayarin's, which is
+ * the whole point of naming the account.
  */
 
 import { credit, type DraftTransaction, debit } from "@mayarin/ledger";
 import { LedgerImbalanceError, type Money } from "@mayarin/shared";
 import type { ClearingState, ClearingTransaction } from "./types.ts";
 
-export function postingIdempotencyKey(
-  transaction: ClearingTransaction,
-  state: ClearingState,
-): string {
-  return `${transaction.id}:${state}`;
+/**
+ * Steps that post but are not clearing states.
+ *
+ * The deposit path's swap happens between `ASSET_RECEIVED` and `CLEARING`
+ * without being a state of its own — adding one would change a nine-state
+ * machine that every transition, persisted row and doc describes, to record
+ * something the executor already knows. The idempotency key still has to
+ * distinguish it, so the label widens instead of the state machine.
+ */
+export type PostingStep = ClearingState | "SWAPPED" | "GAS";
+
+export function postingIdempotencyKey(transaction: ClearingTransaction, step: PostingStep): string {
+  return `${transaction.id}:${step}`;
 }
 
 export function assetReceivedPosting(transaction: ClearingTransaction): DraftTransaction {
@@ -45,6 +95,89 @@ export function assetReceivedPosting(transaction: ClearingTransaction): DraftTra
       credit("MERCHANT_PAYABLE", netAmount),
       credit("FEE_REVENUE", fee),
     ],
+  };
+}
+
+/**
+ * Receipt on the deposit path: the payer's asset arrived, nothing is converted.
+ *
+ * Denominated entirely in the payer's asset. No settlement-asset account is
+ * touched, because no settlement asset has been acquired — that is the whole
+ * correction. `swapPosting` books the conversion.
+ */
+export function depositAssetReceivedPosting(transaction: ClearingTransaction): DraftTransaction {
+  const held = requireDepositAmount(transaction);
+
+  return {
+    description: `Payer asset received for payment ${transaction.paymentIntentId}`,
+    reference: transaction.id,
+    idempotencyKey: postingIdempotencyKey(transaction, "ASSET_RECEIVED"),
+    entries: [debit("PAYER_ASSET_HELD", held), credit("PAYER_ASSET_OBLIGATION", held)],
+  };
+}
+
+/**
+ * The deposit path's swap: the payer's asset leaves, the settlement asset arrives.
+ *
+ * `output` is what the swap actually produced, measured on-chain — not what was
+ * quoted. The gap between it and the locked `settlementAmount` is the FX result,
+ * and it is the reason this posting exists rather than reusing the receipt's.
+ *
+ * The merchant's `net` and Mayarin's `fee` are always the locked figures. A swap
+ * that underperformed does not reduce what the merchant is owed; it books a loss.
+ */
+export function swapPosting(transaction: ClearingTransaction, output: Money): DraftTransaction {
+  const { settlementAmount, fee, netAmount } = requirePricedAmounts(transaction);
+  const held = requireDepositAmount(transaction);
+
+  if (output.asset !== settlementAmount.asset) {
+    throw new LedgerImbalanceError(
+      `Swap output for ${transaction.id} is ${output.asset}, not the settlement asset ${settlementAmount.asset}`,
+      { id: transaction.id, output: output.asset, settlement: settlementAmount.asset },
+    );
+  }
+
+  const difference = output.amount - settlementAmount.amount;
+  // A gain credits FX_RESULT, a loss debits it. Either way the settlement-asset
+  // legs sum to `output`, which is what the swap actually delivered.
+  const fxEntries =
+    difference === 0n
+      ? []
+      : difference > 0n
+        ? [credit("FX_RESULT", { amount: difference, asset: output.asset })]
+        : [debit("FX_RESULT", { amount: -difference, asset: output.asset })];
+
+  return {
+    description: `Swapped payer asset into settlement for payment ${transaction.paymentIntentId}`,
+    reference: transaction.id,
+    idempotencyKey: postingIdempotencyKey(transaction, "SWAPPED"),
+    entries: [
+      // The payer-asset legs cancel: the obligation is discharged by converting it.
+      debit("PAYER_ASSET_OBLIGATION", held),
+      credit("PAYER_ASSET_HELD", held),
+      debit("TREASURY", output),
+      credit("MERCHANT_PAYABLE", netAmount),
+      credit("FEE_REVENUE", fee),
+      ...fxEntries,
+    ],
+  };
+}
+
+/**
+ * Gas Mayarin paid to execute a payment.
+ *
+ * Separate from `swapPosting` because it is denominated in the chain's native
+ * asset and is a cost of operating, not part of the payment's value movement.
+ * Posting it inside the swap would balance — native legs cancel among
+ * themselves — but would state that the payer's conversion cost gas, when what
+ * happened is that Mayarin spent its own.
+ */
+export function gasPosting(transaction: ClearingTransaction, cost: Money): DraftTransaction {
+  return {
+    description: `Gas paid to execute payment ${transaction.paymentIntentId}`,
+    reference: transaction.id,
+    idempotencyKey: postingIdempotencyKey(transaction, "GAS"),
+    entries: [debit("GAS_EXPENSE", cost), credit("OPERATOR_GAS", cost)],
   };
 }
 
@@ -121,4 +254,21 @@ function requirePricedAmounts(transaction: ClearingTransaction): PricedAmounts {
   }
 
   return { settlementAmount, fee, netAmount };
+}
+
+/**
+ * The deposit path's postings are denominated in what the payer actually sent,
+ * so they cannot be built for a transaction that has no deposit leg.
+ */
+function requireDepositAmount(transaction: ClearingTransaction): Money {
+  const deposit = transaction.deposit;
+
+  if (deposit === undefined) {
+    throw new LedgerImbalanceError(
+      `Clearing transaction ${transaction.id} has no deposit to post against`,
+      { id: transaction.id, state: transaction.state },
+    );
+  }
+
+  return deposit.amount;
 }
