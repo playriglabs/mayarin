@@ -14,6 +14,9 @@ imports it and adds only the Claude-Code-specific layer.
   - `functional-programming` — the full TypeScript style guide (pure domain
     packages, immutable aggregates, injected effects, exhaustiveness, and the
     throw-over-`Result` rationale). Read it before writing or refactoring any TS.
+  - `sync-up` — rebuild current repo knowledge before working: fetch, read the
+    governance docs, pull open and closed issues/PRs with their full comment
+    threads, and narrow to an assignee.
   - Other skills (e.g. `graphify`) are user-global (`~/.claude/skills/`), not
     repo-local — do not assume they ship with this repo.
 - **Slash commands** in `.claude/` are user-invocable skills; do not guess names
