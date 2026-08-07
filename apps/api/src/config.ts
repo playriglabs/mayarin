@@ -319,6 +319,7 @@ const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 function resolveContract(
   data: RawConfig,
   quote: QuoteConfig | undefined,
+  stablecoins: readonly Stablecoin[],
 ): ContractConfig | undefined {
   if (!data.contractPathEnabled) {
     return undefined;
@@ -355,6 +356,23 @@ function resolveContract(
   }
   if (routeCapable.includes("uniswap") && Object.keys(data.uniswapSwapRouters).length === 0) {
     issues.push("UNISWAP_SWAP_ROUTERS is required when the uniswap venue serves routes");
+  }
+
+  // A settlement asset with no token address on a router chain cannot be named
+  // in a signed order: `stablecoins.address(asset, chain)` returns nothing and
+  // the lock throws. Without this the misconfiguration surfaces per payment, at
+  // the moment a payer is waiting, instead of at boot.
+  const routerChains = Object.keys(data.paymentRouters);
+  const deployedOn = new Set(
+    stablecoins
+      .filter((coin) => coin.asset === data.settlementAsset)
+      .flatMap((coin) => coin.onChain.map((entry) => entry.chain as string)),
+  );
+  if (routerChains.length > 0 && !routerChains.some((chain) => deployedOn.has(chain))) {
+    issues.push(
+      `SETTLEMENT_ASSET "${data.settlementAsset}" has no CHAIN_ASSETS address on any chain in ` +
+        "PAYMENT_ROUTERS: the contract path could never sign an order for it",
+    );
   }
 
   if (issues.length > 0) {
@@ -551,7 +569,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const stablecoins = resolveStablecoins(result.data);
   const chain = resolveChain(result.data);
   const quote = resolveQuote(result.data);
-  const contract = resolveContract(result.data, quote);
+  const contract = resolveContract(result.data, quote, stablecoins);
 
   if (result.data.executionPath === "on-chain-contract" && contract === undefined) {
     throw new ConfigurationError(
