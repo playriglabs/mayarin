@@ -69,14 +69,21 @@ export interface PaymentRail {
 /**
  * How a payment rail is executed.
  *
- * `"deposit-match"` is the fallback path: the payer's asset arrives at a
- * per-intent deposit address and the watcher drives `ASSET_RECEIVED` — no swap
- * runs, the conversion is accounting only. `"on-chain-contract"` is the Phase 3
- * primary path: `PaymentRouter.sol` receives, swaps and settles atomically in one
- * transaction. Only `"deposit-match"` is implemented today; the contract path is
- * a throwing stub until Phase 3.
+ * `"deposit-match"`: the payer's asset arrives at a per-intent deposit address
+ * and the watcher drives `ASSET_RECEIVED`. `"on-chain-contract"`:
+ * `PaymentRouter.sol` receives, swaps and settles atomically in one transaction,
+ * and `recordPaymentCompleted` drives `ASSET_RECEIVED`.
+ *
+ * Neither is a fallback for the other — they serve different payers. The
+ * contract path needs the payer to *connect* a wallet, because it submits
+ * calldata and because the signed order's `refundTo` must be known before the
+ * payer pays. A payer who scans a QR or pastes an address into a custodial
+ * withdrawal can only do a plain transfer, so deposit-matching is the only path
+ * open to them. Which is why this is chosen per payer, not per deployment.
  */
-export type ExecutionPath = "deposit-match" | "on-chain-contract";
+export const EXECUTION_PATHS = ["deposit-match", "on-chain-contract"] as const;
+
+export type ExecutionPath = (typeof EXECUTION_PATHS)[number];
 
 export interface PaymentIntent {
   readonly id: string;

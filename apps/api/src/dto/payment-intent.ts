@@ -6,7 +6,7 @@
  */
 
 import { CHAIN_IDS } from "@mayarin/chain";
-import type { PaymentIntent } from "@mayarin/payment-intent";
+import { EXECUTION_PATHS, type PaymentIntent } from "@mayarin/payment-intent";
 import { assetCodeSchema, decimalMoneySchema } from "@mayarin/shared";
 import { z } from "zod";
 import { toMoneyDto } from "./money.ts";
@@ -46,6 +46,13 @@ export const createBodySchema = z
       }))
       .optional(),
     settlementAsset: assetCodeSchema.optional(),
+    /**
+     * How the `payment` rail is executed, chosen per payer rather than per
+     * deployment: a marketplace checkout where the payer connects a wallet
+     * takes `on-chain-contract`, while a payer who scans or pastes an address
+     * can only take `deposit-match`. Omitted, the deployment default stands.
+     */
+    executionPath: z.enum(EXECUTION_PATHS).optional(),
     provider: z.string().min(1).optional(),
     metadata: z.record(z.string(), z.string()).optional(),
     ttlSeconds: z.number().int().positive().optional(),
@@ -65,6 +72,13 @@ export function toPaymentIntentDto(intent: PaymentIntent) {
     settlementAsset: intent.settlementAsset,
     provider: intent.provider,
     payment: intent.payment ?? null,
+    /**
+     * Which path this intent resolved to. The caller needs it back: it decides
+     * whether checkout asks for `/contract-call` or renders the deposit
+     * address, and the resolved value may differ from what was requested.
+     * `null` for a fiat-only intent, which has no rail to execute.
+     */
+    executionPath: intent.executionPath ?? null,
     source: intent.source,
     metadata: intent.metadata,
     clearingTransactionId: intent.clearingTransactionId ?? null,
