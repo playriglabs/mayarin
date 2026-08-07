@@ -42,7 +42,7 @@ contract MockPermit2 is IPermit2 {
         });
     }
 
-    function transferFrom(address from, address to, uint160 amount, address token) external returns (uint160) {
+    function transferFrom(address from, address to, uint160 amount, address token) external {
         Allowance memory a = _allowance[from][msg.sender][token];
         // Order mirrors canonical Permit2: a never-set (or wrong-spender) allowance
         // has amount 0, so InsufficientAllowance surfaces before the expiration
@@ -53,6 +53,5 @@ contract MockPermit2 is IPermit2 {
         // Permit2 pulls via the token's own transferFrom; the owner must have
         // approved this mock (as owners approve the canonical Permit2 on-chain).
         IERC20(token).transferFrom(from, to, amount);
-        return amount;
     }
 }
