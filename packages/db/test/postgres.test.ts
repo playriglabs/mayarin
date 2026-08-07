@@ -20,6 +20,7 @@ import { FixedDepositAddressDeriver } from "@mayarin/chain/testing";
 import {
   BasisPointsFeePolicy,
   ClearingEngine,
+  type ClearingTransaction,
   createClearingTransaction,
   StaticRateProvider,
 } from "@mayarin/clearing";
@@ -136,6 +137,107 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     expect((await clearingRepository.findById(transaction.id))?.executionPath).toBe(
       "on-chain-contract",
     );
+  });
+
+  test("round-trips the contract lock, so a resumed step never re-signs", async () => {
+    const created = await intents.create({
+      merchant: {
+        id: "ID1020017611473",
+        name: "Warung Kopi Mayarin",
+        city: "Jakarta",
+        countryCode: "ID",
+      },
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      executionPath: "on-chain-contract",
+    });
+    const { transaction, event } = createClearingTransaction(
+      await intents.getById(created.id),
+      clock.now(),
+    );
+    await clearingRepository.insert(transaction, [event]);
+
+    const locked: ClearingTransaction = {
+      ...transaction,
+      contract: {
+        order: {
+          intentId: "0xdeadbeef",
+          settlementToken: "0xusdc",
+          minOut: 3_000_000n,
+          fee: 10_000n,
+          merchantSafe: "0xmerchant",
+          refundTo: "0xpayer",
+          deadline: 1_800_000_000n,
+          signature: "0xsig",
+          signer: "0xsigner",
+        },
+        payerEstimate: money(704_000_000_000_000n, "ETH"),
+        expiresAt: new Date("2026-01-01T00:02:00.000Z"),
+      },
+      version: transaction.version + 1,
+    };
+    await clearingRepository.update(locked, transaction.version, []);
+
+    const reloaded = await clearingRepository.findById(transaction.id);
+    // Every field the later steps read: the order is reused rather than
+    // re-signed, and the indexer resolves a log through `intentId`.
+    expect(reloaded?.contract?.order).toEqual(locked.contract?.order);
+    expect(reloaded?.contract?.payerEstimate).toEqual(money(704_000_000_000_000n, "ETH"));
+    expect(reloaded?.contract?.expiresAt).toEqual(new Date("2026-01-01T00:02:00.000Z"));
+    expect(reloaded?.contract?.txHash).toBeUndefined();
+  });
+
+  test("round-trips the completion tx hash recorded against a lock", async () => {
+    const created = await intents.create({
+      merchant: {
+        id: "ID1020017611473",
+        name: "Warung Kopi Mayarin",
+        city: "Jakarta",
+        countryCode: "ID",
+      },
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      executionPath: "on-chain-contract",
+    });
+    const { transaction, event } = createClearingTransaction(
+      await intents.getById(created.id),
+      clock.now(),
+    );
+    await clearingRepository.insert(transaction, [event]);
+
+    const settled: ClearingTransaction = {
+      ...transaction,
+      contract: {
+        order: {
+          intentId: "0xfeedface",
+          settlementToken: "0xusdc",
+          minOut: 3_000_000n,
+          fee: 10_000n,
+          merchantSafe: "0xmerchant",
+          refundTo: "0xpayer",
+          deadline: 1_800_000_000n,
+          signature: "0xsig",
+          signer: "0xsigner",
+        },
+        payerEstimate: money(1n, "ETH"),
+        expiresAt: new Date("2026-01-01T00:02:00.000Z"),
+        txHash: "0xabc123",
+      },
+      version: transaction.version + 1,
+    };
+    await clearingRepository.update(settled, transaction.version, []);
+
+    expect((await clearingRepository.findById(transaction.id))?.contract?.txHash).toBe("0xabc123");
+  });
+
+  test("a transaction with no contract lock reads back without one", async () => {
+    const intent = await confirmedIntent();
+    const { transaction, event } = createClearingTransaction(intent, clock.now());
+    await clearingRepository.insert(transaction, [event]);
+
+    expect((await clearingRepository.findById(transaction.id))?.contract).toBeUndefined();
   });
 
   test("a fiat-only intent and its transaction carry no execution path", async () => {

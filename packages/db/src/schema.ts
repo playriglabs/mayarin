@@ -120,6 +120,24 @@ export const clearingTransactions = pgTable(
       mode: "date",
     }),
 
+    // The contract-path lock (#61). Written at PRICE_LOCKED and read back by
+    // every later step: the signed order is never re-signed on resume, and
+    // `contract_intent_id` is what the indexer resolves a `PaymentCompleted`
+    // log to.
+    contractIntentId: text("contract_intent_id"),
+    contractSettlementToken: text("contract_settlement_token"),
+    contractMinOut: minorUnits("contract_min_out"),
+    contractFee: minorUnits("contract_fee"),
+    contractMerchantSafe: text("contract_merchant_safe"),
+    contractRefundTo: text("contract_refund_to"),
+    contractDeadline: minorUnits("contract_deadline"),
+    contractSignature: text("contract_signature"),
+    contractSigner: text("contract_signer"),
+    contractPayerEstimate: minorUnits("contract_payer_estimate"),
+    contractPayerAsset: text("contract_payer_asset"),
+    contractExpiresAt: timestamp("contract_expires_at", { withTimezone: true, mode: "date" }),
+    contractTxHash: text("contract_tx_hash"),
+
     providerReference: text("provider_reference"),
     failureReason: text("failure_reason"),
     failureCode: text("failure_code"),
@@ -138,6 +156,10 @@ export const clearingTransactions = pgTable(
       table.providerReference,
     ),
     index("clearing_transactions_state_idx").on(table.state, table.createdAt),
+    // The indexer resolves a `PaymentCompleted` log to a payment through this,
+    // and the contract consumes each `intentId` exactly once — so two rows
+    // sharing one is a state the chain itself cannot produce.
+    uniqueIndex("clearing_transactions_contract_intent_idx").on(table.contractIntentId),
   ],
 );
 

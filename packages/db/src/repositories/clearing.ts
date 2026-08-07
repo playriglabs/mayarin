@@ -1,5 +1,6 @@
 import { isChainId } from "@mayarin/chain";
 import {
+  type ClearingContract,
   type ClearingDeposit,
   type ClearingEvent,
   type ClearingEventType,
@@ -151,6 +152,7 @@ function toRow(transaction: ClearingTransaction): typeof clearingTransactions.$i
     failureCode: transaction.failure?.code ?? null,
     failureAt: transaction.failure?.at ?? null,
     ...depositColumns(transaction),
+    ...contractColumns(transaction),
     createdAt: transaction.createdAt,
     updatedAt: transaction.updatedAt,
     version: transaction.version,
@@ -191,6 +193,7 @@ function toDomain(row: Row): ClearingTransaction {
     ...present("fee", toOptionalMoney(row.feeAmount, settlementAsset)),
     ...present("netAmount", toOptionalMoney(row.netAmount, settlementAsset)),
     ...present("deposit", toDeposit(row)),
+    ...present("contract", toContract(row)),
     ...present("providerReference", row.providerReference),
     ...(row.failureReason === null || row.failureAt === null
       ? {}
@@ -272,6 +275,84 @@ function toDeposit(row: Row): ClearingDeposit | undefined {
       lockedAt: row.depositRateLockedAt,
       ...(row.depositRateExpiresAt === null ? {} : { expiresAt: row.depositRateExpiresAt }),
     },
+  };
+}
+
+function contractColumns(transaction: ClearingTransaction) {
+  const contract = transaction.contract;
+  if (contract === undefined) {
+    return {
+      contractIntentId: null,
+      contractSettlementToken: null,
+      contractMinOut: null,
+      contractFee: null,
+      contractMerchantSafe: null,
+      contractRefundTo: null,
+      contractDeadline: null,
+      contractSignature: null,
+      contractSigner: null,
+      contractPayerEstimate: null,
+      contractPayerAsset: null,
+      contractExpiresAt: null,
+      contractTxHash: null,
+    };
+  }
+
+  const { order } = contract;
+  return {
+    contractIntentId: order.intentId,
+    contractSettlementToken: order.settlementToken,
+    contractMinOut: order.minOut.toString(),
+    contractFee: order.fee.toString(),
+    contractMerchantSafe: order.merchantSafe,
+    contractRefundTo: order.refundTo,
+    contractDeadline: order.deadline.toString(),
+    contractSignature: order.signature,
+    contractSigner: order.signer,
+    contractPayerEstimate: contract.payerEstimate.amount.toString(),
+    contractPayerAsset: contract.payerEstimate.asset,
+    contractExpiresAt: contract.expiresAt,
+    contractTxHash: contract.txHash ?? null,
+  };
+}
+
+/**
+ * Rebuilds the lock, or `undefined` when the row carries none.
+ *
+ * Keyed off `contract_intent_id`: a lock without one could not be matched to a
+ * `PaymentCompleted` log, so a row missing it is not a partial lock to salvage.
+ */
+function toContract(row: Row): ClearingContract | undefined {
+  const minOut = toBigint(row.contractMinOut);
+  if (
+    row.contractIntentId === null ||
+    row.contractSettlementToken === null ||
+    minOut === undefined ||
+    row.contractMerchantSafe === null ||
+    row.contractRefundTo === null ||
+    row.contractSignature === null ||
+    row.contractSigner === null ||
+    row.contractExpiresAt === null ||
+    row.contractPayerAsset === null
+  ) {
+    return undefined;
+  }
+
+  return {
+    order: {
+      intentId: row.contractIntentId,
+      settlementToken: row.contractSettlementToken,
+      minOut,
+      fee: toBigint(row.contractFee) ?? 0n,
+      merchantSafe: row.contractMerchantSafe,
+      refundTo: row.contractRefundTo,
+      deadline: toBigint(row.contractDeadline) ?? 0n,
+      signature: row.contractSignature,
+      signer: row.contractSigner,
+    },
+    payerEstimate: toMoney(row.contractPayerEstimate ?? "0", row.contractPayerAsset),
+    expiresAt: row.contractExpiresAt,
+    ...present("txHash", row.contractTxHash),
   };
 }
 
