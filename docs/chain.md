@@ -283,13 +283,26 @@ The operator momentarily holds the payer's asset between the sweep and the
 submission. That is a custody-perimeter change and is recorded in
 [`threat-model.md`](./threat-model.md).
 
-**Not yet closed.** The deposit path does not sign an order — `PRICE_LOCKED`
-consults the contract planner only for `on-chain-contract` — so a deposit-path
-transaction reaches `ASSET_RECEIVED` with nothing for the router to verify. The
-executor refuses rather than improvising. Closing it means signing at
-`PRICE_LOCKED` for `deposit-match` too, with `refundTo` set to the treasury:
-the payer paid a fixed quoted amount, so output above `minOut` is Mayarin's —
-the same reasoning `FX_RESULT` encodes for a shortfall.
+When execution is wired the deposit path is priced and signed by the **same
+planner the contract path uses**, rather than by `RateProvider`. Running both
+would be two prices for one payment, free to disagree; running the planner
+alone also produces the amount the payer must send, since `ContractLock` already
+carries the slippage-grossed `payerEstimate`. `refundTo` is the treasury: this
+path has no payer address, the payer sent a fixed quoted amount, and the excess
+is Mayarin's — the same reasoning `FX_RESULT` encodes for a shortfall.
+
+**Proven on Base Sepolia.** A payer sent ETH to an address holding no code; the
+operator deployed the forwarder at that exact address, swept it, and settled
+through the router in one further transaction. Both paths:
+
+| Path                  | Transaction                                                                                                         | Merchant received |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| ETH deposit, swapped  | [`0xc6fb73d9…`](https://sepolia.basescan.org/tx/0xc6fb73d96a2a78dad0dbee788f0c45740ba4238165eab647328f6a4a5f40492b) | 0.099 USDC        |
+| USDC deposit, no swap | [`0x36560d7d…`](https://sepolia.basescan.org/tx/0x36560d7d9312bedac416c1e99914afea2700891fbf0cf96bf16cb2b1ce13656b) | 0.099 USDC        |
+
+Both settled `minOut − fee` to the merchant, the fee to the treasury, and the
+excess above `minOut` to `refundTo`. The same-asset payment skipped the DEX
+entirely, as the contract's no-op path intends.
 
 ---
 
@@ -298,10 +311,18 @@ the same reasoning `FX_RESULT` encodes for a shortfall.
 Base Sepolia (chain id 84532), deployed 2026-08-07 in block 45164044. Both
 contracts are verified on Basescan.
 
-| Contract             | Address                                      |
-| -------------------- | -------------------------------------------- |
-| `PaymentRouter`      | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` |
-| `TimelockController` | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
+| Contract                  | Address                                      |
+| ------------------------- | -------------------------------------------- |
+| `PaymentRouter`           | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` |
+| `TimelockController`      | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
+| `DepositForwarderFactory` | `0x04CD74e77ac145B18d61c6C8D7939e3241DBB60A` |
+
+`DepositForwarderFactory` sweeps to `0x616e2B9Bc83D60790E70CbaAc6c8612AFc6A7896`
+and its `INIT_CODE_HASH` is
+`0x11d65b051f9532644d6b123a8436db6191e1944e74793a5a9ada1f3099ef4574` — the value
+`DEPOSIT_FORWARDER_INIT_CODE_HASH` must carry, since every deposit address
+derives from it. Verified against the deployed factory: the TypeScript deriver
+and `forwarderAddress(salt)` agree for indices 0, 1, 42 and 999.
 
 On-chain configuration as deployed:
 
