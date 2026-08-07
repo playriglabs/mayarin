@@ -10,7 +10,7 @@ Supported formats:
 
 - QRIS
 - EMVCo
-- Crypto address URIs _(Phase 3)_
+- Crypto address URIs — EIP-681 encoding shipped; decoding is still Phase 3
 - Future QR Standards
 
 Decoding is split in two: an EMVCo TLV decoder that knows only the encoding, and
@@ -18,9 +18,23 @@ a scheme profile that gives tags their meaning. A new QR standard is a new
 profile, not a fork of the decoder. Checksums are verified before anything else
 is read.
 
-Decoding only, for now. Phase 3's QR SDK adds the other direction — EMVCo and
-QRIS _generation_, static and dynamic — reusing the same profiles, so a tag is
-described once and both read and written from that description.
+EMVCo/QRIS is decoding only, for now. Phase 3's QR SDK adds the other direction
+— EMVCo and QRIS _generation_, static and dynamic — reusing the same profiles,
+so a tag is described once and both read and written from that description.
+
+The **address-URI half of that write direction is shipped**:
+`encodeAddressUri` emits EIP-681 for a deposit address, which is what a POS
+renders as a QR for the payer to scan. It deliberately emits only the two forms
+wallets actually support — native `?value=` and ERC-20 `/transfer?address=&uint256=`
+— and refuses rather than guessing, because a QR is scanned by a stranger's
+wallet with no way to report back, so a malformed one fails silently as a lost
+payment.
+
+This is also why the deposit-match path is not a fallback. A wallet that scans a
+QR does exactly one thing with it: a plain transfer. It does not assemble
+calldata, attach a backend signature, or call a contract function. So the
+address URI is the only instruction every wallet — and every custodial exchange
+withdrawal — can follow, and it needs no per-wallet integration to work.
 
 ## Two payload families
 

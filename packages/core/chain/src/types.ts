@@ -17,6 +17,16 @@ export function isChainId(value: unknown): value is ChainId {
   return typeof value === "string" && (CHAIN_IDS as readonly string[]).includes(value);
 }
 
+/**
+ * Numeric EVM chain ids. A chain fact, not deployment configuration — the
+ * EIP-155 id of a chain is the same everywhere Mayarin runs, so it belongs
+ * beside `CHAIN_IDS` rather than in any one deployment's config.
+ */
+export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
+  base: 8_453n,
+  "base-sepolia": 84_532n,
+};
+
 /** A block identified by both height and hash — the hash is what detects a reorg. */
 export interface BlockRef {
   readonly number: bigint;

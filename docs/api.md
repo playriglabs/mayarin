@@ -101,6 +101,26 @@ Accepts either a payment intent id (`pi_…`) or a clearing transaction id
 (`clr_…`). Returns what was owed, how far along paying it is, and the ordered
 timeline of how it got there.
 
+On the deposit-match path the response carries a `deposit` object with the
+per-intent address, the expected amount, confirmations so far, and `uri` — an
+**EIP-681 payment URI** to render as a QR:
+
+```
+native   ethereum:0xRECIPIENT@84532?value=1050000000000000
+ERC-20   ethereum:0xTOKEN@84532/transfer?address=0xRECIPIENT&uint256=3000000
+```
+
+The two forms are not interchangeable. For an ERC-20 the URI target is the
+**token** contract and the recipient is an argument; the native form names the
+recipient directly. `uri` is `null` rather than a guess when the asset has no
+on-chain identity to name — a wrong URI moves the payer's funds somewhere
+unrecoverable, so no URI is the safer answer.
+
+This is what makes the deposit path work with **every** wallet and every
+custodial exchange withdrawal without a per-wallet integration: a wallet that
+scans a QR does exactly one thing with it — a plain transfer. Payers whose
+wallet cannot scan can copy the `address` and `amount` instead.
+
 ## Contract-Path Submit Payload
 
 ```
