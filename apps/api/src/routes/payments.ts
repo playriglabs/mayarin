@@ -20,6 +20,11 @@ export function paymentRoutes(container: Container): Hono {
     const { intent, transaction, events, deposit } = await container.paymentApp.getPayment(
       c.req.param("id"),
     );
+    const rail = transaction?.deposit;
+    // Resolved here rather than inside the DTO: the registry read is async, and
+    // a native deposit has no token to look up.
+    const token =
+      rail === undefined ? undefined : await container.registry.address(rail.asset, rail.chain);
     const depositDto =
       deposit === null || transaction === null
         ? null
@@ -28,6 +33,7 @@ export function paymentRoutes(container: Container): Hono {
             deposit.deposits,
             deposit.headNumber,
             deposit.requiredConfirmations,
+            token,
           );
     return c.json(toPaymentDto(intent, transaction, events, depositDto));
   });

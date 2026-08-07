@@ -15,7 +15,7 @@
  * below it does.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
 import type {
   ClearingContract,
   ClearingEngine,
@@ -50,12 +50,6 @@ import {
 import type { StablecoinRegistry } from "@mayarin/stablecoin";
 import type { Config, ContractConfig } from "./config.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
-
-/** EVM chain ids, a chain fact rather than deployment configuration. */
-const NUMERIC_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
-  base: 8_453n,
-  "base-sepolia": 84_532n,
-};
 
 type Hex = `0x${string}`;
 
@@ -110,7 +104,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
 
     const now = clock.now();
     const domain: OrderDomain = {
-      chainId: NUMERIC_CHAIN_IDS[request.chain],
+      chainId: EVM_CHAIN_IDS[request.chain],
       verifyingContract: router as Hex,
     };
     const context = {
@@ -318,7 +312,7 @@ export class ContractCheckout {
 
     return {
       chain: rail.chain,
-      chainId: NUMERIC_CHAIN_IDS[rail.chain],
+      chainId: EVM_CHAIN_IDS[rail.chain],
       paymentRouter,
       order,
       signature,
