@@ -6,6 +6,7 @@
  */
 
 import { CHAIN_IDS, type ChainId } from "@mayarin/chain";
+import type { PythFeed } from "@mayarin/provider-pyth";
 import {
   type AssetCode,
   assetCodeSchema,
@@ -131,7 +132,13 @@ const configSchema = z.object({
   /** Lock TTL, which becomes the order `deadline`. */
   quoteTtlSeconds: z.coerce.number().int().positive().default(60),
   /** Pyth pair to Hermes feed id. */
-  pythFeeds: jsonObject<Record<string, string>>("PYTH_FEEDS", "{}"),
+  /**
+   * Pair to Hermes feed. A bare string is quoted in the pair's own direction;
+   * `{ "id": "0x…", "invert": true }` names a feed quoted the other way round —
+   * Pyth publishes `FX.USD/IDR` and no reverse, so `IDR/USDC` can only be
+   * served by inverting it.
+   */
+  pythFeeds: jsonObject<Record<string, PythFeed>>("PYTH_FEEDS", "{}"),
   /** Chainlink pair to `{ chain, address }`. */
   chainlinkFeeds: jsonObject<Record<string, { chain: ChainId; address: string }>>(
     "CHAINLINK_FEEDS",

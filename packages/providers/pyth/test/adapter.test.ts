@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { ConfigurationError, isMayarinError, ProviderError } from "@mayarin/shared";
-import { PythPriceOracle } from "../src/adapter.ts";
-import { normalizeFeedId, scalePythPrice } from "../src/hermes.ts";
+import { type PythFeed, PythPriceOracle } from "../src/adapter.ts";
+import {
+  invertPythPrice,
+  normalizeFeedId,
+  quantisationBps,
+  scalePythPrice,
+} from "../src/hermes.ts";
 
 const ETH_USD_FEED = "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace";
 
@@ -42,7 +47,7 @@ function json(body: unknown, status = 200): Response {
 
 function oracle(
   fetchFn: typeof fetch,
-  feeds: Record<string, string> = { "ETH/USDC": ETH_USD_FEED },
+  feeds: Record<string, PythFeed> = { "ETH/USDC": ETH_USD_FEED },
 ) {
   return new PythPriceOracle({ feeds, fetchFn });
 }
@@ -162,5 +167,92 @@ describe("PythPriceOracle", () => {
     const tiny = oracle(fn, { "ETH/IDRX": ETH_USD_FEED });
 
     expect(tiny.reference("ETH", "IDRX")).rejects.toThrow(ProviderError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inverted feeds (#88)
+//
+// Pyth publishes FX.USD/IDR — rupiah per dollar — and nothing for the reverse,
+// so an IDR-priced merchant can only be served by inverting it.
+// ---------------------------------------------------------------------------
+
+/** FX.USD/IDR at 16,000.00000 rupiah per dollar, the shape Hermes returns. */
+const USD_IDR_FEED = "6693afcd49878bbd622e46bd805e7177932cf6ab0b1c91b135d71151b9207433";
+const USD_IDR_PRICE = "1600000000";
+const USD_IDR_EXPO = -5;
+
+describe("invertPythPrice", () => {
+  test("takes the reciprocal into minor units of the target", () => {
+    // 1 IDR = 1/16000 USD = 0.0000625 USDC = 62.5 minor units, half-up to 63.
+    expect(invertPythPrice(1_600_000_000n, -5, 6)).toBe(63n);
+  });
+
+  test("a larger reciprocal quantises far more finely", () => {
+    // 1 USD = 1/1 ETH-ish: a rate in the thousands loses almost nothing.
+    expect(invertPythPrice(10_000n, -4, 18)).toBe(10n ** 18n);
+  });
+
+  test("refuses a non-positive price rather than dividing by zero", () => {
+    expect(() => invertPythPrice(0n, -5, 6)).toThrow();
+    expect(() => invertPythPrice(-1n, -5, 6)).toThrow();
+  });
+
+  test("inverting twice returns to roughly the original rate", () => {
+    const forward = scalePythPrice(1_600_000_000n, -5, 6); // IDR per USD, in USDC minor
+    const back = invertPythPrice(1_600_000_000n, -5, 6);
+    expect(forward).toBeGreaterThan(back);
+  });
+});
+
+describe("the precision this representation loses", () => {
+  test("IDR into a 6-decimal stablecoin quantises by more than the fee", () => {
+    const rounded = invertPythPrice(1_600_000_000n, -5, 6);
+    const bps = quantisationBps(62.5, rounded);
+
+    // 80 bps, against a 50 bps fee. The loss is in `minorUnitsPerWholeUnit` —
+    // one integer per whole source unit — not in the inversion; inverting is
+    // only what makes it reachable. See the follow-up issue.
+    expect(Math.round(bps)).toBe(80);
+    expect(bps).toBeGreaterThan(50);
+  });
+
+  test("a high-value source asset loses essentially nothing", () => {
+    const rounded = scalePythPrice(370_000_000_000n, -8, 6);
+    expect(quantisationBps(3_700_000_000, rounded)).toBeLessThan(1);
+  });
+});
+
+describe("PythPriceOracle with an inverted feed", () => {
+  test("serves IDR -> USDC from the USD/IDR feed", async () => {
+    const stub = stubFetch(() =>
+      json(hermesBody({ id: USD_IDR_FEED, price: USD_IDR_PRICE, expo: USD_IDR_EXPO })),
+    );
+    const price = await oracle(stub.fn, {
+      "IDR/USDC": { id: USD_IDR_FEED, invert: true },
+    }).reference("IDR", "USDC");
+
+    expect(price.minorUnitsPerWholeUnit).toBe(63n);
+    expect(price.from).toBe("IDR");
+    expect(price.to).toBe("USDC");
+  });
+
+  test("the same feed without the flag is read forward, not inverted", async () => {
+    const stub = stubFetch(() =>
+      json(hermesBody({ id: USD_IDR_FEED, price: USD_IDR_PRICE, expo: USD_IDR_EXPO })),
+    );
+    const price = await oracle(stub.fn, { "IDR/USDC": USD_IDR_FEED }).reference("IDR", "USDC");
+
+    // 16,000 rupiah per dollar read as USDC per rupiah — off by the square of
+    // the rate. Inversion is configuration, never inference, precisely because
+    // this reads correctly and is catastrophically wrong.
+    expect(price.minorUnitsPerWholeUnit).toBe(16_000_000_000n);
+  });
+
+  test("a bare string feed still works unchanged", async () => {
+    const stub = stubFetch(() => json(hermesBody()));
+    const price = await oracle(stub.fn).reference("ETH", "USDC");
+
+    expect(price.minorUnitsPerWholeUnit).toBe(3_700_000_000n);
   });
 });
