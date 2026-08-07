@@ -5,6 +5,47 @@ const BASE = { DATABASE_URL: "postgres://localhost:5433/mayarin" } as const;
 const XPUB =
   "xpub6EF8jXqFeFEW5bwMU7RpQtHkzE4KJxcqJtvkCjJumzW8CPpacXkb92ek4WzLQXjL93HycJwTPUAcuNxCqFPKKU5m5Z2Vq4nCyh5CyPeBFFr";
 
+describe("empty environment variables", () => {
+  test("an unused optional key left blank does not fail the boot", () => {
+    // How a dotenv file documents a key it does not use. Treating `""` as
+    // present made `.env.example` itself unbootable.
+    const config = loadConfig({
+      ...BASE,
+      TURNKEY_ORGANIZATION_ID: "",
+      TURNKEY_SIGN_WITH: "",
+      ZERO_EX_API_KEY: "",
+      DEPOSIT_XPUB: "",
+    });
+
+    expect(config.turnkeyOrganizationId).toBeUndefined();
+    expect(config.zeroExApiKey).toBeUndefined();
+  });
+
+  test("a blank key a layer requires still fails, as required", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        CHAIN_ENABLED: "true",
+        ASSET_RECEIPT_MODE: "manual",
+        CHAIN_RPC_URLS: '{"base-sepolia":"https://sepolia.base.org"}',
+        CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
+        DEPOSIT_XPUB: "",
+      }),
+    ).toThrow(/DEPOSIT_XPUB is required/i);
+  });
+
+  test("a blank key with no default is reported as missing, not as too short", () => {
+    let issues: string[] = [];
+    try {
+      loadConfig({ DATABASE_URL: "" });
+    } catch (error) {
+      issues = (error as { details?: { issues?: string[] } }).details?.issues ?? [];
+    }
+
+    expect(issues).toContain("databaseUrl: Required");
+  });
+});
+
 describe("chain configuration", () => {
   test("is absent unless enabled", () => {
     expect(loadConfig({ ...BASE }).chain).toBeUndefined();
