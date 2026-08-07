@@ -150,6 +150,17 @@ contract DepositForwarderTest is Test {
         assertEq(stranger.balance, 0);
     }
 
+    function test_forwarder_holds_its_own_destination_not_a_factory_lookup() public {
+        address deposit = factory.forwarderAddress(SALT);
+        vm.deal(deposit, 1 wei);
+        factory.sweepNative(SALT);
+
+        // Read at construction and immutable here, so the guarantee does not
+        // rest on a runtime call into the factory. A static analyzer cannot
+        // prove a value fetched per sweep is fixed, and it would be right not to.
+        assertEq(DepositForwarder(payable(deposit)).destination(), operator);
+    }
+
     function test_destination_cannot_be_changed_after_construction() public view {
         // No setter exists. This asserts the surface, so adding one later fails
         // a test rather than passing review unnoticed.

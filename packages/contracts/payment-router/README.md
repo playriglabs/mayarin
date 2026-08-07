@@ -217,7 +217,12 @@ tested:
 
 - **Foundry** — `forge build` green; `forge test` 68/68 (unit + fuzz @1000 runs +
   invariant @256×20). `forge snapshot` committed to `.gas-snapshot`.
-- **Slither** (0.11.6) — `slither . --config slither.config.json`. One finding:
+
+### PaymentRouter
+
+- **Slither** (0.11.6) — `slither src/PaymentRouter.sol --config-file
+slither.config.json`. Re-run after the `IPermit2.transferFrom` correction
+  (#77): unchanged, one finding:
   `locked-ether` (Informational/Low) — the contract has a payable function and
   no withdraw. **Triaged as known-safe by design**: the zero-resting-balance
   invariant means the contract never custodies ETH, so there is intentionally no
@@ -232,6 +237,47 @@ mythril-solc.json` (solc 0.8.28 via `solc-select`). Symbolic execution on a
     concerns (reentrancy, integer bounds, idempotency) is carried by Slither plus
     the Foundry fuzz/invariant suite above. Re-run with an unbounded window for a
     full mythril pass; the invocation is recorded in `mythril-solc.json`.
+
+### DepositForwarder + DepositForwarderFactory (#83)
+
+- **Slither** (0.11.6) — `slither src/DepositForwarderFactory.sol --config-file
+slither.config.json`. **4 findings, zero high/medium untriaged:**
+  - `incorrect-equality` ×2 — `balance == 0` in both sweeps. Not a guard on a
+    balance-dependent condition; it is an early return so a resumed sweep is a
+    no-op rather than a revert. Safe.
+  - `low-level-calls` — the native transfer in `sweepNative`. Intentional: a
+    `transfer`/`send` gas stipend would strand deposits destined for a contract
+    operator.
+  - `too-many-digits` — `keccak256(type(DepositForwarder).creationCode)`. False
+    positive on a hash literal.
+
+  One finding was **fixed rather than triaged**: `arbitrary-send-eth` (High)
+  flagged `sweepNative` sending to `FACTORY.destination()`, a value fetched by
+  external call at sweep time. It was fixed in practice — `destination` is
+  immutable on the factory — but not provable from the forwarder alone, and an
+  analyzer is right to flag a value obtained that way. `destination` is now read
+  once in the constructor and immutable in the forwarder's own bytecode. The
+  finding is gone, the runtime external call is gone, and the sweeps are cheaper.
+  `naming-convention` disappeared with it.
+
+- **Mythril** (0.24.8, via `mythril/myth` Docker — the package does not build on
+  Python 3.14) — `myth analyze --code <runtime> --execution-timeout 300`.
+  **Completed**, unlike the `PaymentRouter` run. 4 findings, all triaged as
+  false positives:
+  - `SWC-101 Integer Arithmetic Bugs` ×3 — the contract contains **no arithmetic
+    operators at all**; the flagged paths are compiler-generated memory and
+    return-data arithmetic inside `SafeERC20`. Mythril attributes them to
+    `constructor` because raw runtime bytecode carries no creation context.
+  - `SWC-113 Multiple Calls in a Single Transaction` — `sweepToken` does
+    `balanceOf` then `transfer`, both to the same token. The destination is
+    immutable, so a hostile token can waste its own payer's deposit and nothing
+    else.
+
+- **Foundry** — 18 tests including a 1000-run fuzz over CREATE2 prediction, and
+  vectors pinned against the TypeScript deriver from both sides.
+
+**Not yet done:** an adversarial review pass by someone other than the author,
+which `PaymentRouter` had and this has not.
 
 ## Policies
 
