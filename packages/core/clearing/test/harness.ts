@@ -24,6 +24,7 @@ import type { ContractPaymentPlanner } from "../src/contract-path.ts";
 import { ClearingEngine } from "../src/engine.ts";
 import { BasisPointsFeePolicy } from "../src/fees.ts";
 import { StaticRateProvider } from "../src/rate.ts";
+import { type TreasuryExecutionPort, TreasuryExecutor } from "../src/treasury.ts";
 import { InMemoryClearingRepository } from "../testing/index.ts";
 
 export const NOW = "2026-01-01T00:00:00.000Z";
@@ -40,6 +41,13 @@ export interface HarnessOptions {
   /** Contract-path planner (#61). Absent by default, like a chainless deployment. */
   readonly contractPlanner?: ContractPaymentPlanner;
   readonly contractExpiryGraceSeconds?: number;
+  /**
+   * Treasury execution port (#69). Absent by default, like a deployment with no
+   * operator key. Given here rather than a built `TreasuryExecutor` because the
+   * executor must share the engine's `LedgerService`, which this harness owns.
+   */
+  readonly treasuryPort?: TreasuryExecutionPort;
+  readonly treasuryMaxAttempts?: number;
 }
 
 export function createHarness(options: HarnessOptions = {}) {
@@ -88,6 +96,17 @@ export function createHarness(options: HarnessOptions = {}) {
     depositAddresses,
     depositDeriver,
     ...(options.contractPlanner === undefined ? {} : { contractPlanner: options.contractPlanner }),
+    ...(options.treasuryPort === undefined
+      ? {}
+      : {
+          treasuryExecutor: new TreasuryExecutor({
+            port: options.treasuryPort,
+            ledger,
+            ...(options.treasuryMaxAttempts === undefined
+              ? {}
+              : { maxAttempts: options.treasuryMaxAttempts }),
+          }),
+        }),
     ...(options.contractExpiryGraceSeconds === undefined
       ? {}
       : { contractExpiryGraceSeconds: options.contractExpiryGraceSeconds }),
