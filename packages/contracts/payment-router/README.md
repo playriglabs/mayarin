@@ -145,6 +145,24 @@ code path — admin or otherwise — by which funds can be redirected: config ca
 are storage-only (`test_config_changes_move_no_funds`), and the contract exposes
 no sweep, so dust sent to it is unsweepable (`test_no_sweep_dust_cannot_be_extracted`).
 
+## Deployments
+
+| Chain                | `PaymentRouter`                              | `TimelockController`                         |
+| -------------------- | -------------------------------------------- | -------------------------------------------- |
+| Base Sepolia (84532) | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
+
+Deployed 2026-08-07, block 45164044, verified on Basescan (solc 0.8.28,
+optimizer 200 runs, via-IR). Whitelisted at deploy: USDC as settlement and
+input asset, SwapRouter02 as the DEX router. Timelock delay is 0 on this
+testnet deployment; mainnet keeps the 48h default.
+
+Deploy with `scripts/deploy-base-sepolia.sh`, which runs `DeployPaymentRouter`
+and then `ConfigurePaymentRouter`. The second is not optional: the constructor
+whitelists settlement assets only, so a router that has not been configured
+reverts `RouterNotWhitelisted` on its first swap payment.
+
+`docs/chain.md` carries the full on-chain configuration and the role layout.
+
 ## Commands
 
 ```bash
