@@ -48,6 +48,8 @@ export interface HarnessOptions {
    */
   readonly treasuryPort?: TreasuryExecutionPort;
   readonly treasuryMaxAttempts?: number;
+  /** `refundTo` on the deposit path's signed order (#81). */
+  readonly treasuryAddress?: string;
 }
 
 export function createHarness(options: HarnessOptions = {}) {
@@ -96,6 +98,7 @@ export function createHarness(options: HarnessOptions = {}) {
     depositAddresses,
     depositDeriver,
     ...(options.contractPlanner === undefined ? {} : { contractPlanner: options.contractPlanner }),
+    ...(options.treasuryAddress === undefined ? {} : { treasuryAddress: options.treasuryAddress }),
     ...(options.treasuryPort === undefined
       ? {}
       : {

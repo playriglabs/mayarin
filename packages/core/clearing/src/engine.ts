@@ -99,6 +99,18 @@ export interface ClearingEngineOptions {
    * a settlement balance it had not acquired.
    */
   readonly treasuryExecutor?: TreasuryExecutor;
+  /**
+   * Receives swap output above `minOut` on the deposit path — the signed
+   * order's `refundTo`.
+   *
+   * Not the payer: a deposit-path payer scanned a QR or withdrew from an
+   * exchange, so no address of theirs is known, and the sending address of an
+   * exchange withdrawal is an omnibus hot wallet where a refund would be
+   * credited to nobody. The payer sent a fixed quoted amount and is owed
+   * nothing more, so the excess is Mayarin's — symmetric with a shortfall,
+   * which Mayarin absorbs. Both land in `FX_RESULT`.
+   */
+  readonly treasuryAddress?: string;
   readonly clock: Clock;
   readonly events?: EventPublisher;
   /**
@@ -130,6 +142,7 @@ export class ClearingEngine {
   readonly #depositDeriver: DepositAddressDeriver | undefined;
   readonly #contractPlanner: ContractPaymentPlanner | undefined;
   readonly #treasuryExecutor: TreasuryExecutor | undefined;
+  readonly #treasuryAddress: string | undefined;
   readonly #contractExpiryGraceSeconds: number;
   readonly #clock: Clock;
   readonly #events: EventPublisher;
@@ -146,6 +159,7 @@ export class ClearingEngine {
     this.#depositDeriver = options.depositDeriver;
     this.#contractPlanner = options.contractPlanner;
     this.#treasuryExecutor = options.treasuryExecutor;
+    this.#treasuryAddress = options.treasuryAddress;
     this.#contractExpiryGraceSeconds = options.contractExpiryGraceSeconds ?? 60;
     this.#clock = options.clock;
     this.#events = options.events ?? noopEventPublisher;
@@ -431,6 +445,13 @@ export class ClearingEngine {
     if (transaction.executionPath === "on-chain-contract") {
       return this.#lockContract(transaction);
     }
+    // A deposit that will be executed needs a signed order, and the order must
+    // be priced by whatever prices the swap. Running `RateProvider` here and
+    // the planner for the order would be two prices for one payment, free to
+    // disagree; so when execution is wired, the planner prices this path too.
+    if (await this.#executesDeposit(transaction)) {
+      return this.#lockExecutableDeposit(transaction);
+    }
     const quote = await this.#rates.quote(
       transaction.sourceAmount.asset,
       transaction.settlementAsset,
@@ -499,6 +520,141 @@ export class ClearingEngine {
    * engine's ordering rule: `allocate` is idempotent, so a crash between here
    * and the write means the resumed step re-derives the same address.
    */
+  /**
+   * Whether this deposit-path payment will be executed into the router.
+   *
+   * Requires an executor, a rail (so there is a deposit at all), and a planner
+   * to sign the order. A deployment missing any of them keeps the original
+   * behaviour: price through `RateProvider`, settle internally.
+   */
+  async #executesDeposit(transaction: ClearingTransaction): Promise<boolean> {
+    if (this.#treasuryExecutor === undefined || this.#contractPlanner === undefined) return false;
+    if (transaction.executionPath === "on-chain-contract") return false;
+
+    const intent = await this.#intents.getById(transaction.paymentIntentId);
+    return intent.payment !== undefined;
+  }
+
+  /**
+   * Locks a deposit that the treasury executor will convert.
+   *
+   * One pricing pass, the planner's, producing both the signed order and the
+   * amount the payer must send. `payerEstimate` is slippage-grossed, which is
+   * exactly right here: the payer sends it, the swap clears `minOut`, and the
+   * excess goes to `refundTo` — the treasury — where it is booked as an
+   * `FX_RESULT` credit. A shortfall debits the same account. The merchant is
+   * paid the locked net either way.
+   */
+  async #lockExecutableDeposit(transaction: ClearingTransaction): Promise<ClearingTransaction> {
+    const planner = this.#contractPlanner;
+    const treasury = this.#treasuryAddress;
+
+    if (planner === undefined || treasury === undefined) {
+      throw new ConfigurationError(
+        `Payment ${transaction.paymentIntentId} has a treasury executor but no ${planner === undefined ? "contract planner" : "treasury address"} to sign an order with`,
+        { paymentIntentId: transaction.paymentIntentId },
+      );
+    }
+
+    const intent = await this.#intents.getById(transaction.paymentIntentId);
+    const rail = intent.payment;
+    if (rail === undefined) {
+      throw new ValidationError(`Payment intent ${intent.id} names no payment rail`, {
+        paymentIntentId: intent.id,
+      });
+    }
+
+    const repository = this.#depositAddresses;
+    const deriver = this.#depositDeriver;
+    if (repository === undefined || deriver === undefined) {
+      throw new ConfigurationError(
+        `Payment intent ${intent.id} requests an on-chain rail but this deployment has no chain layer`,
+        { paymentIntentId: intent.id, chain: rail.chain, asset: rail.asset },
+      );
+    }
+
+    const lock = await planner.lock({
+      clearingTransactionId: transaction.id,
+      paymentIntentId: intent.id,
+      merchantId: transaction.merchant.id,
+      sourceAmount: transaction.sourceAmount,
+      settlementAsset: transaction.settlementAsset,
+      payerAsset: rail.asset,
+      chain: rail.chain,
+      // The payer has no address on this path; excess is Mayarin's.
+      payerAddress: treasury,
+    });
+
+    const netAmount = subtract(lock.settlementAmount, lock.fee);
+    if (!isPositive(netAmount)) {
+      throw new ValidationError(
+        "Fee consumes the entire settlement amount; nothing would reach the merchant",
+        {
+          settlementAmount: lock.settlementAmount.amount.toString(),
+          fee: lock.fee.amount.toString(),
+          asset: lock.settlementAmount.asset,
+        },
+      );
+    }
+
+    if (!isPositive(lock.payerEstimate)) {
+      throw new ValidationError("Deposit amount must be greater than zero", {
+        amount: lock.payerEstimate.amount.toString(),
+        asset: lock.payerEstimate.asset,
+      });
+    }
+
+    const now = this.#clock.now();
+    const allocated = await repository.allocate({
+      clearingTransactionId: transaction.id,
+      chain: rail.chain,
+      asset: rail.asset,
+      deriver,
+      now,
+    });
+
+    const deposit: ClearingDeposit = {
+      asset: rail.asset,
+      chain: rail.chain,
+      address: allocated.address,
+      // What the payer must send. Grossed, so a normal fill clears `minOut`.
+      amount: lock.payerEstimate,
+      rate: lock.rate,
+    };
+
+    return this.#apply(
+      transition(
+        transaction,
+        "PRICE_LOCKED",
+        now,
+        {
+          rate: lock.rate,
+          settlementAmount: lock.settlementAmount,
+          fee: lock.fee,
+          netAmount,
+          deposit,
+          contract: {
+            order: lock.order,
+            payerEstimate: lock.payerEstimate,
+            expiresAt: lock.expiresAt,
+          },
+        },
+        {
+          rate: lock.rate.minorUnitsPerWholeUnit.toString(),
+          rateSource: lock.rate.source,
+          settlementAmount: serializeMoney(lock.settlementAmount),
+          fee: serializeMoney(lock.fee),
+          netAmount: serializeMoney(netAmount),
+          depositAddress: deposit.address,
+          depositChain: deposit.chain,
+          depositAmount: serializeMoney(deposit.amount),
+          orderIntentId: lock.order.intentId,
+          refundTo: lock.order.refundTo,
+        },
+      ),
+    );
+  }
+
   async #lockDeposit(
     transaction: ClearingTransaction,
     now: Date,
