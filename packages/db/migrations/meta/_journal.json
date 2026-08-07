@@ -50,6 +50,13 @@
       "when": 1786083965694,
       "tag": "0006_curvy_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786086305242,
+      "tag": "0007_noisy_hobgoblin",
+      "breakpoints": true
     }
   ]
 }
