@@ -5,7 +5,7 @@ pragma solidity 0.8.28;
 /// @notice Only the surface PaymentRouter calls: `permit` (set allowance from a
 ///         payer's off-chain signature) and `transferFrom` (pull under that
 ///         allowance). The canonical Permit2 lives at
-///         `0x0000000000001fF3684F28c67538d4D072C22734` on every chain we deploy to.
+///         `0x000000000022D473030F116dDEE9F6B43aC78BA3` on every chain we deploy to.
 /// @dev Field order and types match Uniswap's IAllowanceTransfer exactly so the
 ///      real Permit2 accepts these calls on a fork. No Uniswap source dependency.
 interface IPermit2 {
@@ -27,6 +27,13 @@ interface IPermit2 {
     function permit(address owner, PermitSingle calldata permitSingle, bytes calldata signature) external;
 
     /// @dev Pulls `amount` of `token` from `from` to `to` under the allowance set
-    ///      by `permit`. Returns the amount actually transferred.
-    function transferFrom(address from, address to, uint160 amount, address token) external returns (uint160);
+    ///      by `permit`.
+    ///
+    ///      Returns nothing, and the `void` matters: canonical Permit2 declares
+    ///      this `external` with no return value, so a `returns (uint160)` here
+    ///      makes the router decode empty returndata and revert with no reason
+    ///      data — after the pull has already moved the payer's tokens in. A
+    ///      structural mock that returns a value hides this completely; only the
+    ///      fork test against the real contract catches it.
+    function transferFrom(address from, address to, uint160 amount, address token) external;
 }
