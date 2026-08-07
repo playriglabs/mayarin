@@ -5,7 +5,7 @@ import { priceSourceOf } from "@mayarin/execution";
 import { FixedSwapVenue } from "@mayarin/execution/testing";
 import { QuoteEngine } from "@mayarin/quote";
 import { FakeOrderSigner } from "@mayarin/quote/testing";
-import { FixedClock, money } from "@mayarin/shared";
+import { ConfigurationError, FixedClock, money } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
 import { ApiContractPlanner } from "../src/contract-layer.ts";
 import type { QuoteLayer } from "../src/quote-layer.ts";
@@ -19,7 +19,9 @@ const IDRX_TOKEN = "0x00000000000000000000000000000000000001d1";
 /** 60,000,000.00 IDRX per whole ETH. */
 const ETH_IDRX_RATE = 6_000_000_000n;
 
-function createPlanner() {
+// `null` means the merchant has no settlement address; `undefined` would be
+// swallowed by the default parameter and silently pass the address through.
+function createPlanner(settlementAddress: string | null = MERCHANT_SAFE) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
     { from: "ETH", to: "IDRX", minorUnitsPerWholeUnit: ETH_IDRX_RATE, source: "0x" },
@@ -50,12 +52,19 @@ function createPlanner() {
     ttlSeconds: 120,
   };
   const planner = new ApiContractPlanner({
-    contract: { paymentRouters: { base: ROUTER }, merchantSafe: MERCHANT_SAFE },
+    contract: { paymentRouters: { base: ROUTER } },
     quote,
     fees: new BasisPointsFeePolicy(50),
     stablecoins: new InMemoryStablecoinRegistry([
       { asset: "IDRX", onChain: [{ chain: "base", address: IDRX_TOKEN }] },
     ]),
+    merchantPolicies: {
+      policyFor: async () => ({
+        settlementAsset: "IDRX" as const,
+        acceptedAssets: [],
+        ...(settlementAddress === null ? {} : { settlementAddress }),
+      }),
+    },
     clock,
   });
   return { planner, venue, signer, clock };
@@ -129,5 +138,16 @@ describe("ApiContractPlanner", () => {
     expect(planner.lock({ ...lockRequest("ETH"), chain: "base-sepolia" })).rejects.toThrow(
       /No PaymentRouter deployed/,
     );
+  });
+});
+
+describe("merchant settlement address", () => {
+  test("refuses to sign an order for a merchant with no settlement address", async () => {
+    // No deployment-wide fallback exists on purpose: one would sign every
+    // merchant's payments to the same wallet, and `merchantSafe` is inside the
+    // EIP-712 digest the contract verifies, so the mistake is unrecoverable.
+    const { planner } = createPlanner(null);
+
+    await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ConfigurationError);
   });
 });

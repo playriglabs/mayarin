@@ -295,6 +295,8 @@ export const merchants = pgTable(
     settlementAsset: text("settlement_asset").notNull(),
     /** Assets a payer may pay this merchant with. Empty defers to the deployment. */
     acceptedAssets: text("accepted_assets").array().notNull(),
+    /** Where the merchant is paid on-chain — the order's `merchantSafe`. */
+    settlementAddress: text("settlement_address"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },

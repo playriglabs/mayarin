@@ -28,6 +28,18 @@ export interface Merchant {
    * the way in. Empty means the deployment default applies.
    */
   readonly acceptedAssets: readonly AssetCode[];
+  /**
+   * Where this merchant is paid on-chain — the signed order's `merchantSafe`.
+   *
+   * Optional because a merchant who only settles off-chain never needs one, but
+   * the on-chain-contract path refuses to lock without it. There is deliberately
+   * no deployment-wide fallback: a single configured address would pay every
+   * merchant on the deployment into the same wallet.
+   *
+   * Not required to be a Safe. The contract treats the field as opaque, and #11
+   * is what makes it a managed smart account.
+   */
+  readonly settlementAddress?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }

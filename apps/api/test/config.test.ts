@@ -140,30 +140,25 @@ describe("contract path configuration", () => {
   const CONTRACT = {
     CONTRACT_PATH_ENABLED: "true",
     PAYMENT_ROUTERS: '{"base":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0"}',
-    MERCHANT_SAFE_ADDRESS: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   } as const;
 
   test("is absent unless enabled", () => {
     expect(loadConfig({ ...BASE }).contract).toBeUndefined();
   });
 
-  test("resolves with a router, a Safe and a route-capable venue", () => {
+  test("resolves with a router and a route-capable venue", () => {
     const config = loadConfig({ ...BASE, ...QUOTE, ...CONTRACT });
     expect(config.contract?.paymentRouters.base).toBe("0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0");
-    expect(config.contract?.merchantSafe).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
   });
 
   test("requires the quote layer", () => {
     expect(() => loadConfig({ ...BASE, ...CONTRACT })).toThrow(/QUOTE_ENABLED/);
   });
 
-  test("requires a deployed router and a well-formed Safe", () => {
+  test("requires a deployed router", () => {
     expect(() => loadConfig({ ...BASE, ...QUOTE, ...CONTRACT, PAYMENT_ROUTERS: "{}" })).toThrow(
       /PAYMENT_ROUTERS/,
     );
-    expect(() =>
-      loadConfig({ ...BASE, ...QUOTE, ...CONTRACT, MERCHANT_SAFE_ADDRESS: "not-an-address" }),
-    ).toThrow(/MERCHANT_SAFE_ADDRESS/);
   });
 
   test("refuses a venue set with no route-capable venue — LiFi is price-only", () => {

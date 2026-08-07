@@ -24,6 +24,14 @@ export interface MerchantAssetPolicy {
    * preference and the deployment default stands.
    */
   readonly acceptedAssets: readonly AssetCode[];
+  /**
+   * Where the merchant is paid on-chain — the signed order's `merchantSafe`.
+   *
+   * Absent for a merchant who settles off-chain only. The contract path refuses
+   * to lock without it rather than falling back to a deployment-wide address,
+   * which would pay every merchant into the same wallet.
+   */
+  readonly settlementAddress?: string;
 }
 
 /** Reads one merchant's asset policy. */

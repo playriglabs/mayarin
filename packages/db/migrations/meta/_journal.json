@@ -43,6 +43,13 @@
       "when": 1786079051180,
       "tag": "0005_dapper_harrier",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786083965694,
+      "tag": "0006_curvy_eternity",
+      "breakpoints": true
     }
   ]
 }
