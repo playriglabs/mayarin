@@ -164,6 +164,7 @@ export class DrizzleMerchantAssetPolicySource implements MerchantAssetPolicySour
     return {
       settlementAsset: merchant.settlementAsset,
       acceptedAssets: merchant.acceptedAssets,
+      ...present("settlementAddress", merchant.settlementAddress ?? null),
     };
   }
 }
@@ -174,6 +175,7 @@ function toMerchant(row: MerchantRow): Merchant {
     name: row.name,
     settlementAsset: assertAssetCode(row.settlementAsset, row.id),
     acceptedAssets: row.acceptedAssets.map((asset) => assertAssetCode(asset, row.id)),
+    ...present("settlementAddress", row.settlementAddress),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -199,6 +201,7 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
     name: merchant.name,
     settlementAsset: merchant.settlementAsset,
     acceptedAssets: [...merchant.acceptedAssets],
+    settlementAddress: merchant.settlementAddress ?? null,
     createdAt: merchant.createdAt,
     updatedAt: merchant.updatedAt,
   };

@@ -38,6 +38,7 @@ interface Args {
   permissions: string | undefined;
   settlementAsset: string | undefined;
   acceptedAssets: string | undefined;
+  settlementAddress: string | undefined;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -48,6 +49,7 @@ function parseArgs(argv: readonly string[]): Args {
     permissions: undefined,
     settlementAsset: undefined,
     acceptedAssets: undefined,
+    settlementAddress: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
@@ -77,6 +79,10 @@ function parseArgs(argv: readonly string[]): Args {
         args.acceptedAssets = value;
         i++;
         break;
+      case "--settlement-address":
+        args.settlementAddress = value;
+        i++;
+        break;
       case "--help":
       case "-h":
         console.log(USAGE);
@@ -93,7 +99,8 @@ function parseArgs(argv: readonly string[]): Args {
 
 const USAGE = `Usage: bun run seed:merchant                       # interactive prompts
        bun run seed:merchant -- --email <email> --merchant-name <name> [--password <pw>] [--permissions ...]
-                             [--settlement-asset USDC] [--accepted-assets ETH,USDC]`;
+                             [--settlement-asset USDC] [--accepted-assets ETH,USDC]
+                             [--settlement-address 0x...]`;
 
 const DEFAULT_PERMISSIONS = ["payments:read", "users:manage", "admin:access"] as const;
 
@@ -171,6 +178,17 @@ const acceptedAssets =
     ? [settlementAsset]
     : acceptedAnswer.split(",").map((asset) => parseAsset(asset.trim()));
 
+// On-chain settlement address. Blank is allowed — a merchant who settles
+// off-chain never needs one, and the contract path refuses to lock without it
+// rather than paying into some shared default.
+const addressAnswer = args.settlementAddress ?? ask("On-chain settlement address (blank = none): ");
+const settlementAddress =
+  addressAnswer === undefined || addressAnswer === "" ? undefined : addressAnswer.trim();
+if (settlementAddress !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(settlementAddress)) {
+  console.error(`Not a valid address: ${settlementAddress}`);
+  process.exit(1);
+}
+
 const config = loadConfig();
 const container = createContainer({ config });
 
@@ -181,6 +199,7 @@ try {
     merchantName,
     settlementAsset,
     acceptedAssets,
+    ...(settlementAddress === undefined ? {} : { settlementAddress }),
     permissions,
   });
   console.log(`merchantId: ${result.user.merchantId}`);

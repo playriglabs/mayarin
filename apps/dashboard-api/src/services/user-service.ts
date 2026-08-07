@@ -44,6 +44,8 @@ export interface CreateMerchantAccountInput {
   readonly settlementAsset: AssetCode;
   /** Assets a payer may pay them with; empty defers to the deployment default. */
   readonly acceptedAssets: readonly AssetCode[];
+  /** Where they are paid on-chain. Absent for an off-chain-only merchant. */
+  readonly settlementAddress?: string;
   readonly permissions: readonly Permission[];
 }
 
@@ -79,6 +81,9 @@ export class UserService {
       name: input.merchantName,
       settlementAsset: input.settlementAsset,
       acceptedAssets: input.acceptedAssets,
+      ...(input.settlementAddress === undefined
+        ? {}
+        : { settlementAddress: input.settlementAddress }),
       createdAt: now,
       updatedAt: now,
     };

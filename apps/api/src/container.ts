@@ -99,6 +99,10 @@ export function createContainer({
   const depositDeriver =
     chain === undefined ? undefined : new HdDepositAddressDeriver({ xpub: chain.xpub });
 
+  const merchantPolicies = new DrizzleMerchantAssetPolicySource(
+    new DrizzleMerchantRepository(handle.db),
+  );
+
   const intents = new PaymentIntentService({
     repository: new DrizzlePaymentIntentRepository(handle.db),
     clock,
@@ -106,9 +110,7 @@ export function createContainer({
     registry,
     // A merchant's own settlement asset outranks `config.settlementAsset`,
     // which stays as the fallback for a merchant that has not chosen one.
-    merchantPolicies: new DrizzleMerchantAssetPolicySource(
-      new DrizzleMerchantRepository(handle.db),
-    ),
+    merchantPolicies,
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
@@ -144,6 +146,7 @@ export function createContainer({
           quote,
           fees,
           stablecoins: registry,
+          merchantPolicies,
           clock,
         })
       : undefined;

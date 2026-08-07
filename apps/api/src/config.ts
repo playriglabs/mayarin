@@ -175,7 +175,6 @@ const configSchema = z.object({
    * The Safe that receives settlements. One address for the whole deployment
    * — per-merchant wallets arrive with Phase 4 (#11).
    */
-  merchantSafeAddress: z.string().min(1).optional(),
   /** `SwapRouter02` address per chain, for the Uniswap route source. */
   uniswapSwapRouters: jsonObject<Partial<Record<ChainId, string>>>("UNISWAP_SWAP_ROUTERS", "{}"),
   nodeEnv: z.string().default("development"),
@@ -210,7 +209,6 @@ export interface QuoteConfig {
 /** Resolved contract-path configuration. Present only when `CONTRACT_PATH_ENABLED=true`. */
 export interface ContractConfig {
   readonly paymentRouters: Readonly<Partial<Record<ChainId, string>>>;
-  readonly merchantSafe: string;
 }
 
 export type Config = RawConfig & {
@@ -347,12 +345,6 @@ function resolveContract(
     }
   }
 
-  if (data.merchantSafeAddress === undefined) {
-    issues.push("MERCHANT_SAFE_ADDRESS is required when CONTRACT_PATH_ENABLED is true");
-  } else if (!ADDRESS_PATTERN.test(data.merchantSafeAddress)) {
-    issues.push("MERCHANT_SAFE_ADDRESS is not a valid address");
-  }
-
   const routeCapable = (quote?.venues ?? []).filter(
     (venue) => venue === "0x" || venue === "uniswap",
   );
@@ -371,10 +363,7 @@ function resolveContract(
     });
   }
 
-  return {
-    paymentRouters: data.paymentRouters,
-    merchantSafe: data.merchantSafeAddress ?? "",
-  };
+  return { paymentRouters: data.paymentRouters };
 }
 
 /**
@@ -549,7 +538,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     quoteSignerPrivateKey: env.QUOTE_SIGNER_PRIVATE_KEY,
     contractPathEnabled: env.CONTRACT_PATH_ENABLED,
     paymentRouters: env.PAYMENT_ROUTERS,
-    merchantSafeAddress: env.MERCHANT_SAFE_ADDRESS,
     uniswapSwapRouters: env.UNISWAP_SWAP_ROUTERS,
     nodeEnv: env.NODE_ENV,
   });

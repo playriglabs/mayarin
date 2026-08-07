@@ -25,7 +25,7 @@ import type {
   FeePolicy,
 } from "@mayarin/clearing";
 import type { ExecutableRoute, SwapRouteSource } from "@mayarin/execution";
-import type { PaymentIntentService } from "@mayarin/payment-intent";
+import type { MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
 import { buildPayEthCall, deriveIntentId, type RouterCall } from "@mayarin/provider-evm";
 import { ZeroExRouteSource } from "@mayarin/provider-swap-0x";
 import { UniswapRouteSource } from "@mayarin/provider-swap-uniswap";
@@ -58,6 +58,13 @@ export interface ContractLayerOptions {
   readonly quote: QuoteLayer;
   readonly fees: FeePolicy;
   readonly stablecoins: StablecoinRegistry;
+  /**
+   * Where each merchant is paid. Read per lock rather than configured once:
+   * `merchantSafe` is inside the EIP-712 digest the contract verifies, so a
+   * single deployment-wide address would pay every merchant into the same
+   * wallet with no way to tell the payments apart afterwards.
+   */
+  readonly merchantPolicies: MerchantAssetPolicySource;
   readonly clock: Clock;
 }
 
@@ -69,7 +76,15 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
   }
 
   async lock(request: ContractLockRequest): Promise<ContractLock> {
-    const { contract, quote, fees, stablecoins, clock } = this.#options;
+    const { contract, quote, fees, stablecoins, merchantPolicies, clock } = this.#options;
+
+    const merchantSafe = (await merchantPolicies.policyFor(request.merchantId))?.settlementAddress;
+    if (merchantSafe === undefined) {
+      throw new ConfigurationError(
+        `Merchant ${request.merchantId} has no settlement address; the on-chain-contract path cannot sign an order without one`,
+        { merchantId: request.merchantId },
+      );
+    }
 
     const router = contract.paymentRouters[request.chain];
     if (router === undefined) {
@@ -110,7 +125,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     const context = {
       intentId: deriveIntentId(request.clearingTransactionId),
       settlementToken,
-      merchantSafe: contract.merchantSafe as Hex,
+      merchantSafe: merchantSafe as Hex,
       refundTo: request.payerAddress as Hex,
     };
 
