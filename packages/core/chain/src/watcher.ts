@@ -167,10 +167,29 @@ export class WalletWatcher {
     now: Date,
   ): Promise<{ confirmed: number; orphaned: number }> {
     const probable = await this.#deposits.listProbable(chain, this.#probeLimit);
-    const inWatch = probable.filter((deposit) =>
-      isWithinReorgWatch(confirmationsOf(deposit.blockNumber, headNumber), this.#policy),
-    );
-    if (inWatch.length === 0) return { confirmed: 0, orphaned: 0 };
+    const inWatch: Deposit[] = [];
+    // Past the reorg-watch window a deposit is final — that is what the window
+    // means. For a CONFIRMED one that just means stop probing. For one still
+    // PENDING it has to mean confirm it, or it never confirms at all and the
+    // payment it funds never advances.
+    //
+    // A deposit reaches that state whenever it is first *seen* deep rather than
+    // first *arriving* deep: catch-up after downtime, a wide `blockRange`, or a
+    // tick interval longer than the window. Dropping those silently stranded
+    // every deposit that arrived while the watcher was not running.
+    const finalPending: Deposit[] = [];
+
+    for (const deposit of probable) {
+      if (isWithinReorgWatch(confirmationsOf(deposit.blockNumber, headNumber), this.#policy)) {
+        inWatch.push(deposit);
+      } else if (deposit.status === "PENDING") {
+        finalPending.push(deposit);
+      }
+    }
+
+    if (inWatch.length === 0 && finalPending.length === 0) {
+      return { confirmed: 0, orphaned: 0 };
+    }
 
     // One probe per distinct height: N deposits in one block cost one call.
     const hashes = new Map<bigint, string | null>();
@@ -179,7 +198,11 @@ export class WalletWatcher {
       hashes.set(deposit.blockNumber, await this.#client.blockHash(chain, deposit.blockNumber));
     }
 
-    const updates: DepositStatusUpdate[] = [];
+    const updates: DepositStatusUpdate[] = finalPending.map((deposit) => ({
+      id: deposit.id,
+      status: "CONFIRMED" as const,
+      at: now,
+    }));
     const orphans: Deposit[] = [];
 
     for (const deposit of inWatch) {

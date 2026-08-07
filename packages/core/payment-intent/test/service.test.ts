@@ -278,3 +278,32 @@ describe("isSameAsset", () => {
     expect(isSameAsset(policy, "USDT")).toBe(false);
   });
 });
+
+describe("a native payer asset", () => {
+  test("is admissible even though a stablecoin registry cannot know it", async () => {
+    // The registry holds stablecoins. ETH is not one, so asking it whether ETH
+    // is an admitted deposit asset can only ever answer no — which would refuse
+    // every native deposit the deposit path exists to take.
+    const intent = await service(registry()).create({
+      merchant,
+      amount: money(10n, "USD"),
+      source: { type: "manual" },
+      settlementAsset: "USDC",
+      payment: { asset: "ETH", chain: "base-sepolia" },
+    });
+
+    expect(intent.payment?.asset).toBe("ETH");
+  });
+
+  test("a stablecoin the registry does not admit is still refused", async () => {
+    expect(
+      service(registry()).create({
+        merchant,
+        amount: money(10n, "USD"),
+        source: { type: "manual" },
+        settlementAsset: "USDC",
+        payment: { asset: "USDT", chain: "base-sepolia" },
+      }),
+    ).rejects.toThrow(/not a deposit asset/i);
+  });
+});

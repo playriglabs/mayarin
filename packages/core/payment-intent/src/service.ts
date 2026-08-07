@@ -11,6 +11,7 @@ import {
   type AssetCode,
   type Clock,
   type EventPublisher,
+  getAsset,
   IdempotencyConflictError,
   type Money,
   NotFoundError,
@@ -147,7 +148,13 @@ export class PaymentIntentService {
           },
         );
       }
-      if (command.payment !== undefined) {
+      // Only a stablecoin payer asset is the registry's to admit. A native
+      // asset has no token address and is not a stablecoin, so asking a
+      // stablecoin registry about it is a category error — it can only ever
+      // answer no, which would refuse every ETH deposit the product exists to
+      // take. What bounds a native payer asset instead is the merchant's
+      // `acceptedAssets` above and the chain the deployment configures.
+      if (command.payment !== undefined && getAsset(command.payment.asset).kind === "stablecoin") {
         const { asset, chain } = command.payment;
         if (!(await this.#registry.isDepositAsset(asset, chain))) {
           throw new ValidationError(
