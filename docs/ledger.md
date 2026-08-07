@@ -60,6 +60,25 @@ unchanged; what changes is the source — the chain is truth, the ledger is a
 derived, reconciled projection. Divergence (missed event, reorg, indexing lag,
 under/over payment) is detected and surfaced, not silently absorbed.
 
+**Two events, two kinds of refund.** `PaymentCompleted` is the settlement
+signal and is what advances a payment — the indexer keys off it alone. But it
+does not describe everything the payer got back. Its `refundAmount` is the
+excess **in the settlement asset**, the `output − minOut` left over after the
+merchant and treasury are paid. The contract also emits
+
+```solidity
+event ResidueRefunded(
+  bytes32 indexed intentId, address indexed asset, address indexed to, uint256 amount
+);
+```
+
+when a route partially fills (unconsumed input returned to `refundTo`) or an
+exact-output native route hands back the unspent remainder — **in whatever
+asset arrived**, which is usually not the settlement asset, and `address(0)`
+for native. Reconciling settlement needs only `PaymentCompleted`; a complete
+picture of what the payer received back needs both, and the two cannot be
+summed because they are denominated differently.
+
 ---
 
 ## Related

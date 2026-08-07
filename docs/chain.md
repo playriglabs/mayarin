@@ -11,15 +11,24 @@ already exposes the `recordAssetReceived` seam; the watcher is the thing that
 now calls it, replacing the Phase 1 stand-in where `auto` treated a payment as
 funded the moment it reached `PAYMENT_PENDING`.
 
-> **Execution paths.** This is the **deposit-matching** path — shipped, and the
-> **fallback** once Phase 3 lands. The **on-chain** path (Phase 3, primary)
-> routes the customer's payment through `PaymentRouter.sol`, which atomically
-> swaps and settles and emits a `PaymentCompleted` event an indexer consumes.
-> The deposit-address + watcher path remains for direct transfers and chains
-> without a deployed contract. The chain client and reorg policy below feed both
-> paths. The path is selected per intent (`ExecutionPath` on `PaymentIntent`,
-> defaulted from the `EXECUTION_PATH` config slot); `on-chain-contract` is a
-> throwing stub until Phase 3, so deposit-matching is the only path that runs.
+> **Execution paths.** This is the **deposit-matching** path. The **on-chain**
+> path routes the customer's payment through `PaymentRouter.sol`, which
+> atomically swaps and settles and emits a `PaymentCompleted` event an indexer
+> consumes. The chain client and reorg policy below feed both paths. The path is
+> selected per intent (`ExecutionPath` on `PaymentIntent`, defaulted from the
+> `EXECUTION_PATH` config slot).
+>
+> **Neither is a fallback for the other — they serve different payers.** The
+> contract path needs the payer to _connect_ a wallet: it submits calldata, a
+> backend signature and a route, and the signed order's `refundTo` means the
+> payer's address must be known before they pay. A payer who **scans a QR** or
+> pastes an address — any wallet, and every custodial exchange withdrawal —
+> can only do a plain transfer, so deposit-matching is the only path they can
+> take. In a retail market that is most payers, not an edge case.
+>
+> Since #61 the contract path runs end to end up to `PAYMENT_PENDING`, where it
+> waits for `recordPaymentCompleted`; the indexer that calls it (#8) and the
+> deployed contract (#29) are what remain.
 
 ---
 
@@ -89,7 +98,9 @@ skipping it, and re-scanning is free because recording upserts on
 `recordAssetReceived` already returns early when the transaction is not in
 `PAYMENT_PENDING`, so a second tick over an already-funded address does nothing.
 
-There is deliberately no indexer. Per-intent HD addresses are created
+There is deliberately no indexer **on this path**. (The contract path is the
+opposite case — a single known address emitting `PaymentCompleted`, which is
+exactly what an indexer is for; see #8.) Per-intent HD addresses are created
 continuously and derived off-chain, so neither a static address filter nor a
 factory pattern covers them, and indexing every `Transfer` on a token contract
 means backfilling millions to find the tens that matter. What the watcher
