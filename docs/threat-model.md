@@ -79,6 +79,41 @@ not imply otherwise.
 
 ---
 
+## Operator custody on the deposit path — **accepted, bounded**
+
+The deposit path's forwarder sweeps to an operator key, which then calls the
+router. Between those two transactions the operator holds the payer's asset.
+
+Nothing else in the system has this property, and that is deliberate:
+`ChainClient` is read-only so a bug in the watch path has nothing to move funds
+with, and `DepositAddressDeriver` holds a watch-only xpub for the same reason.
+`TreasuryExecutionPort` is where that property is knowingly given up, for one
+caller.
+
+**Why the hop exists at all.** `PaymentRouter.payERC20` binds the Permit2 owner
+to `msg.sender`, so a forwarder calling the router directly would have to
+satisfy Permit2 via ERC-1271 — a signature predicate on a fund-touching
+contract, where getting it wrong drains every forwarder. Changing the router is
+a non-goal. Native deposits need none of this: `payEth` is payable, so only
+ERC-20 deposits pass through the operator.
+
+**What bounds it.** The window is one transaction, not a balance the operator
+accumulates: the executor sweeps and submits in the same step. The forwarders
+themselves custody nothing — `destination` is immutable on the factory, so the
+only thing an attacker who calls a sweep achieves is paying gas to move funds
+where they were always going.
+
+**What is not covered.** A compromised operator key can take any deposit that is
+mid-flight when it is compromised. There is no timelock on this path and no
+second signature. Sizing that exposure means bounding how much can be in flight
+at once, which nothing currently does.
+
+The deposit forwarder and its factory have not had the static-analysis pass
+`PaymentRouter` had (Slither, Mythril, ranked review) and should before they
+hold real value.
+
+---
+
 ## Related
 
 - [Stablecoin Registry](./stablecoin.md)

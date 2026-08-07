@@ -29,9 +29,8 @@ funded the moment it reached `PAYMENT_PENDING`.
 > Since #61 the contract path runs end to end up to `PAYMENT_PENDING`, where it
 > waits for `recordPaymentCompleted`. Both halves of that are now in place: the
 > indexer that calls it (#8) and the deployed contract (#29, addresses below).
-> What the **deposit** path still lacks is the trigger — nothing moves a matched
-> deposit into the router (#69), and the ledger has no account for the payer
-> asset held between receipt and swap (#70).
+> The **deposit** path's trigger is the treasury executor (#69), described
+> below, and its accounting is in [`ledger.md`](./ledger.md) (#70).
 
 ---
 
@@ -224,6 +223,73 @@ configured asset fails to start rather than failing on its first payment.
 Enabling the layer while `ASSET_RECEIPT_MODE=auto` is also a boot failure —
 auto confirmation alongside a live watcher would fund payments nobody paid.
 `WATCHER_INTERVAL_MS=0` disables the timer, leaving only the admin route.
+
+---
+
+## Treasury execution
+
+A deposit address receives **exactly** the quoted amount, so it cannot also pay
+the gas to move it. That is why the deposit path detected the payer's asset and
+stopped: nothing could call the router on the payer's behalf, and the payer —
+who sent a plain transfer from a wallet or an exchange — has no further part to
+play.
+
+Three options were possible. Grossing the quote up hides Mayarin's operating
+cost in the payer's price. Pre-funding every deposit address costs a transaction
+per payment, before the payment, which is worse than the payment it enables for
+small amounts. A **counterfactual contract** removes the problem instead of
+paying for it, and that is what ships.
+
+```
+DepositForwarderFactory.forwarderAddress(salt) -> deposit address
+  derived off-chain, with no key and no transaction, before any code exists
+  there. The payer sends to it.
+
+executor: sweep(salt) -> deploy the forwarder and move the balance to the
+  operator, gas paid by the operator
+        → assemble payEth / payERC20 from the persisted signed order
+        → submit, measure the output and the gas actually spent
+        → post the swap and the gas → SETTLING
+```
+
+`DepositForwarder` is `receive()`, `sweepNative`, `sweepToken`, and no
+decisions. It does not know about orders, routes, `minOut` or the router.
+Everything requiring judgement stays in the executor off-chain; everything
+requiring atomicity stays in `PaymentRouter`.
+
+The forwarder takes **no constructor arguments**, so its init-code hash is a
+constant and the deposit address is a pure function of the salt. That is
+load-bearing: an address that cannot be derived from the salt alone cannot be
+shown to a payer before it is funded. Both sides of the derivation are pinned to
+the same vectors — Solidity from the CREATE2 formula, TypeScript from viem —
+because a divergence would mean payers sending to addresses the factory can
+never deploy to.
+
+The sweeps are permissionless. `destination` is immutable on the factory, so an
+untrusted caller can only pay gas to move funds where they were always going;
+an owner check would buy nothing and add a way to be wrong.
+
+**Gas is the operator's, and it is booked.** See `GAS_EXPENSE` in
+[`ledger.md`](./ledger.md).
+
+**`minOut` failure is bounded.** A miss hard-reverts on-chain: it costs gas and
+moves nothing, so a retry with a fresh route is cheap and usually right. Past
+the attempt bound the failure is terminal — further retries bet that the price
+comes back, and while it does not, Mayarin holds the payer's asset against an
+obligation it cannot discharge. Nothing is booked when execution never
+succeeded, so the held asset stays visible rather than being silently cleared.
+
+The operator momentarily holds the payer's asset between the sweep and the
+submission. That is a custody-perimeter change and is recorded in
+[`threat-model.md`](./threat-model.md).
+
+**Not yet closed.** The deposit path does not sign an order — `PRICE_LOCKED`
+consults the contract planner only for `on-chain-contract` — so a deposit-path
+transaction reaches `ASSET_RECEIVED` with nothing for the router to verify. The
+executor refuses rather than improvising. Closing it means signing at
+`PRICE_LOCKED` for `deposit-match` too, with `refundTo` set to the treasury:
+the payer paid a fixed quoted amount, so output above `minOut` is Mayarin's —
+the same reasoning `FX_RESULT` encodes for a shortfall.
 
 ---
 
