@@ -88,6 +88,13 @@ const configSchema = z.object({
     .transform((value) => value === "true"),
   chainRpcUrls: jsonObject<RpcUrlMap>("CHAIN_RPC_URLS", "{}"),
   chainAssets: jsonObject<TokenMap>("CHAIN_ASSETS", "{}"),
+  /**
+   * The chain's own currency, which has no contract address and emits no
+   * `Transfer` log. Naming it here is what lets the watcher read native
+   * deposits out of block bodies; without it, an ETH rail locks a price, issues
+   * a deposit address, and then never notices the payment.
+   */
+  chainNativeAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("CHAIN_NATIVE_ASSETS", "{}"),
   chainConfirmations: jsonObject<ConfirmationMap>("CHAIN_CONFIRMATIONS", "{}"),
   chainStartBlocks: jsonObject<StartBlockMap>("CHAIN_START_BLOCKS", "{}"),
   depositXpub: z.string().min(1).optional(),
@@ -620,6 +627,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,
     chainAssets: env.CHAIN_ASSETS,
+    chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainConfirmations: env.CHAIN_CONFIRMATIONS,
     chainStartBlocks: env.CHAIN_START_BLOCKS,
     depositXpub: env.DEPOSIT_XPUB,

@@ -5,10 +5,9 @@
  * mid-flight before accepting traffic — a restart must not strand a payment.
  */
 
-import { pairsOf } from "@mayarin/stablecoin";
 import { createApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
-import { createContainer } from "./container.ts";
+import { createContainer, watchedPairs } from "./container.ts";
 
 const config = loadConfig();
 const container = createContainer({ config });
@@ -19,7 +18,7 @@ if (recovered.length > 0) {
 }
 
 const chain = config.chain;
-const pairs = pairsOf(config.stablecoins);
+const pairs = watchedPairs(config);
 if (chain !== undefined && chain.intervalMs > 0 && container.watchers.size > 0) {
   setInterval(() => {
     void (async () => {
