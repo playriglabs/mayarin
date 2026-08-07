@@ -17,20 +17,38 @@
 import type { OraclePrice, PriceOracle } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import { type AssetCode, assetDecimals, ConfigurationError, ProviderError } from "@mayarin/shared";
-import { hermesLatestResponseSchema, normalizeFeedId, scalePythPrice } from "./hermes.ts";
+import {
+  hermesLatestResponseSchema,
+  invertPythPrice,
+  normalizeFeedId,
+  scalePythPrice,
+} from "./hermes.ts";
 
 export const DEFAULT_HERMES_ENDPOINT = "https://hermes.pyth.network";
 
+/**
+ * A feed for one pair.
+ *
+ * A bare string is the feed quoted in the same direction as the pair. The
+ * object form names a feed quoted the other way round — Pyth publishes
+ * `FX.USD/IDR` and no reverse, so `IDR/USDC` can only be served by inverting it.
+ *
+ * Configuration rather than inference: the adapter deliberately infers no
+ * symmetry, because an implicit inversion is the kind of thing that reads
+ * correctly and is off by the square of the rate.
+ */
+export type PythFeed = string | { readonly id: string; readonly invert?: boolean };
+
 export interface PythPriceOracleOptions {
-  /** Pair (`rateKey(from, to)`) to Hermes feed id, e.g. `"ETH/USDC": "ff61…"`. */
-  readonly feeds: Readonly<Record<string, string>>;
+  /** Pair (`rateKey(from, to)`) to Hermes feed, e.g. `"ETH/USDC": "ff61…"`. */
+  readonly feeds: Readonly<Record<string, PythFeed>>;
   readonly endpoint?: string;
   /** Injected for tests; defaults to the global `fetch`. */
   readonly fetchFn?: typeof fetch;
 }
 
 export class PythPriceOracle implements PriceOracle {
-  readonly #feeds: ReadonlyMap<string, string>;
+  readonly #feeds: ReadonlyMap<string, PythFeed>;
   readonly #endpoint: string;
   readonly #fetchFn: typeof fetch;
 
@@ -41,10 +59,13 @@ export class PythPriceOracle implements PriceOracle {
   }
 
   async reference(from: AssetCode, to: AssetCode): Promise<OraclePrice> {
-    const feedId = this.#feeds.get(rateKey(from, to));
-    if (feedId === undefined) {
+    const feed = this.#feeds.get(rateKey(from, to));
+    if (feed === undefined) {
       throw new ConfigurationError(`No Pyth feed configured for ${from} -> ${to}`, { from, to });
     }
+
+    const feedId = typeof feed === "string" ? feed : feed.id;
+    const invert = typeof feed === "string" ? false : feed.invert === true;
 
     const body = await this.#latest(feedId, from, to);
     const wanted = normalizeFeedId(feedId);
@@ -67,7 +88,9 @@ export class PythPriceOracle implements PriceOracle {
       });
     }
 
-    const minorUnitsPerWholeUnit = scalePythPrice(significand, entry.price.expo, assetDecimals(to));
+    const minorUnitsPerWholeUnit = invert
+      ? invertPythPrice(significand, entry.price.expo, assetDecimals(to))
+      : scalePythPrice(significand, entry.price.expo, assetDecimals(to));
     if (minorUnitsPerWholeUnit <= 0n) {
       throw new ProviderError(
         `Pyth price for ${from} -> ${to} rounds to zero minor units of ${to}`,

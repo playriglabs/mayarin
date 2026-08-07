@@ -8,6 +8,7 @@
  * `adapter.ts`.
  */
 
+import { ValidationError } from "@mayarin/shared";
 import { z } from "zod";
 
 export const hermesPriceSchema = z.object({
@@ -51,4 +52,59 @@ export function scalePythPrice(significand: bigint, expo: number, toDecimals: nu
   const divisor = 10n ** BigInt(-shift);
   const half = divisor / 2n;
   return (significand + half) / divisor;
+}
+
+/**
+ * The same lift for a feed quoted the other way round.
+ *
+ * Pyth publishes `FX.USD/IDR` — rupiah per dollar — and nothing for the reverse.
+ * Pricing an IDR-denominated merchant into a dollar stablecoin needs dollars per
+ * rupiah, so the reciprocal is taken here rather than asking for a feed that
+ * does not exist:
+ *
+ * ```
+ * minor(to) per whole(from) = 10^(decimals(to) − expo) ÷ significand
+ * ```
+ *
+ * Half-up, matching `scalePythPrice`.
+ *
+ * **This is lossy in a way the forward direction is not.** A reciprocal small
+ * enough to quantise coarsely — `IDR → USDC` lands near 62.5 minor units per
+ * rupiah — carries an error of roughly `0.5 / rate`, which for IDR is ~0.8%:
+ * larger than the 50 bps fee. The loss is in the rate representation
+ * (`minorUnitsPerWholeUnit`, one integer per whole source unit), not in this
+ * function, and inverting is what makes it reachable rather than what causes it.
+ * `quantisationBps` reports it so a caller can refuse a rate too coarse to price
+ * with.
+ */
+export function invertPythPrice(significand: bigint, expo: number, toDecimals: number): bigint {
+  if (significand <= 0n) {
+    throw new ValidationError("Cannot invert a non-positive Pyth price", {
+      significand: significand.toString(),
+    });
+  }
+
+  const shift = toDecimals - expo;
+  if (shift >= 0) {
+    const numerator = 10n ** BigInt(shift);
+    return (numerator + significand / 2n) / significand;
+  }
+
+  // A feed whose exponent exceeds the target's decimals: the reciprocal is
+  // smaller than one minor unit before rounding, so scale the denominator up.
+  const denominator = significand * 10n ** BigInt(-shift);
+  return (1n + denominator / 2n) / denominator;
+}
+
+/**
+ * How much precision an integer rate lost, in basis points.
+ *
+ * `minorUnitsPerWholeUnit` is one integer per whole source unit, so a rate near
+ * 62 quantises ~100× more coarsely than one near 6200. For a source currency
+ * whose whole unit is worth very little — rupiah against a dollar stablecoin —
+ * that error can exceed the fee, and it is silent unless something measures it.
+ */
+export function quantisationBps(exact: number, rounded: bigint): number {
+  if (exact <= 0) return 0;
+  return (Math.abs(Number(rounded) - exact) / exact) * 10_000;
 }
