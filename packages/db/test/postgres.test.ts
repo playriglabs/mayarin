@@ -15,6 +15,7 @@
  */
 
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import type { Merchant } from "@mayarin/auth";
 import { FixedDepositAddressDeriver } from "@mayarin/chain/testing";
 import {
   BasisPointsFeePolicy,
@@ -318,9 +319,11 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     test("inserts and finds a merchant", async () => {
       const merchants = new DrizzleMerchantRepository(handle.db);
       const now = clock.now();
-      const merchant = {
+      const merchant: Merchant = {
         id: generateId("mrc", now.getTime()),
         name: "Acme",
+        settlementAsset: "USDC",
+        acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
       };
@@ -337,6 +340,8 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
       await merchants.insert({
         id: merchantId,
         name: "Acme",
+        settlementAsset: "USDC",
+        acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
       });
@@ -365,6 +370,8 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
       await merchants.insert({
         id: merchantId,
         name: "Acme",
+        settlementAsset: "USDC",
+        acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
       });
@@ -392,6 +399,8 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
       await merchants.insert({
         id: merchantId,
         name: "Acme",
+        settlementAsset: "USDC",
+        acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
       });
@@ -421,6 +430,8 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
       await merchants.insert({
         id: merchantId,
         name: "Acme",
+        settlementAsset: "USDC",
+        acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
       });
@@ -458,6 +469,8 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
       await merchants.insert({
         id: merchantId,
         name: "Acme",
+        settlementAsset: "USDC",
+        acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
       });

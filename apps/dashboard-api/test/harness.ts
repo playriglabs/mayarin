@@ -111,6 +111,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     email: adminEmail,
     password: adminPassword,
     merchantName: options.merchantName ?? "Acme",
+    settlementAsset: "USDC",
+    acceptedAssets: ["ETH", "USDC"],
     permissions: ["payments:read", "users:manage", "admin:access"],
   });
   const merchantId = seed.user.merchantId;

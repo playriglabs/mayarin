@@ -29,6 +29,7 @@ import {
   markFailed as markIntentFailed,
   markProcessing as markIntentProcessing,
 } from "./intent.ts";
+import type { MerchantAssetPolicySource } from "./merchant-policy.ts";
 import type { PaymentIntentRepository } from "./repository.ts";
 import type {
   ExecutionPath,
@@ -63,6 +64,12 @@ export interface PaymentIntentServiceOptions {
    * build one; the composition root always injects it.
    */
   readonly registry?: StablecoinRegistry;
+  /**
+   * Per-merchant asset policy. When injected, the merchant's own settlement
+   * asset outranks the deployment default, and a payer asset the merchant does
+   * not accept is rejected. Optional for the same reason `registry` is.
+   */
+  readonly merchantPolicies?: MerchantAssetPolicySource;
   readonly defaults: {
     readonly settlementAsset: AssetCode;
     readonly provider: string;
@@ -77,6 +84,7 @@ export class PaymentIntentService {
   readonly #clock: Clock;
   readonly #events: EventPublisher;
   readonly #registry: StablecoinRegistry | undefined;
+  readonly #merchantPolicies: MerchantAssetPolicySource | undefined;
   readonly #defaults: PaymentIntentServiceOptions["defaults"];
 
   constructor(options: PaymentIntentServiceOptions) {
@@ -84,6 +92,7 @@ export class PaymentIntentService {
     this.#clock = options.clock;
     this.#events = options.events ?? noopEventPublisher;
     this.#registry = options.registry;
+    this.#merchantPolicies = options.merchantPolicies;
     this.#defaults = options.defaults;
   }
 
@@ -95,8 +104,26 @@ export class PaymentIntentService {
    * quietly returning something the caller did not ask for.
    */
   async create(command: CreatePaymentIntentCommand): Promise<PaymentIntent> {
-    const settlementAsset = command.settlementAsset ?? this.#defaults.settlementAsset;
+    // Precedence is deliberate: an explicit request wins, then the merchant's
+    // own choice, then the deployment. A merchant who configured USDC is not
+    // paid in the deployment default just because the caller stayed silent.
+    const policy = await this.#merchantPolicies?.policyFor(command.merchant.id);
+    const settlementAsset =
+      command.settlementAsset ?? policy?.settlementAsset ?? this.#defaults.settlementAsset;
     const provider = command.provider ?? this.#defaults.provider;
+
+    if (policy !== undefined && command.payment !== undefined && policy.acceptedAssets.length > 0) {
+      if (!policy.acceptedAssets.includes(command.payment.asset)) {
+        throw new ValidationError(
+          `Merchant ${command.merchant.id} does not accept ${command.payment.asset}`,
+          {
+            merchantId: command.merchant.id,
+            asset: command.payment.asset,
+            acceptedAssets: [...policy.acceptedAssets],
+          },
+        );
+      }
+    }
 
     if (command.executionPath === "on-chain-contract" && command.payment === undefined) {
       throw new ValidationError("on-chain-contract execution path requires a payment rail", {

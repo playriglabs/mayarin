@@ -26,6 +26,7 @@
  * duplicate email.
  */
 
+import { type AssetCode, isAssetCode } from "@mayarin/shared";
 import { loadConfig } from "../src/config.ts";
 import { createContainer } from "../src/container.ts";
 import { parsePermissions } from "../src/dto/auth.ts";
@@ -35,6 +36,8 @@ interface Args {
   merchantName: string | undefined;
   password: string | undefined;
   permissions: string | undefined;
+  settlementAsset: string | undefined;
+  acceptedAssets: string | undefined;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -43,6 +46,8 @@ function parseArgs(argv: readonly string[]): Args {
     merchantName: undefined,
     password: undefined,
     permissions: undefined,
+    settlementAsset: undefined,
+    acceptedAssets: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
@@ -64,6 +69,14 @@ function parseArgs(argv: readonly string[]): Args {
         args.permissions = value;
         i++;
         break;
+      case "--settlement-asset":
+        args.settlementAsset = value;
+        i++;
+        break;
+      case "--accepted-assets":
+        args.acceptedAssets = value;
+        i++;
+        break;
       case "--help":
       case "-h":
         console.log(USAGE);
@@ -79,9 +92,20 @@ function parseArgs(argv: readonly string[]): Args {
 }
 
 const USAGE = `Usage: bun run seed:merchant                       # interactive prompts
-       bun run seed:merchant -- --email <email> --merchant-name <name> [--password <pw>] [--permissions ...]`;
+       bun run seed:merchant -- --email <email> --merchant-name <name> [--password <pw>] [--permissions ...]
+                             [--settlement-asset USDC] [--accepted-assets ETH,USDC]`;
 
 const DEFAULT_PERMISSIONS = ["payments:read", "users:manage", "admin:access"] as const;
+
+const DEFAULT_SETTLEMENT_ASSET = "USDC";
+
+function parseAsset(value: string): AssetCode {
+  if (!isAssetCode(value)) {
+    console.error(`Unknown asset: ${value}`);
+    process.exit(1);
+  }
+  return value;
+}
 
 if (process.env.DATABASE_URL === undefined) {
   console.error("DATABASE_URL is not set");
@@ -129,6 +153,24 @@ const permissions = parsePermissions(
     : permissionsAnswer.split(",").map((p) => p.trim()),
 );
 
+// Settlement asset: what the merchant is paid in. Accepted assets: what a payer
+// may pay with. Listing the settlement asset itself is what enables the no-swap
+// path, so it is added when the operator leaves it out.
+const settlementAnswer =
+  args.settlementAsset ?? ask(`Settlement asset (blank = ${DEFAULT_SETTLEMENT_ASSET}): `);
+const settlementAsset = parseAsset(
+  settlementAnswer === undefined || settlementAnswer === ""
+    ? DEFAULT_SETTLEMENT_ASSET
+    : settlementAnswer.trim(),
+);
+
+const acceptedAnswer =
+  args.acceptedAssets ?? ask("Accepted payer assets (blank = settlement asset only, comma-sep): ");
+const acceptedAssets =
+  acceptedAnswer === undefined || acceptedAnswer === ""
+    ? [settlementAsset]
+    : acceptedAnswer.split(",").map((asset) => parseAsset(asset.trim()));
+
 const config = loadConfig();
 const container = createContainer({ config });
 
@@ -137,6 +179,8 @@ try {
     email,
     ...(password === undefined ? {} : { password }),
     merchantName,
+    settlementAsset,
+    acceptedAssets,
     permissions,
   });
   console.log(`merchantId: ${result.user.merchantId}`);

@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, money, ValidationError } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
+import {
+  isSameAsset,
+  type MerchantAssetPolicy,
+  type MerchantAssetPolicySource,
+} from "../src/merchant-policy.ts";
 import { PaymentIntentService } from "../src/service.ts";
 import type { PaymentRail } from "../src/types.ts";
 import { InMemoryPaymentIntentRepository } from "../testing/index.ts";
@@ -167,5 +172,109 @@ describe("PaymentIntentService execution path", () => {
       executionPath: "on-chain-contract",
     });
     expect(deposit.requestFingerprint).not.toBe(contract.requestFingerprint);
+  });
+});
+
+describe("per-merchant asset policy", () => {
+  const policies = (policy: MerchantAssetPolicy | undefined): MerchantAssetPolicySource => ({
+    policyFor: async () => policy,
+  });
+
+  function withPolicy(policy: MerchantAssetPolicy | undefined) {
+    return new PaymentIntentService({
+      repository: new InMemoryPaymentIntentRepository(),
+      clock: new FixedClock(NOW),
+      defaults: {
+        settlementAsset: "IDRX",
+        provider: "mock",
+        executionPath: "deposit-match",
+        ttlSeconds: 900,
+      },
+      registry: new InMemoryStablecoinRegistry(registry()),
+      merchantPolicies: policies(policy),
+    });
+  }
+
+  test("the merchant's settlement asset outranks the deployment default", async () => {
+    const intent = await withPolicy({ settlementAsset: "USDC", acceptedAssets: [] }).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+    });
+
+    expect(intent.settlementAsset).toBe("USDC");
+  });
+
+  test("an explicit request still outranks the merchant", async () => {
+    // The caller asked for something specific; the merchant's preference is a
+    // default, not a veto.
+    const intent = await withPolicy({ settlementAsset: "USDC", acceptedAssets: [] }).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      settlementAsset: "IDRX",
+    });
+
+    expect(intent.settlementAsset).toBe("IDRX");
+  });
+
+  test("falls back to the deployment default when the merchant has no policy", async () => {
+    const intent = await withPolicy(undefined).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+    });
+
+    expect(intent.settlementAsset).toBe("IDRX");
+  });
+
+  test("accepts a payer asset the merchant listed", async () => {
+    const payment: PaymentRail = { asset: "USDC", chain: "base-sepolia" };
+    const intent = await withPolicy({
+      settlementAsset: "USDC",
+      acceptedAssets: ["USDC"],
+    }).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      payment,
+    });
+
+    // Payer asset equals settlement asset: the no-swap path.
+    expect(intent.payment?.asset).toBe("USDC");
+    expect(intent.settlementAsset).toBe("USDC");
+  });
+
+  test("rejects a payer asset the merchant does not accept", async () => {
+    await expect(
+      withPolicy({ settlementAsset: "USDC", acceptedAssets: ["IDRX"] }).create({
+        merchant,
+        amount: money(5_000_000n, "IDR"),
+        source: { type: "manual" },
+        payment: { asset: "USDC", chain: "base-sepolia" },
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test("an empty accepted list means no preference, not 'accepts nothing'", async () => {
+    const intent = await withPolicy({ settlementAsset: "USDC", acceptedAssets: [] }).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      payment: { asset: "USDC", chain: "base-sepolia" },
+    });
+
+    expect(intent.payment?.asset).toBe("USDC");
+  });
+});
+
+describe("isSameAsset", () => {
+  test("is true only when the payer sends the settlement asset itself", () => {
+    const policy: MerchantAssetPolicy = { settlementAsset: "USDC", acceptedAssets: [] };
+
+    expect(isSameAsset(policy, "USDC")).toBe(true);
+    expect(isSameAsset(policy, "ETH")).toBe(false);
+    // Two stablecoins are still a swap — the rule is the pair, not the kind.
+    expect(isSameAsset(policy, "USDT")).toBe(false);
   });
 });

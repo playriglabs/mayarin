@@ -11,9 +11,23 @@
  * core (`packages/db`).
  */
 
+import type { AssetCode } from "@mayarin/shared";
+
 export interface Merchant {
   readonly id: string;
   readonly name: string;
+  /**
+   * The single asset this merchant is paid in. A merchant prices in their local
+   * currency and never handles anything else — whatever the payer sends is
+   * converted to this before it reaches them.
+   */
+  readonly settlementAsset: AssetCode;
+  /**
+   * Assets this merchant lets a payer pay with. An entry equal to
+   * `settlementAsset` settles with no swap at all; anything else is swapped on
+   * the way in. Empty means the deployment default applies.
+   */
+  readonly acceptedAssets: readonly AssetCode[];
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }

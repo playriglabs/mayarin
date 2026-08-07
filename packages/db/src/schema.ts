@@ -291,6 +291,10 @@ export const merchants = pgTable(
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
+    /** The one asset this merchant is paid in. */
+    settlementAsset: text("settlement_asset").notNull(),
+    /** Assets a payer may pay this merchant with. Empty defers to the deployment. */
+    acceptedAssets: text("accepted_assets").array().notNull(),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },

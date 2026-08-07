@@ -20,6 +20,8 @@ import {
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
   DrizzleLedgerRepository,
+  DrizzleMerchantAssetPolicySource,
+  DrizzleMerchantRepository,
   DrizzlePaymentIntentRepository,
   DrizzleWatcherCursorRepository,
 } from "@mayarin/db";
@@ -102,6 +104,11 @@ export function createContainer({
     clock,
     events,
     registry,
+    // A merchant's own settlement asset outranks `config.settlementAsset`,
+    // which stays as the fallback for a merchant that has not chosen one.
+    merchantPolicies: new DrizzleMerchantAssetPolicySource(
+      new DrizzleMerchantRepository(handle.db),
+    ),
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
