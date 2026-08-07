@@ -6,9 +6,13 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {PaymentRouter} from "../src/PaymentRouter.sol";
 
 /// @title DeployPaymentRouter — Base Sepolia deploy script (RFC #4 / issue #29)
-/// @notice Present but NOT run. Deploy is deferred to the final stage — after the
-///         downstream infra (#5/#6/#8) lands and E2E testing passes — and needs a
-///         funded deployer key + RPC + explicit sign-off.
+/// @notice Deploys the router and its admin surface. Needs a funded deployer key,
+///         an RPC URL, and explicit sign-off.
+///
+///         **This alone does not give a working router.** The constructor
+///         whitelists settlement assets only; DEX routers and payer input assets
+///         are timelocked config calls, so run `ConfigurePaymentRouter.s.sol`
+///         next or the first swap payment reverts `RouterNotWhitelisted`.
 ///
 /// @dev Deploys the full admin surface in one script: an OZ `TimelockController`
 ///      (the multisig is proposer + executor + admin) and the `PaymentRouter`
@@ -37,8 +41,15 @@ import {PaymentRouter} from "../src/PaymentRouter.sol";
 ///                          (e.g. USDC on Base Sepolia — verify the
 ///                          address on-chain before deploy)
 ///      Optional env:
-///        TIMELOCK_DELAY    config-change delay in seconds (default 48h = 172800;
-///                          use a short delay on a fresh testnet, 48h in prod)
+///        TIMELOCK_DELAY    config-change delay in seconds (default 48h = 172800).
+///                          Set `0` on a testnet: every post-deploy whitelist
+///                          waits this long, so the default turns a deploy into a
+///                          two-day gate before the first payment can be tested.
+///
+///      `SIGNER` must be the address the API signs orders with — the router
+///      verifies against it, so a mismatch fails every payment with
+///      `InvalidSigner`. It is `TURNKEY_SIGNER_ADDRESS`, or the address of
+///      `QUOTE_SIGNER_PRIVATE_KEY` when `QUOTE_SIGNER=local`.
 ///
 ///      `PERMIT2` is the canonical Uniswap Permit2 address — identical on every
 ///      chain Uniswap deployed it, including Base Sepolia.
@@ -91,6 +102,10 @@ contract DeployPaymentRouter is Script {
             console2.log("Settlement asset: ", settlementTokens[index]);
         }
         console2.log("Permit2:          ", PERMIT2);
+
+        console2.log("");
+        console2.log("NEXT: whitelist DEX routers and input assets, or no swap");
+        console2.log("payment can execute. See ConfigurePaymentRouter.s.sol.");
 
         // Post-deploy config (router/input-asset whitelist, feeRecipient, signer
         // rotation) goes through `timelock.schedule` → `delay` → `timelock.execute`,
