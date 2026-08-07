@@ -8,4 +8,5 @@ export * from "./rate.ts";
 export * from "./repository.ts";
 export * from "./state-machine.ts";
 export * from "./transaction.ts";
+export * from "./treasury.ts";
 export * from "./types.ts";
