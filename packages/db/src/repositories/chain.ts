@@ -34,7 +34,7 @@ import {
   ValidationError,
   zero,
 } from "@mayarin/shared";
-import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Database } from "../client.ts";
 import { present, toAsset, toMoney } from "../mapping.ts";
 import {
@@ -136,7 +136,11 @@ export class DrizzleDepositAddressRepository implements DepositAddressRepository
           or(
             // Still in flight, or terminal but inside the retention window.
             sql`${clearingTransactions.state} not in ${TERMINAL_STATES}`,
-            sql`${clearingTransactions.updatedAt} >= ${retainTerminalSince}`,
+            // `gte`, not a `sql` template: an interpolated value in a template
+            // is bound raw, without the column's type mapping, so a `Date`
+            // reaches the driver as a `Date` and fails to serialize. Every
+            // watcher tick called this.
+            gte(clearingTransactions.updatedAt, retainTerminalSince),
           ),
         ),
       );

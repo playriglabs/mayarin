@@ -115,6 +115,36 @@ describe("WalletWatcher", () => {
     expect(harness.funded).toEqual(["clr_1"]);
   });
 
+  test("a deposit first seen past the reorg-watch window still funds", async () => {
+    // depth 6 x window 2 = 12. A deposit buried deeper than that before the
+    // watcher ever sees it — catch-up after downtime, a wide block range, or a
+    // tick interval longer than the window — used to be dropped by the
+    // reclassify filter and stay PENDING forever, so the payment never funded.
+    const address = await harness.awaitingPayment();
+    harness.chain.transfer({ asset: ASSET, to: address, amount: REQUIRED.amount });
+    harness.chain.mine(30);
+
+    const result = await harness.watcher.tick(CHAIN, ASSET);
+
+    expect(result.recorded).toBe(1);
+    expect(result.confirmed).toBe(1);
+    expect(harness.funded).toEqual(["clr_1"]);
+  });
+
+  test("a deposit past the window is not re-confirmed on a later pass", async () => {
+    const address = await harness.awaitingPayment();
+    harness.chain.transfer({ asset: ASSET, to: address, amount: REQUIRED.amount });
+    harness.chain.mine(30);
+
+    await harness.watcher.tick(CHAIN, ASSET);
+    harness.chain.mine(5);
+    const second = await harness.watcher.tick(CHAIN, ASSET);
+
+    // Already CONFIRMED, so it is final and left alone rather than re-probed.
+    expect(second.confirmed).toBe(0);
+    expect(harness.funded).toEqual(["clr_1"]);
+  });
+
   test("two half-sends accumulate and fund on the second", async () => {
     const address = await harness.awaitingPayment();
 
