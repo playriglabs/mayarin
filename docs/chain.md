@@ -27,8 +27,11 @@ funded the moment it reached `PAYMENT_PENDING`.
 > take. In a retail market that is most payers, not an edge case.
 >
 > Since #61 the contract path runs end to end up to `PAYMENT_PENDING`, where it
-> waits for `recordPaymentCompleted`; the indexer that calls it (#8) and the
-> deployed contract (#29) are what remain.
+> waits for `recordPaymentCompleted`. Both halves of that are now in place: the
+> indexer that calls it (#8) and the deployed contract (#29, addresses below).
+> What the **deposit** path still lacks is the trigger — nothing moves a matched
+> deposit into the router (#69), and the ledger has no account for the payer
+> asset held between receipt and swap (#70).
 
 ---
 
