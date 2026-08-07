@@ -54,16 +54,26 @@ export interface EvmChainClientOptions {
   readonly rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
   /** ERC-20 contract address per chain and asset. */
   readonly tokens: Readonly<Partial<Record<ChainId, Readonly<Partial<Record<AssetCode, string>>>>>>;
+  /**
+   * The chain's own currency, which has no contract and emits no log.
+   *
+   * Configured rather than assumed: every chain here is EVM today and every one
+   * of them is ETH, but a chain whose native asset is not ETH would otherwise
+   * be silently scanned as if it were.
+   */
+  readonly nativeAssets?: Readonly<Partial<Record<ChainId, AssetCode>>>;
 }
 
 export class EvmChainClient implements ChainClient {
   readonly #rpcUrls: EvmChainClientOptions["rpcUrls"];
   readonly #tokens: EvmChainClientOptions["tokens"];
+  readonly #nativeAssets: NonNullable<EvmChainClientOptions["nativeAssets"]>;
   readonly #clients = new Map<ChainId, PublicClient>();
 
   constructor(options: EvmChainClientOptions) {
     this.#rpcUrls = options.rpcUrls;
     this.#tokens = options.tokens;
+    this.#nativeAssets = options.nativeAssets ?? {};
   }
 
   async head(chain: ChainId): Promise<BlockRef> {
@@ -88,6 +98,13 @@ export class EvmChainClient implements ChainClient {
 
   async transfers(query: TransferQuery): Promise<TransferLog[]> {
     if (query.addresses.length === 0) return [];
+
+    // The chain's own currency moves without a contract and without a log, so
+    // there is nothing for `eth_getLogs` to match. Block bodies are where a
+    // native transfer is visible at all.
+    if (this.#nativeAssets[query.chain] === query.asset) {
+      return this.#nativeTransfers(query);
+    }
 
     const token = this.#tokenAddress(query.chain, query.asset);
     const logs = await this.#rpc(
@@ -174,6 +191,61 @@ export class EvmChainClient implements ChainClient {
         },
       ];
     });
+  }
+
+  /**
+   * Native transfers, read from block bodies.
+   *
+   * One `eth_getBlockByNumber` per block in the range, against one
+   * `eth_getLogs` for the whole range on the ERC-20 path — so the cost scales
+   * with `WATCHER_BLOCK_RANGE` rather than being flat in it. Size that setting
+   * against the RPC tier; the watcher already bounds each pass.
+   *
+   * Chosen over polling `eth_getBalance` per deposit address because a balance
+   * is a number with no transaction attached: no `txHash`, no sender, and no
+   * block hash for `classifyDeposit` to probe. The reorg and confirmation
+   * policy is reused here **unchanged**, which is the point.
+   *
+   * **Only top-level transfers.** ETH moved by a contract — an exchange
+   * sweeping through a router — is an internal transaction, invisible in a
+   * block body. `trace_block` sees those; not every provider tier serves it.
+   */
+  async #nativeTransfers(query: TransferQuery): Promise<TransferLog[]> {
+    const watched = new Set(query.addresses.map((address) => address.toLowerCase()));
+    const client = this.#clientFor(query.chain);
+    const transfers: TransferLog[] = [];
+
+    for (let height = query.fromBlock; height <= query.toBlock; height += 1n) {
+      const block = await this.#rpc(
+        query.chain,
+        client.getBlock({ blockNumber: height, includeTransactions: true }),
+      );
+      if (block.hash === null || block.number === null) continue;
+
+      for (const transaction of block.transactions) {
+        if (typeof transaction === "string") continue;
+        if (transaction.to === null || transaction.value <= 0n) continue;
+        if (!watched.has(transaction.to.toLowerCase())) continue;
+
+        transfers.push({
+          chain: query.chain,
+          asset: query.asset,
+          txHash: transaction.hash,
+          // Deposits are unique on `(chain, txHash, logIndex)`, and a native
+          // transfer has no log index to offer. A real one is never negative,
+          // so -1 cannot collide with an ERC-20 transfer that happens to share
+          // the transaction — which is exactly what index 0 would have done.
+          logIndex: -1,
+          blockNumber: block.number,
+          blockHash: block.hash,
+          from: transaction.from.toLowerCase(),
+          to: transaction.to.toLowerCase(),
+          amount: transaction.value,
+        });
+      }
+    }
+
+    return transfers;
   }
 
   #tokenAddress(chain: ChainId, asset: AssetCode): `0x${string}` {

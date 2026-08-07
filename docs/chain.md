@@ -94,6 +94,31 @@ scripted fake chain — no timers, no sleeping, no flake — mirroring
 6. write the cursor
 ```
 
+**Native deposits are read from block bodies, not logs.** An ERC-20 transfer
+calls a contract and emits `Transfer`, which `eth_getLogs` can filter. The
+chain's own currency moves without either, so there is nothing to match — a
+native deposit is visible only in the block's transaction list. `transfers()`
+branches on `CHAIN_NATIVE_ASSETS`: the named asset is scanned per block, every
+other asset takes the log path unchanged.
+
+Balance polling (`eth_getBalance` per deposit address) was the alternative and
+was rejected: a balance is a number with no transaction attached, so it yields
+no `txHash`, no sender, and no block hash for `classifyDeposit` to probe against.
+The confirmation and reorg policy below is reused **unchanged** precisely
+because a block body carries all three.
+
+Two limits worth stating. The scan costs one `eth_getBlockByNumber` per block,
+where the ERC-20 path costs one `eth_getLogs` for the whole range — so
+`WATCHER_BLOCK_RANGE` now has a per-block cost on native chains. And only
+**top-level** transfers are seen: ETH moved by a contract, such as an exchange
+sweeping through a router, is an internal transaction that no block body shows.
+`trace_block` would catch those, and not every provider tier serves it.
+
+A native deposit records `logIndex: -1`. Deposits are unique on
+`(chain, txHash, logIndex)` and a real log index is never negative, so the
+sentinel cannot be overwritten by an ERC-20 transfer that happens to share the
+transaction — which index `0` would have allowed.
+
 **The cursor is written last.** A crash mid-pass re-scans the range rather than
 skipping it, and re-scanning is free because recording upserts on
 `(chain, txHash, logIndex)`. **Funding is idempotent without a guard:**

@@ -182,6 +182,27 @@ function createTreasuryExecutor(deps: {
   return new TreasuryExecutor({ port, ledger, maxAttempts: config.treasuryMaxAttempts });
 }
 
+/**
+ * Every `(chain, asset)` the watcher should poll.
+ *
+ * The stablecoin registry names the ERC-20s, and the chain's own currency is
+ * not in it — a native asset has no contract to register. Both have to be
+ * polled or an ETH rail issues a deposit address that nothing ever scans.
+ */
+export function watchedPairs(config: Config): readonly { chain: ChainId; asset: AssetCode }[] {
+  const pairs = pairsOf(config.stablecoins).map((pair) => ({
+    chain: pair.chain,
+    asset: pair.asset,
+  }));
+
+  for (const [chain, asset] of Object.entries(config.chainNativeAssets)) {
+    if (asset === undefined) continue;
+    pairs.push({ chain: chain as ChainId, asset });
+  }
+
+  return pairs;
+}
+
 export function createContainer({
   config,
   clock = systemClock,
@@ -303,6 +324,7 @@ export function createContainer({
     const client = new EvmChainClient({
       rpcUrls: chain.rpcUrls,
       tokens: tokensOf(config.stablecoins),
+      nativeAssets: config.chainNativeAssets,
     });
     const cursors = new DrizzleWatcherCursorRepository(handle.db);
     chainHead = (id: ChainId) => client.head(id);
