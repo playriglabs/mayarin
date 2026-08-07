@@ -10,6 +10,7 @@
  * ```
  * bun run e2e -- --asset USDC --amount 0.25
  * bun run e2e -- --asset ETH  --amount 0.10 --seed-merchant
+ * bun run e2e -- --asset USDC --amount 5000 --currency IDR
  * ```
  *
  * Reads `.env` (Bun loads it) plus the deployment-specific values below. The
@@ -56,15 +57,21 @@ function arg(name: string): string | undefined {
 }
 
 const asset = (arg("asset") ?? "USDC").toUpperCase();
-const priceUsd = Number(arg("amount") ?? "0.25");
+/** What the merchant prices in. `USD` is a peg to USDC; `IDR` is a real FX rate. */
+const currency = (arg("currency") ?? "USD").toUpperCase();
+const price = Number(arg("amount") ?? "0.25");
 const seedMerchant = process.argv.includes("--seed-merchant");
 
 if (asset !== "USDC" && asset !== "ETH") {
   console.error(`--asset must be USDC or ETH, got ${asset}`);
   process.exit(1);
 }
-if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
-  console.error(`--amount must be a positive number of USD, got ${arg("amount")}`);
+if (currency !== "USD" && currency !== "IDR") {
+  console.error(`--currency must be USD or IDR, got ${currency}`);
+  process.exit(1);
+}
+if (!Number.isFinite(price) || price <= 0) {
+  console.error(`--amount must be a positive number of ${currency}, got ${arg("amount")}`);
   process.exit(1);
 }
 
@@ -93,8 +100,9 @@ const head = await pub.getBlockNumber();
 const config = loadConfig({
   ...process.env,
   TREASURY_EXECUTION_ENABLED: "true",
-  // `USD/USDC` is one currency in two representations, so the fiat leg is a
-  // decimal rescale rather than a rate that could go stale.
+  // `USD/USDC` is one currency in two representations, so that leg is a decimal
+  // rescale. `IDR/USDC` is not — it is a real exchange rate, read from Pyth's
+  // `FX.USD/IDR` inverted, and it goes stale like any other.
   QUOTE_PEGGED_PAIRS: '["USD/USDC"]',
   // Start just behind the head: the watcher has no reason to walk history it
   // has already been told about, and a wide first pass is what trips the
@@ -138,7 +146,9 @@ async function payerBalance(): Promise<bigint> {
 // ---------------------------------------------------------------------------
 
 console.log("=".repeat(70));
-console.log(`Deposit path · ${CHAIN} · paying $${priceUsd.toFixed(2)} with ${asset}`);
+const priceLabel =
+  currency === "IDR" ? `Rp ${price.toLocaleString("id-ID")}` : `$${price.toFixed(2)}`;
+console.log(`Deposit path · ${CHAIN} · merchant prices ${priceLabel} · payer sends ${asset}`);
 console.log("=".repeat(70));
 console.log("payer     ", payer.address, show(await payerBalance()));
 console.log(
@@ -189,11 +199,12 @@ if (existing === null || existing.settlementAddress === undefined) {
 
 const intent = await container.intents.create({
   merchant: { id: MERCHANT_ID, name: "Warung Kopi Mayarin", city: "Jakarta", countryCode: "ID" },
-  amount: { amount: BigInt(Math.round(priceUsd * 100)), asset: "USD" },
+  // Both are 2-decimal, so minor units are cents / sen.
+  amount: { amount: BigInt(Math.round(price * 100)), asset: currency },
   source: { type: "manual" },
   payment: { asset, chain: CHAIN },
   executionPath: "deposit-match",
-  idempotencyKey: `e2e-${asset}-${Date.now()}`,
+  idempotencyKey: `e2e-${currency}-${asset}-${Date.now()}`,
 });
 const confirmed = await container.intents.confirm(intent.id);
 console.log("\n1. intent       ", confirmed.id);
