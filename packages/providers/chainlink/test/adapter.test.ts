@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { ChainlinkPriceOracle } from "../src/adapter.ts";
 
-const FEED = "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70";
+// Chainlink ETH/USD aggregator proxy on Base Sepolia. VERIFIED on-chain:
+// `description()` returns "ETH / USD", `decimals()` returns 8, and
+// `latestRoundData()` answers with a recent round. The address this previously
+// named held no code at all, so the live read below decoded empty returndata —
+// invisible until an RPC URL was configured and the test stopped skipping.
+const FEED = "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1";
 
 describe("ChainlinkPriceOracle configuration", () => {
   test("a pair with no configured feed throws ConfigurationError", async () => {
@@ -37,7 +42,6 @@ describe.skipIf(RPC_URLS === undefined)("ChainlinkPriceOracle live", () => {
   test("reads an ETH/USD reference on base-sepolia", async () => {
     const oracle = new ChainlinkPriceOracle({
       rpcUrls: JSON.parse(RPC_URLS ?? "{}"),
-      // Chainlink ETH/USD aggregator proxy on Base Sepolia.
       feeds: { "ETH/USDC": { chain: "base-sepolia", address: FEED } },
     });
 
