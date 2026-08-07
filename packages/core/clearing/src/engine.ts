@@ -176,6 +176,11 @@ export class ClearingEngine {
     return this.#repository.findByPaymentIntentId(paymentIntentId);
   }
 
+  /** The transaction whose signed order carries this on-chain `intentId` (#8). */
+  async findByContractIntentId(intentId: string): Promise<ClearingTransaction | null> {
+    return this.#repository.findByContractIntentId(intentId);
+  }
+
   async history(id: string): Promise<ClearingEvent[]> {
     return this.#repository.listEvents(id);
   }

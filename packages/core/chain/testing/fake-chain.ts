@@ -8,7 +8,15 @@
  */
 
 import type { AssetCode } from "@mayarin/shared";
-import type { BlockRef, ChainClient, ChainId, TransferLog, TransferQuery } from "../src/index.ts";
+import type {
+  BlockRef,
+  ChainClient,
+  ChainId,
+  SettlementLog,
+  SettlementQuery,
+  TransferLog,
+  TransferQuery,
+} from "../src/index.ts";
 
 interface PendingTransfer {
   readonly asset: AssetCode;
@@ -17,10 +25,19 @@ interface PendingTransfer {
   readonly amount: bigint;
 }
 
+interface PendingSettlement {
+  readonly intentId: string;
+  readonly merchantSafe: string;
+  readonly settledAmount: bigint;
+  readonly fee: bigint;
+  readonly refundAmount: bigint;
+}
+
 interface Block {
   readonly number: bigint;
   readonly hash: string;
   readonly transfers: readonly PendingTransfer[];
+  readonly settlements: readonly PendingSettlement[];
 }
 
 export interface FakeTransferInput {
@@ -30,11 +47,21 @@ export interface FakeTransferInput {
   readonly from?: string;
 }
 
+export interface FakeSettlementInput {
+  readonly intentId: string;
+  readonly merchantSafe?: string;
+  readonly settledAmount?: bigint;
+  readonly fee?: bigint;
+  readonly refundAmount?: bigint;
+}
+
 const DEFAULT_SENDER = "0x00000000000000000000000000000000000000ff";
+const DEFAULT_MERCHANT_SAFE = "0x00000000000000000000000000000000000000aa";
 
 export class FakeChainClient implements ChainClient {
   readonly #blocks: Block[] = [];
   #pending: PendingTransfer[] = [];
+  #pendingSettlements: PendingSettlement[] = [];
   #epoch = 0;
 
   /** Queues a transfer for the next mined block. */
@@ -48,6 +75,18 @@ export class FakeChainClient implements ChainClient {
     return this;
   }
 
+  /** Queues a `PaymentCompleted` for the next mined block. */
+  settle(input: FakeSettlementInput): this {
+    this.#pendingSettlements.push({
+      intentId: input.intentId,
+      merchantSafe: input.merchantSafe ?? DEFAULT_MERCHANT_SAFE,
+      settledAmount: input.settledAmount ?? 2_990_000n,
+      fee: input.fee ?? 10_000n,
+      refundAmount: input.refundAmount ?? 0n,
+    });
+    return this;
+  }
+
   /** Mines `count` blocks; queued transfers all land in the first of them. */
   mine(count = 1): this {
     for (let i = 0; i < count; i += 1) {
@@ -56,8 +95,10 @@ export class FakeChainClient implements ChainClient {
         number,
         hash: this.#hashFor(number),
         transfers: this.#pending,
+        settlements: this.#pendingSettlements,
       });
       this.#pending = [];
+      this.#pendingSettlements = [];
     }
     return this;
   }
@@ -73,7 +114,12 @@ export class FakeChainClient implements ChainClient {
     this.#epoch += 1;
     for (let i = 0; i < replaced; i += 1) {
       const number = BigInt(this.#blocks.length + 1);
-      this.#blocks.push({ number, hash: this.#hashFor(number), transfers: [] });
+      this.#blocks.push({
+        number,
+        hash: this.#hashFor(number),
+        transfers: [],
+        settlements: [],
+      });
     }
     return this;
   }
@@ -110,6 +156,31 @@ export class FakeChainClient implements ChainClient {
           from: transfer.from,
           to: transfer.to,
           amount: transfer.amount,
+        });
+      });
+    }
+
+    return logs;
+  }
+
+  async settlements(query: SettlementQuery): Promise<SettlementLog[]> {
+    const logs: SettlementLog[] = [];
+
+    for (const block of this.#blocks) {
+      if (block.number < query.fromBlock || block.number > query.toBlock) continue;
+
+      block.settlements.forEach((settlement, logIndex) => {
+        logs.push({
+          chain: query.chain,
+          txHash: `0xstl${block.number}-${logIndex}-${this.#epoch}`,
+          logIndex,
+          blockNumber: block.number,
+          blockHash: block.hash,
+          intentId: settlement.intentId,
+          merchantSafe: settlement.merchantSafe,
+          settledAmount: settlement.settledAmount,
+          fee: settlement.fee,
+          refundAmount: settlement.refundAmount,
         });
       });
     }

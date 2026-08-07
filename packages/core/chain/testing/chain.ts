@@ -15,6 +15,10 @@ import type {
   DepositAddressRepository,
   DepositRepository,
   DepositStatusUpdate,
+  SettlementEvent,
+  SettlementEventRepository,
+  SettlementLog,
+  SettlementStatusUpdate,
   TransferLog,
   WatchedAddress,
   WatcherCursorRepository,
@@ -163,13 +167,106 @@ export class InMemoryDepositRepository implements DepositRepository {
 export class InMemoryWatcherCursorRepository implements WatcherCursorRepository {
   readonly #cursors = new Map<string, bigint>();
 
-  async get(chain: ChainId, asset: AssetCode): Promise<bigint | null> {
-    return this.#cursors.get(`${chain}/${asset}`) ?? null;
+  async get(chain: ChainId, stream: string): Promise<bigint | null> {
+    return this.#cursors.get(`${chain}/${stream}`) ?? null;
   }
 
-  async set(chain: ChainId, asset: AssetCode, block: bigint): Promise<void> {
-    this.#cursors.set(`${chain}/${asset}`, block);
+  async set(chain: ChainId, stream: string, block: bigint): Promise<void> {
+    this.#cursors.set(`${chain}/${stream}`, block);
   }
+}
+
+/**
+ * Enforces the same two invariants the Postgres adapter does: one row per
+ * `(chain, txHash, logIndex)`, and a completion that is recorded once.
+ */
+export class InMemorySettlementEventRepository implements SettlementEventRepository {
+  readonly #byKey = new Map<string, SettlementEvent>();
+
+  async record(logs: readonly SettlementLog[], now: Date): Promise<SettlementEvent[]> {
+    const recorded: SettlementEvent[] = [];
+
+    for (const log of logs) {
+      const key = `${log.chain}/${log.txHash}/${log.logIndex}`;
+      const existing = this.#byKey.get(key);
+      if (existing !== undefined) {
+        recorded.push(existing);
+        continue;
+      }
+
+      const event: SettlementEvent = {
+        id: generateId("stl", now.getTime()),
+        chain: log.chain,
+        txHash: log.txHash,
+        logIndex: log.logIndex,
+        blockNumber: log.blockNumber,
+        blockHash: log.blockHash,
+        intentId: log.intentId,
+        merchantSafe: log.merchantSafe,
+        settledAmount: log.settledAmount,
+        fee: log.fee,
+        refundAmount: log.refundAmount,
+        status: "PENDING",
+        firstSeenAt: new Date(now),
+      };
+
+      this.#byKey.set(key, event);
+      recorded.push(event);
+    }
+
+    return recorded;
+  }
+
+  async listProbable(chain: ChainId, limit: number): Promise<SettlementEvent[]> {
+    return this.#sorted(chain, (event) => event.status !== "ORPHANED").slice(0, limit);
+  }
+
+  async updateStatuses(updates: readonly SettlementStatusUpdate[]): Promise<void> {
+    for (const update of updates) {
+      for (const [key, event] of this.#byKey) {
+        if (event.id !== update.id) continue;
+        this.#byKey.set(key, applySettlementStatus(event, update));
+        break;
+      }
+    }
+  }
+
+  async listCompletable(chain: ChainId, limit: number): Promise<SettlementEvent[]> {
+    return this.#sorted(
+      chain,
+      (event) => event.status === "CONFIRMED" && event.completedAt === undefined,
+    ).slice(0, limit);
+  }
+
+  async markCompleted(id: string, at: Date): Promise<void> {
+    for (const [key, event] of this.#byKey) {
+      if (event.id !== id) continue;
+      this.#byKey.set(key, { ...event, completedAt: new Date(at) });
+      return;
+    }
+  }
+
+  async findByIntentId(intentId: string): Promise<SettlementEvent | null> {
+    return [...this.#byKey.values()].find((event) => event.intentId === intentId) ?? null;
+  }
+
+  #sorted(chain: ChainId, keep: (event: SettlementEvent) => boolean): SettlementEvent[] {
+    return [...this.#byKey.values()]
+      .filter((event) => event.chain === chain && keep(event))
+      .sort((a, b) => (a.blockNumber < b.blockNumber ? -1 : a.blockNumber > b.blockNumber ? 1 : 0));
+  }
+}
+
+function applySettlementStatus(
+  event: SettlementEvent,
+  update: SettlementStatusUpdate,
+): SettlementEvent {
+  return {
+    ...event,
+    status: update.status,
+    ...(update.status === "CONFIRMED" ? { confirmedAt: new Date(update.at) } : {}),
+    ...(update.status === "ORPHANED" ? { orphanedAt: new Date(update.at) } : {}),
+  };
 }
 
 function depositKey(chain: ChainId, txHash: string, logIndex: number): string {

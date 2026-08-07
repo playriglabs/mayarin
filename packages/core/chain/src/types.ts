@@ -78,6 +78,66 @@ export function isOrphanedAfterConfirmed(deposit: Deposit): boolean {
   return deposit.confirmedAt !== undefined && deposit.orphanedAt !== undefined;
 }
 
+/**
+ * A `PaymentCompleted` log as read from the chain, before any policy is applied.
+ *
+ * The settlement signal `PaymentRouter` emits once it has received, swapped and
+ * paid the merchant. Unlike a transfer, it names the payment it belongs to:
+ * `intentId` is the value the backend derived from the clearing transaction id,
+ * so no address matching is involved.
+ *
+ * `settledAmount` and the rest are carried because they are the on-chain truth
+ * the ledger reconciles against — the amount the merchant was actually paid,
+ * not the amount that was quoted.
+ */
+export interface SettlementLog {
+  readonly chain: ChainId;
+  readonly txHash: string;
+  readonly logIndex: number;
+  readonly blockNumber: bigint;
+  readonly blockHash: string;
+  /** `bytes32` hex; matches `clearing_transactions.contract_intent_id`. */
+  readonly intentId: string;
+  readonly merchantSafe: string;
+  /** Raw minor units of the settlement asset paid to the merchant. */
+  readonly settledAmount: bigint;
+  readonly fee: bigint;
+  readonly refundAmount: bigint;
+}
+
+/**
+ * A recorded settlement observation.
+ *
+ * Shares `DepositStatus` with deposits on purpose: the vocabulary is the same
+ * because the finality question is the same — below the confirmation depth it
+ * has touched nothing, at depth it may complete a payment, and a reorg after
+ * that is a fact to record rather than a state to undo.
+ */
+export interface SettlementEvent {
+  readonly id: string;
+  readonly chain: ChainId;
+  readonly txHash: string;
+  readonly logIndex: number;
+  readonly blockNumber: bigint;
+  readonly blockHash: string;
+  readonly intentId: string;
+  readonly merchantSafe: string;
+  readonly settledAmount: bigint;
+  readonly fee: bigint;
+  readonly refundAmount: bigint;
+  readonly status: DepositStatus;
+  readonly firstSeenAt: Date;
+  readonly confirmedAt?: Date;
+  readonly orphanedAt?: Date;
+  /** Set once the clearing engine has been told; keeps completion at-most-once. */
+  readonly completedAt?: Date;
+}
+
+/** A settlement that was acted on and then reorged away — the case needing a human. */
+export function isSettlementReversed(event: SettlementEvent): boolean {
+  return event.completedAt !== undefined && event.orphanedAt !== undefined;
+}
+
 export interface DepositAddress {
   readonly id: string;
   readonly clearingTransactionId: string;

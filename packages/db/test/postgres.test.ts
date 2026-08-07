@@ -16,6 +16,7 @@
 
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import type { Merchant } from "@mayarin/auth";
+import type { SettlementLog } from "@mayarin/chain";
 import { FixedDepositAddressDeriver } from "@mayarin/chain/testing";
 import {
   BasisPointsFeePolicy,
@@ -39,6 +40,7 @@ import {
 import {
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
+  DrizzleSettlementEventRepository,
   DrizzleWatcherCursorRepository,
 } from "../src/repositories/chain.ts";
 import { DrizzleClearingRepository } from "../src/repositories/clearing.ts";
@@ -81,7 +83,7 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
 
   beforeEach(async () => {
     await handle.db.execute(
-      sql`truncate table sessions, users, chain_deposits, deposit_addresses, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table sessions, users, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   });
 
@@ -407,6 +409,87 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
 
     const stored = await repository.listByAddress("base-sepolia", "0xdeadbeef");
     expect(stored).toHaveLength(1);
+  });
+
+  describe("settlement events", () => {
+    const log = (overrides: Partial<SettlementLog> = {}): SettlementLog => ({
+      chain: "base-sepolia",
+      txHash: "0xstl1",
+      logIndex: 0,
+      blockNumber: 100n,
+      blockHash: "0xblock100",
+      intentId: "0xintent1",
+      merchantSafe: "0xmerchant",
+      settledAmount: 2_990_000n,
+      fee: 10_000n,
+      refundAmount: 80_000n,
+      ...overrides,
+    });
+
+    test("records a settlement once however often the range is re-scanned", async () => {
+      const settlements = new DrizzleSettlementEventRepository(handle.db);
+      const now = clock.now();
+
+      await settlements.record([log()], now);
+      await settlements.record([log()], now);
+
+      expect(await settlements.listProbable("base-sepolia", 10)).toHaveLength(1);
+    });
+
+    test("a re-scan does not reset a status reclassification already moved on", async () => {
+      // `ON CONFLICT DO NOTHING` rather than an update: re-scanning is supposed
+      // to be free, not to undo work.
+      const settlements = new DrizzleSettlementEventRepository(handle.db);
+      const now = clock.now();
+      const [recorded] = await settlements.record([log()], now);
+
+      await settlements.updateStatuses([{ id: recorded?.id ?? "", status: "CONFIRMED", at: now }]);
+      await settlements.record([log()], now);
+
+      const [reloaded] = await settlements.listProbable("base-sepolia", 10);
+      expect(reloaded?.status).toBe("CONFIRMED");
+      expect(reloaded?.confirmedAt).toBeDefined();
+    });
+
+    test("round-trips the on-chain amounts exactly", async () => {
+      const settlements = new DrizzleSettlementEventRepository(handle.db);
+      await settlements.record([log()], clock.now());
+
+      const found = await settlements.findByIntentId("0xintent1");
+      expect(found?.settledAmount).toBe(2_990_000n);
+      expect(found?.fee).toBe(10_000n);
+      expect(found?.refundAmount).toBe(80_000n);
+      expect(found?.blockNumber).toBe(100n);
+    });
+
+    test("lists only confirmed settlements the engine has not been told about", async () => {
+      const settlements = new DrizzleSettlementEventRepository(handle.db);
+      const now = clock.now();
+      const [pending] = await settlements.record([log()], now);
+      const [confirmed] = await settlements.record(
+        [log({ txHash: "0xstl2", intentId: "0xintent2" })],
+        now,
+      );
+      await settlements.updateStatuses([{ id: confirmed?.id ?? "", status: "CONFIRMED", at: now }]);
+
+      const completable = await settlements.listCompletable("base-sepolia", 10);
+      expect(completable.map((event) => event.intentId)).toEqual(["0xintent2"]);
+      expect(pending?.status).toBe("PENDING");
+
+      await settlements.markCompleted(confirmed?.id ?? "", now);
+      expect(await settlements.listCompletable("base-sepolia", 10)).toHaveLength(0);
+    });
+
+    test("excludes orphaned settlements from the probe set", async () => {
+      const settlements = new DrizzleSettlementEventRepository(handle.db);
+      const now = clock.now();
+      const [recorded] = await settlements.record([log()], now);
+
+      await settlements.updateStatuses([{ id: recorded?.id ?? "", status: "ORPHANED", at: now }]);
+
+      expect(await settlements.listProbable("base-sepolia", 10)).toHaveLength(0);
+      expect((await settlements.findByIntentId("0xintent1"))?.orphanedAt).toBeDefined();
+    });
   });
 
   test("round-trips a watcher cursor", async () => {

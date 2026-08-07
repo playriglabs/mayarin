@@ -87,6 +87,16 @@ export class DrizzleClearingRepository implements ClearingRepository {
     return row === undefined ? null : toDomain(row);
   }
 
+  async findByContractIntentId(intentId: string): Promise<ClearingTransaction | null> {
+    const [row] = await this.#db
+      .select()
+      .from(clearingTransactions)
+      .where(eq(clearingTransactions.contractIntentId, intentId))
+      .limit(1);
+
+    return row === undefined ? null : toDomain(row);
+  }
+
   async findByProviderReference(
     provider: string,
     providerReference: string,

@@ -12,6 +12,8 @@ import type {
   Deposit,
   DepositAddress,
   DepositStatus,
+  SettlementEvent,
+  SettlementLog,
   TransferLog,
   WatchedAddress,
 } from "./types.ts";
@@ -58,7 +60,38 @@ export interface DepositRepository {
   confirmedTotal(chain: ChainId, address: string, asset: AssetCode): Promise<Money>;
 }
 
+/**
+ * How far a scan has read.
+ *
+ * `stream` names what is being scanned. The wallet watcher scans one asset at a
+ * time and passes its `AssetCode`; the settlement indexer scans one router and
+ * passes its address. A plain string rather than a union because the set is
+ * open — the column has always been text, so this widens the port to what the
+ * storage already allowed.
+ */
 export interface WatcherCursorRepository {
-  get(chain: ChainId, asset: AssetCode): Promise<bigint | null>;
-  set(chain: ChainId, asset: AssetCode, block: bigint): Promise<void>;
+  get(chain: ChainId, stream: string): Promise<bigint | null>;
+  set(chain: ChainId, stream: string, block: bigint): Promise<void>;
+}
+
+export interface SettlementStatusUpdate {
+  readonly id: string;
+  readonly status: DepositStatus;
+  readonly at: Date;
+}
+
+export interface SettlementEventRepository {
+  /**
+   * Upsert on `(chain, txHash, logIndex)` — the key the log envelope itself
+   * provides, so replaying a range cannot record a settlement twice.
+   */
+  record(logs: readonly SettlementLog[], now: Date): Promise<SettlementEvent[]>;
+  /** Non-terminal or recently-confirmed settlements worth re-probing, oldest first. */
+  listProbable(chain: ChainId, limit: number): Promise<SettlementEvent[]>;
+  updateStatuses(updates: readonly SettlementStatusUpdate[]): Promise<void>;
+  /** CONFIRMED settlements the engine has not been told about yet. */
+  listCompletable(chain: ChainId, limit: number): Promise<SettlementEvent[]>;
+  /** Marks a settlement as handed to the engine, so it is never replayed. */
+  markCompleted(id: string, at: Date): Promise<void>;
+  findByIntentId(intentId: string): Promise<SettlementEvent | null>;
 }

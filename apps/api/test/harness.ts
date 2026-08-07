@@ -106,6 +106,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     events,
     registry,
     watchers: new Map(),
+    indexers: new Map(),
     close: async () => {},
   };
 

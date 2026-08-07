@@ -122,6 +122,13 @@ export class InMemoryClearingRepository implements ClearingRepository {
     return id === undefined ? null : (this.#byId.get(id) ?? null);
   }
 
+  async findByContractIntentId(intentId: string): Promise<ClearingTransaction | null> {
+    for (const transaction of this.#byId.values()) {
+      if (transaction.contract?.order.intentId === intentId) return transaction;
+    }
+    return null;
+  }
+
   async findByProviderReference(
     provider: string,
     providerReference: string,

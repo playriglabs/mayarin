@@ -6,7 +6,13 @@
  * swappable.
  */
 
-import { type BlockRef, type ChainId, WalletWatcher } from "@mayarin/chain";
+import {
+  type BlockRef,
+  type ChainId,
+  type PaymentCompletionSink,
+  SettlementIndexer,
+  WalletWatcher,
+} from "@mayarin/chain";
 import {
   BasisPointsFeePolicy,
   ClearingEngine,
@@ -23,6 +29,7 @@ import {
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantRepository,
   DrizzlePaymentIntentRepository,
+  DrizzleSettlementEventRepository,
   DrizzleWatcherCursorRepository,
 } from "@mayarin/db";
 import { LedgerService } from "@mayarin/ledger";
@@ -77,6 +84,15 @@ export interface Container {
   readonly quote?: QuoteLayer;
   /** Contract-path checkout (#61). Present only when `CONTRACT_PATH_ENABLED` is true. */
   readonly checkout?: ContractCheckout;
+  /**
+   * Ingests `PaymentCompleted` (#8), one per chain with a deployed router.
+   *
+   * Per chain for the same reason the watchers are: confirmation depth is a
+   * per-chain fact, and a single indexer would have to pick one and apply it to
+   * chains that do not share it. Empty unless the chain layer and the contract
+   * path are both on — one reads the chain, the other says which router.
+   */
+  readonly indexers: ReadonlyMap<ChainId, SettlementIndexer>;
   close(): Promise<void>;
 }
 
@@ -221,6 +237,52 @@ export function createContainer({
     }
   }
 
+  // The seam #8 drives: the log names an on-chain `intentId`, and resolving it
+  // to a clearing transaction is a clearing concern, so it happens here rather
+  // than inside `@mayarin/chain`.
+  const completionSink: PaymentCompletionSink = {
+    complete: async (intentId, completion) => {
+      const transaction = await engine.findByContractIntentId(intentId);
+      if (transaction === null) return false;
+      await engine.recordPaymentCompleted(transaction.id, completion);
+      return true;
+    },
+  };
+
+  const indexers = new Map<ChainId, SettlementIndexer>();
+  if (chain !== undefined && config.contract !== undefined) {
+    const settlementRepository = new DrizzleSettlementEventRepository(handle.db);
+    const indexerCursors = new DrizzleWatcherCursorRepository(handle.db);
+    const indexerClient = new EvmChainClient({
+      rpcUrls: chain.rpcUrls,
+      tokens: tokensOf(config.stablecoins),
+    });
+
+    for (const [routerChain, router] of Object.entries(config.contract.paymentRouters)) {
+      if (router === undefined) continue;
+      indexers.set(
+        routerChain as ChainId,
+        new SettlementIndexer({
+          client: indexerClient,
+          settlements: settlementRepository,
+          cursors: indexerCursors,
+          sink: completionSink,
+          clock,
+          policy: {
+            // The same finality line a deposit gets: a settlement below the
+            // depth has told the engine nothing and can vanish freely.
+            depth: chain.confirmations[routerChain as ChainId],
+            reorgWatchWindow: chain.reorgWatchWindow,
+          },
+          routers: { [routerChain]: router },
+          blockRange: chain.blockRange,
+          events,
+          startBlocks: chain.startBlocks,
+        }),
+      );
+    }
+  }
+
   const paymentApp = new PaymentAppService({
     intents,
     engine,
@@ -240,6 +302,7 @@ export function createContainer({
     events,
     registry,
     watchers,
+    indexers,
     ...(deposits === undefined ? {} : { deposits }),
     ...(chainHead === undefined ? {} : { chainHead }),
     ...(quote === undefined ? {} : { quote }),
