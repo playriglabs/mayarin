@@ -19,7 +19,7 @@ import type {
   User,
   UserRepository,
 } from "@mayarin/auth";
-import { type Clock, generateId } from "@mayarin/shared";
+import { type AssetCode, type Clock, generateId } from "@mayarin/shared";
 
 export interface UserServiceOptions {
   readonly users: UserRepository;
@@ -40,6 +40,10 @@ export interface CreateMerchantAccountInput {
   readonly email: string;
   readonly password?: string;
   readonly merchantName: string;
+  /** The one asset this merchant is paid in. */
+  readonly settlementAsset: AssetCode;
+  /** Assets a payer may pay them with; empty defers to the deployment default. */
+  readonly acceptedAssets: readonly AssetCode[];
   readonly permissions: readonly Permission[];
 }
 
@@ -73,6 +77,8 @@ export class UserService {
     const merchant: Merchant = {
       id: generateId("mrc", now.getTime()),
       name: input.merchantName,
+      settlementAsset: input.settlementAsset,
+      acceptedAssets: input.acceptedAssets,
       createdAt: now,
       updatedAt: now,
     };

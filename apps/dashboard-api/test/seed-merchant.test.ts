@@ -39,6 +39,8 @@ describe("UserService.createMerchantAccount", () => {
       email: "admin@acme.test",
       password: "strong-password-1",
       merchantName: "Acme",
+      settlementAsset: "USDC",
+      acceptedAssets: ["ETH", "USDC"],
       permissions: ["payments:read", "users:manage", "admin:access"],
     });
 
@@ -61,6 +63,8 @@ describe("UserService.createMerchantAccount", () => {
     const result = await userService.createMerchantAccount({
       email: "admin@acme.test",
       merchantName: "Acme",
+      settlementAsset: "USDC",
+      acceptedAssets: ["ETH", "USDC"],
       permissions: ["payments:read"],
     });
 
@@ -80,6 +84,8 @@ describe("UserService.createMerchantAccount", () => {
       email: "admin@acme.test",
       password: "strong-password-1",
       merchantName: "Acme",
+      settlementAsset: "USDC",
+      acceptedAssets: ["ETH", "USDC"],
       permissions: ["payments:read"],
     });
     await expect(
@@ -87,6 +93,8 @@ describe("UserService.createMerchantAccount", () => {
         email: "admin@acme.test",
         password: "strong-password-2",
         merchantName: "Acme Too",
+        settlementAsset: "USDC",
+        acceptedAssets: ["ETH", "USDC"],
         permissions: ["payments:read"],
       }),
     ).rejects.toBeInstanceOf(ConflictError);

@@ -26,6 +26,8 @@ function makeMerchant(name: string): Merchant {
   return {
     id: generateId("mrc", now.getTime()),
     name,
+    settlementAsset: "USDC",
+    acceptedAssets: ["ETH", "USDC"],
     createdAt: now,
     updatedAt: now,
   };

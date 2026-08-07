@@ -15,7 +15,8 @@ import type {
   User,
   UserRepository,
 } from "@mayarin/auth";
-import { ConflictError } from "@mayarin/shared";
+import type { MerchantAssetPolicy, MerchantAssetPolicySource } from "@mayarin/payment-intent";
+import { type AssetCode, ConflictError, isAssetCode, ValidationError } from "@mayarin/shared";
 import { eq, lt } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present } from "../mapping.ts";
@@ -142,19 +143,62 @@ function toUserRow(user: User): typeof users.$inferInsert {
   };
 }
 
+/**
+ * Reads a merchant's asset policy for the payment intent service.
+ *
+ * A thin projection of the merchant record rather than a second table: the
+ * policy is two of its columns, and the intent service should not have to know
+ * that the record also carries a name and timestamps — or depend on
+ * `@mayarin/auth` to find out.
+ */
+export class DrizzleMerchantAssetPolicySource implements MerchantAssetPolicySource {
+  readonly #merchants: MerchantRepository;
+
+  constructor(merchants: MerchantRepository) {
+    this.#merchants = merchants;
+  }
+
+  async policyFor(merchantId: string): Promise<MerchantAssetPolicy | undefined> {
+    const merchant = await this.#merchants.findById(merchantId);
+    if (merchant === null) return undefined;
+    return {
+      settlementAsset: merchant.settlementAsset,
+      acceptedAssets: merchant.acceptedAssets,
+    };
+  }
+}
+
 function toMerchant(row: MerchantRow): Merchant {
   return {
     id: row.id,
     name: row.name,
+    settlementAsset: assertAssetCode(row.settlementAsset, row.id),
+    acceptedAssets: row.acceptedAssets.map((asset) => assertAssetCode(asset, row.id)),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * Postgres stores these as free text, so a code that left the registry — or a
+ * hand-edited row — would otherwise flow into pricing as a valid asset.
+ */
+function assertAssetCode(value: string, merchantId: string): AssetCode {
+  if (!isAssetCode(value)) {
+    throw new ValidationError(`Merchant ${merchantId} names an unknown asset "${value}"`, {
+      merchantId,
+      asset: value,
+    });
+  }
+  return value;
 }
 
 function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
   return {
     id: merchant.id,
     name: merchant.name,
+    settlementAsset: merchant.settlementAsset,
+    acceptedAssets: [...merchant.acceptedAssets],
     createdAt: merchant.createdAt,
     updatedAt: merchant.updatedAt,
   };
