@@ -37,19 +37,27 @@ interface IDepositForwarderFactory {
 contract DepositForwarder {
     using SafeERC20 for IERC20;
 
-    /// @dev The factory that deployed this forwarder. Assigned from `msg.sender`
-    ///      rather than taken as a constructor argument: constructor arguments
-    ///      are part of the init code, and the CREATE2 address is derived from
-    ///      the init code hash. An argument would make every forwarder's address
-    ///      depend on it, which is exactly what must not happen — the address has
-    ///      to be a pure function of the salt so it can be derived off-chain from
-    ///      the payment intent alone.
-    IDepositForwarderFactory internal immutable FACTORY;
+    /// @dev Where this forwarder sweeps to, read once from the deploying factory
+    ///      and then immutable in this contract's own bytecode.
+    ///
+    ///      Read at construction rather than at sweep time so the destination is
+    ///      fixed here rather than merely fixed on the factory. Reading it per
+    ///      sweep would leave the guarantee resting on a runtime external call —
+    ///      true today, but not provable from this contract alone, and a static
+    ///      analyzer is right to flag a value fetched that way as arbitrary.
+    ///
+    ///      Taken from `msg.sender` rather than as a constructor argument:
+    ///      constructor arguments are part of the init code, and the CREATE2
+    ///      address derives from the init code hash. An argument would make every
+    ///      forwarder's address depend on it, which is exactly what must not
+    ///      happen — the address has to be a pure function of the salt so it can
+    ///      be derived off-chain from the payment intent alone.
+    address public immutable destination;
 
     error SweepFailed();
 
     constructor() {
-        FACTORY = IDepositForwarderFactory(msg.sender);
+        destination = IDepositForwarderFactory(msg.sender).destination();
     }
 
     /// @dev Accepts the payer's native deposit. A plain transfer from any wallet
@@ -62,7 +70,7 @@ contract DepositForwarder {
         uint256 balance = address(this).balance;
         if (balance == 0) return;
 
-        (bool ok,) = FACTORY.destination().call{value: balance}("");
+        (bool ok,) = destination.call{value: balance}("");
         if (!ok) revert SweepFailed();
     }
 
@@ -74,6 +82,6 @@ contract DepositForwarder {
         uint256 balance = token.balanceOf(address(this));
         if (balance == 0) return;
 
-        token.safeTransfer(FACTORY.destination(), balance);
+        token.safeTransfer(destination, balance);
     }
 }

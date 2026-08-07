@@ -315,14 +315,24 @@ contracts are verified on Basescan.
 | ------------------------- | -------------------------------------------- |
 | `PaymentRouter`           | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` |
 | `TimelockController`      | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
-| `DepositForwarderFactory` | `0x04CD74e77ac145B18d61c6C8D7939e3241DBB60A` |
+| `DepositForwarderFactory` | `0x598F64551456BCa2536386ED54A24412E3e32fCe` |
 
 `DepositForwarderFactory` sweeps to `0x616e2B9Bc83D60790E70CbaAc6c8612AFc6A7896`
 and its `INIT_CODE_HASH` is
-`0x11d65b051f9532644d6b123a8436db6191e1944e74793a5a9ada1f3099ef4574` — the value
+`0xee0569965b5f80efbe628375129a0db290a6d9476366befecb3529b51c25be89` — the value
 `DEPOSIT_FORWARDER_INIT_CODE_HASH` must carry, since every deposit address
 derives from it. Verified against the deployed factory: the TypeScript deriver
 and `forwarderAddress(salt)` agree for indices 0, 1, 42 and 999.
+
+An earlier factory at `0x04CD74e77ac145B18d61c6C8D7939e3241DBB60A` is
+**superseded**. The security pass (#83) moved `destination` into the forwarder's
+own bytecode, which changed the forwarder's creation code and therefore
+`INIT_CODE_HASH` — so that factory can no longer deploy to any address derived
+from the current deriver. This is precisely the hazard the deploy script warns
+about, playing out where it is cheap: every address it issued was a test deposit
+and every one was swept before the change. On mainnet the same sequence would
+have stranded funds, which is why the audit belongs before the deployment payers
+are pointed at.
 
 On-chain configuration as deployed:
 
