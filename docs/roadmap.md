@@ -119,14 +119,15 @@ Move value movement on-chain. The backend orchestrates; the contract executes.
 
 ### PaymentRouter Smart Contract
 
-- ☐ Stateless, atomic receive → swap → settle
-- ☐ Backend-signed EIP-712 order (`intentId`, `minOut`, `fee`, `merchantSafe`, `refundTo`, `deadline`)
-- ☐ Hard revert on `minOut` miss — no treasury FX risk, no top-up
-- ☐ Zero resting balance — the contract is never a custodian
-- ☐ `payEth(order)` (native value) + `payERC20(order, permit)` via Permit2
-- ☐ On-chain idempotency — `intentId` consumed, replay rejected
-- ☐ Whitelisted input assets and DEX routers
-- ☐ Bounded, timelocked admin — add/remove routers, set fee recipient, pause only; never redirect funds
+- ✓ Stateless, atomic receive → swap → settle
+- ✓ Backend-signed EIP-712 order (`intentId`, `minOut`, `fee`, `merchantSafe`, `refundTo`, `deadline`)
+- ✓ Hard revert on `minOut` miss — no treasury FX risk, no top-up
+- ✓ Zero resting balance — the contract is never a custodian
+- ✓ `payEth(order)` (native value) + `payERC20(order, permit)` via Permit2
+- ✓ On-chain idempotency — `intentId` consumed, replay rejected
+- ✓ Whitelisted input assets and DEX routers
+- ✓ Bounded, timelocked admin — add/remove routers, set fee recipient, pause only; never redirect funds
+- ☐ Deployed and verified on Base Sepolia (#29)
 
 The contract is the **keystone**. Atomicity + hard revert is what makes
 "merchant always receives the settlement asset" safe without Mayarin running a
@@ -136,11 +137,15 @@ with an uncapitalized treasury. Spec it as an invariant.
 
 ### Execution Engine
 
-- ☐ Determine whether a swap is required (same-asset → no-op)
-- ☐ Select execution provider (0x, Uniswap)
-- ☐ Fetch executable quote → `minOut`
-- ☐ Build calldata for PaymentRouter
-- ☐ Slippage policy and MEV protection (private mempool / Flashbots Protect)
+- ✓ Determine whether a swap is required (same-asset → no-op)
+- ✓ Select execution provider (0x, Uniswap, LiFi) — best `minOut` or first-quote by latency strategy, with failure fallback
+- ✓ Fetch executable quote → `minOut`
+- ✓ Build calldata for PaymentRouter
+- ✓ Slippage policy — the bound lives in the quote lock, and the route asserts `expectedIn ≤ maxIn`
+- ☐ MEV protection (private mempool / Flashbots Protect) — the exposure policy is
+  recorded per strategy (`DEFAULT_STRATEGY_POLICIES`) and travels with the
+  selection, but nothing enforces it at submission: the payer sends their own
+  transaction, so private-mempool routing needs the relayer in #9
 
 The Execution Engine is an **off-chain planner**, not an executor. It picks
 the venue and builds calldata; the contract executes. Do not duplicate swap
@@ -149,9 +154,10 @@ immediate (POS) vs batched
 
 ### Quote Engine
 
-- ☐ Compose PriceOracle (reference + deviation guard) + DEX quote (executable `minOut`)
-- ☐ Lock quote → signed order with TTL and slippage bound
-- ☐ Quote-signing key as a custody-adjacent trust root (HSM/KMS, rotation, multisig)
+- ✓ Compose PriceOracle (reference + deviation guard) + DEX quote (executable `minOut`)
+- ✓ Two-leg pricing — fiat FX leg + venue swap leg
+- ✓ Lock quote → signed order with TTL and slippage bound
+- ✓ Quote-signing key as a custody-adjacent trust root — Turnkey behind an `OrderSigner` port, with a rotation policy
 
 The hard lock is the **merchant's settlement amount** (fiat → stablecoin
 `minOut`). The customer's payer-asset amount is a **display estimate**, not a
@@ -160,12 +166,31 @@ two-lock deposit model for the contract path.
 
 ### Price Oracle (adapter)
 
-- ☐ Pyth Network (production — pull-based, on-chain verifiable)
-- ☐ Chainlink (off-chain reference)
+- ✓ Pyth Network (production — pull-based, on-chain verifiable), including the
+  on-chain price update as its own transaction
+- ✓ Chainlink (off-chain reference)
 
 The Price Oracle is a **data dependency**, not a standalone service. The
 executable `minOut` comes from the DEX quote; the oracle is a deviation guard.
 Do not trust the oracle for the fill; trust the DEX, guard with the oracle.
+
+### Clearing — Contract Execution Path
+
+- ✓ `ExecutionPath` discriminator (`deposit-match` | `on-chain-contract`) persisted on the clearing transaction
+- ✓ `ContractPaymentPlanner` port — prices both legs, locks, signs the order at `PRICE_LOCKED`
+- ✓ `recordPaymentCompleted` seam — the only thing that advances a waiting contract-path payment
+- ✓ Expiry fails with `QUOTE_EXPIRED` past the deadline plus an indexing-lag grace; never auto re-quotes
+- ✓ `GET /payments/:id/contract-call` — signed order plus a route fetched fresh per attempt
+
+Three decisions settled here, and they are load-bearing. **The route is fetched
+at submit, not at lock** — a route goes stale faster than a price, so only the
+price is locked and the number the payer sees is the lock's `payerEstimate`,
+already grossed up by the slippage bound, so it is a ceiling rather than a
+guess. **An expired lock fails; it never re-quotes** — a new `minOut` is a new
+price, and a new price needs the payer's consent. The contract enforces the same
+deadline on-chain, so a payment failed here cannot settle later. **The signed
+order is persisted, the route never is** — a resumed step reuses the signature
+rather than re-signing, and on-chain truth is `PaymentCompleted`.
 
 ### Indexer & Event Ingestion
 
@@ -178,14 +203,10 @@ The ledger is now a **derived view** of on-chain reality, not the source of
 truth. Divergence handling (missed event, reorg, indexing lag, under/over
 payment) is first-class, not an edge case.
 
-### Gas Abstraction
-
-- ☐ Relayer / paymaster / zerodev for merchant smart-account wallets
-- ☐ Merchant never needs native gas to receive or withdraw settlement
-
-A merchant whose wallet starts empty cannot move their stablecoin. Gas
-abstraction is required for the "no wallet, no seed phrase" experience to
-function.
+Nothing here is built. The consumer seam exists — `recordPaymentCompleted` on
+the clearing engine — and the contract emits the event, but no process
+listens, so no payment completes end to end on the contract path yet. This and
+the Base Sepolia deploy (#29) are the whole of what Phase 3 has left.
 
 ---
 
@@ -241,6 +262,23 @@ production-grade without a contract change.
 - ☐ On-chain settlement to merchant smart account
 - ☐ Fee extraction on-chain (`minOut − fee` to merchant, fee to treasury)
 - ☐ Excess refund to customer (`refundTo`)
+
+### Gas Abstraction
+
+- ☐ Relayer / paymaster / zerodev for merchant smart-account wallets
+- ☐ Merchant never needs native gas to receive or withdraw settlement
+
+A merchant whose wallet starts empty cannot move their stablecoin. Gas
+abstraction is required for the "no wallet, no seed phrase" experience to
+function.
+
+Moved here from Phase 3 (#9). It is not only infrastructure: `payERC20` binds
+the Permit2 `owner` to `msg.sender`, so a relayer cannot submit on the payer's
+behalf without a contract change. On Base Sepolia a redeploy is a normal
+iteration, so this does not block #29 — but `verifyingContract` is part of the
+EIP-712 domain, so a new address invalidates every previously signed order.
+Settle #9 before mainnet, and before the address escapes into anything external
+(a published SDK, a merchant integration, a deployed backend).
 
 ### Notifications
 
