@@ -210,7 +210,33 @@ emitting one event, so a pass is the same three RPC calls the wallet watcher
 already makes, and the reorg policy is reused rather than reimplemented in a
 second service with its own datastore.
 
-The Base Sepolia deploy (#29) is what Phase 3 has left.
+### What Phase 3 has left
+
+The Base Sepolia deploy (#29) is **done** — `PaymentRouter` and its
+`TimelockController` are live and verified; addresses and on-chain
+configuration are in [`docs/chain.md`](./chain.md).
+
+Two open RFCs remain, and they are the same gap seen from two sides: the
+deposit path detects the payer's asset and stops.
+
+- ☐ **Treasury execution (#69)** — nothing moves a matched deposit into the
+  router. The contract executes atomically, but only when someone calls it, and
+  on the deposit path nobody does. Blocked on a decision rather than on code:
+  a deposit address receives exactly the quoted amount, so it cannot also pay
+  gas. The RFC recommends a CREATE2 forwarder — one operator key instead of one
+  per address, and no pre-funding — but gross-up and pre-funding are still on
+  the table, and the choice shapes the executor.
+- ☐ **Ledger accounting for the deposit-path swap (#70)** — the ledger books the
+  settlement asset when the payer's asset is confirmed, before any swap has run,
+  so between those moments the books state a balance that does not exist while
+  the asset actually held is recorded nowhere. Masked today only because Phase 2
+  is watch-only; it becomes real the moment #69 lands. Needs an account for the
+  held payer asset, one for the FX result, one for sponsored gas, and a stated
+  rule for what "balanced" means when a posting's legs are in different assets.
+
+Both are Phase 3 by label, and #70 is a consequence of #69 rather than an
+independent workstream — the accounting hole only opens once a swap actually
+runs. Phase 4 work that does not touch the deposit path is not gated on either.
 
 ---
 

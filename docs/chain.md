@@ -27,8 +27,11 @@ funded the moment it reached `PAYMENT_PENDING`.
 > take. In a retail market that is most payers, not an edge case.
 >
 > Since #61 the contract path runs end to end up to `PAYMENT_PENDING`, where it
-> waits for `recordPaymentCompleted`; the indexer that calls it (#8) and the
-> deployed contract (#29) are what remain.
+> waits for `recordPaymentCompleted`. Both halves of that are now in place: the
+> indexer that calls it (#8) and the deployed contract (#29, addresses below).
+> What the **deposit** path still lacks is the trigger — nothing moves a matched
+> deposit into the router (#69), and the ledger has no account for the payer
+> asset held between receipt and swap (#70).
 
 ---
 
@@ -221,6 +224,42 @@ configured asset fails to start rather than failing on its first payment.
 Enabling the layer while `ASSET_RECEIPT_MODE=auto` is also a boot failure —
 auto confirmation alongside a live watcher would fund payments nobody paid.
 `WATCHER_INTERVAL_MS=0` disables the timer, leaving only the admin route.
+
+---
+
+## Deployed addresses
+
+Base Sepolia (chain id 84532), deployed 2026-08-07 in block 45164044. Both
+contracts are verified on Basescan.
+
+| Contract             | Address                                      |
+| -------------------- | -------------------------------------------- |
+| `PaymentRouter`      | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` |
+| `TimelockController` | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
+
+On-chain configuration as deployed:
+
+| Setting             | Value                                                               |
+| ------------------- | ------------------------------------------------------------------- |
+| `permit2`           | `0x000000000022D473030F116dDEE9F6B43aC78BA3` (canonical, immutable) |
+| settlement asset    | USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`                   |
+| input asset         | USDC (same)                                                         |
+| DEX router          | SwapRouter02 `0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4`           |
+| `CONFIG_ROLE`       | the timelock, and nothing else                                      |
+| `GUARDIAN_ROLE`     | the guardian, separate from config authority                        |
+| timelock `minDelay` | 0 — testnet only; mainnet keeps the 48h default                     |
+
+`CHAIN_START_BLOCKS` should name the deploy block (45164044) rather than `0`,
+or the settlement indexer's first pass walks the chain from genesis.
+
+The deploying key retained no privilege: it holds neither `CONFIG_ROLE` nor
+`DEFAULT_ADMIN_ROLE`, both of which live only on the timelock. That is the
+property the admin model exists to produce, so it is worth re-checking after
+any redeploy rather than assuming the constructor did it.
+
+A redeploy changes the EIP-712 domain — `verifyingContract` is part of it — so
+every previously signed order becomes invalid, not merely aimed at the old
+address. Cheap on testnet, a migration on mainnet.
 
 ---
 
