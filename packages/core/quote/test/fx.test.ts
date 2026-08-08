@@ -10,8 +10,24 @@ import {
 } from "@mayarin/shared";
 import { fiatPairKey, priceInSettlement } from "../src/fx.ts";
 
+/** A Thursday noon — the FX market is trading. */
 const NOW = new Date("2026-08-06T12:00:00.000Z");
-const POLICY = { pegged: ["IDR/IDRX"], maxAgeMs: 60_000 } as const;
+/** The Saturday after it, with the market shut since Friday's 21:00 close. */
+const WEEKEND = new Date("2026-08-08T12:00:00.000Z");
+
+const POLICY = {
+  pegged: ["IDR/IDRX"],
+  maxAgeMs: 60_000,
+  closedMaxAgeMs: 60_000,
+  closedSpreadBps: 0,
+} as const;
+
+/** Reaches back past Friday's close, and charges 100 bps for doing so. */
+const WEEKEND_POLICY = {
+  ...POLICY,
+  closedMaxAgeMs: 3 * 24 * 60 * 60 * 1_000,
+  closedSpreadBps: 100,
+} as const;
 
 /** IDR 1 = 0.0000615 USDC — 6-dec USDC, so 61 minor units per whole IDR. */
 function idrUsdc(overrides: Partial<OraclePrice> = {}): OraclePrice {
@@ -83,6 +99,105 @@ describe("priceInSettlement — oracle pairs", () => {
     await expect(
       priceInSettlement(stale, money(35_000_00n, "IDR"), "USDC", POLICY, NOW),
     ).rejects.toThrow(ProviderError);
+  });
+});
+
+describe("priceInSettlement — a closed FX market", () => {
+  /** Friday's last publish, ~39 hours before the Saturday noon under test. */
+  function fridayClose(): OraclePrice {
+    return idrUsdc({ observedAt: new Date("2026-08-07T20:55:00.000Z") });
+  }
+
+  test("accepts Friday's close on a Saturday, under the closed bound", async () => {
+    const result = await priceInSettlement(
+      oracle(fridayClose()),
+      money(35_000_00n, "IDR"),
+      "USDC",
+      WEEKEND_POLICY,
+      WEEKEND,
+    );
+
+    expect(result.kind).toBe("oracle-closed");
+    expect(result.source).toBe("pyth");
+  });
+
+  test("the same observation on a trading day is stale", async () => {
+    // The whole point of a separate bound: a 39-hour-old rate is the best that
+    // exists on a Saturday and a dead feed on a Thursday. The wide bound must
+    // not follow the rate into the trading week.
+    await expect(
+      priceInSettlement(
+        oracle(idrUsdc({ observedAt: new Date(NOW.getTime() - 39 * 60 * 60 * 1_000) })),
+        money(35_000_00n, "IDR"),
+        "USDC",
+        WEEKEND_POLICY,
+        NOW,
+      ),
+    ).rejects.toThrow(ProviderError);
+  });
+
+  test("the closed bound still has an edge — a feed dead for a week fails", async () => {
+    await expect(
+      priceInSettlement(
+        oracle(idrUsdc({ observedAt: new Date(WEEKEND.getTime() - 7 * 24 * 60 * 60 * 1_000) })),
+        money(35_000_00n, "IDR"),
+        "USDC",
+        WEEKEND_POLICY,
+        WEEKEND,
+      ),
+    ).rejects.toThrow(ProviderError);
+  });
+
+  test("the spread widens the settlement amount, so the merchant is covered", async () => {
+    // Trading hours put Rp 35.000,00 at 2.135000 USDC; 100 bps on top of the
+    // rate is 61,61 minor units per whole rupiah, so 2.156350.
+    const result = await priceInSettlement(
+      oracle(fridayClose()),
+      money(35_000_00n, "IDR"),
+      "USDC",
+      WEEKEND_POLICY,
+      WEEKEND,
+    );
+
+    expect(result.settlementAmount).toEqual(money(2_156_350n, "USDC"));
+  });
+
+  test("a zero spread leaves the rate exactly as the oracle published it", async () => {
+    const result = await priceInSettlement(
+      oracle(fridayClose()),
+      money(35_000_00n, "IDR"),
+      "USDC",
+      { ...WEEKEND_POLICY, closedSpreadBps: 0 },
+      WEEKEND,
+    );
+
+    expect(result.settlementAmount).toEqual(money(2_135_000n, "USDC"));
+    expect(result.kind).toBe("oracle-closed");
+  });
+
+  test("a pegged pair is unaffected — it reads no rate to be closed about", async () => {
+    const result = await priceInSettlement(
+      oracle(fridayClose()),
+      money(35_000_00n, "IDR"),
+      "IDRX",
+      WEEKEND_POLICY,
+      WEEKEND,
+    );
+
+    expect(result.kind).toBe("pegged");
+    expect(result.settlementAmount).toEqual(money(35_000_00n, "IDRX"));
+  });
+
+  test("refuses a negative spread — that would short the merchant", async () => {
+    await expect(
+      priceInSettlement(
+        oracle(fridayClose()),
+        money(35_000_00n, "IDR"),
+        "USDC",
+        { ...WEEKEND_POLICY, closedSpreadBps: -100 },
+        WEEKEND,
+      ),
+    ).rejects.toThrow(ConfigurationError);
   });
 });
 

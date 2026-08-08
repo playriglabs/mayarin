@@ -60,6 +60,8 @@ export function createQuoteLayer(config: Config, clock: Clock): QuoteLayer | und
       fiat: {
         pegged: quote.peggedPairs,
         maxAgeMs: quote.fxMaxAgeSeconds * 1_000,
+        closedMaxAgeMs: quote.fxClosedMaxAgeSeconds * 1_000,
+        closedSpreadBps: quote.fxClosedSpreadBps,
       },
       clock,
     }),
