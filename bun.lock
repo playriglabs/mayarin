@@ -264,6 +264,14 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/core/wallet": {
+      "name": "@mayarin/wallet",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/db": {
       "name": "@mayarin/db",
       "version": "0.1.0",
@@ -993,6 +1001,8 @@
     "@mayarin/stablecoin": ["@mayarin/stablecoin@workspace:packages/core/stablecoin"],
 
     "@mayarin/studio": ["@mayarin/studio@workspace:apps/studio"],
+
+    "@mayarin/wallet": ["@mayarin/wallet@workspace:packages/core/wallet"],
 
     "@mux/mux-data-google-ima": ["@mux/mux-data-google-ima@0.3.17", "", { "dependencies": { "mux-embed": "5.18.1" } }, "sha512-4wpH6dYybyZhqLn9qGn/+67Z8MZnQRAdqTFEEZw2bx61M9q01uPYYHxd8qwOnYtUGEeafsdTwVHVxKHGD3oc1A=="],
 
