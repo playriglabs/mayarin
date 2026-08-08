@@ -22,6 +22,7 @@ import {
 } from "@mayarin/notifications";
 import { and, asc, desc, eq, gt, lte } from "drizzle-orm";
 import type { Database } from "../client.ts";
+import { present } from "../mapping.ts";
 import {
   clearingEvents,
   clearingTransactions,
@@ -50,6 +51,7 @@ export class DrizzleWebhookOutbox implements WebhookOutbox {
         merchantId: clearingTransactions.merchantId,
         paymentIntentId: clearingTransactions.paymentIntentId,
         metadata: paymentIntents.metadata,
+        merchantReference: paymentIntents.merchantReference,
       })
       .from(clearingEvents)
       .innerJoin(
@@ -70,6 +72,7 @@ export class DrizzleWebhookOutbox implements WebhookOutbox {
       state: row.toState as ClearingState,
       sequence: row.sequence,
       metadata: row.metadata,
+      ...present("merchantReference", row.merchantReference),
       occurredAt: row.occurredAt,
     }));
   }

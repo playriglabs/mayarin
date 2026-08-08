@@ -38,10 +38,17 @@ export interface NotifiableEvent {
   readonly sequence: number;
   /**
    * The intent's free-form metadata, so a merchant reconciles against their
-   * own ids without a lookup. `merchantReference` joins it when #10 adds the
-   * field to the intent.
+   * own ids without a lookup.
    */
   readonly metadata: Readonly<Record<string, string>>;
+  /**
+   * The merchant's own order id, carried through from the intent (#10).
+   *
+   * The reason this channel exists for most integrations: a receiver matches
+   * the event to their own order without holding a map from our ids to theirs.
+   * Absent when the merchant did not supply one.
+   */
+  readonly merchantReference?: string;
   readonly occurredAt: Date;
 }
 
@@ -100,6 +107,7 @@ export function toNotifiableEvent(
     readonly merchantId: string;
     readonly paymentIntentId: string;
     readonly metadata?: Readonly<Record<string, string>>;
+    readonly merchantReference?: string;
   },
 ): NotifiableEvent {
   return {
@@ -111,6 +119,9 @@ export function toNotifiableEvent(
     state: event.toState,
     sequence: event.sequence,
     metadata: context.metadata ?? {},
+    ...(context.merchantReference === undefined
+      ? {}
+      : { merchantReference: context.merchantReference }),
     occurredAt: event.occurredAt,
   };
 }

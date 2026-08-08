@@ -121,7 +121,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     await handle.close();
   });
 
-  async function confirmedIntent(idempotencyKey?: string) {
+  async function confirmedIntent(idempotencyKey?: string, merchantReference?: string) {
     const created = await intents.create({
       merchant: {
         id: "ID1020017611473",
@@ -133,6 +133,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       amount: money(5_000_000n, "IDR"),
       source: { type: "qr", scheme: "QRIS", payload: "00020101021226..." },
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      ...(merchantReference === undefined ? {} : { merchantReference }),
     });
     return intents.confirm(created.id);
   }
@@ -597,6 +598,33 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       const [head, ...rest] = events;
       const after = await outbox.listAfter(head?.id ?? "", 100);
       expect(after).toEqual(rest);
+    });
+
+    test("the outbox carries the merchant's own order id onto every event", async () => {
+      await seedMerchant("ID1020017611473");
+      const outbox = new DrizzleWebhookOutbox(handle.db);
+      await engine.start(await confirmedIntent("order-webhook-ref-1", "INV-1042"));
+
+      const events = await outbox.listAfter(undefined, 100);
+
+      // The reason the channel exists for most integrations: a receiver matches
+      // the event to their own order without holding a map from our ids to theirs.
+      expect(events.length).toBeGreaterThan(0);
+      for (const event of events) {
+        expect(event.merchantReference).toBe("INV-1042");
+      }
+    });
+
+    test("an intent with no merchant reference carries none", async () => {
+      await seedMerchant("ID1020017611473");
+      const outbox = new DrizzleWebhookOutbox(handle.db);
+      await engine.start(await confirmedIntent("order-webhook-ref-2"));
+
+      const [event] = await outbox.listAfter(undefined, 1);
+
+      // Absent, not an empty string: a receiver filtering on it must be able to
+      // tell "no reference" from "the reference is blank".
+      expect(event?.merchantReference).toBeUndefined();
     });
 
     test("a replayed delivery insert maps onto the existing row and counts zero", async () => {

@@ -174,8 +174,10 @@ during a rotation. Verify with `verifyWebhook` from `@mayarin/notifications`
 (the SDK ships the same function). Failed deliveries retry on a backoff
 schedule and park as `DEAD` after the last attempt.
 
-The payload's `data` also carries the payment's `sequence` and the intent's
-`metadata`. Delivery is at-least-once and unordered: a receiver keeps the
+The payload's `data` also carries the payment's `sequence`, the intent's
+`metadata`, and `merchantReference` when the merchant supplied one — so a
+receiver matches an event to their own order without keeping a map from
+Mayarin's ids to theirs. Delivery is at-least-once and unordered: a receiver keeps the
 highest sequence seen per payment and discards anything below it, and
 deduplicates on `Webhook-Id` — exactly-once over a network is not on offer.
 
