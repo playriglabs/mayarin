@@ -7,7 +7,7 @@
  */
 
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import postgres, { type Sql } from "postgres";
 import { schema } from "./schema.ts";
 
 export type Database = PostgresJsDatabase<typeof schema>;
@@ -20,6 +20,14 @@ export type Executor = Database | Transaction;
 
 export interface DatabaseHandle {
   readonly db: Database;
+  /**
+   * The raw postgres.js client.
+   *
+   * Exposed for `LISTEN`, which Drizzle has no surface for: a listener holds a
+   * dedicated connection for the life of the process, which is the opposite of
+   * what a query builder's pool is for. Nothing else should reach for this.
+   */
+  readonly sql: Sql;
   close(): Promise<void>;
 }
 
@@ -32,6 +40,7 @@ export function createDatabase(options: CreateDatabaseOptions): DatabaseHandle {
   const client = postgres(options.url, { max: options.maxConnections ?? 10 });
   return {
     db: drizzle(client, { schema }),
+    sql: client,
     close: () => client.end(),
   };
 }

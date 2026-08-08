@@ -31,6 +31,7 @@ import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 import { RuntimeMarket } from "../src/market.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
+import { PaymentStream } from "../src/services/payment-stream.ts";
 
 export const WEBHOOK_SECRET = "whsec_mayarin_test";
 
@@ -111,6 +112,20 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   const marketStore = new InMemoryMarketConfigStore();
   const market = new RuntimeMarket({ store: marketStore, config, clock, cacheMs: 0 });
 
+  // A stream driven by hand rather than by Postgres: the harness has no
+  // database, and what route tests assert is the fan-out, not the transport.
+  let notify: ((paymentIntentId: string) => void) | undefined;
+  const stream = new PaymentStream({
+    subscribe: async (onChange) => {
+      notify = onChange;
+      return {
+        unlisten: async () => {
+          notify = undefined;
+        },
+      };
+    },
+  });
+
   const container: Container = {
     config,
     intents,
@@ -119,6 +134,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     ledger,
     engine,
     paymentApp: new PaymentAppService({ intents, engine, ledger }),
+    stream,
     refunds: new RefundService({
       clearing: clearingRepository,
       refunds: refundRepository,
@@ -165,6 +181,9 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     intents,
     market,
     marketStore,
+    stream,
+    /** Fires a change as Postgres would, once `stream.start()` has run. */
+    notifyPayment: (paymentIntentId: string) => notify?.(paymentIntentId),
     refundRepository,
   };
 }

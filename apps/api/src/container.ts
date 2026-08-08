@@ -41,6 +41,7 @@ import {
   DrizzleWebhookDeliveryRepository,
   DrizzleWebhookEndpointRepository,
   DrizzleWebhookOutbox,
+  listenPaymentChanged,
 } from "@mayarin/db";
 import { LedgerService } from "@mayarin/ledger";
 import {
@@ -74,6 +75,7 @@ import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./cont
 import { RuntimeMarket, RuntimePriceSource, RuntimeStablecoinRegistry } from "./market.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 import { PaymentAppService } from "./services/payment.ts";
+import { PaymentStream } from "./services/payment-stream.ts";
 import { FetchWebhookTransport } from "./services/webhook-transport.ts";
 
 export interface Container {
@@ -88,6 +90,13 @@ export interface Container {
   readonly paymentApp: PaymentAppService;
   /** Refunds against settled payments (#12). */
   readonly refunds: RefundService;
+  /**
+   * Live payment status for the hosted checkout (#13).
+   *
+   * Absent when `REALTIME_ENABLED` is off, and the page falls back to polling —
+   * which still works, so this is a degrade rather than a failure.
+   */
+  readonly stream?: PaymentStream;
   readonly adapters: SettlementAdapterRegistry;
   readonly events: EventPublisher;
   /** Admissible stablecoins and their on-chain identities. */
@@ -477,6 +486,16 @@ export function createContainer({
     events,
   });
 
+  // One LISTEN connection per process, fanned out to the payers watching here.
+  // A change committed by any instance reaches every instance; the in-process
+  // event bus cannot cross that gap.
+  const stream = config.realtimeEnabled
+    ? new PaymentStream({
+        subscribe: (onChange) => listenPaymentChanged(handle.sql, onChange),
+        maxWatchedPayments: config.realtimeMaxWatched,
+      })
+    : undefined;
+
   const paymentApp = new PaymentAppService({
     intents,
     engine,
@@ -513,6 +532,7 @@ export function createContainer({
     engine,
     paymentApp,
     refunds,
+    ...(stream === undefined ? {} : { stream }),
     adapters,
     events,
     registry,

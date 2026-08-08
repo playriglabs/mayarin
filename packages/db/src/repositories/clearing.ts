@@ -21,6 +21,7 @@ import {
   toMoney,
   toOptionalMoney,
 } from "../mapping.ts";
+import { notifyPaymentChanged } from "../notify.ts";
 import { clearingEvents, clearingTransactions } from "../schema.ts";
 
 type Row = typeof clearingTransactions.$inferSelect;
@@ -38,6 +39,9 @@ export class DrizzleClearingRepository implements ClearingRepository {
     await runInTransaction(this.#db, async (tx) => {
       await tx.insert(clearingTransactions).values(toRow(transaction));
       if (events.length > 0) await tx.insert(clearingEvents).values(events.map(toEventRow));
+      // Queued until commit, discarded on rollback: a listener is never told
+      // about a change that did not happen.
+      await notifyPaymentChanged(tx, transaction.paymentIntentId);
     });
   }
 
@@ -66,6 +70,7 @@ export class DrizzleClearingRepository implements ClearingRepository {
       }
 
       if (events.length > 0) await tx.insert(clearingEvents).values(events.map(toEventRow));
+      await notifyPaymentChanged(tx, transaction.paymentIntentId);
     });
   }
 

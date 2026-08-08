@@ -21,6 +21,13 @@ if (seeded.length > 0) {
   console.log(`[api] seeded market config from the environment: ${seeded.join(", ")}`);
 }
 
+// One LISTEN connection for the process, opened before traffic: a payer whose
+// page loads first and pays second must not miss the change in between.
+if (container.stream !== undefined) {
+  await container.stream.start();
+  console.log("[api] live payment status enabled");
+}
+
 const recovered = await container.engine.resumeStuck();
 if (recovered.length > 0) {
   console.log(`[api] resumed ${recovered.length} clearing transaction(s) on startup`);
