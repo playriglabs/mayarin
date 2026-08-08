@@ -33,8 +33,11 @@ import {
   DrizzleSessionRepository,
   DrizzleSettlementEventRepository,
   DrizzleUserRepository,
+  DrizzleWebhookDeliveryRepository,
+  DrizzleWebhookEndpointRepository,
 } from "@mayarin/db";
 import type { LedgerRepository } from "@mayarin/ledger";
+import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
 import type { PaymentIntentRepository } from "@mayarin/payment-intent";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
 import { type Clock, systemClock } from "@mayarin/shared";
@@ -47,6 +50,7 @@ import {
 } from "./services/payment-read-service.ts";
 import { SessionService } from "./services/session-service.ts";
 import { UserService } from "./services/user-service.ts";
+import { WebhookService } from "./services/webhook-service.ts";
 
 export interface Container {
   readonly config: Config;
@@ -57,6 +61,8 @@ export interface Container {
   readonly compliance: ComplianceService;
   /** Merchant settlement configuration (#95), scoped to the caller's merchant. */
   readonly settings: MerchantSettingsService;
+  /** Webhook endpoints and delivery inspection (#13), scoped the same way. */
+  readonly webhooks: WebhookService;
   close(): Promise<void>;
 }
 
@@ -80,6 +86,8 @@ export interface CreateContainerOptions {
   readonly settlements?: SettlementEventRepository;
   readonly merchants?: MerchantRepository;
   readonly merchantSettingChanges?: MerchantSettingChangeRepository;
+  readonly webhookEndpoints?: WebhookEndpointRepository;
+  readonly webhookDeliveries?: WebhookDeliveryRepository;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -142,6 +150,19 @@ export function createContainer(options: CreateContainerOptions): Container {
     clock,
   });
 
+  // Webhook inspection (#13). The dispatcher itself runs in the payment API;
+  // the dashboard only reads and re-queues, scoped to the caller's merchant.
+  const webhooks = new WebhookService({
+    endpoints:
+      options.webhookEndpoints ??
+      new DrizzleWebhookEndpointRepository(handle?.db ?? throwIfNoHandle()),
+    deliveries:
+      options.webhookDeliveries ??
+      new DrizzleWebhookDeliveryRepository(handle?.db ?? throwIfNoHandle()),
+    clock,
+    pageSize: config.paymentsPageSize,
+  });
+
   return {
     config,
     auth: authService,
@@ -150,6 +171,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     payments,
     compliance,
     settings,
+    webhooks,
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
 }
