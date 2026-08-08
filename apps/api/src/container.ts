@@ -6,6 +6,7 @@
  * swappable.
  */
 
+import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import {
   type BlockRef,
   type ChainId,
@@ -30,6 +31,8 @@ import {
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantRepository,
   DrizzlePaymentIntentRepository,
+  DrizzlePaymentLinkRepository,
+  DrizzleProductRepository,
   DrizzleSettlementEventRepository,
   DrizzleWatcherCursorRepository,
 } from "@mayarin/db";
@@ -68,6 +71,10 @@ import { PaymentAppService } from "./services/payment.ts";
 export interface Container {
   readonly config: Config;
   readonly intents: PaymentIntentService;
+  /** Products and payment links (#10). Optional to use, always wired. */
+  readonly catalog: CatalogService;
+  /** The one seam commerce crosses into payments: cart or link → intent. */
+  readonly commerce: CheckoutService;
   readonly ledger: LedgerService;
   readonly engine: ClearingEngine;
   readonly paymentApp: PaymentAppService;
@@ -249,6 +256,22 @@ export function createContainer({
     },
   });
 
+  // The commerce layer sits on top of intents and is never depended on by them:
+  // a deployment that never writes a product row still takes every payment.
+  const catalogProducts = new DrizzleProductRepository(handle.db);
+  const catalogLinks = new DrizzlePaymentLinkRepository(handle.db);
+  const catalog = new CatalogService({
+    products: catalogProducts,
+    links: catalogLinks,
+    clock,
+  });
+  const commerce = new CheckoutService({
+    products: catalogProducts,
+    links: catalogLinks,
+    intents,
+    clock,
+  });
+
   const ledger = new LedgerService({
     repository: new DrizzleLedgerRepository(handle.db, clock),
     clock,
@@ -418,6 +441,8 @@ export function createContainer({
   return {
     config,
     intents,
+    catalog,
+    commerce,
     ledger,
     engine,
     paymentApp,

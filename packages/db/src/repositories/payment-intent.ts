@@ -68,14 +68,19 @@ export class DrizzlePaymentIntentRepository implements PaymentIntentRepository {
 
   async list(options: ListPaymentIntentsOptions = {}): Promise<readonly PaymentIntent[]> {
     const limit = options.limit ?? 100;
+    const filters = [
+      options.merchantId === undefined
+        ? undefined
+        : eq(paymentIntents.merchantId, options.merchantId),
+      options.merchantReference === undefined
+        ? undefined
+        : eq(paymentIntents.merchantReference, options.merchantReference),
+    ].filter((filter) => filter !== undefined);
+
     const rows = await this.#db
       .select()
       .from(paymentIntents)
-      .where(
-        options.merchantId === undefined
-          ? undefined
-          : eq(paymentIntents.merchantId, options.merchantId),
-      )
+      .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(desc(paymentIntents.createdAt))
       .limit(limit);
     return rows.map(toDomain);
@@ -101,6 +106,7 @@ function toRow(intent: PaymentIntent): typeof paymentIntents.$inferInsert {
     sourceScheme: intent.source.type === "qr" ? intent.source.scheme : null,
     sourcePayload: intent.source.type === "qr" ? intent.source.payload : null,
     metadata: { ...intent.metadata },
+    merchantReference: intent.merchantReference ?? null,
     idempotencyKey: intent.idempotencyKey ?? null,
     requestFingerprint: intent.requestFingerprint ?? null,
     clearingTransactionId: intent.clearingTransactionId ?? null,
@@ -132,6 +138,7 @@ function toDomain(row: Row): PaymentIntent {
     ...present("payment", toPaymentRail(row)),
     source: toSource(row),
     metadata: row.metadata,
+    ...present("merchantReference", row.merchantReference),
     ...present("idempotencyKey", row.idempotencyKey),
     ...present("requestFingerprint", row.requestFingerprint),
     ...present("clearingTransactionId", row.clearingTransactionId),

@@ -106,6 +106,17 @@ export interface PaymentIntent {
   readonly executionPath?: ExecutionPath;
   readonly source: PaymentSource;
   readonly metadata: Readonly<Record<string, string>>;
+  /**
+   * The merchant's own identifier for whatever this payment settles — their
+   * order number, invoice number, table number.
+   *
+   * A first-class field rather than a metadata key because it is the one thing
+   * a merchant looks a payment up by, so it is indexed and filterable. Mayarin
+   * never interprets it and never requires it to be unique: two intents may
+   * carry the same reference when a first attempt expired and the buyer tried
+   * again, and collapsing those into one would lose the failed attempt.
+   */
+  readonly merchantReference?: string;
   readonly idempotencyKey?: string;
   /**
    * Fingerprint of the creating request. Lets a replayed idempotency key be

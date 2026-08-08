@@ -10,8 +10,11 @@ import { Hono } from "hono";
 import type { Container } from "./container.ts";
 import { errorHandler } from "./errors.ts";
 import { adminRoutes } from "./routes/admin.ts";
+import { cartRoutes, catalogRoutes } from "./routes/catalog.ts";
+import { checkoutPageRoutes } from "./routes/checkout-page.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { paymentIntentRoutes } from "./routes/payment-intents.ts";
+import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
 
@@ -27,6 +30,12 @@ export function createApp(container: Container): Hono {
   app.route("/payment-intents", paymentIntentRoutes(container));
   app.route("/payments", paymentRoutes(container));
   app.route("/webhooks", webhookRoutes(container));
+  // The commerce layer (#10). Mounted unconditionally and depended on by
+  // nothing above it: every route already registered works without it.
+  app.route("/catalog", catalogRoutes(container));
+  app.route("/carts", cartRoutes(container));
+  app.route("/payment-links", paymentLinkRoutes(container));
+  app.route("/checkout", checkoutPageRoutes(container));
 
   const adminToken = container.config.adminToken;
   if (adminToken !== undefined) {

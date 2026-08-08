@@ -45,6 +45,7 @@ export interface CreatePaymentIntentInput {
   readonly executionPath?: ExecutionPath;
   readonly source: PaymentSource;
   readonly metadata?: Readonly<Record<string, string>>;
+  readonly merchantReference?: string;
   readonly idempotencyKey?: string;
   readonly requestFingerprint?: string;
   readonly ttlSeconds: number;
@@ -78,6 +79,9 @@ export function createPaymentIntent(input: CreatePaymentIntentInput): PaymentInt
     ...(input.executionPath === undefined ? {} : { executionPath: input.executionPath }),
     source: input.source,
     metadata: input.metadata ?? {},
+    ...(input.merchantReference === undefined
+      ? {}
+      : { merchantReference: input.merchantReference }),
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: input.idempotencyKey }),
     ...(input.requestFingerprint === undefined
       ? {}

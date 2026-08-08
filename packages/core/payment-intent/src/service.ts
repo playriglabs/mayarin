@@ -31,7 +31,7 @@ import {
   markProcessing as markIntentProcessing,
 } from "./intent.ts";
 import type { MerchantAssetPolicySource } from "./merchant-policy.ts";
-import type { PaymentIntentRepository } from "./repository.ts";
+import type { ListPaymentIntentsOptions, PaymentIntentRepository } from "./repository.ts";
 import type {
   ExecutionPath,
   MerchantSnapshot,
@@ -50,6 +50,8 @@ export interface CreatePaymentIntentCommand {
   /** How the `payment` rail is executed. Ignored for a fiat-only intent. */
   readonly executionPath?: ExecutionPath;
   readonly metadata?: Readonly<Record<string, string>>;
+  /** The merchant's own order/invoice id. Opaque to Mayarin, indexed for lookup. */
+  readonly merchantReference?: string;
   readonly idempotencyKey?: string;
   readonly ttlSeconds?: number;
 }
@@ -189,6 +191,9 @@ export class PaymentIntentService {
       ...(executionPath === undefined ? {} : { executionPath }),
       source: command.source,
       ...(command.metadata === undefined ? {} : { metadata: command.metadata }),
+      ...(command.merchantReference === undefined
+        ? {}
+        : { merchantReference: command.merchantReference }),
       ...(command.idempotencyKey === undefined ? {} : { idempotencyKey: command.idempotencyKey }),
       requestFingerprint: fingerprint,
       ttlSeconds: command.ttlSeconds ?? this.#defaults.ttlSeconds,
@@ -207,6 +212,18 @@ export class PaymentIntentService {
       throw new NotFoundError(`Payment intent ${id} not found`, { id });
     }
     return this.expireIfDue(intent);
+  }
+
+  /**
+   * Lists intents, newest first.
+   *
+   * Reads are not expired on the way out the way `getById` expires them: a list
+   * is a report, and settling every due expiry to render one would turn a read
+   * into an unbounded write. `expiresAt` is on every row, so a reader can see
+   * which of them are past due.
+   */
+  async list(options: ListPaymentIntentsOptions = {}): Promise<readonly PaymentIntent[]> {
+    return this.#repository.list(options);
   }
 
   async expireIfDue(intent: PaymentIntent): Promise<PaymentIntent> {
@@ -282,8 +299,9 @@ export class PaymentIntentService {
 /**
  * Stable fingerprint of the parameters that define an intent.
  *
- * Deliberately excludes metadata and TTL: they do not change what is owed to
- * whom, so a retry that only differs there is still the same payment.
+ * Deliberately excludes metadata, the merchant reference and TTL: none of them
+ * change what is owed to whom, so a retry that only differs there is still the
+ * same payment.
  */
 function fingerprintOf(
   command: CreatePaymentIntentCommand,

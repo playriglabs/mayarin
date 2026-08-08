@@ -13,6 +13,7 @@
  */
 
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -56,6 +57,8 @@ export const paymentIntents = pgTable(
     sourcePayload: text("source_payload"),
 
     metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
+    /** The merchant's own order id. Opaque here, deliberately not unique. */
+    merchantReference: text("merchant_reference"),
     idempotencyKey: text("idempotency_key"),
     requestFingerprint: text("request_fingerprint"),
     clearingTransactionId: text("clearing_transaction_id"),
@@ -73,6 +76,9 @@ export const paymentIntents = pgTable(
     uniqueIndex("payment_intents_idempotency_key_idx").on(table.idempotencyKey),
     index("payment_intents_merchant_idx").on(table.merchantId),
     index("payment_intents_status_idx").on(table.status),
+    // Leading on `merchant_id` keeps a merchant's reference lookup on their own
+    // rows: two merchants may both call an order "INV-1".
+    index("payment_intents_merchant_reference_idx").on(table.merchantId, table.merchantReference),
   ],
 );
 
@@ -414,6 +420,98 @@ export const sessions = pgTable(
   ],
 );
 
+/**
+ * Catalog products (#10).
+ *
+ * `merchant_id` carries no foreign key, matching `payment_intents.merchant_id`:
+ * merchant ids on the payment side are denormalised snapshots and need not
+ * exist as account rows.
+ */
+export const products = pgTable(
+  "products",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id").notNull(),
+    sku: text("sku").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    active: boolean("active").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    uniqueIndex("products_merchant_sku_idx").on(table.merchantId, table.sku),
+    index("products_merchant_idx").on(table.merchantId, table.createdAt),
+  ],
+);
+
+/**
+ * A product's price in one currency.
+ *
+ * Its own table rather than a JSON column so every amount stays an exact
+ * `numeric(78, 0)` count of minor units, the same as money everywhere else. The
+ * unique index is what makes "one price per currency" a database fact rather
+ * than a hope.
+ */
+export const productPrices = pgTable(
+  "product_prices",
+  {
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    asset: text("asset").notNull(),
+    amount: minorUnits("amount").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.productId, table.asset] })],
+);
+
+/**
+ * Payment links (#10) — templates that mint Payment Intents.
+ *
+ * A link holds no payment state of its own: `disabled_at` and `expires_at`
+ * decide only whether another intent may be minted. The intents it produced
+ * carry the payments.
+ */
+export const paymentLinks = pgTable(
+  "payment_links",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+
+    merchantId: text("merchant_id").notNull(),
+    merchantName: text("merchant_name").notNull(),
+    merchantCity: text("merchant_city").notNull(),
+    merchantCountryCode: text("merchant_country_code").notNull(),
+    merchantCategoryCode: text("merchant_category_code"),
+
+    // Set for a `fixed` link only.
+    amount: minorUnits("amount"),
+    amountAsset: text("amount_asset"),
+    // Set for `open` and `catalog`.
+    currency: text("currency"),
+    // Set for `catalog`: product references, resolved to a price at checkout.
+    lines: jsonb("lines").$type<{ productId: string; quantity: number }[]>(),
+
+    title: text("title"),
+    merchantReference: text("merchant_reference"),
+    metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
+
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    disabledAt: timestamp("disabled_at", { withTimezone: true, mode: "date" }),
+    idempotencyKey: text("idempotency_key"),
+
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    uniqueIndex("payment_links_idempotency_key_idx").on(table.idempotencyKey),
+    index("payment_links_merchant_idx").on(table.merchantId, table.createdAt),
+  ],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -427,4 +525,7 @@ export const schema = {
   merchants,
   users,
   sessions,
+  products,
+  productPrices,
+  paymentLinks,
 };

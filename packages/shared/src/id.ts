@@ -27,6 +27,8 @@ export const ID_PREFIXES = {
   user: "usr",
   session: "ses",
   merchant: "mrc",
+  product: "prd",
+  paymentLink: "lnk",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];

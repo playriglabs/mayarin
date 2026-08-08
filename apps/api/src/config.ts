@@ -103,6 +103,19 @@ const configSchema = z.object({
   watcherRetentionSeconds: z.coerce.number().int().positive().default(86_400),
   watcherReorgWatchWindow: z.coerce.number().int().positive().default(2),
   adminToken: z.string().min(16).optional(),
+  /**
+   * Origin the hosted checkout is reachable at, e.g. `https://pay.mayarin.xyz`.
+   *
+   * A payment link's whole value is that it can be sent to someone, so the
+   * absolute URL has to be built somewhere. Deployment identity, not merchant
+   * configuration — this stays boot-validated when merchant settings move to a
+   * runtime API (#95).
+   */
+  publicBaseUrl: z
+    .string()
+    .url()
+    .default("http://localhost:3000")
+    .transform((value) => value.replace(/\/+$/, "")),
   mockWebhookSecret: z.string().min(1).optional(),
 
   // --- Quote layer (RFC #6/#7, wired in the container) -------------------
@@ -662,6 +675,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     watcherRetentionSeconds: env.WATCHER_RETENTION_SECONDS,
     watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,
     adminToken: env.ADMIN_TOKEN,
+    publicBaseUrl: env.PUBLIC_BASE_URL,
     mockWebhookSecret: env.MOCK_WEBHOOK_SECRET,
     quoteEnabled: env.QUOTE_ENABLED,
     quoteVenues: env.QUOTE_VENUES,

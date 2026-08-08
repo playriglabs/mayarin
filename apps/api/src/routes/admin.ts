@@ -9,6 +9,7 @@ import { ValidationError } from "@mayarin/shared";
 import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
+import { toPaymentIntentDto } from "../dto/payment-intent.ts";
 import { adminTokenMiddleware } from "../middleware/admin-token.ts";
 
 export function adminRoutes(container: Container, token: string): Hono {
@@ -41,6 +42,28 @@ export function adminRoutes(container: Container, token: string): Hono {
     }
 
     return c.json({ passes: results });
+  });
+
+  /**
+   * Looks payments up by the merchant's own order id.
+   *
+   * Behind the admin token rather than on the public surface: an intent id is
+   * an unguessable ULID, but a merchant reference is `INV-1042`, so an
+   * unauthenticated lookup would enumerate every payment a merchant ever took.
+   */
+  app.get("/payment-intents", async (c) => {
+    const merchantId = c.req.query("merchantId");
+    const merchantReference = c.req.query("merchantReference");
+    if (merchantId === undefined) {
+      throw new ValidationError("merchantId is required");
+    }
+
+    const intents = await container.intents.list({
+      merchantId,
+      ...(merchantReference === undefined ? {} : { merchantReference }),
+    });
+
+    return c.json({ paymentIntents: intents.map(toPaymentIntentDto) });
   });
 
   return app;
