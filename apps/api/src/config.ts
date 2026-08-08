@@ -118,6 +118,15 @@ const configSchema = z.object({
     .transform((value) => value.replace(/\/+$/, "")),
   mockWebhookSecret: z.string().min(1).optional(),
 
+  // --- Outbound webhooks (RFC #13) ---------------------------------------
+  /** Off by default, like the chain layer. */
+  webhooksEnabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /** `0` disables the timer and leaves only the admin trigger, like the watcher. */
+  webhookIntervalMs: z.coerce.number().int().min(0).default(5_000),
+
   // --- Quote layer (RFC #6/#7, wired in the container) -------------------
   /**
    * Off by default, like the chain layer. A deployment that has not configured
@@ -677,6 +686,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     adminToken: env.ADMIN_TOKEN,
     publicBaseUrl: env.PUBLIC_BASE_URL,
     mockWebhookSecret: env.MOCK_WEBHOOK_SECRET,
+    webhooksEnabled: env.WEBHOOKS_ENABLED,
+    webhookIntervalMs: env.WEBHOOK_INTERVAL_MS,
     quoteEnabled: env.QUOTE_ENABLED,
     quoteVenues: env.QUOTE_VENUES,
     quoteOracle: env.QUOTE_ORACLE,

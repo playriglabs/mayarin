@@ -5,7 +5,18 @@
  * 404 rather than exposing an unauthenticated trigger.
  */
 
-import { ValidationError } from "@mayarin/shared";
+import { randomBytes } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import {
+  assertWebhookUrl,
+  isPrivateAddress,
+  replayed,
+  type WebhookDelivery,
+  type WebhookDeliveryRepository,
+  type WebhookEndpoint,
+  type WebhookEndpointRepository,
+} from "@mayarin/notifications";
+import { ConflictError, generateId, NotFoundError, ValidationError } from "@mayarin/shared";
 import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
@@ -107,5 +118,195 @@ export function adminRoutes(container: Container, token: string): Hono {
     return c.json({ key, updated: true });
   });
 
+  /** Forces one webhook dispatcher pass: enqueue new events, attempt due deliveries. */
+  app.post("/webhooks/tick", async (c) => {
+    if (container.webhooks === undefined) {
+      throw new ValidationError("Webhooks are not enabled on this deployment");
+    }
+    return c.json(await container.webhooks.tick());
+  });
+
+  /**
+   * Endpoint configuration (RFC #13).
+   *
+   * Admin-token guarded for now: merchant self-service belongs to the
+   * authenticated merchant-config surface #95 designs, and moves there with it.
+   * The secret is returned exactly once, at creation and rotation.
+   */
+  app.post("/webhooks/endpoints", async (c) => {
+    const endpoints = requireEndpoints(container);
+    const body = await c.req.json<{ merchantId?: string; url?: string }>();
+    if (typeof body.merchantId !== "string" || body.merchantId.length === 0) {
+      throw new ValidationError("merchantId is required");
+    }
+    if (typeof body.url !== "string") {
+      throw new ValidationError("url is required");
+    }
+    await assertPublicWebhookUrl(body.url);
+
+    // One endpoint per merchant in the first cut (RFC #13 non-goal: fan-out).
+    // Rotate or deactivate the existing one instead of accumulating a second.
+    if ((await endpoints.listActiveByMerchant(body.merchantId)).length > 0) {
+      throw new ConflictError("The merchant already has an active endpoint", {});
+    }
+
+    const now = new Date();
+    const endpoint: WebhookEndpoint = {
+      id: generateId("whe", now.getTime()),
+      merchantId: body.merchantId,
+      url: body.url,
+      secret: newSecret(),
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await endpoints.insert(endpoint);
+
+    return c.json({ ...toEndpointDto(endpoint), secret: endpoint.secret }, 201);
+  });
+
+  app.get("/webhooks/endpoints", async (c) => {
+    const endpoints = requireEndpoints(container);
+    const merchantId = c.req.query("merchantId");
+    if (merchantId === undefined || merchantId.length === 0) {
+      throw new ValidationError("merchantId is required");
+    }
+    return c.json({
+      endpoints: (await endpoints.listByMerchant(merchantId)).map(toEndpointDto),
+    });
+  });
+
+  app.post("/webhooks/endpoints/:id/rotate", async (c) => {
+    const endpoints = requireEndpoints(container);
+    const endpoint = await findEndpoint(endpoints, c.req.param("id"));
+
+    const rotated: WebhookEndpoint = {
+      ...endpoint,
+      secret: newSecret(),
+      previousSecret: endpoint.secret,
+      updatedAt: new Date(),
+    };
+    await endpoints.update(rotated);
+
+    return c.json({ ...toEndpointDto(rotated), secret: rotated.secret });
+  });
+
+  app.post("/webhooks/endpoints/:id/deactivate", async (c) => {
+    const endpoints = requireEndpoints(container);
+    const endpoint = await findEndpoint(endpoints, c.req.param("id"));
+
+    await endpoints.update({ ...endpoint, active: false, updatedAt: new Date() });
+    return c.json({ id: endpoint.id, active: false });
+  });
+
+  /**
+   * A merchant's recent deliveries, newest first — including DEAD ones. A
+   * dead-lettered delivery only operators can see is a payment the merchant
+   * silently misses.
+   */
+  app.get("/webhooks/deliveries", async (c) => {
+    const deliveries = requireDeliveries(container);
+    const merchantId = c.req.query("merchantId");
+    if (merchantId === undefined || merchantId.length === 0) {
+      throw new ValidationError("merchantId is required");
+    }
+    const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+    return c.json({
+      deliveries: (await deliveries.listByMerchant(merchantId, limit)).map(toDeliveryDto),
+    });
+  });
+
+  /** Re-queues one delivery with a fresh schedule. Same body, same Webhook-Id. */
+  app.post("/webhooks/deliveries/:id/replay", async (c) => {
+    const deliveries = requireDeliveries(container);
+    const id = c.req.param("id");
+    const delivery = await deliveries.findById(id);
+    if (delivery === null) {
+      throw new NotFoundError(`Webhook delivery ${id} not found`);
+    }
+
+    const requeued = replayed(delivery, new Date());
+    await deliveries.update(requeued);
+    return c.json(toDeliveryDto(requeued), 202);
+  });
+
   return app;
+}
+
+/**
+ * The registration-time SSRF boundary: HTTPS, no literal private address, and
+ * no hostname that resolves to one. A name can re-resolve later — this is the
+ * cheap check, not a substitute for network-level egress policy.
+ */
+async function assertPublicWebhookUrl(url: string): Promise<void> {
+  const parsed = assertWebhookUrl(url);
+
+  let addresses: readonly { address: string }[];
+  try {
+    addresses = await lookup(parsed.hostname, { all: true });
+  } catch {
+    throw new ValidationError("url hostname does not resolve");
+  }
+  if (addresses.some((entry) => isPrivateAddress(entry.address))) {
+    throw new ValidationError("url must not point at a private network");
+  }
+}
+
+function requireDeliveries(container: Container): WebhookDeliveryRepository {
+  if (container.webhookDeliveries === undefined) {
+    throw new ValidationError("Webhooks are not enabled on this deployment");
+  }
+  return container.webhookDeliveries;
+}
+
+function toDeliveryDto(delivery: WebhookDelivery): Record<string, unknown> {
+  return {
+    id: delivery.id,
+    eventId: delivery.eventId,
+    endpointId: delivery.endpointId,
+    merchantId: delivery.merchantId,
+    status: delivery.status,
+    attempts: delivery.attempts,
+    nextAttemptAt: delivery.nextAttemptAt.toISOString(),
+    lastStatusCode: delivery.lastStatusCode ?? null,
+    lastError: delivery.lastError ?? null,
+    deliveredAt: delivery.deliveredAt?.toISOString() ?? null,
+    body: delivery.body,
+    createdAt: delivery.createdAt.toISOString(),
+  };
+}
+
+function requireEndpoints(container: Container): WebhookEndpointRepository {
+  if (container.webhookEndpoints === undefined) {
+    throw new ValidationError("Webhooks are not enabled on this deployment");
+  }
+  return container.webhookEndpoints;
+}
+
+async function findEndpoint(
+  endpoints: WebhookEndpointRepository,
+  id: string,
+): Promise<WebhookEndpoint> {
+  const endpoint = await endpoints.findById(id);
+  if (endpoint === null) {
+    throw new NotFoundError(`Webhook endpoint ${id} not found`);
+  }
+  return endpoint;
+}
+
+function newSecret(): string {
+  return `whsec_${randomBytes(24).toString("base64url")}`;
+}
+
+/** The listing shape. Secrets never appear here — only creation and rotation show one. */
+function toEndpointDto(endpoint: WebhookEndpoint): Record<string, unknown> {
+  return {
+    id: endpoint.id,
+    merchantId: endpoint.merchantId,
+    url: endpoint.url,
+    active: endpoint.active,
+    rotatedSecretActive: endpoint.previousSecret !== undefined,
+    createdAt: endpoint.createdAt.toISOString(),
+    updatedAt: endpoint.updatedAt.toISOString(),
+  };
 }

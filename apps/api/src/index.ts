@@ -64,6 +64,28 @@ if (chain !== undefined && chain.intervalMs > 0 && container.indexers.size > 0) 
   console.log(`[indexer] polling ${container.indexers.size} router(s) every ${chain.intervalMs}ms`);
 }
 
+// The dispatcher runs on its own timer, in the watcher's shape: a failed pass
+// leaves the cursor and the due deliveries where they were, so the next pass
+// repeats them. The guard skips a beat rather than overlapping a slow one —
+// two concurrent passes would race the same due deliveries.
+const webhooks = container.webhooks;
+if (webhooks !== undefined && config.webhookIntervalMs > 0) {
+  let delivering = false;
+  setInterval(() => {
+    if (delivering) return;
+    delivering = true;
+    void webhooks
+      .tick()
+      .catch((error) => {
+        console.error("[webhooks] dispatch tick failed", error);
+      })
+      .finally(() => {
+        delivering = false;
+      });
+  }, config.webhookIntervalMs);
+  console.log(`[webhooks] dispatching every ${config.webhookIntervalMs}ms`);
+}
+
 const app = createApp(container);
 
 console.log(`[api] listening on http://localhost:${config.port}`);

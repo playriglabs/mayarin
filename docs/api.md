@@ -159,6 +159,42 @@ registry, so adding a payment rail does not add a route. The raw body is passed
 to the adapter untouched, so signatures are verified over exactly the bytes that
 were signed.
 
+## Outbound Webhooks (RFC #13)
+
+Enabled with `WEBHOOKS_ENABLED=true`. Deliveries derive from the clearing
+event log: every state transition becomes one signed POST per configured
+endpoint. The payload carries ids and the new state, never amounts — a
+webhook is a signal, and a receiver that needs the record asks the API.
+
+Each delivery carries three headers. `Webhook-Id` is the clearing event id
+and is the receiver's idempotency key: a retry repeats the same id and the
+same bytes. `Webhook-Signature` is `t=<unix>,v1=<hex>` — HMAC-SHA256 over
+`timestamp.body` with the endpoint secret, one `v1` entry per active secret
+during a rotation. Verify with `verifyWebhook` from `@mayarin/notifications`
+(the SDK ships the same function). Failed deliveries retry on a backoff
+schedule and park as `DEAD` after the last attempt.
+
+The payload's `data` also carries the payment's `sequence`, the intent's
+`metadata`, and `merchantReference` when the merchant supplied one — so a
+receiver matches an event to their own order without keeping a map from
+Mayarin's ids to theirs. Delivery is at-least-once and unordered: a receiver keeps the
+highest sequence seen per payment and discards anything below it, and
+deduplicates on `Webhook-Id` — exactly-once over a network is not on offer.
+
+Endpoint management is admin-token guarded until the authenticated
+merchant-config surface (#95) exists. One active endpoint per merchant; a URL
+must be HTTPS and must not resolve to a private-network address:
+
+```
+POST /admin/webhooks/endpoints                  { merchantId, url } → endpoint + secret (shown once)
+GET  /admin/webhooks/endpoints?merchantId=…     list, secrets masked
+POST /admin/webhooks/endpoints/:id/rotate       new secret; the previous one stays verifiable
+POST /admin/webhooks/endpoints/:id/deactivate
+GET  /admin/webhooks/deliveries?merchantId=…    recent deliveries, newest first, DEAD included
+POST /admin/webhooks/deliveries/:id/replay      re-queue one delivery; same body, same Webhook-Id
+POST /admin/webhooks/tick                       force one dispatch pass
+```
+
 ## Health
 
 ```

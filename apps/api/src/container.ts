@@ -37,8 +37,17 @@ import {
   DrizzleRefundRepository,
   DrizzleSettlementEventRepository,
   DrizzleWatcherCursorRepository,
+  DrizzleWebhookCursorRepository,
+  DrizzleWebhookDeliveryRepository,
+  DrizzleWebhookEndpointRepository,
+  DrizzleWebhookOutbox,
 } from "@mayarin/db";
 import { LedgerService } from "@mayarin/ledger";
+import {
+  type WebhookDeliveryRepository,
+  WebhookDispatcher,
+  type WebhookEndpointRepository,
+} from "@mayarin/notifications";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import {
   Create2DepositAddressDeriver,
@@ -65,6 +74,7 @@ import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./cont
 import { RuntimeMarket, RuntimePriceSource, RuntimeStablecoinRegistry } from "./market.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 import { PaymentAppService } from "./services/payment.ts";
+import { FetchWebhookTransport } from "./services/webhook-transport.ts";
 
 export interface Container {
   readonly config: Config;
@@ -111,6 +121,12 @@ export interface Container {
    * path are both on — one reads the chain, the other says which router.
    */
   readonly indexers: ReadonlyMap<ChainId, SettlementIndexer>;
+  /** Outbound webhook delivery (RFC #13). Present only when `WEBHOOKS_ENABLED` is true. */
+  readonly webhooks?: WebhookDispatcher;
+  /** Endpoint configuration for the admin surface. Present with `webhooks`. */
+  readonly webhookEndpoints?: WebhookEndpointRepository;
+  /** Delivery inspection and replay for the admin surface. Present with `webhooks`. */
+  readonly webhookDeliveries?: WebhookDeliveryRepository;
   close(): Promise<void>;
 }
 
@@ -470,6 +486,24 @@ export function createContainer({
     ...(chain === undefined ? {} : { chainConfig: chain }),
   });
 
+  // Delivery derives from the clearing event log the engine already writes, so
+  // enabling webhooks wires nothing into the engine itself.
+  let webhooks: WebhookDispatcher | undefined;
+  let webhookEndpoints: WebhookEndpointRepository | undefined;
+  let webhookDeliveries: WebhookDeliveryRepository | undefined;
+  if (config.webhooksEnabled) {
+    webhookEndpoints = new DrizzleWebhookEndpointRepository(handle.db);
+    webhookDeliveries = new DrizzleWebhookDeliveryRepository(handle.db);
+    webhooks = new WebhookDispatcher({
+      outbox: new DrizzleWebhookOutbox(handle.db),
+      cursor: new DrizzleWebhookCursorRepository(handle.db),
+      endpoints: webhookEndpoints,
+      deliveries: webhookDeliveries,
+      transport: new FetchWebhookTransport(),
+      clock,
+    });
+  }
+
   return {
     config,
     intents,
@@ -488,6 +522,9 @@ export function createContainer({
     ...(deposits === undefined ? {} : { deposits }),
     ...(chainHead === undefined ? {} : { chainHead }),
     ...(checkout === undefined ? {} : { checkout }),
+    ...(webhooks === undefined ? {} : { webhooks }),
+    ...(webhookEndpoints === undefined ? {} : { webhookEndpoints }),
+    ...(webhookDeliveries === undefined ? {} : { webhookDeliveries }),
     close: () => handle.close(),
   };
 }
