@@ -228,19 +228,30 @@ export class TurnkeyWalletProvider implements WalletProvider {
     // Read the signer set back at the deployment block. The transaction
     // succeeding is not the same as the Safe being owned by who it should be,
     // and that is the whole custody claim.
+    //
+    // Pinned to the block rather than `latest`, and retried: behind a load
+    // balancer the node serving this call may not have that block yet, which
+    // surfaces as "block not found". Reading `latest` instead would trade that
+    // error for a silent wrong answer — a stale read reporting the Safe as
+    // unowned. Waiting for propagation is the only version that is both
+    // correct and honest.
     const [owners, threshold] = await Promise.all([
-      publicClient.readContract({
-        address: result,
-        abi: SAFE_ABI,
-        functionName: "getOwners",
-        blockNumber: receipt.blockNumber,
-      }),
-      publicClient.readContract({
-        address: result,
-        abi: SAFE_ABI,
-        functionName: "getThreshold",
-        blockNumber: receipt.blockNumber,
-      }),
+      readAtBlock(() =>
+        publicClient.readContract({
+          address: result,
+          abi: SAFE_ABI,
+          functionName: "getOwners",
+          blockNumber: receipt.blockNumber,
+        }),
+      ),
+      readAtBlock(() =>
+        publicClient.readContract({
+          address: result,
+          abi: SAFE_ABI,
+          functionName: "getThreshold",
+          blockNumber: receipt.blockNumber,
+        }),
+      ),
     ]);
 
     const lowered = owners.map((owner) => owner.toLowerCase());
@@ -296,6 +307,26 @@ interface SubOrgResponse {
       };
     };
   };
+}
+
+/**
+ * Retries a pinned-block read until the serving node has the block.
+ *
+ * Bounded, and it re-throws rather than falling back to `latest` — falling back
+ * would answer from a block that is not the one being asked about, which is the
+ * failure this read exists to rule out.
+ */
+async function readAtBlock<T>(read: () => Promise<T>, attempts = 8): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await read();
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  throw lastError;
 }
 
 /** Verified on Base Sepolia before this shipped; re-verify before another chain. */
