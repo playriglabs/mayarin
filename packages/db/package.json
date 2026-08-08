@@ -9,9 +9,9 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "generate": "drizzle-kit generate",
-    "migrate": "bun run src/migrate.ts",
-    "studio": "drizzle-kit studio"
+    "generate": "bun --env-file=../../.env run drizzle-kit generate",
+    "migrate": "bun --env-file=../../.env run src/migrate.ts",
+    "studio": "bun --env-file=../../.env run drizzle-kit studio"
   },
   "dependencies": {
     "@mayarin/auth": "workspace:*",
