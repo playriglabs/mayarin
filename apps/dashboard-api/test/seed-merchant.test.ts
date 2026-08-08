@@ -10,7 +10,11 @@
 
 import { describe, expect, test } from "bun:test";
 import type { PasswordHasher } from "@mayarin/auth";
-import { InMemoryMerchantRepository, InMemoryUserRepository } from "@mayarin/auth/testing";
+import {
+  InMemoryMerchantAccountRepository,
+  InMemoryMerchantRepository,
+  InMemoryUserRepository,
+} from "@mayarin/auth/testing";
 import { ConflictError, FixedClock } from "@mayarin/shared";
 import { UserService } from "../src/services/user-service.ts";
 
@@ -27,8 +31,9 @@ function makeService() {
   const clock = new FixedClock("2026-01-01T00:00:00.000Z");
   const users = new InMemoryUserRepository();
   const merchants = new InMemoryMerchantRepository();
+  const accounts = new InMemoryMerchantAccountRepository(merchants, users);
   const hasher = new PlainHasher();
-  const userService = new UserService({ users, merchants, hasher, clock });
+  const userService = new UserService({ users, accounts, hasher, clock });
   return { userService, users, merchants, hasher, clock };
 }
 
@@ -98,5 +103,35 @@ describe("UserService.createMerchantAccount", () => {
         permissions: ["payments:read"],
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  test("a rejected duplicate leaves no merchant behind (#100)", async () => {
+    const { userService, merchants } = makeService();
+    await userService.createMerchantAccount({
+      email: "admin@acme.test",
+      password: "strong-password-1",
+      merchantName: "First",
+      settlementAsset: "USDC",
+      acceptedAssets: ["USDC"],
+      permissions: ["payments:read"],
+    });
+
+    await expect(
+      userService.createMerchantAccount({
+        email: "admin@acme.test",
+        password: "strong-password-2",
+        merchantName: "Second",
+        settlementAsset: "USDC",
+        acceptedAssets: ["USDC"],
+        permissions: ["payments:read"],
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    // The failure the operator sees has to mean the failure the database saw.
+    // A "Second" row surviving here is a tenant nothing can sign in to and
+    // nothing deletes — and it counts as a merchant in every total that reads
+    // the table.
+    const all = await merchants.list();
+    expect(all.map((one) => one.name)).toEqual(["First"]);
   });
 });

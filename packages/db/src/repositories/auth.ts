@@ -8,6 +8,7 @@
 
 import type {
   Merchant,
+  MerchantAccountRepository,
   MerchantRepository,
   Permission,
   Session,
@@ -19,7 +20,7 @@ import type { MerchantAssetPolicy, MerchantAssetPolicySource } from "@mayarin/pa
 import { type AssetCode, ConflictError, isAssetCode, ValidationError } from "@mayarin/shared";
 import { eq, lt } from "drizzle-orm";
 import type { Executor } from "../client.ts";
-import { present } from "../mapping.ts";
+import { present, runInTransaction } from "../mapping.ts";
 import { merchants, sessions, users } from "../schema.ts";
 
 type UserRow = typeof users.$inferSelect;
@@ -86,6 +87,36 @@ export class DrizzleMerchantRepository implements MerchantRepository {
   async list(): Promise<readonly Merchant[]> {
     const rows = await this.#db.select().from(merchants);
     return rows.map(toMerchant);
+  }
+}
+
+/**
+ * The merchant and its first account, written together (issue #100).
+ *
+ * Postgres rolls the merchant back when the user insert raises, so a duplicate
+ * email leaves nothing behind. Before this, it left a merchant no account could
+ * ever sign in to — and the operator, seeing the error, reasonably assumed the
+ * write had not happened.
+ */
+export class DrizzleMerchantAccountRepository implements MerchantAccountRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async insertWithFirstUser(merchant: Merchant, user: User): Promise<void> {
+    try {
+      await runInTransaction(this.#db, async (tx) => {
+        await tx.insert(merchants).values(toMerchantRow(merchant));
+        await tx.insert(users).values(toUserRow(user));
+      });
+    } catch (error) {
+      // The email is the key an operator recognises. The merchant id is freshly
+      // generated and unique by construction, so a conflict here is the user
+      // row every time.
+      throw toConflict(error, user.email);
+    }
   }
 }
 

@@ -13,6 +13,7 @@
 
 import type { PasswordHasher } from "@mayarin/auth";
 import {
+  InMemoryMerchantAccountRepository,
   InMemoryMerchantRepository,
   InMemorySessionRepository,
   InMemoryUserRepository,
@@ -70,6 +71,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
 
   const users = new InMemoryUserRepository();
   const merchants = new InMemoryMerchantRepository();
+  const accounts = new InMemoryMerchantAccountRepository(merchants, users);
   const sessions = new InMemorySessionRepository();
   const intents = new InMemoryPaymentIntentRepository();
   const clearing = new InMemoryClearingRepository();
@@ -97,7 +99,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     ttlSeconds: config.sessionTtlSeconds,
   });
   const authService = new AuthService({ users, hasher, sessions: sessionService });
-  const userService = new UserService({ users, merchants, hasher, clock });
+  const userService = new UserService({ users, accounts, hasher, clock });
   const payments = new PaymentReadService({ intents, clearing, pageSize: config.paymentsPageSize });
 
   // The compliance read stack, on the same in-memory repos the rest of the
