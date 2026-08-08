@@ -10,8 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mayarin/chain": "workspace:*",
     "@mayarin/quote": "workspace:*",
     "@mayarin/shared": "workspace:*",
+    "@mayarin/wallet": "workspace:*",
     "@noble/curves": "1.9.1",
     "viem": "^2.21.0",
     "zod": "^3.24.1"
