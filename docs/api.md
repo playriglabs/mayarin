@@ -181,9 +181,26 @@ Mayarin's ids to theirs. Delivery is at-least-once and unordered: a receiver kee
 highest sequence seen per payment and discards anything below it, and
 deduplicates on `Webhook-Id` — exactly-once over a network is not on offer.
 
-Endpoint management is admin-token guarded until the authenticated
-merchant-config surface (#95) exists. One active endpoint per merchant; a URL
-must be HTTPS and must not resolve to a private-network address:
+Merchants manage their own endpoints and inspect their own deliveries through
+the dashboard API, behind a session and the `settings:manage` permission. Every
+route reads the merchant from the session — none takes a merchant id, so one
+merchant cannot read or replay another's deliveries. One active endpoint per
+merchant; a URL must be HTTPS and must not resolve to a private-network address:
+
+```
+GET  /webhooks/endpoints                  list, secrets masked
+POST /webhooks/endpoints                  { url } → endpoint + secret (shown once)
+POST /webhooks/endpoints/:id/rotate       new secret; the previous one stays verifiable
+POST /webhooks/endpoints/:id/deactivate
+GET  /webhooks/deliveries?limit=…         recent deliveries, newest first, DEAD included
+POST /webhooks/deliveries/:id/replay      re-queue one delivery; same body, same Webhook-Id
+```
+
+A delivery carries what the receiver answered — status code and error — because
+a dead-lettered delivery a merchant cannot see is a payment they silently miss.
+
+The same surface exists on the payment API behind `ADMIN_TOKEN`, for operators
+supporting a merchant who cannot reach their own dashboard:
 
 ```
 POST /admin/webhooks/endpoints                  { merchantId, url } → endpoint + secret (shown once)
