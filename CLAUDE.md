@@ -9,7 +9,7 @@ imports it and adds only the Claude-Code-specific layer.
 
 ## Claude Code specifics
 
-- **Repo skills** live in `.agent/skills/` (source of truth) and are symlinked
+- **Repo skills** live in `.agents/skills/` (source of truth) and are symlinked
   into `.claude/skills/` so Claude Code auto-loads them:
   - `functional-programming` — the full TypeScript style guide (pure domain
     packages, immutable aggregates, injected effects, exhaustiveness, and the

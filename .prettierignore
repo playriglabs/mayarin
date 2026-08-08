@@ -22,3 +22,8 @@ bun.lockb
 
 # Auto-generated session memory, not source.
 .remember/
+
+# Vendored skills, pinned by hash in skills-lock.json. Formatting them would
+# change the content and break the hash check.
+.agents/skills/find-skills/
+.agents/skills/ui-ux-pro-max/
