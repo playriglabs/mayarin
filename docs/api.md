@@ -174,14 +174,22 @@ during a rotation. Verify with `verifyWebhook` from `@mayarin/notifications`
 (the SDK ships the same function). Failed deliveries retry on a backoff
 schedule and park as `DEAD` after the last attempt.
 
+The payload's `data` also carries the payment's `sequence` and the intent's
+`metadata`. Delivery is at-least-once and unordered: a receiver keeps the
+highest sequence seen per payment and discards anything below it, and
+deduplicates on `Webhook-Id` — exactly-once over a network is not on offer.
+
 Endpoint management is admin-token guarded until the authenticated
-merchant-config surface (#95) exists:
+merchant-config surface (#95) exists. One active endpoint per merchant; a URL
+must be HTTPS and must not resolve to a private-network address:
 
 ```
 POST /admin/webhooks/endpoints                  { merchantId, url } → endpoint + secret (shown once)
 GET  /admin/webhooks/endpoints?merchantId=…     list, secrets masked
 POST /admin/webhooks/endpoints/:id/rotate       new secret; the previous one stays verifiable
 POST /admin/webhooks/endpoints/:id/deactivate
+GET  /admin/webhooks/deliveries?merchantId=…    recent deliveries, newest first, DEAD included
+POST /admin/webhooks/deliveries/:id/replay      re-queue one delivery; same body, same Webhook-Id
 POST /admin/webhooks/tick                       force one dispatch pass
 ```
 

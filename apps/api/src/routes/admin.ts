@@ -6,8 +6,17 @@
  */
 
 import { randomBytes } from "node:crypto";
-import type { WebhookEndpoint, WebhookEndpointRepository } from "@mayarin/notifications";
-import { generateId, NotFoundError, ValidationError } from "@mayarin/shared";
+import { lookup } from "node:dns/promises";
+import {
+  assertWebhookUrl,
+  isPrivateAddress,
+  replayed,
+  type WebhookDelivery,
+  type WebhookDeliveryRepository,
+  type WebhookEndpoint,
+  type WebhookEndpointRepository,
+} from "@mayarin/notifications";
+import { ConflictError, generateId, NotFoundError, ValidationError } from "@mayarin/shared";
 import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
@@ -128,8 +137,15 @@ export function adminRoutes(container: Container, token: string): Hono {
     if (typeof body.merchantId !== "string" || body.merchantId.length === 0) {
       throw new ValidationError("merchantId is required");
     }
-    if (typeof body.url !== "string" || !/^https?:\/\//.test(body.url)) {
-      throw new ValidationError("url must be an http(s) URL");
+    if (typeof body.url !== "string") {
+      throw new ValidationError("url is required");
+    }
+    await assertPublicWebhookUrl(body.url);
+
+    // One endpoint per merchant in the first cut (RFC #13 non-goal: fan-out).
+    // Rotate or deactivate the existing one instead of accumulating a second.
+    if ((await endpoints.listActiveByMerchant(body.merchantId)).length > 0) {
+      throw new ConflictError("The merchant already has an active endpoint", {});
     }
 
     const now = new Date();
@@ -181,7 +197,81 @@ export function adminRoutes(container: Container, token: string): Hono {
     return c.json({ id: endpoint.id, active: false });
   });
 
+  /**
+   * A merchant's recent deliveries, newest first — including DEAD ones. A
+   * dead-lettered delivery only operators can see is a payment the merchant
+   * silently misses.
+   */
+  app.get("/webhooks/deliveries", async (c) => {
+    const deliveries = requireDeliveries(container);
+    const merchantId = c.req.query("merchantId");
+    if (merchantId === undefined || merchantId.length === 0) {
+      throw new ValidationError("merchantId is required");
+    }
+    const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
+    return c.json({
+      deliveries: (await deliveries.listByMerchant(merchantId, limit)).map(toDeliveryDto),
+    });
+  });
+
+  /** Re-queues one delivery with a fresh schedule. Same body, same Webhook-Id. */
+  app.post("/webhooks/deliveries/:id/replay", async (c) => {
+    const deliveries = requireDeliveries(container);
+    const id = c.req.param("id");
+    const delivery = await deliveries.findById(id);
+    if (delivery === null) {
+      throw new NotFoundError(`Webhook delivery ${id} not found`);
+    }
+
+    const requeued = replayed(delivery, new Date());
+    await deliveries.update(requeued);
+    return c.json(toDeliveryDto(requeued), 202);
+  });
+
   return app;
+}
+
+/**
+ * The registration-time SSRF boundary: HTTPS, no literal private address, and
+ * no hostname that resolves to one. A name can re-resolve later — this is the
+ * cheap check, not a substitute for network-level egress policy.
+ */
+async function assertPublicWebhookUrl(url: string): Promise<void> {
+  const parsed = assertWebhookUrl(url);
+
+  let addresses: readonly { address: string }[];
+  try {
+    addresses = await lookup(parsed.hostname, { all: true });
+  } catch {
+    throw new ValidationError("url hostname does not resolve");
+  }
+  if (addresses.some((entry) => isPrivateAddress(entry.address))) {
+    throw new ValidationError("url must not point at a private network");
+  }
+}
+
+function requireDeliveries(container: Container): WebhookDeliveryRepository {
+  if (container.webhookDeliveries === undefined) {
+    throw new ValidationError("Webhooks are not enabled on this deployment");
+  }
+  return container.webhookDeliveries;
+}
+
+function toDeliveryDto(delivery: WebhookDelivery): Record<string, unknown> {
+  return {
+    id: delivery.id,
+    eventId: delivery.eventId,
+    endpointId: delivery.endpointId,
+    merchantId: delivery.merchantId,
+    status: delivery.status,
+    attempts: delivery.attempts,
+    nextAttemptAt: delivery.nextAttemptAt.toISOString(),
+    lastStatusCode: delivery.lastStatusCode ?? null,
+    lastError: delivery.lastError ?? null,
+    deliveredAt: delivery.deliveredAt?.toISOString() ?? null,
+    body: delivery.body,
+    createdAt: delivery.createdAt.toISOString(),
+  };
 }
 
 function requireEndpoints(container: Container): WebhookEndpointRepository {

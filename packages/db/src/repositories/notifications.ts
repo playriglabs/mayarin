@@ -20,11 +20,12 @@ import {
   type WebhookEndpointRepository,
   type WebhookOutbox,
 } from "@mayarin/notifications";
-import { and, asc, eq, gt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lte } from "drizzle-orm";
 import type { Database } from "../client.ts";
 import {
   clearingEvents,
   clearingTransactions,
+  paymentIntents,
   webhookCursors,
   webhookDeliveries,
   webhookEndpoints,
@@ -43,16 +44,19 @@ export class DrizzleWebhookOutbox implements WebhookOutbox {
         id: clearingEvents.id,
         type: clearingEvents.type,
         toState: clearingEvents.toState,
+        sequence: clearingEvents.sequence,
         occurredAt: clearingEvents.occurredAt,
         clearingTransactionId: clearingEvents.clearingTransactionId,
         merchantId: clearingTransactions.merchantId,
         paymentIntentId: clearingTransactions.paymentIntentId,
+        metadata: paymentIntents.metadata,
       })
       .from(clearingEvents)
       .innerJoin(
         clearingTransactions,
         eq(clearingEvents.clearingTransactionId, clearingTransactions.id),
       )
+      .innerJoin(paymentIntents, eq(clearingTransactions.paymentIntentId, paymentIntents.id))
       .where(cursor === undefined ? undefined : gt(clearingEvents.id, cursor))
       .orderBy(asc(clearingEvents.id))
       .limit(limit);
@@ -64,6 +68,8 @@ export class DrizzleWebhookOutbox implements WebhookOutbox {
       clearingTransactionId: row.clearingTransactionId,
       type: toWebhookEventType(row.type as ClearingEventType),
       state: row.toState as ClearingState,
+      sequence: row.sequence,
+      metadata: row.metadata,
       occurredAt: row.occurredAt,
     }));
   }
@@ -179,6 +185,25 @@ export class DrizzleWebhookDeliveryRepository implements WebhookDeliveryReposito
         and(eq(webhookDeliveries.status, "PENDING"), lte(webhookDeliveries.nextAttemptAt, now)),
       )
       .orderBy(asc(webhookDeliveries.nextAttemptAt))
+      .limit(limit);
+    return rows.map(toDelivery);
+  }
+
+  async findById(id: string): Promise<WebhookDelivery | null> {
+    const [row] = await this.#db
+      .select()
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.id, id))
+      .limit(1);
+    return row === undefined ? null : toDelivery(row);
+  }
+
+  async listByMerchant(merchantId: string, limit: number): Promise<readonly WebhookDelivery[]> {
+    const rows = await this.#db
+      .select()
+      .from(webhookDeliveries)
+      .where(eq(webhookDeliveries.merchantId, merchantId))
+      .orderBy(desc(webhookDeliveries.id))
       .limit(limit);
     return rows.map(toDelivery);
   }

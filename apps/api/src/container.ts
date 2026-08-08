@@ -43,7 +43,11 @@ import {
   DrizzleWebhookOutbox,
 } from "@mayarin/db";
 import { LedgerService } from "@mayarin/ledger";
-import { WebhookDispatcher, type WebhookEndpointRepository } from "@mayarin/notifications";
+import {
+  type WebhookDeliveryRepository,
+  WebhookDispatcher,
+  type WebhookEndpointRepository,
+} from "@mayarin/notifications";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import {
   Create2DepositAddressDeriver,
@@ -121,6 +125,8 @@ export interface Container {
   readonly webhooks?: WebhookDispatcher;
   /** Endpoint configuration for the admin surface. Present with `webhooks`. */
   readonly webhookEndpoints?: WebhookEndpointRepository;
+  /** Delivery inspection and replay for the admin surface. Present with `webhooks`. */
+  readonly webhookDeliveries?: WebhookDeliveryRepository;
   close(): Promise<void>;
 }
 
@@ -484,13 +490,15 @@ export function createContainer({
   // enabling webhooks wires nothing into the engine itself.
   let webhooks: WebhookDispatcher | undefined;
   let webhookEndpoints: WebhookEndpointRepository | undefined;
+  let webhookDeliveries: WebhookDeliveryRepository | undefined;
   if (config.webhooksEnabled) {
     webhookEndpoints = new DrizzleWebhookEndpointRepository(handle.db);
+    webhookDeliveries = new DrizzleWebhookDeliveryRepository(handle.db);
     webhooks = new WebhookDispatcher({
       outbox: new DrizzleWebhookOutbox(handle.db),
       cursor: new DrizzleWebhookCursorRepository(handle.db),
       endpoints: webhookEndpoints,
-      deliveries: new DrizzleWebhookDeliveryRepository(handle.db),
+      deliveries: webhookDeliveries,
       transport: new FetchWebhookTransport(),
       clock,
     });
@@ -516,6 +524,7 @@ export function createContainer({
     ...(checkout === undefined ? {} : { checkout }),
     ...(webhooks === undefined ? {} : { webhooks }),
     ...(webhookEndpoints === undefined ? {} : { webhookEndpoints }),
+    ...(webhookDeliveries === undefined ? {} : { webhookDeliveries }),
     close: () => handle.close(),
   };
 }

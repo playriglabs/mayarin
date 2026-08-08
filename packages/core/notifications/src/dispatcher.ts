@@ -219,7 +219,12 @@ export class WebhookDispatcher {
   }
 }
 
-/** The payload a receiver sees: ids and the new state, never amounts to book against. */
+/**
+ * The payload a receiver sees: ids, the new state and the intent's own
+ * metadata — never amounts to book against. `sequence` is the payment's own
+ * ordering; deliveries are at-least-once and unordered, so a receiver keeps
+ * the highest sequence seen and discards anything below it.
+ */
 function toBody(event: NotifiableEvent): string {
   return JSON.stringify({
     id: event.id,
@@ -229,6 +234,8 @@ function toBody(event: NotifiableEvent): string {
       paymentIntentId: event.paymentIntentId,
       clearingTransactionId: event.clearingTransactionId,
       state: event.state,
+      sequence: event.sequence,
+      metadata: event.metadata,
     },
   });
 }

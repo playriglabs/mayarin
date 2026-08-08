@@ -44,4 +44,27 @@ export interface WebhookDeliveryRepository {
   update(delivery: WebhookDelivery): Promise<void>;
   /** PENDING deliveries whose `nextAttemptAt` has passed, oldest due first. */
   listDue(now: Date, limit: number): Promise<readonly WebhookDelivery[]>;
+  findById(id: string): Promise<WebhookDelivery | null>;
+  /**
+   * A merchant's recent deliveries, newest first. This is the inspection
+   * surface the RFC requires: a webhook a merchant cannot see is a webhook
+   * they will not trust — and a dead-lettered one they cannot see is a payment
+   * they silently miss.
+   */
+  listByMerchant(merchantId: string, limit: number): Promise<readonly WebhookDelivery[]>;
+}
+
+/**
+ * Re-queues a delivery, whatever state it is in. Attempts restart so a replay
+ * gets the full schedule; the body is untouched, so the receiver sees the same
+ * bytes and the same `Webhook-Id` and can deduplicate.
+ */
+export function replayed(delivery: WebhookDelivery, now: Date): WebhookDelivery {
+  return {
+    ...delivery,
+    status: "PENDING",
+    attempts: 0,
+    nextAttemptAt: now,
+    updatedAt: now,
+  };
 }

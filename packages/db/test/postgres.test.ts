@@ -589,6 +589,8 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       expect(first?.type).toBe("payment.created");
       expect(first?.merchantId).toBe("ID1020017611473");
       expect(first?.paymentIntentId).toBe(intent.id);
+      expect(first?.sequence).toBe(1);
+      expect(first?.metadata).toEqual({});
       expect(events[events.length - 1]?.state).toBe("SUCCESS");
 
       const [head, ...rest] = events;

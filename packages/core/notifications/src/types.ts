@@ -30,6 +30,18 @@ export interface NotifiableEvent {
   readonly clearingTransactionId: string;
   readonly type: WebhookEventType;
   readonly state: ClearingState;
+  /**
+   * The clearing event's 1-based position in its payment's history. Deliveries
+   * are at-least-once and unordered; the sequence is what lets a receiver
+   * discard a stale event instead of trusting arrival order.
+   */
+  readonly sequence: number;
+  /**
+   * The intent's free-form metadata, so a merchant reconciles against their
+   * own ids without a lookup. `merchantReference` joins it when #10 adds the
+   * field to the intent.
+   */
+  readonly metadata: Readonly<Record<string, string>>;
   readonly occurredAt: Date;
 }
 
@@ -84,7 +96,11 @@ export interface WebhookDelivery {
  */
 export function toNotifiableEvent(
   event: ClearingEvent,
-  context: { readonly merchantId: string; readonly paymentIntentId: string },
+  context: {
+    readonly merchantId: string;
+    readonly paymentIntentId: string;
+    readonly metadata?: Readonly<Record<string, string>>;
+  },
 ): NotifiableEvent {
   return {
     id: event.id,
@@ -93,6 +109,8 @@ export function toNotifiableEvent(
     clearingTransactionId: event.clearingTransactionId,
     type: toWebhookEventType(event.type),
     state: event.toState,
+    sequence: event.sequence,
+    metadata: context.metadata ?? {},
     occurredAt: event.occurredAt,
   };
 }

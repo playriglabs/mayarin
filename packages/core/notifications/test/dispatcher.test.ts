@@ -3,9 +3,11 @@ import { FixedClock, generateId } from "@mayarin/shared";
 import {
   DEFAULT_BACKOFF_SECONDS,
   type NotifiableEvent,
+  replayed,
   verifyWebhook,
   WEBHOOK_ID_HEADER,
   WEBHOOK_SIGNATURE_HEADER,
+  type WebhookDelivery,
   WebhookDispatcher,
   type WebhookEndpoint,
 } from "../src/index.ts";
@@ -55,6 +57,8 @@ function event(overrides: Partial<NotifiableEvent> = {}): NotifiableEvent {
     clearingTransactionId: "clr_1",
     type: "payment.state_changed",
     state: "SETTLED",
+    sequence: 8,
+    metadata: { orderId: "order-4711" },
     occurredAt: START,
     ...overrides,
   };
@@ -154,6 +158,8 @@ describe("deliver", () => {
     expect(payload.type).toBe("payment.state_changed");
     expect(payload.data.state).toBe("SETTLED");
     expect(payload.data.paymentIntentId).toBe("pi_1");
+    expect(payload.data.sequence).toBe(8);
+    expect(payload.data.metadata).toEqual({ orderId: "order-4711" });
   });
 
   test("a failure schedules a retry on the backoff schedule", async () => {
@@ -255,6 +261,23 @@ describe("deliver", () => {
     expect(delivery?.status).toBe("DEAD");
     expect(delivery?.lastError).toBe("endpoint inactive");
     expect(transport.requests).toHaveLength(1);
+  });
+
+  test("a replayed delivery re-sends the same bytes under the same event id", async () => {
+    await endpoint();
+    outbox.add(event());
+    await dispatcher.tick();
+
+    const [delivered] = deliveries.all();
+    expect(delivered?.status).toBe("DELIVERED");
+
+    await deliveries.update(replayed(delivered as WebhookDelivery, clock.now()));
+    const result = await dispatcher.tick();
+
+    expect(result.delivered).toBe(1);
+    const [first, second] = transport.requests;
+    expect(second?.body).toBe(first?.body ?? "");
+    expect(second?.headers[WEBHOOK_ID_HEADER]).toBe(first?.headers[WEBHOOK_ID_HEADER] ?? "");
   });
 
   test("signs with the previous secret too, so a mid-rotation receiver verifies", async () => {

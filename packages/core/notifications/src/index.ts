@@ -4,11 +4,12 @@ export {
   WebhookDispatcher,
   type WebhookDispatcherOptions,
 } from "./dispatcher.ts";
-export type {
-  WebhookCursorRepository,
-  WebhookDeliveryRepository,
-  WebhookEndpointRepository,
-  WebhookOutbox,
+export {
+  replayed,
+  type WebhookCursorRepository,
+  type WebhookDeliveryRepository,
+  type WebhookEndpointRepository,
+  type WebhookOutbox,
 } from "./repository.ts";
 export {
   type SignWebhookOptions,
@@ -32,3 +33,4 @@ export {
   type WebhookEndpoint,
   type WebhookEventType,
 } from "./types.ts";
+export { assertWebhookUrl, isPrivateAddress } from "./url.ts";

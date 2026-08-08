@@ -97,6 +97,17 @@ export class InMemoryWebhookDeliveryRepository implements WebhookDeliveryReposit
       .slice(0, limit);
   }
 
+  async findById(id: string): Promise<WebhookDelivery | null> {
+    return this.#deliveries.get(id) ?? null;
+  }
+
+  async listByMerchant(merchantId: string, limit: number): Promise<readonly WebhookDelivery[]> {
+    return [...this.#deliveries.values()]
+      .filter((delivery) => delivery.merchantId === merchantId)
+      .sort((a, b) => (a.id < b.id ? 1 : -1))
+      .slice(0, limit);
+  }
+
   /** Every delivery ever stored, for assertions. */
   all(): readonly WebhookDelivery[] {
     return [...this.#deliveries.values()];
