@@ -14,15 +14,23 @@ import type {
   SessionRepository,
   UserRepository,
 } from "@mayarin/auth";
+import type { DepositRepository, SettlementEventRepository } from "@mayarin/chain";
+import type { ClearingRepository } from "@mayarin/clearing";
+import { type AuditQueryRepository, ComplianceService } from "@mayarin/compliance";
 import {
   createDatabase,
   type DatabaseHandle,
+  DrizzleAuditQueryRepository,
   DrizzleClearingRepository,
+  DrizzleDepositRepository,
+  DrizzleLedgerRepository,
   DrizzleMerchantRepository,
   DrizzlePaymentIntentRepository,
   DrizzleSessionRepository,
+  DrizzleSettlementEventRepository,
   DrizzleUserRepository,
 } from "@mayarin/db";
+import type { LedgerRepository } from "@mayarin/ledger";
 import type { PaymentIntentRepository } from "@mayarin/payment-intent";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
 import { type Clock, systemClock } from "@mayarin/shared";
@@ -41,6 +49,7 @@ export interface Container {
   readonly sessions: SessionService;
   readonly users: UserService;
   readonly payments: PaymentReadService;
+  readonly compliance: ComplianceService;
   close(): Promise<void>;
 }
 
@@ -54,6 +63,14 @@ export interface CreateContainerOptions {
   readonly paymentIntents?: PaymentIntentRepository;
   readonly clearing?: ClearingReadRepository;
   readonly hasher?: PasswordHasher;
+  // The compliance stack. `complianceClearing` is separate from `clearing`
+  // because the audit trail needs the full `ClearingRepository`, not the narrow
+  // read slice the payment view is happy with.
+  readonly audits?: AuditQueryRepository;
+  readonly complianceClearing?: ClearingRepository;
+  readonly ledger?: LedgerRepository;
+  readonly deposits?: DepositRepository;
+  readonly settlements?: SettlementEventRepository;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -91,12 +108,27 @@ export function createContainer(options: CreateContainerOptions): Container {
     pageSize: config.paymentsPageSize,
   });
 
+  // The compliance read stack. All repositories, no engine: the audit trail is
+  // assembled from records the payment API already wrote, so the dashboard needs
+  // read adapters and nothing from the settlement or clearing pipeline.
+  const compliance = new ComplianceService({
+    audits: options.audits ?? new DrizzleAuditQueryRepository(handle?.db ?? throwIfNoHandle()),
+    clearing:
+      options.complianceClearing ?? new DrizzleClearingRepository(handle?.db ?? throwIfNoHandle()),
+    ledger: options.ledger ?? new DrizzleLedgerRepository(handle?.db ?? throwIfNoHandle()),
+    intents,
+    deposits: options.deposits ?? new DrizzleDepositRepository(handle?.db ?? throwIfNoHandle()),
+    settlements:
+      options.settlements ?? new DrizzleSettlementEventRepository(handle?.db ?? throwIfNoHandle()),
+  });
+
   return {
     config,
     auth: authService,
     sessions: sessionService,
     users: userService,
     payments,
+    compliance,
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
 }

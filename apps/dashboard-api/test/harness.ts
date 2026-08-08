@@ -17,7 +17,15 @@ import {
   InMemorySessionRepository,
   InMemoryUserRepository,
 } from "@mayarin/auth/testing";
+import {
+  InMemoryDepositRepository,
+  InMemorySettlementEventRepository,
+} from "@mayarin/chain/testing";
 import { InMemoryClearingRepository } from "@mayarin/clearing/testing";
+import { ComplianceService } from "@mayarin/compliance";
+import { InMemoryAuditQueryRepository } from "@mayarin/compliance/testing";
+import { LedgerService } from "@mayarin/ledger";
+import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
@@ -92,12 +100,32 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   const userService = new UserService({ users, merchants, hasher, clock });
   const payments = new PaymentReadService({ intents, clearing, pageSize: config.paymentsPageSize });
 
+  // The compliance read stack, on the same in-memory repos the rest of the
+  // harness uses — `audits` is fed clearing transactions directly, since the
+  // real adapter projects the audit listing off exactly that table.
+  const audits = new InMemoryAuditQueryRepository();
+  const ledger = new InMemoryLedgerRepository(clock);
+  const deposits = new InMemoryDepositRepository();
+  const settlements = new InMemorySettlementEventRepository();
+  const compliance = new ComplianceService({
+    audits,
+    clearing,
+    ledger,
+    intents,
+    deposits,
+    settlements,
+  });
+  // Tests post in business terms (a draft), so they need the service, not the
+  // repository — `LedgerRepository.post` takes an already-built transaction.
+  const ledgerService = new LedgerService({ repository: ledger, clock });
+
   const container: Container = {
     config,
     auth: authService,
     sessions: sessionService,
     users: userService,
     payments,
+    compliance,
     close: async () => {},
   };
 
@@ -158,6 +186,11 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     intents,
     intentService,
     clearing,
+    audits,
+    ledger,
+    ledgerService,
+    deposits,
+    settlements,
     hasher,
     clock,
     merchantId,

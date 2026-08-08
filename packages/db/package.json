@@ -17,6 +17,7 @@
     "@mayarin/auth": "workspace:*",
     "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
+    "@mayarin/compliance": "workspace:*",
     "@mayarin/ledger": "workspace:*",
     "@mayarin/payment-intent": "workspace:*",
     "@mayarin/qr-parser": "workspace:*",

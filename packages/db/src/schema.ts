@@ -156,6 +156,10 @@ export const clearingTransactions = pgTable(
       table.providerReference,
     ),
     index("clearing_transactions_state_idx").on(table.state, table.createdAt),
+    // The audit trail's entry point (#16): one merchant, newest first, bounded
+    // by a time window. Leading on `merchant_id` keeps a compliance query on one
+    // tenant's rows instead of scanning every payment the deployment ever took.
+    index("clearing_transactions_merchant_idx").on(table.merchantId, table.createdAt),
     // The indexer resolves a `PaymentCompleted` log to a payment through this,
     // and the contract consumes each `intentId` exactly once — so two rows
     // sharing one is a state the chain itself cannot produce.

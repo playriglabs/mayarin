@@ -38,6 +38,7 @@ moves through them.
 | [Clearing Engine](./clearing-engine.md)       | The state machine every payment passes through                           |
 | [Double Entry Ledger](./ledger.md)            | Recording every movement of value                                        |
 | [Settlement](./settlement.md)                 | Handing value to a payment rail                                          |
+| [Compliance](./compliance.md)                 | The audit trail, and reconciling the ledger against the chain            |
 
 ---
 
