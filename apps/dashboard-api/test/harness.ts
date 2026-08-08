@@ -28,6 +28,10 @@ import { ComplianceService } from "@mayarin/compliance";
 import { InMemoryAuditQueryRepository } from "@mayarin/compliance/testing";
 import { LedgerService } from "@mayarin/ledger";
 import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
+import {
+  InMemoryWebhookDeliveryRepository,
+  InMemoryWebhookEndpointRepository,
+} from "@mayarin/notifications/testing";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
@@ -39,6 +43,7 @@ import { MerchantSettingsService } from "../src/services/merchant-settings-servi
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
 import { UserService } from "../src/services/user-service.ts";
+import { WebhookService } from "../src/services/webhook-service.ts";
 
 class PlainPasswordHasher implements PasswordHasher {
   async hash(plain: string): Promise<string> {
@@ -123,6 +128,17 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   // repository — `LedgerRepository.post` takes an already-built transaction.
   const ledgerService = new LedgerService({ repository: ledger, clock });
 
+  const webhookEndpoints = new InMemoryWebhookEndpointRepository();
+  const webhookDeliveries = new InMemoryWebhookDeliveryRepository();
+  const webhooks = new WebhookService({
+    endpoints: webhookEndpoints,
+    deliveries: webhookDeliveries,
+    clock,
+    // A fixed public address: the suite asserts the policy, not the resolver,
+    // and a registration test that needs DNS is one that fails on a plane.
+    resolver: async () => ["93.184.216.34"],
+  });
+
   const settingChanges = new InMemoryMerchantSettingChangeRepository();
   const settings = new MerchantSettingsService({ merchants, changes: settingChanges, clock });
 
@@ -134,6 +150,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     payments,
     compliance,
     settings,
+    webhooks,
     close: async () => {},
   };
 
@@ -191,6 +208,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     users,
     merchants,
     settingChanges,
+    webhookEndpoints,
+    webhookDeliveries,
     sessions,
     intents,
     intentService,

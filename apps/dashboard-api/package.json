@@ -18,6 +18,7 @@
     "@mayarin/compliance": "workspace:*",
     "@mayarin/db": "workspace:*",
     "@mayarin/ledger": "workspace:*",
+    "@mayarin/notifications": "workspace:*",
     "@mayarin/payment-intent": "workspace:*",
     "@mayarin/provider-argon2": "workspace:*",
     "@mayarin/shared": "workspace:*",

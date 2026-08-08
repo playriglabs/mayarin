@@ -21,6 +21,7 @@ import { authRoutes } from "./routes/auth.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { settingsRoutes } from "./routes/settings.ts";
+import { webhookRoutes } from "./routes/webhooks.ts";
 
 export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
@@ -52,6 +53,12 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   app.use("/settings/*", requireAuth(), requirePermission("settings:manage"));
   app.use("/settings", requireAuth(), requirePermission("settings:manage"));
   app.route("/settings", settingsRoutes(container));
+
+  // Webhook endpoints and delivery inspection (#13). Same permission as
+  // settlement settings: both are merchant configuration, and both carry an
+  // action that changes where payment detail is sent.
+  app.use("/webhooks/*", requireAuth(), requirePermission("settings:manage"));
+  app.route("/webhooks", webhookRoutes(container));
 
   // Admin surface within the caller's merchant: managing users, etc.
   app.use("/admin/*", requireAuth(), requirePermission("admin:access"));
