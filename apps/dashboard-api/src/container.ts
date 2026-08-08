@@ -29,10 +29,12 @@ import {
   DrizzleMerchantAccountRepository,
   DrizzleMerchantRepository,
   DrizzleMerchantSettingChangeRepository,
+  DrizzleMerchantWalletRepository,
   DrizzlePaymentIntentRepository,
   DrizzleSessionRepository,
   DrizzleSettlementEventRepository,
   DrizzleUserRepository,
+  DrizzleWalletChallengeRepository,
   DrizzleWebhookDeliveryRepository,
   DrizzleWebhookEndpointRepository,
 } from "@mayarin/db";
@@ -40,7 +42,16 @@ import type { LedgerRepository } from "@mayarin/ledger";
 import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
 import type { PaymentIntentRepository } from "@mayarin/payment-intent";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
-import { type Clock, systemClock } from "@mayarin/shared";
+import { ViemSignatureVerifier } from "@mayarin/provider-evm";
+import { ApiKeyStamper, SAFE_BASE_SEPOLIA, TurnkeyWalletProvider } from "@mayarin/provider-turnkey";
+import { type Clock, ConfigurationError, systemClock } from "@mayarin/shared";
+import {
+  ManagedWalletProvisioner,
+  type MerchantWalletRepository,
+  type SignatureVerifier,
+  type WalletChallengeRepository,
+  type WalletProvider,
+} from "@mayarin/wallet";
 import type { Config } from "./config.ts";
 import { AuthService } from "./services/auth-service.ts";
 import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
@@ -50,6 +61,7 @@ import {
 } from "./services/payment-read-service.ts";
 import { SessionService } from "./services/session-service.ts";
 import { UserService } from "./services/user-service.ts";
+import { WalletService } from "./services/wallet-service.ts";
 import { WebhookService } from "./services/webhook-service.ts";
 
 export interface Container {
@@ -63,6 +75,8 @@ export interface Container {
   readonly settings: MerchantSettingsService;
   /** Webhook endpoints and delivery inspection (#13), scoped the same way. */
   readonly webhooks: WebhookService;
+  /** Merchant wallets and proof of control (#11). */
+  readonly wallets: WalletService;
   close(): Promise<void>;
 }
 
@@ -88,6 +102,14 @@ export interface CreateContainerOptions {
   readonly merchantSettingChanges?: MerchantSettingChangeRepository;
   readonly webhookEndpoints?: WebhookEndpointRepository;
   readonly webhookDeliveries?: WebhookDeliveryRepository;
+  readonly merchantWallets?: MerchantWalletRepository;
+  readonly walletChallenges?: WalletChallengeRepository;
+  readonly signatureVerifier?: SignatureVerifier;
+  /**
+   * Managed wallet provisioning (#11). A test supplies a fake; a deployment
+   * gets one built from config, and only when it is fully configured.
+   */
+  readonly walletProvider?: WalletProvider;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -163,6 +185,33 @@ export function createContainer(options: CreateContainerOptions): Container {
     pageSize: config.paymentsPageSize,
   });
 
+  // Wallets (#11). Two paths: connect-existing, which needs only a signature
+  // verifier, and managed provisioning, which needs a wallet provider and is
+  // absent unless this deployment configured one.
+  const walletRepository =
+    options.merchantWallets ?? new DrizzleMerchantWalletRepository(handle?.db ?? throwIfNoHandle());
+  const treasuryAddresses = config.treasuryAddress === undefined ? [] : [config.treasuryAddress];
+  const walletProvider = options.walletProvider ?? createWalletProvider(config);
+  const wallets = new WalletService({
+    wallets: walletRepository,
+    challenges:
+      options.walletChallenges ??
+      new DrizzleWalletChallengeRepository(handle?.db ?? throwIfNoHandle()),
+    verifier: options.signatureVerifier ?? new ViemSignatureVerifier(),
+    clock,
+    treasuryAddresses,
+    ...(walletProvider === undefined
+      ? {}
+      : {
+          provisioner: new ManagedWalletProvisioner({
+            wallets: walletRepository,
+            provider: walletProvider,
+            clock,
+            treasuryAddresses,
+          }),
+        }),
+  });
+
   return {
     config,
     auth: authService,
@@ -172,8 +221,48 @@ export function createContainer(options: CreateContainerOptions): Container {
     compliance,
     settings,
     webhooks,
+    wallets,
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
+}
+
+/**
+ * The wallet provider this deployment provisions with, if it has one.
+ *
+ * `undefined` when provisioning is switched off, which makes the endpoint
+ * refuse with a message rather than a deployment quietly having a provisioning
+ * path that fails at the first merchant who uses it. Config validation has
+ * already established that the credentials are all present when the flag is on.
+ */
+function createWalletProvider(config: Config): WalletProvider | undefined {
+  if (!config.walletProvisioningEnabled) return undefined;
+
+  return new TurnkeyWalletProvider({
+    organizationId: required(config.turnkeyOrganizationId, "TURNKEY_ORGANIZATION_ID"),
+    stamper: new ApiKeyStamper({
+      apiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
+      apiPrivateKey: required(config.turnkeyApiPrivateKey, "TURNKEY_API_PRIVATE_KEY"),
+    }),
+    chain: config.walletProvisionChain,
+    deployerPrivateKey: required(
+      config.walletDeployerPrivateKey,
+      "WALLET_DEPLOYER_PRIVATE_KEY",
+    ) as `0x${string}`,
+    rpcUrl: required(config.walletProvisionRpcUrl, "WALLET_PROVISION_RPC_URL"),
+    safe: SAFE_BASE_SEPOLIA,
+    rootApiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
+    signerApiPublicKey: required(config.turnkeySignerApiPublicKey, "TURNKEY_SIGNER_API_PUBLIC_KEY"),
+  });
+}
+
+function required(value: string | undefined, name: string): string {
+  if (value === undefined) {
+    throw new ConfigurationError(
+      `${name} is required when WALLET_PROVISIONING_ENABLED is true`,
+      {},
+    );
+  }
+  return value;
 }
 
 function throwIfNoHandle(): never {

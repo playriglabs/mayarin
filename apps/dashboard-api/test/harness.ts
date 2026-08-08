@@ -34,7 +34,14 @@ import {
 } from "@mayarin/notifications/testing";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
+import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
+import { ManagedWalletProvisioner } from "@mayarin/wallet";
+import {
+  FakeWalletProvider,
+  InMemoryMerchantWalletRepository,
+  InMemoryWalletChallengeRepository,
+} from "@mayarin/wallet/testing";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
@@ -43,7 +50,14 @@ import { MerchantSettingsService } from "../src/services/merchant-settings-servi
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
 import { UserService } from "../src/services/user-service.ts";
+import { WalletService } from "../src/services/wallet-service.ts";
 import { WebhookService } from "../src/services/webhook-service.ts";
+
+/**
+ * The deployment's fee destination, exported so a test can try to claim it.
+ * A merchant wallet that is also the fee recipient pays that merchant twice.
+ */
+export const TREASURY_ADDRESS = "0x00000000000000000000000000000000000feeee";
 
 class PlainPasswordHasher implements PasswordHasher {
   async hash(plain: string): Promise<string> {
@@ -139,6 +153,29 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     resolver: async () => ["93.184.216.34"],
   });
 
+  const merchantWallets = new InMemoryMerchantWalletRepository();
+  const walletChallenges = new InMemoryWalletChallengeRepository();
+  // Managed provisioning against the reference fake provider. Deploying a real
+  // Safe is proven on testnet; what the route tests are for is the surface
+  // around it — scoping, idempotence, and that the two wallet paths coexist.
+  const walletProvider = new FakeWalletProvider();
+  const treasuryAddresses = [TREASURY_ADDRESS];
+  const wallets = new WalletService({
+    wallets: merchantWallets,
+    challenges: walletChallenges,
+    // Real recovery: the point of verification is that it agrees with what a
+    // wallet actually produces, which a stub cannot demonstrate.
+    verifier: new ViemSignatureVerifier(),
+    clock,
+    treasuryAddresses,
+    provisioner: new ManagedWalletProvisioner({
+      wallets: merchantWallets,
+      provider: walletProvider,
+      clock,
+      treasuryAddresses,
+    }),
+  });
+
   const settingChanges = new InMemoryMerchantSettingChangeRepository();
   const settings = new MerchantSettingsService({ merchants, changes: settingChanges, clock });
 
@@ -151,6 +188,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     compliance,
     settings,
     webhooks,
+    wallets,
     close: async () => {},
   };
 
@@ -210,6 +248,9 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     settingChanges,
     webhookEndpoints,
     webhookDeliveries,
+    merchantWallets,
+    walletChallenges,
+    walletProvider,
     sessions,
     intents,
     intentService,

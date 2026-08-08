@@ -3,4 +3,5 @@ export * from "./deriver.ts";
 export * from "./forwarder-deriver.ts";
 export * from "./order-signer.ts";
 export * from "./payment-router.ts";
+export * from "./signature.ts";
 export * from "./treasury-executor.ts";

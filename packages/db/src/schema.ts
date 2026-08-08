@@ -12,6 +12,7 @@
  *   them.
  */
 
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -655,6 +656,74 @@ export const webhookCursors = pgTable("webhook_cursors", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
+/**
+ * Wallets a merchant is paid into (#11).
+ *
+ * `merchants.settlement_address` says *where*; this says *what is known about
+ * how it got there*. `verified_at` is the whole point — an address with none is
+ * a claim, and a claim is not a basis for signing a payment to it.
+ *
+ * Unique on `(chain, address)`: two merchants cannot claim one address, which
+ * is what stops a verified wallet being re-pointed by whoever asks second.
+ */
+export const merchantWallets = pgTable(
+  "merchant_wallets",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    chain: text("chain").notNull(),
+    /** Lowercased on the way in; case is not a way past the guard. */
+    address: text("address").notNull(),
+    provenance: text("provenance").notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
+    /**
+     * What a provisioned wallet's address was derived from — the provider's
+     * handle (a Turnkey sub-organization), its signer, and the merchant's own.
+     *
+     * Written before the wallet is deployed. That is what lets an interrupted
+     * provision resume onto the same address instead of deploying a second
+     * wallet: the derivation is a function of exactly these three.
+     */
+    providerRef: text("provider_ref"),
+    providerSigner: text("provider_signer"),
+    merchantSigner: text("merchant_signer"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("merchant_wallets_address_idx").on(table.chain, table.address),
+    index("merchant_wallets_merchant_idx").on(table.merchantId),
+    // One managed wallet per merchant per chain. The provisioner checks first,
+    // but two concurrent requests both read "none" — this is what makes the
+    // second fail rather than deploy a second smart account.
+    uniqueIndex("merchant_wallets_managed_idx")
+      .on(table.merchantId, table.chain)
+      .where(sql`${table.provenance} = 'provisioned'`),
+  ],
+);
+
+/**
+ * Outstanding proofs of control (#11).
+ *
+ * Consumed on use, so one signature proves control exactly once — a captured
+ * signature cannot be replayed after a wallet is unlinked and the address is
+ * claimed by someone else.
+ */
+export const walletChallenges = pgTable("wallet_challenges", {
+  id: text("id").primaryKey(),
+  merchantId: text("merchant_id")
+    .notNull()
+    .references(() => merchants.id),
+  chain: text("chain").notNull(),
+  address: text("address").notNull(),
+  nonce: text("nonce").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true, mode: "date" }),
+  createdAt: createdAt(),
+});
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -674,6 +743,8 @@ export const schema = {
   merchantSettingChanges,
   marketConfig,
   refunds,
+  merchantWallets,
+  walletChallenges,
   webhookEndpoints,
   webhookDeliveries,
   webhookCursors,

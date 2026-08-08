@@ -21,6 +21,7 @@ import { authRoutes } from "./routes/auth.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { settingsRoutes } from "./routes/settings.ts";
+import { walletRoutes } from "./routes/wallets.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
 
 export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
@@ -59,6 +60,12 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // action that changes where payment detail is sent.
   app.use("/webhooks/*", requireAuth(), requirePermission("settings:manage"));
   app.route("/webhooks", webhookRoutes(container));
+
+  // Merchant wallets (#11). Same permission as settlement settings: this is
+  // what decides where the merchant's money can be paid at all.
+  app.use("/wallets/*", requireAuth(), requirePermission("settings:manage"));
+  app.use("/wallets", requireAuth(), requirePermission("settings:manage"));
+  app.route("/wallets", walletRoutes(container));
 
   // Admin surface within the caller's merchant: managing users, etc.
   app.use("/admin/*", requireAuth(), requirePermission("admin:access"));

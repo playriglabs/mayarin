@@ -38,6 +38,7 @@
         "@mayarin/settlement": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "@mayarin/stablecoin": "workspace:*",
+        "@mayarin/wallet": "workspace:*",
         "hono": "^4.6.16",
         "qrcode": "^1.5.4",
         "zod": "^3.24.1",
@@ -96,7 +97,10 @@
         "@mayarin/notifications": "workspace:*",
         "@mayarin/payment-intent": "workspace:*",
         "@mayarin/provider-argon2": "workspace:*",
+        "@mayarin/provider-evm": "workspace:*",
+        "@mayarin/provider-turnkey": "workspace:*",
         "@mayarin/shared": "workspace:*",
+        "@mayarin/wallet": "workspace:*",
         "effect": "^3.0.0",
         "hono": "^4.6.16",
         "ts-pattern": "^5.0.0",
@@ -264,6 +268,14 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/core/wallet": {
+      "name": "@mayarin/wallet",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/db": {
       "name": "@mayarin/db",
       "version": "0.1.0",
@@ -278,6 +290,7 @@
         "@mayarin/payment-intent": "workspace:*",
         "@mayarin/qr-parser": "workspace:*",
         "@mayarin/shared": "workspace:*",
+        "@mayarin/wallet": "workspace:*",
         "drizzle-orm": "^0.38.3",
         "postgres": "^3.4.5",
       },
@@ -315,6 +328,7 @@
         "@mayarin/execution": "workspace:*",
         "@mayarin/quote": "workspace:*",
         "@mayarin/shared": "workspace:*",
+        "@mayarin/wallet": "workspace:*",
         "@noble/curves": "1.9.1",
         "viem": "^2.21.0",
       },
@@ -382,8 +396,10 @@
       "name": "@mayarin/provider-turnkey",
       "version": "0.1.0",
       "dependencies": {
+        "@mayarin/chain": "workspace:*",
         "@mayarin/quote": "workspace:*",
         "@mayarin/shared": "workspace:*",
+        "@mayarin/wallet": "workspace:*",
         "@noble/curves": "1.9.1",
         "viem": "^2.21.0",
         "zod": "^3.24.1",
@@ -993,6 +1009,8 @@
     "@mayarin/stablecoin": ["@mayarin/stablecoin@workspace:packages/core/stablecoin"],
 
     "@mayarin/studio": ["@mayarin/studio@workspace:apps/studio"],
+
+    "@mayarin/wallet": ["@mayarin/wallet@workspace:packages/core/wallet"],
 
     "@mux/mux-data-google-ima": ["@mux/mux-data-google-ima@0.3.17", "", { "dependencies": { "mux-embed": "5.18.1" } }, "sha512-4wpH6dYybyZhqLn9qGn/+67Z8MZnQRAdqTFEEZw2bx61M9q01uPYYHxd8qwOnYtUGEeafsdTwVHVxKHGD3oc1A=="],
 

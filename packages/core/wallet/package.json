@@ -1,0 +1,17 @@
+{
+  "name": "@mayarin/wallet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./testing/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/chain": "workspace:*",
+    "@mayarin/shared": "workspace:*"
+  }
+}

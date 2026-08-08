@@ -17,6 +17,7 @@
     "@mayarin/execution": "workspace:*",
     "@mayarin/quote": "workspace:*",
     "@mayarin/shared": "workspace:*",
+    "@mayarin/wallet": "workspace:*",
     "@noble/curves": "1.9.1",
     "viem": "^2.21.0"
   },

@@ -106,6 +106,20 @@
       "when": 1786642200000,
       "tag": "0014_webhook_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786651200000,
+      "tag": "0016_merchant_wallets",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786698000000,
+      "tag": "0017_managed_wallets",
+      "breakpoints": true
     }
   ]
 }

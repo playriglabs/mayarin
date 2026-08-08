@@ -156,6 +156,26 @@ optimizer 200 runs, via-IR). Whitelisted at deploy: USDC as settlement and
 input asset, SwapRouter02 as the DEX router. Timelock delay is 0 on this
 testnet deployment; mainnet keeps the 48h default.
 
+### Rotating the order signer
+
+`setSigner` is `onlyRole(CONFIG_ROLE)` and `CONFIG_ROLE` lives on the timelock,
+so a rotation is `schedule` then `execute` with the minimum delay between them —
+0 on this testnet, 48h on mainnet.
+
+```bash
+bun --env-file=.env run scripts/rotate-router-signer.ts --to 0x…            # plan only
+bun --env-file=.env run scripts/rotate-router-signer.ts --to 0x… --execute
+```
+
+**Rotate the contract before switching `QUOTE_SIGNER`.** The router stores the
+address it accepts orders from; flipping the environment first leaves every
+contract-path payment signed by an address the contract rejects, failing at
+submit with nothing on the payer's screen to explain it.
+
+The script reads the signer back at the block the execution landed in rather
+than at `latest` — a read served by a lagging node once reported a rotation that
+had succeeded as a mismatch.
+
 Deploy with `scripts/deploy-base-sepolia.sh`, which runs `DeployPaymentRouter`
 and then `ConfigurePaymentRouter`. The second is not optional: the constructor
 whitelists settlement assets only, so a router that has not been configured
