@@ -221,6 +221,45 @@ export function internalSettledPosting(transaction: ClearingTransaction): DraftT
   };
 }
 
+/**
+ * A refund: value leaves Mayarin and the merchant's claim shrinks by the same
+ * amount.
+ *
+ * ```
+ * REFUND   Dr MERCHANT_HOLDING   (refund)
+ *          Cr TREASURY           (refund)
+ * ```
+ *
+ * `FEE_REVENUE` is untouched. The fee was earned on a payment that did happen,
+ * and a partial refund would otherwise need the fee split proportionally — a
+ * rounding rule with a residue to place, for money nobody expected back.
+ *
+ * Keyed by the refund's own id rather than by the transaction and a step: a
+ * payment may have several refunds, so a per-transaction key would make the
+ * second one a silent no-op.
+ */
+export function refundPosting(
+  transaction: ClearingTransaction,
+  refundId: string,
+  amount: Money,
+): DraftTransaction {
+  const { netAmount } = requirePricedAmounts(transaction);
+
+  if (amount.asset !== netAmount.asset) {
+    throw new LedgerImbalanceError(
+      `Refund for ${transaction.id} is ${amount.asset}, not the settlement asset ${netAmount.asset}`,
+      { id: transaction.id, refund: amount.asset, settlement: netAmount.asset },
+    );
+  }
+
+  return {
+    description: `Refunded payment ${transaction.paymentIntentId}`,
+    reference: transaction.id,
+    idempotencyKey: `${refundId}:REFUND`,
+    entries: [debit("MERCHANT_HOLDING", amount), credit("TREASURY", amount)],
+  };
+}
+
 interface PricedAmounts {
   readonly settlementAmount: Money;
   readonly fee: Money;

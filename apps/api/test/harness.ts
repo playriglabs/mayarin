@@ -12,9 +12,10 @@ import {
   BasisPointsFeePolicy,
   ClearingEngine,
   LiquidityRouter,
+  RefundService,
   TablePriceSource,
 } from "@mayarin/clearing";
-import { InMemoryClearingRepository } from "@mayarin/clearing/testing";
+import { InMemoryClearingRepository, InMemoryRefundRepository } from "@mayarin/clearing/testing";
 import { LedgerService } from "@mayarin/ledger";
 import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
 import { PaymentIntentService } from "@mayarin/payment-intent";
@@ -88,8 +89,11 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     clock,
   });
 
+  const clearingRepository = new InMemoryClearingRepository();
+  const refundRepository = new InMemoryRefundRepository();
+
   const engine = new ClearingEngine({
-    repository: new InMemoryClearingRepository(),
+    repository: clearingRepository,
     intents,
     ledger,
     adapters,
@@ -115,6 +119,14 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     ledger,
     engine,
     paymentApp: new PaymentAppService({ intents, engine, ledger }),
+    refunds: new RefundService({
+      clearing: clearingRepository,
+      refunds: refundRepository,
+      adapters,
+      ledger,
+      clock,
+      events,
+    }),
     adapters,
     events,
     registry,
@@ -142,7 +154,19 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     return { status: response.status, body: (await response.json()) as Record<string, any> };
   }
 
-  return { app, clock, adapter, container, request, ledger, engine, intents, market, marketStore };
+  return {
+    app,
+    clock,
+    adapter,
+    container,
+    request,
+    ledger,
+    engine,
+    intents,
+    market,
+    marketStore,
+    refundRepository,
+  };
 }
 
 /** Builds a valid dynamic QRIS payload for 50,000.00 IDR. */

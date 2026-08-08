@@ -7,4 +7,5 @@ export * from "./repositories/clearing.ts";
 export * from "./repositories/ledger.ts";
 export * from "./repositories/market-config.ts";
 export * from "./repositories/payment-intent.ts";
+export * from "./repositories/refund.ts";
 export * from "./schema.ts";

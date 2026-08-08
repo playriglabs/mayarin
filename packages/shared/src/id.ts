@@ -30,6 +30,7 @@ export const ID_PREFIXES = {
   product: "prd",
   paymentLink: "lnk",
   merchantSettingChange: "msc",
+  refund: "rfd",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];
