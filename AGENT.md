@@ -56,13 +56,16 @@ bun test packages/shared/test/money.test.ts
 bun test -t "rejects a fee that would consume the whole payment"
 ```
 
-`packages/db/test/postgres.test.ts` skips itself unless `DATABASE_URL` is set. To run it you need a
-migrated database, and `bun run --cwd packages/db migrate` does **not** inherit the root `.env`:
+`packages/db/test/postgres.test.ts` skips itself unless `TEST_DATABASE_URL` is set. The suite
+truncates every table it touches, so it is opt-in on purpose: `DATABASE_URL` alone never runs it,
+which keeps a plain `bun test` (and the pre-push hook) away from the development database. To run
+it you need a migrated database, and `bun run --cwd packages/db migrate` does **not** inherit the
+root `.env`:
 
 ```bash
 bun run db:up
 export $(grep -E '^DATABASE_URL' .env) && bun run --cwd packages/db migrate
-bun test packages/db
+TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
 ```
 
 Hooks: pre-commit runs Biome on staged TS/JSON and Prettier on staged Markdown/YAML, fixing in

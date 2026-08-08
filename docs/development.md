@@ -35,21 +35,22 @@ curl localhost:3000/payments/<id>
 
 ### Commands
 
-| Command                | Does                                                                |
-| ---------------------- | ------------------------------------------------------------------- |
-| `bun test`             | Runs every suite. Postgres tests are skipped without `DATABASE_URL` |
-| `bun run typecheck`    | Typechecks every package                                            |
-| `bun run lint`         | Lints with Biome                                                    |
-| `bun run format`       | Formats everything in place                                         |
-| `bun run format:check` | Fails if anything is unformatted                                    |
-| `bun run check`        | Format check, typecheck and tests — the same gate CI should run     |
-| `bun run db:generate`  | Regenerates migrations after a schema change                        |
+| Command                | Does                                                                     |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `bun test`             | Runs every suite. Postgres tests are skipped without `TEST_DATABASE_URL` |
+| `bun run typecheck`    | Typechecks every package                                                 |
+| `bun run lint`         | Lints with Biome                                                         |
+| `bun run format`       | Formats everything in place                                              |
+| `bun run format:check` | Fails if anything is unformatted                                         |
+| `bun run check`        | Format check, typecheck and tests — the same gate CI should run          |
+| `bun run db:generate`  | Regenerates migrations after a schema change                             |
 
 The Postgres integration suite runs the full clearing flow against real
-repositories:
+repositories. It truncates every table it touches, so it keys on its own
+variable — `DATABASE_URL` from `.env` never runs it:
 
 ```bash
-DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
+TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
 ```
 
 ---

@@ -8,10 +8,14 @@
  *
  * ```
  * bun run db:up && bun run db:migrate
- * DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
+ * TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
  * ```
  *
- * Skipped when `DATABASE_URL` is not set.
+ * Skipped when `TEST_DATABASE_URL` is not set. The suite truncates every table
+ * it touches, so it must never key on `DATABASE_URL`: bun loads the root `.env`
+ * for every test run, and that variable points at the development database
+ * (#110). `TEST_DATABASE_URL` is set only by hand, so running this suite is an
+ * explicit choice.
  */
 
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
@@ -47,10 +51,10 @@ import { DrizzleClearingRepository } from "../src/repositories/clearing.ts";
 import { DrizzleLedgerRepository } from "../src/repositories/ledger.ts";
 import { DrizzlePaymentIntentRepository } from "../src/repositories/payment-intent.ts";
 
-const DATABASE_URL = process.env.DATABASE_URL;
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
-describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
-  const handle = createDatabase({ url: DATABASE_URL as string, maxConnections: 4 });
+describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
+  const handle = createDatabase({ url: TEST_DATABASE_URL as string, maxConnections: 4 });
   const clock = new FixedClock("2026-01-01T00:00:00.000Z");
 
   const intentRepository = new DrizzlePaymentIntentRepository(handle.db);
@@ -101,13 +105,11 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
 
   afterAll(async () => {
     // Truncating only in `beforeEach` leaves whatever the last test wrote, and
-    // this suite runs against a developer's own database — `bun test` at the
-    // repo root loads `.env`, so `DATABASE_URL` is set unless someone went out
-    // of their way. The watcher-cursor test is the expensive one to leave
-    // behind: it records block 900, and a cursor outranks `CHAIN_START_BLOCKS`,
-    // so the next `bun run e2e` starts 45 million blocks back and never sees
-    // the deposit it just made. Clean up after the run as well as before each
-    // test.
+    // `TEST_DATABASE_URL` can point at a database something else also uses. The
+    // watcher-cursor test is the expensive one to leave behind: it records
+    // block 900, and a cursor outranks `CHAIN_START_BLOCKS`, so the next
+    // `bun run e2e` starts 45 million blocks back and never sees the deposit
+    // it just made. Clean up after the run as well as before each test.
     await truncateAll();
     await handle.close();
   });
