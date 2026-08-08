@@ -1,0 +1,286 @@
+/**
+ * Postgres adapters for the commerce ports (#10).
+ *
+ * A product's prices live in their own table, so writing a product is two
+ * statements that must not half-apply — every write here runs in a transaction
+ * for that reason, not out of habit.
+ */
+
+import type {
+  ListPaymentLinksOptions,
+  ListProductsOptions,
+  PaymentLink,
+  PaymentLinkKind,
+  PaymentLinkRepository,
+  Product,
+  ProductRepository,
+} from "@mayarin/catalog";
+import { ConcurrencyError, type Money } from "@mayarin/shared";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import type { Executor } from "../client.ts";
+import { present, runInTransaction, toAsset, toMoney } from "../mapping.ts";
+import { paymentLinks, productPrices, products } from "../schema.ts";
+
+type ProductRow = typeof products.$inferSelect;
+type LinkRow = typeof paymentLinks.$inferSelect;
+
+export class DrizzleProductRepository implements ProductRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async insert(product: Product): Promise<void> {
+    await runInTransaction(this.#db, async (tx) => {
+      await tx.insert(products).values(toProductRow(product));
+      await tx.insert(productPrices).values(toPriceRows(product));
+    });
+  }
+
+  async findById(id: string): Promise<Product | null> {
+    const [product] = await this.findManyById([id]);
+    return product ?? null;
+  }
+
+  async findManyById(ids: readonly string[]): Promise<readonly Product[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.#db
+      .select()
+      .from(products)
+      .where(inArray(products.id, [...ids]));
+    return this.#withPrices(rows);
+  }
+
+  async findBySku(merchantId: string, sku: string): Promise<Product | null> {
+    const rows = await this.#db
+      .select()
+      .from(products)
+      .where(and(eq(products.merchantId, merchantId), eq(products.sku, sku)))
+      .limit(1);
+    const [product] = await this.#withPrices(rows);
+    return product ?? null;
+  }
+
+  /**
+   * Optimistic update: the row only moves if it is still at the version the
+   * caller read. Prices are replaced wholesale rather than diffed — a price set
+   * is small, and a delete-then-insert inside the same transaction cannot leave
+   * a product priced in a currency the caller removed.
+   */
+  async update(product: Product, expectedVersion: number): Promise<void> {
+    await runInTransaction(this.#db, async (tx) => {
+      const updated = await tx
+        .update(products)
+        .set(toProductRow(product))
+        .where(and(eq(products.id, product.id), eq(products.version, expectedVersion)))
+        .returning({ id: products.id });
+
+      if (updated.length === 0) {
+        throw new ConcurrencyError(`Product ${product.id} was modified concurrently`, {
+          id: product.id,
+          expectedVersion,
+        });
+      }
+
+      await tx.delete(productPrices).where(eq(productPrices.productId, product.id));
+      await tx.insert(productPrices).values(toPriceRows(product));
+    });
+  }
+
+  async list(options: ListProductsOptions): Promise<readonly Product[]> {
+    const rows = await this.#db
+      .select()
+      .from(products)
+      .where(
+        options.active === undefined
+          ? eq(products.merchantId, options.merchantId)
+          : and(eq(products.merchantId, options.merchantId), eq(products.active, options.active)),
+      )
+      .orderBy(desc(products.createdAt))
+      .limit(options.limit ?? 100);
+    return this.#withPrices(rows);
+  }
+
+  /** One extra query for the whole page, rather than one per product. */
+  async #withPrices(rows: readonly ProductRow[]): Promise<readonly Product[]> {
+    if (rows.length === 0) return [];
+
+    const priceRows = await this.#db
+      .select()
+      .from(productPrices)
+      .where(
+        inArray(
+          productPrices.productId,
+          rows.map((row) => row.id),
+        ),
+      );
+
+    const byProduct = new Map<string, Money[]>();
+    for (const price of priceRows) {
+      const list = byProduct.get(price.productId) ?? [];
+      list.push(toMoney(price.amount, price.asset));
+      byProduct.set(price.productId, list);
+    }
+
+    return rows.map((row) => toProduct(row, byProduct.get(row.id) ?? []));
+  }
+}
+
+export class DrizzlePaymentLinkRepository implements PaymentLinkRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async insert(link: PaymentLink): Promise<void> {
+    await this.#db.insert(paymentLinks).values(toLinkRow(link));
+  }
+
+  async findById(id: string): Promise<PaymentLink | null> {
+    const [row] = await this.#db
+      .select()
+      .from(paymentLinks)
+      .where(eq(paymentLinks.id, id))
+      .limit(1);
+    return row === undefined ? null : toLink(row);
+  }
+
+  async findByIdempotencyKey(key: string): Promise<PaymentLink | null> {
+    const [row] = await this.#db
+      .select()
+      .from(paymentLinks)
+      .where(eq(paymentLinks.idempotencyKey, key))
+      .limit(1);
+    return row === undefined ? null : toLink(row);
+  }
+
+  async update(link: PaymentLink, expectedVersion: number): Promise<void> {
+    const updated = await this.#db
+      .update(paymentLinks)
+      .set(toLinkRow(link))
+      .where(and(eq(paymentLinks.id, link.id), eq(paymentLinks.version, expectedVersion)))
+      .returning({ id: paymentLinks.id });
+
+    if (updated.length === 0) {
+      throw new ConcurrencyError(`Payment link ${link.id} was modified concurrently`, {
+        id: link.id,
+        expectedVersion,
+      });
+    }
+  }
+
+  async list(options: ListPaymentLinksOptions): Promise<readonly PaymentLink[]> {
+    const rows = await this.#db
+      .select()
+      .from(paymentLinks)
+      .where(eq(paymentLinks.merchantId, options.merchantId))
+      .orderBy(desc(paymentLinks.createdAt))
+      .limit(options.limit ?? 100);
+    return rows.map(toLink);
+  }
+}
+
+function toProductRow(product: Product): typeof products.$inferInsert {
+  return {
+    id: product.id,
+    merchantId: product.merchantId,
+    sku: product.sku,
+    name: product.name,
+    description: product.description ?? null,
+    active: product.active,
+    metadata: { ...product.metadata },
+    createdAt: product.createdAt,
+    updatedAt: product.updatedAt,
+    version: product.version,
+  };
+}
+
+function toPriceRows(product: Product): (typeof productPrices.$inferInsert)[] {
+  return product.prices.map((price) => ({
+    productId: product.id,
+    asset: price.asset,
+    amount: price.amount.toString(),
+  }));
+}
+
+function toProduct(row: ProductRow, prices: readonly Money[]): Product {
+  return {
+    id: row.id,
+    merchantId: row.merchantId,
+    sku: row.sku,
+    name: row.name,
+    ...present("description", row.description),
+    // Sorted so a product reads the same on every fetch regardless of row order.
+    prices: [...prices].sort((a, b) => a.asset.localeCompare(b.asset)),
+    active: row.active,
+    metadata: row.metadata,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+  };
+}
+
+function toLinkRow(link: PaymentLink): typeof paymentLinks.$inferInsert {
+  return {
+    id: link.id,
+    kind: link.kind,
+    merchantId: link.merchant.id,
+    merchantName: link.merchant.name,
+    merchantCity: link.merchant.city,
+    merchantCountryCode: link.merchant.countryCode,
+    merchantCategoryCode: link.merchant.categoryCode ?? null,
+    amount: link.amount?.amount.toString() ?? null,
+    amountAsset: link.amount?.asset ?? null,
+    currency: link.currency ?? null,
+    lines: link.lines === undefined ? null : link.lines.map((line) => ({ ...line })),
+    title: link.title ?? null,
+    merchantReference: link.merchantReference ?? null,
+    metadata: { ...link.metadata },
+    expiresAt: link.expiresAt ?? null,
+    disabledAt: link.disabledAt ?? null,
+    idempotencyKey: link.idempotencyKey ?? null,
+    createdAt: link.createdAt,
+    updatedAt: link.updatedAt,
+    version: link.version,
+  };
+}
+
+function toLink(row: LinkRow): PaymentLink {
+  return {
+    id: row.id,
+    kind: row.kind as PaymentLinkKind,
+    merchant: {
+      id: row.merchantId,
+      name: row.merchantName,
+      city: row.merchantCity,
+      countryCode: row.merchantCountryCode,
+      ...present("categoryCode", row.merchantCategoryCode),
+    },
+    ...present("amount", linkAmount(row)),
+    ...present("currency", row.currency === null ? null : toAsset(row.currency)),
+    ...present("lines", row.lines),
+    ...present("title", row.title),
+    ...present("merchantReference", row.merchantReference),
+    metadata: row.metadata,
+    ...present("expiresAt", row.expiresAt),
+    ...present("disabledAt", row.disabledAt),
+    ...present("idempotencyKey", row.idempotencyKey),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+  };
+}
+
+/**
+ * A fixed link's amount, or nothing.
+ *
+ * Both columns are written together or not at all, so an amount without its
+ * asset is a corrupt row rather than a shape to guess a currency for — hence
+ * the hard error from `toMoney` rather than a default.
+ */
+function linkAmount(row: LinkRow): Money | undefined {
+  if (row.amount === null || row.amountAsset === null) return undefined;
+  return toMoney(row.amount, row.amountAsset);
+}

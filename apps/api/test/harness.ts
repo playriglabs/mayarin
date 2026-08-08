@@ -6,6 +6,8 @@
  * clearing engine without a database.
  */
 
+import { CatalogService, CheckoutService } from "@mayarin/catalog";
+import { InMemoryPaymentLinkRepository, InMemoryProductRepository } from "@mayarin/catalog/testing";
 import {
   BasisPointsFeePolicy,
   ClearingEngine,
@@ -96,9 +98,14 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     autoConfirmAssetReceipt: config.assetReceiptMode === "auto",
   });
 
+  const products = new InMemoryProductRepository();
+  const links = new InMemoryPaymentLinkRepository();
+
   const container: Container = {
     config,
     intents,
+    catalog: new CatalogService({ products, links, clock }),
+    commerce: new CheckoutService({ products, links, intents, clock }),
     ledger,
     engine,
     paymentApp: new PaymentAppService({ intents, engine, ledger }),

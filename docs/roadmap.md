@@ -260,10 +260,26 @@ Expose the commerce and developer surface on top of the execution layer.
 
 ### Commerce Layer
 
-- ☐ Product Catalog (first-class module, optional)
-- ☐ Prices in merchant `pricingCurrency` (IDR initially; multi-currency by design like MYR, THB)
-- ☐ Carts and totals → produce Payment Intents
-- ☐ Payment Links
+- ☑ Product Catalog (first-class module, optional) — `packages/core/catalog`
+- ☑ Prices per currency (IDR and MYR proven; a product carries one amount per currency)
+- ☑ Carts and totals → produce Payment Intents
+- ☑ Payment Links — fixed, open-amount, and catalog-backed
+- ☑ Hosted checkout + static merchant QR (`/checkout`)
+- ☑ `Idempotency-Key` on intent, link and cart-checkout creation
+- ☑ `merchantReference` on the intent, indexed and filterable
+
+Prices are entered per currency rather than converted from a base price at read
+time. Converting on read would make a displayed price move with an FX feed
+between the moment a buyer reads it and the moment they pay; the FX conversion
+that does happen belongs to the liquidity router at quote time, where it is
+locked and auditable.
+
+Carts are **stateless**. Lines come in, one Payment Intent goes out, and the
+lines survive only as an immutable snapshot in the intent's metadata. A stored,
+mutable cart could move the price after the clearing engine reached
+`PRICE_LOCKED`, which the engine's invariants say cannot happen.
+
+Status on the hosted checkout is polled. Real-time status arrives with #13.
 
 The commerce layer is a **thin optional layer** that produces Payment Intents.
 It depends on `payment-intent`, never the reverse. The contract boundary is

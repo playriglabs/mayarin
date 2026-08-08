@@ -10,6 +10,12 @@ import type { PaymentIntent } from "./types.ts";
 export interface ListPaymentIntentsOptions {
   /** When set, restricts to one merchant's intents — the dashboard scope filter. */
   readonly merchantId?: string;
+  /**
+   * When set, restricts to intents carrying this merchant reference. How a
+   * merchant finds the payment for their own order id, including the earlier
+   * attempts that expired.
+   */
+  readonly merchantReference?: string;
   /** Caps the page size; defaults to the adapter's own bound. */
   readonly limit?: number;
 }

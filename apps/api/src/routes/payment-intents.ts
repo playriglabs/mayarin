@@ -36,6 +36,9 @@ export function paymentIntentRoutes(container: Container): Hono {
       ...(body.executionPath === undefined ? {} : { executionPath: body.executionPath }),
       ...(body.provider === undefined ? {} : { provider: body.provider }),
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
+      ...(body.merchantReference === undefined
+        ? {}
+        : { merchantReference: body.merchantReference }),
       ...(body.ttlSeconds === undefined ? {} : { ttlSeconds: body.ttlSeconds }),
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     };

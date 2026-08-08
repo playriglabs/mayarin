@@ -59,11 +59,15 @@ export class InMemoryPaymentIntentRepository implements PaymentIntentRepository 
 
   async list(options: ListPaymentIntentsOptions = {}): Promise<readonly PaymentIntent[]> {
     const limit = options.limit ?? 100;
-    const all = [...this.#byId.values()];
-    const scoped =
-      options.merchantId === undefined
-        ? all
-        : all.filter((intent) => intent.merchant.id === options.merchantId);
+    const scoped = [...this.#byId.values()]
+      .filter(
+        (intent) => options.merchantId === undefined || intent.merchant.id === options.merchantId,
+      )
+      .filter(
+        (intent) =>
+          options.merchantReference === undefined ||
+          intent.merchantReference === options.merchantReference,
+      );
     return scoped.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
   }
 }

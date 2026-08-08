@@ -6,7 +6,11 @@
  */
 
 import { CHAIN_IDS } from "@mayarin/chain";
-import { EXECUTION_PATHS, type PaymentIntent } from "@mayarin/payment-intent";
+import {
+  EXECUTION_PATHS,
+  type MerchantSnapshot,
+  type PaymentIntent,
+} from "@mayarin/payment-intent";
 import { assetCodeSchema, decimalMoneySchema } from "@mayarin/shared";
 import { z } from "zod";
 import { toMoneyDto } from "./money.ts";
@@ -18,6 +22,18 @@ export const merchantSchema = z.object({
   countryCode: z.string().length(2),
   categoryCode: z.string().optional(),
 });
+
+/**
+ * Merchant details as an exact-optional snapshot.
+ *
+ * `exactOptionalPropertyTypes` distinguishes "no category code" from "category
+ * code is undefined", and Zod's inferred type allows the second — so the object
+ * is rebuilt rather than spread.
+ */
+export function toMerchantSnapshot(body: z.infer<typeof merchantSchema>): MerchantSnapshot {
+  const { categoryCode, ...merchant } = body;
+  return { ...merchant, ...(categoryCode === undefined ? {} : { categoryCode }) };
+}
 
 export const createBodySchema = z
   .object({
@@ -55,6 +71,8 @@ export const createBodySchema = z
     executionPath: z.enum(EXECUTION_PATHS).optional(),
     provider: z.string().min(1).optional(),
     metadata: z.record(z.string(), z.string()).optional(),
+    /** The caller's own order/invoice id. Stored, indexed, never interpreted. */
+    merchantReference: z.string().min(1).max(255).optional(),
     ttlSeconds: z.number().int().positive().optional(),
   })
   .refine((body) => body.qr !== undefined || body.merchant !== undefined, {
@@ -81,6 +99,8 @@ export function toPaymentIntentDto(intent: PaymentIntent) {
     executionPath: intent.executionPath ?? null,
     source: intent.source,
     metadata: intent.metadata,
+    /** The merchant's own order id, echoed back untouched. */
+    merchantReference: intent.merchantReference ?? null,
     clearingTransactionId: intent.clearingTransactionId ?? null,
     failureReason: intent.failureReason ?? null,
     createdAt: intent.createdAt.toISOString(),
