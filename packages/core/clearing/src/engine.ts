@@ -20,7 +20,11 @@
  * The reverse order could record a settlement that never happened.
  */
 
-import type { DepositAddressDeriver, DepositAddressRepository } from "@mayarin/chain";
+import type {
+  DepositAddressDeriver,
+  DepositAddressRepository,
+  PaymentCompletion,
+} from "@mayarin/chain";
 import type { LedgerService } from "@mayarin/ledger";
 import type { PaymentIntent, PaymentIntentService } from "@mayarin/payment-intent";
 import type {
@@ -50,6 +54,7 @@ import type { FeePolicy } from "./fees.ts";
 import {
   assetReceivedPosting,
   clearingPosting,
+  contractSettledPosting,
   depositAssetReceivedPosting,
   internalSettledPosting,
   settledPosting,
@@ -64,7 +69,24 @@ import {
   transition,
 } from "./transaction.ts";
 import type { TreasuryExecutor } from "./treasury.ts";
-import type { ClearingDeposit, ClearingEvent, ClearingTransaction } from "./types.ts";
+import type {
+  ClearingDeposit,
+  ClearingEvent,
+  ClearingTransaction,
+  OnChainSettlement,
+} from "./types.ts";
+
+/**
+ * Facts the outside world hands the engine mid-step.
+ *
+ * Not state: they are true of this call, and the step decides what to persist.
+ */
+interface ClearingSignals {
+  readonly assetReceived?: boolean;
+  readonly contractTxHash?: string;
+  /** What `PaymentCompleted` reported, on the contract path (#12). */
+  readonly onChain?: OnChainSettlement;
+}
 
 export interface ClearingEngineOptions {
   readonly repository: ClearingRepository;
@@ -254,7 +276,7 @@ export class ClearingEngine {
    */
   async recordPaymentCompleted(
     id: string,
-    completion: { readonly txHash: string },
+    completion: PaymentCompletion,
   ): Promise<ClearingProgress> {
     const transaction = await this.getById(id);
     if (transaction.executionPath !== "on-chain-contract") {
@@ -267,7 +289,18 @@ export class ClearingEngine {
       // Already past this point: nothing to record, just keep going.
       return this.#advance(transaction);
     }
-    return this.#advance(transaction, { assetReceived: true, contractTxHash: completion.txHash });
+    // The chain's figures are recorded alongside the locked ones, not instead
+    // of them: the comparison is the reason they are carried this far.
+    const asset = transaction.settlementAsset;
+    return this.#advance(transaction, {
+      assetReceived: true,
+      contractTxHash: completion.txHash,
+      onChain: {
+        settledAmount: { amount: completion.settledAmount, asset },
+        fee: { amount: completion.fee, asset },
+        refundAmount: { amount: completion.refundAmount, asset },
+      },
+    });
   }
 
   /**
@@ -305,7 +338,7 @@ export class ClearingEngine {
 
   async #advance(
     start: ClearingTransaction,
-    signals: { assetReceived?: boolean; contractTxHash?: string } = {},
+    signals: ClearingSignals = {},
   ): Promise<ClearingProgress> {
     let current = start;
 
@@ -338,7 +371,7 @@ export class ClearingEngine {
    */
   async #step(
     transaction: ClearingTransaction,
-    signals: { assetReceived?: boolean; contractTxHash?: string },
+    signals: ClearingSignals,
   ): Promise<ClearingTransaction | null> {
     switch (transaction.state) {
       case "CREATED":
@@ -376,7 +409,10 @@ export class ClearingEngine {
               transaction,
               "ASSET_RECEIVED",
               this.#clock.now(),
-              { contract: { ...contract, ...(txHash === undefined ? {} : { txHash }) } },
+              {
+                contract: { ...contract, ...(txHash === undefined ? {} : { txHash }) },
+                ...(signals.onChain === undefined ? {} : { onChain: signals.onChain }),
+              },
               {
                 settlementAmount: serializeMoney(requireAmount(transaction, "settlementAmount")),
                 ...(txHash === undefined ? {} : { txHash }),
@@ -909,7 +945,15 @@ export class ClearingEngine {
         { id: transaction.id },
       );
     }
-    await this.#ledger.post(settledPosting(transaction));
+    // Booked from what the chain reported when the indexer supplied it, and
+    // from the lock otherwise — an older payment settled before this shipped
+    // has no on-chain record to book from.
+    const onChain = transaction.onChain;
+    await this.#ledger.post(
+      onChain === undefined
+        ? settledPosting(transaction)
+        : contractSettledPosting(transaction, onChain.settledAmount),
+    );
     return this.#apply(
       transition(transaction, "SETTLED", this.#clock.now(), {}, { providerReference }),
     );

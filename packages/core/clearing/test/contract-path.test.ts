@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import type { PaymentCompletion } from "@mayarin/chain";
 import { money } from "@mayarin/shared";
 import type { ContractLock } from "../src/contract-path.ts";
+import type { ClearingTransaction } from "../src/types.ts";
 import { FakeContractPlanner } from "../testing/index.ts";
 import { createHarness, NOW } from "./harness.ts";
 
@@ -54,6 +56,25 @@ function contractHarness(options: Parameters<typeof createHarness>[0] = {}) {
 }
 
 const IDRX = (amount: bigint) => money(amount, "IDRX");
+
+/**
+ * A completion reporting exactly what was locked.
+ *
+ * The router pays `minOut − fee` exactly, so agreement is the normal case; a
+ * test that wants the disagreement passes its own amounts.
+ */
+function completion(
+  transaction: ClearingTransaction,
+  overrides: Partial<PaymentCompletion> = {},
+): PaymentCompletion {
+  return {
+    txHash: TX_HASH,
+    settledAmount: transaction.netAmount?.amount ?? 0n,
+    fee: transaction.fee?.amount ?? 0n,
+    refundAmount: 0n,
+    ...overrides,
+  };
+}
 
 describe("contract path: lock", () => {
   test("locks through the planner and waits — auto-confirm never applies", async () => {
@@ -125,14 +146,84 @@ describe("contract path: lock", () => {
 });
 
 describe("contract path: completion", () => {
+  test("the ledger books what the chain reported, not what was quoted", async () => {
+    const harness = contractHarness();
+    const intent = await harness.contractIntent();
+    const started = await harness.engine.start(intent);
+    const net = started.netAmount?.amount ?? 0n;
+
+    // The router paid one minor unit less than the lock promised.
+    const { transaction } = await harness.engine.recordPaymentCompleted(
+      started.id,
+      completion(started, { settledAmount: net - 1n }),
+    );
+
+    expect(transaction.state).toBe("SUCCESS");
+    expect(transaction.onChain?.settledAmount.amount).toBe(net - 1n);
+
+    // Treasury is credited only what actually left, and the difference is named
+    // rather than absorbed into the settlement leg. Paying less than was owed
+    // is a gain here — value is leaving, so the sign runs opposite to a swap.
+    const treasury = await harness.ledger.balance("TREASURY", "IDRX");
+    const fx = await harness.ledger.balance("FX_RESULT", "IDRX");
+    expect(treasury.credits.amount).toBe(net - 1n);
+    expect(fx.credits.amount).toBe(1n);
+  });
+
+  test("paying more than was owed books a loss", async () => {
+    const harness = contractHarness();
+    const intent = await harness.contractIntent();
+    const started = await harness.engine.start(intent);
+    const net = started.netAmount?.amount ?? 0n;
+
+    await harness.engine.recordPaymentCompleted(
+      started.id,
+      completion(started, { settledAmount: net + 5n }),
+    );
+
+    const fx = await harness.ledger.balance("FX_RESULT", "IDRX");
+    expect(fx.debits.amount).toBe(5n);
+  });
+
+  test("agreement books nothing to FX_RESULT", async () => {
+    const harness = contractHarness();
+    const intent = await harness.contractIntent();
+    const started = await harness.engine.start(intent);
+
+    await harness.engine.recordPaymentCompleted(started.id, completion(started));
+
+    // The router pays `minOut - fee` exactly, so this is the normal case; a
+    // non-zero balance here would mean the comparison is measuring noise.
+    const fx = await harness.ledger.balance("FX_RESULT", "IDRX");
+    expect(fx.balance.amount).toBe(0n);
+  });
+
+  test("the chain's figures are kept beside the lock, not instead of it", async () => {
+    const harness = contractHarness();
+    const intent = await harness.contractIntent();
+    const started = await harness.engine.start(intent);
+    const net = started.netAmount?.amount ?? 0n;
+
+    const { transaction } = await harness.engine.recordPaymentCompleted(
+      started.id,
+      completion(started, { settledAmount: net - 1n, refundAmount: 42n }),
+    );
+
+    // Overwriting the quote would erase the comparison that makes a difference
+    // visible at all.
+    expect(transaction.netAmount?.amount).toBe(net);
+    expect(transaction.onChain?.refundAmount.amount).toBe(42n);
+  });
+
   test("recordPaymentCompleted settles end to end without a deposit or adapter", async () => {
     const harness = contractHarness();
     const intent = await harness.contractIntent();
     const started = await harness.engine.start(intent);
 
-    const { transaction, waiting } = await harness.engine.recordPaymentCompleted(started.id, {
-      txHash: TX_HASH,
-    });
+    const { transaction, waiting } = await harness.engine.recordPaymentCompleted(
+      started.id,
+      completion(started),
+    );
 
     expect(waiting).toBe(false);
     expect(transaction.state).toBe("SUCCESS");
@@ -154,8 +245,8 @@ describe("contract path: completion", () => {
     const intent = await harness.contractIntent();
     const started = await harness.engine.start(intent);
 
-    const first = await harness.engine.recordPaymentCompleted(started.id, { txHash: TX_HASH });
-    const second = await harness.engine.recordPaymentCompleted(started.id, { txHash: TX_HASH });
+    const first = await harness.engine.recordPaymentCompleted(started.id, completion(started));
+    const second = await harness.engine.recordPaymentCompleted(started.id, completion(started));
 
     expect(second.transaction.version).toBe(first.transaction.version);
     expect(await harness.balance("TREASURY")).toEqual(IDRX(25_000n));
@@ -166,7 +257,7 @@ describe("contract path: completion", () => {
     const intent = await harness.confirmedIntent();
     const started = await harness.engine.start(intent);
 
-    expect(harness.engine.recordPaymentCompleted(started.id, { txHash: TX_HASH })).rejects.toThrow(
+    expect(harness.engine.recordPaymentCompleted(started.id, completion(started))).rejects.toThrow(
       /not on the on-chain-contract path/i,
     );
   });
@@ -207,9 +298,10 @@ describe("contract path: expiry", () => {
     const started = await harness.engine.start(intent);
 
     harness.clock.advance(LOCK_TTL_MS + 30_000);
-    const { transaction } = await harness.engine.recordPaymentCompleted(started.id, {
-      txHash: TX_HASH,
-    });
+    const { transaction } = await harness.engine.recordPaymentCompleted(
+      started.id,
+      completion(started),
+    );
 
     expect(transaction.state).toBe("SUCCESS");
   });

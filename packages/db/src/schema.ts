@@ -145,6 +145,13 @@ export const clearingTransactions = pgTable(
     contractExpiresAt: timestamp("contract_expires_at", { withTimezone: true, mode: "date" }),
     contractTxHash: text("contract_tx_hash"),
 
+    // What `PaymentCompleted` reported (#12). Kept beside the locked figures
+    // rather than replacing them: a payment where the two differ is the signal
+    // that a route behaved unexpectedly, and overwriting erases the comparison.
+    onChainSettledAmount: minorUnits("on_chain_settled_amount"),
+    onChainFee: minorUnits("on_chain_fee"),
+    onChainRefundAmount: minorUnits("on_chain_refund_amount"),
+
     providerReference: text("provider_reference"),
     failureReason: text("failure_reason"),
     failureCode: text("failure_code"),

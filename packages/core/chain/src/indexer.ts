@@ -218,7 +218,15 @@ export class SettlementIndexer {
     let completed = 0;
     let unmatched = 0;
     for (const event of completable) {
-      const matched = await this.#sink.complete(event.intentId, { txHash: event.txHash });
+      const matched = await this.#sink.complete(event.intentId, {
+        txHash: event.txHash,
+        // The amounts the log carried, not the ones that were quoted. What the
+        // engine does with a difference is its business; losing it here would
+        // remove the choice.
+        settledAmount: event.settledAmount,
+        fee: event.fee,
+        refundAmount: event.refundAmount,
+      });
       // Marked either way. An unmatched log is not a transient miss to retry —
       // the router only emits `PaymentCompleted` for an `intentId` this backend
       // signed, so no match means the two records disagree, and repeating the
