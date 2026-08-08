@@ -20,6 +20,7 @@ import { auditRoutes } from "./routes/audit.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { paymentRoutes } from "./routes/payments.ts";
+import { settingsRoutes } from "./routes/settings.ts";
 
 export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
@@ -44,6 +45,13 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // deeper view of the same records, not a wider one.
   app.use("/audit/*", requireAuth(), requirePermission("payments:read"));
   app.route("/audit", auditRoutes(container));
+
+  // Merchant settlement configuration (#95). Its own permission rather than
+  // `admin:access`: this surface decides where the merchant's money is paid,
+  // and reading payments or managing users is no reason to redirect them.
+  app.use("/settings/*", requireAuth(), requirePermission("settings:manage"));
+  app.use("/settings", requireAuth(), requirePermission("settings:manage"));
+  app.route("/settings", settingsRoutes(container));
 
   // Admin surface within the caller's merchant: managing users, etc.
   app.use("/admin/*", requireAuth(), requirePermission("admin:access"));

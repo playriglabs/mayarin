@@ -18,7 +18,6 @@ import {
   BasisPointsFeePolicy,
   ClearingEngine,
   LiquidityRouter,
-  TablePriceSource,
   TreasuryExecutor,
 } from "@mayarin/clearing";
 import {
@@ -28,6 +27,7 @@ import {
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
   DrizzleLedgerRepository,
+  DrizzleMarketConfigRepository,
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantRepository,
   DrizzlePaymentIntentRepository,
@@ -55,17 +55,13 @@ import {
   InMemoryEventBus,
   systemClock,
 } from "@mayarin/shared";
-import {
-  InMemoryStablecoinRegistry,
-  pairsOf,
-  type Stablecoin,
-  type StablecoinRegistry,
-} from "@mayarin/stablecoin";
+import { pairsOf, type Stablecoin, type StablecoinRegistry } from "@mayarin/stablecoin";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
 import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./contract-layer.ts";
-import { createQuoteLayer, type QuoteLayer } from "./quote-layer.ts";
+import { RuntimeMarket, RuntimePriceSource, RuntimeStablecoinRegistry } from "./market.ts";
+import type { QuoteLayer } from "./quote-layer.ts";
 import { PaymentAppService } from "./services/payment.ts";
 
 export interface Container {
@@ -83,6 +79,14 @@ export interface Container {
   /** Admissible stablecoins and their on-chain identities. */
   readonly registry: StablecoinRegistry;
   /**
+   * Market data held in the database rather than the environment (#95).
+   *
+   * Everything derived from it — the stablecoin registry, the rate table, the
+   * quote layer — is rebuilt when it changes, so admitting a stablecoin or
+   * adding an oracle feed does not need a restart.
+   */
+  readonly market: RuntimeMarket;
+  /**
    * One watcher per chain, because confirmation depth is per chain: a single
    * watcher would have to pick one depth and apply it to chains that do not
    * share it. Empty when the chain layer is off.
@@ -92,12 +96,6 @@ export interface Container {
   readonly deposits?: DrizzleDepositRepository;
   /** Current head of a chain, for rendering confirmation counts. */
   readonly chainHead?: (chain: ChainId) => Promise<BlockRef>;
-  /**
-   * Venue-priced, oracle-guarded quoting and order signing. Present only when
-   * `QUOTE_ENABLED` is true; without it the engine prices from the static
-   * `EXCHANGE_RATES` table, which is the development default.
-   */
-  readonly quote?: QuoteLayer;
   /** Contract-path checkout (#61). Present only when `CONTRACT_PATH_ENABLED` is true. */
   readonly checkout?: ContractCheckout;
   /**
@@ -217,7 +215,16 @@ export function createContainer({
   const handle: DatabaseHandle = createDatabase({ url: config.databaseUrl });
   const events = new InMemoryEventBus();
   const chain = config.chain;
-  const registry = new InMemoryStablecoinRegistry(config.stablecoins);
+
+  // Market data lives in a table (#95). The registry handed to every service
+  // below resolves the current one per call, so nothing under the composition
+  // root learns that the admissible set can change while the process runs.
+  const market = new RuntimeMarket({
+    store: new DrizzleMarketConfigRepository(handle.db),
+    config,
+    clock,
+  });
+  const registry: StablecoinRegistry = new RuntimeStablecoinRegistry(market);
 
   const depositAddresses =
     chain === undefined ? undefined : new DrizzleDepositAddressRepository(handle.db);
@@ -287,16 +294,24 @@ export function createContainer({
     new StablecoinSettlementAdapter({ clock }),
   ]);
 
-  const quote = createQuoteLayer(config, clock);
   const fees = new BasisPointsFeePolicy(config.feeBasisPoints);
 
-  // `resolveContract` guarantees the quote layer exists when the contract
-  // block does; the narrowing here is for the compiler, not a real branch.
+  // `resolveContract` guarantees the quote layer is configured when the
+  // contract block is, so the resolver below always yields one; the throw is
+  // for the compiler, not a real branch.
+  const resolveQuote = async (): Promise<QuoteLayer> => {
+    const layer = await market.quote();
+    if (layer === undefined) {
+      throw new ConfigurationError("The quote layer is not configured on this deployment", {});
+    }
+    return layer;
+  };
+
   const contractPlanner =
-    config.contract !== undefined && quote !== undefined
+    config.contract !== undefined
       ? new ApiContractPlanner({
           contract: config.contract,
-          quote,
+          quote: resolveQuote,
           fees,
           stablecoins: registry,
           merchantPolicies,
@@ -315,7 +330,7 @@ export function createContainer({
     intents,
     ledger,
     adapters,
-    rates: new LiquidityRouter({ source: new TablePriceSource(config.exchangeRates) }),
+    rates: new LiquidityRouter({ source: new RuntimePriceSource(market) }),
     fees,
     clock,
     events,
@@ -334,7 +349,8 @@ export function createContainer({
           engine,
           intents,
           contract: config.contract,
-          routeSources: createRouteSources(config),
+          routeSources: async () =>
+            createRouteSources(config, (await market.uniswapPools()) as Config["uniswapPools"]),
           clock,
         });
 
@@ -449,11 +465,11 @@ export function createContainer({
     adapters,
     events,
     registry,
+    market,
     watchers,
     indexers,
     ...(deposits === undefined ? {} : { deposits }),
     ...(chainHead === undefined ? {} : { chainHead }),
-    ...(quote === undefined ? {} : { quote }),
     ...(checkout === undefined ? {} : { checkout }),
     close: () => handle.close(),
   };

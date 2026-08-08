@@ -105,6 +105,7 @@ Full setup, commands and tooling: [docs/development.md](./docs/development.md).
 | [Double Entry Ledger](./docs/ledger.md)            | Chart of accounts and the postings behind every payment            |
 | [Settlement](./docs/settlement.md)                 | The provider abstraction and the adapters behind it                |
 | [REST API](./docs/api.md)                          | Endpoints, request and response shapes, error codes                |
+| [Configuration](./docs/configuration.md)           | Deployment identity vs merchant settings vs market data            |
 | [Development](./docs/development.md)               | Running locally, commands, formatting, git hooks                   |
 | [Roadmap](./docs/roadmap.md)                       | What is shipped and what comes next                                |
 

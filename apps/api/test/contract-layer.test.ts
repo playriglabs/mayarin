@@ -58,7 +58,7 @@ function createPlanner(settlementAddress: string | null = MERCHANT_SAFE) {
   };
   const planner = new ApiContractPlanner({
     contract: { paymentRouters: { base: ROUTER } },
-    quote,
+    quote: async () => quote,
     fees: new BasisPointsFeePolicy(50),
     stablecoins: new InMemoryStablecoinRegistry([
       { asset: "IDRX", onChain: [{ chain: "base", address: IDRX_TOKEN }] },

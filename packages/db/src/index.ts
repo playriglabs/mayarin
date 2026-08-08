@@ -5,5 +5,6 @@ export * from "./repositories/catalog.ts";
 export * from "./repositories/chain.ts";
 export * from "./repositories/clearing.ts";
 export * from "./repositories/ledger.ts";
+export * from "./repositories/market-config.ts";
 export * from "./repositories/payment-intent.ts";
 export * from "./schema.ts";

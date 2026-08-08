@@ -10,6 +10,7 @@ import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { isMarketConfigKey, MARKET_CONFIG_KEYS } from "../market.ts";
 import { adminTokenMiddleware } from "../middleware/admin-token.ts";
 
 export function adminRoutes(container: Container, token: string): Hono {
@@ -64,6 +65,43 @@ export function adminRoutes(container: Container, token: string): Hono {
     });
 
     return c.json({ paymentIntents: intents.map(toPaymentIntentDto) });
+   * Runtime market configuration (#95).
+   *
+   * Which stablecoins are admitted, which oracle feed serves a pair, which pool
+   * prices a swap. Behind the admin token because a writable feed map is a
+   * writable price: an endpoint that can point a feed at the wrong id can
+   * mis-price every payment until someone notices.
+   */
+  app.get("/market-config", async (c) => {
+    const entries = await container.market.entries();
+    return c.json({
+      keys: MARKET_CONFIG_KEYS,
+      entries: entries.map((entry) => ({
+        key: entry.key,
+        value: entry.value,
+        updatedAt: entry.updatedAt.toISOString(),
+        updatedBy: entry.updatedBy ?? null,
+      })),
+    });
+  });
+
+  app.put("/market-config/:key", async (c) => {
+    const key = c.req.param("key");
+    if (!isMarketConfigKey(key)) {
+      // A closed set: an operator can change what a key means, never invent one
+      // nothing reads. A typo would otherwise be stored and silently ignored.
+      throw new ValidationError(`Unknown market config key "${key}"`, {
+        key,
+        known: [...MARKET_CONFIG_KEYS],
+      });
+    }
+
+    const body = await c.req.json();
+    // Validated before it is stored, and the in-memory snapshot is left alone
+    // if it fails — a bad write cannot mis-price a payment.
+    await container.market.put(key, body.value);
+
+    return c.json({ key, updated: true });
   });
 
   return app;

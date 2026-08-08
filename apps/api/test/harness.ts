@@ -23,10 +23,12 @@ import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-moc
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
+import { InMemoryMarketConfigStore } from "@mayarin/shared/testing";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
+import { RuntimeMarket } from "../src/market.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 
 export const WEBHOOK_SECRET = "whsec_mayarin_test";
@@ -100,6 +102,10 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
 
   const products = new InMemoryProductRepository();
   const links = new InMemoryPaymentLinkRepository();
+  // Market config over an in-memory store: the harness exercises the same
+  // runtime path production takes, seeded from the same environment values.
+  const marketStore = new InMemoryMarketConfigStore();
+  const market = new RuntimeMarket({ store: marketStore, config, clock, cacheMs: 0 });
 
   const container: Container = {
     config,
@@ -112,6 +118,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     adapters,
     events,
     registry,
+    market,
     watchers: new Map(),
     indexers: new Map(),
     close: async () => {},
@@ -135,7 +142,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     return { status: response.status, body: (await response.json()) as Record<string, any> };
   }
 
-  return { app, clock, adapter, container, request, ledger, engine, intents };
+  return { app, clock, adapter, container, request, ledger, engine, intents, market, marketStore };
 }
 
 /** Builds a valid dynamic QRIS payload for 50,000.00 IDR. */

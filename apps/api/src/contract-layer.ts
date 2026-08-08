@@ -56,7 +56,12 @@ type Hex = `0x${string}`;
 
 export interface ContractLayerOptions {
   readonly contract: ContractConfig;
-  readonly quote: QuoteLayer;
+  /**
+   * Resolved per lock rather than held, so a feed or pool added at runtime
+   * (#95) reaches the next payment without a restart. The resolver hands back a
+   * cached layer and rebuilds it only when the market config version moves.
+   */
+  readonly quote: () => Promise<QuoteLayer>;
   readonly fees: FeePolicy;
   readonly stablecoins: StablecoinRegistry;
   /**
@@ -77,7 +82,8 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
   }
 
   async lock(request: ContractLockRequest): Promise<ContractLock> {
-    const { contract, quote, fees, stablecoins, merchantPolicies, clock } = this.#options;
+    const { contract, fees, stablecoins, merchantPolicies, clock } = this.#options;
+    const quote = await this.#options.quote();
 
     const merchantSafe = (await merchantPolicies.policyFor(request.merchantId))?.settlementAddress;
     if (merchantSafe === undefined) {
@@ -214,7 +220,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         refundTo: parts.order.refundTo,
         deadline: parts.order.deadline,
         signature: parts.signature,
-        signer: await this.#options.quote.signer.address(),
+        signer: await (await this.#options.quote()).signer.address(),
       },
     };
   }
@@ -239,7 +245,8 @@ export interface ContractCheckoutOptions {
   readonly engine: ClearingEngine;
   readonly intents: PaymentIntentService;
   readonly contract: ContractConfig;
-  readonly routeSources: ReadonlyMap<string, SwapRouteSource>;
+  /** Resolved per call for the same reason the quote layer is (#95). */
+  readonly routeSources: () => Promise<ReadonlyMap<string, SwapRouteSource>>;
   readonly clock: Clock;
 }
 
@@ -348,8 +355,9 @@ export class ContractCheckout {
   ): Promise<ExecutableRoute> {
     // Prefer the venue that priced the lock (LiFi prices but cannot route, so
     // it is never in the map); fall back to any route-capable venue.
-    const preferred = pricedBy === undefined ? undefined : this.#options.routeSources.get(pricedBy);
-    const source = preferred ?? this.#options.routeSources.values().next().value ?? undefined;
+    const routeSources = await this.#options.routeSources();
+    const preferred = pricedBy === undefined ? undefined : routeSources.get(pricedBy);
+    const source = preferred ?? routeSources.values().next().value ?? undefined;
     if (source === undefined) {
       throw new ConfigurationError("No route-capable venue is configured", {});
     }
@@ -376,7 +384,11 @@ function toQuoteOrder(order: ClearingContract["order"]): Order {
 }
 
 /** Builds the route sources the checkout fetches from, keyed by venue name. */
-export function createRouteSources(config: Config): ReadonlyMap<string, SwapRouteSource> {
+export function createRouteSources(
+  config: Config,
+  /** Overridden by the runtime market config (#95); defaults to the environment's. */
+  pools: Config["uniswapPools"] = config.uniswapPools,
+): ReadonlyMap<string, SwapRouteSource> {
   const sources = new Map<string, SwapRouteSource>();
   for (const name of config.quote?.venues ?? []) {
     if (name === "0x") {
@@ -394,7 +406,7 @@ export function createRouteSources(config: Config): ReadonlyMap<string, SwapRout
         "uniswap",
         new UniswapRouteSource({
           swapRouters: config.uniswapSwapRouters,
-          pools: config.uniswapPools as never,
+          pools: pools as never,
         }),
       );
     }

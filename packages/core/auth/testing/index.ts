@@ -13,6 +13,8 @@ import type {
   Merchant,
   MerchantAccountRepository,
   MerchantRepository,
+  MerchantSettingChange,
+  MerchantSettingChangeRepository,
   Session,
   SessionRepository,
   User,
@@ -74,6 +76,13 @@ export class InMemoryMerchantRepository implements MerchantRepository {
 
   async list(): Promise<readonly Merchant[]> {
     return [...this.#byId.values()];
+  }
+
+  async update(merchant: Merchant): Promise<void> {
+    if (!this.#byId.has(merchant.id)) {
+      throw new ConflictError(`Merchant ${merchant.id} does not exist`, { id: merchant.id });
+    }
+    this.#byId.set(merchant.id, merchant);
   }
 
   /** Rollback support for `InMemoryMerchantAccountRepository`. Not a port method. */
@@ -139,5 +148,27 @@ export class InMemorySessionRepository implements SessionRepository {
     }
     for (const id of expired) this.#byId.delete(id);
     return expired.length;
+  }
+}
+
+/**
+ * Append-only in-memory settings audit.
+ *
+ * Deliberately offers no way to remove or rewrite an entry: the Postgres table
+ * has no update or delete path either, and a fake that allowed one would let a
+ * test pass that the real adapter could not.
+ */
+export class InMemoryMerchantSettingChangeRepository implements MerchantSettingChangeRepository {
+  readonly #changes: MerchantSettingChange[] = [];
+
+  async append(changes: readonly MerchantSettingChange[]): Promise<void> {
+    this.#changes.push(...changes);
+  }
+
+  async list(merchantId: string, limit = 100): Promise<readonly MerchantSettingChange[]> {
+    return this.#changes
+      .filter((change) => change.merchantId === merchantId)
+      .sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime())
+      .slice(0, limit);
   }
 }

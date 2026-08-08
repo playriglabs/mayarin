@@ -4,5 +4,6 @@ export * from "./errors.ts";
 export * from "./event.ts";
 export * from "./id.ts";
 export * from "./locale.ts";
+export * from "./market-config.ts";
 export * from "./money.ts";
 export * from "./schema.ts";

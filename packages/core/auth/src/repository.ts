@@ -5,7 +5,12 @@
  * auth domain testable and swappable without a database.
  */
 
-import type { Merchant, MerchantRepository } from "./merchant.ts";
+import type {
+  Merchant,
+  MerchantRepository,
+  MerchantSettingChange,
+  MerchantSettingChangeRepository,
+} from "./merchant.ts";
 import type { Session, User } from "./types.ts";
 
 export interface UserRepository {
@@ -23,4 +28,9 @@ export interface SessionRepository {
   deleteExpired(now: Date): Promise<number>;
 }
 
-export type { Merchant, MerchantRepository };
+export type {
+  Merchant,
+  MerchantRepository,
+  MerchantSettingChange,
+  MerchantSettingChangeRepository,
+};
