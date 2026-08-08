@@ -15,7 +15,6 @@ import { createHarness } from "./harness.ts";
 
 /** 50,000.00 IDR settles as 50,000.00 IDRX (0.50% fee) against a 16.000000 USDC deposit. */
 const RATES = { "IDR/IDRX": 100n, "IDR/USDC": 320n };
-const DEPOSIT = money(16_000_000n, "USDC");
 
 function railIntent(harness: ReturnType<typeof createHarness>) {
   return harness.confirmedIntent({ payment: { asset: "USDC", chain: "base-sepolia" } });
@@ -77,37 +76,25 @@ describe("deposit path without a treasury executor", () => {
 
 describe("deposit path with a treasury executor but no signed order", () => {
   /**
-   * The gap this pins. `PRICE_LOCKED` signs an order only on the
-   * `on-chain-contract` path — `contractPlanner` is not consulted for
-   * `deposit-match` — so a deposit-path transaction reaches `ASSET_RECEIVED`
-   * with `contract` undefined and there is nothing for the router to verify.
-   *
-   * The executor refuses rather than improvising, which is the behaviour worth
-   * having: it holds no signer, and an order signed at execution time would be
-   * a second order for one payment.
+   * The lock is the authority on how a payment settles (#104). `PRICE_LOCKED`
+   * signs an order only when an executor *and* a planner are wired, so a lock
+   * that signed nothing decided on internal settlement — and the receipt
+   * scheme follows that decision, not this process's wiring. An executor that
+   * is wired anyway (the API's config forbids this combination; the harness
+   * can express it) is never consulted.
    */
-  test("fails loudly instead of settling a payment the router would reject", async () => {
+  test("settles internally, as the lock decided, without consulting the executor", async () => {
     const harness = createHarness({ rates: RATES, treasuryPort: NEVER_CALLED });
 
     const transaction = await harness.engine.start(await railIntent(harness));
 
-    expect(transaction.state).toBe("FAILED");
-    const failure = harness.published.find((event) => event.type === "clearing.failed");
-    expect(failure).toBeDefined();
-    expect((failure?.payload as { code?: string } | undefined)?.code).toBe("EXECUTION_EXHAUSTED");
-  });
-
-  test("leaves the payer asset visible and held, not silently cleared", async () => {
-    const harness = createHarness({ rates: RATES, treasuryPort: NEVER_CALLED });
-
-    await harness.engine.start(await railIntent(harness));
-
-    // Exactly the state RFC #70 exists to make representable. Before it, this
-    // same failure left a settlement balance recorded that never existed, and
-    // the asset actually held recorded nowhere.
-    expect((await harness.ledger.balance("PAYER_ASSET_HELD", "USDC")).balance).toEqual(DEPOSIT);
-    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(money(0n, "IDRX"));
-    expect(await harness.balance("TREASURY")).toEqual(money(0n, "IDRX"));
+    // `NEVER_CALLED` throws on any use, so SUCCESS proves the executor was
+    // never consulted and the payment stayed on the internal path end to end.
+    expect(transaction.state).toBe("SUCCESS");
+    expect(transaction.contract).toBeUndefined();
+    expect((await harness.ledger.balance("PAYER_ASSET_HELD", "USDC")).balance).toEqual(
+      money(0n, "USDC"),
+    );
     assertEveryPostingBalances(harness);
   });
 });

@@ -115,11 +115,16 @@ GAS              Dr GAS_EXPENSE:ETH             gas the operator paid
 `CLEARING` and `SETTLED` are unchanged — `MERCHANT_PAYABLE` is credited by the
 swap instead of the receipt, one step later.
 
-**The split is conditional on an executor being wired.** The two postings are a
-pair: the receipt stops crediting `MERCHANT_PAYABLE` and the swap starts. A
-deployment with no executor keeps the original posting, where settlement
-genuinely is acquired at receipt; splitting without converting would leave
-`CLEARING` debiting a payable nothing had credited.
+**The split is conditional on the lock, not on the process.** The two postings
+are a pair: the receipt stops crediting `MERCHANT_PAYABLE` and the swap starts.
+A payment splits when its lock signed an order, which the lock does only in a
+deployment with an executor. A lock that signed nothing keeps the original
+posting, where settlement genuinely is acquired at receipt; splitting without
+converting would leave `CLEARING` debiting a payable nothing had credited. The
+persisted order, not the wiring of the process that advances the payment, makes
+the decision — two differently wired processes on one database must agree on
+the scheme, and a process with no executor parks an order-carrying payment for
+one that has an executor (#104).
 
 **The merchant's net and the fee are always the locked figures.** A swap that
 underperformed debits `FX_RESULT` rather than paying the merchant less; one that

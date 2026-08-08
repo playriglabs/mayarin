@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { assertBalanced } from "@mayarin/ledger";
-import { money } from "@mayarin/shared";
+import { SettlementAdapterRegistry } from "@mayarin/settlement";
+import { money, ProviderError } from "@mayarin/shared";
 import type { ContractLock } from "../src/contract-path.ts";
+import { ClearingEngine } from "../src/engine.ts";
+import { BasisPointsFeePolicy } from "../src/fees.ts";
+import { StaticRateProvider } from "../src/rate.ts";
 import type { ExecutionResult, TreasuryExecutionPort } from "../src/treasury.ts";
 import { FakeContractPlanner } from "../testing/index.ts";
 import { createHarness, NOW } from "./harness.ts";
@@ -161,6 +165,56 @@ describe("locking a deposit that will be executed", () => {
       money(0n, "ETH"),
     );
     expect((await harness.ledger.balance("GAS_EXPENSE", "ETH")).balance).toEqual(GAS);
+  });
+});
+
+describe("a signed order reaching a process without an executor", () => {
+  /**
+   * Two processes can share one database with different wiring — the incident
+   * behind #104 was an e2e run racing a dev API that had no executor, and the
+   * dev API settled the payment internally while the deposit sat unswept. The
+   * lock promised on-chain settlement, so a process that cannot keep the
+   * promise must park the payment, not improvise a different settlement.
+   */
+  test("parks in ASSET_RECEIVED, and a process with an executor completes it", async () => {
+    const port = executingPort();
+    const planner = new FakeContractPlanner(depositLock());
+    const harness = createHarness({
+      contractPlanner: planner,
+      treasuryPort: port,
+      treasuryAddress: TREASURY,
+      autoConfirmAssetReceipt: false,
+    });
+    // The dev API of the incident: same repositories, no executor.
+    const driverless = new ClearingEngine({
+      repository: harness.repositories.clearing,
+      intents: harness.intents,
+      ledger: harness.ledger,
+      adapters: new SettlementAdapterRegistry([harness.adapter]),
+      rates: new StaticRateProvider({ "IDR/IDRX": 100n }),
+      fees: new BasisPointsFeePolicy(50),
+      clock: harness.clock,
+    });
+
+    const locked = await harness.engine.start(
+      await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
+    );
+    expect(locked.state).toBe("PAYMENT_PENDING");
+
+    await expect(driverless.recordAssetReceived(locked.id)).rejects.toBeInstanceOf(ProviderError);
+
+    // The receipt was booked on the scheme the lock decided — the payer asset
+    // is held, nothing was paid out — and the parked state is durable.
+    const parked = await driverless.getById(locked.id);
+    expect(parked.state).toBe("ASSET_RECEIVED");
+    expect((await harness.ledger.balance("PAYER_ASSET_HELD", "ETH")).balance).toEqual(
+      PAYER_ESTIMATE,
+    );
+
+    const resumed = await harness.engine.resume(locked.id);
+    expect(resumed.transaction.state).toBe("SUCCESS");
+    expect(port.results).toHaveLength(1);
+    assertEveryPostingBalances(harness);
   });
 });
 
