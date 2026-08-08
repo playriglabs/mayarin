@@ -38,7 +38,8 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
       data-slot="table-head"
       scope="col"
       className={cn(
-        "border-b border-border px-4 py-2.5 text-left text-xs font-medium text-subtle-foreground",
+        // Mono uppercase, like the landing's eyebrow — the ledger's rule row.
+        "border-b border-border px-4 py-2.5 text-left font-mono text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase",
         className,
       )}
       {...props}

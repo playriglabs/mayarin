@@ -189,7 +189,7 @@ export default function Catalog() {
     <MotionProvider>
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-subtle-foreground">
+          <p className="font-mono text-xs text-subtle-foreground">
             {products.length} product{products.length === 1 ? "" : "s"}
           </p>
           <Button onClick={() => open({ mode: "create" })}>

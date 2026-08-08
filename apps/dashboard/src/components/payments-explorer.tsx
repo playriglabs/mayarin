@@ -127,7 +127,7 @@ function PaymentsExplorer() {
         </div>
       </div>
 
-      <p aria-live="polite" className="text-xs text-subtle-foreground">
+      <p aria-live="polite" className="font-mono text-xs text-subtle-foreground">
         {payments.status === "success" &&
           `${rows.length} of ${all.length} payment${all.length === 1 ? "" : "s"}`}
       </p>

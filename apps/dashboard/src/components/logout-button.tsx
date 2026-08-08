@@ -68,6 +68,8 @@ function LogoutButton() {
       <Button
         variant="ghost"
         size="icon"
+        // Ghost recolored for the void sidebar this button lives on.
+        className="text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
         onClick={() => {
           setReason(null);
           setConfirming(true);

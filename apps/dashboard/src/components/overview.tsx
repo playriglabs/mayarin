@@ -8,14 +8,14 @@
  * ledger would not recognise.
  */
 
-import { CheckCircleIcon, ClockIcon, ReceiptIcon, TrendUpIcon } from "@phosphor-icons/react";
+import { ReceiptIcon } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Stat } from "@/components/ui/stat";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import {
   Table,
   TableBody,
@@ -81,14 +81,9 @@ function Overview() {
       const recent = all.slice(0, 5);
 
       return (
-        <div className="flex flex-col gap-6">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat
-              label="Payments"
-              value={String(all.length)}
-              hint="In the most recent 100."
-              icon={ReceiptIcon}
-            />
+        <div className="flex flex-col gap-8">
+          <StatGrid>
+            <Stat label="Payments" value={String(all.length)} hint="In the most recent 100." />
             <Stat
               label="Completed"
               value={String(completed)}
@@ -97,35 +92,27 @@ function Overview() {
                   ? "Nothing yet."
                   : `${Math.round((completed / all.length) * 100)}% of the window.`
               }
-              icon={CheckCircleIcon}
             />
             <Stat
               label="In progress"
               value={String(pending)}
               hint="Created, confirmed or processing."
-              icon={ClockIcon}
             />
-            <Stat label="Volume" value={volume.value} hint={volume.hint} icon={TrendUpIcon} />
-          </div>
+            <Stat label="Volume" value={volume.value} hint={volume.hint} />
+          </StatGrid>
 
-          <Card className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle>
-                <ReceiptIcon
-                  size={ICON_CARD}
-                  weight="regular"
-                  aria-hidden="true"
-                  className="text-subtle-foreground"
-                />
-                Recent payments
-              </CardTitle>
-              <a
-                href="/payments"
-                className="text-xs text-muted-foreground underline decoration-input underline-offset-2 hover:text-foreground hover:decoration-foreground"
-              >
-                View all
-              </a>
-            </div>
+          <section className="flex flex-col gap-3">
+            <SectionHeader
+              title="Recent payments"
+              action={
+                <a
+                  href="/payments"
+                  className="text-xs text-muted-foreground underline decoration-input underline-offset-2 hover:text-foreground hover:decoration-foreground"
+                >
+                  View all
+                </a>
+              }
+            />
 
             {recent.length === 0 ? (
               <Empty>
@@ -168,7 +155,7 @@ function Overview() {
                 </TableBody>
               </Table>
             )}
-          </Card>
+          </section>
         </div>
       );
     })

@@ -7,24 +7,19 @@
  * filled with dashes, because "not started" and "zero" are different facts.
  */
 
-import {
-  ArrowLeftIcon,
-  CurrencyCircleDollarIcon,
-  PathIcon,
-  ReceiptIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { match } from "ts-pattern";
 import PaymentTimeline from "@/components/payment-timeline";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePayment } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, labelOf, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
-import { ICON_CARD } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
 
 function reasonOf(error: unknown): string {
@@ -91,112 +86,94 @@ function PaymentDetail({ id }: { id: string }) {
                 <Badge variant={toneOf(intent.status)}>{intentStatusLabel(intent.status)}</Badge>
               </header>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <Card className="flex flex-col gap-3">
-                  <CardTitle>
-                    <ReceiptIcon
-                      size={ICON_CARD}
-                      weight="regular"
-                      aria-hidden="true"
-                      className="text-subtle-foreground"
-                    />
-                    Payment Intent
-                  </CardTitle>
-                  <dl className="flex flex-col">
-                    <Row label="Amount">{intent.amount.formatted}</Row>
-                    <Row label="Settles in">{intent.settlementAsset}</Row>
-                    <Row label="Provider">{intent.provider}</Row>
-                    <Row label="Payer rail">
-                      {intent.payment === null ? (
-                        <span className="text-subtle-foreground">Not selected</span>
-                      ) : (
-                        `${intent.payment.asset} on ${intent.payment.chain}`
-                      )}
-                    </Row>
-                    <Row label="Source">
-                      {intent.source.type === "qr" ? `QR · ${intent.source.scheme}` : "Manual"}
-                    </Row>
-                    <Row label="Created">
-                      <time dateTime={isoAttr(intent.createdAt)}>
-                        {formatDateTime(intent.createdAt)}
-                      </time>
-                    </Row>
-                    <Row label="Expires">
-                      <time dateTime={isoAttr(intent.expiresAt)}>
-                        {formatDateTime(intent.expiresAt)}
-                      </time>
-                    </Row>
-                  </dl>
-                </Card>
-
-                {clearing !== null && (
-                  <Card className="flex flex-col gap-3">
-                    <CardTitle>
-                      <CurrencyCircleDollarIcon
-                        size={ICON_CARD}
-                        weight="regular"
-                        aria-hidden="true"
-                        className="text-subtle-foreground"
-                      />
-                      Clearing
-                    </CardTitle>
+              <div className="grid gap-8 md:grid-cols-2 md:gap-4">
+                <section className="flex flex-col gap-3">
+                  <SectionHeader title="Payment intent" />
+                  <Card>
                     <dl className="flex flex-col">
-                      <Row label="State">
-                        <Badge variant={toneOf(clearing.state)}>{labelOf(clearing.state)}</Badge>
-                      </Row>
-                      <Row label="Source amount">{clearing.sourceAmount.formatted}</Row>
-                      <Row label="Settlement">
-                        {clearing.settlementAmount?.formatted ?? (
-                          <span className="text-subtle-foreground">Not priced yet</span>
-                        )}
-                      </Row>
-                      <Row label="Fee">
-                        {clearing.fee?.formatted ?? (
-                          <span className="text-subtle-foreground">—</span>
-                        )}
-                      </Row>
-                      <Row label="Net to merchant">
-                        {clearing.netAmount?.formatted ?? (
-                          <span className="text-subtle-foreground">—</span>
-                        )}
-                      </Row>
-                      <Row label="Locked rate">
-                        {clearing.rate === null ? (
-                          <span className="text-subtle-foreground">Not locked</span>
+                      <Row label="Amount">{intent.amount.formatted}</Row>
+                      <Row label="Settles in">{intent.settlementAsset}</Row>
+                      <Row label="Provider">{intent.provider}</Row>
+                      <Row label="Payer rail">
+                        {intent.payment === null ? (
+                          <span className="text-subtle-foreground">Not selected</span>
                         ) : (
-                          <span className="font-mono text-xs">
-                            {clearing.rate.from}/{clearing.rate.to} · {clearing.rate.source}
-                          </span>
+                          `${intent.payment.asset} on ${intent.payment.chain}`
                         )}
                       </Row>
-                      <Row label="Provider reference">
-                        {clearing.providerReference === null ? (
-                          <span className="text-subtle-foreground">—</span>
-                        ) : (
-                          <span className="font-mono text-xs">{clearing.providerReference}</span>
-                        )}
+                      <Row label="Source">
+                        {intent.source.type === "qr" ? `QR · ${intent.source.scheme}` : "Manual"}
+                      </Row>
+                      <Row label="Created">
+                        <time dateTime={isoAttr(intent.createdAt)}>
+                          {formatDateTime(intent.createdAt)}
+                        </time>
+                      </Row>
+                      <Row label="Expires">
+                        <time dateTime={isoAttr(intent.expiresAt)}>
+                          {formatDateTime(intent.expiresAt)}
+                        </time>
                       </Row>
                     </dl>
                   </Card>
+                </section>
+
+                {clearing !== null && (
+                  <section className="flex flex-col gap-3">
+                    <SectionHeader title="Clearing" />
+                    <Card>
+                      <dl className="flex flex-col">
+                        <Row label="State">
+                          <Badge variant={toneOf(clearing.state)}>{labelOf(clearing.state)}</Badge>
+                        </Row>
+                        <Row label="Source amount">{clearing.sourceAmount.formatted}</Row>
+                        <Row label="Settlement">
+                          {clearing.settlementAmount?.formatted ?? (
+                            <span className="text-subtle-foreground">Not priced yet</span>
+                          )}
+                        </Row>
+                        <Row label="Fee">
+                          {clearing.fee?.formatted ?? (
+                            <span className="text-subtle-foreground">—</span>
+                          )}
+                        </Row>
+                        <Row label="Net to merchant">
+                          {clearing.netAmount?.formatted ?? (
+                            <span className="text-subtle-foreground">—</span>
+                          )}
+                        </Row>
+                        <Row label="Locked rate">
+                          {clearing.rate === null ? (
+                            <span className="text-subtle-foreground">Not locked</span>
+                          ) : (
+                            <span className="font-mono text-xs">
+                              {clearing.rate.from}/{clearing.rate.to} · {clearing.rate.source}
+                            </span>
+                          )}
+                        </Row>
+                        <Row label="Provider reference">
+                          {clearing.providerReference === null ? (
+                            <span className="text-subtle-foreground">—</span>
+                          ) : (
+                            <span className="font-mono text-xs">{clearing.providerReference}</span>
+                          )}
+                        </Row>
+                      </dl>
+                    </Card>
+                  </section>
                 )}
               </div>
 
-              <Card className="flex flex-col gap-4">
-                <CardTitle>
-                  <PathIcon
-                    size={ICON_CARD}
-                    weight="regular"
-                    aria-hidden="true"
-                    className="text-subtle-foreground"
+              <section className="flex flex-col gap-3">
+                <SectionHeader title="Clearing timeline" />
+                <Card className="gap-4">
+                  <PaymentTimeline
+                    events={timeline}
+                    currentState={clearing?.state ?? "CREATED"}
+                    failureReason={clearing?.failure?.reason ?? intent.failureReason ?? undefined}
                   />
-                  Clearing timeline
-                </CardTitle>
-                <PaymentTimeline
-                  events={timeline}
-                  currentState={clearing?.state ?? "CREATED"}
-                  failureReason={clearing?.failure?.reason ?? intent.failureReason ?? undefined}
-                />
-              </Card>
+                </Card>
+              </section>
             </div>
           );
         })

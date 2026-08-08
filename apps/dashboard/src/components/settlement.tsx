@@ -12,18 +12,12 @@
 
 import { formatMoneyLocale } from "@mayarin/shared/locale";
 import { money } from "@mayarin/shared/money";
-import {
-  ArrowSquareOutIcon,
-  BankIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  WalletIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, BankIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Stat } from "@/components/ui/stat";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import {
   Table,
   TableBody,
@@ -69,70 +63,52 @@ export default function Settlement() {
   const feeTotal = settled.reduce((acc, s) => acc + s.fee, 0n);
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card className="flex flex-col gap-3">
-        <CardTitle>
-          <WalletIcon
-            size={ICON_CARD}
-            weight="regular"
-            aria-hidden="true"
-            className="text-subtle-foreground"
-          />
-          Settlement destination
-        </CardTitle>
-        <dl className="flex flex-col gap-3 sm:flex-row sm:gap-8">
-          <div className="flex min-w-0 flex-col gap-1">
-            <dt className="text-xs text-subtle-foreground">Address</dt>
-            <dd className="font-mono text-xs break-all text-foreground">{SETTLEMENT_ADDRESS}</dd>
-          </div>
-          <div className="flex flex-col gap-1">
-            <dt className="text-xs text-subtle-foreground">Asset</dt>
-            <dd className="text-sm text-foreground">{SETTLEMENT_ASSET}</dd>
-          </div>
-          <div className="flex flex-col gap-1">
-            <dt className="text-xs text-subtle-foreground">Chain</dt>
-            <dd className="text-sm text-foreground">{SETTLEMENT_CHAIN}</dd>
-          </div>
-        </dl>
-      </Card>
+    <div className="flex flex-col gap-8">
+      <section className="flex flex-col gap-3">
+        <SectionHeader title="Settlement destination" />
+        <Card>
+          <dl className="flex flex-col gap-3 sm:flex-row sm:gap-8">
+            <div className="flex min-w-0 flex-col gap-1">
+              <dt className="text-xs text-subtle-foreground">Address</dt>
+              <dd className="font-mono text-xs break-all text-foreground">{SETTLEMENT_ADDRESS}</dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-subtle-foreground">Asset</dt>
+              <dd className="text-sm text-foreground">{SETTLEMENT_ASSET}</dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-subtle-foreground">Chain</dt>
+              <dd className="text-sm text-foreground">{SETTLEMENT_CHAIN}</dd>
+            </div>
+          </dl>
+        </Card>
+      </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StatGrid>
         <Stat
           label="Settled"
           value={formatMoneyLocale(money(netTotal, SETTLEMENT_ASSET))}
           hint={`Net across ${settled.length} settlement${settled.length === 1 ? "" : "s"}.`}
-          icon={CheckCircleIcon}
         />
         <Stat
           label="Fees taken"
           value={formatMoneyLocale(money(feeTotal, SETTLEMENT_ASSET))}
           hint="Split on chain, not held by Mayarin."
-          icon={BankIcon}
         />
         <Stat
           label="In flight"
           value={String(inFlight.length)}
           hint="Broadcast, awaiting finality."
-          icon={ClockIcon}
         />
         <Stat
           label="Failed"
           value={String(failed.length)}
           hint={failed.length === 0 ? "Nothing to retry." : "Needs attention."}
-          icon={WarningCircleIcon}
         />
-      </div>
+      </StatGrid>
 
-      <Card className="flex flex-col gap-4">
-        <CardTitle>
-          <BankIcon
-            size={ICON_CARD}
-            weight="regular"
-            aria-hidden="true"
-            className="text-subtle-foreground"
-          />
-          Settlements
-        </CardTitle>
+      <section className="flex flex-col gap-3">
+        <SectionHeader title="Settlements" />
         {SETTLEMENTS.length === 0 ? (
           <Empty>
             <EmptyMedia>
@@ -202,7 +178,7 @@ export default function Settlement() {
             </TableBody>
           </Table>
         )}
-      </Card>
+      </section>
     </div>
   );
 }

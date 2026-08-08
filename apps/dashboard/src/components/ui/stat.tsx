@@ -1,46 +1,47 @@
-import type { Icon } from "@phosphor-icons/react";
 import type * as React from "react";
-import { Card, CardTitle } from "@/components/ui/card";
-import { ICON_CARD } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * Stat tile. Not a shadcn registry component — it is this product's own, kept
- * here so it composes with `Card` and stays consistent with the rest.
+ * Stat strip. Not a shadcn registry component — it is this product's own.
  *
- * `icon` takes the Phosphor component itself, not an element, so the 20px card
- * size stays this component's decision rather than each call site's.
+ * One ruled surface holding every figure, not four boxes floating on the
+ * page: `StatGrid` is a `gap-px` mosaic over the border colour, so the
+ * hairlines between cells hold at every breakpoint without corner seams.
+ * Each cell is a mono eyebrow, a 24px tabular figure and a hint — the
+ * landing's spec-sheet voice. No icons: the label already says what the
+ * number is.
  */
+function StatGrid({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="stat-grid"
+      className={cn(
+        "grid gap-px border border-border bg-border sm:grid-cols-2 xl:grid-cols-4",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 function Stat({
   label,
   value,
   hint,
-  icon: IconComponent,
   className,
   ...props
 }: {
   label: string;
   value: string;
   hint?: string;
-  icon?: Icon;
-} & React.ComponentProps<typeof Card>) {
+} & React.ComponentProps<"div">) {
   return (
-    <Card data-slot="stat" className={className} {...props}>
-      <CardTitle>
-        {IconComponent !== undefined && (
-          <IconComponent
-            size={ICON_CARD}
-            weight="regular"
-            aria-hidden="true"
-            className="text-subtle-foreground"
-          />
-        )}
-        {label}
-      </CardTitle>
-      <p className={cn("text-2xl font-medium text-foreground tabular-nums")}>{value}</p>
-      {hint !== undefined && <p className="text-xs text-subtle-foreground">{hint}</p>}
-    </Card>
+    <div data-slot="stat" className={cn("flex flex-col gap-2 bg-card p-4", className)} {...props}>
+      <span className="label text-muted-foreground">{label}</span>
+      <span className="text-2xl font-medium text-foreground tabular-nums">{value}</span>
+      {hint !== undefined && <span className="text-xs text-subtle-foreground">{hint}</span>}
+    </div>
   );
 }
 
-export { Stat };
+export { Stat, StatGrid };

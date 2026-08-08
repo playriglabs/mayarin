@@ -21,11 +21,11 @@
 import { assetDecimals, assetSymbol } from "@mayarin/shared/asset";
 import { formatMoneyLocale } from "@mayarin/shared/locale";
 import { money } from "@mayarin/shared/money";
-import { ChartBarIcon, CoinsIcon, ReceiptIcon, TrendUpIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Stat } from "@/components/ui/stat";
+import { Card } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Stat, StatGrid } from "@/components/ui/stat";
 import {
   Table,
   TableBody,
@@ -37,7 +37,6 @@ import {
 } from "@/components/ui/table";
 import { compactMoney, percentOf } from "@/lib/compact";
 import { DAILY, type DayPoint, PAYER_ASSETS } from "@/lib/fixtures";
-import { ICON_CARD } from "@/lib/icons";
 import { MotionProvider } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -216,101 +215,81 @@ export default function Analytics() {
 
   return (
     <MotionProvider>
-      <div className="flex flex-col gap-6">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="flex flex-col gap-8">
+        <StatGrid>
           <Stat
             label="Volume"
             value={compactMoney(totalVolume, IDR_DECIMALS, IDR_SYMBOL)}
             hint="Last 14 days."
-            icon={TrendUpIcon}
           />
-          <Stat
-            label="Payments"
-            value={String(totalCount)}
-            hint="Last 14 days."
-            icon={ReceiptIcon}
-          />
+          <Stat label="Payments" value={String(totalCount)} hint="Last 14 days." />
           <Stat
             label="Average payment"
             value={formatMoneyLocale(money(average, "IDR"), { trimZeroFraction: true })}
             hint="Volume divided by count."
-            icon={CoinsIcon}
           />
           <Stat
             label="Busiest day"
             value={dayLabel(busiest.date)}
             hint={`${busiest.count} payments.`}
-            icon={ChartBarIcon}
           />
-        </div>
+        </StatGrid>
 
-        <Card className="flex flex-col gap-4">
-          <CardTitle>
-            <TrendUpIcon
-              size={ICON_CARD}
-              weight="regular"
-              aria-hidden="true"
-              className="text-subtle-foreground"
-            />
-            Daily volume
-          </CardTitle>
-          <VolumeChart points={DAILY} />
-          <DataDisclosure summary="Show the numbers">
-            <Table>
-              <TableCaption>Daily payment volume for the last 14 days</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead className="text-right">Volume</TableHead>
-                  <TableHead className="text-right">Payments</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {DAILY.map((p) => (
-                  <TableRow key={p.date}>
-                    <TableCell>{dayLabel(p.date)}</TableCell>
-                    <TableCell className="text-right">
-                      {formatMoneyLocale(money(p.volume, "IDR"))}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">{p.count}</TableCell>
+        <section className="flex flex-col gap-3">
+          <SectionHeader title="Daily volume" />
+          <Card className="gap-4">
+            <VolumeChart points={DAILY} />
+            <DataDisclosure summary="Show the numbers">
+              <Table>
+                <TableCaption>Daily payment volume for the last 14 days</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Day</TableHead>
+                    <TableHead className="text-right">Volume</TableHead>
+                    <TableHead className="text-right">Payments</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DataDisclosure>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {DAILY.map((p) => (
+                    <TableRow key={p.date}>
+                      <TableCell>{dayLabel(p.date)}</TableCell>
+                      <TableCell className="text-right">
+                        {formatMoneyLocale(money(p.volume, "IDR"))}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">{p.count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </DataDisclosure>
+          </Card>
+        </section>
 
-        <Card className="flex flex-col gap-4">
-          <CardTitle>
-            <CoinsIcon
-              size={ICON_CARD}
-              weight="regular"
-              aria-hidden="true"
-              className="text-subtle-foreground"
-            />
-            What payers sent
-          </CardTitle>
-          <AssetMixChart />
-          <DataDisclosure summary="Show the numbers">
-            <Table>
-              <TableCaption>Payments by payer asset</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Asset</TableHead>
-                  <TableHead className="text-right">Payments</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {PAYER_ASSETS.map((a) => (
-                  <TableRow key={a.asset}>
-                    <TableCell>{a.asset}</TableCell>
-                    <TableCell className="text-right">{a.count}</TableCell>
+        <section className="flex flex-col gap-3">
+          <SectionHeader title="What payers sent" />
+          <Card className="gap-4">
+            <AssetMixChart />
+            <DataDisclosure summary="Show the numbers">
+              <Table>
+                <TableCaption>Payments by payer asset</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Asset</TableHead>
+                    <TableHead className="text-right">Payments</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DataDisclosure>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {PAYER_ASSETS.map((a) => (
+                    <TableRow key={a.asset}>
+                      <TableCell>{a.asset}</TableCell>
+                      <TableCell className="text-right">{a.count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </DataDisclosure>
+          </Card>
+        </section>
       </div>
     </MotionProvider>
   );

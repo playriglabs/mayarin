@@ -67,21 +67,21 @@ export default function SideNav({ pathname, isAdmin }: { pathname: string; isAdm
               // 8px padding — the navigation rule. Sharp, like everything else.
               "relative flex shrink-0 items-center gap-2 p-2 text-sm",
               active
-                ? "bg-muted font-medium text-foreground"
-                : "font-normal text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? "bg-sidebar-accent font-medium text-sidebar-foreground"
+                : "font-normal text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
             )}
           >
             {active && (
               <span
                 aria-hidden="true"
-                className="absolute inset-y-0 left-0 w-0.5 bg-brand max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:h-0.5 max-md:w-auto"
+                className="absolute inset-y-0 left-0 w-0.5 bg-electric max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:h-0.5 max-md:w-auto"
               />
             )}
             <IconComponent
               size={ICON_NAV}
               weight={active ? "fill" : "regular"}
               aria-hidden="true"
-              className={active ? "text-brand" : "text-subtle-foreground"}
+              className={active ? "text-electric" : "text-sidebar-muted-foreground"}
             />
             {label}
           </a>

@@ -24,7 +24,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/85",
+        // Ink that wipes to forest on hover — the landing's primary button.
+        default: "bg-primary text-primary-foreground hover:bg-brand",
         secondary: "border border-input bg-card text-foreground hover:bg-muted",
         ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
         destructive: "border border-input bg-card text-destructive hover:bg-destructive-muted",

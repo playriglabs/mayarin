@@ -68,16 +68,16 @@ function LoginForm() {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex w-full max-w-sm flex-col gap-5 border border-border bg-card p-4"
-    >
-      <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 text-2xl font-medium text-foreground">
-          <span aria-hidden="true" className="inline-block size-1.5 bg-brand" />
+    <form onSubmit={onSubmit} className="flex w-full max-w-sm flex-col gap-6 bg-card p-6">
+      <div className="flex flex-col gap-4">
+        <p className="label flex items-center gap-2.5 text-muted-foreground">
+          <span aria-hidden="true" className="inline-block size-1.5 bg-electric" />
           Mayarin
-        </h1>
-        <p className="text-sm text-muted-foreground">Sign in to manage payments.</p>
+        </p>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-medium text-foreground">Sign in</h1>
+          <p className="text-sm text-muted-foreground">Manage payments and settlement.</p>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3">
