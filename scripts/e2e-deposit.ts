@@ -44,7 +44,11 @@
  *   OPERATOR_PRIVATE_KEY              pays gas for the sweep and the router call
  */
 
-import { createDatabase, DrizzleMerchantRepository } from "@mayarin/db";
+import {
+  createDatabase,
+  DrizzleMerchantRepository,
+  DrizzleWatcherCursorRepository,
+} from "@mayarin/db";
 import { merchants as merchantsTable } from "@mayarin/db/schema";
 import { eq } from "drizzle-orm";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
@@ -130,7 +134,9 @@ const config = loadConfig({
   QUOTE_PEGGED_PAIRS: '["USD/USDC"]',
   // Start just behind the head: the watcher has no reason to walk history it
   // has already been told about, and a wide first pass is what trips the
-  // 10-block `eth_getLogs` cap on a free RPC tier.
+  // 10-block `eth_getLogs` cap on a free RPC tier. Only used when no cursor is
+  // persisted yet — a stored cursor outranks this, which is why the run also
+  // pins the cursor itself before it watches.
   CHAIN_START_BLOCKS: JSON.stringify({ [CHAIN]: (head - 1n).toString() }),
 } as Record<string, string | undefined>);
 
@@ -310,8 +316,20 @@ const payHash = await payerWallet.sendTransaction({
   nonce: await pub.getTransactionCount({ address: payer.address, blockTag: "pending" }),
   ...fees,
 });
-await pub.waitForTransactionReceipt({ hash: payHash, confirmations: 2 });
-console.log("\n3. payer paid   ", payHash);
+const payReceipt = await pub.waitForTransactionReceipt({ hash: payHash, confirmations: 2 });
+console.log("\n3. payer paid   ", payHash, `block ${payReceipt.blockNumber}`);
+
+// A persisted cursor outranks `CHAIN_START_BLOCKS`, and every previous run of
+// this script leaves one at that run's head. Minutes later the chain has moved
+// on and a 10-block window walks history at 10 blocks a tick — the deposit is
+// thousands of blocks ahead and 15 ticks never reach it, which reads as "the
+// watcher never saw the payment". Pin the cursor to the block before the one
+// this run just paid into, so the first tick scans exactly it.
+await new DrizzleWatcherCursorRepository(merchantDb.db).set(
+  CHAIN,
+  asset,
+  payReceipt.blockNumber - 1n,
+);
 
 // ---------------------------------------------------------------------------
 // 4. The watcher notices; the executor converts and settles
