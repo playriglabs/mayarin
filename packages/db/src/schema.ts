@@ -559,6 +559,42 @@ export const marketConfig = pgTable("market_config", {
   updatedBy: text("updated_by"),
 });
 
+/**
+ * Refunds (#12).
+ *
+ * A refund is a new transfer, not a reversal, so it gets its own row rather
+ * than editing the payment that caused it — `clearing_transactions` is
+ * untouched by a refund, and how much came back is derived from these rows.
+ * Several partials may exist against one payment; what bounds them is their sum.
+ */
+export const refunds = pgTable(
+  "refunds",
+  {
+    id: text("id").primaryKey(),
+    clearingTransactionId: text("clearing_transaction_id")
+      .notNull()
+      .references(() => clearingTransactions.id),
+    paymentIntentId: text("payment_intent_id")
+      .notNull()
+      .references(() => paymentIntents.id),
+    merchantId: text("merchant_id").notNull(),
+    amount: minorUnits("amount").notNull(),
+    amountAsset: text("amount_asset").notNull(),
+    state: text("state").notNull(),
+    reason: text("reason"),
+    idempotencyKey: text("idempotency_key"),
+    providerReference: text("provider_reference"),
+    failureReason: text("failure_reason"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("refunds_idempotency_key_idx").on(table.idempotencyKey),
+    index("refunds_clearing_idx").on(table.clearingTransactionId, table.createdAt),
+    index("refunds_merchant_idx").on(table.merchantId, table.createdAt),
+  ],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -577,4 +613,5 @@ export const schema = {
   paymentLinks,
   merchantSettingChanges,
   marketConfig,
+  refunds,
 };

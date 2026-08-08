@@ -21,6 +21,8 @@ import type {
   ContractPaymentPlanner,
   OraclePrice,
   PriceOracle,
+  Refund,
+  RefundRepository,
 } from "../src/index.ts";
 import { isTerminalState, rateKey } from "../src/index.ts";
 
@@ -155,5 +157,50 @@ export class InMemoryClearingRepository implements ClearingRepository {
       .filter((transaction) => !isTerminalState(transaction.state))
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit);
+  }
+}
+
+/**
+ * Reference in-memory refund repository (#12).
+ *
+ * Mirrors the Postgres adapter's unique idempotency key, so a test exercises
+ * the same replay behaviour without a database.
+ */
+export class InMemoryRefundRepository implements RefundRepository {
+  readonly #byId = new Map<string, Refund>();
+  readonly #byIdempotencyKey = new Map<string, string>();
+
+  async insert(refund: Refund): Promise<void> {
+    if (this.#byId.has(refund.id)) {
+      throw new ConflictError(`Refund ${refund.id} already exists`, { id: refund.id });
+    }
+    if (refund.idempotencyKey !== undefined) {
+      if (this.#byIdempotencyKey.has(refund.idempotencyKey)) {
+        throw new ConflictError(`Idempotency key "${refund.idempotencyKey}" is already in use`, {
+          idempotencyKey: refund.idempotencyKey,
+        });
+      }
+      this.#byIdempotencyKey.set(refund.idempotencyKey, refund.id);
+    }
+    this.#byId.set(refund.id, refund);
+  }
+
+  async update(refund: Refund): Promise<void> {
+    this.#byId.set(refund.id, refund);
+  }
+
+  async findById(id: string): Promise<Refund | null> {
+    return this.#byId.get(id) ?? null;
+  }
+
+  async findByIdempotencyKey(key: string): Promise<Refund | null> {
+    const id = this.#byIdempotencyKey.get(key);
+    return id === undefined ? null : (this.#byId.get(id) ?? null);
+  }
+
+  async listByClearingTransactionId(clearingTransactionId: string): Promise<readonly Refund[]> {
+    return [...this.#byId.values()]
+      .filter((refund) => refund.clearingTransactionId === clearingTransactionId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 }

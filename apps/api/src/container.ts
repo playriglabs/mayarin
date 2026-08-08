@@ -18,6 +18,7 @@ import {
   BasisPointsFeePolicy,
   ClearingEngine,
   LiquidityRouter,
+  RefundService,
   TreasuryExecutor,
 } from "@mayarin/clearing";
 import {
@@ -33,6 +34,7 @@ import {
   DrizzlePaymentIntentRepository,
   DrizzlePaymentLinkRepository,
   DrizzleProductRepository,
+  DrizzleRefundRepository,
   DrizzleSettlementEventRepository,
   DrizzleWatcherCursorRepository,
 } from "@mayarin/db";
@@ -74,6 +76,8 @@ export interface Container {
   readonly ledger: LedgerService;
   readonly engine: ClearingEngine;
   readonly paymentApp: PaymentAppService;
+  /** Refunds against settled payments (#12). */
+  readonly refunds: RefundService;
   readonly adapters: SettlementAdapterRegistry;
   readonly events: EventPublisher;
   /** Admissible stablecoins and their on-chain identities. */
@@ -445,6 +449,18 @@ export function createContainer({
     }
   }
 
+  // Refunds run after the state machine has finished, against a transaction the
+  // engine will never touch again — so a service beside it, not a step inside it.
+  const clearingRepository = new DrizzleClearingRepository(handle.db);
+  const refunds = new RefundService({
+    clearing: clearingRepository,
+    refunds: new DrizzleRefundRepository(handle.db),
+    adapters,
+    ledger,
+    clock,
+    events,
+  });
+
   const paymentApp = new PaymentAppService({
     intents,
     engine,
@@ -462,6 +478,7 @@ export function createContainer({
     ledger,
     engine,
     paymentApp,
+    refunds,
     adapters,
     events,
     registry,
