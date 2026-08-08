@@ -30,6 +30,7 @@ import {
   StaticRateProvider,
 } from "@mayarin/clearing";
 import { LedgerService } from "@mayarin/ledger";
+import type { WebhookDelivery, WebhookEndpoint } from "@mayarin/notifications";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
@@ -49,6 +50,12 @@ import {
 } from "../src/repositories/chain.ts";
 import { DrizzleClearingRepository } from "../src/repositories/clearing.ts";
 import { DrizzleLedgerRepository } from "../src/repositories/ledger.ts";
+import {
+  DrizzleWebhookCursorRepository,
+  DrizzleWebhookDeliveryRepository,
+  DrizzleWebhookEndpointRepository,
+  DrizzleWebhookOutbox,
+} from "../src/repositories/notifications.ts";
 import { DrizzlePaymentIntentRepository } from "../src/repositories/payment-intent.ts";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -97,7 +104,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table webhook_deliveries, webhook_endpoints, webhook_cursors, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -521,6 +528,123 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     await repository.set("base-sepolia", "USDC", 900n);
 
     expect(await repository.get("base-sepolia", "USDC")).toBe(900n);
+  });
+
+  describe("webhook repositories", () => {
+    const endpointRepo = new DrizzleWebhookEndpointRepository(handle.db);
+    const deliveryRepo = new DrizzleWebhookDeliveryRepository(handle.db);
+
+    async function seedMerchant(id: string): Promise<void> {
+      const now = clock.now();
+      await new DrizzleMerchantRepository(handle.db).insert({
+        id,
+        name: "Warung Kopi Mayarin",
+        settlementAsset: "IDRX",
+        acceptedAssets: [],
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    function anEndpoint(overrides: Partial<WebhookEndpoint> = {}): WebhookEndpoint {
+      const now = clock.now();
+      return {
+        id: generateId("whe", now.getTime()),
+        merchantId: "ID1020017611473",
+        url: "https://merchant.example/webhooks",
+        secret: "whsec_current",
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+        ...overrides,
+      };
+    }
+
+    test("round-trips an endpoint, with and without a previous secret", async () => {
+      await seedMerchant("ID1020017611473");
+      const bare = anEndpoint();
+      const rotated = anEndpoint({
+        id: generateId("whe", clock.now().getTime() + 1),
+        previousSecret: "whsec_old",
+        active: false,
+      });
+      await endpointRepo.insert(bare);
+      await endpointRepo.insert(rotated);
+
+      expect(await endpointRepo.findById(bare.id)).toEqual(bare);
+      expect(await endpointRepo.findById(rotated.id)).toEqual(rotated);
+      expect(await endpointRepo.listByMerchant("ID1020017611473")).toHaveLength(2);
+      expect(await endpointRepo.listActiveByMerchant("ID1020017611473")).toEqual([bare]);
+    });
+
+    test("the outbox lists clearing events joined to their payment, after the cursor", async () => {
+      await seedMerchant("ID1020017611473");
+      const outbox = new DrizzleWebhookOutbox(handle.db);
+      const intent = await confirmedIntent();
+      await engine.start(intent);
+
+      const events = await outbox.listAfter(undefined, 100);
+      expect(events.length).toBeGreaterThanOrEqual(9);
+      const [first] = events;
+      expect(first?.type).toBe("payment.created");
+      expect(first?.merchantId).toBe("ID1020017611473");
+      expect(first?.paymentIntentId).toBe(intent.id);
+      expect(events[events.length - 1]?.state).toBe("SUCCESS");
+
+      const [head, ...rest] = events;
+      const after = await outbox.listAfter(head?.id ?? "", 100);
+      expect(after).toEqual(rest);
+    });
+
+    test("a replayed delivery insert maps onto the existing row and counts zero", async () => {
+      await seedMerchant("ID1020017611473");
+      const outbox = new DrizzleWebhookOutbox(handle.db);
+      const endpoint = anEndpoint();
+      await endpointRepo.insert(endpoint);
+      await engine.start(await confirmedIntent());
+      const [event] = await outbox.listAfter(undefined, 1);
+
+      const now = clock.now();
+      const delivery: WebhookDelivery = {
+        id: generateId("whd", now.getTime()),
+        eventId: event?.id ?? "",
+        endpointId: endpoint.id,
+        merchantId: endpoint.merchantId,
+        body: "{}",
+        status: "PENDING",
+        attempts: 0,
+        nextAttemptAt: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      expect(await deliveryRepo.insertMany([delivery])).toBe(1);
+      expect(
+        await deliveryRepo.insertMany([{ ...delivery, id: generateId("whd", now.getTime() + 1) }]),
+      ).toBe(0);
+
+      const due = await deliveryRepo.listDue(now, 10);
+      expect(due).toHaveLength(1);
+      expect(due[0]).toEqual(delivery);
+
+      await deliveryRepo.update({
+        ...delivery,
+        status: "DELIVERED",
+        attempts: 1,
+        lastStatusCode: 200,
+        deliveredAt: now,
+      });
+      expect(await deliveryRepo.listDue(now, 10)).toHaveLength(0);
+    });
+
+    test("round-trips the dispatcher cursor", async () => {
+      const cursors = new DrizzleWebhookCursorRepository(handle.db);
+      expect(await cursors.get()).toBeUndefined();
+
+      await cursors.set("evt_01");
+      await cursors.set("evt_02");
+      expect(await cursors.get()).toBe("evt_02");
+    });
   });
 
   describe("auth repositories", () => {

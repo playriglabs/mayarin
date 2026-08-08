@@ -523,6 +523,9 @@ export const paymentLinks = pgTable(
  */
 export const merchantSettingChanges = pgTable(
   "merchant_setting_changes",
+/** Where one merchant wants webhook deliveries, and the signing secret (RFC #13). */
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
   {
     id: text("id").primaryKey(),
     merchantId: text("merchant_id")
@@ -585,6 +588,42 @@ export const refunds = pgTable(
     idempotencyKey: text("idempotency_key"),
     providerReference: text("provider_reference"),
     failureReason: text("failure_reason"),
+    url: text("url").notNull(),
+    secret: text("secret").notNull(),
+    /** Kept through a rotation so deliveries stay verifiable mid-switch. */
+    previousSecret: text("previous_secret"),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [index("webhook_endpoints_merchant_idx").on(table.merchantId)],
+);
+
+/**
+ * Attempt-tracked webhook deliveries, derived from `clearing_events`.
+ *
+ * `(event_id, endpoint_id)` is unique: re-reading the outbox maps a replayed
+ * event onto the delivery it already has instead of creating a second one.
+ */
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => clearingEvents.id),
+    endpointId: text("endpoint_id")
+      .notNull()
+      .references(() => webhookEndpoints.id),
+    merchantId: text("merchant_id").notNull(),
+    /** Frozen at enqueue, so every attempt sends identical bytes. */
+    body: text("body").notNull(),
+    status: text("status").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastStatusCode: integer("last_status_code"),
+    lastError: text("last_error"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true, mode: "date" }),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },
@@ -594,6 +633,18 @@ export const refunds = pgTable(
     index("refunds_merchant_idx").on(table.merchantId, table.createdAt),
   ],
 );
+
+    uniqueIndex("webhook_deliveries_event_endpoint_idx").on(table.eventId, table.endpointId),
+    index("webhook_deliveries_due_idx").on(table.status, table.nextAttemptAt),
+  ],
+);
+
+/** The dispatcher's read position in the clearing event log. One row per consumer. */
+export const webhookCursors = pgTable("webhook_cursors", {
+  consumer: text("consumer").primaryKey(),
+  eventId: text("event_id").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+});
 
 export const schema = {
   paymentIntents,
@@ -614,4 +665,7 @@ export const schema = {
   merchantSettingChanges,
   marketConfig,
   refunds,
+  webhookEndpoints,
+  webhookDeliveries,
+  webhookCursors,
 };
