@@ -217,6 +217,7 @@ packages/
       ✓ chain/            chain ports, deposit types, confirmation policy, watcher
       ✓ stablecoin/       StablecoinRegistry port and value types — the admissible set
       ✓ auth/             merchant/user/session domain, PasswordHasher port
+      ✓ compliance/       audit trail — reads clearing/ledger/chain, reconciles them, ScreeningProvider port
       · commerce/         Phase 4 product catalog, prices, carts → payment intents
       ✓ quote/            quote engine — guarded composition, lock, EIP-712 order assembly + OrderSigner port shipped; signer custody follows (#41)
       ✓ execution/        execution engine — SwapVenue port, planner, venue selection, exact-output route port (#57)

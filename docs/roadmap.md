@@ -384,11 +384,19 @@ third-party developer can use.
 ### Compliance
 
 - No KYC for now or using didit later.
-- ☐ Immutable audit trail (ledger + on-chain events)
+- ☑ Immutable audit trail (ledger + on-chain events)
+- ☑ Audit query interface, merchant-scoped, with ledger ↔ chain reconciliation
+- ☑ Screening port with a disabled default (`NOT_SCREENED`, never `CLEAR`)
 
 Even crypto-only, Mayarin has compliance surface — stablecoin issuers can
 freeze, and screening is expected by acquirers, issuers, and regulators. The
 architecture makes compliance cheap, not absent.
+
+The audit trail writes nothing: it joins records that are already append-only —
+clearing events, ledger postings, confirmed chain logs — so there is no second
+copy of the truth to drift. See [Compliance](./compliance.md).
+
+Not done: freeze handling, an export format, and a retention policy.
 
 ---
 
