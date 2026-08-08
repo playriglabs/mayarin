@@ -11,7 +11,21 @@
  * bun run e2e -- --asset USDC --amount 0.25
  * bun run e2e -- --asset ETH  --amount 0.10 --seed-merchant
  * bun run e2e -- --asset USDC --amount 5000 --currency IDR
+ *
+ * # pay a real merchant created by `bun run seed:merchant`
+ * bun run e2e -- --merchant mrc_01K… --settlement-address 0x… --amount 0.25
  * ```
+ *
+ * `--merchant` names an existing merchant and the run adopts its name,
+ * settlement asset and accepted assets — the point being to exercise the
+ * merchant a dashboard account actually owns rather than a fixture that only
+ * this file knows about. `--seed-merchant` remains the throwaway path.
+ *
+ * `seed:merchant` leaves the on-chain settlement address blank, because most
+ * merchants are created before anyone knows their Safe. The contract pays
+ * `merchantSafe` and there is no deployment-wide address to fall back on that
+ * would not pay every merchant into the same wallet, so `--settlement-address`
+ * fills it in and persists it.
  *
  * Reads `.env` (Bun loads it) plus the deployment-specific values below. The
  * payer is deliberately its own key: on a real deployment the payer is a
@@ -32,14 +46,17 @@
 
 import { createDatabase, DrizzleMerchantRepository } from "@mayarin/db";
 import { merchants as merchantsTable } from "@mayarin/db/schema";
+import { eq } from "drizzle-orm";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { loadConfig } from "../apps/api/src/config.ts";
 import { createContainer } from "../apps/api/src/container.ts";
 
 const CHAIN = "base-sepolia" as const;
-const MERCHANT_ID = "ID1020017611473";
-/** Where a seeded test merchant is paid. Not a real Safe; testnet only. */
+/** The fixture `--seed-merchant` creates when no `--merchant` is named. */
+const FIXTURE_MERCHANT_ID = "ID1020017611473";
+const FIXTURE_MERCHANT_NAME = "Warung Kopi Mayarin";
+/** Where the fixture merchant is paid. Not a real Safe; testnet only. */
 const MERCHANT_SAFE = "0x1111111111111111111111111111111111111111";
 
 const erc20 = parseAbi([
@@ -61,6 +78,13 @@ const asset = (arg("asset") ?? "USDC").toUpperCase();
 const currency = (arg("currency") ?? "USD").toUpperCase();
 const price = Number(arg("amount") ?? "0.25");
 const seedMerchant = process.argv.includes("--seed-merchant");
+const merchantId = arg("merchant") ?? FIXTURE_MERCHANT_ID;
+const settlementAddress = arg("settlement-address");
+
+if (settlementAddress !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(settlementAddress)) {
+  console.error(`--settlement-address must be a 20-byte hex address, got ${settlementAddress}`);
+  process.exit(1);
+}
 
 if (asset !== "USDC" && asset !== "ETH") {
   console.error(`--asset must be USDC or ETH, got ${asset}`);
@@ -163,42 +187,77 @@ console.log(
 // into the same wallet.
 const merchantDb = createDatabase({ url: config.databaseUrl });
 const merchants = new DrizzleMerchantRepository(merchantDb.db);
-const existing = await merchants.findById(MERCHANT_ID);
+let merchant = await merchants.findById(merchantId);
 
-if (existing === null || existing.settlementAddress === undefined) {
+if (merchant === null) {
   if (!seedMerchant) {
     console.error(
-      `\nMerchant ${MERCHANT_ID} ${existing === null ? "does not exist" : "has no settlement address"}.` +
-        "\nRe-run with --seed-merchant to create a test merchant, or set one yourself.",
+      `\nMerchant ${merchantId} does not exist.` +
+        "\nCreate one with `bun run seed:merchant` and pass it as --merchant," +
+        "\nor re-run with --seed-merchant for a throwaway fixture.",
     );
     process.exit(1);
   }
 
   const now = new Date();
-  await merchantDb.db
-    .insert(merchantsTable)
-    .values({
-      id: MERCHANT_ID,
-      name: "Warung Kopi Mayarin",
-      createdAt: now,
-      updatedAt: now,
-      settlementAsset: "USDC",
-      acceptedAssets: ["ETH", "USDC"],
-      settlementAddress: MERCHANT_SAFE,
-    })
-    .onConflictDoUpdate({
-      target: merchantsTable.id,
-      set: { settlementAddress: MERCHANT_SAFE, acceptedAssets: ["ETH", "USDC"], updatedAt: now },
-    });
-  console.log("merchant  ", MERCHANT_ID, "seeded ->", MERCHANT_SAFE);
+  await merchantDb.db.insert(merchantsTable).values({
+    id: merchantId,
+    name: FIXTURE_MERCHANT_NAME,
+    createdAt: now,
+    updatedAt: now,
+    settlementAsset: "USDC",
+    acceptedAssets: ["ETH", "USDC"],
+    settlementAddress: settlementAddress ?? MERCHANT_SAFE,
+  });
+  merchant = await merchants.findById(merchantId);
+  console.log("merchant  ", merchantId, "seeded ->", settlementAddress ?? MERCHANT_SAFE);
 }
+
+if (merchant === null) {
+  console.error(`Merchant ${merchantId} vanished between the insert and the read.`);
+  process.exit(1);
+}
+
+// `seed:merchant` leaves this blank — most merchants are created before anyone
+// knows their Safe. Persisted rather than held for the run: the merchant this
+// pays is the same row the dashboard reads, and a settlement address that
+// existed only inside a script would be a different merchant in every way that
+// matters afterwards.
+if (settlementAddress !== undefined && merchant.settlementAddress !== settlementAddress) {
+  await merchantDb.db
+    .update(merchantsTable)
+    .set({ settlementAddress, updatedAt: new Date() })
+    .where(eq(merchantsTable.id, merchantId));
+  merchant = await merchants.findById(merchantId);
+  console.log("merchant  ", merchantId, "settlement address ->", settlementAddress);
+}
+
+if (merchant === null || merchant.settlementAddress === undefined) {
+  console.error(
+    `\nMerchant ${merchantId} has no on-chain settlement address, so PRICE_LOCKED cannot` +
+      "\nsign an order — the contract pays merchantSafe and there is no deployment-wide" +
+      "\nfallback that would not pay every merchant into the same wallet." +
+      "\n\nPass --settlement-address 0x… to set one.",
+  );
+  process.exit(1);
+}
+
+if (!merchant.acceptedAssets.includes(asset)) {
+  console.error(
+    `\nMerchant ${merchantId} does not accept ${asset}.` +
+      `\nIt accepts: ${merchant.acceptedAssets.join(", ")}`,
+  );
+  process.exit(1);
+}
+
+console.log("merchant  ", merchantId, `${merchant.name} -> ${merchant.settlementAddress}`);
 
 // ---------------------------------------------------------------------------
 // 1. The merchant raises a payment request
 // ---------------------------------------------------------------------------
 
 const intent = await container.intents.create({
-  merchant: { id: MERCHANT_ID, name: "Warung Kopi Mayarin", city: "Jakarta", countryCode: "ID" },
+  merchant: { id: merchantId, name: merchant.name, city: "Jakarta", countryCode: "ID" },
   // Both are 2-decimal, so minor units are cents / sen.
   amount: { amount: BigInt(Math.round(price * 100)), asset: currency },
   source: { type: "manual" },
