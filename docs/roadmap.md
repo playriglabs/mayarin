@@ -326,19 +326,34 @@ production-grade without a contract change.
 ### Gas Abstraction
 
 - ☐ Relayer / paymaster / zerodev for merchant smart-account wallets
-- ☐ Merchant never needs native gas to receive or withdraw settlement
+- ☐ Merchant never needs native gas to **withdraw** settlement
 
-A merchant whose wallet starts empty cannot move their stablecoin. Gas
-abstraction is required for the "no wallet, no seed phrase" experience to
-function.
+A merchant handed a Safe full of stablecoin and told to acquire native gas
+before they can touch it has not been onboarded. Gas abstraction is the floor
+under the managed wallet (#11), which is where the differentiation actually is.
 
-Moved here from Phase 3 (#9). It is not only infrastructure: `payERC20` binds
-the Permit2 `owner` to `msg.sender`, so a relayer cannot submit on the payer's
-behalf without a contract change. On Base Sepolia a redeploy is a normal
-iteration, so this does not block #29 — but `verifyingContract` is part of the
-EIP-712 domain, so a new address invalidates every previously signed order.
-Settle #9 before mainnet, and before the address escapes into anything external
-(a published SDK, a merchant integration, a deployed backend).
+**Receiving already needs no gas** — `PaymentRouter` transfers the settlement
+token _to_ `merchantSafe`, and receiving an ERC-20 costs the recipient nothing.
+The goal is only the withdrawal, and only once the wallet is one Mayarin
+provisioned: `merchants.settlement_address` is merchant-supplied today, and how
+a merchant moves their own money is their business.
+
+**Payer-side gasless is out of scope, by decision.** Payers pay their own gas.
+Nobody is stranded by that: a payer holding only tokens and no native asset pays
+through deposit-match, where the sending wallet or exchange covers gas, and
+`payEth` needs no sponsorship at all since a payer paying in ETH holds ETH.
+
+**No contract change, and therefore no redeploy.** An earlier reading of #9 held
+that `payERC20` binding the Permit2 `owner` to `msg.sender` blocks a relayer.
+That is true only of the classic pattern — an EOA payer signs a permit off-chain
+and someone else submits — which dropping payer-side gasless removes the need
+for. `verifyingContract` stays as deployed and every previously signed order
+stays valid. The only pending struct change on the board is the multi-recipient
+split (#12), and it now stands alone rather than waiting to be batched.
+
+**Prerequisite:** an EOA cannot be sponsored — it has no paymaster to attach, so
+gas must come from its own balance. The managed wallet in #11 must be a smart
+account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
 
 ### Notifications
 

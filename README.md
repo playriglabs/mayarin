@@ -127,7 +127,8 @@ verified on Base Sepolia, quote engine with Pyth/Chainlink oracle guard,
 settlement indexer, CREATE2 deposit forwarder and treasury executor. Both
 execution paths settle end to end: the payer connects a wallet, or makes a plain
 transfer to a per-intent address that the executor converts. Gas abstraction
-(#9) moved to Phase 4 — it is a contract change, not infrastructure.
+(#9) moved to Phase 4, scoped to sponsoring merchant withdrawals from a managed
+wallet — off-chain work that needs no contract change.
 
 **Phase 4 — Commerce Platform.** Commerce layer, wallet infrastructure
 (Safe/Turnkey), on-chain settlement + fee/refund split, notifications, developer
