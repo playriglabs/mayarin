@@ -81,20 +81,34 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
     autoConfirmAssetReceipt: true,
   });
 
-  beforeEach(async () => {
-    // `merchants` belongs in this list, and its absence was doing real damage:
-    // the suite truncated `users` and left every merchant it had created behind,
-    // so each run against a development database deleted the operator's account
-    // and added more merchant rows no account owned. That produced orphans far
-    // faster than the seed-CLI bug in #100 ever did, and it also destroyed the
-    // account a developer had just seeded — the failure looks like the seed
-    // silently not working.
+  /**
+   * Every table this suite writes.
+   *
+   * `merchants` belongs here and its absence was doing real damage: the suite
+   * truncated `users` and left every merchant it had created behind, so each run
+   * against a development database deleted the operator's account and added more
+   * merchant rows no account owned. That produced orphans far faster than the
+   * seed-CLI bug in #100 ever did, and it also destroyed the account a developer
+   * had just seeded — which presents as the seed silently not working.
+   */
+  async function truncateAll(): Promise<void> {
     await handle.db.execute(
       sql`truncate table sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
-  });
+  }
+
+  beforeEach(truncateAll);
 
   afterAll(async () => {
+    // Truncating only in `beforeEach` leaves whatever the last test wrote, and
+    // this suite runs against a developer's own database — `bun test` at the
+    // repo root loads `.env`, so `DATABASE_URL` is set unless someone went out
+    // of their way. The watcher-cursor test is the expensive one to leave
+    // behind: it records block 900, and a cursor outranks `CHAIN_START_BLOCKS`,
+    // so the next `bun run e2e` starts 45 million blocks back and never sees
+    // the deposit it just made. Clean up after the run as well as before each
+    // test.
+    await truncateAll();
     await handle.close();
   });
 
