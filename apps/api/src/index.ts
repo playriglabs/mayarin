@@ -5,6 +5,7 @@
  * mid-flight before accepting traffic — a restart must not strand a payment.
  */
 
+import { CHAIN_IDS } from "@mayarin/chain";
 import { createApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createContainer, watchedPairs } from "./container.ts";
@@ -20,6 +21,12 @@ const seeded = await container.market.seedFromEnvironment();
 if (seeded.length > 0) {
   console.log(`[api] seeded market config from the environment: ${seeded.join(", ")}`);
 }
+
+// A fee destination that is also somebody's payout wallet pays that merchant
+// twice and shows one payment in the ledger (#11, RFC #6). The signer refuses
+// the other direction per payment; this direction can only be caught here,
+// because nothing about it looks wrong at request time.
+await container.walletGuard.assertTreasuryUnclaimed(CHAIN_IDS);
 
 // One LISTEN connection for the process, opened before traffic: a payer whose
 // page loads first and pays second must not miss the change in between.

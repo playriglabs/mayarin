@@ -34,6 +34,20 @@ export type WalletIntent = {
   readonly to: string;
 };
 
+/**
+ * The provider's own signer for one merchant's wallet, and the handle it is
+ * reached by.
+ *
+ * `ref` is opaque here on purpose — a Turnkey sub-organization id today. What
+ * matters to the caller is that it is stable, so a second provisioning attempt
+ * reuses the signer that already exists instead of creating a second one.
+ */
+export interface ManagedSigner {
+  readonly ref: string;
+  /** Lowercase `0x`-prefixed. */
+  readonly address: string;
+}
+
 export interface ProvisionRequest {
   readonly merchantId: string;
   readonly chain: ChainId;
@@ -45,11 +59,40 @@ export interface ProvisionRequest {
    * between, and "briefly custodial" is still custodial to anyone who looks.
    */
   readonly merchantSigner: string;
+  readonly managedSigner: ManagedSigner;
 }
 
+/**
+ * Provisioning in three steps rather than one call, because a crash between
+ * them must not leave a merchant with two smart accounts.
+ *
+ * The steps are ordered so the only thing that happens after the caller has
+ * persisted its record is the deployment itself, and the deployment is
+ * addressed deterministically — so resuming re-derives the same address and
+ * adopts whatever is already there.
+ */
 export interface WalletProvider {
-  /** Creates a managed wallet with the merchant already in its signer set. */
-  provision(request: ProvisionRequest): Promise<MerchantWallet>;
+  /**
+   * Creates the provider-side signer for this merchant. Keyed by merchant, so a
+   * caller that already holds a `ManagedSigner` never calls this again.
+   */
+  createManagedSigner(merchantId: string): Promise<ManagedSigner>;
+  /**
+   * The address the wallet will have, computed before it exists.
+   *
+   * Deterministic in the request: the same merchant, chain and signer set give
+   * the same address forever. That is what makes the record writable *before*
+   * the deployment, which is what makes an interrupted provision resumable.
+   */
+  predictAddress(request: ProvisionRequest): Promise<string>;
+  /**
+   * Deploys the wallet, or adopts the one already at the predicted address.
+   *
+   * Idempotent by construction rather than by a flag the caller passes: it
+   * reads the chain, and a wallet that is already there is verified rather than
+   * redeployed.
+   */
+  deploy(request: ProvisionRequest): Promise<DeployResult>;
   /**
    * Proposes a movement. The provider enforces its policy and may refuse.
    *
@@ -58,4 +101,10 @@ export interface WalletProvider {
    * something else.
    */
   propose(wallet: MerchantWallet, intent: WalletIntent): Promise<{ readonly txHash: string }>;
+}
+
+export interface DeployResult {
+  readonly address: string;
+  /** False when the wallet was already on-chain and this call only checked it. */
+  readonly deployed: boolean;
 }

@@ -12,6 +12,7 @@
  *   them.
  */
 
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -677,12 +678,29 @@ export const merchantWallets = pgTable(
     address: text("address").notNull(),
     provenance: text("provenance").notNull(),
     verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
+    /**
+     * What a provisioned wallet's address was derived from — the provider's
+     * handle (a Turnkey sub-organization), its signer, and the merchant's own.
+     *
+     * Written before the wallet is deployed. That is what lets an interrupted
+     * provision resume onto the same address instead of deploying a second
+     * wallet: the derivation is a function of exactly these three.
+     */
+    providerRef: text("provider_ref"),
+    providerSigner: text("provider_signer"),
+    merchantSigner: text("merchant_signer"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [
     uniqueIndex("merchant_wallets_address_idx").on(table.chain, table.address),
     index("merchant_wallets_merchant_idx").on(table.merchantId),
+    // One managed wallet per merchant per chain. The provisioner checks first,
+    // but two concurrent requests both read "none" — this is what makes the
+    // second fail rather than deploy a second smart account.
+    uniqueIndex("merchant_wallets_managed_idx")
+      .on(table.merchantId, table.chain)
+      .where(sql`${table.provenance} = 'provisioned'`),
   ],
 );
 

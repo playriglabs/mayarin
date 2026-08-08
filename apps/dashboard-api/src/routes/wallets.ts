@@ -16,6 +16,8 @@ import type { AuthVars } from "../middleware/types.ts";
 
 const linkBodySchema = z.object({ chain: z.enum(CHAIN_IDS), address: z.string() }).strict();
 
+const provisionBodySchema = z.object({ chain: z.enum(CHAIN_IDS) }).strict();
+
 const verifyBodySchema = z
   .object({ challengeId: z.string().min(1), signature: z.string().min(1) })
   .strict();
@@ -29,6 +31,15 @@ function toWalletDto(wallet: MerchantWallet) {
     /** The only field that decides whether this address can be paid. */
     verified: wallet.verifiedAt !== undefined,
     verifiedAt: wallet.verifiedAt?.toISOString() ?? null,
+    /**
+     * Who else can sign for a managed wallet. Surfaced because "Mayarin is not
+     * the sole signer" is a claim the merchant should be able to check rather
+     * than take on trust — the signer set is on-chain either way.
+     */
+    signers:
+      wallet.managed === undefined
+        ? null
+        : { merchant: wallet.managed.merchantSigner, mayarin: wallet.managed.address },
     createdAt: wallet.createdAt.toISOString(),
   };
 }
@@ -51,6 +62,20 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
     const body = linkBodySchema.parse(await c.req.json());
     const wallet = await container.wallets.link(scopeOf(c), body.chain, body.address);
     return c.json({ wallet: toWalletDto(wallet) }, 201);
+  });
+
+  /**
+   * Provisions a managed smart account for this merchant.
+   *
+   * Idempotent: a merchant who already has one gets it back, and an attempt
+   * that died halfway resumes onto the same wallet rather than deploying a
+   * second one. Returns 200 rather than 201 for that reason — the second call
+   * created nothing.
+   */
+  app.post("/managed", csrfMiddleware(), async (c) => {
+    const body = provisionBodySchema.parse(await c.req.json());
+    const wallet = await container.wallets.provision(scopeOf(c), body.chain);
+    return c.json({ wallet: toWalletDto(wallet) });
   });
 
   /** Issues the text to sign. Signing it moves no funds. */

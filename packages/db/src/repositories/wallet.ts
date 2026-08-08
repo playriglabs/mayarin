@@ -8,6 +8,7 @@
 
 import type { ChainId } from "@mayarin/chain";
 import type {
+  ManagedSignerRecord,
   MerchantWallet,
   MerchantWalletRepository,
   WalletChallenge,
@@ -49,11 +50,17 @@ export class DrizzleMerchantWalletRepository implements MerchantWalletRepository
     return row === undefined ? null : toWallet(row);
   }
 
-  async findByMerchant(merchantId: string, chain: ChainId): Promise<MerchantWallet | null> {
+  async findManaged(merchantId: string, chain: ChainId): Promise<MerchantWallet | null> {
     const [row] = await this.#db
       .select()
       .from(merchantWallets)
-      .where(and(eq(merchantWallets.merchantId, merchantId), eq(merchantWallets.chain, chain)))
+      .where(
+        and(
+          eq(merchantWallets.merchantId, merchantId),
+          eq(merchantWallets.chain, chain),
+          eq(merchantWallets.provenance, "provisioned"),
+        ),
+      )
       .limit(1);
     return row === undefined ? null : toWallet(row);
   }
@@ -132,6 +139,9 @@ function toWalletRow(wallet: MerchantWallet): typeof merchantWallets.$inferInser
     address: wallet.address.toLowerCase(),
     provenance: wallet.provenance,
     verifiedAt: wallet.verifiedAt ?? null,
+    providerRef: wallet.managed?.ref ?? null,
+    providerSigner: wallet.managed?.address ?? null,
+    merchantSigner: wallet.managed?.merchantSigner ?? null,
     createdAt: wallet.createdAt,
     updatedAt: wallet.updatedAt,
   };
@@ -145,9 +155,23 @@ function toWallet(row: WalletRow): MerchantWallet {
     address: row.address,
     provenance: row.provenance as WalletProvenance,
     ...present("verifiedAt", row.verifiedAt),
+    ...present("managed", toManaged(row)),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * The signer set a provisioned wallet's address was derived from.
+ *
+ * All three or nothing: a partial derivation cannot re-derive the address, and
+ * returning two thirds of one would let a resumed provision compute a different
+ * address and deploy a second wallet.
+ */
+function toManaged(row: WalletRow): ManagedSignerRecord | null {
+  const { providerRef, providerSigner, merchantSigner } = row;
+  if (providerRef === null || providerSigner === null || merchantSigner === null) return null;
+  return { ref: providerRef, address: providerSigner, merchantSigner };
 }
 
 function toChallenge(row: ChallengeRow): WalletChallenge {

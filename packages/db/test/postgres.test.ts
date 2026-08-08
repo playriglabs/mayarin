@@ -58,6 +58,7 @@ import {
   DrizzleWebhookOutbox,
 } from "../src/repositories/notifications.ts";
 import { DrizzlePaymentIntentRepository } from "../src/repositories/payment-intent.ts";
+import { DrizzleMerchantWalletRepository } from "../src/repositories/wallet.ts";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
@@ -114,7 +115,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table webhook_deliveries, webhook_endpoints, webhook_cursors, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -925,6 +926,133 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       expect(await sessionRepo.deleteExpired(now)).toBe(1);
       expect(await sessionRepo.findById(past.id)).toBeNull();
       expect(await sessionRepo.findById(future.id)).not.toBeNull();
+    });
+  });
+  describe("merchant wallets", () => {
+    /** A merchant to hang wallets off; the table is foreign-keyed to one. */
+    async function seedMerchant(): Promise<string> {
+      const merchants = new DrizzleMerchantRepository(handle.db);
+      const now = clock.now();
+      const id = generateId("mrc", now.getTime());
+      await merchants.insert({
+        id,
+        name: "Acme",
+        settlementAsset: "USDC",
+        acceptedAssets: ["USDC"],
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      });
+      return id;
+    }
+
+    test("round-trips the signer set a managed wallet was derived from", async () => {
+      // All three signer columns or none: a partial derivation cannot re-derive
+      // the address, so a resumed provision would compute a different one and
+      // deploy a second Safe.
+      const wallets = new DrizzleMerchantWalletRepository(handle.db);
+      const merchantId = await seedMerchant();
+      const now = clock.now();
+      const wallet = {
+        id: generateId("wlt", now.getTime()),
+        merchantId,
+        chain: "base-sepolia" as const,
+        address: "0x1111111111111111111111111111111111111111",
+        provenance: "provisioned" as const,
+        managed: {
+          ref: "sub-org-1",
+          address: "0x2222222222222222222222222222222222222222",
+          merchantSigner: "0x3333333333333333333333333333333333333333",
+        },
+        createdAt: now,
+        updatedAt: now,
+      };
+      await wallets.insert(wallet);
+
+      const found = await wallets.findManaged(merchantId, "base-sepolia");
+      expect(found?.managed).toEqual(wallet.managed);
+      // Unverified until the deployment is read back, which is what a crashed
+      // provision leaves behind and what a resume picks up.
+      expect(found?.verifiedAt).toBeUndefined();
+    });
+
+    test("findManaged ignores a linked wallet on the same chain", async () => {
+      // Connect-existing lives alongside managed, so "their wallet on this
+      // chain" is ambiguous and provenance is what the provisioner asks by.
+      const wallets = new DrizzleMerchantWalletRepository(handle.db);
+      const merchantId = await seedMerchant();
+      const now = clock.now();
+      await wallets.insert({
+        id: generateId("wlt", now.getTime()),
+        merchantId,
+        chain: "base-sepolia",
+        address: "0x4444444444444444444444444444444444444444",
+        provenance: "linked",
+        verifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      expect(await wallets.findManaged(merchantId, "base-sepolia")).toBeNull();
+      expect(await wallets.listByMerchant(merchantId)).toHaveLength(1);
+    });
+
+    test("a merchant cannot hold two managed wallets on one chain", async () => {
+      // The provisioner checks first, but two concurrent requests both read
+      // "none". The database is what makes the second one fail rather than
+      // deploy a second smart account.
+      const wallets = new DrizzleMerchantWalletRepository(handle.db);
+      const merchantId = await seedMerchant();
+      const now = clock.now();
+      const base = {
+        merchantId,
+        chain: "base-sepolia" as const,
+        provenance: "provisioned" as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await wallets.insert({
+        ...base,
+        id: generateId("wlt", now.getTime()),
+        address: "0x5555555555555555555555555555555555555555",
+      });
+
+      await expect(
+        wallets.insert({
+          ...base,
+          id: generateId("wlt", now.getTime() + 1),
+          address: "0x6666666666666666666666666666666666666666",
+        }),
+      ).rejects.toThrow();
+    });
+
+    test("two merchants cannot claim one address", async () => {
+      const wallets = new DrizzleMerchantWalletRepository(handle.db);
+      const first = await seedMerchant();
+      const second = await seedMerchant();
+      const now = clock.now();
+      const address = "0x7777777777777777777777777777777777777777";
+      await wallets.insert({
+        id: generateId("wlt", now.getTime()),
+        merchantId: first,
+        chain: "base-sepolia",
+        address,
+        provenance: "linked",
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await expect(
+        wallets.insert({
+          id: generateId("wlt", now.getTime() + 1),
+          merchantId: second,
+          chain: "base-sepolia",
+          address,
+          provenance: "linked",
+          createdAt: now,
+          updatedAt: now,
+        }),
+      ).rejects.toThrow();
     });
   });
 });

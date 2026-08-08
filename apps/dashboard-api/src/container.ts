@@ -43,11 +43,14 @@ import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@maya
 import type { PaymentIntentRepository } from "@mayarin/payment-intent";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
 import { ViemSignatureVerifier } from "@mayarin/provider-evm";
-import { type Clock, systemClock } from "@mayarin/shared";
-import type {
-  MerchantWalletRepository,
-  SignatureVerifier,
-  WalletChallengeRepository,
+import { ApiKeyStamper, SAFE_BASE_SEPOLIA, TurnkeyWalletProvider } from "@mayarin/provider-turnkey";
+import { type Clock, ConfigurationError, systemClock } from "@mayarin/shared";
+import {
+  ManagedWalletProvisioner,
+  type MerchantWalletRepository,
+  type SignatureVerifier,
+  type WalletChallengeRepository,
+  type WalletProvider,
 } from "@mayarin/wallet";
 import type { Config } from "./config.ts";
 import { AuthService } from "./services/auth-service.ts";
@@ -102,6 +105,11 @@ export interface CreateContainerOptions {
   readonly merchantWallets?: MerchantWalletRepository;
   readonly walletChallenges?: WalletChallengeRepository;
   readonly signatureVerifier?: SignatureVerifier;
+  /**
+   * Managed wallet provisioning (#11). A test supplies a fake; a deployment
+   * gets one built from config, and only when it is fully configured.
+   */
+  readonly walletProvider?: WalletProvider;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -177,17 +185,31 @@ export function createContainer(options: CreateContainerOptions): Container {
     pageSize: config.paymentsPageSize,
   });
 
-  // Wallets (#11). The verifier is the only piece that touches cryptography,
-  // and it is the only piece that comes from a provider package.
+  // Wallets (#11). Two paths: connect-existing, which needs only a signature
+  // verifier, and managed provisioning, which needs a wallet provider and is
+  // absent unless this deployment configured one.
+  const walletRepository =
+    options.merchantWallets ?? new DrizzleMerchantWalletRepository(handle?.db ?? throwIfNoHandle());
+  const treasuryAddresses = config.treasuryAddress === undefined ? [] : [config.treasuryAddress];
+  const walletProvider = options.walletProvider ?? createWalletProvider(config);
   const wallets = new WalletService({
-    wallets:
-      options.merchantWallets ??
-      new DrizzleMerchantWalletRepository(handle?.db ?? throwIfNoHandle()),
+    wallets: walletRepository,
     challenges:
       options.walletChallenges ??
       new DrizzleWalletChallengeRepository(handle?.db ?? throwIfNoHandle()),
     verifier: options.signatureVerifier ?? new ViemSignatureVerifier(),
     clock,
+    treasuryAddresses,
+    ...(walletProvider === undefined
+      ? {}
+      : {
+          provisioner: new ManagedWalletProvisioner({
+            wallets: walletRepository,
+            provider: walletProvider,
+            clock,
+            treasuryAddresses,
+          }),
+        }),
   });
 
   return {
@@ -202,6 +224,45 @@ export function createContainer(options: CreateContainerOptions): Container {
     wallets,
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
+}
+
+/**
+ * The wallet provider this deployment provisions with, if it has one.
+ *
+ * `undefined` when provisioning is switched off, which makes the endpoint
+ * refuse with a message rather than a deployment quietly having a provisioning
+ * path that fails at the first merchant who uses it. Config validation has
+ * already established that the credentials are all present when the flag is on.
+ */
+function createWalletProvider(config: Config): WalletProvider | undefined {
+  if (!config.walletProvisioningEnabled) return undefined;
+
+  return new TurnkeyWalletProvider({
+    organizationId: required(config.turnkeyOrganizationId, "TURNKEY_ORGANIZATION_ID"),
+    stamper: new ApiKeyStamper({
+      apiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
+      apiPrivateKey: required(config.turnkeyApiPrivateKey, "TURNKEY_API_PRIVATE_KEY"),
+    }),
+    chain: config.walletProvisionChain,
+    deployerPrivateKey: required(
+      config.walletDeployerPrivateKey,
+      "WALLET_DEPLOYER_PRIVATE_KEY",
+    ) as `0x${string}`,
+    rpcUrl: required(config.walletProvisionRpcUrl, "WALLET_PROVISION_RPC_URL"),
+    safe: SAFE_BASE_SEPOLIA,
+    rootApiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
+    signerApiPublicKey: required(config.turnkeySignerApiPublicKey, "TURNKEY_SIGNER_API_PUBLIC_KEY"),
+  });
+}
+
+function required(value: string | undefined, name: string): string {
+  if (value === undefined) {
+    throw new ConfigurationError(
+      `${name} is required when WALLET_PROVISIONING_ENABLED is true`,
+      {},
+    );
+  }
+  return value;
 }
 
 function throwIfNoHandle(): never {

@@ -56,17 +56,27 @@ const provider = new TurnkeyWalletProvider({
     apiPublicKey: requireEnv("TURNKEY_API_PUBLIC_KEY"),
     apiPrivateKey: requireEnv("TURNKEY_API_PRIVATE_KEY"),
   }),
+  chain: "base-sepolia",
   deployerPrivateKey: requireEnv("OPERATOR_PRIVATE_KEY") as Hex,
   rpcUrl,
   safe: SAFE_BASE_SEPOLIA,
+  rootApiPublicKey: requireEnv("TURNKEY_API_PUBLIC_KEY"),
+  signerApiPublicKey: requireEnv("TURNKEY_SIGNER_API_PUBLIC_KEY"),
 });
 
-const wallet = await provider.provision({
-  merchantId: "recovery-proof",
-  chain: "base-sepolia",
+// A merchant id unique to this run: provisioning is deterministic per merchant,
+// so reusing one would adopt the Safe a previous proof already emptied of
+// Mayarin — and prove nothing.
+const merchantId = `recovery-proof-${Date.now()}`;
+const managedSigner = await provider.createManagedSigner(merchantId);
+const request = {
+  merchantId,
+  chain: "base-sepolia" as const,
   merchantSigner: merchant.address,
-});
-const safe = wallet.address as Hex;
+  managedSigner,
+};
+const { address: safeAddress } = await provider.deploy(request);
+const safe = safeAddress as Hex;
 
 const before = await publicClient.readContract({
   address: safe,

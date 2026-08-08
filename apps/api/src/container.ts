@@ -112,6 +112,13 @@ export interface Container {
    */
   readonly market: RuntimeMarket;
   /**
+   * Which payout destinations this deployment will sign for (#11).
+   *
+   * Exposed so the entry point can ask its boot-time question — whether a fee
+   * destination is also somebody's merchant wallet — before traffic arrives.
+   */
+  readonly walletGuard: WalletGuard;
+  /**
    * One watcher per chain, because confirmation depth is per chain: a single
    * watcher would have to pick one depth and apply it to chains that do not
    * share it. Empty when the chain layer is off.
@@ -338,6 +345,14 @@ export function createContainer({
     return layer;
   };
 
+  // The signer's last chance to object to a payout destination (#11). Held on
+  // the container as well as handed to the planner, because the same guard
+  // answers the boot-time question: is a fee destination somebody's wallet?
+  const walletGuard = new WalletGuard({
+    wallets: new DrizzleMerchantWalletRepository(handle.db),
+    treasuryAddresses: config.treasuryAddress === undefined ? [] : [config.treasuryAddress],
+  });
+
   const contractPlanner =
     config.contract !== undefined
       ? new ApiContractPlanner({
@@ -346,11 +361,7 @@ export function createContainer({
           fees,
           stablecoins: registry,
           merchantPolicies,
-          // The signer's last chance to object to a payout destination (#11).
-          wallets: new WalletGuard({
-            wallets: new DrizzleMerchantWalletRepository(handle.db),
-            treasuryAddresses: config.treasuryAddress === undefined ? [] : [config.treasuryAddress],
-          }),
+          wallets: walletGuard,
           clock,
         })
       : undefined;
@@ -544,6 +555,7 @@ export function createContainer({
     events,
     registry,
     market,
+    walletGuard,
     watchers,
     indexers,
     ...(deposits === undefined ? {} : { deposits }),

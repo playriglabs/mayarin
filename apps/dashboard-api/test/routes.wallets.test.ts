@@ -9,7 +9,7 @@
 import { describe, expect, test } from "bun:test";
 import { generateId } from "@mayarin/shared";
 import { privateKeyToAccount } from "viem/accounts";
-import { cookieJar, createDashboardHarness } from "./harness.ts";
+import { cookieJar, createDashboardHarness, TREASURY_ADDRESS } from "./harness.ts";
 
 const ADMIN_EMAIL = "admin@mayarin.local";
 const ADMIN_PASSWORD = "correct-horse-battery-staple";
@@ -36,6 +36,18 @@ async function post(harness: Harness, auth: Auth, path: string, body: unknown = 
     cookies: auth.jar,
     headers: { "x-csrf-token": auth.csrf },
   });
+}
+
+/** Links, then proves control — the state managed provisioning requires. */
+async function linkAndVerify(harness: Harness, auth: Auth) {
+  const { id, account } = await link(harness, auth);
+  const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+  const signature = await account.signMessage({ message: challenge.body?.message as string });
+  await post(harness, auth, `/wallets/${id}/verify`, {
+    challengeId: challenge.body?.challengeId,
+    signature,
+  });
+  return { id, account };
 }
 
 /** Links the merchant key's address and returns the wallet id. */
@@ -205,5 +217,116 @@ describe("scoping", () => {
 
     const res = await harness.request("GET", "/wallets", { cookies: auth.jar });
     expect(res.status).toBe(403);
+  });
+});
+
+describe("managed provisioning", () => {
+  test("provisions a wallet the merchant is already a signer on", async () => {
+    // The differentiator: a merchant who has never held a wallet is
+    // self-custodial from their first payment, because their own verified
+    // address is in the signer set at creation rather than added later.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { account } = await linkAndVerify(harness, auth);
+
+    const res = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.wallet.provenance).toBe("provisioned");
+    expect(res.body?.wallet.verified).toBe(true);
+    expect(res.body?.wallet.signers.merchant).toBe(account.address.toLowerCase());
+  });
+
+  test("refuses until the merchant has proved control of an address", async () => {
+    // Provisioning around an address the merchant merely claimed would let
+    // anyone with settings:manage name a co-owner of a wallet Mayarin creates.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await link(harness, auth);
+
+    const res = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("asking twice returns the same wallet and deploys once", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await linkAndVerify(harness, auth);
+
+    const first = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    const second = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+
+    expect(second.body?.wallet.id).toBe(first.body?.wallet.id);
+    // Two smart accounts would be two addresses a payer could be told to pay.
+    expect(harness.walletProvider.deploys).toHaveLength(1);
+    expect(harness.walletProvider.signers).toHaveLength(1);
+  });
+
+  test("a merchant keeps their linked wallet alongside the managed one", async () => {
+    // Connect-existing does not become second-class the moment provisioning
+    // exists: both are on file, both verified, and the settlement address
+    // decides which is paid.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await linkAndVerify(harness, auth);
+    await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+
+    const listed = await harness.request("GET", "/wallets", { cookies: auth.jar });
+    const wallets = (listed.body?.wallets ?? []) as { provenance: string }[];
+    const provenances = wallets.map((wallet) => wallet.provenance).sort();
+
+    expect(provenances).toEqual(["linked", "provisioned"]);
+  });
+
+  test("one merchant cannot provision into another's tenant", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await linkAndVerify(harness, auth);
+    await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+
+    await harness.container.users.createMerchantAccount({
+      email: "other@mayarin.local",
+      password: "other-password-12345",
+      merchantName: "Other",
+      settlementAsset: "USDC",
+      acceptedAssets: [],
+      permissions: ["settings:manage"],
+    });
+    const theirs = await loginAs(harness, "other@mayarin.local", "other-password-12345");
+    const res = await post(harness, theirs, "/wallets/managed", { chain: "base-sepolia" });
+
+    // No verified address of their own, so nothing is provisioned — and
+    // certainly not the first merchant's wallet handed over.
+    expect(res.status).toBe(400);
+    expect(harness.walletProvider.deploys).toHaveLength(1);
+  });
+
+  test("provisioning without a CSRF token is refused", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await harness.request("POST", "/wallets/managed", {
+      body: { chain: "base-sepolia" },
+      cookies: auth.jar,
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("the fee destination", () => {
+  test("cannot be claimed as a merchant wallet", async () => {
+    // A fee recipient that is also a payout destination pays a merchant twice
+    // and the ledger shows one payment. Refused at the moment it is typed,
+    // rather than at the merchant's first payment.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await post(harness, auth, "/wallets", {
+      chain: "base-sepolia",
+      address: TREASURY_ADDRESS,
+    });
+
+    expect(res.status).toBe(400);
   });
 });

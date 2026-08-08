@@ -17,7 +17,7 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
-import { ValidationError } from "@mayarin/shared";
+import { ConfigurationError, ValidationError } from "@mayarin/shared";
 import { isVerified, type MerchantWalletRepository } from "./types.ts";
 
 export interface WalletGuardOptions {
@@ -82,5 +82,31 @@ export class WalletGuard {
   /** True when the address is one of the deployment's fee destinations. */
   isTreasury(address: string): boolean {
     return this.#treasury.has(address.toLowerCase());
+  }
+
+  /**
+   * Fails when a fee destination is also somebody's payout wallet.
+   *
+   * `assertPayable` closes one direction — a merchant cannot be paid into a
+   * treasury address. This closes the other: a treasury address configured
+   * *after* a merchant already holds it. The two directions are the same
+   * mistake, and only one of them is caught by refusing a payment; the other is
+   * a deployment that pays fees into a merchant's wallet and looks fine.
+   *
+   * Called at boot, so a deployment with the overlap does not start. A
+   * misconfiguration found at the first payment is one that has already moved
+   * somebody's money.
+   */
+  async assertTreasuryUnclaimed(chains: readonly ChainId[]): Promise<void> {
+    for (const address of this.#treasury) {
+      for (const chain of chains) {
+        const wallet = await this.#wallets.findByAddress(chain, address);
+        if (wallet === null) continue;
+        throw new ConfigurationError(
+          "A fee destination is registered as a merchant wallet; fees would be paid into a merchant's own wallet",
+          { chain, address, merchantId: wallet.merchantId },
+        );
+      }
+    }
   }
 }

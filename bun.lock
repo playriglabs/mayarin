@@ -98,6 +98,7 @@
         "@mayarin/payment-intent": "workspace:*",
         "@mayarin/provider-argon2": "workspace:*",
         "@mayarin/provider-evm": "workspace:*",
+        "@mayarin/provider-turnkey": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "@mayarin/wallet": "workspace:*",
         "effect": "^3.0.0",

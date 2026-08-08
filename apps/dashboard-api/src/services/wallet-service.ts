@@ -1,17 +1,26 @@
 /**
  * Merchant wallet service (#11).
  *
- * Linking an address and proving control of it, behind the merchant's own
+ * Two ways a merchant ends up with a payable address, behind the merchant's own
  * session. Scoped like every other merchant surface: no method takes a merchant
- * id, so one merchant cannot claim or verify another's wallet.
+ * id, so one merchant cannot claim, verify or provision another's wallet.
  *
- * Managed provisioning is not here. It needs a wallet provider and a deployed
- * smart account, and a provisioning path nobody has run is worse than none.
+ * - **Connect-existing** — they link an address and prove control of it by
+ *   signing a challenge. Mayarin signs nothing on their behalf, and this path
+ *   carries no custody question at all.
+ * - **Managed** — Mayarin provisions a smart account with the merchant already
+ *   in its signer set. This is what a merchant who has never held a wallet
+ *   gets, and it requires the first path to have happened once: the merchant's
+ *   verified address is what makes the signer set non-custodial.
+ *
+ * The two live alongside each other rather than replacing each other. Which one
+ * is actually paid is the settlement address, set separately (#95).
  */
 
 import type { ChainId } from "@mayarin/chain";
 import {
   type Clock,
+  ConfigurationError,
   ConflictError,
   generateId,
   NotFoundError,
@@ -21,6 +30,7 @@ import {
   assertChallengeSigned,
   challengeMessage,
   createChallenge,
+  type ManagedWalletProvisioner,
   type MerchantWallet,
   type MerchantWalletRepository,
   type SignatureVerifier,
@@ -36,6 +46,18 @@ export interface WalletServiceOptions {
   readonly clock: Clock;
   /** How long a merchant has to sign a challenge. */
   readonly challengeTtlSeconds?: number;
+  /**
+   * Managed provisioning, absent on a deployment with no wallet provider
+   * configured. Absent means the endpoint refuses; it never means a merchant
+   * quietly gets nothing.
+   */
+  readonly provisioner?: ManagedWalletProvisioner;
+  /**
+   * Fee destinations. A merchant may not link one: an address that is both a
+   * fee recipient and a payout destination pays that merchant twice, and the
+   * ledger shows one payment.
+   */
+  readonly treasuryAddresses?: readonly string[];
 }
 
 const DEFAULT_CHALLENGE_TTL = 600;
@@ -47,6 +69,8 @@ export class WalletService {
   readonly #verifier: SignatureVerifier;
   readonly #clock: Clock;
   readonly #ttl: number;
+  readonly #provisioner: ManagedWalletProvisioner | undefined;
+  readonly #treasury: ReadonlySet<string>;
 
   constructor(options: WalletServiceOptions) {
     this.#wallets = options.wallets;
@@ -54,6 +78,10 @@ export class WalletService {
     this.#verifier = options.verifier;
     this.#clock = options.clock;
     this.#ttl = options.challengeTtlSeconds ?? DEFAULT_CHALLENGE_TTL;
+    this.#provisioner = options.provisioner;
+    this.#treasury = new Set(
+      (options.treasuryAddresses ?? []).map((address) => address.toLowerCase()),
+    );
   }
 
   async list(scope: Scope): Promise<readonly MerchantWallet[]> {
@@ -68,6 +96,19 @@ export class WalletService {
    */
   async link(scope: Scope, chain: ChainId, address: string): Promise<MerchantWallet> {
     const normalised = normaliseAddress(address);
+
+    if (this.#treasury.has(normalised)) {
+      // Refused here as well as at signing time, because the guard's refusal
+      // would arrive at a merchant's first payment rather than at the moment
+      // somebody typed the wrong address.
+      throw new ValidationError(
+        "That address is a fee destination and cannot be a merchant wallet",
+        {
+          chain,
+          address: normalised,
+        },
+      );
+    }
 
     const claimed = await this.#wallets.findByAddress(chain, normalised);
     if (claimed !== null) {
@@ -88,6 +129,25 @@ export class WalletService {
     };
     await this.#wallets.insert(wallet);
     return wallet;
+  }
+
+  /**
+   * Provisions the merchant's managed wallet on a chain, or returns the one
+   * they already have.
+   *
+   * Asking twice is asking once, and an attempt interrupted halfway resumes
+   * onto the same wallet — the merchant ends up with exactly one, which is the
+   * property that matters when the alternative is a second address a payer
+   * might be told to pay into.
+   */
+  async provision(scope: Scope, chain: ChainId): Promise<MerchantWallet> {
+    if (this.#provisioner === undefined) {
+      throw new ConfigurationError(
+        "This deployment has no wallet provider configured; link an address you control instead",
+        { chain },
+      );
+    }
+    return this.#provisioner.provision(scope.merchantId, chain);
   }
 
   /** Issues the text the merchant signs to prove control. */

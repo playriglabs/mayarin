@@ -26,6 +26,8 @@ import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
 import { InMemoryMarketConfigStore } from "@mayarin/shared/testing";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
+import { WalletGuard } from "@mayarin/wallet";
+import { InMemoryMerchantWalletRepository } from "@mayarin/wallet/testing";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
@@ -147,6 +149,13 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     events,
     registry,
     market,
+    // No merchant wallets in the harness, so the guard has nothing to allow —
+    // route tests here do not sign orders, and the ones that do live in
+    // `contract-layer.test.ts` with their own guard.
+    walletGuard: new WalletGuard({
+      wallets: new InMemoryMerchantWalletRepository(),
+      treasuryAddresses: [],
+    }),
     watchers: new Map(),
     indexers: new Map(),
     close: async () => {},

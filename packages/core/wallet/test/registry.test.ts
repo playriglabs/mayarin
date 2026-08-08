@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { ValidationError } from "@mayarin/shared";
+import { ConfigurationError, ValidationError } from "@mayarin/shared";
 import { type MerchantWallet, WalletGuard } from "../src/index.ts";
 import { InMemoryMerchantWalletRepository } from "../testing/index.ts";
 
@@ -108,5 +108,35 @@ describe("assertPayable", () => {
     await wallets.insert(wallet());
 
     await expect(wallets.insert(wallet({ id: "wlt_2", merchantId: "mrc_2" }))).rejects.toThrow();
+  });
+});
+
+describe("assertTreasuryUnclaimed", () => {
+  test("passes when no merchant holds a fee destination", async () => {
+    const wallets = new InMemoryMerchantWalletRepository();
+    await wallets.insert(wallet());
+
+    await expect(guard(wallets).assertTreasuryUnclaimed(["base-sepolia"])).resolves.toBeUndefined();
+  });
+
+  test("fails the boot when a merchant already holds the fee destination", async () => {
+    // The inverse of the refusal above, and the one no payment can catch: a
+    // treasury address configured after a merchant already registered it looks
+    // fine at every request, and quietly pays fees into a merchant's wallet.
+    const wallets = new InMemoryMerchantWalletRepository();
+    await wallets.insert(wallet({ address: TREASURY }));
+
+    await expect(guard(wallets).assertTreasuryUnclaimed(["base-sepolia"])).rejects.toBeInstanceOf(
+      ConfigurationError,
+    );
+  });
+
+  test("checks every chain, not only the one the wallet was found on", async () => {
+    const wallets = new InMemoryMerchantWalletRepository();
+    await wallets.insert(wallet({ chain: "base", address: TREASURY }));
+
+    await expect(
+      guard(wallets).assertTreasuryUnclaimed(["base-sepolia", "base"]),
+    ).rejects.toBeInstanceOf(ConfigurationError);
   });
 });

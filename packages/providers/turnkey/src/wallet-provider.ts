@@ -29,11 +29,39 @@
  * threshold of 2 would put the boundary in the contract instead — and would
  * also mean a merchant cannot withdraw or leave without Mayarin co-signing,
  * which fails the self-custody test this whole issue exists for.
+ *
+ * ## What the policy binds, and what it does not
+ *
+ * **Turnkey policies do not apply to root users.** A sub-org needs a root user
+ * to exist at all, and that root user is Mayarin's API key, so a policy written
+ * against the root key would be decoration. The sub-org therefore holds two
+ * Mayarin identities:
+ *
+ * - the **root** key, which creates the sub-org and nothing else afterwards. It
+ *   is a break-glass credential and is not what the settlement path uses.
+ * - a **non-root signer** user, which is default-denied by Turnkey and can act
+ *   only through the policy created here: signing transactions addressed to
+ *   *that merchant's Safe*, and nothing else.
+ *
+ * So the honest statement of the boundary is: the signer path is bounded in the
+ * enclave, the root path is a credential Mayarin holds, and the reason neither
+ * is custody of the merchant's money is the Safe — the merchant is an owner at
+ * threshold 1 and can remove Mayarin whenever they like.
+ *
+ * ## Deterministic addressing
+ *
+ * `predictAddress` derives the Safe's address before it exists, from the signer
+ * set and a salt derived from the merchant and chain. That is what makes
+ * provisioning resumable: the orchestration writes its record first, and a
+ * resumed attempt re-derives the same address and adopts whatever is at it
+ * rather than deploying a second Safe.
  */
 
 import type { ChainId } from "@mayarin/chain";
-import { ConfigurationError, generateId } from "@mayarin/shared";
+import { ConfigurationError } from "@mayarin/shared";
 import type {
+  DeployResult,
+  ManagedSigner,
   MerchantWallet,
   ProvisionRequest,
   WalletIntent,
@@ -41,12 +69,20 @@ import type {
 } from "@mayarin/wallet";
 import {
   type Address,
+  concatHex,
   createPublicClient,
   createWalletClient,
+  encodeAbiParameters,
   encodeFunctionData,
+  getContractAddress,
   type Hex,
   http,
+  keccak256,
+  type PublicClient,
+  pad,
   parseAbi,
+  type Transport,
+  toHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
@@ -55,6 +91,7 @@ import type { TurnkeyStamper } from "./stamper.ts";
 
 const PROXY_FACTORY_ABI = parseAbi([
   "function createProxyWithNonce(address singleton, bytes initializer, uint256 saltNonce) returns (address proxy)",
+  "function proxyCreationCode() pure returns (bytes)",
 ]);
 
 const SAFE_ABI = parseAbi([
@@ -62,6 +99,11 @@ const SAFE_ABI = parseAbi([
   "function getOwners() view returns (address[])",
   "function getThreshold() view returns (uint256)",
 ]);
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+/** The non-root user the settlement path signs as. Bounded by policy. */
+const SIGNER_USER_NAME = "mayarin-signer";
 
 /**
  * Canonical Safe 1.4.1 deployments. Verified on-chain before use rather than
@@ -77,10 +119,29 @@ export interface SafeDeployment {
 export interface TurnkeyWalletProviderOptions {
   readonly organizationId: string;
   readonly stamper: TurnkeyStamper;
+  /**
+   * The chain this provider deploys on. One chain, deployed and proven, before
+   * the address-derivation questions multiply (#11 non-goals).
+   */
+  readonly chain: ChainId;
   /** Pays the gas to deploy the Safe. The merchant has none yet — that is #9. */
   readonly deployerPrivateKey: Hex;
   readonly rpcUrl: string;
   readonly safe: SafeDeployment;
+  /**
+   * How the chain is reached. Defaults to `http(rpcUrl)`; a test supplies its
+   * own so the address derivation can be exercised without a node, since that
+   * derivation — not the transport — is what resumability depends on.
+   */
+  readonly transport?: Transport;
+  /** Mayarin's root API key, which bootstraps a sub-org and is not policy-bound. */
+  readonly rootApiPublicKey: string;
+  /**
+   * The public half of the key the settlement path signs with, installed as a
+   * **non-root** user so the policy engine applies to it. Distinct from the
+   * root key on purpose: same key, same user, no boundary.
+   */
+  readonly signerApiPublicKey: string;
   readonly endpoint?: string;
   readonly fetchFn?: typeof fetch;
 }
@@ -92,43 +153,14 @@ export class TurnkeyWalletProvider implements WalletProvider {
     this.#options = options;
   }
 
-  async provision(request: ProvisionRequest): Promise<MerchantWallet> {
-    if (!/^0x[0-9a-fA-F]{40}$/.test(request.merchantSigner)) {
-      throw new ConfigurationError("A managed wallet needs the merchant's own signer address", {
-        merchantId: request.merchantId,
-      });
-    }
-
-    const subOrg = await this.#createSubOrganization(request.merchantId);
-    const safe = await this.#deploySafe(request.merchantSigner as Address, subOrg.address);
-
-    const now = new Date();
-    return {
-      id: generateId("wlt", now.getTime()),
-      merchantId: request.merchantId,
-      chain: request.chain,
-      address: safe.toLowerCase(),
-      provenance: "provisioned",
-      // Verified by construction: Mayarin created it and the merchant's own
-      // address is in the signer set. There is no claim left to prove.
-      verifiedAt: now,
-      createdAt: now,
-      updatedAt: now,
-    };
-  }
-
-  async propose(_wallet: MerchantWallet, _intent: WalletIntent): Promise<{ txHash: string }> {
-    // Deliberately unimplemented rather than approximated. Proposing a Safe
-    // transaction means signing a SafeTx digest with the sub-org key and
-    // submitting it with gas the merchant does not have — which is #9, and
-    // which needs the Turnkey policy that bounds this key to exist first.
-    throw new ConfigurationError(
-      "Proposing a movement needs the Turnkey policy and gas sponsorship from #9",
-      {},
-    );
-  }
-
-  async #createSubOrganization(merchantId: string): Promise<{ id: string; address: Address }> {
+  /**
+   * Creates the merchant's sub-organization: a wallet key, a root user that
+   * bootstraps it, and the non-root signer user the settlement path uses.
+   *
+   * No Safe yet, and no policy yet — the policy names the Safe's address, which
+   * `predictAddress` derives from this signer.
+   */
+  async createManagedSigner(merchantId: string): Promise<ManagedSigner> {
     const body = JSON.stringify({
       type: "ACTIVITY_TYPE_CREATE_SUB_ORGANIZATION_V7",
       timestampMs: String(Date.now()),
@@ -137,11 +169,11 @@ export class TurnkeyWalletProvider implements WalletProvider {
         subOrganizationName: `merchant-${merchantId}`,
         rootUsers: [
           {
-            userName: "mayarin",
+            userName: "mayarin-root",
             apiKeys: [
               {
-                apiKeyName: "mayarin",
-                publicKey: await this.#apiPublicKey(),
+                apiKeyName: "mayarin-root",
+                publicKey: this.#options.rootApiPublicKey,
                 curveType: "API_KEY_CURVE_P256",
               },
             ],
@@ -174,53 +206,99 @@ export class TurnkeyWalletProvider implements WalletProvider {
         status: (response as SubOrgResponse)?.activity?.status,
       });
     }
-    return { id: result.subOrganizationId, address: address as Address };
+
+    await this.#ensureSignerUser(result.subOrganizationId);
+    return { ref: result.subOrganizationId, address: address.toLowerCase() };
   }
 
-  async #deploySafe(merchantSigner: Address, turnkeySigner: Address): Promise<Address> {
-    const { rpcUrl, safe, deployerPrivateKey } = this.#options;
-    const account = privateKeyToAccount(deployerPrivateKey);
-    const publicClient = createPublicClient({ chain: baseSepolia, transport: http(rpcUrl) });
+  /**
+   * The Safe's address, derived rather than observed.
+   *
+   * Pure in its inputs — the signer set and a salt over merchant and chain — so
+   * every attempt derives the same address and a resumed provision lands on the
+   * Safe the previous attempt was making.
+   */
+  async predictAddress(request: ProvisionRequest): Promise<string> {
+    this.#assertChain(request.chain);
+    const client = this.#publicClient();
+    const creationCode = await client.readContract({
+      address: this.#options.safe.proxyFactory,
+      abi: PROXY_FACTORY_ABI,
+      functionName: "proxyCreationCode",
+    });
+
+    const initializer = this.#initializer(request);
+    const salt = keccak256(
+      concatHex([keccak256(initializer), pad(toHex(saltNonce(request)), { size: 32 })]),
+    );
+    const bytecode = concatHex([
+      creationCode,
+      encodeAbiParameters([{ type: "address" }], [this.#options.safe.singleton]),
+    ]);
+
+    return getContractAddress({
+      opcode: "CREATE2",
+      from: this.#options.safe.proxyFactory,
+      salt,
+      bytecodeHash: keccak256(bytecode),
+    }).toLowerCase();
+  }
+
+  /**
+   * Deploys the merchant's Safe, or checks the one already there.
+   *
+   * Idempotent because it reads the chain first: the address is deterministic,
+   * so "already deployed" is a state this can recognise rather than a race it
+   * has to lose.
+   */
+  async deploy(request: ProvisionRequest): Promise<DeployResult> {
+    this.#assertChain(request.chain);
+    if (!/^0x[0-9a-fA-F]{40}$/.test(request.merchantSigner)) {
+      throw new ConfigurationError("A managed wallet needs the merchant's own signer address", {
+        merchantId: request.merchantId,
+      });
+    }
+
+    const address = (await this.predictAddress(request)) as Address;
+    const client = this.#publicClient();
+
+    // The policy is written before the Safe exists, and re-checked on every
+    // attempt. A Safe whose signer key is not yet bounded is a window, however
+    // short, in which the enclave would approve anything the key asked for.
+    await this.#ensurePolicy(request.managedSigner.ref, address);
+
+    const existing = await client.getCode({ address });
+    if (existing !== undefined && existing !== "0x") {
+      await this.#assertOwnership(client, address, request.merchantSigner as Address);
+      return { address, deployed: false };
+    }
+
+    const account = privateKeyToAccount(this.#options.deployerPrivateKey);
     const walletClient = createWalletClient({
       account,
       chain: baseSepolia,
-      transport: http(rpcUrl),
+      transport: this.#transport(),
     });
 
-    // Owner order is [merchant, mayarin] so the merchant reads first in any
-    // explorer — cosmetic, but this is the list a merchant checks when they
-    // want to know who can touch their money.
-    const initializer = encodeFunctionData({
-      abi: SAFE_ABI,
-      functionName: "setup",
-      args: [
-        [merchantSigner, turnkeySigner],
-        1n,
-        "0x0000000000000000000000000000000000000000",
-        "0x",
-        safe.fallbackHandler,
-        "0x0000000000000000000000000000000000000000",
-        0n,
-        "0x0000000000000000000000000000000000000000",
-      ],
-    });
-
-    const saltNonce = BigInt(Date.now());
-    const { result } = await publicClient.simulateContract({
+    const args = [
+      this.#options.safe.singleton,
+      this.#initializer(request),
+      saltNonce(request),
+    ] as const;
+    await client.simulateContract({
       account,
-      address: safe.proxyFactory,
+      address: this.#options.safe.proxyFactory,
       abi: PROXY_FACTORY_ABI,
       functionName: "createProxyWithNonce",
-      args: [safe.singleton, initializer, saltNonce],
+      args,
     });
-
     const hash = await walletClient.writeContract({
-      address: safe.proxyFactory,
+      address: this.#options.safe.proxyFactory,
       abi: PROXY_FACTORY_ABI,
       functionName: "createProxyWithNonce",
-      args: [safe.singleton, initializer, saltNonce],
+      args,
     });
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    const receipt = await client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") {
       throw new ConfigurationError("Safe deployment reverted", { hash });
     }
@@ -228,55 +306,188 @@ export class TurnkeyWalletProvider implements WalletProvider {
     // Read the signer set back at the deployment block. The transaction
     // succeeding is not the same as the Safe being owned by who it should be,
     // and that is the whole custody claim.
-    //
-    // Pinned to the block rather than `latest`, and retried: behind a load
-    // balancer the node serving this call may not have that block yet, which
-    // surfaces as "block not found". Reading `latest` instead would trade that
-    // error for a silent wrong answer — a stale read reporting the Safe as
-    // unowned. Waiting for propagation is the only version that is both
-    // correct and honest.
+    await this.#assertOwnership(
+      client,
+      address,
+      request.merchantSigner as Address,
+      receipt.blockNumber,
+    );
+    return { address, deployed: true };
+  }
+
+  async propose(_wallet: MerchantWallet, _intent: WalletIntent): Promise<{ txHash: string }> {
+    // Deliberately unimplemented rather than approximated. Proposing a Safe
+    // transaction means signing a SafeTx digest with the sub-org key — which
+    // the policy above already admits — and submitting it with gas the merchant
+    // does not have. That is #9.
+    throw new ConfigurationError("Proposing a movement needs gas sponsorship from #9", {});
+  }
+
+  /** The Safe `setup` call the proxy is initialised with. */
+  #initializer(request: ProvisionRequest): Hex {
+    // Owner order is [merchant, mayarin] so the merchant reads first in any
+    // explorer — cosmetic, but this is the list a merchant checks when they
+    // want to know who can touch their money.
+    return encodeFunctionData({
+      abi: SAFE_ABI,
+      functionName: "setup",
+      args: [
+        [request.merchantSigner as Address, request.managedSigner.address as Address],
+        1n,
+        ZERO_ADDRESS,
+        "0x",
+        this.#options.safe.fallbackHandler,
+        ZERO_ADDRESS,
+        0n,
+        ZERO_ADDRESS,
+      ],
+    });
+  }
+
+  /**
+   * Fails unless the merchant owns the Safe at threshold 1.
+   *
+   * Pinned to a block when one is given, and retried: behind a load balancer
+   * the node serving this call may not have that block yet, which surfaces as
+   * "block not found". Reading `latest` instead would trade that error for a
+   * silent wrong answer — a stale read reporting the Safe as unowned.
+   */
+  async #assertOwnership(
+    client: PublicClient,
+    safe: Address,
+    merchantSigner: Address,
+    blockNumber?: bigint,
+  ): Promise<void> {
+    const at = blockNumber === undefined ? {} : { blockNumber };
     const [owners, threshold] = await Promise.all([
       readAtBlock(() =>
-        publicClient.readContract({
-          address: result,
-          abi: SAFE_ABI,
-          functionName: "getOwners",
-          blockNumber: receipt.blockNumber,
-        }),
+        client.readContract({ address: safe, abi: SAFE_ABI, functionName: "getOwners", ...at }),
       ),
       readAtBlock(() =>
-        publicClient.readContract({
-          address: result,
-          abi: SAFE_ABI,
-          functionName: "getThreshold",
-          blockNumber: receipt.blockNumber,
-        }),
+        client.readContract({ address: safe, abi: SAFE_ABI, functionName: "getThreshold", ...at }),
       ),
     ]);
 
     const lowered = owners.map((owner) => owner.toLowerCase());
     if (!lowered.includes(merchantSigner.toLowerCase())) {
       throw new ConfigurationError("The provisioned Safe does not include the merchant's signer", {
-        safe: result,
+        safe,
         owners: lowered,
       });
     }
     if (threshold !== 1n) {
       throw new ConfigurationError("The provisioned Safe has an unexpected threshold", {
-        safe: result,
+        safe,
         threshold: threshold.toString(),
       });
     }
-
-    return result;
   }
 
-  async #apiPublicKey(): Promise<string> {
-    const key = process.env.TURNKEY_API_PUBLIC_KEY;
-    if (key === undefined || key.length === 0) {
-      throw new ConfigurationError("TURNKEY_API_PUBLIC_KEY is required to provision a sub-org", {});
+  /**
+   * Installs the non-root signer user, once per sub-organization.
+   *
+   * Non-root is the load-bearing word: Turnkey's policy engine does not apply
+   * to root users, so a signer that was root would be unbounded whatever policy
+   * were written about it.
+   */
+  async #ensureSignerUser(subOrganizationId: string): Promise<string> {
+    const existing = await this.#findSignerUser(subOrganizationId);
+    if (existing !== undefined) return existing;
+
+    const body = JSON.stringify({
+      type: "ACTIVITY_TYPE_CREATE_USERS_V3",
+      timestampMs: String(Date.now()),
+      organizationId: subOrganizationId,
+      parameters: {
+        users: [
+          {
+            userName: SIGNER_USER_NAME,
+            userTags: [],
+            apiKeys: [
+              {
+                apiKeyName: SIGNER_USER_NAME,
+                publicKey: this.#options.signerApiPublicKey,
+                curveType: "API_KEY_CURVE_P256",
+              },
+            ],
+            authenticators: [],
+            oauthProviders: [],
+          },
+        ],
+      },
+    });
+
+    await this.#post("/public/v1/submit/create_users", body);
+    const created = await this.#findSignerUser(subOrganizationId);
+    if (created === undefined) {
+      throw new ConfigurationError("Turnkey did not create the policy-bound signer user", {
+        subOrganizationId,
+      });
     }
-    return key;
+    return created;
+  }
+
+  async #findSignerUser(subOrganizationId: string): Promise<string | undefined> {
+    const response = (await this.#post(
+      "/public/v1/query/list_users",
+      JSON.stringify({ organizationId: subOrganizationId }),
+    )) as ListUsersResponse;
+    return response?.users?.find((user) => user.userName === SIGNER_USER_NAME)?.userId;
+  }
+
+  /**
+   * Bounds the signer user to this merchant's Safe, once per sub-organization.
+   *
+   * Turnkey denies a non-root user by default, so this policy is the *only*
+   * thing that key can do: sign transactions addressed to that Safe. It cannot
+   * pay another address, and it cannot sign for another merchant, because a
+   * sub-organization holds exactly one merchant's key.
+   *
+   * Keyed by name and re-checked rather than blindly created: provisioning
+   * retries, and a second identical policy would be noise in the surface a
+   * reviewer has to read to know what the key may do.
+   */
+  async #ensurePolicy(subOrganizationId: string, safe: Address): Promise<void> {
+    const policyName = `mayarin-signer-to-${safe.toLowerCase()}`;
+    const listed = (await this.#post(
+      "/public/v1/query/list_policies",
+      JSON.stringify({ organizationId: subOrganizationId }),
+    )) as ListPoliciesResponse;
+    if (listed?.policies?.some((policy) => policy.policyName === policyName)) return;
+
+    const signerUserId = await this.#ensureSignerUser(subOrganizationId);
+    const body = JSON.stringify({
+      type: "ACTIVITY_TYPE_CREATE_POLICY_V3",
+      timestampMs: String(Date.now()),
+      organizationId: subOrganizationId,
+      parameters: {
+        policyName,
+        effect: "EFFECT_ALLOW",
+        consensus: `approvers.any(user, user.id == '${signerUserId}')`,
+        condition: `eth.tx.to == '${safe.toLowerCase()}'`,
+        notes: "Mayarin's settlement key may only sign transactions to this merchant's Safe (#11)",
+      },
+    });
+    await this.#post("/public/v1/submit/create_policy", body);
+  }
+
+  #publicClient(): PublicClient {
+    return createPublicClient({
+      chain: baseSepolia,
+      transport: this.#transport(),
+    }) as PublicClient;
+  }
+
+  #transport(): Transport {
+    return this.#options.transport ?? http(this.#options.rpcUrl);
+  }
+
+  #assertChain(chain: ChainId): void {
+    if (chain === this.#options.chain) return;
+    throw new ConfigurationError(
+      `This wallet provider deploys on ${this.#options.chain}, not ${chain}`,
+      { chain },
+    );
   }
 
   async #post(path: string, body: string): Promise<unknown> {
@@ -297,6 +508,17 @@ export class TurnkeyWalletProvider implements WalletProvider {
   }
 }
 
+/**
+ * The salt a merchant's Safe is deployed at.
+ *
+ * Derived from the merchant and the chain rather than from a clock, which is
+ * what makes the address the same on every attempt — the property the whole
+ * resumable provisioning path rests on.
+ */
+function saltNonce(request: ProvisionRequest): bigint {
+  return BigInt(keccak256(toHex(`mayarin:wallet:${request.merchantId}:${request.chain}`)));
+}
+
 interface SubOrgResponse {
   readonly activity?: {
     readonly status?: string;
@@ -307,6 +529,14 @@ interface SubOrgResponse {
       };
     };
   };
+}
+
+interface ListUsersResponse {
+  readonly users?: readonly { readonly userId?: string; readonly userName?: string }[];
+}
+
+interface ListPoliciesResponse {
+  readonly policies?: readonly { readonly policyName?: string }[];
 }
 
 /**
