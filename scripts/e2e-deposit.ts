@@ -50,6 +50,7 @@ import {
   DrizzleWatcherCursorRepository,
 } from "@mayarin/db";
 import { merchants as merchantsTable } from "@mayarin/db/schema";
+import { isMayarinError } from "@mayarin/shared";
 import { eq } from "drizzle-orm";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -139,6 +140,22 @@ const config = loadConfig({
   // pins the cursor itself before it watches.
   CHAIN_START_BLOCKS: JSON.stringify({ [CHAIN]: (head - 1n).toString() }),
 } as Record<string, string | undefined>);
+
+// A dev API on this database is a second clearing engine with its own wiring:
+// its watcher races this run for every transition, and #104 records where that
+// leads. Any response on the API port means one is up — refuse to run beside it.
+const apiListening = await fetch(`http://localhost:${config.port}/health`).then(
+  () => true,
+  () => false,
+);
+if (apiListening) {
+  console.error(
+    `An API is listening on http://localhost:${config.port}.` +
+      "\nIt is a second clearing engine on the same database and it will race this run." +
+      "\nStop `bun run dev` / `bun run dev:all` first, then run this script again.",
+  );
+  process.exit(1);
+}
 
 const container = createContainer({ config });
 container.events.subscribe("*", (event: { type: string; payload: unknown }) => {
@@ -343,11 +360,19 @@ if (watcher === undefined) {
 
 let settled = false;
 for (let pass = 1; pass <= 15; pass += 1) {
-  const result = await watcher.tick(CHAIN, asset);
+  let tick: string;
+  try {
+    const result = await watcher.tick(CHAIN, asset);
+    tick = `recorded=${result.recorded} confirmed=${result.confirmed} funded=${result.funded}`;
+  } catch (error) {
+    // A retryable error means the payment is intact and someone else advanced
+    // it between our read and our write — a concurrent engine the preflight
+    // could not see (#105). The state below tells us where it got to.
+    if (!(isMayarinError(error) && error.retryable)) throw error;
+    tick = `lost a race (${error.code}) — is another API on this database?`;
+  }
   const current = await container.engine.getById(locked.id);
-  console.log(
-    `4. watcher #${String(pass).padStart(2)}   recorded=${result.recorded} confirmed=${result.confirmed} funded=${result.funded} state=${current.state}`,
-  );
+  console.log(`4. watcher #${String(pass).padStart(2)}   ${tick} state=${current.state}`);
   if (current.state !== "PAYMENT_PENDING") {
     settled = true;
     break;
