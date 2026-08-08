@@ -20,7 +20,7 @@ import { defineMiddleware } from "astro:middleware";
 import { getApiBase } from "@/lib/api/client";
 import type { Permission, UserDto } from "@/types/user";
 
-const PROTECTED_PREFIXES = ["/payments", "/admin"];
+const PROTECTED_PREFIXES = ["/payments", "/catalog", "/settlement", "/analytics", "/admin"];
 const PROTECTED_EXACT = new Set(["/"]);
 const LOGIN_PATH = "/login";
 /** Paths that, beyond authentication, require a specific permission. */

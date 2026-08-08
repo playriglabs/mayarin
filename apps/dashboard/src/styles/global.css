@@ -1,23 +1,252 @@
 @import "tailwindcss";
 
-/* Skeleton tokens — paper/void/ink/forest/accent, consistent with the landing palette. */
+/**
+ * Theme tokens, on shadcn's naming.
+ *
+ * Colours use shadcn's vocabulary (`background`, `foreground`, `primary`,
+ * `muted-foreground`, `border`, `input`, `ring`) so a component pulled from the
+ * shadcn registry drops in and is already themed. The VALUES are this product's
+ * design rules, not shadcn's defaults.
+ *
+ * Three deliberate departures from a stock shadcn theme, each enforcing a rule
+ * the design system already had:
+ *
+ *   1. Radius is pinned to 0 at every step. `rounded-md` still COMPILES — so a
+ *      registry component is not broken by it — but it renders sharp, like the
+ *      landing page.
+ *   2. The type scale is cleared and redefined as four sizes: 12/13/14/24. A
+ *      fifth size does not exist, so `text-lg` emits nothing and the element
+ *      falls back to an inherited size that is still inside the scale.
+ *   3. Font weight is cleared to regular and medium only, on the same logic.
+ *
+ * Tokens marked EXTRA are not part of shadcn's set. They exist because the
+ * design has a three-step grey hierarchy and a brand colour, and shadcn's
+ * palette has neither: its `accent` is a hover surface, not a brand.
+ */
+
 :root {
   color-scheme: light;
+
+  --radius: 0rem;
+
+  --background: #fafafa;
+  --foreground: #292929;
+
+  --card: #ffffff;
+  --card-foreground: #292929;
+
+  --popover: #ffffff;
+  --popover-foreground: #292929;
+
+  /* Filled buttons are ink, not a brand colour — the green is reserved for
+     state and focus, where it has to carry meaning. */
+  --primary: #292929;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f4f4f4;
+  --secondary-foreground: #292929;
+
+  --muted: #f4f4f4;
+  --muted-foreground: #5d5d5d;
+
+  /* shadcn's `accent` is the hover surface, NOT the brand. See `--brand`. */
+  --accent: #f4f4f4;
+  --accent-foreground: #292929;
+
+  --destructive: #b3261e;
+  --destructive-foreground: #ffffff;
+
+  --border: #e5e5e5;
+  --input: #d4d4d4;
+  --ring: #1f6f54;
+
+  /* EXTRA — the third step of the grey hierarchy. shadcn stops at two. */
+  --subtle-foreground: #9e9e9e;
+
+  /* EXTRA — brand, and the status colours a payment dashboard needs. Each
+     pairs with a wash light enough to sit under 12px text. */
+  --brand: #1f6f54;
+  --brand-foreground: #ffffff;
+  --brand-muted: #eef4f1;
+
+  --success: #1f6f54;
+  --success-muted: #eef4f1;
+  --warning: #8a6100;
+  --warning-muted: #fdf6e7;
+  --destructive-muted: #fdf0ef;
+
+  /* Charts are single-hue by design: length carries magnitude, labels carry
+     identity. One series colour is all this needs. */
+  --chart-1: #1f6f54;
 }
 
-html,
-body {
-  height: 100%;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-muted: var(--destructive-muted);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-muted: var(--brand-muted);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-chart-1: var(--chart-1);
+
+  /* Every step is 0. `rounded-*` compiles, and draws nothing. `DEFAULT` covers
+     the bare `rounded` utility, which Tailwind would otherwise emit at its own
+     0.25rem — including when it picks the word out of a prose comment. */
+  --radius-DEFAULT: 0;
+  --radius-none: 0;
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-3xl: 0;
+  --radius-full: 0;
+
+  /* Four sizes. A fifth is a compile-time nothing, by design. */
+  --text-*: initial;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 30px;
+
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+
+  --font-sans:
+    "Inter Tight", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --tracking-*: initial;
+  --tracking-tight: -0.15px;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-body {
-  background: #f7f7f4;
-  color: #1a1a17;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    letter-spacing: var(--tracking-tight);
+    font-weight: var(--font-weight-normal);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* One visible ring for everything focusable. Sharp, like the rest. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* A mouse press must not paint a ring; a keyboard tab must. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-muted);
+    color: var(--color-foreground);
+  }
+
+  /**
+   * Browser autofill.
+   *
+   * Chrome and Safari paint their own pale background on an autofilled field
+   * and IGNORE `background-color` on it, so a filled field arrives off-theme —
+   * which is what makes an autofilled login look nothing like the rest of the
+   * form.
+   *
+   * Two properties are the whole fix, because they are the only two the
+   * browser honours here:
+   *   - `box-shadow: inset` with a spread larger than the control paints over
+   *     the browser's background. It is not a border or a shadow in intent; it
+   *     is the only writable fill.
+   *   - `-webkit-text-fill-color` sets the glyph colour, since `color` is also
+   *     overridden while autofilled.
+   *
+   * `var(--card)` is correct for both shapes of control here: a bare `Input`
+   * is `bg-card`, and an `InputGroupInput` is transparent on top of a card.
+   *
+   * Only the standard `:autofill` is written. Lightning CSS normalises the
+   * `:-webkit-autofill` prefix onto it and emits whatever the build targets
+   * need — authoring both produced two identical rules in the bundle.
+   */
+  input:autofill,
+  textarea:autofill {
+    box-shadow: inset 0 0 0 1000px var(--color-card);
+    -webkit-text-fill-color: var(--color-foreground);
+    caret-color: var(--color-foreground);
+  }
+
+  /* A disabled field stays muted, autofilled or not. */
+  input:disabled:autofill,
+  textarea:disabled:autofill {
+    box-shadow: inset 0 0 0 1000px var(--color-muted);
+    -webkit-text-fill-color: var(--color-subtle-foreground);
+  }
+
+  /* Tabular figures wherever a number is compared down a column. */
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/**
+ * Reduced motion.
+ *
+ * Motion is handled by `MotionProvider` (`reducedMotion="user"`), which covers
+ * every animated component. This block is the backstop for anything outside
+ * React — a stray CSS animation or the browser's own smooth scrolling.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

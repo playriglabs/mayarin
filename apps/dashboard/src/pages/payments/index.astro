@@ -1,0 +1,13 @@
+---
+import PaymentsExplorer from "../../components/payments-explorer.tsx";
+import { PageHeader } from "../../components/page-header.tsx";
+import Protected from "../../layouts/dashboard.astro";
+---
+
+<Protected title="Payments">
+  <PageHeader
+    title="Payments"
+    description="Every payment intent for this merchant, newest first."
+  />
+  <PaymentsExplorer client:load />
+</Protected>

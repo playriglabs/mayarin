@@ -1,0 +1,10 @@
+---
+import Analytics from "../components/analytics.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Analytics">
+  <PageHeader title="Analytics" description="The last fourteen days of trading." />
+  <Analytics client:load />
+</Protected>
