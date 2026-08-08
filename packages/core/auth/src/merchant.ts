@@ -12,6 +12,7 @@
  */
 
 import type { AssetCode } from "@mayarin/shared";
+import type { User } from "./types.ts";
 
 export interface Merchant {
   readonly id: string;
@@ -48,4 +49,23 @@ export interface MerchantRepository {
   insert(merchant: Merchant): Promise<Merchant>;
   findById(id: string): Promise<Merchant | null>;
   list(): Promise<readonly Merchant[]>;
+}
+
+/**
+ * Creating a merchant and its first account as one unit (issue #100).
+ *
+ * A merchant with no user is unreachable: nothing can sign in to it, and no
+ * code path deletes it. Writing the two rows through separate repositories
+ * leaves exactly that behind whenever the second write fails — a duplicate
+ * email being the common way, since the operator sees an error, assumes nothing
+ * happened, and tries again under a different name.
+ *
+ * Kept as its own port rather than a method on `MerchantRepository` because the
+ * unit spans two aggregates and belongs to neither. The atomicity lives in the
+ * implementation, as it does for `ClearingTransactionRepository.insert`, so no
+ * service has to know that a transaction exists.
+ */
+export interface MerchantAccountRepository {
+  /** Writes both rows or neither. */
+  insertWithFirstUser(merchant: Merchant, user: User): Promise<void>;
 }

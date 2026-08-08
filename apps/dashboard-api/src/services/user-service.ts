@@ -13,7 +13,7 @@
 import { randomBytes } from "node:crypto";
 import type {
   Merchant,
-  MerchantRepository,
+  MerchantAccountRepository,
   PasswordHasher,
   Permission,
   User,
@@ -23,7 +23,12 @@ import { type AssetCode, type Clock, generateId } from "@mayarin/shared";
 
 export interface UserServiceOptions {
   readonly users: UserRepository;
-  readonly merchants: MerchantRepository;
+  /**
+   * The merchant + first account unit. Separate from `users` because the two
+   * rows have to land together: a merchant with no account is unreachable, and
+   * nothing deletes it (issue #100).
+   */
+  readonly accounts: MerchantAccountRepository;
   readonly hasher: PasswordHasher;
   readonly clock: Clock;
 }
@@ -58,13 +63,13 @@ export interface CreateMerchantUserInput {
 
 export class UserService {
   readonly #users: UserRepository;
-  readonly #merchants: MerchantRepository;
+  readonly #accounts: MerchantAccountRepository;
   readonly #hasher: PasswordHasher;
   readonly #clock: Clock;
 
   constructor(options: UserServiceOptions) {
     this.#users = options.users;
-    this.#merchants = options.merchants;
+    this.#accounts = options.accounts;
     this.#hasher = options.hasher;
     this.#clock = options.clock;
   }
@@ -87,16 +92,18 @@ export class UserService {
       createdAt: now,
       updatedAt: now,
     };
-    await this.#merchants.insert(merchant);
-
-    const { user, generated, password } = await this.createUser(
+    // Built before anything is written, so the duplicate-email failure happens
+    // inside the unit rather than after the merchant row is already committed.
+    const { user, generated, plaintext } = await this.#buildUser(
       merchant.id,
       input.email,
       input.password,
       input.permissions,
       now,
     );
-    return { user, generated, ...(password === undefined ? {} : { password }) };
+    await this.#accounts.insertWithFirstUser(merchant, user);
+
+    return generated ? { user, generated: true, password: plaintext } : { user, generated: false };
   }
 
   /** Lists the accounts in one merchant (the dashboard admin surface). */
@@ -128,18 +135,44 @@ export class UserService {
     permissions: readonly Permission[],
     now: Date,
   ): Promise<CreateAccountResult> {
-    const generated = password === undefined;
-    const plaintext = generated ? randomBytes(18).toString("base64url") : password;
-    const user: User = {
-      id: generateId("usr", now.getTime()),
-      email,
-      passwordHash: await this.#hasher.hash(plaintext ?? ""),
+    const { user, generated, plaintext } = await this.#buildUser(
       merchantId,
-      permissions: [...permissions],
-      createdAt: now,
-      updatedAt: now,
-    };
+      email,
+      password,
+      permissions,
+      now,
+    );
     await this.#users.insert(user);
     return generated ? { user, generated: true, password: plaintext } : { user, generated: false };
+  }
+
+  /**
+   * The account value and its plaintext password, written nowhere.
+   *
+   * Split out so `createMerchantAccount` can hand a finished user to the unit
+   * of work instead of persisting one mid-way through creating a merchant.
+   */
+  async #buildUser(
+    merchantId: string,
+    email: string,
+    password: string | undefined,
+    permissions: readonly Permission[],
+    now: Date,
+  ): Promise<{ user: User; generated: boolean; plaintext: string }> {
+    const generated = password === undefined;
+    const plaintext = generated ? randomBytes(18).toString("base64url") : password;
+    return {
+      user: {
+        id: generateId("usr", now.getTime()),
+        email,
+        passwordHash: await this.#hasher.hash(plaintext),
+        merchantId,
+        permissions: [...permissions],
+        createdAt: now,
+        updatedAt: now,
+      },
+      generated,
+      plaintext,
+    };
   }
 }

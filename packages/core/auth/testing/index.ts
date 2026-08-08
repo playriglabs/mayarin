@@ -11,6 +11,7 @@
 import { ConflictError } from "@mayarin/shared";
 import type {
   Merchant,
+  MerchantAccountRepository,
   MerchantRepository,
   Session,
   SessionRepository,
@@ -73,6 +74,40 @@ export class InMemoryMerchantRepository implements MerchantRepository {
 
   async list(): Promise<readonly Merchant[]> {
     return [...this.#byId.values()];
+  }
+
+  /** Rollback support for `InMemoryMerchantAccountRepository`. Not a port method. */
+  remove(id: string): void {
+    this.#byId.delete(id);
+  }
+}
+
+/**
+ * Both writes or neither, over the two in-memory repositories.
+ *
+ * Takes the same repositories the rest of a test uses, so a merchant created
+ * here is visible to `findById` and a failed creation leaves nothing findable —
+ * which is the property under test. Rolls back by removing what it added rather
+ * than by copying the maps: the merchant is new by construction, so discarding
+ * it cannot discard anything that was already there.
+ */
+export class InMemoryMerchantAccountRepository implements MerchantAccountRepository {
+  readonly #merchants: InMemoryMerchantRepository;
+  readonly #users: InMemoryUserRepository;
+
+  constructor(merchants: InMemoryMerchantRepository, users: InMemoryUserRepository) {
+    this.#merchants = merchants;
+    this.#users = users;
+  }
+
+  async insertWithFirstUser(merchant: Merchant, user: User): Promise<void> {
+    await this.#merchants.insert(merchant);
+    try {
+      await this.#users.insert(user);
+    } catch (error) {
+      this.#merchants.remove(merchant.id);
+      throw error;
+    }
   }
 }
 

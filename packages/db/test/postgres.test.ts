@@ -82,8 +82,15 @@ describe.skipIf(DATABASE_URL === undefined)("Drizzle repositories", () => {
   });
 
   beforeEach(async () => {
+    // `merchants` belongs in this list, and its absence was doing real damage:
+    // the suite truncated `users` and left every merchant it had created behind,
+    // so each run against a development database deleted the operator's account
+    // and added more merchant rows no account owned. That produced orphans far
+    // faster than the seed-CLI bug in #100 ever did, and it also destroyed the
+    // account a developer had just seeded — the failure looks like the seed
+    // silently not working.
     await handle.db.execute(
-      sql`truncate table sessions, users, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   });
 

@@ -9,7 +9,7 @@
  */
 
 import type {
-  MerchantRepository,
+  MerchantAccountRepository,
   PasswordHasher,
   SessionRepository,
   UserRepository,
@@ -24,7 +24,7 @@ import {
   DrizzleClearingRepository,
   DrizzleDepositRepository,
   DrizzleLedgerRepository,
-  DrizzleMerchantRepository,
+  DrizzleMerchantAccountRepository,
   DrizzlePaymentIntentRepository,
   DrizzleSessionRepository,
   DrizzleSettlementEventRepository,
@@ -58,7 +58,7 @@ export interface CreateContainerOptions {
   readonly clock?: Clock;
   /** Overridable for tests: in-memory repos instead of Drizzle. */
   readonly userRepository?: UserRepository;
-  readonly merchantRepository?: MerchantRepository;
+  readonly merchantAccountRepository?: MerchantAccountRepository;
   readonly sessionRepository?: SessionRepository;
   readonly paymentIntents?: PaymentIntentRepository;
   readonly clearing?: ClearingReadRepository;
@@ -83,8 +83,9 @@ export function createContainer(options: CreateContainerOptions): Container {
       handle = createDatabase({ url: config.databaseUrl });
       return new DrizzleUserRepository(handle.db);
     })();
-  const merchants =
-    options.merchantRepository ?? new DrizzleMerchantRepository(handle?.db ?? throwIfNoHandle());
+  const accounts =
+    options.merchantAccountRepository ??
+    new DrizzleMerchantAccountRepository(handle?.db ?? throwIfNoHandle());
   const sessions =
     options.sessionRepository ?? new DrizzleSessionRepository(handle?.db ?? throwIfNoHandle());
   const hasher = options.hasher ?? new Argon2PasswordHasher();
@@ -96,7 +97,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     ttlSeconds: config.sessionTtlSeconds,
   });
   const authService = new AuthService({ users, hasher, sessions: sessionService });
-  const userService = new UserService({ users, merchants, hasher, clock });
+  const userService = new UserService({ users, accounts, hasher, clock });
 
   const intents =
     options.paymentIntents ?? new DrizzlePaymentIntentRepository(handle?.db ?? throwIfNoHandle());
