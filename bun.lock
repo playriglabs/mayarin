@@ -214,6 +214,14 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/core/notifications": {
+      "name": "@mayarin/notifications",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/clearing": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/core/payment-intent": {
       "name": "@mayarin/payment-intent",
       "version": "0.1.0",
@@ -946,6 +954,8 @@
     "@mayarin/landing": ["@mayarin/landing@workspace:apps/landing"],
 
     "@mayarin/ledger": ["@mayarin/ledger@workspace:packages/core/ledger"],
+
+    "@mayarin/notifications": ["@mayarin/notifications@workspace:packages/core/notifications"],
 
     "@mayarin/payment-intent": ["@mayarin/payment-intent@workspace:packages/core/payment-intent"],
 

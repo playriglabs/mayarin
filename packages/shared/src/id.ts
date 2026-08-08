@@ -31,6 +31,8 @@ export const ID_PREFIXES = {
   paymentLink: "lnk",
   merchantSettingChange: "msc",
   refund: "rfd",
+  webhookEndpoint: "whe",
+  webhookDelivery: "whd",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];
