@@ -15,7 +15,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SectionHeader } from "@/components/ui/section-header";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PanelSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { usePayment } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, labelOf, toneOf } from "@/lib/clearing";
@@ -60,11 +60,14 @@ function PaymentDetail({ id }: { id: string }) {
 
       {match(payment)
         .with({ status: "pending" }, () => (
-          <div role="status" aria-live="polite" className="flex flex-col gap-2">
+          <div role="status" aria-live="polite" className="flex flex-col gap-6">
             <span className="sr-only">Loading payment</span>
-            <Skeleton aria-hidden="true" />
-            <Skeleton aria-hidden="true" />
-            <Skeleton aria-hidden="true" />
+            <Skeleton aria-hidden="true" className="h-10 w-2/3" />
+            <div className="grid gap-4 md:grid-cols-2">
+              <PanelSkeleton lines={7} />
+              <PanelSkeleton lines={7} />
+            </div>
+            <PanelSkeleton lines={3} />
           </div>
         ))
         .with({ status: "error" }, ({ error }) => (

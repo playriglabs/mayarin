@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -134,11 +134,9 @@ function PaymentsExplorer() {
 
       {match(payments)
         .with({ status: "pending" }, () => (
-          <div role="status" aria-live="polite" className="flex flex-col gap-2">
+          <div role="status" aria-live="polite">
             <span className="sr-only">Loading payments</span>
-            <Skeleton aria-hidden="true" />
-            <Skeleton aria-hidden="true" />
-            <Skeleton aria-hidden="true" />
+            <TableSkeleton rows={8} />
           </div>
         ))
         .with({ status: "error" }, ({ error }) => (

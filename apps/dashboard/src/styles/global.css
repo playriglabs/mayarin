@@ -97,6 +97,67 @@
   --chart-1: #1f6f54;
 }
 
+/**
+ * Dark theme — the landing's dark tone as a full surface, not just a sidebar.
+ *
+ * The pre-paint script in each layout stamps `data-theme` on <html> before
+ * first paint, so there is no flash. Dark is the default; light is the
+ * opt-out. Only the semantic values change — every component reads tokens, so
+ * nothing below this file knows which theme is on.
+ *
+ * Colour notes:
+ *   - Ink inverts: filled buttons become paper on void.
+ *   - The forest brand lifts to `#31b285` so 12px text on it stays readable;
+ *     its wash is the landing's `--color-plate`.
+ *   - Focus and the chart hue go electric, exactly as the landing does on its
+ *     dark sections.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+
+  --card: #111111;
+  --card-foreground: #fafafa;
+
+  --popover: #161616;
+  --popover-foreground: #fafafa;
+
+  --primary: #fafafa;
+  --primary-foreground: #111111;
+
+  --secondary: #1a1a1a;
+  --secondary-foreground: #fafafa;
+
+  --muted: #1a1a1a;
+  --muted-foreground: #8a8a8a;
+
+  --accent: #1a1a1a;
+  --accent-foreground: #fafafa;
+
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+
+  --border: #1e1e1e;
+  --input: #2e2e2e;
+  --ring: #0eeb2e;
+
+  --subtle-foreground: #616161;
+
+  --brand: #31b285;
+  --brand-foreground: #050505;
+  --brand-muted: #0b2016;
+
+  --success: #31b285;
+  --success-muted: #0b2016;
+  --warning: #d9a514;
+  --warning-muted: #271f04;
+  --destructive-muted: #2a1113;
+
+  --chart-1: #0eeb2e;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

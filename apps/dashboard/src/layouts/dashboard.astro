@@ -6,6 +6,7 @@
  */
 import LogoutButton from "../components/logout-button.tsx";
 import SideNav from "../components/side-nav.tsx";
+import ThemeToggle from "../components/theme-toggle.tsx";
 import type { UserDto } from "../types/user";
 import "../styles/global.css";
 
@@ -34,11 +35,16 @@ const roleLabel = isAdmin ? "Administrator" : "Merchant";
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
     />
+    <script is:inline>
+      // Before first paint. Dark is the default; "light" is the stored opt-out.
+      document.documentElement.dataset.theme =
+        localStorage.getItem("mayarin-theme") === "light" ? "light" : "dark";
+    </script>
   </head>
   <body class="min-h-full">
     <a
       href="#main"
-      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-white"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
     >
       Skip to content
     </a>
@@ -70,7 +76,10 @@ const roleLabel = isAdmin ? "Administrator" : "Merchant";
             <span class="truncate text-xs text-sidebar-foreground">{user.email}</span>
             <span class="label text-sidebar-muted-foreground">{roleLabel}</span>
           </div>
-          <LogoutButton client:load />
+          <div class="flex items-center gap-0.5">
+            <ThemeToggle client:only="react" />
+            <LogoutButton client:load />
+          </div>
         </div>
       </aside>
 

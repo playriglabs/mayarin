@@ -1,19 +1,25 @@
 /**
- * Clearing timeline — the nine-state machine drawn as a rail.
+ * Clearing timeline — the nine-state machine drawn as a horizontal rail that
+ * wraps. Time reads the way the machine runs: CREATED at the left, SUCCESS at
+ * the right, wrapping onto the next row when the viewport is narrow.
  *
  * Every state is rendered, not only the ones reached, so a merchant can see
  * what is still ahead of a payment rather than inferring it from an empty
  * space. A state that has been reached carries the timestamp its event
  * recorded; the rest are dimmed and marked `aria-disabled`.
  *
- * `FAILED` is reachable from any non-terminal state, so it is never drawn as a
- * step on the rail. It is appended as a terminal node after the last state that
- * was actually reached, which is where it truthfully belongs.
+ * The segment after each dot is the rail. It fills up to the furthest
+ * transition that actually happened — a segment is filled when the step it
+ * leads TO has been reached — and the fill turns destructive on a failed
+ * payment, matching the red terminal node.
  *
- * Motion: the rail grows once on mount and steps fade in on a short stagger,
- * timed from `lib/motion` so this matches every other animated surface.
- * `MotionProvider` collapses both to a plain cut for a reader who asked for
- * reduced motion — the states still appear, they simply do not travel.
+ * `FAILED` is reachable from any non-terminal state, so it is never a step on
+ * the rail. It is appended as a terminal node after the whole rail, and the
+ * sentence under the rail says why.
+ *
+ * The current step's explanation renders once, under the rail, rather than
+ * under every step — nine sentences in a wrapping grid is noise, and the one
+ * that matters is the step the payment is actually on.
  */
 
 import { CheckIcon, WarningIcon, XIcon } from "@phosphor-icons/react";
@@ -69,7 +75,7 @@ function buildSteps(events: readonly TimelineEvent[], currentState: string): rea
 }
 
 const DOT: Readonly<Record<StepStatus, string>> = {
-  done: "border-brand bg-brand text-white",
+  done: "border-brand bg-brand text-brand-foreground",
   current: "border-brand bg-card text-brand",
   upcoming: "border-input bg-card text-subtle-foreground",
 };
@@ -85,60 +91,64 @@ export default function PaymentTimeline({
 }) {
   const steps = buildSteps(events, currentState);
   const failed = isFailed(currentState);
-  // The filled rail stops at the last completed dot, measured between dot
-  // centres. Taken from the last done INDEX rather than a count, because a
-  // completed payment has every step done and a count would overrun the rail.
-  const lastDoneIndex = steps.reduce(
-    (acc, step, index) => (step.status === "done" ? index : acc),
-    0,
-  );
-  const filledFraction = steps.length <= 1 ? 0 : lastDoneIndex / (steps.length - 1);
+  const current = steps.find((step) => step.status === "current");
+  const terminal = steps[steps.length - 1];
 
   return (
-    <div className="relative flex flex-col">
-      {/* Rail. Sits behind the dots and never receives a pointer or a reader. */}
-      <div aria-hidden="true" className="absolute top-3 bottom-3 left-2.75 w-px bg-border" />
-      <motion.div
-        aria-hidden="true"
-        className={cn(
-          "absolute top-3 left-2.75 w-px origin-top",
-          failed ? "bg-destructive" : "bg-brand",
-        )}
-        style={{ height: `calc((100% - 1.5rem) * ${filledFraction})` }}
-        initial={{ scaleY: 0 }}
-        animate={{ scaleY: 1 }}
-        transition={{ duration: ENTER_DURATION * 1.5, ease: EASE_OUT_EXPO }}
-      />
-
-      <ol className="flex flex-col">
-        {steps.map((step, index) => (
-          <motion.li
-            key={step.state}
-            className="relative flex gap-3 pb-5 last:pb-0"
-            aria-current={step.status === "current" ? "step" : undefined}
-            aria-disabled={step.status === "upcoming" ? true : undefined}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: ENTER_DURATION, delay: index * STAGGER, ease: EASE_OUT_EXPO }}
-          >
-            <span
-              aria-hidden="true"
-              className={cn(
-                "z-10 flex size-6 shrink-0 items-center justify-center border",
-                DOT[step.status],
-              )}
+    <div className="flex flex-col gap-5">
+      <ol className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-y-6">
+        {steps.map((step, index) => {
+          // The segment leads to the NEXT step, so it fills once that step has
+          // been reached. The very last segment leads to the FAILED node.
+          const next = steps[index + 1];
+          const filled =
+            next !== undefined ? next.status !== "upcoming" : failed && step.status !== "upcoming";
+          const lastCell = index === steps.length - 1 && !failed;
+          return (
+            <motion.li
+              key={step.state}
+              className="flex min-w-0 flex-col gap-2"
+              aria-current={step.status === "current" ? "step" : undefined}
+              aria-disabled={step.status === "upcoming" ? true : undefined}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: ENTER_DURATION,
+                delay: index * STAGGER,
+                ease: EASE_OUT_EXPO,
+              }}
             >
-              {step.status === "done" ? (
-                <CheckIcon size={12} weight="bold" />
-              ) : (
+              <div className="flex items-center">
                 <span
-                  className={cn("size-1.5", step.status === "current" ? "bg-brand" : "bg-input")}
-                />
-              )}
-            </span>
+                  aria-hidden="true"
+                  className={cn(
+                    "flex size-6 shrink-0 items-center justify-center border",
+                    DOT[step.status],
+                  )}
+                >
+                  {step.status === "done" ? (
+                    <CheckIcon size={12} weight="bold" />
+                  ) : (
+                    <span
+                      className={cn(
+                        "size-1.5",
+                        step.status === "current" ? "bg-brand" : "bg-input",
+                      )}
+                    />
+                  )}
+                </span>
+                {!lastCell && (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "h-px flex-1",
+                      filled ? (failed ? "bg-destructive" : "bg-brand") : "bg-border",
+                    )}
+                  />
+                )}
+              </div>
 
-            <div className="flex min-w-0 flex-col gap-0.5 pt-0.5">
-              <div className="flex flex-wrap items-baseline gap-x-2">
+              <div className="flex min-w-0 flex-col gap-0.5 pr-3">
                 <span
                   className={cn(
                     "text-sm",
@@ -149,30 +159,26 @@ export default function PaymentTimeline({
                 >
                   {step.label}
                 </span>
-                {step.occurredAt !== undefined && (
+                {step.occurredAt !== undefined ? (
                   <time
                     dateTime={isoAttr(step.occurredAt)}
                     className="text-xs text-subtle-foreground"
                   >
                     {formatDateTime(step.occurredAt)}
                   </time>
+                ) : (
+                  <span aria-hidden="true" className="text-xs text-subtle-foreground">
+                    —
+                  </span>
                 )}
               </div>
-              <p
-                className={cn(
-                  "text-xs",
-                  step.status === "upcoming" ? "text-subtle-foreground" : "text-muted-foreground",
-                )}
-              >
-                {step.detail}
-              </p>
-            </div>
-          </motion.li>
-        ))}
+            </motion.li>
+          );
+        })}
 
         {failed && (
           <motion.li
-            className="relative flex gap-3 pt-5"
+            className="flex min-w-0 flex-col gap-2"
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
@@ -181,28 +187,34 @@ export default function PaymentTimeline({
               ease: EASE_OUT_EXPO,
             }}
           >
-            <span
-              aria-hidden="true"
-              className="z-10 flex size-6 shrink-0 items-center justify-center border border-destructive bg-destructive text-white"
-            >
-              <XIcon size={12} weight="bold" />
-            </span>
-            <div className="flex min-w-0 flex-col gap-0.5 pt-0.5">
+            <div className="flex items-center">
+              <span
+                aria-hidden="true"
+                className="flex size-6 shrink-0 items-center justify-center border border-destructive bg-destructive text-destructive-foreground"
+              >
+                <XIcon size={12} weight="bold" />
+              </span>
+            </div>
+            <div className="flex min-w-0 flex-col gap-0.5 pr-3">
               <span className="text-sm font-medium text-destructive">
                 {STATE_COPY.FAILED.label}
               </span>
-              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                <WarningIcon
-                  size={14}
-                  aria-hidden="true"
-                  className="mt-px shrink-0 text-destructive"
-                />
-                {failureReason ?? STATE_COPY.FAILED.detail}
-              </p>
             </div>
           </motion.li>
         )}
       </ol>
+
+      {failed ? (
+        <p className="flex items-start gap-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
+          <WarningIcon size={14} aria-hidden="true" className="mt-px shrink-0 text-destructive" />
+          {failureReason ?? STATE_COPY.FAILED.detail}
+        </p>
+      ) : (
+        <p className="border-t border-border pt-4 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{(current ?? terminal)?.label}.</span>{" "}
+          {(current ?? terminal)?.detail}
+        </p>
+      )}
     </div>
   );
 }

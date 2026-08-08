@@ -1,7 +1,7 @@
 /**
  * Fixture data for the surfaces that have no endpoint yet.
  *
- * Catalog, settlement and analytics are drawn against these. Payments and
+ * Catalog and settlement are drawn against these. Payments and
  * accounts are NOT — those read the real dashboard API. Everything here is
  * shaped the way the eventual DTO is expected to be shaped, so wiring a real
  * endpoint later replaces the import and not the component.
@@ -153,46 +153,4 @@ export const SETTLEMENTS: readonly Settlement[] = [
     settledAt: null,
     createdAt: "2026-08-06T18:52:00.000Z",
   },
-];
-
-/* -------------------------------------------------------------------------- */
-/* Analytics                                                                   */
-/* -------------------------------------------------------------------------- */
-
-export interface DayPoint {
-  /** ISO date, no time component. */
-  readonly date: string;
-  /** Minor units of IDR. */
-  readonly volume: bigint;
-  readonly count: number;
-}
-
-export const DAILY: readonly DayPoint[] = [
-  { date: "2026-07-26", volume: 184_500_000n, count: 42 },
-  { date: "2026-07-27", volume: 212_300_000n, count: 51 },
-  { date: "2026-07-28", volume: 168_900_000n, count: 38 },
-  { date: "2026-07-29", volume: 241_700_000n, count: 57 },
-  { date: "2026-07-30", volume: 227_100_000n, count: 54 },
-  { date: "2026-07-31", volume: 318_400_000n, count: 71 },
-  { date: "2026-08-01", volume: 352_900_000n, count: 83 },
-  { date: "2026-08-02", volume: 296_200_000n, count: 68 },
-  { date: "2026-08-03", volume: 203_800_000n, count: 47 },
-  { date: "2026-08-04", volume: 259_600_000n, count: 61 },
-  { date: "2026-08-05", volume: 288_100_000n, count: 66 },
-  { date: "2026-08-06", volume: 331_500_000n, count: 78 },
-  { date: "2026-08-07", volume: 374_200_000n, count: 89 },
-  { date: "2026-08-08", volume: 149_300_000n, count: 34 },
-];
-
-export interface AssetShare {
-  readonly asset: string;
-  readonly count: number;
-}
-
-/** Which asset payers actually sent. */
-export const PAYER_ASSETS: readonly AssetShare[] = [
-  { asset: "USDC", count: 412 },
-  { asset: "ETH", count: 231 },
-  { asset: "USDT", count: 148 },
-  { asset: "IDRX", count: 48 },
 ];

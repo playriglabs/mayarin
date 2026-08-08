@@ -14,7 +14,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { SectionHeader } from "@/components/ui/section-header";
-import { Skeleton } from "@/components/ui/skeleton";
+import { StatGridSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { Stat, StatGrid } from "@/components/ui/stat";
 import {
   Table,
@@ -61,11 +61,10 @@ function Overview() {
 
   return match(payments)
     .with({ status: "pending" }, () => (
-      <div role="status" aria-live="polite" className="flex flex-col gap-2">
+      <div role="status" aria-live="polite" className="flex flex-col gap-8">
         <span className="sr-only">Loading overview</span>
-        <Skeleton aria-hidden="true" />
-        <Skeleton aria-hidden="true" />
-        <Skeleton aria-hidden="true" />
+        <StatGridSkeleton />
+        <TableSkeleton rows={5} />
       </div>
     ))
     .with({ status: "error" }, ({ error }) => (
