@@ -50,13 +50,26 @@ A provider-agnostic clearing layer orchestrates value across wallets, blockchain
 Requires [Bun](https://bun.sh) 1.2+ and Docker.
 
 ```bash
+bun run setup          # install, .env, Postgres, migrations, config check
+bun run dev            # API on http://localhost:3000
+```
+
+`setup` is also the way back to a working tree when something has drifted — it
+reports which keys your `.env` is missing against `.env.example`, and which it
+declares that nobody else has. Run it with `--seed` to create the first merchant
+account, `--reset-db` to migrate from an empty database, or `--check` to report
+without changing anything.
+
+Doing it by hand is four steps rather than one, and the third has a trap:
+
+```bash
 bun install
 cp .env.example .env
+bun run db:up
 
-bun run db:up          # Postgres in Docker
-bun run db:migrate     # apply migrations
-
-bun run dev            # API on http://localhost:3000
+# `db:migrate` runs in packages/db, which has no .env of its own — the root file
+# is not inherited, so DATABASE_URL must be passed in explicitly.
+export $(grep -E '^DATABASE_URL' .env) && bun run --cwd packages/db migrate
 ```
 
 Pay something:

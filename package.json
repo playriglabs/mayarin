@@ -37,6 +37,7 @@
     "lint": "biome lint",
     "lint:fix": "biome lint --write",
     "prepare": "lefthook install",
+    "setup": "bun run scripts/setup.ts",
     "seed:merchant": "bun --env-file=../../.env run --cwd apps/dashboard-api scripts/seed-merchant.ts",
     "test": "bun test",
     "test:contracts": "bun run --cwd packages/contracts/payment-router test",

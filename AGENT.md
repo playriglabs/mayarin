@@ -25,6 +25,11 @@ the design record and is expected to stay in sync with the code. RFC issues
 ## Commands
 
 ```bash
+bun run setup                   # clone to running: install, .env, db, migrate, config check
+bun run setup -- --check        # report drift only, change nothing
+bun run setup -- --seed         # also create the first merchant account
+bun run setup -- --reset-db     # drop the Postgres volume, migrate from empty
+
 bun install                     # also installs lefthook git hooks
 
 bun run dev                     # API with hot reload (apps/api)
