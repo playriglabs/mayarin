@@ -8,7 +8,7 @@
  * returns the row and the service decides whether it is still live.
  */
 
-import { ConflictError } from "@mayarin/shared";
+import { ConcurrencyError, ConflictError } from "@mayarin/shared";
 import type {
   Merchant,
   MerchantAccountRepository,
@@ -78,9 +78,17 @@ export class InMemoryMerchantRepository implements MerchantRepository {
     return [...this.#byId.values()];
   }
 
-  async update(merchant: Merchant): Promise<void> {
-    if (!this.#byId.has(merchant.id)) {
+  async update(merchant: Merchant, expectedVersion: number): Promise<void> {
+    const current = this.#byId.get(merchant.id);
+    if (current === undefined) {
       throw new ConflictError(`Merchant ${merchant.id} does not exist`, { id: merchant.id });
+    }
+    if (current.version !== expectedVersion) {
+      throw new ConcurrencyError(`Merchant ${merchant.id} was modified concurrently`, {
+        id: merchant.id,
+        expectedVersion,
+        actualVersion: current.version,
+      });
     }
     this.#byId.set(merchant.id, merchant);
   }

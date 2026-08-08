@@ -47,6 +47,10 @@ Written through `PATCH /settings` on the dashboard API:
   discovered at `PRICE_LOCKED` months later with nobody left to ask.
 - Audited. Every change appends a row to `merchant_setting_changes` recording
   who changed what, and from what. That table is append-only.
+- Optimistically locked. `merchants.version` is the token the write takes, so
+  two people editing at once raise `ConcurrencyError` rather than resolving to
+  whichever write happened to land second. The audit trail would record both
+  attempts either way; this is what stops the losing one taking effect.
 
 `GET /settings/history` reads that trail back, scoped the same way.
 

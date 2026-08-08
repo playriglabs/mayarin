@@ -65,6 +65,9 @@ export function adminRoutes(container: Container, token: string): Hono {
     });
 
     return c.json({ paymentIntents: intents.map(toPaymentIntentDto) });
+  });
+
+  /**
    * Runtime market configuration (#95).
    *
    * Which stablecoins are admitted, which oracle feed serves a pair, which pool

@@ -43,6 +43,16 @@ export interface Merchant {
   readonly settlementAddress?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  /**
+   * Incremented on every edit; the optimistic-locking token the repository
+   * takes.
+   *
+   * `settlement_address` decides where this merchant's money is paid, so two
+   * people editing it at once must not silently resolve to whichever write
+   * landed second. The audit trail records both attempts either way — this is
+   * what stops the losing one from taking effect.
+   */
+  readonly version: number;
 }
 
 export interface MerchantRepository {
@@ -52,13 +62,12 @@ export interface MerchantRepository {
   /**
    * Persists an edited merchant.
    *
-   * No expected-version argument, and no `version` column behind it: merchant
-   * settings are edited rarely and by a handful of people inside one tenant, so
-   * last-writer-wins is the honest trade. What makes that acceptable is the
-   * audit trail — a lost update is still visible as two recorded changes, which
-   * is the property that actually matters for a field that redirects money.
+   * Takes the version the caller read, so a concurrent edit raises
+   * `ConcurrencyError` rather than overwriting the other writer's change. Rare
+   * as that is inside one tenant, the field being written decides where the
+   * merchant's money goes — which is not a field to be relaxed about.
    */
-  update(merchant: Merchant): Promise<void>;
+  update(merchant: Merchant, expectedVersion: number): Promise<void>;
 }
 
 /**
@@ -148,6 +157,7 @@ export function updateMerchantSettings(
     acceptedAssets,
     ...(settlementAddress === undefined ? {} : { settlementAddress }),
     updatedAt: new Date(now),
+    version: merchant.version + 1,
   };
 }
 

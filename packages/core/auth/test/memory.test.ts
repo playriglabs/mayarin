@@ -30,6 +30,7 @@ function makeMerchant(name: string): Merchant {
     acceptedAssets: ["ETH", "USDC"],
     createdAt: now,
     updatedAt: now,
+    version: 1,
   };
 }
 

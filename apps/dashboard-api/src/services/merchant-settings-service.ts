@@ -75,7 +75,9 @@ export class MerchantSettingsService {
     const diff = diffMerchantSettings(current, next);
     if (diff.length === 0) return { merchant: current, changes: [] };
 
-    await this.#merchants.update(next);
+    // The version the caller read, so a concurrent edit raises rather than
+    // silently losing whichever write landed second.
+    await this.#merchants.update(next, current.version);
 
     const changes: MerchantSettingChange[] = diff.map((entry) => ({
       id: generateId("msc", now.getTime()),

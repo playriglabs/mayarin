@@ -11,6 +11,15 @@
 -- another branch (#10). The two touch no common table, so applying them in
 -- either order is safe; the gap is deliberate rather than a lost migration.
 
+-- Optimistic concurrency control on merchant settings. `settlement_address`
+-- decides where a merchant's money is paid, so two people editing at once must
+-- not resolve to whichever write happened to land second. The default backfills
+-- existing rows and is then dropped, matching every other `version` column.
+ALTER TABLE "merchants" ADD COLUMN "version" integer NOT NULL DEFAULT 1;
+--> statement-breakpoint
+ALTER TABLE "merchants" ALTER COLUMN "version" DROP DEFAULT;
+--> statement-breakpoint
+
 -- Append-only. `settlement_address` is where a merchant's money goes, so who
 -- changed it and when has to survive the change itself. Nothing in the
 -- application updates or deletes a row here.

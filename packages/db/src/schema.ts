@@ -367,6 +367,8 @@ export const merchants = pgTable(
     settlementAddress: text("settlement_address"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    /** Optimistic concurrency control; settlement settings redirect money. */
+    version: integer("version").notNull(),
   },
   (table) => [index("merchants_name_idx").on(table.name)],
 );
@@ -511,6 +513,8 @@ export const paymentLinks = pgTable(
     index("payment_links_merchant_idx").on(table.merchantId, table.createdAt),
   ],
 );
+
+/**
  * Append-only record of merchant settings edits (#95).
  *
  * `settlement_address` is where a merchant's money goes, so who changed it and

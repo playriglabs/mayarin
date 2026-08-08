@@ -9,12 +9,13 @@
 
 import { describe, expect, test } from "bun:test";
 import type { Permission, User } from "@mayarin/auth";
-import { generateId } from "@mayarin/shared";
+import { ConcurrencyError, generateId } from "@mayarin/shared";
 import { cookieJar, createDashboardHarness } from "./harness.ts";
 
 const ADMIN_EMAIL = "admin@mayarin.local";
 const ADMIN_PASSWORD = "correct-horse-battery-staple";
 const ADDRESS = "0x1111111111111111111111111111111111111111";
+const OTHER_ADDRESS = "0x2222222222222222222222222222222222222222";
 
 type Harness = Awaited<ReturnType<typeof createDashboardHarness>>;
 
@@ -219,6 +220,39 @@ describe("PATCH /settings", () => {
     // `.strict()` on the schema: an unknown key is a 400, not a silently
     // ignored field that a reader would assume had been applied.
     expect(status).toBe(400);
+  });
+});
+
+describe("concurrent edits", () => {
+  test("a stale write loses rather than overwriting the one that landed first", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const before = await harness.merchants.findById(harness.merchantId);
+    expect(before).not.toBeNull();
+
+    await patch(harness, auth, { settlementAddress: ADDRESS });
+
+    // The version the first caller read, replayed — what a second tab holding a
+    // stale copy of the settings page would send.
+    if (before === null) throw new Error("merchant missing");
+    await expect(
+      harness.merchants.update({ ...before, settlementAddress: OTHER_ADDRESS }, before.version),
+    ).rejects.toBeInstanceOf(ConcurrencyError);
+
+    const after = await harness.merchants.findById(harness.merchantId);
+    expect(after?.settlementAddress).toBe(ADDRESS);
+  });
+
+  test("each accepted edit bumps the version", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    await patch(harness, auth, { settlementAddress: ADDRESS });
+    await patch(harness, auth, { settlementAsset: "USDT" });
+
+    const merchant = await harness.merchants.findById(harness.merchantId);
+    expect(merchant?.version).toBe(3);
   });
 });
 

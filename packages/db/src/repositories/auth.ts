@@ -22,12 +22,12 @@ import type {
 import type { MerchantAssetPolicy, MerchantAssetPolicySource } from "@mayarin/payment-intent";
 import {
   type AssetCode,
+  ConcurrencyError,
   ConflictError,
   isAssetCode,
-  NotFoundError,
   ValidationError,
 } from "@mayarin/shared";
-import { desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction } from "../mapping.ts";
 import { merchantSettingChanges, merchants, sessions, users } from "../schema.ts";
@@ -98,15 +98,23 @@ export class DrizzleMerchantRepository implements MerchantRepository {
     return rows.map(toMerchant);
   }
 
-  async update(merchant: Merchant): Promise<void> {
+  /**
+   * Optimistic update: the row only moves if it is still at the version the
+   * caller read, so two concurrent settlement-address edits cannot silently
+   * overwrite one another.
+   */
+  async update(merchant: Merchant, expectedVersion: number): Promise<void> {
     const updated = await this.#db
       .update(merchants)
       .set(toMerchantRow(merchant))
-      .where(eq(merchants.id, merchant.id))
+      .where(and(eq(merchants.id, merchant.id), eq(merchants.version, expectedVersion)))
       .returning({ id: merchants.id });
 
     if (updated.length === 0) {
-      throw new NotFoundError(`Merchant ${merchant.id} not found`, { id: merchant.id });
+      throw new ConcurrencyError(`Merchant ${merchant.id} was modified concurrently`, {
+        id: merchant.id,
+        expectedVersion,
+      });
     }
   }
 }
@@ -279,6 +287,7 @@ function toMerchant(row: MerchantRow): Merchant {
     ...present("settlementAddress", row.settlementAddress),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    version: row.version,
   };
 }
 
@@ -305,6 +314,7 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
     settlementAddress: merchant.settlementAddress ?? null,
     createdAt: merchant.createdAt,
     updatedAt: merchant.updatedAt,
+    version: merchant.version,
   };
 }
 
