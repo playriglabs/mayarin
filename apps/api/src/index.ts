@@ -12,6 +12,15 @@ import { createContainer, watchedPairs } from "./container.ts";
 const config = loadConfig();
 const container = createContainer({ config });
 
+// Market data moves out of the environment into the database (#95). Seeded
+// once, per key, and never overwritten afterwards — a plain write on every boot
+// would undo an operator's change and make the whole feature a no-op that looks
+// like it works.
+const seeded = await container.market.seedFromEnvironment();
+if (seeded.length > 0) {
+  console.log(`[api] seeded market config from the environment: ${seeded.join(", ")}`);
+}
+
 const recovered = await container.engine.resumeStuck();
 if (recovered.length > 0) {
   console.log(`[api] resumed ${recovered.length} clearing transaction(s) on startup`);

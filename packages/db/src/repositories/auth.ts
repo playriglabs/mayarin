@@ -10,6 +10,9 @@ import type {
   Merchant,
   MerchantAccountRepository,
   MerchantRepository,
+  MerchantSettingChange,
+  MerchantSettingChangeRepository,
+  MerchantSettingField,
   Permission,
   Session,
   SessionRepository,
@@ -17,11 +20,17 @@ import type {
   UserRepository,
 } from "@mayarin/auth";
 import type { MerchantAssetPolicy, MerchantAssetPolicySource } from "@mayarin/payment-intent";
-import { type AssetCode, ConflictError, isAssetCode, ValidationError } from "@mayarin/shared";
-import { eq, lt } from "drizzle-orm";
+import {
+  type AssetCode,
+  ConcurrencyError,
+  ConflictError,
+  isAssetCode,
+  ValidationError,
+} from "@mayarin/shared";
+import { and, desc, eq, lt } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction } from "../mapping.ts";
-import { merchants, sessions, users } from "../schema.ts";
+import { merchantSettingChanges, merchants, sessions, users } from "../schema.ts";
 
 type UserRow = typeof users.$inferSelect;
 type SessionRow = typeof sessions.$inferSelect;
@@ -87,6 +96,75 @@ export class DrizzleMerchantRepository implements MerchantRepository {
   async list(): Promise<readonly Merchant[]> {
     const rows = await this.#db.select().from(merchants);
     return rows.map(toMerchant);
+  }
+
+  /**
+   * Optimistic update: the row only moves if it is still at the version the
+   * caller read, so two concurrent settlement-address edits cannot silently
+   * overwrite one another.
+   */
+  async update(merchant: Merchant, expectedVersion: number): Promise<void> {
+    const updated = await this.#db
+      .update(merchants)
+      .set(toMerchantRow(merchant))
+      .where(and(eq(merchants.id, merchant.id), eq(merchants.version, expectedVersion)))
+      .returning({ id: merchants.id });
+
+    if (updated.length === 0) {
+      throw new ConcurrencyError(`Merchant ${merchant.id} was modified concurrently`, {
+        id: merchant.id,
+        expectedVersion,
+      });
+    }
+  }
+}
+
+/**
+ * Append-only settings audit (#95).
+ *
+ * Exposes no update and no delete, matching the port. A settlement-address
+ * change is a redirect of a merchant's money; a trail that can be rewritten
+ * records nothing worth having.
+ */
+export class DrizzleMerchantSettingChangeRepository implements MerchantSettingChangeRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async append(changes: readonly MerchantSettingChange[]): Promise<void> {
+    if (changes.length === 0) return;
+    await this.#db.insert(merchantSettingChanges).values(
+      changes.map((change) => ({
+        id: change.id,
+        merchantId: change.merchantId,
+        userId: change.userId,
+        field: change.field,
+        previousValue: change.previousValue ?? null,
+        nextValue: change.nextValue ?? null,
+        changedAt: change.changedAt,
+      })),
+    );
+  }
+
+  async list(merchantId: string, limit = 100): Promise<readonly MerchantSettingChange[]> {
+    const rows = await this.#db
+      .select()
+      .from(merchantSettingChanges)
+      .where(eq(merchantSettingChanges.merchantId, merchantId))
+      .orderBy(desc(merchantSettingChanges.changedAt))
+      .limit(limit);
+
+    return rows.map((row) => ({
+      id: row.id,
+      merchantId: row.merchantId,
+      userId: row.userId,
+      field: row.field as MerchantSettingField,
+      ...present("previousValue", row.previousValue),
+      ...present("nextValue", row.nextValue),
+      changedAt: row.changedAt,
+    }));
   }
 }
 
@@ -209,6 +287,7 @@ function toMerchant(row: MerchantRow): Merchant {
     ...present("settlementAddress", row.settlementAddress),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    version: row.version,
   };
 }
 
@@ -235,6 +314,7 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
     settlementAddress: merchant.settlementAddress ?? null,
     createdAt: merchant.createdAt,
     updatedAt: merchant.updatedAt,
+    version: merchant.version,
   };
 }
 

@@ -15,6 +15,7 @@ import type { PasswordHasher } from "@mayarin/auth";
 import {
   InMemoryMerchantAccountRepository,
   InMemoryMerchantRepository,
+  InMemoryMerchantSettingChangeRepository,
   InMemorySessionRepository,
   InMemoryUserRepository,
 } from "@mayarin/auth/testing";
@@ -34,6 +35,7 @@ import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 import { AuthService } from "../src/services/auth-service.ts";
+import { MerchantSettingsService } from "../src/services/merchant-settings-service.ts";
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
 import { UserService } from "../src/services/user-service.ts";
@@ -121,6 +123,9 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   // repository — `LedgerRepository.post` takes an already-built transaction.
   const ledgerService = new LedgerService({ repository: ledger, clock });
 
+  const settingChanges = new InMemoryMerchantSettingChangeRepository();
+  const settings = new MerchantSettingsService({ merchants, changes: settingChanges, clock });
+
   const container: Container = {
     config,
     auth: authService,
@@ -128,6 +133,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     users: userService,
     payments,
     compliance,
+    settings,
     close: async () => {},
   };
 
@@ -143,7 +149,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     merchantName: options.merchantName ?? "Acme",
     settlementAsset: "USDC",
     acceptedAssets: ["ETH", "USDC"],
-    permissions: ["payments:read", "users:manage", "admin:access"],
+    permissions: ["payments:read", "users:manage", "admin:access", "settings:manage"],
   });
   const merchantId = seed.user.merchantId;
 
@@ -184,6 +190,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     container,
     users,
     merchants,
+    settingChanges,
     sessions,
     intents,
     intentService,

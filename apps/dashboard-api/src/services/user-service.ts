@@ -91,6 +91,7 @@ export class UserService {
         : { settlementAddress: input.settlementAddress }),
       createdAt: now,
       updatedAt: now,
+      version: 1,
     };
     // Built before anything is written, so the duplicate-email failure happens
     // inside the unit rather than after the merchant row is already committed.

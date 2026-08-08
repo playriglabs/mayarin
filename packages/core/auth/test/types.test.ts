@@ -92,6 +92,7 @@ describe("auth domain types", () => {
       async findById() {
         return null;
       },
+      async update() {},
       async list() {
         return [];
       },

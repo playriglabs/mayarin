@@ -7,8 +7,13 @@ import {
 } from "../src/permission.ts";
 
 describe("permission", () => {
-  test("the permission list is exactly the three flags", () => {
-    expect(PERMISSION_LIST).toEqual(["payments:read", "users:manage", "admin:access"]);
+  test("the permission list is exactly the four flags", () => {
+    expect(PERMISSION_LIST).toEqual([
+      "payments:read",
+      "users:manage",
+      "admin:access",
+      "settings:manage",
+    ]);
   });
 
   test("isPermission narrows and rejects unknown values", () => {
@@ -27,6 +32,11 @@ describe("permission", () => {
   });
 
   test("a freshly seeded merchant-admin carries every permission", () => {
-    expect(MERCHANT_ADMIN_PERMISSIONS).toEqual(["payments:read", "users:manage", "admin:access"]);
+    expect(MERCHANT_ADMIN_PERMISSIONS).toEqual([
+      "payments:read",
+      "users:manage",
+      "admin:access",
+      "settings:manage",
+    ]);
   });
 });

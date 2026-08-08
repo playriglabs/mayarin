@@ -367,6 +367,8 @@ export const merchants = pgTable(
     settlementAddress: text("settlement_address"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    /** Optimistic concurrency control; settlement settings redirect money. */
+    version: integer("version").notNull(),
   },
   (table) => [index("merchants_name_idx").on(table.name)],
 );
@@ -512,6 +514,51 @@ export const paymentLinks = pgTable(
   ],
 );
 
+/**
+ * Append-only record of merchant settings edits (#95).
+ *
+ * `settlement_address` is where a merchant's money goes, so who changed it and
+ * when has to survive the change itself. Nothing in the application updates or
+ * deletes a row here.
+ */
+export const merchantSettingChanges = pgTable(
+  "merchant_setting_changes",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    /** The account that made the change. */
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    field: text("field").notNull(),
+    previousValue: text("previous_value"),
+    nextValue: text("next_value"),
+    changedAt: timestamp("changed_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [index("merchant_setting_changes_merchant_idx").on(table.merchantId, table.changedAt)],
+);
+
+/**
+ * Runtime market configuration (#95).
+ *
+ * Which stablecoins are admitted, which oracle feed serves a pair, which pool
+ * prices a swap. Market facts, not deployment identity — they change far more
+ * often than a deploy, and editing `.env` and restarting to admit a stablecoin
+ * is not a thing a running payment processor should have to do.
+ *
+ * `value` is opaque JSON: each key already has a zod schema that parses it out
+ * of an environment string, and the same schema parses it back out of here.
+ */
+export const marketConfig = pgTable("market_config", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  /** Absent for a value seeded from the environment on first boot. */
+  updatedBy: text("updated_by"),
+});
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -528,4 +575,6 @@ export const schema = {
   products,
   productPrices,
   paymentLinks,
+  merchantSettingChanges,
+  marketConfig,
 };

@@ -10,6 +10,8 @@
 
 import type {
   MerchantAccountRepository,
+  MerchantRepository,
+  MerchantSettingChangeRepository,
   PasswordHasher,
   SessionRepository,
   UserRepository,
@@ -25,6 +27,8 @@ import {
   DrizzleDepositRepository,
   DrizzleLedgerRepository,
   DrizzleMerchantAccountRepository,
+  DrizzleMerchantRepository,
+  DrizzleMerchantSettingChangeRepository,
   DrizzlePaymentIntentRepository,
   DrizzleSessionRepository,
   DrizzleSettlementEventRepository,
@@ -36,6 +40,7 @@ import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
 import { type Clock, systemClock } from "@mayarin/shared";
 import type { Config } from "./config.ts";
 import { AuthService } from "./services/auth-service.ts";
+import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
 import {
   type ClearingReadRepository,
   PaymentReadService,
@@ -50,6 +55,8 @@ export interface Container {
   readonly users: UserService;
   readonly payments: PaymentReadService;
   readonly compliance: ComplianceService;
+  /** Merchant settlement configuration (#95), scoped to the caller's merchant. */
+  readonly settings: MerchantSettingsService;
   close(): Promise<void>;
 }
 
@@ -71,6 +78,8 @@ export interface CreateContainerOptions {
   readonly ledger?: LedgerRepository;
   readonly deposits?: DepositRepository;
   readonly settlements?: SettlementEventRepository;
+  readonly merchants?: MerchantRepository;
+  readonly merchantSettingChanges?: MerchantSettingChangeRepository;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -123,6 +132,16 @@ export function createContainer(options: CreateContainerOptions): Container {
       options.settlements ?? new DrizzleSettlementEventRepository(handle?.db ?? throwIfNoHandle()),
   });
 
+  // Merchant settlement configuration (#95). The data model already existed;
+  // this is the surface that was missing.
+  const settings = new MerchantSettingsService({
+    merchants: options.merchants ?? new DrizzleMerchantRepository(handle?.db ?? throwIfNoHandle()),
+    changes:
+      options.merchantSettingChanges ??
+      new DrizzleMerchantSettingChangeRepository(handle?.db ?? throwIfNoHandle()),
+    clock,
+  });
+
   return {
     config,
     auth: authService,
@@ -130,6 +149,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     users: userService,
     payments,
     compliance,
+    settings,
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
 }

@@ -534,6 +534,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
+        version: 1,
       };
       await merchants.insert(merchant);
       expect((await merchants.findById(merchant.id))?.name).toBe("Acme");
@@ -552,6 +553,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
+        version: 1,
       });
       const user = {
         id: generateId("usr", now.getTime()),
@@ -582,6 +584,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
+        version: 1,
       });
       const base = {
         email: "dup@mayarin.local",
@@ -611,6 +614,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
+        version: 1,
       });
       const admin = {
         id: generateId("usr", now.getTime()),
@@ -642,6 +646,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
+        version: 1,
       });
       const userId = generateId("usr", now.getTime());
       await userRepo.insert({
@@ -681,6 +686,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         acceptedAssets: ["ETH", "USDC"],
         createdAt: now,
         updatedAt: now,
+        version: 1,
       });
       const userId = generateId("usr", now.getTime());
       await userRepo.insert({
