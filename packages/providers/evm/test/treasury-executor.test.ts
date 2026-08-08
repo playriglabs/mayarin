@@ -31,7 +31,11 @@ interface Sent {
   to: string;
   data: string;
   value: bigint;
+  nonce: number;
 }
+
+/** The nonce the fake node's mempool starts at — arbitrary, just not zero. */
+const FIRST_NONCE = 7;
 
 /** A `PaymentCompleted` log the adapter can read the measured output back from. */
 function paymentCompletedLog(settled: bigint, fee: bigint, refund: bigint) {
@@ -86,9 +90,15 @@ function harness(
   const sent: Sent[] = [];
   const routes = fakeRoutes();
 
+  /** What `eth_getTransactionCount(…, "pending")` would return. */
+  let pendingNonce = FIRST_NONCE;
+
   const publicClient = {
     async getChainId() {
       return 84532;
+    },
+    async getTransactionCount() {
+      return pendingNonce;
     },
     async readContract({ functionName }: { functionName: string }) {
       // ERC-20 allowance: already approved, so no extra approve transaction.
@@ -106,8 +116,25 @@ function harness(
   };
 
   const walletClient = {
-    async sendTransaction({ to, data, value }: { to: string; data: string; value: bigint }) {
-      sent.push({ to, data, value });
+    async sendTransaction({
+      to,
+      data,
+      value,
+      nonce,
+    }: {
+      to: string;
+      data: string;
+      value: bigint;
+      nonce: number;
+    }) {
+      // What a real node does with a second transaction at a taken nonce that
+      // does not outbid the first. Modelled rather than ignored, because a fake
+      // that accepts every nonce cannot tell a fixed executor from a broken one.
+      if (sent.some((previous) => previous.nonce === nonce)) {
+        throw new Error("replacement transaction underpriced");
+      }
+      sent.push({ to, data, value, nonce });
+      pendingNonce += 1;
       return `0x${"fe".repeat(32)}`;
     },
     async signTypedData() {
@@ -151,6 +178,38 @@ const EXECUTE: ExecuteRequest = {
   inputAmount: money(10n ** 15n, "ETH"),
   attempt: 1,
 };
+
+describe("nonces under concurrency", () => {
+  test("concurrent submissions take consecutive nonces, not the same one", async () => {
+    const { port, sent } = harness();
+
+    // Two payments settling at once is the ordinary case on any deployment with
+    // traffic, not an edge one. Both would read the same pending nonce and the
+    // second would be rejected `replacement transaction underpriced` — with the
+    // payer's asset already sitting at a deposit address, so the loser of the
+    // race is a stuck payment rather than a retryable blip.
+    await Promise.all([
+      port.sweep(SWEEP),
+      port.sweep({ ...SWEEP, clearingTransactionId: "clr_2" }),
+      port.sweep({ ...SWEEP, clearingTransactionId: "clr_3" }),
+    ]);
+
+    expect(sent.map((one) => one.nonce)).toEqual([FIRST_NONCE, FIRST_NONCE + 1, FIRST_NONCE + 2]);
+  });
+
+  test("a failed submission does not poison the ones queued behind it", async () => {
+    const { port, sent } = harness();
+
+    // The queue exists to order submissions, not to couple their outcomes. A
+    // reverted sweep that took the next payment down with it would turn one
+    // stuck payment into every stuck payment.
+    await expect(port.sweep({ ...SWEEP, chain: "base" })).rejects.toThrow(ConfigurationError);
+    await port.sweep(SWEEP);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.nonce).toBe(FIRST_NONCE);
+  });
+});
 
 describe("sweeping a deposit", () => {
   test("calls the factory with the salt the deposit address was derived from", async () => {
