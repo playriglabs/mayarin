@@ -65,6 +65,9 @@ const roleLabel = isAdmin ? "Administrator" : "Merchant";
             <span aria-hidden="true" class="inline-block size-1.5 bg-electric"></span>
             Mayarin
           </a>
+          <!-- Display preference, so it lives in the shell chrome — never in
+               the account block, where it would sit one slip from sign-out. -->
+          <ThemeToggle client:only="react" />
         </div>
 
         <SideNav pathname={Astro.url.pathname} isAdmin={isAdmin} />
@@ -76,10 +79,7 @@ const roleLabel = isAdmin ? "Administrator" : "Merchant";
             <span class="truncate text-xs text-sidebar-foreground">{user.email}</span>
             <span class="label text-sidebar-muted-foreground">{roleLabel}</span>
           </div>
-          <div class="flex items-center gap-0.5">
-            <ThemeToggle client:only="react" />
-            <LogoutButton client:load />
-          </div>
+          <LogoutButton client:load />
         </div>
       </aside>
 
