@@ -40,7 +40,12 @@ function createPlanner(settlementAddress: string | null = MERCHANT_SAFE) {
     venue: priceSourceOf(venue),
     oracle,
     policy: { maxDeviationBps: 100, maxAgeMs: 60_000 },
-    fiat: { pegged: ["IDR/IDRX"], maxAgeMs: 300_000 },
+    fiat: {
+      pegged: ["IDR/IDRX"],
+      maxAgeMs: 300_000,
+      closedMaxAgeMs: 300_000,
+      closedSpreadBps: 0,
+    },
     clock,
   });
   const quote: QuoteLayer = {

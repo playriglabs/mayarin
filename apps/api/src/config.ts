@@ -134,6 +134,14 @@ const configSchema = z.object({
    * an FX feed and a DEX quote go stale at very different rates.
    */
   quoteFxMaxAgeSeconds: z.coerce.number().int().positive().default(300),
+  /**
+   * The same bound while the FX market is closed. Defaults to the trading-hours
+   * bound, so a deployment that says nothing refuses weekend fiat payments
+   * exactly as it does today rather than silently gaining a tolerance.
+   */
+  quoteFxClosedMaxAgeSeconds: z.coerce.number().int().positive().optional(),
+  /** Widening applied to a closed-market FX rate. `0` disables it. */
+  quoteFxClosedSpreadBps: z.coerce.number().int().min(0).max(9_999).default(0),
   /** Slippage bound on the payer estimate. Never moves the merchant's `minOut`. */
   quoteSlippageBps: z.coerce.number().int().min(0).max(9_999).default(50),
   /** Lock TTL, which becomes the order `deadline`. */
@@ -232,6 +240,8 @@ export interface QuoteConfig {
   readonly maxReferenceAgeSeconds: number;
   readonly peggedPairs: readonly string[];
   readonly fxMaxAgeSeconds: number;
+  readonly fxClosedMaxAgeSeconds: number;
+  readonly fxClosedSpreadBps: number;
   readonly slippageBps: number;
   readonly ttlSeconds: number;
   readonly signer: "turnkey" | "local";
@@ -293,6 +303,20 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     }
   }
 
+  if (
+    data.quoteFxClosedMaxAgeSeconds !== undefined &&
+    data.quoteFxClosedMaxAgeSeconds < data.quoteFxMaxAgeSeconds
+  ) {
+    // A tighter bound on a closed market than on an open one cannot be what a
+    // deployment means: it would refuse on a Saturday what it accepts on a
+    // Tuesday, which is the wrong way round for the only condition the closed
+    // bound exists to describe.
+    issues.push(
+      "QUOTE_FX_CLOSED_MAX_AGE_SECONDS must be at least QUOTE_FX_MAX_AGE_SECONDS: " +
+        "a closed market publishes less often, not more",
+    );
+  }
+
   if (data.quoteOracle === "pyth" && Object.keys(data.pythFeeds).length === 0) {
     issues.push("PYTH_FEEDS must configure at least one feed when QUOTE_ORACLE is pyth");
   }
@@ -333,6 +357,8 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     maxReferenceAgeSeconds: data.quoteMaxReferenceAgeSeconds,
     peggedPairs: data.quotePeggedPairs,
     fxMaxAgeSeconds: data.quoteFxMaxAgeSeconds,
+    fxClosedMaxAgeSeconds: data.quoteFxClosedMaxAgeSeconds ?? data.quoteFxMaxAgeSeconds,
+    fxClosedSpreadBps: data.quoteFxClosedSpreadBps,
     slippageBps: data.quoteSlippageBps,
     ttlSeconds: data.quoteTtlSeconds,
     signer: data.quoteSigner,
@@ -644,6 +670,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     quoteMaxReferenceAgeSeconds: env.QUOTE_MAX_REFERENCE_AGE_SECONDS,
     quotePeggedPairs: env.QUOTE_PEGGED_PAIRS,
     quoteFxMaxAgeSeconds: env.QUOTE_FX_MAX_AGE_SECONDS,
+    quoteFxClosedMaxAgeSeconds: env.QUOTE_FX_CLOSED_MAX_AGE_SECONDS,
+    quoteFxClosedSpreadBps: env.QUOTE_FX_CLOSED_SPREAD_BPS,
     quoteSlippageBps: env.QUOTE_SLIPPAGE_BPS,
     quoteTtlSeconds: env.QUOTE_TTL_SECONDS,
     pythFeeds: env.PYTH_FEEDS,

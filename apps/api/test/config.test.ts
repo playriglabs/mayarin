@@ -297,10 +297,45 @@ describe("quote configuration", () => {
       maxReferenceAgeSeconds: 60,
       peggedPairs: [],
       fxMaxAgeSeconds: 300,
+      // Unset, so the closed market inherits the trading-hours bound and takes
+      // no spread: a deployment that has said nothing keeps today's behaviour.
+      fxClosedMaxAgeSeconds: 300,
+      fxClosedSpreadBps: 0,
       slippageBps: 30,
       ttlSeconds: 45,
       signer: "turnkey",
     });
+  });
+
+  test("carries an explicit closed-market bound and spread through", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      ...TURNKEY,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      PYTH_FEEDS,
+      QUOTE_FX_CLOSED_MAX_AGE_SECONDS: "259200",
+      QUOTE_FX_CLOSED_SPREAD_BPS: "75",
+    });
+
+    expect(config.quote?.fxClosedMaxAgeSeconds).toBe(259_200);
+    expect(config.quote?.fxClosedSpreadBps).toBe(75);
+  });
+
+  test("refuses a closed-market bound tighter than the trading-hours one", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        ...TURNKEY,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_FX_MAX_AGE_SECONDS: "300",
+        QUOTE_FX_CLOSED_MAX_AGE_SECONDS: "60",
+      }),
+    ).toThrow(/QUOTE_FX_CLOSED_MAX_AGE_SECONDS/);
   });
 
   test("refuses a venue with no pairs — it would price nothing", () => {

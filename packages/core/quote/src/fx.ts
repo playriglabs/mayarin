@@ -34,9 +34,18 @@ import {
   RATE_SCALE,
   ValidationError,
 } from "@mayarin/shared";
+import { isFxMarketOpen } from "./market-hours.ts";
 
-/** How the settlement amount was derived — the audit trail for a lock. */
-export type FiatRateKind = "pegged" | "oracle";
+/**
+ * How the settlement amount was derived — the audit trail for a lock.
+ *
+ * `"oracle-closed"` is a rate read while the FX market was shut: still the
+ * oracle's number, but the last one it published rather than a current one, and
+ * widened by the deployment's closed-market spread. Distinct from `"oracle"`
+ * because "we priced this off Friday's close" is exactly what a reconciliation
+ * needs to be able to see afterwards.
+ */
+export type FiatRateKind = "pegged" | "oracle" | "oracle-closed";
 
 /** A merchant's fiat price, converted into the asset they settle in. */
 export interface SettlementPrice {
@@ -59,8 +68,28 @@ export interface FiatPricePolicy {
    * something this package can decide from an asset code.
    */
   readonly pegged: readonly string[];
-  /** Oldest tolerated oracle observation, in milliseconds. */
+  /** Oldest tolerated oracle observation while the FX market trades. */
   readonly maxAgeMs: number;
+  /**
+   * Oldest tolerated observation while the FX market is closed — wide enough to
+   * reach back to Friday's close, or equal to `maxAgeMs` for a deployment that
+   * would rather refuse a weekend payment than price one off a stale rate.
+   */
+  readonly closedMaxAgeMs: number;
+  /**
+   * Widening applied to a closed-market rate, in basis points.
+   *
+   * A rate held over a weekend is a rate that will be wrong when the market
+   * reopens, and the merchant is the one it is wrong for: they asked for IDR
+   * 36.000 of value and receive whatever Friday's rate said that was. The
+   * spread moves the settlement amount up so the merchant is covered when the
+   * rupiah gaps in their favour, and the payer funds it — the same asymmetric
+   * weekend markup a card acquirer charges, and for the same reason.
+   *
+   * `0` disables it, which is the right setting for a deployment that has not
+   * decided what a weekend gap is worth to it.
+   */
+  readonly closedSpreadBps: number;
 }
 
 /** `"IDR/IDRX"` — the same key shape the rate table and oracle feeds use. */
@@ -111,15 +140,41 @@ export async function priceInSettlement(
   }
 
   const reference: OraclePrice = await oracle.reference(price.asset, settlementAsset);
-  assertFresh(reference, policy.maxAgeMs, now);
+
+  // Which bound applies is a property of the market, not of the observation: a
+  // rate six hours old is stale on a Tuesday and the best that exists on a
+  // Saturday. Reading the calendar here keeps the weekday guard at its full
+  // strength instead of loosening it year-round to accommodate two days a week.
+  const open = isFxMarketOpen(now);
+  assertFresh(reference, open ? policy.maxAgeMs : policy.closedMaxAgeMs, now);
 
   return {
     price,
-    settlementAmount: convertCeil(price, settlementAsset, reference.scaledRate),
-    kind: "oracle",
+    settlementAmount: convertCeil(
+      price,
+      settlementAsset,
+      open ? reference.scaledRate : widen(reference.scaledRate, policy.closedSpreadBps),
+    ),
+    kind: open ? "oracle" : "oracle-closed",
     source: reference.source,
     observedAt: reference.observedAt,
   };
+}
+
+/**
+ * Widens a rate by `spreadBps`, rounding up — the same one-way direction the
+ * rest of this leg rounds in, so the spread can only ever cover the merchant
+ * rather than land a minor unit short of doing so.
+ *
+ * A negative spread would narrow the rate and short the merchant, which is not
+ * a market condition any deployment means to express.
+ */
+function widen(scaledRate: bigint, spreadBps: number): bigint {
+  if (spreadBps < 0) {
+    throw new ConfigurationError("A closed-market spread cannot be negative", { spreadBps });
+  }
+  if (spreadBps === 0) return scaledRate;
+  return (scaledRate * (10_000n + BigInt(spreadBps)) + 9_999n) / 10_000n;
 }
 
 /**

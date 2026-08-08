@@ -31,7 +31,7 @@ function engine(overrides: Partial<ConstructorParameters<typeof QuoteEngine>[0]>
     venue: new TablePriceSource({ "ETH/USDC": 3_700_000_000n }, "dex"),
     oracle: new FixedPriceOracle([reference()]),
     policy: POLICY,
-    fiat: { pegged: ["IDR/IDRX"], maxAgeMs: 60_000 },
+    fiat: { pegged: ["IDR/IDRX"], maxAgeMs: 60_000, closedMaxAgeMs: 60_000, closedSpreadBps: 0 },
     clock: new FixedClock(NOW),
     ...overrides,
   });
