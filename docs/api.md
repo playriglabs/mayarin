@@ -212,6 +212,34 @@ POST /admin/webhooks/deliveries/:id/replay      re-queue one delivery; same body
 POST /admin/webhooks/tick                       force one dispatch pass
 ```
 
+## Live payment status
+
+```
+GET /checkout/events/:intentId    text/event-stream
+```
+
+Server-Sent Events rather than a WebSocket: payment status is one-way,
+`EventSource` reconnects on its own, and a plain HTTP response survives proxies
+that refuse an upgrade.
+
+Public, like the checkout page it serves — an intent id is an unguessable ULID,
+the same posture `GET /payments/:id` takes. Holding the link lets you watch that
+one payment and nothing else.
+
+The first frame carries the current status, so a page that connects after a
+change does not wait for the next one. Later frames are a nudge (`event:
+payment`) rather than the state itself: the client re-reads the payment, so
+there is one source of truth and no payment detail travels through the channel.
+The stream closes once the payment is terminal.
+
+Behind it, a state change is announced with `NOTIFY` **on commit** and every API
+process `LISTEN`s — so a payer connected to one instance sees a payment settled
+by another. A rolled-back write announces nothing.
+
+The hosted checkout falls back to polling when a stream cannot be opened, when
+the process is at its watched-payment ceiling, or when a proxy buffers the
+response. A payer who cannot stream must still be able to pay.
+
 ## Health
 
 ```

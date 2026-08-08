@@ -37,6 +37,7 @@ import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { ConcurrencyError, FixedClock, generateId, money, RATE_SCALE } from "@mayarin/shared";
 import { sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
+import { listenPaymentChanged, notifyPaymentChanged } from "../src/notify.ts";
 import {
   DrizzleMerchantRepository,
   DrizzleSessionRepository,
@@ -62,6 +63,15 @@ const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
   const handle = createDatabase({ url: TEST_DATABASE_URL as string, maxConnections: 4 });
+
+  /** Polls a condition rather than sleeping a guessed interval. */
+  async function waitFor(condition: () => boolean, timeoutMs = 3_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (!condition()) {
+      if (Date.now() > deadline) throw new Error("timed out waiting for a notification");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
   const clock = new FixedClock("2026-01-01T00:00:00.000Z");
 
   const intentRepository = new DrizzlePaymentIntentRepository(handle.db);
@@ -675,6 +685,48 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       await cursors.set("evt_01");
       await cursors.set("evt_02");
       expect(await cursors.get()).toBe("evt_02");
+    });
+  });
+
+  describe("payment change notifications", () => {
+    test("a listener on another connection is told once the write commits", async () => {
+      const heard: string[] = [];
+      const subscription = await listenPaymentChanged(handle.sql, (id) => heard.push(id));
+
+      try {
+        const intent = await confirmedIntent("order-notify-0001");
+        await engine.start(intent);
+
+        // NOTIFY is delivered asynchronously after commit; this waits for the
+        // round trip rather than assuming it already happened.
+        await waitFor(() => heard.includes(intent.id));
+
+        expect(heard).toContain(intent.id);
+      } finally {
+        await subscription.unlisten();
+      }
+    });
+
+    test("a rolled-back write tells nobody", async () => {
+      const heard: string[] = [];
+      const subscription = await listenPaymentChanged(handle.sql, (id) => heard.push(id));
+
+      try {
+        // Postgres queues a notification until commit and discards it on
+        // rollback, which is what stops a listener hearing about a change that
+        // did not happen.
+        await handle.db
+          .transaction(async (tx) => {
+            await notifyPaymentChanged(tx, "pi_rolled_back");
+            throw new Error("rolled back on purpose");
+          })
+          .catch(() => undefined);
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        expect(heard).not.toContain("pi_rolled_back");
+      } finally {
+        await subscription.unlisten();
+      }
     });
   });
 

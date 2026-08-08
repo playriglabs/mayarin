@@ -7,18 +7,32 @@
  * — a checkout that cannot render because a CDN is unreachable is a checkout
  * that loses the sale.
  *
- * Status is polled. Real-time status arrives with #13; until then the page says
- * how it knows what it knows rather than pretending to be live.
+ * Status is pushed over Server-Sent Events (#13) and polled as a fallback. The
+ * poll is not dead code kept out of caution — it is the path a payer behind a
+ * proxy that buffers streaming responses actually takes, and a payer who cannot
+ * stream must still be able to pay.
  */
 
 import { isLinkPayable, type PaymentLink } from "@mayarin/catalog";
-import { formatMoneyLocale, type Money, ValidationError } from "@mayarin/shared";
+import { formatMoneyLocale, type Money, NotFoundError, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { toString as qrToString } from "qrcode";
 import type { Container } from "../container.ts";
 
-/** How often the payment page asks the API what happened. */
-const POLL_MS = 4_000;
+/**
+ * The fallback poll interval.
+ *
+ * Only reached when the event stream cannot be opened or drops. Kept slow on
+ * purpose: it is a safety net, not the primary path.
+ */
+const POLL_MS = 8_000;
+
+/** How often a quiet stream writes, so an idle proxy does not close it. */
+const KEEPALIVE_MS = 25_000;
+
+/** Statuses after which nothing further will ever be sent. */
+const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
 
 export function checkoutPageRoutes(container: Container): Hono {
   const app = new Hono();
@@ -42,11 +56,87 @@ export function checkoutPageRoutes(container: Container): Hono {
     return c.body(await qrSvg(value), 200, { "Content-Type": "image/svg+xml" });
   });
 
-  /** The payment page: amount, deposit address, QR, and polled status. */
+  /**
+   * Live payment status (#13).
+   *
+   * Public, like the payment page it serves: an intent id is an unguessable
+   * ULID, which is the same posture `GET /payments/:id` already takes. Anyone
+   * holding the link can watch that one payment, and nothing else.
+   *
+   * The stream closes itself once the payment reaches a terminal state — there
+   * is nothing further to send, and a socket held open past that point is a
+   * socket held for no reason.
+   */
+  app.get("/events/:intentId", async (c) => {
+    const stream = container.stream;
+    if (stream === undefined) {
+      // Not an error: the page falls back to polling, which still works.
+      throw new NotFoundError("Live payment status is not enabled on this deployment", {});
+    }
+
+    const intentId = c.req.param("intentId");
+    // Resolved before the stream opens, so an unknown id is a clean 404 rather
+    // than an open connection that never sends anything.
+    const { intent } = await container.paymentApp.getPayment(intentId);
+
+    return streamSSE(c, async (sse) => {
+      let closed = false;
+      const send = async (event: string, data: string) => {
+        if (closed) return;
+        await sse.writeSSE({ event, data });
+      };
+
+      await send("payment", intent.status);
+
+      const unwatch = stream.watch(intent.id, () => {
+        // Fire-and-forget: the browser re-reads the payment, so a dropped nudge
+        // costs one poll-interval of latency rather than a wrong status.
+        void send("payment", "changed");
+      });
+
+      if (unwatch === undefined) {
+        // At the process ceiling. Close immediately so the page falls back to
+        // polling instead of holding a stream that will never fire.
+        closed = true;
+        await sse.close();
+        return;
+      }
+
+      sse.onAbort(() => {
+        closed = true;
+        unwatch();
+      });
+
+      // Held open until the client goes away or the payment is terminal. The
+      // keep-alive is what stops an idle proxy closing a quiet connection.
+      while (!closed) {
+        await sse.sleep(KEEPALIVE_MS);
+        if (closed) break;
+        const current = await container.paymentApp.getPayment(intent.id);
+        if (TERMINAL_STATUSES.includes(current.intent.status)) {
+          await send("payment", current.intent.status);
+          closed = true;
+          unwatch();
+          await sse.close();
+          return;
+        }
+        await sse.writeSSE({ event: "ping", data: "" });
+      }
+    });
+  });
+
+  /** The payment page: amount, deposit address, QR, and streamed status. */
   app.get("/pay/:intentId", async (c) => {
     const intentId = c.req.param("intentId");
     const { intent } = await container.paymentApp.getPayment(intentId);
-    return c.html(payPage(intent.id, intent.amount, `${baseUrl}/payments/${intent.id}`));
+    return c.html(
+      payPage(
+        intent.id,
+        intent.amount,
+        `${baseUrl}/payments/${intent.id}`,
+        container.stream !== undefined,
+      ),
+    );
   });
 
   /**
@@ -171,18 +261,17 @@ async function linkPage(link: PaymentLink, payable: boolean, url: string): Promi
   return shell(title, body);
 }
 
-function payPage(intentId: string, amount: Money, statusUrl: string): string {
+function payPage(intentId: string, amount: Money, statusUrl: string, streaming: boolean): string {
   const body = `<div class="card">
   <h1>Pembayaran</h1>
   <p class="muted"><code>${escapeHtml(intentId)}</code></p>
   <div class="amount">${escapeHtml(formatMoneyLocale(amount))}</div>
   <div id="deposit"></div>
   <div class="row"><span>Status</span><strong id="status">memuat…</strong></div>
-  <p class="muted">Halaman ini memeriksa status setiap ${POLL_MS / 1000} detik.</p>
+  <p class="muted" id="mode"></p>
 </div>
 <script>
   const statusUrl = ${JSON.stringify(statusUrl)};
-  const done = ["COMPLETED", "FAILED", "EXPIRED"];
 
   async function refresh() {
     const response = await fetch(statusUrl);
@@ -204,11 +293,40 @@ function payPage(intentId: string, amount: Money, statusUrl: string): string {
         '<div class="row"><span>Jaringan</span><strong>' + deposit.chain + "</strong></div>" +
         '<div class="row"><span>Alamat</span><code>' + deposit.address + "</code></div>";
     }
-    if (done.includes(payload.paymentIntent.status)) clearInterval(timer);
+    if (done.includes(payload.paymentIntent.status)) stopEverything();
   }
 
-  const timer = setInterval(refresh, ${POLL_MS});
+  const done = ["COMPLETED", "FAILED", "EXPIRED"];
+  let timer;
+  let stream;
+
+  function stopEverything() {
+    if (timer !== undefined) clearInterval(timer);
+    if (stream !== undefined) stream.close();
+  }
+
+  function startPolling(reason) {
+    if (timer !== undefined) return;
+    document.getElementById("mode").textContent = reason;
+    timer = setInterval(refresh, ${POLL_MS});
+  }
+
   refresh();
+
+  if (${streaming ? "true" : "false"} && "EventSource" in window) {
+    stream = new EventSource(${JSON.stringify(`/checkout/events/${intentId}`)});
+    stream.addEventListener("open", () => {
+      document.getElementById("mode").textContent = "Diperbarui otomatis.";
+    });
+    stream.addEventListener("payment", refresh);
+    // Falls back rather than retrying forever: EventSource reconnects on its
+    // own, but a proxy that buffers the stream would leave the page silent.
+    stream.addEventListener("error", () => {
+      startPolling("Memeriksa status berkala.");
+    });
+  } else {
+    startPolling("Memeriksa status berkala.");
+  }
 </script>`;
 
   return shell(`Pembayaran ${intentId}`, body);

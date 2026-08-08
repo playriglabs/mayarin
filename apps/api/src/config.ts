@@ -104,6 +104,18 @@ const configSchema = z.object({
   watcherReorgWatchWindow: z.coerce.number().int().positive().default(2),
   adminToken: z.string().min(16).optional(),
   /**
+   * Live payment status on the hosted checkout, over Server-Sent Events.
+   *
+   * On by default: it needs no infrastructure beyond the Postgres already
+   * configured, and the page degrades to polling if a stream cannot be opened.
+   */
+  realtimeEnabled: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  /** Ceiling on concurrently watched payments in one process. */
+  realtimeMaxWatched: z.coerce.number().int().positive().default(1_000),
+  /**
    * Origin the hosted checkout is reachable at, e.g. `https://pay.mayarin.xyz`.
    *
    * A payment link's whole value is that it can be sent to someone, so the
@@ -684,6 +696,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     watcherRetentionSeconds: env.WATCHER_RETENTION_SECONDS,
     watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,
     adminToken: env.ADMIN_TOKEN,
+    realtimeEnabled: env.REALTIME_ENABLED,
+    realtimeMaxWatched: env.REALTIME_MAX_WATCHED,
     publicBaseUrl: env.PUBLIC_BASE_URL,
     mockWebhookSecret: env.MOCK_WEBHOOK_SECRET,
     webhooksEnabled: env.WEBHOOKS_ENABLED,

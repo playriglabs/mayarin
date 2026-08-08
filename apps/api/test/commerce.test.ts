@@ -343,3 +343,57 @@ describe("merchant reference", () => {
     expect(authorised.body.paymentIntents).toHaveLength(1);
   });
 });
+
+describe("live payment status", () => {
+  test("the stream opens with the current status and stays open", async () => {
+    const harness = createApiHarness();
+    await harness.stream.start();
+
+    const created = await harness.request("POST", "/payment-intents", {
+      body: { qr: qrisPayload() },
+    });
+    const id = created.body.paymentIntent.id;
+
+    const response = await harness.app.request(`/checkout/events/${id}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+
+    // The first frame carries the status the page already has, so a payer who
+    // connects after a change does not wait for the next one to learn it.
+    const reader = response.body?.getReader();
+    const chunk = await reader?.read();
+    const frame = new TextDecoder().decode(chunk?.value);
+
+    expect(frame).toContain("event: payment");
+    expect(frame).toContain("CREATED");
+
+    await reader?.cancel();
+  });
+
+  test("an unknown payment is a 404 rather than a silent open stream", async () => {
+    const harness = createApiHarness();
+    await harness.stream.start();
+
+    const response = await harness.app.request("/checkout/events/pi_does_not_exist");
+    expect(response.status).toBe(404);
+  });
+
+  test("the page asks for the stream and keeps polling as a fallback", async () => {
+    const harness = createApiHarness();
+    const { body } = await harness.request("POST", "/payment-links", {
+      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+    });
+    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
+      body: {},
+    });
+
+    const html = await (
+      await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)
+    ).text();
+
+    expect(html).toContain("EventSource");
+    // The poll is the path a payer behind a buffering proxy actually takes.
+    expect(html).toContain("startPolling");
+  });
+});
