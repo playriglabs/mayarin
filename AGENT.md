@@ -157,7 +157,7 @@ for a deployment with no executor and for the future fiat off-ramp.
 
 The `functional-programming` skill carries the full style guide — pure domain packages, immutable
 aggregates, injected effects, compiler-checked exhaustiveness — plus the reasoning behind the
-throw-over-`Result` choice. Its source lives in `.agent/skills/`; point your agent's skill loader
+throw-over-`Result` choice. Its source lives in `.agents/skills/`; point your agent's skill loader
 there (Claude Code uses a symlink in `.claude/skills/`, Cursor/Copilot can reference the path
 directly).
 
