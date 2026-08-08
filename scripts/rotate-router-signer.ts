@@ -141,7 +141,7 @@ const TIMELOCK_ABI = [
 
 const args = process.argv.slice(2);
 const execute = args.includes("--execute");
-const newSigner = valueOf("--to") as Hex | undefined;
+const newSigner = flagValue("--to") as Hex | undefined;
 
 if (newSigner === undefined || !/^0x[0-9a-fA-F]{40}$/.test(newSigner)) {
   console.error("usage: --to 0x<address> [--execute]");
@@ -335,7 +335,7 @@ if (after.toLowerCase() !== newSigner.toLowerCase()) {
 console.log("\nNow update .env: QUOTE_SIGNER=turnkey, set TURNKEY_SIGN_WITH and");
 console.log("TURNKEY_SIGNER_ADDRESS, and delete QUOTE_SIGNER_PRIVATE_KEY.");
 
-function valueOf(flag: string): string | undefined {
+function flagValue(flag: string): string | undefined {
   const index = args.indexOf(flag);
   return index === -1 ? undefined : args[index + 1];
 }
