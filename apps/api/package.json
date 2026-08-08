@@ -15,6 +15,7 @@
     "@mayarin/db": "workspace:*",
     "@mayarin/execution": "workspace:*",
     "@mayarin/ledger": "workspace:*",
+    "@mayarin/notifications": "workspace:*",
     "@mayarin/payment-intent": "workspace:*",
     "@mayarin/provider-chainlink": "workspace:*",
     "@mayarin/provider-evm": "workspace:*",

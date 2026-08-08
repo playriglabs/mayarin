@@ -5,7 +5,9 @@
  * 404 rather than exposing an unauthenticated trigger.
  */
 
-import { ValidationError } from "@mayarin/shared";
+import { randomBytes } from "node:crypto";
+import type { WebhookEndpoint, WebhookEndpointRepository } from "@mayarin/notifications";
+import { generateId, NotFoundError, ValidationError } from "@mayarin/shared";
 import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
@@ -105,7 +107,114 @@ export function adminRoutes(container: Container, token: string): Hono {
     await container.market.put(key, body.value);
 
     return c.json({ key, updated: true });
+  /** Forces one webhook dispatcher pass: enqueue new events, attempt due deliveries. */
+  app.post("/webhooks/tick", async (c) => {
+    if (container.webhooks === undefined) {
+      throw new ValidationError("Webhooks are not enabled on this deployment");
+    }
+    return c.json(await container.webhooks.tick());
+  });
+
+  /**
+   * Endpoint configuration (RFC #13).
+   *
+   * Admin-token guarded for now: merchant self-service belongs to the
+   * authenticated merchant-config surface #95 designs, and moves there with it.
+   * The secret is returned exactly once, at creation and rotation.
+   */
+  app.post("/webhooks/endpoints", async (c) => {
+    const endpoints = requireEndpoints(container);
+    const body = await c.req.json<{ merchantId?: string; url?: string }>();
+    if (typeof body.merchantId !== "string" || body.merchantId.length === 0) {
+      throw new ValidationError("merchantId is required");
+    }
+    if (typeof body.url !== "string" || !/^https?:\/\//.test(body.url)) {
+      throw new ValidationError("url must be an http(s) URL");
+    }
+
+    const now = new Date();
+    const endpoint: WebhookEndpoint = {
+      id: generateId("whe", now.getTime()),
+      merchantId: body.merchantId,
+      url: body.url,
+      secret: newSecret(),
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await endpoints.insert(endpoint);
+
+    return c.json({ ...toEndpointDto(endpoint), secret: endpoint.secret }, 201);
+  });
+
+  app.get("/webhooks/endpoints", async (c) => {
+    const endpoints = requireEndpoints(container);
+    const merchantId = c.req.query("merchantId");
+    if (merchantId === undefined || merchantId.length === 0) {
+      throw new ValidationError("merchantId is required");
+    }
+    return c.json({
+      endpoints: (await endpoints.listByMerchant(merchantId)).map(toEndpointDto),
+    });
+  });
+
+  app.post("/webhooks/endpoints/:id/rotate", async (c) => {
+    const endpoints = requireEndpoints(container);
+    const endpoint = await findEndpoint(endpoints, c.req.param("id"));
+
+    const rotated: WebhookEndpoint = {
+      ...endpoint,
+      secret: newSecret(),
+      previousSecret: endpoint.secret,
+      updatedAt: new Date(),
+    };
+    await endpoints.update(rotated);
+
+    return c.json({ ...toEndpointDto(rotated), secret: rotated.secret });
+  });
+
+  app.post("/webhooks/endpoints/:id/deactivate", async (c) => {
+    const endpoints = requireEndpoints(container);
+    const endpoint = await findEndpoint(endpoints, c.req.param("id"));
+
+    await endpoints.update({ ...endpoint, active: false, updatedAt: new Date() });
+    return c.json({ id: endpoint.id, active: false });
   });
 
   return app;
+}
+
+function requireEndpoints(container: Container): WebhookEndpointRepository {
+  if (container.webhookEndpoints === undefined) {
+    throw new ValidationError("Webhooks are not enabled on this deployment");
+  }
+  return container.webhookEndpoints;
+}
+
+async function findEndpoint(
+  endpoints: WebhookEndpointRepository,
+  id: string,
+): Promise<WebhookEndpoint> {
+  const endpoint = await endpoints.findById(id);
+  if (endpoint === null) {
+    throw new NotFoundError(`Webhook endpoint ${id} not found`);
+  }
+  return endpoint;
+}
+
+function newSecret(): string {
+  return `whsec_${randomBytes(24).toString("base64url")}`;
+}
+
+/** The listing shape. Secrets never appear here — only creation and rotation show one. */
+function toEndpointDto(endpoint: WebhookEndpoint): Record<string, unknown> {
+  return {
+    id: endpoint.id,
+    merchantId: endpoint.merchantId,
+    url: endpoint.url,
+    active: endpoint.active,
+    rotatedSecretActive: endpoint.previousSecret !== undefined,
+    createdAt: endpoint.createdAt.toISOString(),
+    updatedAt: endpoint.updatedAt.toISOString(),
+  };
 }
