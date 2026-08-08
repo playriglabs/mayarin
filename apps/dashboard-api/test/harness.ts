@@ -34,7 +34,12 @@ import {
 } from "@mayarin/notifications/testing";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
+import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
+import {
+  InMemoryMerchantWalletRepository,
+  InMemoryWalletChallengeRepository,
+} from "@mayarin/wallet/testing";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
@@ -43,6 +48,7 @@ import { MerchantSettingsService } from "../src/services/merchant-settings-servi
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
 import { UserService } from "../src/services/user-service.ts";
+import { WalletService } from "../src/services/wallet-service.ts";
 import { WebhookService } from "../src/services/webhook-service.ts";
 
 class PlainPasswordHasher implements PasswordHasher {
@@ -139,6 +145,17 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     resolver: async () => ["93.184.216.34"],
   });
 
+  const merchantWallets = new InMemoryMerchantWalletRepository();
+  const walletChallenges = new InMemoryWalletChallengeRepository();
+  const wallets = new WalletService({
+    wallets: merchantWallets,
+    challenges: walletChallenges,
+    // Real recovery: the point of verification is that it agrees with what a
+    // wallet actually produces, which a stub cannot demonstrate.
+    verifier: new ViemSignatureVerifier(),
+    clock,
+  });
+
   const settingChanges = new InMemoryMerchantSettingChangeRepository();
   const settings = new MerchantSettingsService({ merchants, changes: settingChanges, clock });
 
@@ -151,6 +168,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     compliance,
     settings,
     webhooks,
+    wallets,
     close: async () => {},
   };
 
@@ -210,6 +228,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     settingChanges,
     webhookEndpoints,
     webhookDeliveries,
+    merchantWallets,
+    walletChallenges,
     sessions,
     intents,
     intentService,

@@ -31,6 +31,7 @@ import {
   DrizzleMarketConfigRepository,
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantRepository,
+  DrizzleMerchantWalletRepository,
   DrizzlePaymentIntentRepository,
   DrizzlePaymentLinkRepository,
   DrizzleProductRepository,
@@ -68,6 +69,7 @@ import {
   systemClock,
 } from "@mayarin/shared";
 import { pairsOf, type Stablecoin, type StablecoinRegistry } from "@mayarin/stablecoin";
+import { WalletGuard } from "@mayarin/wallet";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
@@ -344,6 +346,11 @@ export function createContainer({
           fees,
           stablecoins: registry,
           merchantPolicies,
+          // The signer's last chance to object to a payout destination (#11).
+          wallets: new WalletGuard({
+            wallets: new DrizzleMerchantWalletRepository(handle.db),
+            treasuryAddresses: config.treasuryAddress === undefined ? [] : [config.treasuryAddress],
+          }),
           clock,
         })
       : undefined;

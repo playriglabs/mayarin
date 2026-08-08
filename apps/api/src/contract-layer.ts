@@ -49,6 +49,7 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import type { StablecoinRegistry } from "@mayarin/stablecoin";
+import type { WalletGuard } from "@mayarin/wallet";
 import type { Config, ContractConfig } from "./config.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 
@@ -71,6 +72,14 @@ export interface ContractLayerOptions {
    * wallet with no way to tell the payments apart afterwards.
    */
   readonly merchantPolicies: MerchantAssetPolicySource;
+  /**
+   * Refuses a payout destination this deployment cannot vouch for (#11, RFC #6).
+   *
+   * `merchantSafe` goes inside the EIP-712 digest, so signing is the last
+   * moment anything can object. Optional only so a deployment without the chain
+   * layer need not build one; where the contract path runs, it is wired.
+   */
+  readonly wallets?: WalletGuard;
   readonly clock: Clock;
 }
 
@@ -92,6 +101,11 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         { merchantId: request.merchantId },
       );
     }
+
+    // Checked before anything is signed. An address the merchant merely
+    // claimed is not a basis for signing a customer's payment into it, and
+    // since #95 that field is writable through an authenticated API.
+    await this.#options.wallets?.assertPayable(request.merchantId, request.chain, merchantSafe);
 
     const router = contract.paymentRouters[request.chain];
     if (router === undefined) {

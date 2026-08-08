@@ -10,4 +10,5 @@ export * from "./repositories/market-config.ts";
 export * from "./repositories/notifications.ts";
 export * from "./repositories/payment-intent.ts";
 export * from "./repositories/refund.ts";
+export * from "./repositories/wallet.ts";
 export * from "./schema.ts";

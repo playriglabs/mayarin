@@ -9,7 +9,12 @@
 
 import type { ChainId } from "@mayarin/chain";
 import { ConflictError } from "@mayarin/shared";
-import type { MerchantWallet, MerchantWalletRepository } from "../src/index.ts";
+import type {
+  MerchantWallet,
+  MerchantWalletRepository,
+  WalletChallenge,
+  WalletChallengeRepository,
+} from "../src/index.ts";
 
 export class InMemoryMerchantWalletRepository implements MerchantWalletRepository {
   readonly #byId = new Map<string, MerchantWallet>();
@@ -50,5 +55,31 @@ export class InMemoryMerchantWalletRepository implements MerchantWalletRepositor
 
   async listByMerchant(merchantId: string): Promise<readonly MerchantWallet[]> {
     return [...this.#byId.values()].filter((wallet) => wallet.merchantId === merchantId);
+  }
+}
+
+/**
+ * In-memory challenges.
+ *
+ * `consume` reports whether *this* call was the one that used it, mirroring the
+ * conditional update the Postgres adapter relies on — a fake that let two calls
+ * both succeed would hide the race the real one prevents.
+ */
+export class InMemoryWalletChallengeRepository implements WalletChallengeRepository {
+  readonly #byId = new Map<string, WalletChallenge>();
+  readonly #consumed = new Set<string>();
+
+  async insert(challenge: WalletChallenge): Promise<void> {
+    this.#byId.set(challenge.id, challenge);
+  }
+
+  async findById(id: string): Promise<WalletChallenge | null> {
+    return this.#byId.get(id) ?? null;
+  }
+
+  async consume(id: string): Promise<boolean> {
+    if (this.#consumed.has(id)) return false;
+    this.#consumed.add(id);
+    return true;
   }
 }

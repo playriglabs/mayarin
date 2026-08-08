@@ -5,8 +5,10 @@ import { priceSourceOf } from "@mayarin/execution";
 import { FixedSwapVenue } from "@mayarin/execution/testing";
 import { QuoteEngine } from "@mayarin/quote";
 import { FakeOrderSigner } from "@mayarin/quote/testing";
-import { ConfigurationError, FixedClock, money } from "@mayarin/shared";
+import { ConfigurationError, FixedClock, money, ValidationError } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
+import { type MerchantWallet, WalletGuard } from "@mayarin/wallet";
+import { InMemoryMerchantWalletRepository } from "@mayarin/wallet/testing";
 import { ApiContractPlanner } from "../src/contract-layer.ts";
 import type { QuoteLayer } from "../src/quote-layer.ts";
 
@@ -21,7 +23,7 @@ const ETH_IDRX_RATE = 6_000_000_000n;
 
 // `null` means the merchant has no settlement address; `undefined` would be
 // swallowed by the default parameter and silently pass the address through.
-function createPlanner(settlementAddress: string | null = MERCHANT_SAFE) {
+function createPlanner(settlementAddress: string | null = MERCHANT_SAFE, wallets?: WalletGuard) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
     { from: "ETH", to: "IDRX", scaledRate: ETH_IDRX_RATE, source: "0x" },
@@ -70,6 +72,7 @@ function createPlanner(settlementAddress: string | null = MERCHANT_SAFE) {
         ...(settlementAddress === null ? {} : { settlementAddress }),
       }),
     },
+    ...(wallets === undefined ? {} : { wallets }),
     clock,
   });
   return { planner, venue, signer, clock };
@@ -154,5 +157,94 @@ describe("merchant settlement address", () => {
     const { planner } = createPlanner(null);
 
     await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ConfigurationError);
+  });
+});
+
+describe("the signer refuses a payout destination it cannot vouch for (#11)", () => {
+  const NOW_DATE = new Date(NOW);
+
+  function walletRepo() {
+    return new InMemoryMerchantWalletRepository();
+  }
+
+  function verifiedWallet(overrides: Partial<MerchantWallet> = {}): MerchantWallet {
+    return {
+      id: "wlt_1",
+      merchantId: "ID1020017611473",
+      chain: "base",
+      address: MERCHANT_SAFE.toLowerCase(),
+      provenance: "linked",
+      verifiedAt: NOW_DATE,
+      createdAt: NOW_DATE,
+      updatedAt: NOW_DATE,
+      ...overrides,
+    };
+  }
+
+  test("signs when the destination is a verified wallet of that merchant", async () => {
+    const wallets = walletRepo();
+    await wallets.insert(verifiedWallet());
+    const { planner } = createPlanner(
+      MERCHANT_SAFE,
+      new WalletGuard({ wallets, treasuryAddresses: [] }),
+    );
+
+    const lock = await planner.lock(lockRequest("ETH"));
+    expect(lock.order.merchantSafe.toLowerCase()).toBe(MERCHANT_SAFE.toLowerCase());
+  });
+
+  test("refuses an address the deployment has never seen", async () => {
+    // The gap as it stood: a merchant sets any address through the settings API
+    // (#95) and the signer signs a customer's payment into it.
+    const { planner } = createPlanner(
+      MERCHANT_SAFE,
+      new WalletGuard({ wallets: walletRepo(), treasuryAddresses: [] }),
+    );
+
+    await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test("refuses a wallet that is linked but unverified", async () => {
+    const wallets = walletRepo();
+    const { verifiedAt: _unverified, ...unverified } = verifiedWallet();
+    await wallets.insert(unverified);
+    const { planner } = createPlanner(
+      MERCHANT_SAFE,
+      new WalletGuard({ wallets, treasuryAddresses: [] }),
+    );
+
+    await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test("refuses a wallet belonging to another merchant", async () => {
+    const wallets = walletRepo();
+    await wallets.insert(verifiedWallet({ merchantId: "mrc_someone_else" }));
+    const { planner } = createPlanner(
+      MERCHANT_SAFE,
+      new WalletGuard({ wallets, treasuryAddresses: [] }),
+    );
+
+    await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test("refuses a treasury address even when it is a verified wallet", async () => {
+    const wallets = walletRepo();
+    await wallets.insert(verifiedWallet());
+    const { planner } = createPlanner(
+      MERCHANT_SAFE,
+      new WalletGuard({ wallets, treasuryAddresses: [MERCHANT_SAFE] }),
+    );
+
+    // A fee recipient that is also a payout destination pays a merchant twice
+    // and is invisible in the ledger.
+    await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test("without a guard the planner signs as before", async () => {
+    // A deployment with no chain layer builds no guard; the contract path is
+    // off there anyway, and the optionality is what keeps that true.
+    const { planner } = createPlanner();
+    const lock = await planner.lock(lockRequest("ETH"));
+    expect(lock.order.merchantSafe.toLowerCase()).toBe(MERCHANT_SAFE.toLowerCase());
   });
 });

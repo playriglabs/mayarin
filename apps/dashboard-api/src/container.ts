@@ -29,10 +29,12 @@ import {
   DrizzleMerchantAccountRepository,
   DrizzleMerchantRepository,
   DrizzleMerchantSettingChangeRepository,
+  DrizzleMerchantWalletRepository,
   DrizzlePaymentIntentRepository,
   DrizzleSessionRepository,
   DrizzleSettlementEventRepository,
   DrizzleUserRepository,
+  DrizzleWalletChallengeRepository,
   DrizzleWebhookDeliveryRepository,
   DrizzleWebhookEndpointRepository,
 } from "@mayarin/db";
@@ -40,7 +42,13 @@ import type { LedgerRepository } from "@mayarin/ledger";
 import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
 import type { PaymentIntentRepository } from "@mayarin/payment-intent";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
+import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { type Clock, systemClock } from "@mayarin/shared";
+import type {
+  MerchantWalletRepository,
+  SignatureVerifier,
+  WalletChallengeRepository,
+} from "@mayarin/wallet";
 import type { Config } from "./config.ts";
 import { AuthService } from "./services/auth-service.ts";
 import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
@@ -50,6 +58,7 @@ import {
 } from "./services/payment-read-service.ts";
 import { SessionService } from "./services/session-service.ts";
 import { UserService } from "./services/user-service.ts";
+import { WalletService } from "./services/wallet-service.ts";
 import { WebhookService } from "./services/webhook-service.ts";
 
 export interface Container {
@@ -63,6 +72,8 @@ export interface Container {
   readonly settings: MerchantSettingsService;
   /** Webhook endpoints and delivery inspection (#13), scoped the same way. */
   readonly webhooks: WebhookService;
+  /** Merchant wallets and proof of control (#11). */
+  readonly wallets: WalletService;
   close(): Promise<void>;
 }
 
@@ -88,6 +99,9 @@ export interface CreateContainerOptions {
   readonly merchantSettingChanges?: MerchantSettingChangeRepository;
   readonly webhookEndpoints?: WebhookEndpointRepository;
   readonly webhookDeliveries?: WebhookDeliveryRepository;
+  readonly merchantWallets?: MerchantWalletRepository;
+  readonly walletChallenges?: WalletChallengeRepository;
+  readonly signatureVerifier?: SignatureVerifier;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -163,6 +177,19 @@ export function createContainer(options: CreateContainerOptions): Container {
     pageSize: config.paymentsPageSize,
   });
 
+  // Wallets (#11). The verifier is the only piece that touches cryptography,
+  // and it is the only piece that comes from a provider package.
+  const wallets = new WalletService({
+    wallets:
+      options.merchantWallets ??
+      new DrizzleMerchantWalletRepository(handle?.db ?? throwIfNoHandle()),
+    challenges:
+      options.walletChallenges ??
+      new DrizzleWalletChallengeRepository(handle?.db ?? throwIfNoHandle()),
+    verifier: options.signatureVerifier ?? new ViemSignatureVerifier(),
+    clock,
+  });
+
   return {
     config,
     auth: authService,
@@ -172,6 +199,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     compliance,
     settings,
     webhooks,
+    wallets,
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
 }

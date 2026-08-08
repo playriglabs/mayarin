@@ -31,6 +31,7 @@
     "@mayarin/settlement": "workspace:*",
     "@mayarin/shared": "workspace:*",
     "@mayarin/stablecoin": "workspace:*",
+    "@mayarin/wallet": "workspace:*",
     "hono": "^4.6.16",
     "qrcode": "^1.5.4",
     "zod": "^3.24.1"
