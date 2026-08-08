@@ -543,6 +543,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         acceptedAssets: [],
         createdAt: now,
         updatedAt: now,
+        version: 1,
       });
     }
 

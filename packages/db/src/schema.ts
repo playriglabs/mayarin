@@ -523,9 +523,6 @@ export const paymentLinks = pgTable(
  */
 export const merchantSettingChanges = pgTable(
   "merchant_setting_changes",
-/** Where one merchant wants webhook deliveries, and the signing secret (RFC #13). */
-export const webhookEndpoints = pgTable(
-  "webhook_endpoints",
   {
     id: text("id").primaryKey(),
     merchantId: text("merchant_id")
@@ -588,6 +585,24 @@ export const refunds = pgTable(
     idempotencyKey: text("idempotency_key"),
     providerReference: text("provider_reference"),
     failureReason: text("failure_reason"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("refunds_idempotency_key_idx").on(table.idempotencyKey),
+    index("refunds_clearing_idx").on(table.clearingTransactionId, table.createdAt),
+    index("refunds_merchant_idx").on(table.merchantId, table.createdAt),
+  ],
+);
+
+/** Where one merchant wants webhook deliveries, and the signing secret (RFC #13). */
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
     url: text("url").notNull(),
     secret: text("secret").notNull(),
     /** Kept through a rotation so deliveries stay verifiable mid-switch. */
@@ -628,12 +643,6 @@ export const webhookDeliveries = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [
-    uniqueIndex("refunds_idempotency_key_idx").on(table.idempotencyKey),
-    index("refunds_clearing_idx").on(table.clearingTransactionId, table.createdAt),
-    index("refunds_merchant_idx").on(table.merchantId, table.createdAt),
-  ],
-);
-
     uniqueIndex("webhook_deliveries_event_endpoint_idx").on(table.eventId, table.endpointId),
     index("webhook_deliveries_due_idx").on(table.status, table.nextAttemptAt),
   ],

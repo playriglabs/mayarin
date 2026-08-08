@@ -116,6 +116,8 @@ export function adminRoutes(container: Container, token: string): Hono {
     await container.market.put(key, body.value);
 
     return c.json({ key, updated: true });
+  });
+
   /** Forces one webhook dispatcher pass: enqueue new events, attempt due deliveries. */
   app.post("/webhooks/tick", async (c) => {
     if (container.webhooks === undefined) {
