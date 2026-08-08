@@ -159,6 +159,32 @@ registry, so adding a payment rail does not add a route. The raw body is passed
 to the adapter untouched, so signatures are verified over exactly the bytes that
 were signed.
 
+## Outbound Webhooks (RFC #13)
+
+Enabled with `WEBHOOKS_ENABLED=true`. Deliveries derive from the clearing
+event log: every state transition becomes one signed POST per configured
+endpoint. The payload carries ids and the new state, never amounts — a
+webhook is a signal, and a receiver that needs the record asks the API.
+
+Each delivery carries three headers. `Webhook-Id` is the clearing event id
+and is the receiver's idempotency key: a retry repeats the same id and the
+same bytes. `Webhook-Signature` is `t=<unix>,v1=<hex>` — HMAC-SHA256 over
+`timestamp.body` with the endpoint secret, one `v1` entry per active secret
+during a rotation. Verify with `verifyWebhook` from `@mayarin/notifications`
+(the SDK ships the same function). Failed deliveries retry on a backoff
+schedule and park as `DEAD` after the last attempt.
+
+Endpoint management is admin-token guarded until the authenticated
+merchant-config surface (#95) exists:
+
+```
+POST /admin/webhooks/endpoints                  { merchantId, url } → endpoint + secret (shown once)
+GET  /admin/webhooks/endpoints?merchantId=…     list, secrets masked
+POST /admin/webhooks/endpoints/:id/rotate       new secret; the previous one stays verifiable
+POST /admin/webhooks/endpoints/:id/deactivate
+POST /admin/webhooks/tick                       force one dispatch pass
+```
+
 ## Health
 
 ```
