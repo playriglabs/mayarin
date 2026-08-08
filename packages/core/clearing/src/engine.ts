@@ -39,6 +39,7 @@ import {
   isPositive,
   NotFoundError,
   noopEventPublisher,
+  ProviderError,
   QuoteExpiredError,
   serializeMoney,
   subtract,
@@ -94,9 +95,11 @@ export interface ClearingEngineOptions {
   readonly contractExpiryGraceSeconds?: number;
   /**
    * Moves a matched deposit into the router (#69). Absent for a deployment
-   * without treasury execution, in which case the deposit path books the payer
-   * asset it holds and stops there — the pre-#69 behaviour, minus the claim to
-   * a settlement balance it had not acquired.
+   * without treasury execution: such a deployment's locks never sign an
+   * order, so its deposit path settles internally. A payment whose lock
+   * *did* sign an order parks in this engine until a process with an
+   * executor resumes it — the lock decides how a payment settles, not the
+   * wiring of whichever process happens to advance it (#104).
    */
   readonly treasuryExecutor?: TreasuryExecutor;
   /**
@@ -389,7 +392,7 @@ export class ClearingEngine {
         // the second would leave `clearingPosting` debiting a payable nothing
         // had credited — worse books than the hole this fixes.
         //
-        // Without an executor the deposit path settles internally, acquiring
+        // Without a signed order the deposit settles internally, acquiring
         // the settlement asset at receipt, and the original posting is correct.
         await this.#ledger.post(
           this.#splitsDepositReceipt(transaction)
@@ -820,9 +823,14 @@ export class ClearingEngine {
   /**
    * Converts a matched deposit into the settlement asset (#69).
    *
-   * A no-op for anything that is not a deposit-path payment with an executor
-   * wired: the contract path already swapped and settled atomically on-chain,
-   * and a fiat receipt has nothing to convert.
+   * A no-op for anything that is not a deposit-path payment whose lock signed
+   * an order: the contract path already swapped and settled atomically
+   * on-chain, and a fiat receipt has nothing to convert.
+   *
+   * A payment that carries a signed order but reaches a process with no
+   * executor parks instead of falling through to the adapter — the lock
+   * promised on-chain settlement, and only `resumeStuck` in a process that
+   * has an executor can keep that promise (#104).
    *
    * Runs as a side effect *before* the state is persisted, like every other
    * step in this engine. A crash between the submission and the transition
@@ -831,9 +839,15 @@ export class ClearingEngine {
    * why the on-chain guard matters more than any flag this engine could keep.
    */
   async #executeTreasury(transaction: ClearingTransaction): Promise<ClearingTransaction> {
-    const executor = this.#treasuryExecutor;
+    if (!this.#splitsDepositReceipt(transaction)) return transaction;
 
-    if (executor === undefined || !this.#splitsDepositReceipt(transaction)) return transaction;
+    const executor = this.#treasuryExecutor;
+    if (executor === undefined) {
+      throw new ProviderError(
+        `Clearing transaction ${transaction.id} carries a signed order, but this process has no treasury executor`,
+        { id: transaction.id },
+      );
+    }
 
     const execution = await executor.execute(transaction);
     const contract = transaction.contract;
@@ -852,10 +866,16 @@ export class ClearingEngine {
    * One predicate for both halves, so the receipt posting and the swap can
    * never disagree about which scheme a payment is on — that disagreement is
    * the only way this design can produce unbalanced books.
+   *
+   * Reads only the persisted transaction, never this process's wiring: the
+   * signed order is the marker the lock wrote when an executor priced the
+   * payment. Two differently wired processes must answer alike here, or the
+   * one without an executor settles the payment internally and marks it
+   * SUCCESS while the deposit sits unswept (#104).
    */
   #splitsDepositReceipt(transaction: ClearingTransaction): boolean {
     return (
-      this.#treasuryExecutor !== undefined &&
+      transaction.contract !== undefined &&
       transaction.deposit !== undefined &&
       transaction.executionPath !== "on-chain-contract"
     );
