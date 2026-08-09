@@ -14,6 +14,7 @@
     "@mayarin/clearing": "workspace:*",
     "@mayarin/db": "workspace:*",
     "@mayarin/execution": "workspace:*",
+    "@mayarin/invoicing": "workspace:*",
     "@mayarin/ledger": "workspace:*",
     "@mayarin/notifications": "workspace:*",
     "@mayarin/payment-intent": "workspace:*",
