@@ -72,7 +72,28 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
+/**
+ * A blank environment variable means "not set", not "set to nothing".
+ *
+ * A dotenv file documents its keys by listing them — `WALLET_PROVISION_RPC_URL=`
+ * says "this is the name, fill it in". Zod sees `""`, which is present, so
+ * `.optional()` never applies and `.min(1)` fails. The result is a boot that dies
+ * on a variable this deployment does not use and never intended to set: with
+ * provisioning switched off, `.env.example` itself could not boot the dashboard
+ * API, and neither could any file copied from it until every unused key was
+ * deleted rather than left blank.
+ *
+ * Same treatment as `apps/api`, and for the same reason. A genuinely required key
+ * still fails, as "required" rather than as a length complaint.
+ */
+function withoutEmpty(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  return Object.fromEntries(
+    Object.entries(env).map(([key, value]) => [key, value === "" ? undefined : value]),
+  );
+}
+
+export function loadConfig(rawEnv: Record<string, string | undefined> = process.env): Config {
+  const env = withoutEmpty(rawEnv);
   const result = configSchema.safeParse({
     port: env.DASHBOARD_API_PORT,
     databaseUrl: env.DATABASE_URL,

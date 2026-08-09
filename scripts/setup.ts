@@ -34,6 +34,7 @@
 
 import { existsSync } from "node:fs";
 import { $ } from "bun";
+import postgres from "postgres";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const ENV_PATH = `${ROOT}.env`;
@@ -228,20 +229,35 @@ if (checkOnly) {
 
   // The container reports "started" well before Postgres accepts connections,
   // and migrating into that gap fails in a way that reads like a bad password.
+  //
+  // Probed from the host over TCP, running a real query, rather than with
+  // `docker compose exec pg_isready`. On `--reset-db` the entrypoint runs initdb
+  // against a *temporary* server first, and that server listens on the unix
+  // socket only — so a probe inside the container passes, the temporary server
+  // then shuts down, and the migration lands in the gap with
+  // `57P03 the database system is starting up`. A host TCP query cannot see the
+  // temporary server at all, which is exactly the property wanted here.
   let ready = false;
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const probe = await $`docker compose exec -T postgres pg_isready -U mayarin -d mayarin`
-      .cwd(ROOT)
-      .quiet()
-      .nothrow();
-    if (probe.exitCode === 0) {
-      ready = true;
-      break;
+  let lastError = "";
+  for (let attempt = 0; attempt < 60; attempt++) {
+    try {
+      const probe = postgres(databaseUrl, { max: 1, connect_timeout: 2, onnotice: () => {} });
+      try {
+        await probe`select 1`;
+        ready = true;
+      } finally {
+        await probe.end();
+      }
+      if (ready) break;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
     }
     await Bun.sleep(1_000);
   }
   if (!ready) {
-    fail("Postgres did not become ready within 30s. Check `docker compose logs postgres`.");
+    fail(
+      `Postgres did not become ready within 60s (${lastError}). Check \`docker compose logs postgres\`.`,
+    );
   }
   ok("postgres accepting connections on 5433");
 }
