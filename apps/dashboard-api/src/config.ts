@@ -42,6 +42,12 @@ const configSchema = z.object({
    * Off by default, like every other layer that needs credentials. A deployment
    * without a wallet provider should boot without one rather than boot with a
    * provisioning path that fails at the first merchant who asks.
+   *
+   * Gates both wallet paths that need the provider: creating a passkey-held
+   * merchant key, and provisioning the managed Safe. One flag rather than two
+   * because a deployment with the first and not the second onboards merchants
+   * into a key with no smart account to own, which is not a state worth
+   * configuring on purpose.
    */
   walletProvisioningEnabled: z
     .enum(["true", "false"])

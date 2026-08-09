@@ -43,10 +43,16 @@ import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@maya
 import type { PaymentIntentRepository } from "@mayarin/payment-intent";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
 import { ViemSignatureVerifier } from "@mayarin/provider-evm";
-import { ApiKeyStamper, SAFE_BASE_SEPOLIA, TurnkeyWalletProvider } from "@mayarin/provider-turnkey";
+import {
+  ApiKeyStamper,
+  SAFE_BASE_SEPOLIA,
+  TurnkeyMerchantKeyProvider,
+  TurnkeyWalletProvider,
+} from "@mayarin/provider-turnkey";
 import { type Clock, ConfigurationError, systemClock } from "@mayarin/shared";
 import {
   ManagedWalletProvisioner,
+  type MerchantKeyProvider,
   type MerchantWalletRepository,
   type SignatureVerifier,
   type WalletChallengeRepository,
@@ -110,6 +116,7 @@ export interface CreateContainerOptions {
    * gets one built from config, and only when it is fully configured.
    */
   readonly walletProvider?: WalletProvider;
+  readonly merchantKeyProvider?: MerchantKeyProvider;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -192,6 +199,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     options.merchantWallets ?? new DrizzleMerchantWalletRepository(handle?.db ?? throwIfNoHandle());
   const treasuryAddresses = config.treasuryAddress === undefined ? [] : [config.treasuryAddress];
   const walletProvider = options.walletProvider ?? createWalletProvider(config);
+  const keyProvider = options.merchantKeyProvider ?? createMerchantKeyProvider(config);
   const wallets = new WalletService({
     wallets: walletRepository,
     challenges:
@@ -200,6 +208,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     verifier: options.signatureVerifier ?? new ViemSignatureVerifier(),
     clock,
     treasuryAddresses,
+    ...(keyProvider === undefined ? {} : { keyProvider }),
     ...(walletProvider === undefined
       ? {}
       : {
@@ -252,6 +261,25 @@ function createWalletProvider(config: Config): WalletProvider | undefined {
     safe: SAFE_BASE_SEPOLIA,
     rootApiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
     signerApiPublicKey: required(config.turnkeySignerApiPublicKey, "TURNKEY_SIGNER_API_PUBLIC_KEY"),
+  });
+}
+
+/**
+ * The provider that creates keys the merchant holds, if this deployment has one.
+ *
+ * Only the parent organization and the stamper: no deployer key, no RPC, no Safe
+ * addresses. Creating a key the merchant alone can use touches no chain — which
+ * is also why the merchant needs no gas to get one.
+ */
+function createMerchantKeyProvider(config: Config): MerchantKeyProvider | undefined {
+  if (!config.walletProvisioningEnabled) return undefined;
+
+  return new TurnkeyMerchantKeyProvider({
+    organizationId: required(config.turnkeyOrganizationId, "TURNKEY_ORGANIZATION_ID"),
+    stamper: new ApiKeyStamper({
+      apiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
+      apiPrivateKey: required(config.turnkeyApiPrivateKey, "TURNKEY_API_PRIVATE_KEY"),
+    }),
   });
 }
 

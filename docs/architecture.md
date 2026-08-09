@@ -231,7 +231,8 @@ packages/
       ✓ evm/             viem ChainClient and HdDepositAddressDeriver
       ✓ stablecoin/       StablecoinSettlementAdapter (internal)
       ✓ argon2/           Argon2PasswordHasher
-      ✓ turnkey/          order signer (#41) and wallet provider — sub-org, policy, Safe (#11)
+      ✓ turnkey/          order signer (#41), wallet provider — sub-org, policy, Safe — and
+                          merchant key provider — passkey-only sub-org (#11)
       · zerodev/          Phase 3 gas abstraction / paymaster / relayer
       ✓ swap-0x/          ZeroExSwapVenue + ZeroExRouteSource — price read + exact-output route
       ✓ swap-uniswap/     UniswapSwapVenue + UniswapRouteSource — QuoterV2 read + exactOutputSingle
@@ -341,12 +342,14 @@ This is what separates Mayarin from a custodian.
   (merchant) and `fee` (treasury) into separate buckets; wallet infra keeps
   them separate too.
 - **Sequencing.** The Phase 3 contract settles to `merchantSafe`, and Phase 4
-  (#11) added both ways one comes to exist: connect-existing, where the merchant
-  links an address and proves control by signature, and managed provisioning,
-  where Mayarin deploys a Safe with the merchant already an owner at threshold
-  1. The contract needed no change — `merchantSafe` is opaque to it. See
-     [wallets](./wallet.md); gas sponsorship for a wallet with no balance is #9 and
-     is not yet built.
+  (#11) added the ways one comes to exist: connect-existing, where the merchant
+  links an address and proves control by signature; a passkey-held key, created
+  in a Turnkey sub-organization Mayarin is not a user of, for the merchant who
+  owns no wallet at all; and managed provisioning, where Mayarin deploys a Safe
+  with the merchant already an owner at threshold 1. A merchant who sets no
+  settlement address is paid at that Safe. The contract needed no change —
+  `merchantSafe` is opaque to it. See [wallets](./wallet.md); gas sponsorship for
+  a wallet with no balance is #9 and is not yet built.
 
 #### Liquidity
 

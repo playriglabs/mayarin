@@ -7,7 +7,7 @@
 
 import { CHAIN_IDS } from "@mayarin/chain";
 import { UnauthorizedError } from "@mayarin/shared";
-import type { MerchantWallet } from "@mayarin/wallet";
+import { type MerchantWallet, PASSKEY_TRANSPORTS } from "@mayarin/wallet";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
@@ -17,6 +17,30 @@ import type { AuthVars } from "../middleware/types.ts";
 const linkBodySchema = z.object({ chain: z.enum(CHAIN_IDS), address: z.string() }).strict();
 
 const provisionBodySchema = z.object({ chain: z.enum(CHAIN_IDS) }).strict();
+
+/**
+ * A passkey the merchant's browser just created.
+ *
+ * Passed through to the provider, which validates the attestation. Validated
+ * here only for shape: nothing is trusted on the strength of it, because the
+ * address it produces becomes payable on a signature over a challenge this
+ * deployment issued and not before.
+ */
+const passkeyBodySchema = z
+  .object({
+    chain: z.enum(CHAIN_IDS),
+    attestation: z
+      .object({
+        name: z.string().min(1).max(64),
+        credentialId: z.string().min(1),
+        challenge: z.string().min(1),
+        clientDataJson: z.string().min(1),
+        attestationObject: z.string().min(1),
+        transports: z.array(z.enum(PASSKEY_TRANSPORTS)).min(1),
+      })
+      .strict(),
+  })
+  .strict();
 
 const verifyBodySchema = z
   .object({ challengeId: z.string().min(1), signature: z.string().min(1) })
@@ -40,6 +64,15 @@ function toWalletDto(wallet: MerchantWallet) {
       wallet.managed === undefined
         ? null
         : { merchant: wallet.managed.merchantSigner, mayarin: wallet.managed.address },
+    /**
+     * The provider organization a passkey key lives in.
+     *
+     * Surfaced because the merchant's browser needs it to sign: it talks to the
+     * provider directly, stamping the request with the passkey, and has to name
+     * the organization. Not a secret — holding the handle without the
+     * authenticator does nothing, which is the same reason Mayarin can store it.
+     */
+    keyRef: wallet.keyRef ?? null,
     createdAt: wallet.createdAt.toISOString(),
   };
 }
@@ -61,6 +94,23 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
   app.post("/", csrfMiddleware(), async (c) => {
     const body = linkBodySchema.parse(await c.req.json());
     const wallet = await container.wallets.link(scopeOf(c), body.chain, body.address);
+    return c.json({ wallet: toWalletDto(wallet) }, 201);
+  });
+
+  /**
+   * Creates a key only this merchant's passkey can use.
+   *
+   * The wallet comes back unverified: the merchant signs the challenge with the
+   * new key before it can be paid, or be a signer of a managed Safe. 201
+   * because a key was created — unlike `/managed`, asking twice makes two.
+   */
+  app.post("/passkey", csrfMiddleware(), async (c) => {
+    const body = passkeyBodySchema.parse(await c.req.json());
+    const wallet = await container.wallets.createPasskeyWallet(
+      scopeOf(c),
+      body.chain,
+      body.attestation,
+    );
     return c.json({ wallet: toWalletDto(wallet) }, 201);
   });
 

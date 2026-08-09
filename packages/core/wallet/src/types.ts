@@ -17,10 +17,18 @@ import type { ChainId } from "@mayarin/chain";
  * How a wallet came to be a merchant's.
  *
  * - `linked` — the merchant supplied an address they say they control.
+ * - `passkey` — a key created for them that only their own authenticator can
+ *   use. Mayarin asked a provider to make it and never held it.
  * - `provisioned` — Mayarin created it for them, with the merchant in the
  *   signer set from the start.
+ *
+ * The first two are *merchant-held*: whatever signs for them is something the
+ * merchant has, and Mayarin cannot produce a signature for either. That is the
+ * distinction `isMerchantHeld` names, and it is the one provisioning cares
+ * about — a managed wallet's signer set needs a key the merchant holds, and it
+ * does not care which of the two ways they came to hold it.
  */
-export const WALLET_PROVENANCES = ["linked", "provisioned"] as const;
+export const WALLET_PROVENANCES = ["linked", "passkey", "provisioned"] as const;
 
 export type WalletProvenance = (typeof WALLET_PROVENANCES)[number];
 
@@ -55,6 +63,17 @@ export interface MerchantWallet {
    * a second signer and a second wallet.
    */
   readonly managed?: ManagedSignerRecord;
+  /**
+   * The provider's handle for a key the *merchant* holds — a Turnkey
+   * sub-organization whose only root user is their passkey.
+   *
+   * Present on a `passkey` wallet and nothing else. Stored because signing with
+   * that key is a request the merchant's browser makes directly to the
+   * provider, and it has to name the organization the key lives in; Mayarin
+   * knows the handle and still cannot use it, because using it needs the
+   * authenticator.
+   */
+  readonly keyRef?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -77,6 +96,19 @@ export interface ManagedSignerRecord {
 
 export function isVerified(wallet: MerchantWallet): boolean {
   return wallet.verifiedAt !== undefined;
+}
+
+/**
+ * True when whatever signs for this wallet is something the merchant holds.
+ *
+ * Written as "not provisioned" rather than a list, so a provenance added later
+ * is merchant-held unless it is deliberately excluded. The failure that matters
+ * is the other direction: treating a Mayarin-provisioned Safe as the merchant's
+ * own key would build a signer set out of Mayarin's own signer twice over, and
+ * the wallet would be custodial while looking exactly like one that is not.
+ */
+export function isMerchantHeld(wallet: MerchantWallet): boolean {
+  return wallet.provenance !== "provisioned";
 }
 
 /**
