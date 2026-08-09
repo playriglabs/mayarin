@@ -7,10 +7,11 @@ import {
   type ClearingRepository,
   type ClearingState,
   type ClearingTransaction,
+  type OnChainSettlement,
   TERMINAL_CLEARING_STATES,
 } from "@mayarin/clearing";
 import type { ExecutionPath } from "@mayarin/payment-intent";
-import { ConcurrencyError, ValidationError } from "@mayarin/shared";
+import { type AssetCode, ConcurrencyError, ValidationError } from "@mayarin/shared";
 import { and, asc, eq, notInArray } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import {
@@ -140,8 +141,12 @@ export class DrizzleClearingRepository implements ClearingRepository {
 }
 
 function toRow(transaction: ClearingTransaction): typeof clearingTransactions.$inferInsert {
+  const onChain = transaction.onChain;
   return {
     id: transaction.id,
+    onChainSettledAmount: onChain?.settledAmount.amount.toString() ?? null,
+    onChainFee: onChain?.fee.amount.toString() ?? null,
+    onChainRefundAmount: onChain?.refundAmount.amount.toString() ?? null,
     paymentIntentId: transaction.paymentIntentId,
     state: transaction.state,
     merchantId: transaction.merchant.id,
@@ -209,6 +214,7 @@ function toDomain(row: Row): ClearingTransaction {
     ...present("netAmount", toOptionalMoney(row.netAmount, settlementAsset)),
     ...present("deposit", toDeposit(row)),
     ...present("contract", toContract(row)),
+    ...present("onChain", toOnChain(row, settlementAsset)),
     ...present("providerReference", row.providerReference),
     ...(row.failureReason === null || row.failureAt === null
       ? {}
@@ -328,6 +334,19 @@ function contractColumns(transaction: ClearingTransaction) {
     contractPayerAsset: contract.payerEstimate.asset,
     contractExpiresAt: contract.expiresAt,
     contractTxHash: contract.txHash ?? null,
+  };
+}
+
+/**
+ * What the chain reported, or `undefined` for a payment settled before the
+ * indexer carried the figures through.
+ */
+function toOnChain(row: Row, settlementAsset: AssetCode): OnChainSettlement | undefined {
+  if (row.onChainSettledAmount === null) return undefined;
+  return {
+    settledAmount: toMoney(row.onChainSettledAmount, settlementAsset),
+    fee: toMoney(row.onChainFee ?? "0", settlementAsset),
+    refundAmount: toMoney(row.onChainRefundAmount ?? "0", settlementAsset),
   };
 }
 

@@ -260,6 +260,63 @@ export function refundPosting(
   };
 }
 
+/**
+ * The contract path's settlement, booked from what the chain reported.
+ *
+ * ```
+ * SETTLED   Dr SETTLEMENT_IN_FLIGHT   (locked net)
+ *           Cr TREASURY               (on-chain settled amount)
+ *           Dr/Cr FX_RESULT           (the difference, when there is one)
+ * ```
+ *
+ * The obligation is discharged in full — Mayarin owed the merchant the locked
+ * net — and treasury is credited only what actually left. `FX_RESULT` names the
+ * gap rather than absorbing it.
+ *
+ * **The sign runs opposite to `swapPosting`, and deliberately.** There, value
+ * arrives into treasury, so beating the quote is a gain. Here value leaves, so
+ * paying *less* than was owed is the gain and paying *more* is the loss. Both
+ * are the same rule — a debit balance on `FX_RESULT` is a loss — applied to
+ * flows running in opposite directions.
+ *
+ * `PaymentRouter` pays `minOut − fee` exactly, so the two should agree. A
+ * payment where they do not is the point of recording it: silently posting the
+ * quote would make a router that behaved unexpectedly indistinguishable from
+ * one that did not.
+ */
+export function contractSettledPosting(
+  transaction: ClearingTransaction,
+  settled: Money,
+): DraftTransaction {
+  const { netAmount } = requirePricedAmounts(transaction);
+
+  if (settled.asset !== netAmount.asset) {
+    throw new LedgerImbalanceError(
+      `On-chain settlement for ${transaction.id} is ${settled.asset}, not the settlement asset ${netAmount.asset}`,
+      { id: transaction.id, settled: settled.asset, expected: netAmount.asset },
+    );
+  }
+
+  const difference = settled.amount - netAmount.amount;
+  const fxEntries =
+    difference === 0n
+      ? []
+      : difference > 0n
+        ? // Paid more than was owed: a loss.
+          [debit("FX_RESULT", { amount: difference, asset: settled.asset })]
+        : // Paid less than was owed: Mayarin kept the difference, a gain.
+          [credit("FX_RESULT", { amount: -difference, asset: settled.asset })];
+
+  return {
+    description: `Settled payment ${transaction.paymentIntentId} on-chain`,
+    reference: transaction.id,
+    // Shares the SETTLED key with `settledPosting`: exactly one of the two runs
+    // per transaction, so a resume replays the same posting as a no-op.
+    idempotencyKey: postingIdempotencyKey(transaction, "SETTLED"),
+    entries: [debit("SETTLEMENT_IN_FLIGHT", netAmount), credit("TREASURY", settled), ...fxEntries],
+  };
+}
+
 interface PricedAmounts {
   readonly settlementAmount: Money;
   readonly fee: Money;

@@ -78,5 +78,27 @@ export interface AssetReceiptSink {
  * finding, not a no-op.
  */
 export interface PaymentCompletionSink {
-  complete(intentId: string, completion: { readonly txHash: string }): Promise<boolean>;
+  complete(intentId: string, completion: PaymentCompletion): Promise<boolean>;
+}
+
+/**
+ * What the chain says a settlement actually moved.
+ *
+ * Raw minor units, not `Money`: the chain layer reads a log and has no opinion
+ * about which asset the deployment settles in. Naming the asset is the clearing
+ * engine's job, and it already knows.
+ *
+ * Carried through rather than dropped because the quoted figures and the
+ * settled ones can differ, and a payment where they do is the signal that a
+ * route behaved unexpectedly. Booking the quote and discarding the truth is how
+ * that signal disappears.
+ */
+export interface PaymentCompletion {
+  readonly txHash: string;
+  /** Paid to `merchantSafe`. */
+  readonly settledAmount: bigint;
+  /** Taken to the treasury. */
+  readonly fee: bigint;
+  /** Returned to `refundTo`. */
+  readonly refundAmount: bigint;
 }

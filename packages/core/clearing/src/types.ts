@@ -67,6 +67,13 @@ export interface ClearingFailure {
  * deadline the engine enforces off-chain exactly as the contract enforces it
  * on-chain.
  */
+/** The settled, fee and refund legs a `PaymentCompleted` log reported. */
+export interface OnChainSettlement {
+  readonly settledAmount: Money;
+  readonly fee: Money;
+  readonly refundAmount: Money;
+}
+
 export interface ClearingContract {
   readonly order: ContractOrder;
   /** What the payer is shown, slippage-grossed. Never a custody lock. */
@@ -114,6 +121,15 @@ export interface ClearingTransaction {
 
   /** Set at PRICE_LOCKED on the on-chain-contract path (#61). */
   readonly contract?: ClearingContract;
+  /**
+   * What the chain says the settlement actually moved (#12).
+   *
+   * Recorded separately from the locked amounts rather than replacing them: a
+   * payment where the two differ is the signal that a route behaved
+   * unexpectedly, and overwriting the quote would erase the comparison. Present
+   * only on the contract path, once the indexer has read `PaymentCompleted`.
+   */
+  readonly onChain?: OnChainSettlement;
 
   /** Set at SETTLING, once the adapter has accepted the settlement. */
   readonly providerReference?: string;
