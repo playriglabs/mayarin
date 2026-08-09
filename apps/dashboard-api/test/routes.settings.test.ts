@@ -16,6 +16,8 @@ const ADMIN_EMAIL = "admin@mayarin.local";
 const ADMIN_PASSWORD = "correct-horse-battery-staple";
 const ADDRESS = "0x1111111111111111111111111111111111111111";
 const OTHER_ADDRESS = "0x2222222222222222222222222222222222222222";
+/** Stands in for a Safe this deployment provisioned for the merchant. */
+const MANAGED_ADDRESS = "0x3333333333333333333333333333333333333333";
 
 type Harness = Awaited<ReturnType<typeof createDashboardHarness>>;
 
@@ -75,8 +77,56 @@ describe("GET /settings", () => {
       merchantId: harness.merchantId,
       settlementAsset: "USDC",
       settlementAddress: null,
+      // No address and no managed wallet: nowhere to pay, so nothing to sign.
+      effectiveSettlementAddress: null,
       canSettleOnChain: false,
     });
+  });
+
+  test("no chosen address falls back to the managed wallet (#11)", async () => {
+    // "Blank" is not "nowhere". A merchant provisioned a Safe is paid at it, and
+    // a screen reporting them unable to settle would send them looking for a
+    // setting that does not need changing.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const now = harness.clock.now();
+    await harness.merchantWallets.insert({
+      id: generateId("wlt", now.getTime()),
+      merchantId: harness.merchantId,
+      chain: "base-sepolia",
+      address: MANAGED_ADDRESS,
+      provenance: "provisioned",
+      verifiedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const { body } = await harness.request("GET", "/settings", { cookies: auth.jar });
+
+    expect(body?.settings.settlementAddress).toBeNull();
+    expect(body?.settings.effectiveSettlementAddress).toBe(MANAGED_ADDRESS);
+    expect(body?.settings.canSettleOnChain).toBe(true);
+  });
+
+  test("a chosen address wins over the managed wallet", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const now = harness.clock.now();
+    await harness.merchantWallets.insert({
+      id: generateId("wlt", now.getTime()),
+      merchantId: harness.merchantId,
+      chain: "base-sepolia",
+      address: MANAGED_ADDRESS,
+      provenance: "provisioned",
+      verifiedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await patch(harness, auth, { settlementAddress: ADDRESS });
+
+    const { body } = await harness.request("GET", "/settings", { cookies: auth.jar });
+
+    expect(body?.settings.effectiveSettlementAddress).toBe(ADDRESS);
   });
 
   test("an anonymous caller is refused", async () => {

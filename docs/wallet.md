@@ -91,6 +91,13 @@ by construction, and it still goes through `WalletGuard` like any configured
 value. An unverified or half-provisioned wallet is not a fallback, and neither is
 one on another chain.
 
+`GET /settings` reports both — `settlementAddress` is what the merchant chose,
+`effectiveSettlementAddress` is where the money goes — and `canSettleOnChain`
+reads the second. A merchant who has chosen nothing and holds a Safe can settle
+perfectly well, and a screen deriving that from the chosen address alone would
+send them looking for a setting that does not need changing. The resolver answers
+both questions from one rule: `resolve` is `effective` plus a throw.
+
 ## Proof of control
 
 Linking records a claim; it does not make an address payable. Verification is a

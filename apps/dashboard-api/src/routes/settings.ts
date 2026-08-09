@@ -21,10 +21,26 @@ import type { AuthVars } from "../middleware/types.ts";
 export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
 
+  /**
+   * Where the merchant is actually paid, for display.
+   *
+   * Answers "and if I leave the address blank?" with the rule the order signer
+   * applies, rather than a second guess at it. Resolved on the deployment's
+   * wallet chain, which is the chain a managed wallet exists on.
+   */
+  const effectiveAddress = (merchantId: string, configured: string | undefined) =>
+    container.settlementAddresses.effective(
+      merchantId,
+      container.config.walletProvisionChain,
+      configured,
+    );
+
   app.get("/", async (c) => {
     const scope = c.get("scope");
     if (scope === undefined) throw new UnauthorizedError("Authentication required");
-    return c.json({ settings: toSettingsDto(await container.settings.get(scope)) });
+    const merchant = await container.settings.get(scope);
+    const effective = await effectiveAddress(merchant.id, merchant.settlementAddress);
+    return c.json({ settings: toSettingsDto(merchant, effective) });
   });
 
   // CSRF-guarded like every other state-changing route: this one decides where
@@ -46,7 +62,10 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
     });
 
     return c.json({
-      settings: toSettingsDto(merchant),
+      settings: toSettingsDto(
+        merchant,
+        await effectiveAddress(merchant.id, merchant.settlementAddress),
+      ),
       changes: changes.map(toSettingChangeDto),
     });
   });

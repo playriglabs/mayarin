@@ -36,7 +36,7 @@ import { PaymentIntentService } from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
-import { ManagedWalletProvisioner } from "@mayarin/wallet";
+import { ManagedWalletProvisioner, SettlementAddressResolver } from "@mayarin/wallet";
 import {
   FakeMerchantKeyProvider,
   FakeWalletProvider,
@@ -192,6 +192,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     settings,
     webhooks,
     wallets,
+    settlementAddresses: new SettlementAddressResolver({ wallets: merchantWallets }),
     close: async () => {},
   };
 

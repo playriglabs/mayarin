@@ -96,6 +96,24 @@ describe("resolve", () => {
     );
   });
 
+  test("effective gives the same answer without the throw", async () => {
+    // The settings screen has to answer "and if I leave this blank?" with the
+    // rule the signer applies. Two computations of one fallback is how the
+    // screen and the signer end up disagreeing.
+    const { wallets, resolver } = setup();
+    await wallets.insert(managed());
+
+    expect(await resolver.effective(MERCHANT, CHAIN, undefined)).toBe(
+      await resolver.resolve(MERCHANT, CHAIN, undefined),
+    );
+  });
+
+  test("effective is undefined where resolve throws", async () => {
+    const { resolver } = setup();
+
+    expect(await resolver.effective(MERCHANT, CHAIN, undefined)).toBeUndefined();
+  });
+
   test("refuses when there is nothing to fall back to", async () => {
     // The alternative would be a deployment-wide address, which pays every
     // merchant into the same wallet with no way to tell the payments apart.

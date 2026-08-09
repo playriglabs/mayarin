@@ -54,6 +54,7 @@ import {
   ManagedWalletProvisioner,
   type MerchantKeyProvider,
   type MerchantWalletRepository,
+  SettlementAddressResolver,
   type SignatureVerifier,
   type WalletChallengeRepository,
   type WalletProvider,
@@ -83,6 +84,12 @@ export interface Container {
   readonly webhooks: WebhookService;
   /** Merchant wallets and proof of control (#11). */
   readonly wallets: WalletService;
+  /**
+   * Where a merchant is paid when they have named no address (#11). Held on the
+   * container because the settings surface has to show it: "blank" is not
+   * "nowhere", and a merchant should be able to read the answer.
+   */
+  readonly settlementAddresses: SettlementAddressResolver;
   close(): Promise<void>;
 }
 
@@ -231,6 +238,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     settings,
     webhooks,
     wallets,
+    settlementAddresses: new SettlementAddressResolver({ wallets: walletRepository }),
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
 }

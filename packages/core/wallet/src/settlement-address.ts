@@ -66,14 +66,31 @@ export class SettlementAddressResolver {
     chain: ChainId,
     configured: string | undefined,
   ): Promise<string> {
-    if (configured !== undefined) return configured.toLowerCase();
-
-    const managed = await this.#wallets.findManaged(merchantId, chain);
-    if (managed !== null && isVerified(managed)) return managed.address;
+    const effective = await this.effective(merchantId, chain, configured);
+    if (effective !== undefined) return effective;
 
     throw new ConfigurationError(
       `Merchant ${merchantId} has no settlement address on ${chain} and no managed wallet to fall back to; set one or provision a wallet`,
       { merchantId, chain },
     );
+  }
+
+  /**
+   * The same answer as `resolve`, or `undefined` instead of a throw.
+   *
+   * For showing a merchant where their money will go before any is moving. The
+   * settings screen has to answer "and if I leave this blank?", and it must
+   * answer it with the rule the signer actually applies — so `resolve` is
+   * defined in terms of this rather than the two computing a fallback each.
+   */
+  async effective(
+    merchantId: string,
+    chain: ChainId,
+    configured: string | undefined,
+  ): Promise<string | undefined> {
+    if (configured !== undefined) return configured.toLowerCase();
+
+    const managed = await this.#wallets.findManaged(merchantId, chain);
+    return managed !== null && isVerified(managed) ? managed.address : undefined;
   }
 }
