@@ -10,9 +10,8 @@
  * of wherever the merchant was paid. On the **internal settlement path** that is
  * a balance Mayarin holds, so it is ours to move. On the **on-chain contract
  * path** the merchant was paid into their own wallet and Mayarin holds no key
- * to it — so a refund there is refused rather than faked. That is #11's
- * dependency showing through, and pretending otherwise would mean an API that
- * reports a refund nobody sent.
+ * to it — so a refund there is refused rather than faked. Pretending otherwise
+ * would mean an API that reports a refund nobody sent.
  */
 
 import type { LedgerService } from "@mayarin/ledger";
@@ -223,13 +222,31 @@ export class RefundService {
  * The contract path pays the merchant's own wallet directly — that is the point
  * of it, and it is why the merchant is self-custodial from the moment of
  * payment. It also means nothing here holds a key that could send the money
- * back. Until #11 gives a refund a signer, this is a refusal, not a gap to
- * paper over.
+ * back.
+ *
+ * **This was attributed to #11, and #11 shipping did not change it.** Worth
+ * recording, because the obvious reading of "wallet infrastructure landed" is
+ * that a signer now exists. What #11 built is a key Mayarin *structurally
+ * cannot use*: `MerchantKeyProvider` has no signing method, and `WalletProvider`
+ * has no method that takes bytes and returns a signature — deliberately, so the
+ * custody boundary is not a convention. The only seam that moves value is
+ * `WalletProvider.propose`, and three things stand between it and a refund:
+ *
+ * 1. `propose` is unimplemented in the Turnkey adapter — submitting a SafeTx
+ *    needs gas the merchant does not have, which is **#9**.
+ * 2. `WalletIntent` admits one movement, `withdraw`, to a destination the
+ *    merchant owns. A refund pays the buyer, so it is a new variant of a closed
+ *    union — reviewed on its own terms rather than slipped through.
+ * 3. It would only ever cover a `provisioned` wallet. A `linked` or `passkey`
+ *    wallet has no Mayarin co-signer at all, so a refund there can only be a
+ *    ceremony the merchant signs in their own browser.
+ *
+ * So this stays a refusal, and the blocker it names is #9 rather than #11.
  */
 function assertRefundablePath(transaction: ClearingTransaction): void {
   if (transaction.executionPath === "on-chain-contract") {
     throw new ValidationError(
-      "A contract-path payment settled directly to the merchant's own wallet; Mayarin holds no key to refund it (see #11)",
+      "A contract-path payment settled directly to the merchant's own wallet; Mayarin holds no key to refund it (see #9)",
       { id: transaction.id, executionPath: transaction.executionPath },
     );
   }
