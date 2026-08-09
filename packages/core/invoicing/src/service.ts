@@ -31,11 +31,7 @@ import {
   voidInvoice,
 } from "./invoice.ts";
 import { formatInvoiceNumber, type InvoiceNumberFormat } from "./number.ts";
-import type {
-  InvoiceNumberAllocator,
-  InvoiceRepository,
-  ListInvoicesOptions,
-} from "./repository.ts";
+import type { InvoiceRepository, ListInvoicesOptions } from "./repository.ts";
 import type { Invoice, InvoiceView } from "./types.ts";
 
 /**
@@ -66,7 +62,6 @@ export interface InvoicePaymentReader {
 
 export interface InvoiceServiceOptions {
   readonly invoices: InvoiceRepository;
-  readonly numbers: InvoiceNumberAllocator;
   readonly checkout: InvoiceCheckout;
   readonly payments: InvoicePaymentReader;
   readonly clock: Clock;
@@ -89,14 +84,12 @@ export const INVOICE_METADATA_KEY = "invoiceId";
 
 export class InvoiceService {
   readonly #invoices: InvoiceRepository;
-  readonly #numbers: InvoiceNumberAllocator;
   readonly #checkout: InvoiceCheckout;
   readonly #payments: InvoicePaymentReader;
   readonly #clock: Clock;
 
   constructor(options: InvoiceServiceOptions) {
     this.#invoices = options.invoices;
-    this.#numbers = options.numbers;
     this.#checkout = options.checkout;
     this.#payments = options.payments;
     this.#clock = options.clock;
@@ -145,22 +138,25 @@ export class InvoiceService {
   }
 
   /**
-   * Issues a draft.
+   * Issues a draft under the merchant's next number.
    *
-   * The number is allocated before the write, so a failed write burns a number
-   * rather than risking two invoices sharing one. That is the correct trade: a
-   * gap is explainable, a duplicate is not.
+   * Allocation and the write are one call, not two, because gapless numbering
+   * requires them to be one transaction. The service hands the adapter a pure
+   * function from a sequence to an issued invoice and lets the adapter decide
+   * when to run it.
    */
   async issueInvoice(id: string, command: IssueInvoiceCommand): Promise<Invoice> {
     const invoice = await this.#require(id);
     const now = this.#clock.now();
 
-    const sequence = await this.#numbers.allocate(invoice.merchantId);
-    const number = formatInvoiceNumber(sequence, now, command.format);
-
-    const next = issueInvoice(invoice, { number, sequence, dueAt: command.dueAt, now });
-    await this.#invoices.update(next, invoice.version);
-    return next;
+    return this.#invoices.issue(invoice, (sequence) =>
+      issueInvoice(invoice, {
+        number: formatInvoiceNumber(sequence, now, command.format),
+        sequence,
+        dueAt: command.dueAt,
+        now,
+      }),
+    );
   }
 
   async voidInvoice(id: string): Promise<Invoice> {

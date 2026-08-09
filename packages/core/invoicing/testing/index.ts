@@ -10,8 +10,8 @@
 import { ConcurrencyError, ConflictError } from "@mayarin/shared";
 import type {
   Invoice,
-  InvoiceNumberAllocator,
   InvoiceRepository,
+  IssueWithSequence,
   ListInvoicesOptions,
 } from "../src/index.ts";
 
@@ -19,6 +19,7 @@ const DEFAULT_LIMIT = 100;
 
 export class InMemoryInvoiceRepository implements InvoiceRepository {
   readonly #byId = new Map<string, Invoice>();
+  readonly #nextNumber = new Map<string, number>();
 
   async insert(invoice: Invoice): Promise<void> {
     if (this.#byId.has(invoice.id)) {
@@ -79,28 +80,26 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     this.#byId.set(invoice.id, invoice);
   }
 
+  /**
+   * Allocates and stores in one step, mirroring the Postgres transaction.
+   *
+   * Single-threaded JavaScript makes this trivially atomic here, which is
+   * exactly why passing it is not evidence that the Postgres implementation is
+   * correct. That one needs a row lock and its own test against a database.
+   */
+  async issue(draft: Invoice, toIssued: IssueWithSequence): Promise<Invoice> {
+    const sequence = this.#nextNumber.get(draft.merchantId) ?? 1;
+    const issued = toIssued(sequence);
+    await this.update(issued, draft.version);
+    this.#nextNumber.set(draft.merchantId, sequence + 1);
+    return issued;
+  }
+
   async list(options: ListInvoicesOptions): Promise<readonly Invoice[]> {
     return [...this.#byId.values()]
       .filter((invoice) => invoice.merchantId === options.merchantId)
       .filter((invoice) => options.state === undefined || invoice.state === options.state)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, options.limit ?? DEFAULT_LIMIT);
-  }
-}
-
-/**
- * A gapless allocator, per merchant.
- *
- * Single-threaded JavaScript makes this trivially correct here, which is
- * exactly why it is not evidence that the Postgres implementation is correct.
- * That one needs a row lock, and its own test against a real database.
- */
-export class InMemoryInvoiceNumberAllocator implements InvoiceNumberAllocator {
-  readonly #next = new Map<string, number>();
-
-  async allocate(merchantId: string): Promise<number> {
-    const next = this.#next.get(merchantId) ?? 1;
-    this.#next.set(merchantId, next + 1);
-    return next;
   }
 }

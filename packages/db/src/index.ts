@@ -5,6 +5,7 @@ export * from "./repositories/auth.ts";
 export * from "./repositories/catalog.ts";
 export * from "./repositories/chain.ts";
 export * from "./repositories/clearing.ts";
+export * from "./repositories/invoice.ts";
 export * from "./repositories/ledger.ts";
 export * from "./repositories/market-config.ts";
 export * from "./repositories/notifications.ts";

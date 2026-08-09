@@ -134,6 +134,13 @@
       "when": 1786784400000,
       "tag": "0018_passkey_wallets",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786870800000,
+      "tag": "0019_invoices",
+      "breakpoints": true
     }
   ]
 }

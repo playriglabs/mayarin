@@ -11,7 +11,7 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import { INVOICE_METADATA_KEY, InvoiceService } from "../src/service.ts";
-import { InMemoryInvoiceNumberAllocator, InMemoryInvoiceRepository } from "../testing/index.ts";
+import { InMemoryInvoiceRepository } from "../testing/index.ts";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 const DAY = 86_400_000;
@@ -46,7 +46,6 @@ function harness() {
 
   const invoices = new InvoiceService({
     invoices: new InMemoryInvoiceRepository(),
-    numbers: new InMemoryInvoiceNumberAllocator(),
     checkout,
     payments: intentRepository,
     clock,

@@ -1,7 +1,7 @@
 /**
- * Persistence ports for invoicing.
+ * Persistence port for invoicing.
  *
- * The domain owns these contracts; adapters implement them. `update` takes the
+ * The domain owns this contract; adapters implement it. `update` takes the
  * version the caller read, so a lost update surfaces as a `ConcurrencyError`
  * rather than overwriting another writer's edit.
  */
@@ -14,6 +14,13 @@ export interface ListInvoicesOptions {
   readonly limit?: number;
 }
 
+/**
+ * Turns a draft into an issued invoice, given the number it was allocated.
+ *
+ * Pure, and called by the adapter rather than before it — see `issue`.
+ */
+export type IssueWithSequence = (sequence: number) => Invoice;
+
 export interface InvoiceRepository {
   insert(invoice: Invoice): Promise<void>;
   findById(id: string): Promise<Invoice | null>;
@@ -22,19 +29,23 @@ export interface InvoiceRepository {
   findByIdempotencyKey(key: string): Promise<Invoice | null>;
   update(invoice: Invoice, expectedVersion: number): Promise<void>;
   list(options: ListInvoicesOptions): Promise<readonly Invoice[]>;
-}
 
-/**
- * Allocates the next counter value for a merchant.
- *
- * Deliberately the whole of the contract. Whether the implementation is gapless
- * — a counter row taken under a row lock inside the issuing transaction — or
- * gap-tolerant, like the deposit-address sequence already in this codebase, is
- * a property of the adapter and invisible here.
- *
- * A value is allocated exactly once and never reallocated, including when the
- * invoice it was allocated for is later voided.
- */
-export interface InvoiceNumberAllocator {
-  allocate(merchantId: string): Promise<number>;
+  /**
+   * Allocates the merchant's next invoice number and stores the issued invoice
+   * atomically.
+   *
+   * This is one method rather than an allocator plus an update because gapless
+   * numbering demands it. Allocate first and write second, and a failed write
+   * burns a number — which is a hole in the series, which is the thing the
+   * requirement rules out. Both effects therefore belong to one transaction,
+   * and only an adapter can open one.
+   *
+   * `toIssued` receives the allocated value and returns the invoice to store.
+   * It is pure and may be called only once.
+   *
+   * A number is never reallocated, including when the invoice that consumed it
+   * is later voided. Voiding withdraws a document; it does not free its place
+   * in the series.
+   */
+  issue(draft: Invoice, toIssued: IssueWithSequence): Promise<Invoice>;
 }
