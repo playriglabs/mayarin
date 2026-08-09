@@ -31,20 +31,35 @@ export const historyQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(200).optional(),
 });
 
-export function toSettingsDto(merchant: Merchant) {
+/**
+ * `effectiveSettlementAddress` is where the money actually goes: what the
+ * merchant set, or their managed wallet when they set nothing (#11). Passed in
+ * rather than derived here, because the rule belongs to
+ * `SettlementAddressResolver` and a second copy of it in a DTO is a second copy
+ * to get wrong.
+ *
+ * `undefined` means neither exists, and then a contract-path payment cannot be
+ * signed at all.
+ */
+export function toSettingsDto(merchant: Merchant, effectiveSettlementAddress?: string) {
   return {
     merchantId: merchant.id,
     name: merchant.name,
     settlementAsset: merchant.settlementAsset,
     acceptedAssets: merchant.acceptedAssets,
+    /** What the merchant chose. `null` is "not chosen", not "nowhere to pay". */
     settlementAddress: merchant.settlementAddress ?? null,
+    effectiveSettlementAddress: effectiveSettlementAddress ?? null,
     /**
      * Whether this merchant can take a contract-path payment at all. Derived
      * rather than stored: `PRICE_LOCKED` refuses to sign without an address, so
      * a merchant should be able to see that before a payment fails rather than
      * after.
+     *
+     * Reads the effective address, not the configured one — a merchant paid at
+     * their provisioned Safe has chosen nothing and can settle perfectly well.
      */
-    canSettleOnChain: merchant.settlementAddress !== undefined,
+    canSettleOnChain: effectiveSettlementAddress !== undefined,
     updatedAt: merchant.updatedAt.toISOString(),
   };
 }

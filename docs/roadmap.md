@@ -299,8 +299,20 @@ commerce platform (Shopify), not payment infrastructure (Stripe).
 - ☑ Merchant is a Safe signer (Turnkey co-signs, never sole) + merchant-controlled recovery — self-custody enforced, and executed on Base Sepolia
 - ☑ PaymentRouter signer allowlists `merchantSafe` to known merchant-owned Safes (RFC #6) — `WalletGuard`, on the contract and deposit paths alike
 - ☑ Settlement address defaults to the managed wallet on that chain, so a provisioned merchant is payable without finding a settings field
-- ☐ Wallet screens in the dashboard — the API is complete and nothing drives the passkey ceremony in a browser yet
-- ☐ A second authenticator per merchant (Turnkey adds it to the existing sub-organization, authorized by their current passkey)
+- ☑ `GET /settings` reports the address the signer will actually use, so "chosen nothing" is not reported as "cannot settle"
+
+The wallet **backend** is done. What is left is browser work and belongs to the
+dashboard, not here (Merchant Dashboard → Wallets, below):
+
+- driving the passkey ceremony — `navigator.credentials.create`, then a Turnkey
+  request stamped by that passkey to sign the verification challenge
+- registering a second authenticator, which Turnkey adds to the existing
+  sub-organization on the authority of the passkey the merchant already has
+- a form for the settlement address, which now has a sensible default to show
+
+A merchant who has lost their only passkey is not stranded by that gap: the Safe
+still has Mayarin as an owner at threshold 1, bounded by policy to transactions
+addressed to that Safe.
 
 Merchants never connect MetaMask, import keys, or manage seed phrases — a key
 bound to their passkey is created for them, and the Safe is provisioned around
@@ -392,7 +404,9 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
 - ☐ Merchant analytics
 - ☐ Overview
 - ☐ Orders
-- ☐ Wallets
+- ☐ Wallets — the API is complete behind it (create a passkey key, prove control,
+  provision the Safe, add a second authenticator, set the settlement address);
+  what is missing is the browser half of the passkey ceremony
 - ☐ Customers
 - ☐ Analytics
 - ☐ Payment Links
