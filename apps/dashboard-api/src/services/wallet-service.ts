@@ -1,20 +1,23 @@
 /**
  * Merchant wallet service (#11).
  *
- * Two ways a merchant ends up with a payable address, behind the merchant's own
+ * How a merchant ends up with a payable address, behind the merchant's own
  * session. Scoped like every other merchant surface: no method takes a merchant
  * id, so one merchant cannot claim, verify or provision another's wallet.
  *
  * - **Connect-existing** — they link an address and prove control of it by
  *   signing a challenge. Mayarin signs nothing on their behalf, and this path
  *   carries no custody question at all.
+ * - **Passkey** — for a merchant who holds no wallet, a key is created that only
+ *   their own authenticator can use, in a provider organization Mayarin is not a
+ *   user of. Then the same challenge, the same signature, the same verification.
  * - **Managed** — Mayarin provisions a smart account with the merchant already
- *   in its signer set. This is what a merchant who has never held a wallet
- *   gets, and it requires the first path to have happened once: the merchant's
- *   verified address is what makes the signer set non-custodial.
+ *   in its signer set. It needs one of the first two to have happened: the
+ *   merchant's verified address is what makes the signer set non-custodial.
  *
- * The two live alongside each other rather than replacing each other. Which one
- * is actually paid is the settlement address, set separately (#95).
+ * All three live alongside each other rather than replacing each other. Which
+ * one is actually paid is the settlement address — set explicitly (#95), and
+ * defaulting to the managed wallet when it is not.
  */
 
 import type { ChainId } from "@mayarin/chain";
@@ -31,8 +34,10 @@ import {
   challengeMessage,
   createChallenge,
   type ManagedWalletProvisioner,
+  type MerchantKeyProvider,
   type MerchantWallet,
   type MerchantWalletRepository,
+  type PasskeyAttestation,
   type SignatureVerifier,
   type WalletChallenge,
   type WalletChallengeRepository,
@@ -53,6 +58,13 @@ export interface WalletServiceOptions {
    */
   readonly provisioner?: ManagedWalletProvisioner;
   /**
+   * Creates keys the merchant holds, absent on a deployment with no provider.
+   * Absent means the endpoint refuses and the merchant links an address they
+   * already control instead — it never means they quietly get a key Mayarin
+   * could sign with.
+   */
+  readonly keyProvider?: MerchantKeyProvider;
+  /**
    * Fee destinations. A merchant may not link one: an address that is both a
    * fee recipient and a payout destination pays that merchant twice, and the
    * ledger shows one payment.
@@ -70,6 +82,7 @@ export class WalletService {
   readonly #clock: Clock;
   readonly #ttl: number;
   readonly #provisioner: ManagedWalletProvisioner | undefined;
+  readonly #keyProvider: MerchantKeyProvider | undefined;
   readonly #treasury: ReadonlySet<string>;
 
   constructor(options: WalletServiceOptions) {
@@ -79,6 +92,7 @@ export class WalletService {
     this.#clock = options.clock;
     this.#ttl = options.challengeTtlSeconds ?? DEFAULT_CHALLENGE_TTL;
     this.#provisioner = options.provisioner;
+    this.#keyProvider = options.keyProvider;
     this.#treasury = new Set(
       (options.treasuryAddresses ?? []).map((address) => address.toLowerCase()),
     );
@@ -95,40 +109,40 @@ export class WalletService {
    * claims, so this alone does not make the address payable.
    */
   async link(scope: Scope, chain: ChainId, address: string): Promise<MerchantWallet> {
-    const normalised = normaliseAddress(address);
+    return this.#record(scope, chain, normaliseAddress(address), "linked");
+  }
 
-    if (this.#treasury.has(normalised)) {
-      // Refused here as well as at signing time, because the guard's refusal
-      // would arrive at a merchant's first payment rather than at the moment
-      // somebody typed the wrong address.
-      throw new ValidationError(
-        "That address is a fee destination and cannot be a merchant wallet",
-        {
-          chain,
-          address: normalised,
-        },
+  /**
+   * Creates a key the merchant holds, for a merchant who holds none.
+   *
+   * The attestation is a passkey their browser just made. The provider creates
+   * the signing key in an organization whose only root user is that
+   * authenticator, so Mayarin knows the address and cannot sign with it.
+   *
+   * **Unverified, like any other claim.** The merchant signs the challenge with
+   * the new key and this deployment recovers it. Marking it verified here would
+   * be verifying Mayarin's own API call: a key that turns out not to sign would
+   * become a Safe owner that cannot act, which is self-custody that is true in
+   * the database and false on-chain.
+   */
+  async createPasskeyWallet(
+    scope: Scope,
+    chain: ChainId,
+    attestation: PasskeyAttestation,
+  ): Promise<MerchantWallet> {
+    if (this.#keyProvider === undefined) {
+      throw new ConfigurationError(
+        "This deployment cannot create merchant keys; link an address you control instead",
+        { chain },
       );
     }
 
-    const claimed = await this.#wallets.findByAddress(chain, normalised);
-    if (claimed !== null) {
-      // Same answer whoever asks, including the merchant who already owns it:
-      // a distinct message would let an address be probed for ownership.
-      throw new ConflictError("That address is already claimed", { chain, address: normalised });
-    }
-
-    const now = this.#clock.now();
-    const wallet: MerchantWallet = {
-      id: generateId("wlt", now.getTime()),
+    const key = await this.#keyProvider.createMerchantKey({
       merchantId: scope.merchantId,
-      chain,
-      address: normalised,
-      provenance: "linked",
-      createdAt: now,
-      updatedAt: now,
-    };
-    await this.#wallets.insert(wallet);
-    return wallet;
+      attestation,
+    });
+
+    return this.#record(scope, chain, normaliseAddress(key.address), "passkey", key.ref);
   }
 
   /**
@@ -210,6 +224,54 @@ export class WalletService {
     };
     await this.#wallets.update(verified);
     return verified;
+  }
+
+  /**
+   * Files an unverified merchant-held wallet, whichever way the merchant came
+   * to hold it.
+   *
+   * Both refusals apply to a freshly created key as much as to a typed address.
+   * A generated key landing on a treasury address or on somebody else's wallet
+   * is not reachable, and that is exactly why it is checked: if it ever happens,
+   * the alternative to failing is paying one merchant into another's wallet.
+   */
+  async #record(
+    scope: Scope,
+    chain: ChainId,
+    address: string,
+    provenance: "linked" | "passkey",
+    keyRef?: string,
+  ): Promise<MerchantWallet> {
+    if (this.#treasury.has(address)) {
+      // Refused here as well as at signing time, because the guard's refusal
+      // would arrive at a merchant's first payment rather than at the moment
+      // somebody typed the wrong address.
+      throw new ValidationError(
+        "That address is a fee destination and cannot be a merchant wallet",
+        { chain, address },
+      );
+    }
+
+    const claimed = await this.#wallets.findByAddress(chain, address);
+    if (claimed !== null) {
+      // Same answer whoever asks, including the merchant who already owns it:
+      // a distinct message would let an address be probed for ownership.
+      throw new ConflictError("That address is already claimed", { chain, address });
+    }
+
+    const now = this.#clock.now();
+    const wallet: MerchantWallet = {
+      id: generateId("wlt", now.getTime()),
+      merchantId: scope.merchantId,
+      chain,
+      address,
+      provenance,
+      ...(keyRef === undefined ? {} : { keyRef }),
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.#wallets.insert(wallet);
+    return wallet;
   }
 
   async #ownWallet(scope: Scope, walletId: string): Promise<MerchantWallet> {

@@ -38,6 +38,7 @@ import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
 import { ManagedWalletProvisioner } from "@mayarin/wallet";
 import {
+  FakeMerchantKeyProvider,
   FakeWalletProvider,
   InMemoryMerchantWalletRepository,
   InMemoryWalletChallengeRepository,
@@ -159,6 +160,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   // Safe is proven on testnet; what the route tests are for is the surface
   // around it — scoping, idempotence, and that the two wallet paths coexist.
   const walletProvider = new FakeWalletProvider();
+  const merchantKeyProvider = new FakeMerchantKeyProvider();
   const treasuryAddresses = [TREASURY_ADDRESS];
   const wallets = new WalletService({
     wallets: merchantWallets,
@@ -168,6 +170,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     verifier: new ViemSignatureVerifier(),
     clock,
     treasuryAddresses,
+    keyProvider: merchantKeyProvider,
     provisioner: new ManagedWalletProvisioner({
       wallets: merchantWallets,
       provider: walletProvider,
@@ -251,6 +254,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     merchantWallets,
     walletChallenges,
     walletProvider,
+    merchantKeyProvider,
     sessions,
     intents,
     intentService,

@@ -15,6 +15,18 @@ const ADMIN_EMAIL = "admin@mayarin.local";
 const ADMIN_PASSWORD = "correct-horse-battery-staple";
 const MERCHANT_KEY = `0x${"11".repeat(32)}` as const;
 const OTHER_KEY = `0x${"22".repeat(32)}` as const;
+/** Stands in for the key a passkey authorises inside the provider's enclave. */
+const PASSKEY_KEY = `0x${"33".repeat(32)}` as const;
+
+/** A WebAuthn credential as a browser would hand it over. Opaque here. */
+const ATTESTATION = {
+  name: "Merchant's phone",
+  credentialId: "credential-id",
+  challenge: "webauthn-challenge",
+  clientDataJson: "client-data",
+  attestationObject: "attestation-object",
+  transports: ["internal"],
+};
 
 type Harness = Awaited<ReturnType<typeof createDashboardHarness>>;
 
@@ -217,6 +229,106 @@ describe("scoping", () => {
 
     const res = await harness.request("GET", "/wallets", { cookies: auth.jar });
     expect(res.status).toBe(403);
+  });
+});
+
+describe("passkey wallets", () => {
+  test("a merchant who holds nothing gets a key, unverified", async () => {
+    // The onboarding claim: no MetaMask, no seed phrase, no gas. What comes back
+    // is still a claim, because a key that turns out not to sign would become a
+    // Safe owner that cannot act.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await post(harness, auth, "/wallets/passkey", {
+      chain: "base-sepolia",
+      attestation: ATTESTATION,
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body?.wallet.provenance).toBe("passkey");
+    expect(res.body?.wallet.verified).toBe(false);
+    // The browser needs the handle to sign with the passkey later.
+    expect(res.body?.wallet.keyRef).toBe(`merchant-key-sub-${harness.merchantId}-1`);
+  });
+
+  test("the attestation reaches the provider", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    await post(harness, auth, "/wallets/passkey", {
+      chain: "base-sepolia",
+      attestation: ATTESTATION,
+    });
+
+    expect(harness.merchantKeyProvider.attestations).toHaveLength(1);
+    expect(harness.merchantKeyProvider.attestations[0]?.attestation.credentialId).toBe(
+      ATTESTATION.credentialId,
+    );
+    // Scoped: the provider is told whose key it is, and a merchant cannot ask
+    // for one on another merchant's behalf because no route takes a merchant id.
+    expect(harness.merchantKeyProvider.attestations[0]?.merchantId).toBe(harness.merchantId);
+  });
+
+  test("a malformed attestation is refused before the provider is called", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await post(harness, auth, "/wallets/passkey", {
+      chain: "base-sepolia",
+      attestation: { ...ATTESTATION, transports: ["carrier-pigeon"] },
+    });
+
+    expect(res.status).toBe(400);
+    expect(harness.merchantKeyProvider.attestations).toHaveLength(0);
+  });
+
+  test("a passkey key becomes payable on a signature, like any other address", async () => {
+    // The whole chain, end to end: the key signs the challenge this deployment
+    // issued, and only then is it a wallet the guard would let money reach.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const account = privateKeyToAccount(PASSKEY_KEY);
+    harness.merchantKeyProvider.addresses.push(account.address);
+
+    const created = await post(harness, auth, "/wallets/passkey", {
+      chain: "base-sepolia",
+      attestation: ATTESTATION,
+    });
+    const id = created.body?.wallet.id as string;
+    const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+    const signature = await account.signMessage({ message: challenge.body?.message as string });
+    const verified = await post(harness, auth, `/wallets/${id}/verify`, {
+      challengeId: challenge.body?.challengeId,
+      signature,
+    });
+
+    expect(verified.body?.wallet.verified).toBe(true);
+  });
+
+  test("a verified passkey key is enough to be provisioned a Safe", async () => {
+    // The journey this exists for: sign up, create a passkey, prove it signs,
+    // get a Safe you already own. No wallet was ever connected.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const account = privateKeyToAccount(PASSKEY_KEY);
+    harness.merchantKeyProvider.addresses.push(account.address);
+
+    const created = await post(harness, auth, "/wallets/passkey", {
+      chain: "base-sepolia",
+      attestation: ATTESTATION,
+    });
+    const id = created.body?.wallet.id as string;
+    const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+    await post(harness, auth, `/wallets/${id}/verify`, {
+      challengeId: challenge.body?.challengeId,
+      signature: await account.signMessage({ message: challenge.body?.message as string }),
+    });
+
+    const managed = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+
+    expect(managed.status).toBe(200);
+    expect(managed.body?.wallet.signers.merchant).toBe(account.address.toLowerCase());
   });
 });
 

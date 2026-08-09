@@ -976,6 +976,34 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       expect(found?.verifiedAt).toBeUndefined();
     });
 
+    test("round-trips a passkey wallet's key handle", async () => {
+      // The handle is how the merchant's browser names the organization it signs
+      // in. Losing it on the way through Postgres leaves a wallet nobody can
+      // prove control of, and therefore a Safe owner that can never be built.
+      const wallets = new DrizzleMerchantWalletRepository(handle.db);
+      const merchantId = await seedMerchant();
+      const now = clock.now();
+      const wallet = {
+        id: generateId("wlt", now.getTime()),
+        merchantId,
+        chain: "base-sepolia" as const,
+        address: "0x5555555555555555555555555555555555555555",
+        provenance: "passkey" as const,
+        keyRef: "merchant-key-sub-org-1",
+        createdAt: now,
+        updatedAt: now,
+      };
+      await wallets.insert(wallet);
+
+      const found = await wallets.findByAddress("base-sepolia", wallet.address);
+      expect(found?.provenance).toBe("passkey");
+      expect(found?.keyRef).toBe("merchant-key-sub-org-1");
+      // A merchant-held key is not a managed signer set, and must not read back
+      // as one — `findManaged` asks by provenance.
+      expect(found?.managed).toBeUndefined();
+      expect(await wallets.findManaged(merchantId, "base-sepolia")).toBeNull();
+    });
+
     test("findManaged ignores a linked wallet on the same chain", async () => {
       // Connect-existing lives alongside managed, so "their wallet on this
       // chain" is ambiguous and provenance is what the provisioner asks by.

@@ -7,7 +7,7 @@ import { QuoteEngine } from "@mayarin/quote";
 import { FakeOrderSigner } from "@mayarin/quote/testing";
 import { ConfigurationError, FixedClock, money, ValidationError } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
-import { type MerchantWallet, WalletGuard } from "@mayarin/wallet";
+import { type MerchantWallet, SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
 import { InMemoryMerchantWalletRepository } from "@mayarin/wallet/testing";
 import { ApiContractPlanner } from "../src/contract-layer.ts";
 import type { QuoteLayer } from "../src/quote-layer.ts";
@@ -23,7 +23,11 @@ const ETH_IDRX_RATE = 6_000_000_000n;
 
 // `null` means the merchant has no settlement address; `undefined` would be
 // swallowed by the default parameter and silently pass the address through.
-function createPlanner(settlementAddress: string | null = MERCHANT_SAFE, wallets?: WalletGuard) {
+function createPlanner(
+  settlementAddress: string | null = MERCHANT_SAFE,
+  wallets?: WalletGuard,
+  settlementAddresses?: SettlementAddressResolver,
+) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
     { from: "ETH", to: "IDRX", scaledRate: ETH_IDRX_RATE, source: "0x" },
@@ -73,6 +77,7 @@ function createPlanner(settlementAddress: string | null = MERCHANT_SAFE, wallets
       }),
     },
     ...(wallets === undefined ? {} : { wallets }),
+    ...(settlementAddresses === undefined ? {} : { settlementAddresses }),
     clock,
   });
   return { planner, venue, signer, clock };
@@ -157,6 +162,80 @@ describe("merchant settlement address", () => {
     const { planner } = createPlanner(null);
 
     await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ConfigurationError);
+  });
+});
+
+describe("a merchant who never named their wallet is still paid at it (#11)", () => {
+  const NOW_DATE = new Date(NOW);
+  const MANAGED_SAFE = "0x1234567890abcdef1234567890abcdef12345678";
+
+  function managedWallet(overrides: Partial<MerchantWallet> = {}): MerchantWallet {
+    return {
+      id: "wlt_managed",
+      merchantId: "ID1020017611473",
+      chain: "base",
+      address: MANAGED_SAFE,
+      provenance: "provisioned",
+      verifiedAt: NOW_DATE,
+      createdAt: NOW_DATE,
+      updatedAt: NOW_DATE,
+      ...overrides,
+    };
+  }
+
+  function planner(settlementAddress: string | null, wallet?: MerchantWallet) {
+    const wallets = new InMemoryMerchantWalletRepository();
+    const inserted = wallet === undefined ? Promise.resolve() : wallets.insert(wallet);
+    return inserted.then(() =>
+      createPlanner(
+        settlementAddress,
+        new WalletGuard({ wallets, treasuryAddresses: [] }),
+        new SettlementAddressResolver({ wallets }),
+      ),
+    );
+  }
+
+  test("falls back to the provisioned Safe when no address is set", async () => {
+    // Before this, a merchant handed a Safe had to go and name it in a settings
+    // form nobody mentioned, and found out it was load-bearing when their first
+    // payment refused to lock.
+    const { planner: subject } = await planner(null, managedWallet());
+
+    const lock = await subject.lock(lockRequest("ETH"));
+
+    expect(lock.order.merchantSafe.toLowerCase()).toBe(MANAGED_SAFE);
+  });
+
+  test("what the merchant set still wins", async () => {
+    const { planner: subject } = await planner(
+      MERCHANT_SAFE,
+      managedWallet({
+        id: "wlt_chosen",
+        address: MERCHANT_SAFE.toLowerCase(),
+        provenance: "linked",
+      }),
+    );
+
+    const lock = await subject.lock(lockRequest("ETH"));
+
+    expect(lock.order.merchantSafe.toLowerCase()).toBe(MERCHANT_SAFE.toLowerCase());
+  });
+
+  test("no address and no managed wallet is still a refusal", async () => {
+    // The alternative is a deployment-wide address, which pays every merchant
+    // into the same wallet with no way to tell the payments apart afterwards.
+    const { planner: subject } = await planner(null);
+
+    await expect(subject.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ConfigurationError);
+  });
+
+  test("a half-provisioned wallet is not a fallback", async () => {
+    // The row is written before the Safe is deployed. Paying a predicted address
+    // with no Safe at it sends the money nowhere recoverable.
+    const { verifiedAt: _pending, ...pending } = managedWallet();
+    const { planner: subject } = await planner(null, pending);
+
+    await expect(subject.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ConfigurationError);
   });
 });
 

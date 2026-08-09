@@ -279,7 +279,8 @@ lines survive only as an immutable snapshot in the intent's metadata. A stored,
 mutable cart could move the price after the clearing engine reached
 `PRICE_LOCKED`, which the engine's invariants say cannot happen.
 
-Status on the hosted checkout is polled. Real-time status arrives with #13.
+Status on the hosted checkout is live rather than polled: Postgres `NOTIFY` on the
+payment write, fanned out over SSE (#13).
 
 The commerce layer is a **thin optional layer** that produces Payment Intents.
 It depends on `payment-intent`, never the reverse. The contract boundary is
@@ -290,16 +291,21 @@ commerce platform (Shopify), not payment infrastructure (Stripe).
 
 ### Wallet Infrastructure
 
-- ☐ Wallet Provider abstraction
-- ☐ Managed smart-account provisioning (Safe default)
-- ☐ Policy-gated signing — backend proposes within policy, never signs raw
-- ☐ Connect-existing wallet (Safe, EOA) — additive, not a rewrite
-- ☐ Merchant is a Safe signer (Turnkey co-signs, never sole) + merchant-controlled recovery — self-custody enforced
-- ☐ PaymentRouter signer allowlists `merchantSafe` to known merchant-owned Safes (RFC #6)
+- ☑ Wallet Provider abstraction — `packages/core/wallet`, Turnkey behind it
+- ☑ Managed smart-account provisioning (Safe default), resumable and idempotent
+- ☑ Policy-gated signing — the port proposes from a closed union and never takes bytes; the Turnkey policy binds a non-root signer to that merchant's Safe. `propose()` itself throws pending #9
+- ☑ Connect-existing wallet (Safe, EOA) — additive, not a rewrite
+- ☑ Passkey-held merchant key — a merchant who owns no wallet gets one only their authenticator can use, so provisioning no longer presupposes MetaMask
+- ☑ Merchant is a Safe signer (Turnkey co-signs, never sole) + merchant-controlled recovery — self-custody enforced, and executed on Base Sepolia
+- ☑ PaymentRouter signer allowlists `merchantSafe` to known merchant-owned Safes (RFC #6) — `WalletGuard`, on the contract and deposit paths alike
+- ☑ Settlement address defaults to the managed wallet on that chain, so a provisioned merchant is payable without finding a settings field
+- ☐ Wallet screens in the dashboard — the API is complete and nothing drives the passkey ceremony in a browser yet
+- ☐ A second authenticator per merchant (Turnkey adds it to the existing sub-organization, authorized by their current passkey)
 
-Merchants never connect MetaMask, import keys, or manage seed phrases. A
-managed settlement wallet is provisioned on account creation. **Safe smart
-account** is the wallet shape — self-custodial, chain-enforced policy,
+Merchants never connect MetaMask, import keys, or manage seed phrases — a key
+bound to their passkey is created for them, and the Safe is provisioned around
+it once they have signed one message with it. **Safe smart account** is the
+wallet shape — self-custodial, chain-enforced policy,
 relayer-paid gas — giving Stripe-smooth onboarding without Mayarin becoming a
 custodian. **Turnkey** is the wallet provider: an MPC policy engine that
 provisions and signs for managed wallets under policy. **Tempo** is an
@@ -312,16 +318,26 @@ engine, never the sole signer), and a merchant-controlled recovery path lets
 the merchant rotate to self-custody on exit — _provisioned, not custodial._
 The PaymentRouter signer (#6, HSM-held) only signs Orders whose `merchantSafe`
 is a known merchant-owned Safe, and `feeRecipient` is a separate treasury Safe,
-not a merchant Safe. The Phase 3 contract settles to `merchantSafe` today;
-until #11 lands, the contract path uses a merchant-provided address (the
-contract treats `merchantSafe` as opaque), so #11 makes managed onboarding
-production-grade without a contract change.
+not a merchant Safe. Both are enforced rather than intended: `WalletGuard`
+refuses a payout destination that is not a verified wallet of the merchant being
+paid, and a deployment whose `TREASURY_ADDRESS` is already somebody's merchant
+wallet does not boot. The contract treated `merchantSafe` as opaque throughout,
+so #11 made managed onboarding production-grade without a contract change.
+
+Where the boundary honestly still rests on a vendor: the passkey key lives in a
+Turnkey sub-organization Mayarin is not a user of, so "Mayarin cannot sign with
+the merchant's own key" is Turnkey's authorization model rather than anything in
+this repository. See `docs/wallet.md`.
 
 ### Settlement
 
 - ☐ On-chain settlement to merchant smart account
 - ☐ Fee extraction on-chain (`minOut − fee` to merchant, fee to treasury)
 - ☐ Excess refund to customer (`refundTo`)
+
+All three are #12, in flight — the multi-recipient split is the one pending
+`Order` struct change on the board, and it now stands alone rather than waiting
+to be batched with #9.
 
 ### Gas Abstraction
 
@@ -357,15 +373,16 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
 
 ### Notifications
 
-- ☐ Webhook delivery to merchant integrations (signed, retry, idempotent)
-- ☐ Real-time payment status
+- ☑ Webhook delivery to merchant integrations (signed, retry, idempotent) — `packages/core/notifications`, driven off the clearing event log
+- ☑ Merchant-owned webhook endpoints and delivery inspection in the dashboard API
+- ☑ Real-time payment status — SSE on the hosted checkout, backed by Postgres `NOTIFY`
 
 ### Developer SDK
 
 - ☐ One Client SDK (TypeScript) — commerce, payment, QR helpers
 - ☐ POS and Merchant presets, not separate packages
-- ☐ REST API
-- ☐ Webhooks
+- ☑ REST API — `apps/api` (payments) and `apps/dashboard-api` (merchant surface)
+- ☑ Webhooks
 
 ### Merchant Dashboard
 

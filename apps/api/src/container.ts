@@ -69,7 +69,7 @@ import {
   systemClock,
 } from "@mayarin/shared";
 import { pairsOf, type Stablecoin, type StablecoinRegistry } from "@mayarin/stablecoin";
-import { WalletGuard } from "@mayarin/wallet";
+import { SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
@@ -348,8 +348,9 @@ export function createContainer({
   // The signer's last chance to object to a payout destination (#11). Held on
   // the container as well as handed to the planner, because the same guard
   // answers the boot-time question: is a fee destination somebody's wallet?
+  const merchantWallets = new DrizzleMerchantWalletRepository(handle.db);
   const walletGuard = new WalletGuard({
-    wallets: new DrizzleMerchantWalletRepository(handle.db),
+    wallets: merchantWallets,
     treasuryAddresses: config.treasuryAddress === undefined ? [] : [config.treasuryAddress],
   });
 
@@ -362,6 +363,10 @@ export function createContainer({
           stablecoins: registry,
           merchantPolicies,
           wallets: walletGuard,
+          // A merchant who never named their provisioned Safe is still paid at
+          // it, rather than finding out at their first payment that a settings
+          // field nobody mentioned was load-bearing.
+          settlementAddresses: new SettlementAddressResolver({ wallets: merchantWallets }),
           clock,
         })
       : undefined;

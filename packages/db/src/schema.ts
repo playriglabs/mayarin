@@ -689,6 +689,16 @@ export const merchantWallets = pgTable(
     providerRef: text("provider_ref"),
     providerSigner: text("provider_signer"),
     merchantSigner: text("merchant_signer"),
+    /**
+     * The provider handle for a key the *merchant* holds — a Turnkey
+     * sub-organization whose only root user is their passkey.
+     *
+     * Deliberately not `provider_ref`, which means the opposite: that column is
+     * the sub-organization Mayarin is root of. Reusing one column for both would
+     * make "whose organization is this" a question about which sibling columns
+     * happen to be null.
+     */
+    keyRef: text("key_ref"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },

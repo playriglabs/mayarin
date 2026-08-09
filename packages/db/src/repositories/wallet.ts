@@ -142,6 +142,7 @@ function toWalletRow(wallet: MerchantWallet): typeof merchantWallets.$inferInser
     providerRef: wallet.managed?.ref ?? null,
     providerSigner: wallet.managed?.address ?? null,
     merchantSigner: wallet.managed?.merchantSigner ?? null,
+    keyRef: wallet.keyRef ?? null,
     createdAt: wallet.createdAt,
     updatedAt: wallet.updatedAt,
   };
@@ -156,6 +157,7 @@ function toWallet(row: WalletRow): MerchantWallet {
     provenance: row.provenance as WalletProvenance,
     ...present("verifiedAt", row.verifiedAt),
     ...present("managed", toManaged(row)),
+    ...present("keyRef", row.keyRef),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

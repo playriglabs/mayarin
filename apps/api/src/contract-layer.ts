@@ -49,7 +49,7 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import type { StablecoinRegistry } from "@mayarin/stablecoin";
-import type { WalletGuard } from "@mayarin/wallet";
+import type { SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
 import type { Config, ContractConfig } from "./config.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 
@@ -80,6 +80,17 @@ export interface ContractLayerOptions {
    * layer need not build one; where the contract path runs, it is wired.
    */
   readonly wallets?: WalletGuard;
+  /**
+   * Falls back to the merchant's managed wallet when they have set no settlement
+   * address (#11).
+   *
+   * A merchant who was provisioned a Safe and never named it in the settings
+   * form has a payout destination and cannot be paid at it, and nothing about
+   * that state looks wrong until a payment refuses to lock. Optional for the
+   * same reason as `wallets`: a deployment with no wallet registry has nothing
+   * to fall back to, and then an unset address is still a refusal.
+   */
+  readonly settlementAddresses?: SettlementAddressResolver;
   readonly clock: Clock;
 }
 
@@ -94,7 +105,18 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     const { contract, fees, stablecoins, merchantPolicies, clock } = this.#options;
     const quote = await this.#options.quote();
 
-    const merchantSafe = (await merchantPolicies.policyFor(request.merchantId))?.settlementAddress;
+    const configured = (await merchantPolicies.policyFor(request.merchantId))?.settlementAddress;
+    // What the merchant set wins; unset falls back to the wallet Mayarin
+    // provisioned for them on this chain. Both still face the guard below —
+    // the fallback passes by construction, the configured value has to earn it.
+    const merchantSafe =
+      this.#options.settlementAddresses === undefined
+        ? configured
+        : await this.#options.settlementAddresses.resolve(
+            request.merchantId,
+            request.chain,
+            configured,
+          );
     if (merchantSafe === undefined) {
       throw new ConfigurationError(
         `Merchant ${request.merchantId} has no settlement address; the on-chain-contract path cannot sign an order without one`,

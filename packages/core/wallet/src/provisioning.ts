@@ -7,16 +7,18 @@
  *
  * ## Where the merchant's key comes from
  *
- * From the merchant, proven before this runs. Provisioning requires a wallet
- * they have already linked *and verified* — an address they signed a challenge
- * with. Nothing here generates a key on a merchant's behalf and nothing stores
- * one: a key Mayarin generated is a key Mayarin saw, and a signer set built out
- * of one is custody wearing a merchant's name.
+ * From the merchant, proven before this runs. Provisioning requires a
+ * merchant-held wallet they have already *verified* — an address a signature
+ * recovered to. Either way of holding one qualifies: an address they brought
+ * (`linked`), or a key created for them that only their passkey can use
+ * (`passkey`, see `merchant-key.ts`). What is refused is a signer set built out
+ * of a key Mayarin could produce a signature for, because that is custody
+ * wearing a merchant's name.
  *
- * That does mean provisioning is not literally part of account creation. It is
- * one authenticated call after the merchant has proved control of one address,
- * which is the earliest moment a non-custodial signer set can be assembled at
- * all.
+ * The passkey path is what makes this part of onboarding rather than a step for
+ * merchants who already own a wallet. It is still not literally one call: the
+ * merchant creates a key, proves it signs, and then this runs — which is the
+ * earliest moment a non-custodial signer set can be assembled at all.
  *
  * ## Resumability, which is the whole shape of this file
  *
@@ -44,7 +46,12 @@
 import type { ChainId } from "@mayarin/chain";
 import { type Clock, generateId, ValidationError } from "@mayarin/shared";
 import type { ManagedSigner, WalletProvider } from "./provider.ts";
-import { isVerified, type MerchantWallet, type MerchantWalletRepository } from "./types.ts";
+import {
+  isMerchantHeld,
+  isVerified,
+  type MerchantWallet,
+  type MerchantWalletRepository,
+} from "./types.ts";
 
 export interface ManagedWalletProvisionerOptions {
   readonly wallets: MerchantWalletRepository;
@@ -154,10 +161,15 @@ export class ManagedWalletProvisioner {
   /**
    * The merchant-controlled signer the wallet is built around.
    *
-   * A verified linked wallet, and nothing else. An unverified one is an address
-   * the merchant *claimed*, and building a signer set out of a claim would let
-   * anyone with `settings:manage` name a co-owner of a wallet Mayarin is about
-   * to create.
+   * A verified merchant-held wallet, and nothing else. An unverified one is an
+   * address the merchant *claimed*, and building a signer set out of a claim
+   * would let anyone with `settings:manage` name a co-owner of a wallet Mayarin
+   * is about to create.
+   *
+   * Ordered oldest first, so a merchant holding several — a linked address and
+   * a passkey key, say — gets the same signer on every attempt. Repository
+   * order is not a promise, and a signer that varied between attempts would
+   * derive a different address and deploy a second Safe.
    *
    * A resumed provision keeps the signer the address was derived from: the
    * derivation includes it, so taking a different one now would silently move
@@ -169,14 +181,14 @@ export class ManagedWalletProvisioner {
     existing: MerchantWallet | null,
   ): Promise<string> {
     const wallets = await this.#wallets.listByMerchant(merchantId);
-    const verified = wallets.filter(
-      (wallet) => wallet.chain === chain && wallet.provenance === "linked" && isVerified(wallet),
-    );
+    const verified = wallets
+      .filter((wallet) => wallet.chain === chain && isMerchantHeld(wallet) && isVerified(wallet))
+      .sort(byCreatedThenAddress);
 
     const first = verified[0];
     if (first === undefined) {
       throw new ValidationError(
-        "Provisioning needs an address the merchant has proved control of; link one and verify it first",
+        "Provisioning needs an address the merchant has proved control of; create a passkey wallet or link one, and verify it first",
         { merchantId, chain },
       );
     }
@@ -196,4 +208,10 @@ export class ManagedWalletProvisioner {
     }
     return resumed;
   }
+}
+
+/** Oldest first, address as the tiebreak, so the choice never depends on row order. */
+function byCreatedThenAddress(left: MerchantWallet, right: MerchantWallet): number {
+  const byCreated = left.createdAt.getTime() - right.createdAt.getTime();
+  return byCreated === 0 ? left.address.localeCompare(right.address) : byCreated;
 }

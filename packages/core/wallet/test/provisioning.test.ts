@@ -189,6 +189,70 @@ describe("an interrupted provision", () => {
   });
 });
 
+describe("the merchant's signer", () => {
+  test("a verified passkey key is a signer set Mayarin can build on", async () => {
+    // The point of the passkey path: a merchant who never owned a wallet has a
+    // key they hold, so the Safe has a non-Mayarin owner from the moment it
+    // exists. Refusing this provenance would leave that merchant unable to be
+    // provisioned at all, which was the state before #11's passkey path.
+    const { wallets, provisioner } = setup();
+    const passkeyAddress = "0xcccccccccccccccccccccccccccccccccccccccc";
+    await wallets.insert(
+      linked({
+        id: "wlt_passkey",
+        address: passkeyAddress,
+        provenance: "passkey",
+        keyRef: "merchant-key-sub-1",
+      }),
+    );
+
+    const managed = await provisioner.provision(MERCHANT, CHAIN);
+
+    expect(managed.managed?.merchantSigner).toBe(passkeyAddress);
+  });
+
+  test("an unverified passkey key is not a signer set either", async () => {
+    // Created is not held. The key exists because Mayarin asked a provider for
+    // it; that it signs is what the challenge proves, and a Safe owner that
+    // cannot sign is self-custody that is true in the database and false
+    // on-chain.
+    const { wallets, provider, provisioner } = setup();
+    const { verifiedAt: _unverified, ...unverified } = linked({
+      id: "wlt_passkey",
+      address: "0xcccccccccccccccccccccccccccccccccccccccc",
+      provenance: "passkey",
+    });
+    await wallets.insert(unverified);
+
+    await expect(provisioner.provision(MERCHANT, CHAIN)).rejects.toBeInstanceOf(ValidationError);
+    expect(provider.signers).toHaveLength(0);
+  });
+
+  test("picks the same signer whatever order the wallets come back in", async () => {
+    // A merchant can hold a linked address and a passkey key at once. Repository
+    // order is not a promise, and a signer that varied between attempts would
+    // derive a different address and deploy a second Safe.
+    const older = linked({ id: "wlt_a", address: SIGNER, createdAt: NOW });
+    const newer = linked({
+      id: "wlt_b",
+      address: "0xcccccccccccccccccccccccccccccccccccccccc",
+      provenance: "passkey",
+      createdAt: new Date(NOW.getTime() + 1_000),
+    });
+
+    for (const order of [
+      [older, newer],
+      [newer, older],
+    ]) {
+      const { wallets, provisioner } = setup();
+      for (const wallet of order) await wallets.insert(wallet);
+
+      const managed = await provisioner.provision(MERCHANT, CHAIN);
+      expect(managed.managed?.merchantSigner).toBe(SIGNER);
+    }
+  });
+});
+
 describe("managed and linked wallets together", () => {
   test("a merchant keeps both on one chain", async () => {
     // Connect-existing alongside managed: linking an address the merchant

@@ -10,8 +10,11 @@
 import type { ChainId } from "@mayarin/chain";
 import { ConfigurationError, ConflictError } from "@mayarin/shared";
 import type {
+  CreateMerchantKeyRequest,
   DeployResult,
   ManagedSigner,
+  MerchantKey,
+  MerchantKeyProvider,
   MerchantWallet,
   MerchantWalletRepository,
   ProvisionRequest,
@@ -159,5 +162,46 @@ export class FakeWalletProvider implements WalletProvider {
     if (this.failOn !== step) return;
     this.failOn = undefined;
     throw new Error(`fake provider crashed during ${step}`);
+  }
+}
+
+/**
+ * Reference fake for the merchant-key port.
+ *
+ * A fresh address every call, because that is what the real provider does: each
+ * passkey gets its own organization and its own key, so a test asserting that
+ * asking twice yields one wallet would pass against a fake that reused one
+ * address and fail against Turnkey.
+ *
+ * `attestations` records what was passed, which is how a test checks that the
+ * passkey reached the provider rather than being dropped on the way.
+ */
+export class FakeMerchantKeyProvider implements MerchantKeyProvider {
+  readonly attestations: CreateMerchantKeyRequest[] = [];
+  /**
+   * Addresses to hand out, oldest first, before falling back to generated ones.
+   *
+   * A test that wants to *sign* with the created key pushes the address of a key
+   * it holds. That is the only way to exercise verification honestly: the point
+   * of the passkey path is that the key really signs, and an address nobody has
+   * the key for can only ever demonstrate the refusal.
+   */
+  readonly addresses: string[] = [];
+  #next = 0;
+  /** Set to make the next call throw, standing in for a provider outage. */
+  fail = false;
+
+  async createMerchantKey(request: CreateMerchantKeyRequest): Promise<MerchantKey> {
+    if (this.fail) {
+      this.fail = false;
+      throw new Error("fake key provider is down");
+    }
+    this.attestations.push(request);
+    this.#next += 1;
+    const queued = this.addresses.shift();
+    return {
+      ref: `merchant-key-sub-${request.merchantId}-${this.#next}`,
+      address: queued ?? `0x${this.#next.toString(16).padStart(40, "c")}`,
+    };
   }
 }

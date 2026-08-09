@@ -1,0 +1,22 @@
+-- Passkey-held merchant keys (#11).
+--
+-- Provisioning a managed Safe needs a signer the merchant holds, and until now
+-- the only way to have one was to already own a wallet. That made "merchants
+-- never connect MetaMask" false for exactly the merchant the product is for. A
+-- third provenance closes it: `passkey`, a key created inside a provider
+-- organization whose only root user is the merchant's own authenticator.
+--
+-- `key_ref` is that organization's handle. It is separate from `provider_ref`
+-- because the two mean opposite things — `provider_ref` is the sub-organization
+-- Mayarin is root of, and this one is the sub-organization Mayarin is not a user
+-- of at all. Sharing a column would turn "whose organization is this" into a
+-- question about which neighbouring columns happen to be null.
+--
+-- Nullable: a `linked` wallet has no provider behind it, and a `provisioned` one
+-- records its signer set in the three columns 0017 added.
+--
+-- No constraint on `provenance`. The column has never had one, and the values
+-- are checked in the domain where the exhaustiveness is compiler-enforced.
+--
+-- Written by hand for the same reason as 0016 and 0017.
+ALTER TABLE "merchant_wallets" ADD COLUMN "key_ref" text;
