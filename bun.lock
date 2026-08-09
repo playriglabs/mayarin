@@ -213,6 +213,15 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/core/invoicing": {
+      "name": "@mayarin/invoicing",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/catalog": "workspace:*",
+        "@mayarin/payment-intent": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/core/ledger": {
       "name": "@mayarin/ledger",
       "version": "0.1.0",
@@ -969,6 +978,8 @@
     "@mayarin/db": ["@mayarin/db@workspace:packages/db"],
 
     "@mayarin/execution": ["@mayarin/execution@workspace:packages/core/execution"],
+
+    "@mayarin/invoicing": ["@mayarin/invoicing@workspace:packages/core/invoicing"],
 
     "@mayarin/landing": ["@mayarin/landing@workspace:apps/landing"],
 
