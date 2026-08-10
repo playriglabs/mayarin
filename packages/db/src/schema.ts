@@ -373,6 +373,10 @@ export const merchants = pgTable(
     acceptedAssets: text("accepted_assets").array().notNull(),
     /** Where the merchant is paid on-chain — the order's `merchantSafe`. */
     settlementAddress: text("settlement_address"),
+    /** Merchant profile, frozen into every intent's snapshot. */
+    city: text("city"),
+    /** ISO 3166-1 alpha-2, uppercase. */
+    countryCode: text("country_code"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
     /** Optimistic concurrency control; settlement settings redirect money. */
@@ -529,6 +533,34 @@ export const paymentLinks = pgTable(
  * when has to survive the change itself. Nothing in the application updates or
  * deletes a row here.
  */
+/**
+ * What the internal stablecoin rail settled (#15).
+ *
+ * The rail has no external provider to ask, so its own record IS the record —
+ * and the clearing engine asks for it again after the fact, sometimes after a
+ * restart. Held in process memory it did not survive one: a payment that had
+ * settled came back "unknown settlement" and failed, with the money already
+ * moved. The clearing transaction was durable; its counterparty was not.
+ */
+export const stablecoinSettlements = pgTable(
+  "stablecoin_settlements",
+  {
+    providerReference: text("provider_reference").primaryKey(),
+    clearingTransactionId: text("clearing_transaction_id").notNull(),
+    /** Replaying a settle must not credit twice, so the key is unique. */
+    idempotencyKey: text("idempotency_key").notNull(),
+    state: text("state").notNull(),
+    amount: text("amount").notNull(),
+    asset: text("asset").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("stablecoin_settlements_idempotency_idx").on(table.idempotencyKey),
+    index("stablecoin_settlements_clearing_idx").on(table.clearingTransactionId),
+  ],
+);
+
 export const merchantSettingChanges = pgTable(
   "merchant_setting_changes",
   {
@@ -758,6 +790,7 @@ export const schema = {
   productPrices,
   paymentLinks,
   merchantSettingChanges,
+  stablecoinSettlements,
   marketConfig,
   refunds,
   merchantWallets,

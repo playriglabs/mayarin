@@ -26,9 +26,16 @@ import { type Clock, generateId, NotFoundError, systemClock } from "@mayarin/sha
 export interface StablecoinSettlementAdapterOptions {
   readonly name?: string;
   readonly clock?: Clock;
+  /**
+   * Where settled records live. Defaults to memory, which is right for a test
+   * and wrong for a deployment: a restart between settling and the engine's
+   * status probe loses the reference, and the payment fails with "unknown
+   * settlement" after its money has already moved.
+   */
+  readonly store?: InternalSettlementStore;
 }
 
-interface InternalSettlement {
+export interface InternalSettlement {
   readonly providerReference: string;
   readonly clearingTransactionId: string;
   state: SettlementState;
@@ -36,24 +43,64 @@ interface InternalSettlement {
   updatedAt: Date;
 }
 
+/**
+ * Where the internal rail keeps what it settled.
+ *
+ * A port rather than a `Map` because this record has to outlive the process.
+ * The engine settles, persists `providerReference`, and then asks this adapter
+ * what became of it — possibly after a restart. Held in memory, that second
+ * question answered "unknown settlement" and failed a payment whose money had
+ * already moved. The clearing transaction was durable; its counterparty was not.
+ */
+export interface InternalSettlementStore {
+  put(settlement: InternalSettlement, idempotencyKey: string): Promise<void>;
+  find(providerReference: string): Promise<InternalSettlement | null>;
+  findByIdempotencyKey(key: string): Promise<InternalSettlement | null>;
+  setState(providerReference: string, state: SettlementState, at: Date): Promise<void>;
+}
+
+/** The reference store: correct, and forgets everything when the process ends. */
+export class InMemorySettlementStore implements InternalSettlementStore {
+  readonly #byReference = new Map<string, InternalSettlement>();
+  readonly #byIdempotencyKey = new Map<string, string>();
+
+  async put(settlement: InternalSettlement, idempotencyKey: string): Promise<void> {
+    this.#byReference.set(settlement.providerReference, settlement);
+    this.#byIdempotencyKey.set(idempotencyKey, settlement.providerReference);
+  }
+
+  async find(providerReference: string): Promise<InternalSettlement | null> {
+    return this.#byReference.get(providerReference) ?? null;
+  }
+
+  async findByIdempotencyKey(key: string): Promise<InternalSettlement | null> {
+    const reference = this.#byIdempotencyKey.get(key);
+    return reference === undefined ? null : this.find(reference);
+  }
+
+  async setState(providerReference: string, state: SettlementState, at: Date): Promise<void> {
+    const settlement = this.#byReference.get(providerReference);
+    if (settlement === undefined) return;
+    settlement.state = state;
+    settlement.updatedAt = at;
+  }
+}
+
 export class StablecoinSettlementAdapter implements SettlementAdapter {
   readonly name: string;
   readonly mode = "internal" as const;
   readonly #clock: Clock;
-  readonly #settlements = new Map<string, InternalSettlement>();
-  /** idempotency key -> provider reference, so a replayed settle is not a second credit. */
-  readonly #byIdempotencyKey = new Map<string, string>();
+  readonly #store: InternalSettlementStore;
 
   constructor(options: StablecoinSettlementAdapterOptions = {}) {
     this.name = options.name ?? "stablecoin";
     this.#clock = options.clock ?? systemClock;
+    this.#store = options.store ?? new InMemorySettlementStore();
   }
 
   async settle(request: SettlementRequest): Promise<SettlementResult> {
-    const existingReference = this.#byIdempotencyKey.get(request.idempotencyKey);
-    if (existingReference !== undefined) {
-      return toResult(this.#require(existingReference));
-    }
+    const existing = await this.#store.findByIdempotencyKey(request.idempotencyKey);
+    if (existing !== null) return toResult(existing);
 
     const now = this.#clock.now();
     const settlement: InternalSettlement = {
@@ -64,13 +111,12 @@ export class StablecoinSettlementAdapter implements SettlementAdapter {
       updatedAt: now,
     };
 
-    this.#settlements.set(settlement.providerReference, settlement);
-    this.#byIdempotencyKey.set(request.idempotencyKey, settlement.providerReference);
+    await this.#store.put(settlement, request.idempotencyKey);
     return toResult(settlement);
   }
 
   async status(providerReference: string): Promise<SettlementStatus> {
-    const settlement = this.#require(providerReference);
+    const settlement = await this.#require(providerReference);
     return {
       providerReference: settlement.providerReference,
       state: settlement.state,
@@ -80,7 +126,7 @@ export class StablecoinSettlementAdapter implements SettlementAdapter {
   }
 
   async refund(request: RefundRequest): Promise<RefundResult> {
-    const settlement = this.#require(request.providerReference);
+    const settlement = await this.#require(request.providerReference);
     if (settlement.state !== "SUCCEEDED") {
       throw new NotFoundError(
         `Settlement ${settlement.providerReference} is ${settlement.state} and cannot be refunded`,
@@ -90,6 +136,7 @@ export class StablecoinSettlementAdapter implements SettlementAdapter {
 
     settlement.state = "REFUNDED";
     settlement.updatedAt = this.#clock.now();
+    await this.#store.setState(settlement.providerReference, "REFUNDED", settlement.updatedAt);
 
     return {
       providerReference: settlement.providerReference,
@@ -104,9 +151,9 @@ export class StablecoinSettlementAdapter implements SettlementAdapter {
     return null;
   }
 
-  #require(providerReference: string): InternalSettlement {
-    const settlement = this.#settlements.get(providerReference);
-    if (settlement === undefined) {
+  async #require(providerReference: string): Promise<InternalSettlement> {
+    const settlement = await this.#store.find(providerReference);
+    if (settlement === null) {
       throw new NotFoundError(`Unknown settlement ${providerReference}`, {
         provider: this.name,
         providerReference,
