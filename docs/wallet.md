@@ -174,6 +174,50 @@ policy rather than by the contract. Threshold 2 would put the boundary in the
 contract — and would also mean a merchant cannot withdraw or leave without
 Mayarin co-signing, which fails the self-custody test the whole design is for.
 
+## Reading the balance, and moving it
+
+A merchant asking "how much do I have" is asking the chain, not the ledger:
+once settlement lands on-chain the money is theirs, and the ledger's last word
+on it is that it left. `GET /wallets/balance` resolves the effective settlement
+address — configured, or the managed wallet — and reads the settlement asset
+plus the chain's own currency at it. Gas is reported alongside the balance
+because a Safe holding stablecoin and no ETH cannot move it, and that is a state
+worth seeing before trying.
+
+An asset this deployment has no token address for is **omitted rather than
+zeroed**: "nothing configured" and "an empty wallet" are different answers, and a
+merchant reading a zero would take the wrong action.
+
+`withdrawable` is true only for a wallet Mayarin provisioned. A merchant who
+pointed settlement at an address they hold themselves moves it in their own
+wallet, and offering them a button would be a lie.
+
+### The withdrawal
+
+`POST /wallets/withdraw` moves settlement out of the managed Safe. Two bounds,
+and neither is a convention:
+
+- **The destination must be one of that merchant's own verified wallets.** A
+  dashboard session is a bearer credential; an arbitrary destination turns a
+  stolen session into a transfer. Verification is a signature the merchant
+  produced, which is the step an attacker holding a session cannot take.
+- **The enclave decides, not this code.** The sub-organization key signs a real
+  Ethereum transaction _addressed to the merchant's Safe_, which is exactly the
+  condition its Turnkey policy checks. The obvious alternative — signing the
+  SafeTx EIP-712 digest with `sign_raw_payload` — has no `eth.tx.to` for a
+  policy to read, so admitting it would mean admitting _any_ digest.
+
+The Safe accepts the call with a pre-validated signature: for `v == 1` it takes
+`msg.sender` as the approving owner and checks no digest at all. The key is an
+owner at threshold 1, so one owner-sent call is a complete authorization, and
+the same signature bytes in anyone else's hands authorize nothing.
+
+Gas is the narrow slice of #9 this needs: the sub-org key is a fresh EOA holding
+nothing, so the deployer tops it up to the cost of exactly this submission,
+bounded by `maxGasTopUpWei`. A top-up that would exceed the bound is refused
+rather than sent short — a partial one submits a transaction that runs out of
+gas, which spends the fee and moves nothing.
+
 ## Fees and payouts never overlap
 
 A fee recipient that is also a payout destination pays a merchant twice and
@@ -212,9 +256,10 @@ pair: no RPC, no deployer key, no Safe addresses.
 
 ## Not here
 
-**Gas abstraction (#9).** A provisioned Safe starts empty and cannot pay to move
-its own stablecoin, so `propose()` throws rather than approximating a movement it
-cannot make. Receiving works today; withdrawing needs #9.
+**General gas abstraction (#9).** Withdrawal pays its own way — the deployer
+funds the signer for one submission — but that is one path, sponsored by
+Mayarin's key, on one chain. A merchant paying their own gas, or a paymaster, is
+still #9.
 
 **The browser half of the passkey path.** The API is complete — create the
 credential, `POST /wallets/passkey`, challenge, verify — and the dashboard has no

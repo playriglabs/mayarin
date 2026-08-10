@@ -1,3 +1,4 @@
+export * from "./balances.ts";
 export * from "./merchant-key.ts";
 export * from "./provider.ts";
 export * from "./provisioning.ts";
