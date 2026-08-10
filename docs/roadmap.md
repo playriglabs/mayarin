@@ -417,9 +417,25 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
 - ☑ Settings — settlement asset, accepted assets, settlement address, merchant
   profile, and the change history behind them
 - ☑ Developers → Webhooks: endpoints, secret rotation, delivery inspection, replay
-- ☐ Orders
-- ☐ Customers
-- ☐ Developers → API keys, SDK, event logs
+- ☑ Orders — `/orders`, a derived read of cart-bearing or referenced payment
+  intents. Line items, the linked customer, and the payment status — no
+  fulfillment state, no second state machine; an order is the commerce view of
+  a payment, and its detail is the payment detail
+- ☑ Customers — `/customers`, a merchant-managed directory linked to orders via
+  `metadata.customerId` stamped at intent creation. CRUD plus a detail view:
+  lifetime value (sum of `COMPLETED` amounts) and the orders taken for them.
+  No payer-address auto-derivation — a deposit-match transfer has no sender
+- ☑ Developers → API keys: bearer-token access to the dashboard API, with
+  per-key permissions (a subset of the merchant's own). The secret is shown
+  once at creation; listings carry only a prefix. A bearer request is exempt
+  from CSRF (it is not auto-sent cross-origin) and reaches exactly the surfaces
+  its permissions allow
+- ☑ Developers → Event logs: `/event-logs`, a unified timeline of clearing,
+  settlement, and webhook events in one derived read. Three bounded `LIMIT n`
+  queries merged in JS — no table of its own, since the three sources are
+  already append-only. A webhook row carries no `intentId` in v1
+- ☐ Developers → SDK — the one Client SDK (TypeScript) is still ahead; the
+  dashboard's own API client is the reference shape it will mirror
 
 Every surface above reads a real endpoint. The dashboard carries no fixture data:
 a merchant seeds an account, signs in, prices a product, mints a link, and the

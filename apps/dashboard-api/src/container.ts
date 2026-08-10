@@ -9,6 +9,7 @@
  */
 
 import type {
+  ApiKeyRepository,
   MerchantAccountRepository,
   MerchantRepository,
   MerchantSettingChangeRepository,
@@ -18,20 +19,28 @@ import type {
 } from "@mayarin/auth";
 import {
   CatalogService,
+  type CustomerRepository,
   type PaymentLinkRepository,
   type ProductRepository,
 } from "@mayarin/catalog";
 import type { DepositRepository, SettlementEventRepository } from "@mayarin/chain";
 import type { ClearingRepository } from "@mayarin/clearing";
-import { type AuditQueryRepository, ComplianceService } from "@mayarin/compliance";
+import {
+  type AuditQueryRepository,
+  ComplianceService,
+  type MerchantEventRepository,
+} from "@mayarin/compliance";
 import {
   createDatabase,
   type DatabaseHandle,
+  DrizzleApiKeyRepository,
   DrizzleAuditQueryRepository,
   DrizzleClearingRepository,
+  DrizzleCustomerRepository,
   DrizzleDepositRepository,
   DrizzleLedgerRepository,
   DrizzleMerchantAccountRepository,
+  DrizzleMerchantEventRepository,
   DrizzleMerchantRepository,
   DrizzleMerchantSettingChangeRepository,
   DrizzleMerchantWalletRepository,
@@ -68,9 +77,17 @@ import {
   type WalletProvider,
 } from "@mayarin/wallet";
 import type { Config } from "./config.ts";
+import {
+  ApiKeyService,
+  type SecretGenerator,
+  type SecretHasher,
+} from "./services/api-key-service.ts";
 import { AuthService } from "./services/auth-service.ts";
+import { CustomerService } from "./services/customer-service.ts";
+import { EventLogService } from "./services/event-log-service.ts";
 import { MerchantCatalogService } from "./services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
+import { OrderReadService } from "./services/order-read-service.ts";
 import { PaymentApiClient } from "./services/payment-api-client.ts";
 import {
   type ClearingReadRepository,
@@ -97,8 +114,16 @@ export interface Container {
   readonly settings: MerchantSettingsService;
   /** Products and payment links (#15), scoped the same way. */
   readonly catalog: MerchantCatalogService;
+  /** The merchant's customer directory, scoped the same way. */
+  readonly customers: CustomerService;
+  /** The commerce view of the merchant's payments — line items + customer. Read-only. */
+  readonly orders: OrderReadService;
+  /** Merchant API keys — bearer-token access, per-key permissions. */
+  readonly apiKeys: ApiKeyService;
   /** What was paid out, per payment (#15). Read-only. */
   readonly settlements: SettlementReadService;
+  /** The merchant's unified event timeline — clearing, settlement, webhooks. Read-only. */
+  readonly eventLogs: EventLogService;
   /**
    * The payment API, as a client (#15).
    *
@@ -142,6 +167,16 @@ export interface CreateContainerOptions {
   readonly merchantSettingChanges?: MerchantSettingChangeRepository;
   readonly products?: ProductRepository;
   readonly paymentLinks?: PaymentLinkRepository;
+  /** Customer directory repo. A test supplies an in-memory fake. */
+  readonly customers?: CustomerRepository;
+  /** API key repo. A test supplies an in-memory fake. */
+  readonly apiKeysRepo?: ApiKeyRepository;
+  /** Event log repo. A test supplies an in-memory fake. */
+  readonly eventLogRepo?: MerchantEventRepository;
+  /** Overridable for tests: a fixed secret generator rather than random bytes. */
+  readonly secretGenerator?: SecretGenerator;
+  /** Overridable for tests: a plain hasher rather than sha-256. */
+  readonly secretHasher?: SecretHasher;
   /** The bulk clearing read the settlement view needs, separate from `clearing`. */
   readonly settlementClearing?: ClearingBulkReadRepository;
   readonly settlementEvents?: SettlementEventReadRepository;
@@ -240,6 +275,36 @@ export function createContainer(options: CreateContainerOptions): Container {
     products: catalogProducts,
   });
 
+  // The merchant's customer directory, and the commerce view of their payments.
+  // `orders` reads the customer repo to resolve `metadata.customerId`; `customers`
+  // reads `orders` back for a customer's linked orders and lifetime value. The
+  // repo is shared, and `orders` is built first so `customers` can take it.
+  const customerRepository =
+    options.customers ?? new DrizzleCustomerRepository(handle?.db ?? throwIfNoHandle());
+  const orders = new OrderReadService({
+    intents,
+    customers: customerRepository,
+    pageSize: config.paymentsPageSize,
+  });
+  const customers = new CustomerService({
+    customers: customerRepository,
+    orders,
+    clock,
+    pageSize: config.paymentsPageSize,
+  });
+
+  // Merchant API keys — bearer-token access with per-key permissions. The repo
+  // is separate from the session/auth stack: a bearer request is looked up by
+  // the hash of the presented secret, not by a session id.
+  const apiKeyRepository =
+    options.apiKeysRepo ?? new DrizzleApiKeyRepository(handle?.db ?? throwIfNoHandle());
+  const apiKeys = new ApiKeyService({
+    keys: apiKeyRepository,
+    clock,
+    ...(options.secretGenerator === undefined ? {} : { secretGenerator: options.secretGenerator }),
+    ...(options.secretHasher === undefined ? {} : { secretHasher: options.secretHasher }),
+  });
+
   // What the merchant was actually paid (#15). Assembled from records the
   // payment API and the indexer already wrote, so this is three read ports and
   // no engine.
@@ -250,6 +315,13 @@ export function createContainer(options: CreateContainerOptions): Container {
     settlements:
       options.settlementEvents ??
       new DrizzleSettlementEventRepository(handle?.db ?? throwIfNoHandle()),
+  });
+
+  // The merchant event timeline — a derived read over clearing, settlement, and
+  // webhook events. Three bounded queries merged in JS, no table of its own.
+  const eventLogs = new EventLogService({
+    events:
+      options.eventLogRepo ?? new DrizzleMerchantEventRepository(handle?.db ?? throwIfNoHandle()),
   });
 
   // Webhook inspection (#13). The dispatcher itself runs in the payment API;
@@ -312,7 +384,11 @@ export function createContainer(options: CreateContainerOptions): Container {
     compliance,
     settings,
     catalog,
+    customers,
+    orders,
+    apiKeys,
     settlements,
+    eventLogs,
     paymentApi: options.paymentApi ?? new PaymentApiClient({ baseUrl: config.paymentApiUrl }),
     webhooks,
     wallets,

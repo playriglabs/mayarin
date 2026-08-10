@@ -13,6 +13,7 @@
 
 import { MERCHANT_ADMIN_PERMISSIONS, type PasswordHasher } from "@mayarin/auth";
 import {
+  InMemoryApiKeyRepository,
   InMemoryMerchantAccountRepository,
   InMemoryMerchantRepository,
   InMemoryMerchantSettingChangeRepository,
@@ -20,14 +21,21 @@ import {
   InMemoryUserRepository,
 } from "@mayarin/auth/testing";
 import { CatalogService } from "@mayarin/catalog";
-import { InMemoryPaymentLinkRepository, InMemoryProductRepository } from "@mayarin/catalog/testing";
+import {
+  InMemoryCustomerRepository,
+  InMemoryPaymentLinkRepository,
+  InMemoryProductRepository,
+} from "@mayarin/catalog/testing";
 import {
   InMemoryDepositRepository,
   InMemorySettlementEventRepository,
 } from "@mayarin/chain/testing";
 import { InMemoryClearingRepository } from "@mayarin/clearing/testing";
 import { ComplianceService } from "@mayarin/compliance";
-import { InMemoryAuditQueryRepository } from "@mayarin/compliance/testing";
+import {
+  InMemoryAuditQueryRepository,
+  InMemoryMerchantEventRepository,
+} from "@mayarin/compliance/testing";
 import { LedgerService } from "@mayarin/ledger";
 import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
 import {
@@ -49,9 +57,13 @@ import {
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
+import { ApiKeyService } from "../src/services/api-key-service.ts";
 import { AuthService } from "../src/services/auth-service.ts";
+import { CustomerService } from "../src/services/customer-service.ts";
+import { EventLogService } from "../src/services/event-log-service.ts";
 import { MerchantCatalogService } from "../src/services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "../src/services/merchant-settings-service.ts";
+import { OrderReadService } from "../src/services/order-read-service.ts";
 import { PaymentApiClient } from "../src/services/payment-api-client.ts";
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
@@ -203,6 +215,32 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     products,
   });
 
+  // The merchant's customer directory + the commerce view of their payments.
+  // Same shape as the production composition root: orders reads the customer
+  // repo to resolve `metadata.customerId`, customers reads orders back for a
+  // customer's linked orders and lifetime value.
+  const customerRepository = new InMemoryCustomerRepository();
+  const orders = new OrderReadService({
+    intents,
+    customers: customerRepository,
+    pageSize: config.paymentsPageSize,
+  });
+  const customers = new CustomerService({
+    customers: customerRepository,
+    orders,
+    clock,
+    pageSize: config.paymentsPageSize,
+  });
+
+  // Merchant API keys. The system generator/hashers are fine here: a test
+  // creates a key through the route and uses the one-time secret it gets back,
+  // so deterministic values are not needed.
+  const apiKeyRepository = new InMemoryApiKeyRepository();
+  const apiKeys = new ApiKeyService({ keys: apiKeyRepository, clock });
+
+  const eventLogRepository = new InMemoryMerchantEventRepository();
+  const eventLogs = new EventLogService({ events: eventLogRepository });
+
   /**
    * A payment API that answers without a network.
    *
@@ -288,7 +326,11 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     compliance,
     settings,
     catalog,
+    customers,
+    orders,
+    apiKeys,
     settlements: settlementView,
+    eventLogs,
     paymentApi,
     webhooks,
     wallets,
@@ -353,6 +395,9 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     merchants,
     products,
     paymentLinks,
+    customerRepository,
+    apiKeyRepository,
+    eventLogRepository,
     paymentApiCalls,
     /** Lets a test name the payment id the fake mints. */
     setMintedPaymentId: (id: string) => {

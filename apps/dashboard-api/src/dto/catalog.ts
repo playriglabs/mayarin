@@ -67,6 +67,8 @@ export const createLinkBodySchema = z
       .optional(),
     title: z.string().min(1).max(255).optional(),
     merchantReference: z.string().min(1).max(255).optional(),
+    /** A customer every intent minted from this link is taken for, stamped as `metadata.customerId`. */
+    customerId: z.string().min(1).optional(),
     metadata: metadataSchema,
     expiresAt: timestampSchema.optional(),
   })

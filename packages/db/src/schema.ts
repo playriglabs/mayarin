@@ -527,6 +527,36 @@ export const paymentLinks = pgTable(
 );
 
 /**
+ * Merchant-managed customer directory.
+ *
+ * Commerce, like `products`: the merchant knows who their customers are, Mayarin
+ * does not. A payer's wallet address is not stored on the intent, so a customer
+ * is a merchant-managed record rather than derived from on-chain activity. A
+ * payment links to one through `metadata.customerId` stamped at intent creation.
+ */
+export const customers = pgTable(
+  "customers",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    name: text("name").notNull(),
+    email: text("email"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    index("customers_merchant_idx").on(table.merchantId),
+    // One customer per email per merchant. Null emails are allowed many: a
+    // walk-up customer known only by name should not need an invented email.
+    uniqueIndex("customers_merchant_email_idx").on(table.merchantId, table.email),
+  ],
+);
+
+/**
  * Append-only record of merchant settings edits (#95).
  *
  * `settlement_address` is where a merchant's money goes, so who changed it and
@@ -773,6 +803,39 @@ export const walletChallenges = pgTable("wallet_challenges", {
   createdAt: createdAt(),
 });
 
+/**
+ * Merchant API keys — bearer-token access to the dashboard API.
+ *
+ * The secret is stored as a sha-256 hash, not argon2: the threat is an online
+ * lookup against a high-entropy secret, not offline cracking of a low-entropy
+ * password, so a fast hash is the right trade. `prefix` is the first characters
+ * of the plaintext, shown in listings so a merchant can tell two keys apart
+ * without the secret. `permissions` is a subset of the merchant's own, stored
+ * the same way the users table stores its flag set.
+ */
+export const merchantApiKeys = pgTable(
+  "merchant_api_keys",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    name: text("name").notNull(),
+    secretHash: text("secret_hash").notNull(),
+    prefix: text("prefix").notNull(),
+    permissions: text("permissions").array().notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "date" }),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    index("merchant_api_keys_merchant_idx").on(table.merchantId),
+    index("merchant_api_keys_secret_hash_idx").on(table.secretHash),
+  ],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -789,6 +852,8 @@ export const schema = {
   products,
   productPrices,
   paymentLinks,
+  customers,
+  merchantApiKeys,
   merchantSettingChanges,
   stablecoinSettlements,
   marketConfig,

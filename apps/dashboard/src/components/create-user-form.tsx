@@ -151,7 +151,7 @@ function CreateUserForm() {
         </div>
 
         <FieldSet>
-          <FieldLegend>Permissions</FieldLegend>
+          <FieldLegend className="mb-3">Permissions</FieldLegend>
           {PERMISSION_LIST.map((p) => {
             // `Checkbox` renders a <button role="checkbox">. A button IS a
             // labelable element, so `htmlFor` both names it and toggles it on

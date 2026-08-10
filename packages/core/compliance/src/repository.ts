@@ -11,7 +11,7 @@
  * the same data two ports and two chances to drift.
  */
 
-import type { AuditFilter, PaymentAuditSummary } from "./types.ts";
+import type { AuditFilter, MerchantEventRow, PaymentAuditSummary } from "./types.ts";
 
 export interface AuditQueryRepository {
   /**
@@ -21,4 +21,15 @@ export interface AuditQueryRepository {
    * activity, and because a stable order is what makes `limit` mean something.
    */
   listPayments(filter: AuditFilter): Promise<readonly PaymentAuditSummary[]>;
+}
+
+/**
+ * The merchant event log — a unified timeline over clearing, settlement, and
+ * webhook events. No table of its own: the three sources are append-only and
+ * already kept, so the row is derived. The Drizzle adapter runs three bounded
+ * `LIMIT n` queries (one per source) and merge-sorts in JS, which is simpler
+ * than a cross-table union over three tables that share no column.
+ */
+export interface MerchantEventRepository {
+  listByMerchant(merchantId: string, limit?: number): Promise<readonly MerchantEventRow[]>;
 }

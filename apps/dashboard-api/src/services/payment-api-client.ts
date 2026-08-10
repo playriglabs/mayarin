@@ -28,6 +28,10 @@ export interface CheckoutLinkRequest {
   /** Required by an `open` link, refused by the others — they price themselves. */
   readonly amount?: { readonly amount: string; readonly asset: string };
   readonly payment: PaymentRail;
+  /** Stamped onto the minted intent's `metadata`, e.g. a `customerId` link. */
+  readonly metadata?: Readonly<Record<string, string>>;
+  /** The merchant's own order id, copied onto the intent. */
+  readonly merchantReference?: string;
 }
 
 /**
@@ -106,6 +110,10 @@ export class PaymentApiClient {
         executionPath: "deposit-match",
         payment: request.payment,
         ...(request.amount === undefined ? {} : { amount: request.amount }),
+        ...(request.metadata === undefined ? {} : { metadata: request.metadata }),
+        ...(request.merchantReference === undefined
+          ? {}
+          : { merchantReference: request.merchantReference }),
       },
     );
 

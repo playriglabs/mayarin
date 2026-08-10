@@ -16,13 +16,17 @@
  */
 
 import {
+  AddressBookIcon,
   BankIcon,
   CardholderIcon,
   ChartLineIcon,
   GearSixIcon,
   type Icon,
+  KeyIcon,
+  LightningIcon,
   PackageIcon,
   ReceiptIcon,
+  ShoppingCartIcon,
   SquaresFourIcon,
   UsersThreeIcon,
   WalletIcon,
@@ -50,10 +54,24 @@ interface NavItem {
 const PRIMARY: readonly NavItem[] = [
   { href: "/", label: "Overview", icon: SquaresFourIcon },
   { href: "/payments", label: "Payments", icon: ReceiptIcon },
+  { href: "/orders", label: "Orders", icon: ShoppingCartIcon },
   { href: "/links", label: "Payment links", icon: CardholderIcon, permission: "catalog:manage" },
   { href: "/catalog", label: "Catalog", icon: PackageIcon, permission: "catalog:manage" },
+  { href: "/customers", label: "Customers", icon: AddressBookIcon, permission: "catalog:manage" },
   { href: "/settlement", label: "Settlement", icon: BankIcon },
   { href: "/analytics", label: "Analytics", icon: ChartLineIcon },
+];
+
+/**
+ * Developers — the surfaces an integration touches: bearer API keys, webhook
+ * endpoints, and the event timeline they are built on. Grouped apart from
+ * day-to-day commerce because a merchant setting up a POS visits them once, not
+ * every shift.
+ */
+const DEVELOPERS: readonly NavItem[] = [
+  { href: "/api-keys", label: "API keys", icon: KeyIcon, permission: "settings:manage" },
+  { href: "/webhooks", label: "Webhooks", icon: WebhooksLogoIcon, permission: "settings:manage" },
+  { href: "/event-logs", label: "Event logs", icon: LightningIcon, permission: "payments:read" },
 ];
 
 /**
@@ -65,7 +83,6 @@ const PRIMARY: readonly NavItem[] = [
  */
 const CONFIGURATION: readonly NavItem[] = [
   { href: "/wallets", label: "Wallets", icon: WalletIcon, permission: "settings:manage" },
-  { href: "/webhooks", label: "Webhooks", icon: WebhooksLogoIcon, permission: "settings:manage" },
   { href: "/settings", label: "Settings", icon: GearSixIcon, permission: "settings:manage" },
 ];
 
@@ -88,7 +105,7 @@ export default function SideNav({
   pathname: string;
   permissions: readonly Permission[];
 }) {
-  const items = [...PRIMARY, ...CONFIGURATION, ADMIN].filter(
+  const items = [...PRIMARY, ...DEVELOPERS, ...CONFIGURATION, ADMIN].filter(
     (item) => item.permission === undefined || permissions.includes(item.permission),
   );
 

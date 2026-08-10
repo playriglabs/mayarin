@@ -17,14 +17,17 @@
  * counter for the two that are fine.
  */
 
+import { payerEstimate } from "@mayarin/quote";
 import {
   type AssetCode,
   assetCodeSchema,
+  assetDecimals,
   convert,
   decimalMoneySchema,
   getAsset,
   isPositive,
   type Money,
+  money,
   roundUpToPayerPrecision,
 } from "@mayarin/shared";
 import { Hono } from "hono";
@@ -55,6 +58,13 @@ const quoteBodySchema = z
  * Reading `rates` in the first case is what made a preview say `12,50 USDC` for
  * a pair whose lock then failed with "No Pyth feed configured for USD -> USDC".
  * A preview that cannot fail where the lock fails is not a preview.
+ *
+ * The same reasoning covers the swap leg. A payer asset that is not the
+ * merchant's settlement asset — ETH — is priced through the venue here, exactly
+ * as `contract-layer` prices it at lock time: same probe size, same guard, same
+ * `payerEstimate` arithmetic. Reading the static rate table for that leg is what
+ * made a preview say `0,00033334 ETH` against a venue that would have charged
+ * sixteen times as much.
  */
 async function priceFor(
   container: Container,
@@ -63,10 +73,8 @@ async function priceFor(
 ): Promise<{ priced: Money; source: string; scaledRate: bigint | null }> {
   const quote = await container.market.quote();
 
-  // The guarded engine crosses fiat into a stablecoin. A payer asset that is
-  // not one — ETH — is the swap leg, which the rate provider prices here and
-  // the executor reprices at submit; so the engine is asked only for the leg it
-  // owns, and the table answers the rest.
+  // The guarded engine only crosses fiat. A merchant already pricing in crypto
+  // has no fiat leg for it to own, so the table is the only source there is.
   if (quote === undefined || getAsset(amount.asset).kind !== "fiat") {
     const rate = await container.rates.quote(amount.asset, payerAsset, amount);
     return {
@@ -76,26 +84,36 @@ async function priceFor(
     };
   }
 
-  if (getAsset(payerAsset).kind !== "stablecoin") {
-    const rate = await container.rates.quote(amount.asset, payerAsset, amount);
-    return {
-      priced: convert(amount, payerAsset, rate.scaledRate),
-      source: rate.source,
-      scaledRate: rate.scaledRate,
-    };
-  }
+  // A stablecoin payer settles in what they hold: one fiat leg, no swap. Any
+  // other asset settles into the deployment's settlement asset — the same
+  // default `PaymentIntentService` applies to a merchant that has not chosen
+  // one, so the preview crosses the pair the lock will.
+  const settlementAsset =
+    getAsset(payerAsset).kind === "stablecoin" ? payerAsset : container.config.settlementAsset;
 
   const engineQuote = await quote.engine.quoteFiatPrice({
     price: amount,
-    settlementAsset: payerAsset,
+    settlementAsset,
     payerAsset,
-    probe: amount,
+    // One whole unit, matching `contract-layer`: a probe of a different size
+    // prices different depth and the preview drifts from the lock again.
+    probe: money(10n ** BigInt(assetDecimals(payerAsset)), payerAsset),
   });
 
+  if (!("composed" in engineQuote)) {
+    return {
+      priced: engineQuote.settlement.settlementAmount,
+      source: engineQuote.settlement.source,
+      scaledRate: null,
+    };
+  }
+
+  const composed = engineQuote.composed;
   return {
-    priced: engineQuote.settlement.settlementAmount,
-    source: engineQuote.settlement.source,
-    scaledRate: null,
+    priced: payerEstimate(composed, engineQuote.settlement.settlementAmount, quote.slippageBps)
+      .amount,
+    source: composed.executable.source,
+    scaledRate: composed.executable.scaledRate,
   };
 }
 

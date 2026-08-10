@@ -22,12 +22,16 @@ import type { Permission, UserDto } from "@/types/user";
 
 const PROTECTED_PREFIXES = [
   "/payments",
+  "/orders",
+  "/customers",
   "/links",
   "/catalog",
   "/settlement",
   "/analytics",
   "/wallets",
   "/webhooks",
+  "/api-keys",
+  "/event-logs",
   "/settings",
   "/admin",
 ];
@@ -45,8 +49,10 @@ const PERMISSION_PREFIXES: ReadonlyArray<readonly [string, Permission]> = [
   ["/admin", "admin:access"],
   ["/links", "catalog:manage"],
   ["/catalog", "catalog:manage"],
+  ["/customers", "catalog:manage"],
   ["/wallets", "settings:manage"],
   ["/webhooks", "settings:manage"],
+  ["/api-keys", "settings:manage"],
   ["/settings", "settings:manage"],
 ];
 

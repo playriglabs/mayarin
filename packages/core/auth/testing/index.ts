@@ -10,6 +10,8 @@
 
 import { ConcurrencyError, ConflictError } from "@mayarin/shared";
 import type {
+  ApiKey,
+  ApiKeyRepository,
   Merchant,
   MerchantAccountRepository,
   MerchantRepository,
@@ -178,5 +180,54 @@ export class InMemoryMerchantSettingChangeRepository implements MerchantSettingC
       .filter((change) => change.merchantId === merchantId)
       .sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime())
       .slice(0, limit);
+  }
+}
+
+export class InMemoryApiKeyRepository implements ApiKeyRepository {
+  readonly #byId = new Map<string, ApiKey>();
+  readonly #bySecretHash = new Map<string, string>();
+
+  async insert(key: ApiKey): Promise<void> {
+    if (this.#byId.has(key.id)) {
+      throw new ConflictError(`API key ${key.id} already exists`, { id: key.id });
+    }
+    this.#byId.set(key.id, key);
+    this.#bySecretHash.set(key.secretHash, key.id);
+  }
+
+  async findById(id: string): Promise<ApiKey | null> {
+    return this.#byId.get(id) ?? null;
+  }
+
+  async findBySecretHash(secretHash: string): Promise<ApiKey | null> {
+    const id = this.#bySecretHash.get(secretHash);
+    return id === undefined ? null : (this.#byId.get(id) ?? null);
+  }
+
+  async listByMerchant(merchantId: string): Promise<readonly ApiKey[]> {
+    return [...this.#byId.values()]
+      .filter((key) => key.merchantId === merchantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async updateLastUsed(id: string, lastUsedAt: Date): Promise<void> {
+    const key = this.#byId.get(id);
+    if (key === undefined) return;
+    this.#byId.set(id, { ...key, lastUsedAt });
+  }
+
+  async update(key: ApiKey, expectedVersion: number): Promise<void> {
+    const current = this.#byId.get(key.id);
+    if (current === undefined) {
+      throw new ConflictError(`API key ${key.id} does not exist`, { id: key.id });
+    }
+    if (current.version !== expectedVersion) {
+      throw new ConcurrencyError(`API key ${key.id} was modified concurrently`, {
+        id: key.id,
+        expectedVersion,
+        actualVersion: current.version,
+      });
+    }
+    this.#byId.set(key.id, key);
   }
 }

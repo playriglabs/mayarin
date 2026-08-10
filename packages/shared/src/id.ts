@@ -36,6 +36,8 @@ export const ID_PREFIXES = {
   refund: "rfd",
   webhookEndpoint: "whe",
   webhookDelivery: "whd",
+  customer: "cus",
+  apiKey: "mak",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];

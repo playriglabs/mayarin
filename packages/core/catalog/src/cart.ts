@@ -11,8 +11,8 @@
  * the engine's invariants say cannot exist.
  */
 
-import { type AssetCode, type Money, money, ValidationError } from "@mayarin/shared";
-import type { CartLine, CartTotal } from "./types.ts";
+import { type AssetCode, isAssetCode, type Money, money, ValidationError } from "@mayarin/shared";
+import type { CartLine, CartSnapshot, CartSnapshotLine, CartTotal } from "./types.ts";
 
 /**
  * Metadata key the line-item snapshot is written under.
@@ -106,6 +106,52 @@ export function withCartSnapshot(
   total: CartTotal,
 ): Record<string, string> {
   return { ...metadata, [CART_METADATA_KEY]: cartSnapshot(total) };
+}
+
+/**
+ * Parses a `metadata.cart` snapshot back into a `CartSnapshot`.
+ *
+ * Returns `undefined` on a malformed or wrong-shaped value rather than throwing:
+ * a snapshot that cannot be read is skipped by the Orders view, not allowed to
+ * break a merchant's payment listing. The snapshot is a receipt, never a source
+ * of truth the system acts on, so a bad one is a display problem, not a payment
+ * problem.
+ */
+export function parseCartSnapshot(raw: string): CartSnapshot | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== "object" || parsed === null) return undefined;
+
+  const obj = parsed as Record<string, unknown>;
+  const { currency, total, lines } = obj;
+  if (typeof currency !== "string" || !isAssetCode(currency)) return undefined;
+  if (typeof total !== "string") return undefined;
+  if (!Array.isArray(lines)) return undefined;
+
+  const parsedLines: CartSnapshotLine[] = [];
+  for (const line of lines) {
+    if (typeof line !== "object" || line === null) return undefined;
+    const l = line as Record<string, unknown>;
+    if (
+      typeof l.name !== "string" ||
+      typeof l.unitPrice !== "string" ||
+      typeof l.quantity !== "number"
+    ) {
+      return undefined;
+    }
+    parsedLines.push({
+      ...(typeof l.productId === "string" ? { productId: l.productId } : {}),
+      name: l.name,
+      unitPrice: l.unitPrice,
+      quantity: l.quantity,
+    });
+  }
+
+  return { currency, total, lines: parsedLines };
 }
 
 /** The unit price a product carries in one currency, or `undefined` if unpriced there. */

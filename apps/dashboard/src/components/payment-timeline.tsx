@@ -140,7 +140,7 @@ export default function PaymentTimeline({
               <span className="text-sm font-medium text-destructive">
                 {STATE_COPY.FAILED.label}
               </span>
-              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <p className="flex items-start gap-1.5 text-xs text-destructive">
                 <WarningIcon
                   size={14}
                   aria-hidden="true"

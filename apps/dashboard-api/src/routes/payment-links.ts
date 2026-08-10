@@ -39,6 +39,10 @@ const chargeBodySchema = z
   .object({
     asset: assetCodeSchema,
     amount: z.object({ amount: z.string(), asset: assetCodeSchema }).optional(),
+    /** A customer this sale is taken for, stamped onto the intent as `metadata.customerId`. */
+    customerId: z.string().min(1).optional(),
+    /** The merchant's own order id for this sale, copied onto the intent. */
+    merchantReference: z.string().min(1).max(255).optional(),
   })
   .strict();
 
@@ -96,8 +100,23 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
   });
 
   app.post("/", csrfMiddleware(), async (c) => {
+    const scope = scopeOf(c);
     const body = createLinkBodySchema.parse(await c.req.json());
-    const link = await container.catalog.createLink(scopeOf(c), toCreateLinkInput(body));
+
+    // A customer the link's intents are taken for is verified here, then frozen
+    // into the link's `metadata` as `customerId` — the same metadata the payment
+    // API merges onto every intent the link mints, so no checkout change is
+    // needed for the buyer's side to carry it.
+    if (body.customerId !== undefined) {
+      await container.customers.get(scope, body.customerId);
+    }
+
+    const link = await container.catalog.createLink(scope, {
+      ...toCreateLinkInput(body),
+      ...(body.customerId === undefined
+        ? {}
+        : { metadata: { ...body.metadata, customerId: body.customerId } }),
+    });
     return c.json({ paymentLink: toPaymentLinkDto(link, checkoutBaseUrl, new Date()) }, 201);
   });
 
@@ -146,6 +165,12 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
     const link = await container.catalog.getLink(scope, c.req.param("id"));
     const body = chargeBodySchema.parse(await c.req.json().catch(() => ({})));
 
+    // A customer the sale is taken for is verified here, before the payment is
+    // minted, so a foreign id is refused rather than frozen onto an intent.
+    if (body.customerId !== undefined) {
+      await container.customers.get(scope, body.customerId);
+    }
+
     // Priced before anything is minted.
     //
     // The counter used to mint an intent and discover at the price lock that
@@ -167,6 +192,10 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
       linkId: link.id,
       payment: { asset: body.asset, chain: container.config.depositChain },
       ...(body.amount === undefined ? {} : { amount: body.amount }),
+      ...(body.customerId === undefined ? {} : { metadata: { customerId: body.customerId } }),
+      ...(body.merchantReference === undefined
+        ? {}
+        : { merchantReference: body.merchantReference }),
     });
 
     return c.json({ paymentIntentId }, 201);

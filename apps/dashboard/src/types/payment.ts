@@ -47,6 +47,8 @@ export interface PaymentIntentDto {
   readonly provider: string;
   readonly payment: PaymentRail | null;
   readonly source: PaymentSource;
+  readonly merchantReference: string | null;
+  readonly metadata: Readonly<Record<string, string>>;
   readonly clearingTransactionId: string | null;
   readonly failureReason: string | null;
   readonly createdAt: string;

@@ -115,3 +115,48 @@ export interface CartTotal {
   readonly total: Money;
   readonly lines: readonly CartLine[];
 }
+
+/**
+ * The line-item snapshot as it rides on an intent's `metadata.cart`.
+ *
+ * A serialized form of a `CartTotal`, with money as minor-unit strings — the
+ * only shape that survives a `Record<string, string>` round trip. Parsed back
+ * by `parseCartSnapshot` for the Orders read; clearing never reads it.
+ */
+export interface CartSnapshotLine {
+  /** Absent for an ad-hoc line. */
+  readonly productId?: string;
+  readonly name: string;
+  /** Minor units, as a string. */
+  readonly unitPrice: string;
+  readonly quantity: number;
+}
+
+export interface CartSnapshot {
+  readonly currency: AssetCode;
+  /** Minor units, as a string. */
+  readonly total: string;
+  readonly lines: readonly CartSnapshotLine[];
+}
+
+/**
+ * A customer the merchant sells to.
+ *
+ * Commerce, like a product: the merchant knows who their customers are, Mayarin
+ * does not. A payer's wallet address is not stored on the intent (the
+ * deposit-match path has no use for it), so a customer is a merchant-managed
+ * record rather than something derived from on-chain activity. A payment links
+ * to one through `metadata.customerId`, stamped at intent creation.
+ */
+export interface Customer {
+  readonly id: string;
+  readonly merchantId: string;
+  readonly name: string;
+  /** Omitted for a walk-up customer known only by name. */
+  readonly email?: string;
+  readonly notes?: string;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  /** Incremented on every edit. The optimistic-locking token. */
+  readonly version: number;
+}
