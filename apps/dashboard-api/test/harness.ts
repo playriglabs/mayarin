@@ -11,7 +11,7 @@
  * payment intents against the right tenant.
  */
 
-import type { PasswordHasher } from "@mayarin/auth";
+import { MERCHANT_ADMIN_PERMISSIONS, type PasswordHasher } from "@mayarin/auth";
 import {
   InMemoryMerchantAccountRepository,
   InMemoryMerchantRepository,
@@ -19,6 +19,8 @@ import {
   InMemorySessionRepository,
   InMemoryUserRepository,
 } from "@mayarin/auth/testing";
+import { CatalogService } from "@mayarin/catalog";
+import { InMemoryPaymentLinkRepository, InMemoryProductRepository } from "@mayarin/catalog/testing";
 import {
   InMemoryDepositRepository,
   InMemorySettlementEventRepository,
@@ -41,15 +43,19 @@ import {
   FakeMerchantKeyProvider,
   FakeWalletProvider,
   InMemoryMerchantWalletRepository,
+  InMemoryWalletBalanceReader,
   InMemoryWalletChallengeRepository,
 } from "@mayarin/wallet/testing";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 import { AuthService } from "../src/services/auth-service.ts";
+import { MerchantCatalogService } from "../src/services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "../src/services/merchant-settings-service.ts";
+import { PaymentApiClient } from "../src/services/payment-api-client.ts";
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
+import { SettlementReadService } from "../src/services/settlement-read-service.ts";
 import { UserService } from "../src/services/user-service.ts";
 import { WalletService } from "../src/services/wallet-service.ts";
 import { WebhookService } from "../src/services/webhook-service.ts";
@@ -162,6 +168,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   const walletProvider = new FakeWalletProvider();
   const merchantKeyProvider = new FakeMerchantKeyProvider();
   const treasuryAddresses = [TREASURY_ADDRESS];
+  const walletBalances = new InMemoryWalletBalanceReader();
   const wallets = new WalletService({
     wallets: merchantWallets,
     challenges: walletChallenges,
@@ -170,6 +177,12 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     verifier: new ViemSignatureVerifier(),
     clock,
     treasuryAddresses,
+    merchants,
+    chain: "base-sepolia",
+    settlementAddresses: new SettlementAddressResolver({ wallets: merchantWallets }),
+    balances: walletBalances,
+    walletProvider,
+    nativeAsset: "ETH",
     keyProvider: merchantKeyProvider,
     provisioner: new ManagedWalletProvisioner({
       wallets: merchantWallets,
@@ -182,6 +195,90 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   const settingChanges = new InMemoryMerchantSettingChangeRepository();
   const settings = new MerchantSettingsService({ merchants, changes: settingChanges, clock });
 
+  const products = new InMemoryProductRepository();
+  const paymentLinks = new InMemoryPaymentLinkRepository();
+  const catalog = new MerchantCatalogService({
+    catalog: new CatalogService({ products, links: paymentLinks, clock }),
+    settings,
+    products,
+  });
+
+  /**
+   * A payment API that answers without a network.
+   *
+   * Wired through the real `PaymentApiClient` rather than replaced by a stub,
+   * so route tests exercise the request shapes and the error mapping the client
+   * actually performs — the parts that would otherwise only be proven by a
+   * running server. `paymentApiCalls` records what was asked, which is how a
+   * test asserts that a counter sale pins the deposit path.
+   */
+  const paymentApiCalls: { path: string; body: unknown }[] = [];
+  let mintedPaymentId = "pi_counter_00000000000000000";
+  let confirmStatus = "PROCESSING";
+  let confirmFailure: string | undefined;
+  const paymentApi = new PaymentApiClient({
+    baseUrl: "http://payment-api.test",
+    fetch: (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString());
+      const body = init?.body === undefined ? undefined : JSON.parse(String(init.body));
+      paymentApiCalls.push({ path: url.pathname, body });
+
+      const json = (value: unknown, status = 200) =>
+        new Response(JSON.stringify(value), {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+
+      if (url.pathname.endsWith("/checkout")) {
+        return json({ paymentIntent: { id: mintedPaymentId } }, 201);
+      }
+      if (url.pathname.endsWith("/confirm")) {
+        return json({
+          paymentIntent: {
+            id: mintedPaymentId,
+            status: confirmStatus,
+            ...(confirmFailure === undefined ? {} : { failureReason: confirmFailure }),
+          },
+        });
+      }
+      if (url.pathname === "/quotes") {
+        return json({
+          source: { display: "Rp 75.000,00" },
+          quotes: [
+            { asset: "USDC", amount: { amount: "5020000", display: "5.02 USDC" }, available: true },
+            {
+              asset: "ETH",
+              amount: null,
+              available: false,
+              reason: "No Pyth feed configured for IDR -> ETH",
+            },
+          ],
+          indicative: true,
+        });
+      }
+      if (url.pathname.startsWith("/payments/")) {
+        return json({
+          deposit: {
+            address: "0x00000000000000000000000000000000000dead0",
+            chain: "base-sepolia",
+            asset: "USDC",
+            amount: { amount: "5020000", display: "5.02 USDC", formatted: "5.020000" },
+            uri: "ethereum:0xtoken@84532/transfer?address=0xdead&uint256=5020000",
+            received: { amount: "0", display: "0.00 USDC" },
+            required: 1,
+          },
+        });
+      }
+      return json({ error: { message: `unexpected ${url.pathname}` } }, 404);
+    }) as typeof fetch,
+  });
+
+  const settlementView = new SettlementReadService({
+    payments,
+    clearing,
+    settlements,
+  });
+
   const container: Container = {
     config,
     auth: authService,
@@ -190,6 +287,9 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     payments,
     compliance,
     settings,
+    catalog,
+    settlements: settlementView,
+    paymentApi,
     webhooks,
     wallets,
     settlementAddresses: new SettlementAddressResolver({ wallets: merchantWallets }),
@@ -208,7 +308,9 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     merchantName: options.merchantName ?? "Acme",
     settlementAsset: "USDC",
     acceptedAssets: ["ETH", "USDC"],
-    permissions: ["payments:read", "users:manage", "admin:access", "settings:manage"],
+    city: "Jakarta",
+    countryCode: "ID",
+    permissions: MERCHANT_ADMIN_PERMISSIONS,
   });
   const merchantId = seed.user.merchantId;
 
@@ -249,12 +351,25 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     container,
     users,
     merchants,
+    products,
+    paymentLinks,
+    paymentApiCalls,
+    /** Lets a test name the payment id the fake mints. */
+    setMintedPaymentId: (id: string) => {
+      mintedPaymentId = id;
+    },
+    /** Makes the fake answer confirm with a payment that failed to price. */
+    failNextConfirm: (reason: string) => {
+      confirmStatus = "FAILED";
+      confirmFailure = reason;
+    },
     settingChanges,
     webhookEndpoints,
     webhookDeliveries,
     merchantWallets,
     walletChallenges,
     walletProvider,
+    walletBalances,
     merchantKeyProvider,
     sessions,
     intents,

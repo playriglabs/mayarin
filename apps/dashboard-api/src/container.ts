@@ -16,6 +16,11 @@ import type {
   SessionRepository,
   UserRepository,
 } from "@mayarin/auth";
+import {
+  CatalogService,
+  type PaymentLinkRepository,
+  type ProductRepository,
+} from "@mayarin/catalog";
 import type { DepositRepository, SettlementEventRepository } from "@mayarin/chain";
 import type { ClearingRepository } from "@mayarin/clearing";
 import { type AuditQueryRepository, ComplianceService } from "@mayarin/compliance";
@@ -31,6 +36,8 @@ import {
   DrizzleMerchantSettingChangeRepository,
   DrizzleMerchantWalletRepository,
   DrizzlePaymentIntentRepository,
+  DrizzlePaymentLinkRepository,
+  DrizzleProductRepository,
   DrizzleSessionRepository,
   DrizzleSettlementEventRepository,
   DrizzleUserRepository,
@@ -42,7 +49,7 @@ import type { LedgerRepository } from "@mayarin/ledger";
 import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
 import type { PaymentIntentRepository } from "@mayarin/payment-intent";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
-import { ViemSignatureVerifier } from "@mayarin/provider-evm";
+import { EvmWalletBalanceReader, ViemSignatureVerifier } from "@mayarin/provider-evm";
 import {
   ApiKeyStamper,
   SAFE_BASE_SEPOLIA,
@@ -56,17 +63,25 @@ import {
   type MerchantWalletRepository,
   SettlementAddressResolver,
   type SignatureVerifier,
+  type WalletBalanceReader,
   type WalletChallengeRepository,
   type WalletProvider,
 } from "@mayarin/wallet";
 import type { Config } from "./config.ts";
 import { AuthService } from "./services/auth-service.ts";
+import { MerchantCatalogService } from "./services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
+import { PaymentApiClient } from "./services/payment-api-client.ts";
 import {
   type ClearingReadRepository,
   PaymentReadService,
 } from "./services/payment-read-service.ts";
 import { SessionService } from "./services/session-service.ts";
+import {
+  type ClearingBulkReadRepository,
+  type SettlementEventReadRepository,
+  SettlementReadService,
+} from "./services/settlement-read-service.ts";
 import { UserService } from "./services/user-service.ts";
 import { WalletService } from "./services/wallet-service.ts";
 import { WebhookService } from "./services/webhook-service.ts";
@@ -80,6 +95,18 @@ export interface Container {
   readonly compliance: ComplianceService;
   /** Merchant settlement configuration (#95), scoped to the caller's merchant. */
   readonly settings: MerchantSettingsService;
+  /** Products and payment links (#15), scoped the same way. */
+  readonly catalog: MerchantCatalogService;
+  /** What was paid out, per payment (#15). Read-only. */
+  readonly settlements: SettlementReadService;
+  /**
+   * The payment API, as a client (#15).
+   *
+   * Taking a payment at the counter is minting one, and the service that mints
+   * payments is `apps/api`. The dashboard is a consumer of the same primitives
+   * a third-party POS would use rather than a second implementation of them.
+   */
+  readonly paymentApi: PaymentApiClient;
   /** Webhook endpoints and delivery inspection (#13), scoped the same way. */
   readonly webhooks: WebhookService;
   /** Merchant wallets and proof of control (#11). */
@@ -113,6 +140,11 @@ export interface CreateContainerOptions {
   readonly settlements?: SettlementEventRepository;
   readonly merchants?: MerchantRepository;
   readonly merchantSettingChanges?: MerchantSettingChangeRepository;
+  readonly products?: ProductRepository;
+  readonly paymentLinks?: PaymentLinkRepository;
+  /** The bulk clearing read the settlement view needs, separate from `clearing`. */
+  readonly settlementClearing?: ClearingBulkReadRepository;
+  readonly settlementEvents?: SettlementEventReadRepository;
   readonly webhookEndpoints?: WebhookEndpointRepository;
   readonly webhookDeliveries?: WebhookDeliveryRepository;
   readonly merchantWallets?: MerchantWalletRepository;
@@ -124,6 +156,10 @@ export interface CreateContainerOptions {
    */
   readonly walletProvider?: WalletProvider;
   readonly merchantKeyProvider?: MerchantKeyProvider;
+  /** Reads on-chain settlement balances. A test supplies a fake rather than an RPC. */
+  readonly walletBalances?: WalletBalanceReader;
+  /** Overridable for tests: a fake payment API rather than a real HTTP one. */
+  readonly paymentApi?: PaymentApiClient;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -178,12 +214,42 @@ export function createContainer(options: CreateContainerOptions): Container {
 
   // Merchant settlement configuration (#95). The data model already existed;
   // this is the surface that was missing.
+  const merchants =
+    options.merchants ?? new DrizzleMerchantRepository(handle?.db ?? throwIfNoHandle());
   const settings = new MerchantSettingsService({
-    merchants: options.merchants ?? new DrizzleMerchantRepository(handle?.db ?? throwIfNoHandle()),
+    merchants,
     changes:
       options.merchantSettingChanges ??
       new DrizzleMerchantSettingChangeRepository(handle?.db ?? throwIfNoHandle()),
     clock,
+  });
+
+  // Products and payment links (#15). The same commerce service the payment API
+  // runs, with the merchant taken from the session rather than the request — the
+  // dashboard's merchant is whoever is signed in.
+  const catalogProducts =
+    options.products ?? new DrizzleProductRepository(handle?.db ?? throwIfNoHandle());
+  const catalog = new MerchantCatalogService({
+    catalog: new CatalogService({
+      products: catalogProducts,
+      links:
+        options.paymentLinks ?? new DrizzlePaymentLinkRepository(handle?.db ?? throwIfNoHandle()),
+      clock,
+    }),
+    settings,
+    products: catalogProducts,
+  });
+
+  // What the merchant was actually paid (#15). Assembled from records the
+  // payment API and the indexer already wrote, so this is three read ports and
+  // no engine.
+  const settlements = new SettlementReadService({
+    payments,
+    clearing:
+      options.settlementClearing ?? new DrizzleClearingRepository(handle?.db ?? throwIfNoHandle()),
+    settlements:
+      options.settlementEvents ??
+      new DrizzleSettlementEventRepository(handle?.db ?? throwIfNoHandle()),
   });
 
   // Webhook inspection (#13). The dispatcher itself runs in the payment API;
@@ -207,6 +273,9 @@ export function createContainer(options: CreateContainerOptions): Container {
   const treasuryAddresses = config.treasuryAddress === undefined ? [] : [config.treasuryAddress];
   const walletProvider = options.walletProvider ?? createWalletProvider(config);
   const keyProvider = options.merchantKeyProvider ?? createMerchantKeyProvider(config);
+  const settlementAddresses = new SettlementAddressResolver({ wallets: walletRepository });
+  const balanceReader = options.walletBalances ?? createBalanceReader(config);
+  const nativeAsset = config.chainNativeAssets[config.walletProvisionChain];
   const wallets = new WalletService({
     wallets: walletRepository,
     challenges:
@@ -215,6 +284,12 @@ export function createContainer(options: CreateContainerOptions): Container {
     verifier: options.signatureVerifier ?? new ViemSignatureVerifier(),
     clock,
     treasuryAddresses,
+    merchants,
+    chain: config.walletProvisionChain,
+    settlementAddresses,
+    ...(balanceReader === undefined ? {} : { balances: balanceReader }),
+    ...(walletProvider === undefined ? {} : { walletProvider }),
+    ...(nativeAsset === undefined ? {} : { nativeAsset }),
     ...(keyProvider === undefined ? {} : { keyProvider }),
     ...(walletProvider === undefined
       ? {}
@@ -236,9 +311,12 @@ export function createContainer(options: CreateContainerOptions): Container {
     payments,
     compliance,
     settings,
+    catalog,
+    settlements,
+    paymentApi: options.paymentApi ?? new PaymentApiClient({ baseUrl: config.paymentApiUrl }),
     webhooks,
     wallets,
-    settlementAddresses: new SettlementAddressResolver({ wallets: walletRepository }),
+    settlementAddresses,
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
 }
@@ -251,10 +329,33 @@ export function createContainer(options: CreateContainerOptions): Container {
  * path that fails at the first merchant who uses it. Config validation has
  * already established that the credentials are all present when the flag is on.
  */
+/**
+ * Reads settlement balances, on a deployment that can reach a chain.
+ *
+ * Keyed off the RPC URL rather than off provisioning: a merchant who configured
+ * their own settlement address has a balance worth showing whether or not this
+ * deployment can provision wallets.
+ */
+function createBalanceReader(config: Config): WalletBalanceReader | undefined {
+  const rpcUrl = config.walletProvisionRpcUrl;
+  if (rpcUrl === undefined) return undefined;
+
+  return new EvmWalletBalanceReader({
+    rpcUrls: { [config.walletProvisionChain]: rpcUrl },
+    tokens: config.chainAssets,
+    nativeAssets: config.chainNativeAssets,
+  });
+}
+
 function createWalletProvider(config: Config): WalletProvider | undefined {
   if (!config.walletProvisioningEnabled) return undefined;
 
+  const tokens = config.chainAssets[config.walletProvisionChain];
+  const nativeAsset = config.chainNativeAssets[config.walletProvisionChain];
+
   return new TurnkeyWalletProvider({
+    ...(tokens === undefined ? {} : { tokens }),
+    ...(nativeAsset === undefined ? {} : { nativeAsset }),
     organizationId: required(config.turnkeyOrganizationId, "TURNKEY_ORGANIZATION_ID"),
     stamper: new ApiKeyStamper({
       apiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),

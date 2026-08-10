@@ -159,6 +159,39 @@ describe("PATCH /settings", () => {
     });
   });
 
+  test("the merchant profile is edited here, and unlocks payment links (#15)", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    // A merchant created without a profile — what a bare seed produces.
+    await harness.container.settings.update(
+      { merchantId: harness.merchantId, permissions: new Set() },
+      "usr_setup",
+      { city: null, countryCode: null },
+    );
+
+    const before = await harness.request("GET", "/settings", { cookies: auth.jar });
+    expect(before.body?.settings.canCreateLinks).toBe(false);
+
+    const { status, body } = await patch(harness, auth, { city: "Bandung", countryCode: "id" });
+
+    expect(status).toBe(200);
+    // Uppercased on the way in: the EMVCo tag it ends up in is fixed-width, so
+    // a lowercase code stored here is a QR a terminal reads differently.
+    expect(body?.settings).toMatchObject({
+      city: "Bandung",
+      countryCode: "ID",
+      canCreateLinks: true,
+    });
+  });
+
+  test("a three-letter country code is refused", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const { status } = await patch(harness, auth, { countryCode: "IDN" });
+    expect(status).toBe(400);
+  });
+
   test("records who changed it and what it was", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);

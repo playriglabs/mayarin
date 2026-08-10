@@ -6,11 +6,12 @@
  */
 
 import { CHAIN_IDS } from "@mayarin/chain";
-import { UnauthorizedError } from "@mayarin/shared";
+import { isAssetCode, UnauthorizedError } from "@mayarin/shared";
 import { type MerchantWallet, PASSKEY_TRANSPORTS } from "@mayarin/wallet";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
+import { toMoneyDto } from "../dto/money.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
 
@@ -44,6 +45,21 @@ const passkeyBodySchema = z
 
 const verifyBodySchema = z
   .object({ challengeId: z.string().min(1), signature: z.string().min(1) })
+  .strict();
+
+/**
+ * A withdrawal.
+ *
+ * `amount` is minor units as a decimal string, the same form every balance and
+ * `MoneyDto` on this API carries — JSON has no bigint, and a float here would
+ * lose wei on any ETH amount worth withdrawing.
+ */
+const withdrawBodySchema = z
+  .object({
+    asset: z.string().refine(isAssetCode, "unknown asset"),
+    amount: z.string().regex(/^[0-9]+$/, "amount must be minor units"),
+    to: z.string(),
+  })
   .strict();
 
 function toWalletDto(wallet: MerchantWallet) {
@@ -89,6 +105,39 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
   app.get("/", async (c) => {
     const wallets = await container.wallets.list(scopeOf(c));
     return c.json({ wallets: wallets.map(toWalletDto) });
+  });
+
+  /**
+   * What the merchant's settlement address holds, read from the chain.
+   *
+   * On the same route tree as the wallets rather than under settlements: this
+   * is the balance of an address, not a record of payouts, and the thing that
+   * can move it is one of these wallets.
+   */
+  app.get("/balance", async (c) => {
+    const balance = await container.wallets.balance(scopeOf(c));
+    return c.json({
+      chain: balance.chain,
+      address: balance.address ?? null,
+      withdrawable: balance.withdrawable,
+      balances: balance.balances.map(toMoneyDto),
+    });
+  });
+
+  /**
+   * Moves settlement out of the merchant's managed wallet.
+   *
+   * `to` must be one of their own verified wallets — the service enforces it,
+   * and the schema deliberately does not soften it to "any address" here.
+   */
+  app.post("/withdraw", csrfMiddleware(), async (c) => {
+    const body = withdrawBodySchema.parse(await c.req.json());
+    const result = await container.wallets.withdraw(scopeOf(c), {
+      asset: body.asset,
+      amount: BigInt(body.amount),
+      to: body.to,
+    });
+    return c.json({ txHash: result.txHash });
   });
 
   app.post("/", csrfMiddleware(), async (c) => {

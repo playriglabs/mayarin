@@ -40,7 +40,15 @@ export function createProduct(input: CreateProductInput): Product {
 
 export interface UpdateProductInput {
   readonly name?: string;
-  readonly description?: string;
+  /**
+   * `null` clears the description, an absent field leaves it alone.
+   *
+   * The same rule a merchant's settlement address follows, and for the same
+   * reason: the two are different requests, and without the distinction a
+   * merchant who empties the field is told they succeeded and then watches the
+   * old text come back on the next read.
+   */
+  readonly description?: string | null;
   readonly prices?: readonly Money[];
   readonly active?: boolean;
   readonly metadata?: Readonly<Record<string, string>>;
@@ -49,10 +57,15 @@ export interface UpdateProductInput {
 export function updateProduct(product: Product, patch: UpdateProductInput, now: Date): Product {
   if (patch.prices !== undefined) assertPrices(patch.prices);
 
+  // Destructured away rather than spread over: `...product` would carry the
+  // existing description through, so clearing it would leave it in place.
+  const { description: _previous, ...rest } = product;
+  const description = patch.description === undefined ? product.description : patch.description;
+
   return {
-    ...product,
+    ...rest,
     ...(patch.name === undefined ? {} : { name: patch.name }),
-    ...(patch.description === undefined ? {} : { description: patch.description }),
+    ...(description === null || description === undefined ? {} : { description }),
     ...(patch.prices === undefined ? {} : { prices: patch.prices }),
     ...(patch.active === undefined ? {} : { active: patch.active }),
     ...(patch.metadata === undefined ? {} : { metadata: patch.metadata }),

@@ -59,6 +59,8 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
       ...(body.settlementAddress === undefined
         ? {}
         : { settlementAddress: body.settlementAddress }),
+      ...(body.city === undefined ? {} : { city: body.city }),
+      ...(body.countryCode === undefined ? {} : { countryCode: body.countryCode }),
     });
 
     return c.json({

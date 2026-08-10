@@ -26,6 +26,7 @@
  * duplicate email.
  */
 
+import { MERCHANT_ADMIN_PERMISSIONS } from "@mayarin/auth";
 import { type AssetCode, isAssetCode } from "@mayarin/shared";
 import { loadConfig } from "../src/config.ts";
 import { createContainer } from "../src/container.ts";
@@ -39,6 +40,8 @@ interface Args {
   settlementAsset: string | undefined;
   acceptedAssets: string | undefined;
   settlementAddress: string | undefined;
+  city: string | undefined;
+  countryCode: string | undefined;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -50,6 +53,8 @@ function parseArgs(argv: readonly string[]): Args {
     settlementAsset: undefined,
     acceptedAssets: undefined,
     settlementAddress: undefined,
+    city: undefined,
+    countryCode: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
@@ -83,6 +88,14 @@ function parseArgs(argv: readonly string[]): Args {
         args.settlementAddress = value;
         i++;
         break;
+      case "--city":
+        args.city = value;
+        i++;
+        break;
+      case "--country":
+        args.countryCode = value;
+        i++;
+        break;
       case "--help":
       case "-h":
         console.log(USAGE);
@@ -100,9 +113,16 @@ function parseArgs(argv: readonly string[]): Args {
 const USAGE = `Usage: bun run seed:merchant                       # interactive prompts
        bun run seed:merchant -- --email <email> --merchant-name <name> [--password <pw>] [--permissions ...]
                              [--settlement-asset USDC] [--accepted-assets ETH,USDC]
-                             [--settlement-address 0x...]`;
+                             [--settlement-address 0x...] [--city Jakarta] [--country ID]`;
 
-const DEFAULT_PERMISSIONS = ["payments:read", "users:manage", "admin:access"] as const;
+/**
+ * The full merchant-admin set, taken from `@mayarin/auth` rather than restated.
+ *
+ * A local copy drifted once: it listed three permissions while the permission
+ * table had four, so the first account on every seeded merchant could not open
+ * the settlement settings that decide where its own money is paid.
+ */
+const DEFAULT_PERMISSIONS = MERCHANT_ADMIN_PERMISSIONS;
 
 const DEFAULT_SETTLEMENT_ASSET = "USDC";
 
@@ -189,6 +209,22 @@ if (settlementAddress !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(settlementAdd
   process.exit(1);
 }
 
+// Merchant profile. A buyer is shown both, and the payment link surface refuses
+// to mint without them — asked here so a freshly seeded merchant can sell
+// immediately rather than discovering the gap at the first link.
+const cityAnswer = args.city ?? ask("City (blank = set it later in settings): ");
+const city = cityAnswer === undefined || cityAnswer === "" ? undefined : cityAnswer.trim();
+
+const countryAnswer = args.countryCode ?? ask("Country code (blank = set it later, e.g. ID): ");
+const countryCode =
+  countryAnswer === undefined || countryAnswer === ""
+    ? undefined
+    : countryAnswer.trim().toUpperCase();
+if (countryCode !== undefined && !/^[A-Z]{2}$/.test(countryCode)) {
+  console.error(`Not a two-letter country code: ${countryCode}`);
+  process.exit(1);
+}
+
 const config = loadConfig();
 const container = createContainer({ config });
 
@@ -200,6 +236,8 @@ try {
     settlementAsset,
     acceptedAssets,
     ...(settlementAddress === undefined ? {} : { settlementAddress }),
+    ...(city === undefined ? {} : { city }),
+    ...(countryCode === undefined ? {} : { countryCode }),
     permissions,
   });
   console.log(`merchantId: ${result.user.merchantId}`);
@@ -212,6 +250,21 @@ try {
     console.log(`password:  ${result.password}  (generated — store it now)`);
   } else {
     console.log("password:  (used the supplied password)");
+  }
+
+  // Seeding cannot provision a wallet, and saying so here is the difference
+  // between an operator who knows the next step and one who finds out when a
+  // payment refuses to lock. Provisioning needs a *verified merchant-held*
+  // signer — an address a signature recovered to — and no script can produce
+  // that on the merchant's behalf without holding their key, which is the one
+  // thing the whole wallet design refuses to do.
+  if (settlementAddress === undefined) {
+    console.log("");
+    console.log("No settlement address. Nothing can be paid out until there is one:");
+    console.log("  1. Sign in to the dashboard → Wallets → Connect existing (or Passkey)");
+    console.log("  2. Prove control of it by signing the challenge");
+    console.log("  3. Create managed wallet — the Safe becomes the settlement address");
+    console.log("Or set one directly with --settlement-address 0x… (an address you control).");
   }
 } catch (error) {
   console.error(

@@ -19,6 +19,12 @@ export const updateSettingsBodySchema = z
      * the second.
      */
     settlementAddress: z.string().nullable().optional(),
+    /**
+     * Merchant profile (#15). Frozen into the snapshot every payment link and
+     * intent carries, so it is edited here and nowhere a buyer can reach.
+     */
+    city: z.string().nullable().optional(),
+    countryCode: z.string().nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
@@ -49,6 +55,14 @@ export function toSettingsDto(merchant: Merchant, effectiveSettlementAddress?: s
     acceptedAssets: merchant.acceptedAssets,
     /** What the merchant chose. `null` is "not chosen", not "nowhere to pay". */
     settlementAddress: merchant.settlementAddress ?? null,
+    city: merchant.city ?? null,
+    countryCode: merchant.countryCode ?? null,
+    /**
+     * Whether this merchant can mint a payment link yet. A link freezes a
+     * merchant snapshot, and the snapshot needs both profile fields — so the
+     * dashboard can say which one is missing instead of failing at the button.
+     */
+    canCreateLinks: merchant.city !== undefined && merchant.countryCode !== undefined,
     effectiveSettlementAddress: effectiveSettlementAddress ?? null,
     /**
      * Whether this merchant can take a contract-path payment at all. Derived

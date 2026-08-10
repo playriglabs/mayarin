@@ -7,12 +7,13 @@ import {
 } from "../src/permission.ts";
 
 describe("permission", () => {
-  test("the permission list is exactly the four flags", () => {
+  test("the permission list is exactly the five flags", () => {
     expect(PERMISSION_LIST).toEqual([
       "payments:read",
       "users:manage",
       "admin:access",
       "settings:manage",
+      "catalog:manage",
     ]);
   });
 
@@ -37,6 +38,7 @@ describe("permission", () => {
       "users:manage",
       "admin:access",
       "settings:manage",
+      "catalog:manage",
     ]);
   });
 });

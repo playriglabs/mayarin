@@ -442,3 +442,179 @@ describe("the fee destination", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("the settlement balance", () => {
+  test("reports the address the merchant configured, and refuses to call it withdrawable", async () => {
+    // An address the merchant holds themselves is not one Mayarin can move
+    // from, and offering a withdraw button for it would be a lie.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const configured = `0x${"cc".repeat(20)}`;
+    harness.walletBalances.set(configured, "USDC", 1_500_000n);
+    harness.walletBalances.set(configured, "ETH", 3_000_000_000_000_000n);
+
+    await harness.request("PATCH", "/settings", {
+      body: { settlementAddress: configured },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+
+    const res = await harness.request("GET", "/wallets/balance", { cookies: auth.jar });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.address).toBe(configured);
+    expect(res.body?.withdrawable).toBe(false);
+    expect(res.body?.balances).toEqual([
+      { amount: "1500000", asset: "USDC", formatted: "1.500000", display: "1,50 USDC" },
+      {
+        amount: "3000000000000000",
+        asset: "ETH",
+        formatted: "0.003000000000000000",
+        display: "0,003 ETH",
+      },
+    ]);
+  });
+
+  test("falls back to the provisioned wallet, which Mayarin can move from", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await linkAndVerify(harness, auth);
+    const provisioned = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    const address = provisioned.body?.wallet.address as string;
+    harness.walletBalances.set(address, "USDC", 42n);
+
+    const res = await harness.request("GET", "/wallets/balance", { cookies: auth.jar });
+
+    expect(res.body?.address).toBe(address);
+    expect(res.body?.withdrawable).toBe(true);
+    expect(res.body?.balances[0].amount).toBe("42");
+  });
+
+  test("an asset this deployment has no token address for is omitted, not zeroed", async () => {
+    // Nothing configured and an empty wallet are different answers, and a
+    // merchant reading a zero would take the wrong action.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const configured = `0x${"dd".repeat(20)}`;
+    await harness.request("PATCH", "/settings", {
+      body: { settlementAddress: configured },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+
+    const res = await harness.request("GET", "/wallets/balance", { cookies: auth.jar });
+
+    expect(res.body?.balances).toEqual([]);
+  });
+});
+
+describe("withdrawing", () => {
+  /** A provisioned wallet plus a verified own address to withdraw to. */
+  async function withdrawable(harness: Harness, auth: Auth) {
+    const { account } = await linkAndVerify(harness, auth);
+    const provisioned = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    return { destination: account.address.toLowerCase(), safe: provisioned.body?.wallet.address };
+  }
+
+  test("reaches the provider with the amount and destination the merchant asked for", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { destination, safe } = await withdrawable(harness, auth);
+
+    const res = await post(harness, auth, "/wallets/withdraw", {
+      asset: "USDC",
+      amount: "2500000",
+      to: destination,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(harness.walletProvider.proposals).toHaveLength(1);
+    const proposal = harness.walletProvider.proposals[0];
+    expect(proposal?.wallet.address).toBe(safe);
+    expect(proposal?.intent).toEqual({
+      kind: "withdraw",
+      amount: { amount: 2_500_000n, asset: "USDC" },
+      to: destination,
+    });
+  });
+
+  test("refuses a destination the merchant never proved they control", async () => {
+    // A dashboard session is a bearer credential; an arbitrary destination
+    // turns a stolen one into a transfer. Proving control is the step an
+    // attacker holding a session cannot take.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await withdrawable(harness, auth);
+
+    const res = await post(harness, auth, "/wallets/withdraw", {
+      asset: "USDC",
+      amount: "1",
+      to: `0x${"ee".repeat(20)}`,
+    });
+
+    expect(res.status).toBe(400);
+    expect(harness.walletProvider.proposals).toHaveLength(0);
+  });
+
+  test("refuses a linked destination that was never verified", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await withdrawable(harness, auth);
+    const unverified = privateKeyToAccount(OTHER_KEY);
+    await post(harness, auth, "/wallets", {
+      chain: "base-sepolia",
+      address: unverified.address,
+    });
+
+    const res = await post(harness, auth, "/wallets/withdraw", {
+      asset: "USDC",
+      amount: "1",
+      to: unverified.address,
+    });
+
+    expect(res.status).toBe(400);
+    expect(harness.walletProvider.proposals).toHaveLength(0);
+  });
+
+  test("refuses when the merchant has no provisioned wallet", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { account } = await linkAndVerify(harness, auth);
+
+    const res = await post(harness, auth, "/wallets/withdraw", {
+      asset: "USDC",
+      amount: "1",
+      to: account.address,
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  test("refuses a non-positive amount", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { destination } = await withdrawable(harness, auth);
+
+    const res = await post(harness, auth, "/wallets/withdraw", {
+      asset: "USDC",
+      amount: "0",
+      to: destination,
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("without a CSRF token is refused", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { destination } = await withdrawable(harness, auth);
+
+    const res = await harness.request("POST", "/wallets/withdraw", {
+      body: { asset: "USDC", amount: "1", to: destination },
+      cookies: auth.jar,
+    });
+
+    expect(res.status).toBe(403);
+  });
+});

@@ -18,9 +18,12 @@ import type { AuthVars } from "./middleware/types.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { authRoutes } from "./routes/auth.ts";
+import { catalogRoutes } from "./routes/catalog.ts";
 import { healthRoutes } from "./routes/health.ts";
+import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { settingsRoutes } from "./routes/settings.ts";
+import { settlementRoutes } from "./routes/settlements.ts";
 import { walletRoutes } from "./routes/wallets.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
 
@@ -47,6 +50,23 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // deeper view of the same records, not a wider one.
   app.use("/audit/*", requireAuth(), requirePermission("payments:read"));
   app.route("/audit", auditRoutes(container));
+
+  // What the merchant was actually paid (#15). Same permission as payments, and
+  // for the same reason: it is the payout side of records the caller can
+  // already read, not a new set of them.
+  app.use("/settlements", requireAuth(), requirePermission("payments:read"));
+  app.use("/settlements/*", requireAuth(), requirePermission("payments:read"));
+  app.route("/settlements", settlementRoutes(container));
+
+  // Products and payment links (#15). Its own permission: minting a link
+  // decides what a buyer is charged and never where the money lands, so a
+  // cashier can sell all day without being able to redirect the payout.
+  app.use("/catalog/*", requireAuth(), requirePermission("catalog:manage"));
+  app.route("/catalog", catalogRoutes(container));
+
+  app.use("/payment-links", requireAuth(), requirePermission("catalog:manage"));
+  app.use("/payment-links/*", requireAuth(), requirePermission("catalog:manage"));
+  app.route("/payment-links", paymentLinkRoutes(container));
 
   // Merchant settlement configuration (#95). Its own permission rather than
   // `admin:access`: this surface decides where the merchant's money is paid,
