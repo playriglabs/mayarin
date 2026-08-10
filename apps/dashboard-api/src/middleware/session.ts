@@ -32,6 +32,7 @@ export function sessionMiddleware(
     if (verified !== null) {
       c.set("session", verified);
       c.set("scope", scopeOf(verified.user));
+      c.set("authMethod", "session");
     }
 
     await next();

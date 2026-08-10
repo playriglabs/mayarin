@@ -1,0 +1,13 @@
+---
+import Customers from "../components/customers.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Customers">
+  <PageHeader
+    title="Customers"
+    description="Your customer directory. A customer links to the orders taken for them."
+  />
+  <Customers client:load />
+</Protected>

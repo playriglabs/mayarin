@@ -1,0 +1,13 @@
+---
+import { PageHeader } from "../components/page-header.tsx";
+import PaymentLinks from "../components/payment-links.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Payment links">
+  <PageHeader
+    title="Payment links"
+    description="One link, any number of sales. Each buyer who opens it gets their own payment."
+  />
+  <PaymentLinks client:load />
+</Protected>

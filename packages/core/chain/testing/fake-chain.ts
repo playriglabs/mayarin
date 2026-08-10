@@ -9,9 +9,11 @@
 
 import type { AssetCode } from "@mayarin/shared";
 import type {
+  BalanceQuery,
   BlockRef,
   ChainClient,
   ChainId,
+  NativeBalance,
   SettlementLog,
   SettlementQuery,
   TransferLog,
@@ -62,6 +64,8 @@ export class FakeChainClient implements ChainClient {
   readonly #blocks: Block[] = [];
   #pending: PendingTransfer[] = [];
   #pendingSettlements: PendingSettlement[] = [];
+  /** Value that arrived without a visible transfer, per address. */
+  readonly #internal = new Map<string, bigint>();
   #epoch = 0;
 
   /** Queues a transfer for the next mined block. */
@@ -72,6 +76,19 @@ export class FakeChainClient implements ChainClient {
       to: input.to.toLowerCase(),
       amount: input.amount,
     });
+    return this;
+  }
+
+  /**
+   * Credits an address without a transfer anyone can see.
+   *
+   * What an internal transaction looks like from the outside: the balance is
+   * there, and no block body mentions it. This is how a smart-contract wallet
+   * pays, so it is how the balance path has to be exercised.
+   */
+  creditInternally(address: string, amount: bigint): this {
+    const key = address.toLowerCase();
+    this.#internal.set(key, (this.#internal.get(key) ?? 0n) + amount);
     return this;
   }
 
@@ -133,6 +150,30 @@ export class FakeChainClient implements ChainClient {
   async blockHash(_chain: ChainId, number: bigint): Promise<string | null> {
     const block = this.#blocks.find((candidate) => candidate.number === number);
     return block?.hash ?? null;
+  }
+
+  async nativeBalances(query: BalanceQuery): Promise<NativeBalance[]> {
+    if (query.addresses.length === 0) return [];
+    const block = this.#blocks.find((candidate) => candidate.number === query.block);
+    if (block === undefined) return [];
+
+    return query.addresses.map((address) => {
+      const key = address.toLowerCase();
+      // A balance is everything that landed however it landed: the transfers a
+      // block body shows plus whatever arrived internally.
+      const visible = this.#blocks
+        .filter((candidate) => candidate.number <= query.block)
+        .flatMap((candidate) => candidate.transfers)
+        .filter((transfer) => transfer.to === key && transfer.asset === query.asset)
+        .reduce((total, transfer) => total + transfer.amount, 0n);
+
+      return {
+        address: key,
+        amount: visible + (this.#internal.get(key) ?? 0n),
+        blockNumber: block.number,
+        blockHash: block.hash,
+      };
+    });
   }
 
   async transfers(query: TransferQuery): Promise<TransferLog[]> {

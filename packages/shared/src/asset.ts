@@ -14,6 +14,23 @@ export interface AssetDefinition {
   readonly kind: AssetKind;
   /** Number of minor units per whole unit, as a power of ten. */
   readonly decimals: number;
+  /**
+   * How many decimals a **payer** is ever asked for.
+   *
+   * Distinct from `decimals`, which is the asset's own precision. ETH carries
+   * 18, and an amount written out to all of them is one no human types and one
+   * a good many wallets refuse: their manual-entry fields cap out at eight. An
+   * amount a payer cannot enter is an amount they underpay, and an underpaid
+   * deposit never funds — the watcher wants the full sum.
+   *
+   * So an amount asked of a payer is rounded UP to this precision before it is
+   * ever shown, and the same rounded figure goes into the QR. One number, in
+   * the code and on the screen and in the field they type it into.
+   *
+   * Absent means the asset's own precision is already payable: two decimals of
+   * rupiah or six of USDC are fine as they are.
+   */
+  readonly payerDecimals?: number;
   /** ISO 4217 numeric code. Only defined for fiat assets. */
   readonly iso4217Numeric?: string;
   /**
@@ -56,7 +73,15 @@ const DEFINITIONS = {
   USDT: { kind: "stablecoin", decimals: 6, name: "Tether USD" },
 
   // Native crypto
-  ETH: { kind: "crypto", decimals: 18, name: "Ether" },
+  ETH: {
+    kind: "crypto",
+    decimals: 18,
+    // Eight, which is what wallet entry fields and every exchange UI settle on.
+    // The dust given up by rounding up to it is ~1e-8 ETH, well under the fee
+    // of the transfer that carries it.
+    payerDecimals: 8,
+    name: "Ether",
+  },
   BTC: { kind: "crypto", decimals: 8, name: "Bitcoin" },
 } as const satisfies Record<string, Omit<AssetDefinition, "code">>;
 
@@ -82,6 +107,17 @@ export function assetDecimals(code: AssetCode): number {
 
 export function assetSymbol(code: AssetCode): string | undefined {
   return REGISTRY[code].symbol;
+}
+
+/**
+ * The precision a payer is asked for, which is at most the asset's own.
+ *
+ * Falls back to `decimals`, so an asset that says nothing is asked for exactly
+ * what it can express.
+ */
+export function assetPayerDecimals(code: AssetCode): number {
+  const definition = REGISTRY[code];
+  return definition.payerDecimals ?? definition.decimals;
 }
 
 /**

@@ -7,6 +7,9 @@
  */
 
 import type {
+  Customer,
+  CustomerRepository,
+  ListCustomersOptions,
   ListPaymentLinksOptions,
   ListProductsOptions,
   PaymentLink,
@@ -19,10 +22,11 @@ import { ConcurrencyError, type Money } from "@mayarin/shared";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction, toAsset, toMoney } from "../mapping.ts";
-import { paymentLinks, productPrices, products } from "../schema.ts";
+import { customers, paymentLinks, productPrices, products } from "../schema.ts";
 
 type ProductRow = typeof products.$inferSelect;
 type LinkRow = typeof paymentLinks.$inferSelect;
+type CustomerRow = typeof customers.$inferSelect;
 
 export class DrizzleProductRepository implements ProductRepository {
   readonly #db: Executor;
@@ -283,4 +287,76 @@ function toLink(row: LinkRow): PaymentLink {
 function linkAmount(row: LinkRow): Money | undefined {
   if (row.amount === null || row.amountAsset === null) return undefined;
   return toMoney(row.amount, row.amountAsset);
+}
+
+export class DrizzleCustomerRepository implements CustomerRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async insert(customer: Customer): Promise<void> {
+    await this.#db.insert(customers).values(toCustomerRow(customer));
+  }
+
+  async findById(id: string): Promise<Customer | null> {
+    const [row] = await this.#db.select().from(customers).where(eq(customers.id, id)).limit(1);
+    return row === undefined ? null : toCustomer(row);
+  }
+
+  async listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]> {
+    const rows = await this.#db
+      .select()
+      .from(customers)
+      .where(eq(customers.merchantId, options.merchantId))
+      .orderBy(desc(customers.createdAt))
+      .limit(options.limit ?? 100);
+    return rows.map(toCustomer);
+  }
+
+  async update(customer: Customer, expectedVersion: number): Promise<void> {
+    const updated = await this.#db
+      .update(customers)
+      .set(toCustomerRow(customer))
+      .where(and(eq(customers.id, customer.id), eq(customers.version, expectedVersion)))
+      .returning({ id: customers.id });
+
+    if (updated.length === 0) {
+      throw new ConcurrencyError(`Customer ${customer.id} was modified concurrently`, {
+        id: customer.id,
+        expectedVersion,
+      });
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.#db.delete(customers).where(eq(customers.id, id));
+  }
+}
+
+function toCustomerRow(customer: Customer): typeof customers.$inferInsert {
+  return {
+    id: customer.id,
+    merchantId: customer.merchantId,
+    name: customer.name,
+    email: customer.email ?? null,
+    notes: customer.notes ?? null,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+    version: customer.version,
+  };
+}
+
+function toCustomer(row: CustomerRow): Customer {
+  return {
+    id: row.id,
+    merchantId: row.merchantId,
+    name: row.name,
+    ...present("email", row.email),
+    ...present("notes", row.notes),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+  };
 }

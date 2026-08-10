@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock, money } from "@mayarin/shared";
-import { StablecoinSettlementAdapter } from "../src/adapter.ts";
+import { InMemorySettlementStore, StablecoinSettlementAdapter } from "../src/adapter.ts";
 
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 const clock = new FixedClock(NOW);
@@ -58,5 +58,35 @@ describe("StablecoinSettlementAdapter", () => {
   test("webhook returns null — an internal rail has no external events", async () => {
     const adapter = new StablecoinSettlementAdapter({ clock });
     expect(await adapter.webhook({ headers: {}, rawBody: "" })).toBeNull();
+  });
+});
+
+describe("surviving a restart", () => {
+  test("a settlement recorded before a restart is still readable after one", async () => {
+    // The store outlives the adapter, which is the whole point: a restart
+    // builds a new adapter over the same records.
+    const store = new InMemorySettlementStore();
+
+    const before = new StablecoinSettlementAdapter({ clock, store });
+    const settled = await before.settle(request);
+
+    // The process ends here. Everything the adapter held in memory goes with
+    // it; only what it wrote survives.
+    const after = new StablecoinSettlementAdapter({ clock, store });
+
+    const status = await after.status(settled.providerReference);
+    expect(status.state).toBe("SUCCEEDED");
+    expect(status.providerReference).toBe(settled.providerReference);
+  });
+
+  test("a replayed settle across a restart returns the first reference", async () => {
+    const store = new InMemorySettlementStore();
+
+    const first = await new StablecoinSettlementAdapter({ clock, store }).settle(request);
+    // Same idempotency key, new process: it must return the original settlement
+    // rather than credit the merchant a second time.
+    const replayed = await new StablecoinSettlementAdapter({ clock, store }).settle(request);
+
+    expect(replayed.providerReference).toBe(first.providerReference);
   });
 });

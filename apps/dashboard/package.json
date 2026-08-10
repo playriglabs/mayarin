@@ -12,12 +12,18 @@
   "dependencies": {
     "@astrojs/node": "^9.0.0",
     "@astrojs/react": "^4.0.0",
+    "@base-ui-components/react": "1.0.0-rc.0",
+    "@mayarin/shared": "workspace:*",
+    "@phosphor-icons/react": "^2.1.10",
     "@tanstack/react-query": "^5.0.0",
     "astro": "^5.0.0",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "effect": "^3.0.0",
+    "motion": "^13.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.6.0",
     "ts-pattern": "^5.0.0"
   },
   "devDependencies": {

@@ -141,6 +141,21 @@ export class PaymentIntentService {
         ? (command.executionPath ?? this.#defaults.executionPath)
         : undefined;
 
+    // The contract path signs the payer's change back to `refundTo`, so there
+    // is no order to plan without the payer's address. Checked against the
+    // *resolved* path, not the requested one: a caller who names no path takes
+    // the deployment's, and a rail the price lock will refuse is a bad request
+    // — letting it through mints an intent whose only future is FAILED.
+    if (executionPath === "on-chain-contract" && command.payment?.payerAddress === undefined) {
+      throw new ValidationError(
+        "on-chain-contract execution path requires the payer's address on the rail",
+        {
+          executionPath,
+          ...(command.payment === undefined ? {} : { asset: command.payment.asset }),
+        },
+      );
+    }
+
     if (this.#registry !== undefined) {
       if (!(await this.#registry.isSettlementAsset(settlementAsset))) {
         throw new ValidationError(

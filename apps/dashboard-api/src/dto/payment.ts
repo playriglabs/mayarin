@@ -20,6 +20,8 @@ export function toPaymentIntentDto(intent: PaymentIntent) {
     provider: intent.provider,
     payment: intent.payment ?? null,
     source: intent.source,
+    merchantReference: intent.merchantReference ?? null,
+    metadata: intent.metadata ?? {},
     clearingTransactionId: intent.clearingTransactionId ?? null,
     failureReason: intent.failureReason ?? null,
     createdAt: intent.createdAt.toISOString(),

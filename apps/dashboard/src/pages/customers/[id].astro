@@ -1,0 +1,11 @@
+---
+import CustomerDetail from "../../components/customer-detail.tsx";
+import Protected from "../../layouts/dashboard.astro";
+
+const { id } = Astro.params;
+if (id === undefined) return Astro.redirect("/customers");
+---
+
+<Protected title="Customer">
+  <CustomerDetail id={id} client:load />
+</Protected>

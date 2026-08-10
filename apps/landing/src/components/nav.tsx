@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { useEffect, useState } from "preact/hooks";
-import { Wordmark } from "./logo.tsx";
+import { Logo } from "./logo.tsx";
 import { ArrowRight } from "./ui.tsx";
 
 const links = [
@@ -45,10 +45,10 @@ export function Nav() {
       )}
     >
       {/* Three tracks, the outer two equal: the menu stays on the page's centre
-          line however wide the wordmark or the CTA get. */}
+          line however wide the Logo or the CTA get. */}
       <div class="shell grid h-16 grid-cols-[1fr_auto_1fr] items-center md:h-18">
         <div class="flex justify-start">
-          <Wordmark />
+          <Logo />
         </div>
 
         <nav aria-label="Primary" class="hidden items-center gap-8 lg:flex">

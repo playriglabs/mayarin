@@ -5,9 +5,25 @@
  * payment API, so it only needs the session/auth knobs plus the database URL.
  */
 
+import type { ChainId } from "@mayarin/chain";
 import { CHAIN_IDS } from "@mayarin/chain";
-import { ConfigurationError } from "@mayarin/shared";
+import { type AssetCode, ConfigurationError } from "@mayarin/shared";
 import { z } from "zod";
+
+/** Same shape the payment API parses these from, so one `.env` serves both. */
+function jsonObject<T>(name: string, fallback: string) {
+  return z
+    .string()
+    .default(fallback)
+    .transform((value, ctx): T => {
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${name} must be valid JSON` });
+        return z.NEVER;
+      }
+    });
+}
 
 const configSchema = z.object({
   port: z.coerce.number().int().positive().default(3001),
@@ -28,6 +44,40 @@ const configSchema = z.object({
     .transform((value) => value === "true"),
   /** Page size cap for payment listings. */
   paymentsPageSize: z.coerce.number().int().positive().max(200).default(50),
+  /**
+   * Public origin of the payment API, where hosted checkout is served (#15).
+   *
+   * A payment link's whole value is its URL, and that URL points at the payment
+   * API rather than at this one — the buyer opening it must reach the app that
+   * mints intents. Served with the link rather than assembled in the browser,
+   * which would get it wrong in exactly the deployment where the two apps are
+   * not on the same host.
+   */
+  /**
+   * Where the payment API is reachable from this process (#15).
+   *
+   * Taking a payment at the counter mints one, and minting needs the clearing
+   * engine, the rate sources and the token registry that `apps/api` composes.
+   * The dashboard asks that service rather than building a second copy of it.
+   * Server-to-server, so this is an internal address where the two differ.
+   */
+  paymentApiUrl: z.string().url().default("http://localhost:3000"),
+  /**
+   * The chain a counter payment is taken on.
+   *
+   * One chain, deployed and proven, like every other address-deriving surface
+   * here. Separate from `walletProvisionChain` on purpose: where a merchant's
+   * Safe lives and where a payer is asked to send funds are two decisions, and
+   * one key that answers both is one key that cannot express a difference.
+   */
+  depositChain: z.enum(CHAIN_IDS).default("base-sepolia"),
+  checkoutBaseUrl: z
+    .string()
+    .url()
+    .default("http://localhost:3000")
+    // A trailing slash would produce `…//checkout/lnk_…`, which some proxies
+    // normalise and others 404.
+    .transform((value) => value.replace(/\/+$/, "")),
   /**
    * Where fees are paid (#11, RFC #6).
    *
@@ -68,6 +118,22 @@ const configSchema = z.object({
    * make the policy decoration.
    */
   turnkeySignerApiPublicKey: z.string().min(1).optional(),
+
+  // --- Reading and moving what a settlement address holds (#11) -----------
+  /**
+   * ERC-20 addresses per chain and asset, shared with the payment API.
+   *
+   * Needed twice here: to read a merchant's settlement balance, and to build
+   * the `transfer` a withdrawal makes. An asset missing from this map is one
+   * this deployment will not report a balance for and will not move — both
+   * refusals are better than a guessed token address.
+   */
+  chainAssets: jsonObject<Partial<Record<ChainId, Partial<Record<AssetCode, string>>>>>(
+    "CHAIN_ASSETS",
+    "{}",
+  ),
+  /** The chain's own currency, which has no contract to read a balance from. */
+  chainNativeAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("CHAIN_NATIVE_ASSETS", "{}"),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -100,6 +166,9 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     sessionTtlSeconds: env.SESSION_TTL_SECONDS,
     cookieSecure: env.COOKIE_SECURE,
     paymentsPageSize: env.PAYMENTS_PAGE_SIZE,
+    checkoutBaseUrl: env.CHECKOUT_BASE_URL ?? env.PUBLIC_BASE_URL,
+    paymentApiUrl: env.PAYMENT_API_URL ?? env.PUBLIC_BASE_URL,
+    depositChain: env.DEPOSIT_CHAIN,
     treasuryAddress: env.TREASURY_ADDRESS,
     walletProvisioningEnabled: env.WALLET_PROVISIONING_ENABLED,
     walletProvisionChain: env.WALLET_PROVISION_CHAIN,
@@ -109,6 +178,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     turnkeyApiPublicKey: env.TURNKEY_API_PUBLIC_KEY,
     turnkeyApiPrivateKey: env.TURNKEY_API_PRIVATE_KEY,
     turnkeySignerApiPublicKey: env.TURNKEY_SIGNER_API_PUBLIC_KEY,
+    chainAssets: env.CHAIN_ASSETS,
+    chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
   });
 
   if (!result.success) {

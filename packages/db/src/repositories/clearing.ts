@@ -12,7 +12,7 @@ import {
 } from "@mayarin/clearing";
 import type { ExecutionPath } from "@mayarin/payment-intent";
 import { type AssetCode, ConcurrencyError, ValidationError } from "@mayarin/shared";
-import { and, asc, eq, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import {
   present,
@@ -91,6 +91,19 @@ export class DrizzleClearingRepository implements ClearingRepository {
       .where(eq(clearingTransactions.paymentIntentId, paymentIntentId))
       .limit(1);
     return row === undefined ? null : toDomain(row);
+  }
+
+  async listByPaymentIntentIds(
+    paymentIntentIds: readonly string[],
+  ): Promise<readonly ClearingTransaction[]> {
+    // `inArray` with an empty list is invalid SQL in Postgres, and an empty page
+    // is the normal state of a merchant who has taken no payments yet.
+    if (paymentIntentIds.length === 0) return [];
+    const rows = await this.#db
+      .select()
+      .from(clearingTransactions)
+      .where(inArray(clearingTransactions.paymentIntentId, [...paymentIntentIds]));
+    return rows.map(toDomain);
   }
 
   async findByContractIntentId(intentId: string): Promise<ClearingTransaction | null> {

@@ -15,6 +15,9 @@ const ASSET = "USDC" as const;
 const NOW = "2026-01-01T00:00:00.000Z";
 /** 3.21 USDC, six decimals. */
 const REQUIRED = money(3_210_000n, ASSET);
+const NATIVE = "ETH" as const;
+/** 0.00416667 ETH — what $12.50 comes to, rounded to what a payer can type. */
+const NATIVE_REQUIRED = money(4_166_670_000_000_000n, NATIVE);
 
 function createHarness() {
   const clock = new FixedClock(NOW);
@@ -57,6 +60,48 @@ function createHarness() {
     retentionSeconds: 86_400,
   });
 
+  /**
+   * A second watcher over the chain's own currency, sharing every repository.
+   *
+   * Native is the only asset that gets the balance reconciliation, so it needs
+   * its own watcher to exercise: an ERC-20 emits a `Transfer` log however it
+   * moves and is already covered by the scan.
+   */
+  const nativeWatcher = new WalletWatcher({
+    client: chain,
+    addresses,
+    deposits,
+    cursors,
+    clock,
+    events,
+    sink: {
+      fund: async (clearingTransactionId) => {
+        funded.push(clearingTransactionId);
+        const existing = state.get(clearingTransactionId);
+        if (existing !== undefined) {
+          state.set(clearingTransactionId, { ...existing, fundable: false });
+        }
+      },
+    },
+    policy: { depth: 6, reorgWatchWindow: 2 },
+    blockRange: 2000,
+    retentionSeconds: 86_400,
+    nativeAssets: { [CHAIN]: NATIVE },
+  });
+
+  /** Registers a payment awaiting `NATIVE_REQUIRED` in the chain's own currency. */
+  async function awaitingNativePayment(id = "clr_native"): Promise<string> {
+    state.set(id, { fundable: true, requiredAmount: NATIVE_REQUIRED });
+    const allocated = await addresses.allocate({
+      clearingTransactionId: id,
+      chain: CHAIN,
+      asset: NATIVE,
+      deriver,
+      now: clock.now(),
+    });
+    return allocated.address;
+  }
+
   /** Registers a payment awaiting `REQUIRED` and returns its deposit address. */
   async function awaitingPayment(id = "clr_1"): Promise<string> {
     state.set(id, { fundable: true, requiredAmount: REQUIRED });
@@ -80,6 +125,8 @@ function createHarness() {
     published,
     state,
     awaitingPayment,
+    nativeWatcher,
+    awaitingNativePayment,
   };
 }
 
@@ -257,5 +304,74 @@ describe("WalletWatcher", () => {
     const result = await capped.tick(CHAIN, ASSET);
     expect(result.scannedFrom).toBe(1n);
     expect(result.scannedTo).toBe(2n);
+  });
+
+  describe("native value that no block body shows", () => {
+    test("an internal transfer is found by balance and funds the payment", async () => {
+      const address = await harness.awaitingNativePayment();
+      // Paid by a smart-contract wallet: the value is at the address and no
+      // transaction in any block is addressed to it. This is what the block
+      // scan is structurally unable to see.
+      harness.chain.creditInternally(address, NATIVE_REQUIRED.amount);
+      harness.chain.mine(8);
+
+      const result = await harness.nativeWatcher.tick(CHAIN, NATIVE);
+
+      expect(result.recorded).toBe(1);
+      expect(harness.funded).toEqual(["clr_native"]);
+    });
+
+    test("value already seen as a transfer is not counted twice", async () => {
+      const address = await harness.awaitingNativePayment();
+      // The same value, arriving the ordinary way. The balance reconciliation
+      // runs in the same tick and must find nothing left to account for.
+      harness.chain.transfer({ asset: NATIVE, to: address, amount: NATIVE_REQUIRED.amount });
+      harness.chain.mine(8);
+
+      await harness.nativeWatcher.tick(CHAIN, NATIVE);
+
+      const recorded = await harness.deposits.listByAddress(CHAIN, address);
+      expect(recorded).toHaveLength(1);
+      expect(recorded[0]?.amount.amount).toBe(NATIVE_REQUIRED.amount);
+    });
+
+    test("only the unaccounted part is recorded when both paths see value", async () => {
+      const address = await harness.awaitingNativePayment();
+      const half = NATIVE_REQUIRED.amount / 2n;
+      harness.chain.transfer({ asset: NATIVE, to: address, amount: half });
+      harness.chain.creditInternally(address, NATIVE_REQUIRED.amount - half);
+      harness.chain.mine(8);
+
+      await harness.nativeWatcher.tick(CHAIN, NATIVE);
+
+      const recorded = await harness.deposits.listByAddress(CHAIN, address);
+      const total = recorded.reduce((sum, deposit) => sum + deposit.amount.amount, 0n);
+      expect(total).toBe(NATIVE_REQUIRED.amount);
+    });
+
+    test("a second tick records nothing new", async () => {
+      const address = await harness.awaitingNativePayment();
+      harness.chain.creditInternally(address, NATIVE_REQUIRED.amount);
+      harness.chain.mine(8);
+
+      await harness.nativeWatcher.tick(CHAIN, NATIVE);
+      const second = await harness.nativeWatcher.tick(CHAIN, NATIVE);
+
+      // Keyed on the address and the height observed, so re-reading the same
+      // block is idempotent rather than a second deposit.
+      expect(second.recorded).toBe(0);
+    });
+
+    test("an ERC-20 payment gets no balance reconciliation", async () => {
+      const address = await harness.awaitingPayment();
+      harness.chain.creditInternally(address, REQUIRED.amount);
+      harness.chain.mine(8);
+
+      // A token emits a Transfer log however it moves, so `eth_getLogs` already
+      // sees an internal call and a balance would add nothing.
+      const result = await harness.watcher.tick(CHAIN, ASSET);
+      expect(result.recorded).toBe(0);
+      expect(harness.funded).toEqual([]);
+    });
   });
 });

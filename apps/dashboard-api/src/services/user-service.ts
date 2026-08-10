@@ -51,6 +51,13 @@ export interface CreateMerchantAccountInput {
   readonly acceptedAssets: readonly AssetCode[];
   /** Where they are paid on-chain. Absent for an off-chain-only merchant. */
   readonly settlementAddress?: string;
+  /**
+   * Merchant profile, frozen into the snapshot every payment link carries.
+   * Absent is allowed — the settings surface fills it in — but a merchant
+   * cannot mint a link until both are set.
+   */
+  readonly city?: string;
+  readonly countryCode?: string;
   readonly permissions: readonly Permission[];
 }
 
@@ -89,6 +96,8 @@ export class UserService {
       ...(input.settlementAddress === undefined
         ? {}
         : { settlementAddress: input.settlementAddress }),
+      ...(input.city === undefined ? {} : { city: input.city }),
+      ...(input.countryCode === undefined ? {} : { countryCode: input.countryCode }),
       createdAt: now,
       updatedAt: now,
       version: 1,

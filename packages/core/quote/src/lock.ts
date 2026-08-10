@@ -105,24 +105,39 @@ export function lockQuote(composed: ComposedQuote, terms: LockTerms, now: Date):
     settlementAsset: composed.to,
     minOut: terms.settlementAmount,
     fee: terms.fee,
-    payerEstimate: {
-      kind: "display-estimate",
-      amount: money(
-        payerEstimateMinor(
-          terms.settlementAmount.amount,
-          composed.executable.scaledRate,
-          assetDecimals(composed.from),
-          terms.slippageBps,
-        ),
-        composed.from,
-      ),
-    },
+    payerEstimate: payerEstimate(composed, terms.settlementAmount, terms.slippageBps),
     executableRate: composed.executable.scaledRate,
     executableSource: composed.executable.source,
     referenceSource: composed.reference.source,
     slippageBps: terms.slippageBps,
     lockedAt: new Date(now),
     deadline: new Date(now.getTime() + terms.ttlSeconds * 1_000),
+  };
+}
+
+/**
+ * What the payer sends to cover `settlementAmount` at the composed rate.
+ *
+ * Exposed separately from `lockQuote` because an indicative quote needs this
+ * number without a lock: no deadline, no fee, nothing signed. A preview that
+ * derives it any other way is a preview that disagrees with the charge.
+ */
+export function payerEstimate(
+  composed: ComposedQuote,
+  settlementAmount: Money,
+  slippageBps: number,
+): PayerEstimate {
+  return {
+    kind: "display-estimate",
+    amount: money(
+      payerEstimateMinor(
+        settlementAmount.amount,
+        composed.executable.scaledRate,
+        assetDecimals(composed.from),
+        slippageBps,
+      ),
+      composed.from,
+    ),
   };
 }
 

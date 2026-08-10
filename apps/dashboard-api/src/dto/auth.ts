@@ -8,7 +8,7 @@
  */
 
 import type { Permission, User } from "@mayarin/auth";
-import { isPermission } from "@mayarin/auth";
+import { isPermission, PERMISSION_LIST } from "@mayarin/auth";
 import type { CookieOptions } from "hono/utils/cookie";
 import { z } from "zod";
 
@@ -58,8 +58,15 @@ export const loginBodySchema = z.object({
 });
 export type LoginBody = z.infer<typeof loginBodySchema>;
 
-/** Zod refinement over the `Permission` union; rejects unknown flags. */
-const permissionSchema = z.enum(["payments:read", "users:manage", "admin:access"]);
+/**
+ * Zod refinement over the `Permission` union; rejects unknown flags.
+ *
+ * Built off `PERMISSION_LIST` so a new permission lands here the moment it is
+ * added — a hand-maintained subset here would silently reject `settings:manage`
+ * and `catalog:manage` (which it once did), freezing every newer surface out of
+ * the user-create body and the API-key create body alike.
+ */
+const permissionSchema = z.enum(PERMISSION_LIST as [Permission, ...Permission[]]);
 export const permissionsSchema = z.array(permissionSchema);
 
 /** Body for `POST /admin/users` — create a sub-account in the caller's merchant. */

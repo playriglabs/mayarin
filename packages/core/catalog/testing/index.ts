@@ -9,6 +9,9 @@
 
 import { ConcurrencyError, ConflictError } from "@mayarin/shared";
 import type {
+  Customer,
+  CustomerRepository,
+  ListCustomersOptions,
   ListPaymentLinksOptions,
   ListProductsOptions,
   PaymentLink,
@@ -124,5 +127,49 @@ export class InMemoryPaymentLinkRepository implements PaymentLinkRepository {
       .filter((link) => link.merchant.id === options.merchantId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, options.limit ?? DEFAULT_LIMIT);
+  }
+}
+
+export class InMemoryCustomerRepository implements CustomerRepository {
+  readonly #byId = new Map<string, Customer>();
+
+  async insert(customer: Customer): Promise<void> {
+    if (this.#byId.has(customer.id)) {
+      throw new ConflictError(`Customer ${customer.id} already exists`, { id: customer.id });
+    }
+    this.#byId.set(customer.id, customer);
+  }
+
+  async findById(id: string): Promise<Customer | null> {
+    return this.#byId.get(id) ?? null;
+  }
+
+  async listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]> {
+    return [...this.#byId.values()]
+      .filter((customer) => customer.merchantId === options.merchantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, options.limit ?? DEFAULT_LIMIT);
+  }
+
+  async update(customer: Customer, expectedVersion: number): Promise<void> {
+    const current = this.#byId.get(customer.id);
+    if (current === undefined) {
+      throw new ConflictError(`Customer ${customer.id} does not exist`, { id: customer.id });
+    }
+    if (current.version !== expectedVersion) {
+      throw new ConcurrencyError(`Customer ${customer.id} was modified concurrently`, {
+        id: customer.id,
+        expectedVersion,
+        actualVersion: current.version,
+      });
+    }
+    this.#byId.set(customer.id, customer);
+  }
+
+  async delete(id: string): Promise<void> {
+    if (!this.#byId.has(id)) {
+      throw new ConflictError(`Customer ${id} does not exist`, { id });
+    }
+    this.#byId.delete(id);
   }
 }

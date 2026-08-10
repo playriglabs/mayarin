@@ -11,13 +11,19 @@
  * fallthrough.
  */
 
-export type Permission = "payments:read" | "users:manage" | "admin:access" | "settings:manage";
+export type Permission =
+  | "payments:read"
+  | "users:manage"
+  | "admin:access"
+  | "settings:manage"
+  | "catalog:manage";
 
 export const PERMISSION_LIST: readonly Permission[] = [
   "payments:read",
   "users:manage",
   "admin:access",
   "settings:manage",
+  "catalog:manage",
 ];
 
 /** Human labels, exhaustive by construction. */
@@ -29,6 +35,11 @@ export const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
   // where the merchant's money is paid, and an account that reads payments and
   // manages users has no business redirecting them.
   "settings:manage": "Change settlement settings",
+  // Selling, not configuring: products and payment links decide what a buyer is
+  // charged, never where the money lands. A cashier who mints links all day has
+  // no reason to be able to redirect the payout, which is why this is not
+  // folded into `settings:manage`.
+  "catalog:manage": "Manage products and payment links",
 } as const;
 
 export function isPermission(value: unknown): value is Permission {
@@ -41,4 +52,5 @@ export const MERCHANT_ADMIN_PERMISSIONS: readonly Permission[] = [
   "users:manage",
   "admin:access",
   "settings:manage",
+  "catalog:manage",
 ];

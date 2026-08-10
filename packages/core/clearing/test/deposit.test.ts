@@ -86,7 +86,11 @@ describe("deposit leg", () => {
       rates: { "IDR/IDRX": 100n, "IDR/USDC": 320n },
     });
     const intent = await harness.confirmedIntent({
-      payment: { asset: "USDC", chain: "base-sepolia" },
+      payment: {
+        asset: "USDC",
+        chain: "base-sepolia",
+        payerAddress: "0x00000000000000000000000000000000000000a1",
+      },
       executionPath: "on-chain-contract",
     });
 

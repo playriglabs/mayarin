@@ -1,0 +1,13 @@
+---
+import Orders from "../components/orders.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Orders">
+  <PageHeader
+    title="Orders"
+    description="The commerce view of your payments — line items and the customer, not the clearing rail."
+  />
+  <Orders client:load />
+</Protected>

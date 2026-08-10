@@ -58,7 +58,12 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
-import { ConfigurationError } from "@mayarin/shared";
+import {
+  type AssetCode,
+  ConfigurationError,
+  ProviderError,
+  ValidationError,
+} from "@mayarin/shared";
 import type {
   DeployResult,
   ManagedSigner,
@@ -74,6 +79,7 @@ import {
   createWalletClient,
   encodeAbiParameters,
   encodeFunctionData,
+  getAddress,
   getContractAddress,
   type Hex,
   http,
@@ -81,6 +87,7 @@ import {
   type PublicClient,
   pad,
   parseAbi,
+  serializeTransaction,
   type Transport,
   toHex,
 } from "viem";
@@ -98,7 +105,11 @@ const SAFE_ABI = parseAbi([
   "function setup(address[] owners, uint256 threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address paymentReceiver)",
   "function getOwners() view returns (address[])",
   "function getThreshold() view returns (uint256)",
+  "function nonce() view returns (uint256)",
+  "function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool success)",
 ]);
+
+const ERC20_ABI = parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]);
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
@@ -144,7 +155,26 @@ export interface TurnkeyWalletProviderOptions {
   readonly signerApiPublicKey: string;
   readonly endpoint?: string;
   readonly fetchFn?: typeof fetch;
+  /**
+   * ERC-20 addresses on this chain, by asset. A withdrawal in an asset that is
+   * not here is refused rather than guessed at — the wrong token address moves
+   * the wrong money.
+   */
+  readonly tokens?: Readonly<Partial<Record<AssetCode, string>>>;
+  /** The chain's own currency, which is transferred by value rather than by a call. */
+  readonly nativeAsset?: AssetCode;
+  /**
+   * The most gas Mayarin will fund a merchant's signer with for one withdrawal.
+   *
+   * A bound rather than a budget: the signer holds nothing, so every withdrawal
+   * is funded, and an unbounded top-up would make a loop of failing withdrawals
+   * a way to drain the deployer.
+   */
+  readonly maxGasTopUpWei?: bigint;
 }
+
+/** ~0.002 ETH: several times a Safe transfer on Base, nowhere near a drain. */
+const DEFAULT_MAX_GAS_TOP_UP_WEI = 2_000_000_000_000_000n;
 
 export class TurnkeyWalletProvider implements WalletProvider {
   readonly #options: TurnkeyWalletProviderOptions;
@@ -315,12 +345,191 @@ export class TurnkeyWalletProvider implements WalletProvider {
     return { address, deployed: true };
   }
 
-  async propose(_wallet: MerchantWallet, _intent: WalletIntent): Promise<{ txHash: string }> {
-    // Deliberately unimplemented rather than approximated. Proposing a Safe
-    // transaction means signing a SafeTx digest with the sub-org key — which
-    // the policy above already admits — and submitting it with gas the merchant
-    // does not have. That is #9.
-    throw new ConfigurationError("Proposing a movement needs gas sponsorship from #9", {});
+  /**
+   * Moves settlement out of the merchant's Safe.
+   *
+   * ## Why this is an owner-executed call and not a signed SafeTx digest
+   *
+   * The obvious implementation signs the SafeTx EIP-712 digest with the sub-org
+   * key and lets anyone submit it. That would need `sign_raw_payload`, and the
+   * policy this provider writes reads `eth.tx.to` — a condition a raw payload
+   * has no value for, so the enclave would deny it. Widening the policy to
+   * admit raw payloads would admit *any* digest, which is the entire boundary.
+   *
+   * So the sub-org key signs a real Ethereum transaction addressed to the Safe,
+   * which is exactly what the policy already allows, and the Safe accepts it
+   * with a pre-validated signature: for `v == 1` it takes `msg.sender` as the
+   * approving owner without checking a signature at all. The key is an owner and
+   * the threshold is 1, so one owner-sent call is a complete authorization.
+   *
+   * ## Gas
+   *
+   * The sub-org key is a fresh EOA and holds nothing, so the deployer tops it up
+   * to the cost of this one submission. That is Mayarin paying the merchant's
+   * gas — narrower than the general sponsorship in #9, and bounded twice: only
+   * to this signer, and only up to `maxGasTopUpWei`.
+   */
+  async propose(wallet: MerchantWallet, intent: WalletIntent): Promise<{ txHash: string }> {
+    this.#assertChain(wallet.chain);
+    const managed = wallet.managed;
+    if (managed === undefined) {
+      throw new ConfigurationError("Only a managed wallet can be asked to move funds", {
+        walletId: wallet.id,
+      });
+    }
+    if (intent.amount.amount <= 0n) {
+      throw new ValidationError("A withdrawal must be a positive amount", {
+        amount: intent.amount.amount.toString(),
+      });
+    }
+
+    const safe = getAddress(wallet.address);
+    const signer = getAddress(managed.address);
+    const inner = this.#innerCall(intent);
+    const client = this.#publicClient();
+
+    const data = encodeFunctionData({
+      abi: SAFE_ABI,
+      functionName: "execTransaction",
+      args: [
+        inner.to,
+        inner.value,
+        inner.data,
+        0, // CALL, never DELEGATECALL: a delegate call rewrites the Safe itself.
+        0n,
+        0n,
+        0n,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        prevalidatedSignature(signer),
+      ],
+    });
+
+    const gas = await client.estimateGas({ account: signer, to: safe, data });
+    // 20% over the estimate: the estimate is taken before the top-up lands, and
+    // a submission that runs out of gas costs the fee and moves nothing.
+    const gasLimit = (gas * 12n) / 10n;
+    const fees = await client.estimateFeesPerGas();
+    const maxFeePerGas = fees.maxFeePerGas;
+    const maxPriorityFeePerGas = fees.maxPriorityFeePerGas;
+
+    await this.#fundGas(client, signer, gasLimit * maxFeePerGas);
+
+    const unsigned = serializeTransaction({
+      type: "eip1559",
+      chainId: baseSepolia.id,
+      nonce: await client.getTransactionCount({ address: signer, blockTag: "pending" }),
+      to: safe,
+      value: 0n,
+      data,
+      gas: gasLimit,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    });
+
+    const signed = await this.#signTransaction(managed.ref, signer, unsigned);
+    const hash = await client.sendRawTransaction({ serializedTransaction: signed });
+    const receipt = await client.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") {
+      throw new ProviderError("The withdrawal transaction reverted", { hash, safe });
+    }
+
+    return { txHash: hash };
+  }
+
+  /** What the Safe is asked to do: a plain transfer, native or ERC-20. */
+  #innerCall(intent: WalletIntent): { to: Address; value: bigint; data: Hex } {
+    const to = getAddress(intent.to);
+    if (intent.amount.asset === this.#options.nativeAsset) {
+      return { to, value: intent.amount.amount, data: "0x" };
+    }
+
+    const token = this.#options.tokens?.[intent.amount.asset];
+    if (token === undefined) {
+      throw new ConfigurationError(
+        `No token address configured for ${intent.amount.asset} on ${this.#options.chain}`,
+        { asset: intent.amount.asset },
+      );
+    }
+
+    return {
+      to: getAddress(token),
+      value: 0n,
+      data: encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [to, intent.amount.amount],
+      }),
+    };
+  }
+
+  /**
+   * Tops the signer up to the cost of one submission, and no further.
+   *
+   * Refuses rather than sending a smaller amount when the cost exceeds the
+   * bound: a partial top-up submits a transaction that runs out of gas, which
+   * spends the fee and moves nothing.
+   */
+  async #fundGas(client: PublicClient, signer: Address, cost: bigint): Promise<void> {
+    const balance = await client.getBalance({ address: signer });
+    if (balance >= cost) return;
+
+    const topUp = cost - balance;
+    const bound = this.#options.maxGasTopUpWei ?? DEFAULT_MAX_GAS_TOP_UP_WEI;
+    if (topUp > bound) {
+      throw new ProviderError("The gas needed for this withdrawal exceeds the sponsorship bound", {
+        needed: topUp.toString(),
+        bound: bound.toString(),
+      });
+    }
+
+    const account = privateKeyToAccount(this.#options.deployerPrivateKey);
+    const walletClient = createWalletClient({
+      account,
+      chain: baseSepolia,
+      transport: this.#transport(),
+    });
+    const hash = await walletClient.sendTransaction({ to: signer, value: topUp });
+    const receipt = await client.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") {
+      throw new ProviderError("Funding the signer's gas reverted", { hash });
+    }
+  }
+
+  /**
+   * Signs a transaction with the merchant's sub-org key.
+   *
+   * `sign_transaction` rather than `sign_raw_payload` on purpose: the policy
+   * bounds this key by the transaction's destination, and only a parsed
+   * transaction has one.
+   */
+  async #signTransaction(subOrganizationId: string, signer: Address, unsigned: Hex): Promise<Hex> {
+    const body = JSON.stringify({
+      type: "ACTIVITY_TYPE_SIGN_TRANSACTION_V2",
+      timestampMs: String(Date.now()),
+      organizationId: subOrganizationId,
+      parameters: {
+        signWith: signer,
+        unsignedTransaction: unsigned.slice(2),
+        type: "TRANSACTION_TYPE_ETHEREUM",
+      },
+    });
+
+    const response = (await this.#post(
+      "/public/v1/submit/sign_transaction",
+      body,
+    )) as SignTransactionResponse;
+    const signed = response?.activity?.result?.signTransactionResult?.signedTransaction;
+    if (signed === undefined) {
+      // A pending activity means the policy did not admit this transaction —
+      // the destination is not the merchant's Safe, or the signer user is not
+      // the one the policy names.
+      throw new ProviderError("Turnkey did not return a signed transaction", {
+        status: response?.activity?.status,
+      });
+    }
+
+    return signed.startsWith("0x") ? (signed as Hex) : (`0x${signed}` as Hex);
   }
 
   /** The Safe `setup` call the proxy is initialised with. */
@@ -527,6 +736,27 @@ interface SubOrgResponse {
         readonly subOrganizationId?: string;
         readonly wallet?: { readonly addresses?: readonly string[] };
       };
+    };
+  };
+}
+
+/**
+ * The Safe's "the caller is an owner" signature.
+ *
+ * `r` carries the owner's address, `s` is unused, and `v == 1` tells
+ * `checkNSignatures` to accept it when `msg.sender` is that owner — so no
+ * digest is signed at all. Valid only because the sub-org key sends the
+ * transaction itself; handed to anyone else it authorizes nothing.
+ */
+export function prevalidatedSignature(owner: Address): Hex {
+  return concatHex([pad(owner, { size: 32 }), pad("0x", { size: 32 }), "0x01"]);
+}
+
+interface SignTransactionResponse {
+  readonly activity?: {
+    readonly status?: string;
+    readonly result?: {
+      readonly signTransactionResult?: { readonly signedTransaction?: string };
     };
   };
 }

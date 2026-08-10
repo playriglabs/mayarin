@@ -8,7 +8,7 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
-import { ConfigurationError, ConflictError } from "@mayarin/shared";
+import { type AssetCode, ConfigurationError, ConflictError, type Money } from "@mayarin/shared";
 import type {
   CreateMerchantKeyRequest,
   DeployResult,
@@ -18,11 +18,38 @@ import type {
   MerchantWallet,
   MerchantWalletRepository,
   ProvisionRequest,
+  WalletBalanceQuery,
+  WalletBalanceReader,
   WalletChallenge,
   WalletChallengeRepository,
   WalletIntent,
   WalletProvider,
 } from "../src/index.ts";
+
+/**
+ * Balances a test sets rather than a chain reports.
+ *
+ * Keyed by address and asset, and an asset with nothing set is *omitted* rather
+ * than zero — the same distinction the real reader makes between "this
+ * deployment has no address for that token" and "the wallet is empty".
+ */
+export class InMemoryWalletBalanceReader implements WalletBalanceReader {
+  readonly #balances = new Map<string, bigint>();
+
+  set(address: string, asset: AssetCode, amount: bigint): void {
+    this.#balances.set(`${address.toLowerCase()}:${asset}`, amount);
+  }
+
+  async balances(query: WalletBalanceQuery): Promise<readonly Money[]> {
+    const found: Money[] = [];
+    for (const asset of query.assets) {
+      const amount = this.#balances.get(`${query.address.toLowerCase()}:${asset}`);
+      if (amount === undefined) continue;
+      found.push({ amount, asset });
+    }
+    return found;
+  }
+}
 
 export class InMemoryMerchantWalletRepository implements MerchantWalletRepository {
   readonly #byId = new Map<string, MerchantWallet>();
@@ -116,10 +143,11 @@ export class InMemoryWalletChallengeRepository implements WalletChallengeReposit
 export class FakeWalletProvider implements WalletProvider {
   readonly signers: string[] = [];
   readonly deploys: string[] = [];
+  readonly proposals: { wallet: MerchantWallet; intent: WalletIntent }[] = [];
   readonly #deployed = new Set<string>();
   #next = 0;
   /** Set to make the next call of that step throw, standing in for a crash. */
-  failOn: "createManagedSigner" | "predictAddress" | "deploy" | undefined;
+  failOn: "createManagedSigner" | "predictAddress" | "deploy" | "propose" | undefined;
 
   async createManagedSigner(merchantId: string): Promise<ManagedSigner> {
     this.#crashIf("createManagedSigner");
@@ -154,8 +182,20 @@ export class FakeWalletProvider implements WalletProvider {
     return { address, deployed: true };
   }
 
-  async propose(_wallet: MerchantWallet, _intent: WalletIntent): Promise<{ txHash: string }> {
-    throw new ConfigurationError("The fake provider proposes nothing", {});
+  /**
+   * Records the movement and reports a hash.
+   *
+   * `proposals` is what a test asserts on: that the amount and destination that
+   * reached the provider are the ones the merchant asked for, which a return
+   * value alone cannot show.
+   */
+  async propose(wallet: MerchantWallet, intent: WalletIntent): Promise<{ txHash: string }> {
+    if (this.failOn === "propose") {
+      this.failOn = undefined;
+      throw new ConfigurationError("fake provider refused the movement", {});
+    }
+    this.proposals.push({ wallet, intent });
+    return { txHash: `0x${(this.proposals.length + 0xf000).toString(16).padStart(64, "b")}` };
   }
 
   #crashIf(step: NonNullable<FakeWalletProvider["failOn"]>): void {

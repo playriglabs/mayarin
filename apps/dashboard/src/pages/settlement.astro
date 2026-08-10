@@ -1,0 +1,13 @@
+---
+import Settlement from "../components/settlement.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Settlement">
+  <PageHeader
+    title="Settlement"
+    description="Where your money lands, and what is still on its way."
+  />
+  <Settlement client:load />
+</Protected>

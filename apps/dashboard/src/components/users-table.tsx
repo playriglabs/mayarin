@@ -8,17 +8,25 @@
  * `create-user-form` invalidates this list automatically.
  */
 
+import { UsersThreeIcon } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useAdminUsers } from "@/hooks/admin";
 import { ApiError } from "@/lib/api/client";
+import { ICON_CARD } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
-import type { Permission, UserDto } from "@/types/user";
-
-const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
-  "payments:read": "Payments",
-  "users:manage": "Manage users",
-  "admin:access": "Admin",
-} as const;
+import { PERMISSION_LABELS, type UserDto } from "@/types/user";
 
 function reasonOf(error: unknown): string {
   return match(error)
@@ -29,45 +37,59 @@ function reasonOf(error: unknown): string {
     .otherwise(() => "Failed to load users");
 }
 
-function permBadges(permissions: readonly Permission[]): string {
-  return permissions.map((p) => PERMISSION_LABELS[p]).join(", ");
-}
-
 function UsersTable() {
   const users = useAdminUsers();
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold text-stone-800">Accounts in this merchant</h2>
+      <h2 className="text-sm font-medium text-foreground">Accounts in this merchant</h2>
       {match(users)
         .with({ status: "pending" }, () => (
-          <p className="text-sm text-stone-500">Loading accounts…</p>
+          <div role="status" aria-live="polite" className="flex flex-col gap-2">
+            <span className="sr-only">Loading accounts</span>
+            <Skeleton aria-hidden="true" />
+            <Skeleton aria-hidden="true" />
+            <Skeleton aria-hidden="true" />
+          </div>
         ))
         .with({ status: "error" }, ({ error }) => (
-          <p className="text-sm text-red-600">{reasonOf(error)}</p>
+          <Alert variant="destructive">{reasonOf(error)}</Alert>
         ))
         .with({ status: "success" }, ({ data }) =>
           data.users.length === 0 ? (
-            <p className="text-sm text-stone-500">No accounts yet.</p>
+            <Empty>
+              <EmptyMedia>
+                <UsersThreeIcon size={ICON_CARD} aria-hidden="true" />
+              </EmptyMedia>
+              <EmptyTitle>No accounts yet.</EmptyTitle>
+            </Empty>
           ) : (
-            <table className="w-full max-w-3xl border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-stone-200 text-left text-stone-500">
-                  <th className="py-2 pr-4 font-medium">Email</th>
-                  <th className="py-2 pr-4 font-medium">Permissions</th>
-                  <th className="py-2 font-medium">Merchant</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Permissions</TableHead>
+                  <TableHead>Merchant</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {data.users.map((u: UserDto) => (
-                  <tr key={u.id} className="border-b border-stone-100">
-                    <td className="py-2 pr-4 text-stone-800">{u.email}</td>
-                    <td className="py-2 pr-4 text-stone-600">{permBadges(u.permissions)}</td>
-                    <td className="py-2 font-mono text-xs text-stone-400">{u.merchantId}</td>
-                  </tr>
+                  <TableRow key={u.id}>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      <span className="flex flex-wrap gap-1">
+                        {u.permissions.map((p) => (
+                          <Badge key={p}>{PERMISSION_LABELS[p]}</Badge>
+                        ))}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground font-mono text-xs">
+                      {u.merchantId}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           ),
         )
         .exhaustive()}

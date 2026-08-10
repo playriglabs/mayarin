@@ -1,18 +1,26 @@
 ---
+/**
+ * Authenticated shell: sidebar on desktop, a scrollable rail above the content
+ * on narrow viewports. Auth gating itself lives in `src/middleware.ts`; the
+ * guard below only narrows `user` for TypeScript.
+ */
 import LogoutButton from "../components/logout-button.tsx";
+import SideNav from "../components/side-nav.tsx";
+import ThemeToggle from "../components/theme-toggle.tsx";
 import type { UserDto } from "../types/user";
 import "../styles/global.css";
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
 
 const user: UserDto | undefined = Astro.locals.user;
 if (user === undefined) return Astro.redirect("/login");
 
 const isAdmin = user.permissions.includes("admin:access");
 const roleLabel = isAdmin ? "Administrator" : "Merchant";
-const navItems = [
-  { href: "/", label: "Dashboard" },
-  { href: "/payments", label: "Payments" },
-  ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
-];
 ---
 
 <!doctype html>
@@ -20,28 +28,66 @@ const navItems = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Mayarin Dashboard</title>
+    <title>{title} — Mayarin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+    <script is:inline>
+      // Before first paint. Dark is the default; "light" is the stored opt-out.
+      document.documentElement.dataset.theme =
+        localStorage.getItem("mayarin-theme") === "light" ? "light" : "dark";
+    </script>
   </head>
   <body class="min-h-full">
-    <header class="border-b border-stone-200 bg-white">
-      <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-        <div class="flex items-center gap-6">
-          <span class="text-lg font-semibold text-stone-800">Mayarin</span>
-          <nav class="flex gap-4 text-sm text-stone-600">
-            {navItems.map((item) => (
-              <a href={item.href} class="hover:text-stone-900">{item.label}</a>
-            ))}
-          </nav>
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
+    >
+      Skip to content
+    </a>
+
+    <div class="flex min-h-screen flex-col md:flex-row">
+      <!-- The landing's dark tone, brought into the product as its anchor. -->
+      <aside
+        data-tone="dark"
+        class="flex shrink-0 flex-col border-b border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:h-screen md:w-56 md:border-r md:border-b-0"
+      >
+        <div
+          class="flex items-center justify-between gap-2 border-b border-sidebar-border p-2 md:p-3"
+        >
+          <a
+            href="/"
+            class="flex items-center gap-2.5 p-2 font-mono text-sm font-medium tracking-[0.08em] text-sidebar-foreground uppercase"
+          >
+            <span aria-hidden="true" class="inline-block size-1.5 bg-electric"></span>
+            Mayarin
+          </a>
+          <!-- Display preference, so it lives in the shell chrome — never in
+               the account block, where it would sit one slip from sign-out. -->
+          <ThemeToggle client:only="react" />
         </div>
-        <div class="flex items-center gap-3 text-sm">
-          <span class="text-stone-600">{user.email}</span>
-          <span class="rounded bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{roleLabel}</span>
+
+        <SideNav pathname={Astro.url.pathname} permissions={user.permissions} />
+
+        <div
+          class="mt-auto flex items-center justify-between gap-2 border-t border-sidebar-border p-2 md:p-3"
+        >
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <span class="truncate text-xs text-sidebar-foreground">{user.email}</span>
+            <span class="label text-sidebar-muted-foreground">{roleLabel}</span>
+          </div>
           <LogoutButton client:load />
         </div>
-      </div>
-    </header>
-    <main class="mx-auto max-w-5xl px-6 py-8">
-      <slot />
-    </main>
+      </aside>
+
+      <main id="main" class="min-w-0 flex-1 p-4 md:p-8 lg:p-10">
+        <div class="mx-auto flex max-w-6xl flex-col gap-8">
+          <slot />
+        </div>
+      </main>
+    </div>
   </body>
 </html>

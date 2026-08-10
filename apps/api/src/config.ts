@@ -100,6 +100,22 @@ const configSchema = z.object({
   depositXpub: z.string().min(1).optional(),
   watcherIntervalMs: z.coerce.number().int().min(0).default(15_000),
   watcherBlockRange: z.coerce.number().int().positive().default(2_000),
+  /**
+   * Blocks per pass for the chain's own currency, which is scanned by reading
+   * every block body rather than by one `eth_getLogs`.
+   *
+   * Smaller than `WATCHER_BLOCK_RANGE` on purpose: one number for both means
+   * either the token scan crawls or the native scan spends a call per block
+   * until the provider answers 429.
+   */
+  watcherNativeBlockRange: z.coerce.number().int().positive().default(25),
+  /**
+   * Blocks per `eth_getLogs` call, which is a provider limit rather than a
+   * policy one — Alchemy's free tier refuses a wider range. The watcher's own
+   * range is split into calls this size, so how far a tick advances is a
+   * decision about RPC budget instead of a number one endpoint dictates.
+   */
+  chainLogRange: z.coerce.number().int().positive().default(10),
   watcherRetentionSeconds: z.coerce.number().int().positive().default(86_400),
   watcherReorgWatchWindow: z.coerce.number().int().positive().default(2),
   adminToken: z.string().min(16).optional(),
@@ -262,6 +278,9 @@ export interface ChainConfig {
   readonly xpub: string;
   readonly intervalMs: number;
   readonly blockRange: number;
+  readonly nativeBlockRange: number;
+  /** Blocks per `eth_getLogs` call. The provider's cap, not the watcher's. */
+  readonly logRange: number;
   readonly retentionSeconds: number;
   readonly reorgWatchWindow: number;
 }
@@ -590,6 +609,8 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
     xpub: data.depositXpub ?? "",
     intervalMs: data.watcherIntervalMs,
     blockRange: data.watcherBlockRange,
+    nativeBlockRange: data.watcherNativeBlockRange,
+    logRange: data.chainLogRange,
     retentionSeconds: data.watcherRetentionSeconds,
     reorgWatchWindow: data.watcherReorgWatchWindow,
   };
@@ -693,6 +714,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     depositXpub: env.DEPOSIT_XPUB,
     watcherIntervalMs: env.WATCHER_INTERVAL_MS,
     watcherBlockRange: env.WATCHER_BLOCK_RANGE,
+    watcherNativeBlockRange: env.WATCHER_NATIVE_BLOCK_RANGE,
+    chainLogRange: env.CHAIN_LOG_RANGE,
     watcherRetentionSeconds: env.WATCHER_RETENTION_SECONDS,
     watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,
     adminToken: env.ADMIN_TOKEN,

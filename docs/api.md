@@ -271,6 +271,82 @@ message is for humans.
 
 ---
 
+## Dashboard API (`apps/dashboard-api`)
+
+A second surface, on its own port, for the merchant signed into the dashboard.
+Everything above authenticates per request and takes the merchant as an argument,
+which is right for an SDK consumer holding their own credentials and wrong for a
+browser. Here the merchant is **the session's**: no route accepts a merchant id,
+so there is nothing to tamper with, and a cross-merchant id resolves to the same
+404 an absent one does.
+
+Session cookie plus a double-submit CSRF token on every mutating call. Each group
+names the permission that opens it.
+
+| Route                                                                        | Permission        | What it is                                              |
+| ---------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------- |
+| `POST /auth/login`, `/logout`, `GET /me`                                     | —                 | Session lifecycle                                       |
+| `GET /payments`, `/payments/:id`                                             | `payments:read`   | The merchant's own intents, with clearing and timeline  |
+| `GET /audit`, `/audit/:id`                                                   | `payments:read`   | Compliance record with ledger ↔ chain reconciliation    |
+| `GET /settlements`                                                           | `payments:read`   | What clearing booked, plus what the chain reported      |
+| `GET/POST/PATCH /catalog/products[/:id]`                                     | `catalog:manage`  | Products, priced per currency                           |
+| `GET/POST /payment-links`, `/:id/disable`                                    | `catalog:manage`  | Link templates, each carrying its hosted-checkout `url` |
+| `GET/PATCH /settings`, `GET /settings/history`                               | `settings:manage` | Settlement config, merchant profile, change trail       |
+| `GET/POST /wallets`, `/:id/challenge`, `/:id/verify`, `/managed`, `/passkey` | `settings:manage` | Payout addresses and proof of control                   |
+| `GET /wallets/balance`, `POST /wallets/withdraw`                             | `settings:manage` | On-chain settlement balance, and moving it out          |
+| `GET/POST /webhooks/endpoints`, `/deliveries`                                | `settings:manage` | Endpoints, secret rotation, delivery inspection         |
+| `GET/POST /admin/users`                                                      | `admin:access`    | Accounts within the caller's own merchant               |
+
+`catalog:manage` is its own permission rather than folded into `settings:manage`:
+minting a link decides what a buyer is charged and never where the money lands, so
+a cashier can sell all day without being able to redirect the payout.
+
+A payment link's `url` points at the **payment API**, not at this one — the buyer
+opening it is what mints an intent, and that happens where the clearing engine
+lives. It is served with the link rather than assembled in the browser, which
+would get it wrong in exactly the deployment where the two apps are not on the
+same host (`CHECKOUT_BASE_URL`, defaulting to `PUBLIC_BASE_URL`).
+
+### Two codes, and why they differ
+
+A payment link's `url` is a **web page**. Rendered as a QR it opens the hosted
+checkout in a browser — right for something sent to a customer, wrong held up at
+a counter, where a phone wallet scanning it does nothing useful.
+
+What a wallet pays is an **EIP-681 URI**, and that names a deposit address, which
+belongs to one payment rather than to the link. Addresses are allocated at price
+lock and every sale gets its own — that is what lets the watcher tell one payer's
+transfer from another's. So a counter sale is: `POST /payment-links/:id/charge`
+mints one payment and prices it, then `GET /payments/:id/deposit` returns the
+address, the exact amount and the URI to encode.
+
+```
+USDC   ethereum:0x036c…f7e@84532/transfer?address=0xa5d8…afb&uint256=12500000
+ETH    ethereum:0xf268…e05@84532?value=4166666666666663
+```
+
+The two forms are not interchangeable — for a token the URI target is the token
+contract and the recipient is an argument. `charge` pins `executionPath` to
+`deposit-match`: the contract path asks the payer to sign a transaction and
+allocates no address, so it produces nothing to scan.
+
+`POST /payment-links/:id/quote` prices a sale in every asset the merchant
+accepts, before one is started, so a customer can choose what to pay with. It is
+**indicative**: nothing is reserved, and the figure a payer is charged is the one
+locked at confirm a moment later. An asset the rate provider cannot price comes
+back as an unavailable line rather than failing the request.
+
+Both routes reach the payment API server-side (`PAYMENT_API_URL`). The dashboard
+mints no payments of its own: doing so would mean a second copy of the clearing
+engine, the rate sources and the token registry, and a duplicate of "what must a
+payer send" is a duplicate that drifts.
+
+A link freezes a merchant snapshot, which carries `city` and `countryCode`. Both
+live on the merchant record and are edited through `PATCH /settings`;
+`POST /payment-links` refuses while either is unset rather than freezing a blank
+into every payment the link takes. `GET /settings` reports `canCreateLinks` so the
+dashboard can say which field is missing before a form is filled in.
+
 ## Related
 
 - [Payment Intent](./payment-intent.md)

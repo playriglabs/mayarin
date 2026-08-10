@@ -47,6 +47,8 @@ export interface PaymentIntentDto {
   readonly provider: string;
   readonly payment: PaymentRail | null;
   readonly source: PaymentSource;
+  readonly merchantReference: string | null;
+  readonly metadata: Readonly<Record<string, string>>;
   readonly clearingTransactionId: string | null;
   readonly failureReason: string | null;
   readonly createdAt: string;
@@ -91,4 +93,30 @@ export interface PaymentDetailResponse {
   readonly paymentIntent: PaymentIntentDto;
   readonly clearing: ClearingDto | null;
   readonly timeline: readonly TimelineEvent[];
+}
+
+/**
+ * What the payer must send, as the payment API reports it.
+ *
+ * `uri` is an EIP-681 payment URI — the thing a crypto wallet understands when
+ * it scans a QR. It is `null` when the asset names nothing transferable on the
+ * chain, and a null URI is shown as "no QR" rather than as a guess: a wrong URI
+ * moves the payer's funds somewhere unrecoverable.
+ */
+export interface DepositDto {
+  readonly address: string;
+  readonly chain: string;
+  readonly asset: string;
+  readonly amount: MoneyDto;
+  readonly uri: string | null;
+  readonly received: MoneyDto;
+  /** Confirmations a transfer needs before the payment counts as funded. */
+  readonly required: number;
+}
+
+export interface DepositResponse {
+  /** `null` until a price is locked, and on paths that allocate no address. */
+  readonly deposit: DepositDto | null;
+  /** Where to fetch the rendered code. `null` when there is no URI to encode. */
+  readonly qrUrl: string | null;
 }

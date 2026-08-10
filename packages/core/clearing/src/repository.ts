@@ -17,6 +17,16 @@ export interface ClearingRepository {
   findById(id: string): Promise<ClearingTransaction | null>;
   findByPaymentIntentId(paymentIntentId: string): Promise<ClearingTransaction | null>;
   /**
+   * The transactions behind a page of payment intents, in one round trip.
+   *
+   * A settlement listing is a page of intents plus what clearing made of each,
+   * and resolving that one intent at a time is a query per row. Ids the caller
+   * holds that have no transaction are simply absent from the result.
+   */
+  listByPaymentIntentIds(
+    paymentIntentIds: readonly string[],
+  ): Promise<readonly ClearingTransaction[]>;
+  /**
    * The transaction whose signed order carries this on-chain `intentId`.
    *
    * How the indexer resolves a `PaymentCompleted` log to a payment: the log

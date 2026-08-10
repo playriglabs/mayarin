@@ -239,9 +239,24 @@ export class DrizzleDepositRepository implements DepositRepository {
   }
 
   async confirmedTotal(chain: ChainId, address: string, asset: AssetCode): Promise<Money> {
+    return this.#total(chain, address, asset, (status) => status === "CONFIRMED");
+  }
+
+  async recordedTotal(chain: ChainId, address: string, asset: AssetCode): Promise<Money> {
+    // Everything the chain still holds for us, confirmed or not. An orphaned
+    // deposit is excluded because the chain no longer holds it either.
+    return this.#total(chain, address, asset, (status) => status !== "ORPHANED");
+  }
+
+  async #total(
+    chain: ChainId,
+    address: string,
+    asset: AssetCode,
+    keep: (status: DepositStatus) => boolean,
+  ): Promise<Money> {
     const deposits = await this.listByAddress(chain, address);
     return deposits
-      .filter((deposit) => deposit.status === "CONFIRMED" && deposit.amount.asset === asset)
+      .filter((deposit) => keep(deposit.status) && deposit.amount.asset === asset)
       .reduce<Money>(
         (total, deposit) => ({ amount: total.amount + deposit.amount.amount, asset }),
         zero(asset),
@@ -430,6 +445,18 @@ export class DrizzleSettlementEventRepository implements SettlementEventReposito
       .limit(1);
 
     return row === undefined ? null : toSettlementEvent(row);
+  }
+
+  async listByIntentIds(intentIds: readonly string[]): Promise<readonly SettlementEvent[]> {
+    // `inArray` with an empty list is invalid SQL in Postgres, and a merchant
+    // with no on-chain settlements is the ordinary case, not an error.
+    if (intentIds.length === 0) return [];
+    const rows = await this.#db
+      .select()
+      .from(settlementEvents)
+      .where(inArray(settlementEvents.intentId, [...intentIds]));
+
+    return rows.map(toSettlementEvent);
   }
 }
 

@@ -230,7 +230,7 @@ describe("payment links", () => {
 });
 
 describe("hosted checkout", () => {
-  test("renders the link page with its amount and a QR", async () => {
+  test("renders the link page with its amount, and no QR of its own URL", async () => {
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/payment-links", {
       body: {
@@ -247,7 +247,41 @@ describe("hosted checkout", () => {
     expect(response.status).toBe(200);
     expect(html).toContain("Rp 50.000,00");
     expect(html).toContain("Paket");
-    expect(html).toContain("<svg");
+    // The QR that used to sit here encoded this page's own URL, on a page the
+    // buyer already had open. It belongs to the counter, not to the buyer.
+    expect(html).not.toContain("<svg");
+    // What the page owes the buyer instead: which asset they will send, and
+    // that the price is not locked until they act.
+    expect(html).toContain("Bayar pakai");
+    expect(html).toContain("Harga dikunci");
+  });
+
+  test("the link page's button confirms the intent it mints", async () => {
+    // Minting alone locks no price and allocates no deposit address, so a page
+    // that only mints leaves the payer staring at "menyiapkan alamat" forever.
+    const harness = createApiHarness();
+    const { body } = await harness.request("POST", "/payment-links", {
+      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+    });
+
+    const html = await (await harness.app.request(`/checkout/${body.paymentLink.id}`)).text();
+
+    expect(html).toContain(`/payment-links/${body.paymentLink.id}/checkout`);
+    expect(html).toContain('"/payment-intents/" + intentId + "/confirm"');
+  });
+
+  test("the link page asks for the deposit path, whatever the deployment default is", async () => {
+    // The page renders an address and a QR. The contract path needs the payer's
+    // own wallet to sign the router call, and there is no wallet to connect
+    // here, so a deployment defaulting to it would fail every hosted checkout.
+    const harness = createApiHarness();
+    const { body } = await harness.request("POST", "/payment-links", {
+      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+    });
+
+    const html = await (await harness.app.request(`/checkout/${body.paymentLink.id}`)).text();
+
+    expect(html).toContain('executionPath: "deposit-match"');
   });
 
   test("escapes a merchant name rather than rendering it as markup", async () => {
@@ -282,6 +316,72 @@ describe("hosted checkout", () => {
     expect(response.status).toBe(200);
     expect(html).toContain(paid.body.paymentIntent.id);
     expect(html).toContain("Rp 50.000,00");
+  });
+
+  test("prices a catalog link's lines on the page, without minting anything", async () => {
+    // A total with nothing behind it is a number to be taken on trust, and the
+    // total itself lives in the products rather than on the link. Minting an
+    // intent to find it out would lock a price for a buyer who has not decided.
+    const harness = createApiHarness();
+    const product = await createCoffee(harness);
+    const { body } = await harness.request("POST", "/payment-links", {
+      body: {
+        kind: "catalog",
+        merchant,
+        currency: "IDR",
+        lines: [{ productId: product.id, quantity: 2 }],
+      },
+    });
+
+    const before = await harness.intents.list({ merchantId: merchant.id });
+    const html = await (await harness.app.request(`/checkout/${body.paymentLink.id}`)).text();
+    const after = await harness.intents.list({ merchantId: merchant.id });
+
+    expect(html).toContain("Kopi Susu × 2");
+    expect(html).toContain("Rp 50.000,00");
+    expect(after.length).toBe(before.length);
+  });
+
+  test("the payment page counts down to the price lock's expiry", async () => {
+    // A payer who sends the asset a minute after the lock expired has sent
+    // funds against a payment that will not accept them, so the deadline is on
+    // the screen from the first render rather than discovered at the status.
+    const harness = createApiHarness();
+    const { body } = await harness.request("POST", "/payment-links", {
+      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+    });
+    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
+      body: {},
+    });
+
+    const html = await (
+      await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)
+    ).text();
+
+    expect(html).toContain(paid.body.paymentIntent.expiresAt);
+    expect(html).toContain("Berlaku sampai");
+  });
+
+  test("the payment page replaces the deposit card once the payment is decided", async () => {
+    // A finished payment must stop asking to be paid: a QR and an address left
+    // on screen invite a second transfer to an address that will not clear it.
+    const harness = createApiHarness();
+    const { body } = await harness.request("POST", "/payment-links", {
+      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+    });
+    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
+      body: {},
+    });
+
+    const html = await (
+      await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)
+    ).text();
+
+    expect(html).toContain("Pembayaran selesai");
+    expect(html).toContain("Terima kasih sudah membayar");
+    // The same replacement on the unhappy paths, for the same reason.
+    expect(html).toContain("Masa berlaku habis");
+    expect(html).toContain("Pembayaran gagal");
   });
 
   test("serves a QR for an arbitrary value", async () => {

@@ -36,6 +36,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
+import { shortReason } from "./errors.ts";
 import { depositSalt } from "./forwarder-deriver.ts";
 import { buildPayERC20Call, buildPayEthCall, type Permit2Single } from "./payment-router.ts";
 
@@ -168,8 +169,43 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
    */
   #submissions: Promise<unknown> = Promise.resolve();
 
+  /**
+   * The next nonce this port will hand out, once it has handed out one.
+   *
+   * In memory on purpose: it is a repair for propagation lag within a process,
+   * not a source of truth. A restart re-reads the chain, which is correct — by
+   * then everything in flight has either landed or been dropped.
+   */
+  #nextNonce: number | undefined;
+
   constructor(options: EvmTreasuryExecutionPortOptions) {
     this.#options = options;
+  }
+
+  /**
+   * Broadcasts under the lock, and reports what went wrong in one line.
+   *
+   * viem's send errors carry the whole request — calldata, arguments, docs URL,
+   * version — and this one is stored as a payment's failure reason and shown to
+   * a merchant. `shortReason` keeps the sentence and drops the transcript.
+   *
+   * Retryable, all of it: a nonce that raced, a node that had not seen the last
+   * broadcast, a provider throttling. The executor bounds how many attempts are
+   * worth making; none of these are terminal on their own.
+   */
+  async #send(work: () => Promise<Hex>): Promise<Hex> {
+    try {
+      return await this.#serialize(work);
+    } catch (error) {
+      // A dropped nonce would stall every later submission, so the counter is
+      // rebuilt from the chain on the next attempt rather than trusted.
+      this.#nextNonce = undefined;
+      throw new ProviderError(
+        `Submitting the transaction failed: ${shortReason(error)}`,
+        {},
+        { cause: error, retryable: true },
+      );
+    }
   }
 
   /** Runs `work` after every submission queued before it, failures included. */
@@ -369,12 +405,31 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     // Nonce read and broadcast happen together under the lock. Left to viem the
     // nonce is fetched per call and cached across back-to-back sends, which is
     // exactly the collision this exists to prevent.
-    const hash = await this.#serialize(async () => {
-      const nonce = await publicClient.getTransactionCount({
+    //
+    // The lock alone is not enough. `pending` is answered by whichever node the
+    // load balancer picked, and a node that has not yet seen the transaction
+    // sent a second ago answers with the nonce that transaction already used —
+    // so the next submission reuses it and the provider replies "already
+    // known". Remembering what was handed out closes that window: the node's
+    // answer can only ever move the counter forward.
+    const hash = await this.#send(async () => {
+      const observed = await publicClient.getTransactionCount({
         address: account.address,
         blockTag: "pending",
       });
-      return walletClient.sendTransaction({ account, to, data, value, nonce, chain: null });
+      const nonce = this.#nextNonce === undefined ? observed : Math.max(observed, this.#nextNonce);
+      const sent = await walletClient.sendTransaction({
+        account,
+        to,
+        data,
+        value,
+        nonce,
+        chain: null,
+      });
+      // Advanced only on a successful broadcast: a rejected send consumed
+      // nothing, and skipping a nonce would stall every later submission.
+      this.#nextNonce = nonce + 1;
+      return sent;
     });
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,

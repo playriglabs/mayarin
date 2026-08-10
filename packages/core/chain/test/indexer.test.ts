@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { type DomainEvent, FixedClock } from "@mayarin/shared";
+import { type DomainEvent, FixedClock, ProviderError, ValidationError } from "@mayarin/shared";
 import type { PaymentCompletionSink } from "../src/index.ts";
 import { SettlementIndexer } from "../src/indexer.ts";
 import {
@@ -22,9 +22,12 @@ function payloadOf(event: DomainEvent | undefined): Record<string, unknown> {
 class RecordingSink implements PaymentCompletionSink {
   readonly calls: { intentId: string; txHash: string }[] = [];
   matched = true;
+  /** What the engine raises instead of answering, when set. */
+  rejectsWith: Error | undefined;
 
   async complete(intentId: string, completion: { txHash: string }): Promise<boolean> {
     this.calls.push({ intentId, txHash: completion.txHash });
+    if (this.rejectsWith !== undefined) throw this.rejectsWith;
     return this.matched;
   }
 }
@@ -233,6 +236,30 @@ describe("SettlementIndexer", () => {
       await indexer.tick(CHAIN);
 
       expect(sink.calls).toHaveLength(1);
+    });
+
+    test("a refused settlement is marked, not retried every pass", async () => {
+      // A sink that refuses non-retryably has decided about this log, and the
+      // log will not change. Re-raising would stall the pass, and the pass
+      // repeats every tick — one disagreeing record becoming a permanent error
+      // loop that also blocks every settlement queued behind it.
+      const { indexer, chain, sink } = harness;
+      sink.rejectsWith = new ValidationError("not on the on-chain-contract path", {});
+      chain.settle({ intentId: INTENT }).mine().mine();
+
+      const result = await indexer.tick(CHAIN);
+      await indexer.tick(CHAIN);
+
+      expect(result.unmatched).toBe(1);
+      expect(sink.calls).toHaveLength(1);
+    });
+
+    test("a retryable failure still propagates, so the next pass picks it up", async () => {
+      const { indexer, chain, sink } = harness;
+      sink.rejectsWith = new ProviderError("the node is unreachable");
+      chain.settle({ intentId: INTENT }).mine().mine();
+
+      expect(indexer.tick(CHAIN)).rejects.toThrow(/unreachable/);
     });
 
     test("carries the on-chain settled amounts, not the quoted ones", async () => {

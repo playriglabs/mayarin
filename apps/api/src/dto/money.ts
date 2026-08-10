@@ -24,7 +24,11 @@ export function toMoneyDto(value: Money): MoneyDto {
     amount: value.amount.toString(),
     asset: value.asset,
     formatted: toDecimalString(value),
-    display: formatMoneyLocale(value),
+    // Trailing zeros trimmed past two decimals: an ETH amount printed to
+    // eighteen places is noise a reader counts through to find the magnitude,
+    // and a payer typing it into a wallet field gets it wrong. Lossless — the
+    // exact value is `amount`, and `formatted` still round-trips.
+    display: formatMoneyLocale(value, { trimTrailingZeros: true }),
   };
 }
 

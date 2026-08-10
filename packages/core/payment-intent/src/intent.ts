@@ -97,8 +97,23 @@ export function isTerminal(intent: PaymentIntent): boolean {
   return TERMINAL_STATUSES.includes(intent.status);
 }
 
+/**
+ * Whether the deadline has passed on an intent that may still expire.
+ *
+ * Expiry means "nobody paid in time", and that stops being true the moment the
+ * payment is `PROCESSING`: the payer's asset is in flight and the clearing
+ * engine owns the outcome. The state machine already says so — `PROCESSING`
+ * lists no `EXPIRED` successor — and this now asks it rather than restating the
+ * rule as "not terminal".
+ *
+ * The old reading called a late-funding payment expired, and since the
+ * transition it then attempted was illegal, every read of that intent threw:
+ * `getById` expires on the way out, so a payment funded past its deadline could
+ * never be completed, or even loaded, again. A payer who paid slowly had their
+ * payment wedged rather than settled.
+ */
 export function isExpired(intent: PaymentIntent, now: Date): boolean {
-  return !isTerminal(intent) && now.getTime() >= intent.expiresAt.getTime();
+  return canTransition(intent.status, "EXPIRED") && now.getTime() >= intent.expiresAt.getTime();
 }
 
 export function canTransition(from: PaymentIntentStatus, to: PaymentIntentStatus): boolean {

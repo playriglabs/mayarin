@@ -7,9 +7,11 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { InMemoryMerchantRepository } from "@mayarin/auth/testing";
 import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { ConfigurationError, FixedClock } from "@mayarin/shared";
 import type { PasskeyAttestation } from "@mayarin/wallet";
+import { SettlementAddressResolver } from "@mayarin/wallet";
 import {
   InMemoryMerchantWalletRepository,
   InMemoryWalletChallengeRepository,
@@ -30,11 +32,15 @@ const ATTESTATION: PasskeyAttestation = {
 
 /** No provider at all: neither a key provider nor a provisioner. */
 function service() {
+  const wallets = new InMemoryMerchantWalletRepository();
   return new WalletService({
-    wallets: new InMemoryMerchantWalletRepository(),
+    wallets,
     challenges: new InMemoryWalletChallengeRepository(),
     verifier: new ViemSignatureVerifier(),
     clock: new FixedClock(NOW),
+    merchants: new InMemoryMerchantRepository(),
+    chain: "base-sepolia",
+    settlementAddresses: new SettlementAddressResolver({ wallets }),
   });
 }
 

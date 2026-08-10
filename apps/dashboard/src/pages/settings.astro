@@ -1,0 +1,13 @@
+---
+import { PageHeader } from "../components/page-header.tsx";
+import Settings from "../components/settings.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Settings">
+  <PageHeader
+    title="Settings"
+    description="Where your money is paid, and the profile every payment carries."
+  />
+  <Settings client:load />
+</Protected>
