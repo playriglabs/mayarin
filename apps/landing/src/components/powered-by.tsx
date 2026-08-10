@@ -52,7 +52,7 @@ function LogoItem({ logo, muted }: { logo: Logo; muted: boolean }) {
         class={clsx("w-auto", logo.class ?? "h-7 md:h-8")}
       />
       {logo.lockup ? null : (
-        <span class="mt-1 whitespace-nowrap font-brand text-sm uppercase text-ink md:text-base">
+        <span class="mt-1 whitespace-nowrap font-brand text-sm uppercase font-bold text-ink md:text-base">
           {logo.name}
         </span>
       )}
@@ -64,7 +64,7 @@ export function PoweredBy() {
   return (
     <div class="relative mt-20 border-y border-line md:mt-28">
       <div class="shell flex flex-col gap-5 py-6 md:flex-row md:items-center md:gap-10 md:py-8">
-        <span class="label shrink-0 text-slate text-center">Powered by</span>
+        <span class="label shrink-0 text-slate text-center">Powered By</span>
 
         {/* Phones bleed the track past the shell padding so the strip runs edge
             to edge; from tablet up it sits inline beside the label.
