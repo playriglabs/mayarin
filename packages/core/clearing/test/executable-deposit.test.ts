@@ -168,6 +168,30 @@ describe("locking a deposit that will be executed", () => {
   });
 });
 
+describe("the indexer's log for an executed deposit", () => {
+  /**
+   * The router emits `PaymentCompleted` for this path too — the treasury
+   * executor is what submitted the order. The engine made that call itself and
+   * recorded what came back, so the log is an echo of settled work. Refusing it
+   * left the settlement unmarked, and the indexer re-read the same log every
+   * pass: one payment turning into an error every tick, forever.
+   */
+  test("is a no-op rather than a refusal, since the engine already recorded it", async () => {
+    const { harness, depositIntent } = executableHarness(executingPort());
+    const settled = await harness.engine.start(await depositIntent());
+
+    const { transaction } = await harness.engine.recordPaymentCompleted(settled.id, {
+      txHash: `0x${"fe".repeat(32)}`,
+      settledAmount: settled.netAmount?.amount ?? 0n,
+      fee: settled.fee?.amount ?? 0n,
+      refundAmount: 0n,
+    });
+
+    expect(transaction.state).toBe("SUCCESS");
+    expect(transaction.version).toBe(settled.version);
+  });
+});
+
 describe("a signed order reaching a process without an executor", () => {
   /**
    * Two processes can share one database with different wiring — the incident
