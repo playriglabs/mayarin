@@ -1,0 +1,13 @@
+---
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+import Wallets from "../components/wallets.tsx";
+---
+
+<Protected title="Wallets">
+  <PageHeader
+    title="Wallets"
+    description="Addresses you can be paid at. An address nobody proved control of cannot be paid."
+  />
+  <Wallets client:load />
+</Protected>

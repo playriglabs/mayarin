@@ -7,7 +7,7 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
-import type { PaymentDetailResponse, PaymentListResponse } from "@/types/payment";
+import type { DepositResponse, PaymentDetailResponse, PaymentListResponse } from "@/types/payment";
 
 function withLimit(path: string, limit?: number): string {
   return limit === undefined ? path : `${path}?limit=${limit}`;
@@ -21,4 +21,8 @@ export const paymentsApi = {
   /** GET `/payments/:id` — detail; a cross-merchant id 404s server-side. */
   detail: (id: string): Effect.Effect<PaymentDetailResponse, ApiError> =>
     request<PaymentDetailResponse>(`/payments/${encodeURIComponent(id)}`),
+
+  /** GET `/payments/:id/deposit` — what the payer must send, for the QR. */
+  deposit: (id: string): Effect.Effect<DepositResponse, ApiError> =>
+    request<DepositResponse>(`/payments/${encodeURIComponent(id)}/deposit`),
 };

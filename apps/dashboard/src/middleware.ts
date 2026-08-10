@@ -20,12 +20,34 @@ import { defineMiddleware } from "astro:middleware";
 import { getApiBase } from "@/lib/api/client";
 import type { Permission, UserDto } from "@/types/user";
 
-const PROTECTED_PREFIXES = ["/payments", "/catalog", "/settlement", "/analytics", "/admin"];
+const PROTECTED_PREFIXES = [
+  "/payments",
+  "/links",
+  "/catalog",
+  "/settlement",
+  "/analytics",
+  "/wallets",
+  "/webhooks",
+  "/settings",
+  "/admin",
+];
 const PROTECTED_EXACT = new Set(["/"]);
 const LOGIN_PATH = "/login";
-/** Paths that, beyond authentication, require a specific permission. */
+/**
+ * Paths that, beyond authentication, require a specific permission.
+ *
+ * Every authenticated surface belongs here, not only the admin one: the backend
+ * refuses without the permission either way, so a page left out is a page that
+ * renders its chrome and then an error alert. `/settlement` is deliberately
+ * absent — it needs `payments:read`, which every account that can sign in has.
+ */
 const PERMISSION_PREFIXES: ReadonlyArray<readonly [string, Permission]> = [
   ["/admin", "admin:access"],
+  ["/links", "catalog:manage"],
+  ["/catalog", "catalog:manage"],
+  ["/wallets", "settings:manage"],
+  ["/webhooks", "settings:manage"],
+  ["/settings", "settings:manage"],
 ];
 
 export const onRequest = defineMiddleware(async (context, next) => {

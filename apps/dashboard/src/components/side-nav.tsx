@@ -17,39 +17,80 @@
 
 import {
   BankIcon,
+  CardholderIcon,
   ChartLineIcon,
+  GearSixIcon,
   type Icon,
   PackageIcon,
   ReceiptIcon,
   SquaresFourIcon,
   UsersThreeIcon,
+  WalletIcon,
+  WebhooksLogoIcon,
 } from "@phosphor-icons/react";
 import { ICON_NAV } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import type { Permission } from "@/types/user";
 
 interface NavItem {
   readonly href: string;
   readonly label: string;
   readonly icon: Icon;
+  /**
+   * The permission this item's page needs, when it needs one.
+   *
+   * The backend refuses without it and the middleware redirects, so an item
+   * shown to an account that lacks the permission is a link to a bounce. It is
+   * declared here rather than assumed, because `catalog:manage` is newer than
+   * some accounts: every merchant seeded before it exists has none.
+   */
+  readonly permission?: Permission;
 }
 
 const PRIMARY: readonly NavItem[] = [
   { href: "/", label: "Overview", icon: SquaresFourIcon },
   { href: "/payments", label: "Payments", icon: ReceiptIcon },
-  { href: "/catalog", label: "Catalog", icon: PackageIcon },
+  { href: "/links", label: "Payment links", icon: CardholderIcon, permission: "catalog:manage" },
+  { href: "/catalog", label: "Catalog", icon: PackageIcon, permission: "catalog:manage" },
   { href: "/settlement", label: "Settlement", icon: BankIcon },
   { href: "/analytics", label: "Analytics", icon: ChartLineIcon },
 ];
 
-const ADMIN: NavItem = { href: "/admin", label: "Admin", icon: UsersThreeIcon };
+/**
+ * Configuration, kept below the day-to-day items.
+ *
+ * Wallets and settings decide where money lands and are visited once and then
+ * rarely; putting them next to Payments would give a surface a merchant opens
+ * every hour the same weight as one they open on setup day.
+ */
+const CONFIGURATION: readonly NavItem[] = [
+  { href: "/wallets", label: "Wallets", icon: WalletIcon, permission: "settings:manage" },
+  { href: "/webhooks", label: "Webhooks", icon: WebhooksLogoIcon, permission: "settings:manage" },
+  { href: "/settings", label: "Settings", icon: GearSixIcon, permission: "settings:manage" },
+];
+
+const ADMIN: NavItem = {
+  href: "/admin",
+  label: "Admin",
+  icon: UsersThreeIcon,
+  permission: "admin:access",
+};
 
 /** `/` matches only itself; every other item matches its own subtree. */
 function isActive(href: string, pathname: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-export default function SideNav({ pathname, isAdmin }: { pathname: string; isAdmin: boolean }) {
-  const items = isAdmin ? [...PRIMARY, ADMIN] : PRIMARY;
+export default function SideNav({
+  pathname,
+  permissions,
+}: {
+  pathname: string;
+  permissions: readonly Permission[];
+}) {
+  const items = [...PRIMARY, ...CONFIGURATION, ADMIN].filter(
+    (item) => item.permission === undefined || permissions.includes(item.permission),
+  );
 
   return (
     <nav

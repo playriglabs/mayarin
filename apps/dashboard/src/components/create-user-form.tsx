@@ -31,13 +31,7 @@ import { Label } from "@/components/ui/label";
 import { useCreateUser } from "@/hooks/admin";
 import { ApiError } from "@/lib/api/client";
 import { withQuery } from "@/lib/with-query";
-import { PERMISSION_LIST, type Permission } from "@/types/user";
-
-const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
-  "payments:read": "View payments",
-  "users:manage": "Manage users",
-  "admin:access": "Admin dashboard",
-} as const;
+import { PERMISSION_LABELS, PERMISSION_LIST, type Permission } from "@/types/user";
 
 type FormState =
   | { readonly status: "idle" }

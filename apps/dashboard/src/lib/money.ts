@@ -58,7 +58,13 @@ export function dominantAsset(values: readonly MoneyDto[]): AssetCode | undefine
   return best;
 }
 
-/** Human form, `id-ID` by default — `Rp 50.432,00`. Never parse this back. */
+/**
+ * Human form, `id-ID` by default — `Rp 50.432,00`. Never parse this back.
+ *
+ * Trailing zeros past two decimals are dropped, matching what the APIs put in
+ * a `MoneyDto`'s `display`: a total rendered here and the same total rendered
+ * server-side must not differ by six zeros.
+ */
 export function display(value: Money): string {
-  return formatMoneyLocale(value);
+  return formatMoneyLocale(value, { trimTrailingZeros: true });
 }

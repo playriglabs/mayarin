@@ -111,10 +111,7 @@ export default function PaymentTimeline({
       <div aria-hidden="true" className="absolute top-3 bottom-3 left-2.75 w-px bg-border" />
       <motion.div
         aria-hidden="true"
-        className={cn(
-          "absolute bottom-3 left-2.75 w-px origin-bottom",
-          failed ? "bg-destructive" : "bg-brand",
-        )}
+        className="absolute bottom-3 left-2.75 w-px origin-bottom bg-brand"
         style={{ height: `calc((100% - 1.5rem) * ${filledFraction})` }}
         initial={{ scaleY: 0 }}
         animate={{ scaleY: 1 }}

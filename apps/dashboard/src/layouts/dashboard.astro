@@ -70,7 +70,7 @@ const roleLabel = isAdmin ? "Administrator" : "Merchant";
           <ThemeToggle client:only="react" />
         </div>
 
-        <SideNav pathname={Astro.url.pathname} isAdmin={isAdmin} />
+        <SideNav pathname={Astro.url.pathname} permissions={user.permissions} />
 
         <div
           class="mt-auto flex items-center justify-between gap-2 border-t border-sidebar-border p-2 md:p-3"

@@ -1,22 +1,25 @@
 /**
- * Catalog CRUD — a React island over fixture data.
+ * Catalog — a React island over the real `/catalog/products` endpoint (#15).
  *
- * There is no catalog endpoint yet (RFC #10), so create, edit and archive act
- * on local state and are lost on reload. That is deliberate for a UI slice: the
- * shapes in `lib/fixtures` match the DTO the commerce layer is expected to
- * return, so wiring a real endpoint later replaces the data source and leaves
- * this component alone.
+ * A product carries one amount per currency it is priced in, entered by the
+ * merchant. Nothing is converted at read time: converting would make a
+ * displayed price move with an FX feed between the moment a buyer reads it and
+ * the moment they pay. This form edits one currency at a time, which is what a
+ * merchant actually does; the wire shape is a list, so pricing in a second
+ * currency later is a change to this form and not to the API.
  *
- * Both dialogs come from the primitives, which own their own motion — this file
- * no longer hand-rolls a backdrop, a popup or an `AnimatePresence`. It mounts
- * `MotionProvider` because it animates but does not query, so it must not pull
- * React Query into its bundle just to reach a provider.
+ * Amounts are typed and sent as decimal strings and parsed server-side by the
+ * schema that owns minor units. No `bigint` arithmetic happens here, so there
+ * is no second implementation to drift.
+ *
+ * The catalog is optional by construction: a merchant who never writes a
+ * product row can still take every payment, through an open or fixed link.
  */
 
-import { formatMoneyLocale } from "@mayarin/shared/locale";
-import { money } from "@mayarin/shared/money";
 import { PackageIcon, PencilSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useState } from "react";
+import { match } from "ts-pattern";
+import { Alert } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +53,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -59,317 +63,368 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useCreateProduct, useProducts, useUpdateProduct } from "@/hooks/catalog";
+import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
-import { PRODUCTS, type Product, type ProductStatus } from "@/lib/fixtures";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
-import { MotionProvider } from "@/lib/motion";
+import { isValidAmount, PRICING_CURRENCIES, symbolOf } from "@/lib/pricing";
+import { withQuery } from "@/lib/with-query";
+import type { DecimalMoneyRequest, ProductDto } from "@/types/catalog";
+import type { MoneyDto } from "@/types/payment";
 
-const STATUS_VARIANT: Readonly<Record<ProductStatus, "success" | "warning" | "default">> = {
-  active: "success",
-  draft: "warning",
-  archived: "default",
-};
-
-const STATUS_LABEL: Readonly<Record<ProductStatus, string>> = {
-  active: "Active",
-  draft: "Draft",
-  archived: "Archived",
-};
-
-const STATUSES: readonly ProductStatus[] = ["active", "draft", "archived"];
-
-const STATUS_OPTIONS: readonly SelectOption[] = STATUSES.map((s) => ({
-  value: s,
-  label: STATUS_LABEL[s],
+const CURRENCY_OPTIONS: readonly SelectOption[] = PRICING_CURRENCIES.map((code) => ({
+  value: code,
+  label: code,
 }));
 
 /** Editing an existing product, or creating one. */
-type Editing = { readonly mode: "create" } | { readonly mode: "edit"; readonly product: Product };
+type Editing =
+  | { readonly mode: "create" }
+  | { readonly mode: "edit"; readonly product: ProductDto };
 
 interface Draft {
   readonly name: string;
   readonly sku: string;
-  /** Whole rupiah as typed. Parsed to minor units only on save. */
-  readonly price: string;
-  readonly status: ProductStatus;
+  readonly description: string;
+  /** Decimal as typed — `"25000"`, `"25000.50"`. Parsed server-side. */
+  readonly amount: string;
+  readonly currency: string;
 }
 
-const EMPTY_DRAFT: Draft = { name: "", sku: "", price: "", status: "draft" };
+const EMPTY_DRAFT: Draft = {
+  name: "",
+  sku: "",
+  description: "",
+  amount: "",
+  currency: PRICING_CURRENCIES[0] ?? "IDR",
+};
 
 function draftOf(editing: Editing): Draft {
   if (editing.mode === "create") return EMPTY_DRAFT;
   const { product } = editing;
+  // `formatted` is the machine form: ungrouped, dot-separated, round-trips
+  // exactly. `display` is for reading and would come back as `50.000,00`.
+  const first = product.prices[0];
   return {
     name: product.name,
     sku: product.sku,
-    // IDR carries two minor digits; the field takes whole rupiah.
-    price: (product.price / 100n).toString(),
-    status: product.status,
+    description: product.description ?? "",
+    amount: first?.formatted ?? "",
+    currency: first?.asset ?? EMPTY_DRAFT.currency,
   };
 }
 
-/** Whole rupiah string to minor units. Digits only — no float ever appears. */
-function toMinorUnits(price: string): bigint | undefined {
-  const digits = price.replace(/[^\d]/g, "");
-  if (digits === "") return undefined;
-  return BigInt(digits) * 100n;
+function reasonOf(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Failed to load products";
 }
 
-export default function Catalog() {
-  const [products, setProducts] = useState<readonly Product[]>(PRODUCTS);
+/**
+ * The edited price folded into what the product already carries.
+ *
+ * `prices` is replaced wholesale by the API, and this form edits one currency at
+ * a time — so sending only the edited one would delete every other currency the
+ * product was priced in. A merchant renaming an item would silently lose its MYR
+ * price, and a catalog link denominated in MYR would then fail for every buyer.
+ */
+function mergePrice(
+  existing: readonly MoneyDto[],
+  edited: DecimalMoneyRequest,
+): readonly DecimalMoneyRequest[] {
+  const others = existing
+    .filter((price) => price.asset !== edited.asset)
+    // `formatted` is the machine form and round-trips exactly; `display` would
+    // come back as `50.000,00` and parse as something else entirely.
+    .map((price) => ({ amount: price.formatted, asset: price.asset }));
+  return [edited, ...others];
+}
+
+function Catalog() {
+  const products = useProducts();
+  const create = useCreateProduct();
+  const update = useUpdateProduct();
+
   const [editing, setEditing] = useState<Editing | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [notice, setNotice] = useState<string>("");
-  const [pendingArchive, setPendingArchive] = useState<Product | null>(null);
+  const [failure, setFailure] = useState<string>("");
+  const [pendingArchive, setPendingArchive] = useState<ProductDto | null>(null);
 
-  const priceMinor = toMinorUnits(draft.price);
-  const canSave = draft.name.trim() !== "" && draft.sku.trim() !== "" && priceMinor !== undefined;
+  const canSave =
+    draft.name.trim() !== "" && draft.sku.trim() !== "" && isValidAmount(draft.amount);
+  const saving = create.isPending || update.isPending;
 
   function open(next: Editing) {
+    setFailure("");
     setEditing(next);
     setDraft(draftOf(next));
   }
 
-  function close() {
-    setEditing(null);
-  }
+  async function save() {
+    if (editing === null || !canSave) return;
+    const edited = { amount: draft.amount.trim(), asset: draft.currency };
+    const description = draft.description.trim();
 
-  function save() {
-    if (editing === null || priceMinor === undefined) return;
-    const now = new Date().toISOString();
-
-    if (editing.mode === "create") {
-      const created: Product = {
-        id: `prod_${(products.length + 1).toString().padStart(2, "0")}`,
-        name: draft.name.trim(),
-        sku: draft.sku.trim(),
-        price: priceMinor,
-        currency: "IDR",
-        status: draft.status,
-        updatedAt: now,
-      };
-      setProducts([created, ...products]);
-      setNotice(`${created.name} created.`);
-    } else {
-      const id = editing.product.id;
-      setProducts(
-        products.map((p) =>
-          p.id === id
-            ? {
-                ...p,
-                name: draft.name.trim(),
-                sku: draft.sku.trim(),
-                price: priceMinor,
-                status: draft.status,
-                updatedAt: now,
-              }
-            : p,
-        ),
-      );
-      setNotice(`${draft.name.trim()} updated.`);
+    try {
+      if (editing.mode === "create") {
+        await create.mutateAsync({
+          sku: draft.sku.trim(),
+          name: draft.name.trim(),
+          prices: [edited],
+          ...(description === "" ? {} : { description }),
+        });
+        setNotice(`${draft.name.trim()} created.`);
+      } else {
+        await update.mutateAsync({
+          id: editing.product.id,
+          patch: {
+            name: draft.name.trim(),
+            prices: mergePrice(editing.product.prices, edited),
+            // `null` clears it, an absent field leaves it alone — so emptying
+            // the field actually empties it rather than reverting on refetch.
+            description: description === "" ? null : description,
+          },
+        });
+        setNotice(`${draft.name.trim()} updated.`);
+      }
+      setEditing(null);
+    } catch (error) {
+      // The dialog stays open on failure: a merchant who mistyped a SKU should
+      // not have to retype the whole product to find out which field it was.
+      setFailure(error instanceof ApiError ? error.message : "Could not save the product");
     }
-    close();
   }
 
-  /**
-   * Archiving hides a product from the storefront, so it asks first. The
-   * pending product is held in state rather than archived optimistically —
-   * nothing changes until the dialog is confirmed.
-   */
-  function archive(product: Product) {
-    setProducts(
-      products.map((p) =>
-        p.id === product.id ? { ...p, status: "archived", updatedAt: new Date().toISOString() } : p,
-      ),
-    );
-    setNotice(`${product.name} archived.`);
+  /** Archiving retires a product. Payments already taken for it are untouched. */
+  async function archive(product: ProductDto) {
+    try {
+      await update.mutateAsync({ id: product.id, patch: { active: false } });
+      setNotice(`${product.name} archived.`);
+    } catch (error) {
+      setFailure(error instanceof ApiError ? error.message : "Could not archive the product");
+    }
   }
+
+  const rows = products.data?.products ?? [];
 
   return (
-    <MotionProvider>
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-mono text-xs text-subtle-foreground">
-            {products.length} product{products.length === 1 ? "" : "s"}
-          </p>
-          <Button onClick={() => open({ mode: "create" })}>
-            <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-            New product
-          </Button>
-        </div>
-
-        {/* Every mutation is announced once, so the change is not visual-only. */}
-        <p aria-live="polite" className="sr-only">
-          {notice}
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-mono text-xs text-subtle-foreground">
+          {rows.length} product{rows.length === 1 ? "" : "s"}
         </p>
+        <Button onClick={() => open({ mode: "create" })}>
+          <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+          New product
+        </Button>
+      </div>
 
-        {products.length === 0 ? (
-          <Empty>
-            <EmptyMedia>
-              <PackageIcon size={ICON_CARD} aria-hidden="true" />
-            </EmptyMedia>
-            <EmptyTitle>No products yet.</EmptyTitle>
-          </Empty>
-        ) : (
-          <Table>
-            <TableCaption>Products in this catalog</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>{p.name}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{p.sku}</TableCell>
-                  <TableCell className="text-right">
-                    {formatMoneyLocale(money(p.price, p.currency))}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[p.status]}>{STATUS_LABEL[p.status]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    <time dateTime={isoAttr(p.updatedAt)}>{formatDateTime(p.updatedAt)}</time>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => open({ mode: "edit", product: p })}
-                        aria-label={`Edit ${p.name}`}
-                      >
-                        <PencilSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setPendingArchive(p)}
-                        disabled={p.status === "archived"}
-                        aria-label={`Archive ${p.name}`}
-                      >
-                        <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                      </Button>
-                    </span>
-                  </TableCell>
+      {/* Every mutation is announced once, so the change is not visual-only. */}
+      <p aria-live="polite" className="sr-only">
+        {notice}
+      </p>
+
+      {failure !== "" && editing === null && <Alert variant="destructive">{failure}</Alert>}
+
+      {match(products)
+        .with({ isPending: true }, () => <TableSkeleton rows={4} />)
+        .with({ isError: true }, ({ error }) => (
+          <Alert variant="destructive">{reasonOf(error)}</Alert>
+        ))
+        .otherwise(() =>
+          rows.length === 0 ? (
+            <Empty>
+              <EmptyMedia>
+                <PackageIcon size={ICON_CARD} aria-hidden="true" />
+              </EmptyMedia>
+              <EmptyTitle>No products yet.</EmptyTitle>
+            </Empty>
+          ) : (
+            <Table>
+              <TableCaption>Products in this catalog</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {rows.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>{p.name}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {p.sku}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {/* One line per priced currency: a product priced in two
+                          currencies has two prices, not an average. */}
+                      <span className="flex flex-col items-end">
+                        {p.prices.map((price) => (
+                          <span key={price.asset}>{price.display}</span>
+                        ))}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={p.active ? "success" : "default"}>
+                        {p.active ? "Active" : "Archived"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <time dateTime={isoAttr(p.updatedAt)}>{formatDateTime(p.updatedAt)}</time>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => open({ mode: "edit", product: p })}
+                          aria-label={`Edit ${p.name}`}
+                        >
+                          <PencilSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setPendingArchive(p)}
+                          disabled={!p.active}
+                          aria-label={`Archive ${p.name}`}
+                        >
+                          <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        </Button>
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ),
         )}
 
-        <Dialog open={editing !== null} onOpenChange={(next) => !next && close()}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editing?.mode === "edit" ? "Edit product" : "New product"}</DialogTitle>
-              <DialogDescription>
-                Prices are set in the merchant's pricing currency.
-              </DialogDescription>
-            </DialogHeader>
+      <Dialog open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing?.mode === "edit" ? "Edit product" : "New product"}</DialogTitle>
+            <DialogDescription>
+              Priced in the currency your customers think in. What you settle in is a separate
+              setting.
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="flex flex-col gap-3">
-              <Field>
-                <FieldLabel htmlFor="product-name">Name</FieldLabel>
-                <Input
-                  id="product-name"
-                  value={draft.name}
-                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                />
-              </Field>
+          <div className="flex flex-col gap-3">
+            {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
 
-              <Field>
-                <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
-                <Input
-                  id="product-sku"
-                  value={draft.sku}
-                  onChange={(e) => setDraft({ ...draft, sku: e.target.value })}
-                  className="font-mono text-xs"
-                />
-              </Field>
+            <Field>
+              <FieldLabel htmlFor="product-name">Name</FieldLabel>
+              <Input
+                id="product-name"
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              />
+            </Field>
 
-              <Field>
-                <FieldLabel htmlFor="product-price">Price</FieldLabel>
-                <InputGroup>
-                  {/* The currency is meaning, not decoration, so it is not
-                      hidden from a screen reader. */}
-                  <InputGroupAddon aria-hidden={false}>Rp</InputGroupAddon>
-                  <InputGroupInput
-                    id="product-price"
-                    inputMode="numeric"
-                    value={draft.price}
-                    onChange={(e) => setDraft({ ...draft, price: e.target.value })}
-                    aria-describedby="product-price-hint"
-                    placeholder="25000"
-                  />
-                </InputGroup>
-                <FieldDescription id="product-price-hint">
-                  Whole rupiah. Digits only.
-                </FieldDescription>
-              </Field>
+            <Field>
+              <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
+              <Input
+                id="product-sku"
+                value={draft.sku}
+                onChange={(e) => setDraft({ ...draft, sku: e.target.value })}
+                className="font-mono text-xs"
+                // The SKU is the merchant's own item code and is unique per
+                // merchant, so it identifies the row and cannot be re-pointed.
+                disabled={editing?.mode === "edit"}
+              />
+            </Field>
 
-              <Field>
-                <FieldLabel htmlFor="product-status">Status</FieldLabel>
-                <Select
-                  items={STATUS_OPTIONS}
-                  value={draft.status}
-                  onValueChange={(next) => setDraft({ ...draft, status: next as ProductStatus })}
-                >
-                  <SelectTrigger id="product-status">
-                    <SelectValue placeholder="Select a status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-
-            <DialogFooter>
-              <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-              <Button onClick={save} disabled={!canSave}>
-                {editing?.mode === "edit" ? "Save changes" : "Create product"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <AlertDialog
-          open={pendingArchive !== null}
-          onOpenChange={(next) => !next && setPendingArchive(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Archive this product?</AlertDialogTitle>
-              <AlertDialogDescription>
-                <strong className="font-medium text-foreground">{pendingArchive?.name}</strong>{" "}
-                stops appearing in the catalog and cannot be added to new carts. Payments already
-                taken for it are not affected.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel />
-              <AlertDialogAction
-                onClick={() => {
-                  if (pendingArchive !== null) archive(pendingArchive);
-                  setPendingArchive(null);
-                }}
+            <Field>
+              <FieldLabel htmlFor="product-currency">Currency</FieldLabel>
+              <Select
+                items={CURRENCY_OPTIONS}
+                value={draft.currency}
+                onValueChange={(next) => setDraft({ ...draft, currency: next })}
               >
-                Archive
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </section>
-    </MotionProvider>
+                <SelectTrigger id="product-currency">
+                  <SelectValue placeholder="Select a currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="product-price">Price</FieldLabel>
+              <InputGroup>
+                {/* The currency is meaning, not decoration, so it is not
+                    hidden from a screen reader. */}
+                <InputGroupAddon aria-hidden={false}>{symbolOf(draft.currency)}</InputGroupAddon>
+                <InputGroupInput
+                  id="product-price"
+                  inputMode="decimal"
+                  value={draft.amount}
+                  onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
+                  aria-describedby="product-price-hint"
+                  placeholder="25000"
+                />
+              </InputGroup>
+              <FieldDescription id="product-price-hint">
+                As written, e.g. 25000 or 25000.50.
+              </FieldDescription>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="product-description">Description</FieldLabel>
+              <Input
+                id="product-description"
+                value={draft.description}
+                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              />
+            </Field>
+          </div>
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+            <Button onClick={save} disabled={!canSave || saving}>
+              {editing?.mode === "edit" ? "Save changes" : "Create product"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={pendingArchive !== null}
+        onOpenChange={(next) => !next && setPendingArchive(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive this product?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong className="font-medium text-foreground">{pendingArchive?.name}</strong> stops
+              appearing in the catalog and cannot be added to new carts. Payments already taken for
+              it are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel />
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingArchive !== null) void archive(pendingArchive);
+                setPendingArchive(null);
+              }}
+            >
+              Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
   );
 }
+
+export default withQuery(Catalog);

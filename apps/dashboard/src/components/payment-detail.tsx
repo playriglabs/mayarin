@@ -10,6 +10,7 @@
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { match } from "ts-pattern";
+import { DepositQr } from "@/components/deposit-qr";
 import PaymentTimeline from "@/components/payment-timeline";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,9 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
     </div>
   );
 }
+
+/** Statuses after which there is nothing left for a payer to send. */
+const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
 
 function PaymentDetail({ id }: { id: string }) {
   const payment = usePayment(id);
@@ -88,6 +92,19 @@ function PaymentDetail({ id }: { id: string }) {
                 </div>
                 <Badge variant={toneOf(intent.status)}>{intentStatusLabel(intent.status)}</Badge>
               </header>
+
+              {/* The code the payer scans, while there is still a payment to
+                  pay. Shown above everything else because a merchant opening a
+                  pending payment is almost always opening it to show this — and
+                  it disappears on its own once the payment is terminal. */}
+              {!TERMINAL_STATUSES.includes(intent.status) && (
+                <section className="flex flex-col gap-3">
+                  <SectionHeader title="Payment code" />
+                  <Card className="items-center">
+                    <DepositQr paymentIntentId={intent.id} />
+                  </Card>
+                </section>
+              )}
 
               <div className="grid gap-8 md:grid-cols-2 md:gap-4">
                 <section className="flex flex-col gap-3">

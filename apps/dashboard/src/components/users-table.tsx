@@ -26,13 +26,7 @@ import { useAdminUsers } from "@/hooks/admin";
 import { ApiError } from "@/lib/api/client";
 import { ICON_CARD } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
-import type { Permission, UserDto } from "@/types/user";
-
-const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
-  "payments:read": "Payments",
-  "users:manage": "Manage users",
-  "admin:access": "Admin",
-} as const;
+import { PERMISSION_LABELS, type UserDto } from "@/types/user";
 
 function reasonOf(error: unknown): string {
   return match(error)
