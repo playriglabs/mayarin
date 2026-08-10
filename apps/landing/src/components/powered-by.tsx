@@ -17,7 +17,7 @@ const LOGOS: Logo[] = [
     lockup: true,
     class: "h-12 md:h-[4rem]",
   },
-  { src: "/images/logos/solana.svg", name: "Solana", lockup: true, class: "h-4 md:h-[1.35rem]" },
+  // { src: "/images/logos/solana.svg", name: "Solana", lockup: true, class: "h-4 md:h-[1.35rem]" },
   { src: "/images/logos/polygon.svg", name: "Polygon", lockup: true, class: "h-6 md:h-[2rem]" },
   {
     src: "/images/logos/pyth.svg",
