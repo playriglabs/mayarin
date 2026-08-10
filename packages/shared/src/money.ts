@@ -9,7 +9,7 @@
  * Money is immutable. Every operation returns a new value.
  */
 
-import { type AssetCode, assetDecimals, isAssetCode } from "./asset.ts";
+import { type AssetCode, assetDecimals, assetPayerDecimals, isAssetCode } from "./asset.ts";
 import { ValidationError } from "./errors.ts";
 
 export interface Money {
@@ -226,6 +226,28 @@ export function convert(
     amount: divideRounded(value.amount * scaledRate, sourceScale * RATE_SCALE, rounding),
     asset: target,
   };
+}
+
+/**
+ * Rounds an amount UP to the precision a payer is asked for.
+ *
+ * Up, never down, and the direction is the whole point. A deposit funds when
+ * the confirmed total *reaches* what is owed, so a figure rounded down is one a
+ * payer can enter in full and still underpay by a minor unit — leaving a
+ * payment that never funds and a customer who is certain they paid. Rounding up
+ * costs them a sliver of dust and always clears.
+ *
+ * Applied where the amount is decided, not where it is displayed: the QR, the
+ * screen and the field the payer types into must all carry one number, and a
+ * value rounded for display alone would disagree with the one in the code.
+ */
+export function roundUpToPayerPrecision(value: Money): Money {
+  const step = 10n ** BigInt(assetDecimals(value.asset) - assetPayerDecimals(value.asset));
+  if (step <= 1n) return value;
+
+  const remainder = value.amount % step;
+  if (remainder === 0n) return value;
+  return { amount: value.amount + (step - remainder), asset: value.asset };
 }
 
 export function compare(a: Money, b: Money): -1 | 0 | 1 {

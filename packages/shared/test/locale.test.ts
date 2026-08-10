@@ -25,6 +25,27 @@ describe("formatMoneyLocale", () => {
     );
   });
 
+  test("trailing zeros are dropped past two decimals, losslessly", () => {
+    // Six decimals of a stablecoin are the asset's precision, not something a
+    // reader needs to count through to find the magnitude.
+    expect(formatMoneyLocale(money(12_500_000n, "USDC"), { trimTrailingZeros: true })).toBe(
+      "12,50 USDC",
+    );
+    // Eight significant decimals survive: this is the figure a payer types, so
+    // dropping a digit that carries value would tell them to underpay.
+    expect(
+      formatMoneyLocale(money(4_166_670_000_000_000n, "ETH"), { trimTrailingZeros: true }),
+    ).toBe("0,00416667 ETH");
+    // Two is the floor — money written as "1" reads as a quantity.
+    expect(formatMoneyLocale(money(1_000_000n, "USDC"), { trimTrailingZeros: true })).toBe(
+      "1,00 USDC",
+    );
+    // Grouping is untouched.
+    expect(formatMoneyLocale(money(5_043_200n, "IDR"), { trimTrailingZeros: true })).toBe(
+      "Rp 50.432,00",
+    );
+  });
+
   test("suffixes the code for assets with no conventional symbol", () => {
     expect(formatMoneyLocale(money(5_043_200n, "IDRX"))).toBe("50.432,00 IDRX");
     expect(formatMoneyLocale(money(1_250_000n, "USDC"))).toBe("1,250000 USDC");
