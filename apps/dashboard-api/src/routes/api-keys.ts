@@ -10,10 +10,19 @@
 
 import { UnauthorizedError } from "@mayarin/shared";
 import { Hono } from "hono";
+import { z } from "zod";
 import type { Container } from "../container.ts";
 import { createApiKeyBodySchema, toApiKeyDto } from "../dto/api-keys.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
+
+const listQuerySchema = z.object({
+  q: z.string().trim().min(1).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+  sort: z.enum(["created", "-created"]).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
 
 export function apiKeyRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
@@ -25,7 +34,14 @@ export function apiKeyRoutes(container: Container): Hono<{ Variables: AuthVars }
   };
 
   app.get("/", async (c) => {
-    const keys = await container.apiKeys.list(scopeOf(c));
+    const query = listQuerySchema.parse(c.req.query());
+    const keys = await container.apiKeys.list(scopeOf(c), {
+      ...(query.q === undefined ? {} : { q: query.q }),
+      ...(query.status === undefined ? {} : { status: query.status }),
+      ...(query.sort === undefined ? {} : { sort: query.sort }),
+      ...(query.from === undefined ? {} : { from: query.from }),
+      ...(query.to === undefined ? {} : { to: query.to }),
+    });
     return c.json({ apiKeys: keys.map(toApiKeyDto) });
   });
 

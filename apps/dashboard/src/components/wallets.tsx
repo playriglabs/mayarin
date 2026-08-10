@@ -27,6 +27,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
+import { AssetLabel } from "@/components/asset-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,9 +41,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { QueryError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -381,13 +389,19 @@ function Wallets() {
           account for. */}
       {match(balance)
         .with({ isPending: true }, () => <PanelSkeleton lines={3} />)
-        .with({ isError: true }, () => null)
+        .with({ isError: true }, ({ error }) => (
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void balance.refetch()}
+            retrying={balance.isFetching}
+          />
+        ))
         .otherwise(({ data }) => (
           <Card className="flex flex-col gap-4 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
                 <h2 className="font-medium text-sm">Settlement balance</h2>
-                <p className="break-all font-mono text-subtle-foreground text-xs">
+                <p className="break-all font-mono text-subtle-foreground text-sm">
                   {data?.address ?? "No settlement address yet"}
                 </p>
               </div>
@@ -413,7 +427,9 @@ function Wallets() {
               <dl className="flex flex-wrap gap-6">
                 {balances.map((amount) => (
                   <div key={amount.asset} className="flex flex-col gap-1">
-                    <dt className="text-muted-foreground text-xs uppercase">{amount.asset}</dt>
+                    <dt className="text-muted-foreground text-xs uppercase">
+                      <AssetLabel symbol={amount.asset} size={18} />
+                    </dt>
                     <dd className="font-mono text-lg tabular-nums">{amount.display}</dd>
                   </div>
                 ))}
@@ -441,7 +457,11 @@ function Wallets() {
       {match(wallets)
         .with({ isPending: true }, () => <TableSkeleton rows={2} />)
         .with({ isError: true }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void wallets.refetch()}
+            retrying={wallets.isFetching}
+          />
         ))
         .otherwise(() =>
           rows.length === 0 ? (
@@ -450,6 +470,17 @@ function Wallets() {
                 <WalletIcon size={ICON_CARD} aria-hidden="true" />
               </EmptyMedia>
               <EmptyTitle>No wallets yet.</EmptyTitle>
+              <EmptyDescription>
+                Create a managed wallet or connect an address you control.
+              </EmptyDescription>
+              <EmptyAction className="flex flex-wrap justify-center gap-2">
+                <Button variant="secondary" onClick={() => setConnecting(true)}>
+                  Connect existing
+                </Button>
+                <Button onClick={provisionManaged} disabled={provision.isPending}>
+                  Create managed wallet
+                </Button>
+              </EmptyAction>
             </Empty>
           ) : (
             <Table>
@@ -607,7 +638,8 @@ function Wallets() {
                 <SelectContent>
                   {balances.map((amount) => (
                     <SelectItem key={amount.asset} value={amount.asset}>
-                      {amount.asset} — {amount.display}
+                      <AssetLabel symbol={amount.asset} size={18} />
+                      <span>— {amount.display}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>

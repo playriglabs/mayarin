@@ -37,6 +37,7 @@ import {
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
+import { AssetLabel } from "@/components/asset-logo";
 import { DepositQr } from "@/components/deposit-qr";
 import { Alert } from "@/components/ui/alert";
 import {
@@ -51,6 +52,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CursorPagination } from "@/components/ui/cursor-pagination";
 import {
   Dialog,
   DialogClose,
@@ -60,10 +62,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { PageLoader } from "@/components/ui/page-loader";
+import { QueryError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -87,14 +97,16 @@ import {
   useCreateLink,
   useDisableLink,
   usePaymentLinks,
-  useProducts,
+  useProductOptions,
   useQuoteLink,
 } from "@/hooks/catalog";
+import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { useSettings } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
-import { isValidAmount, PRICING_CURRENCIES, symbolOf } from "@/lib/pricing";
+import { PAGE_SIZE } from "@/lib/pagination";
+import { currencyLabel, isValidAmount, PRICING_CURRENCIES, symbolOf } from "@/lib/pricing";
 import { withQuery } from "@/lib/with-query";
 import type { PaymentLinkDto, PaymentLinkKind, QuoteResponse } from "@/types/catalog";
 
@@ -112,7 +124,7 @@ const KIND_LABEL: Readonly<Record<PaymentLinkKind, string>> = {
 
 const CURRENCY_OPTIONS: readonly SelectOption[] = PRICING_CURRENCIES.map((code) => ({
   value: code,
-  label: code,
+  label: currencyLabel(code),
 }));
 
 interface Draft {
@@ -152,8 +164,9 @@ function reasonOf(error: unknown): string {
 }
 
 function PaymentLinks() {
-  const links = usePaymentLinks();
-  const products = useProducts();
+  const pagination = useCursorPagination();
+  const links = usePaymentLinks(PAGE_SIZE, pagination.cursor);
+  const products = useProductOptions();
   const settings = useSettings();
   const create = useCreateLink();
   const charge = useChargeLink();
@@ -355,9 +368,13 @@ function PaymentLinks() {
       </p>
 
       {match(links)
-        .with({ isPending: true }, () => <TableSkeleton rows={3} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void links.refetch()}
+            retrying={links.isFetching}
+          />
         ))
         .otherwise(() =>
           rows.length === 0 ? (
@@ -366,69 +383,97 @@ function PaymentLinks() {
                 <LinkIcon size={ICON_CARD} aria-hidden="true" />
               </EmptyMedia>
               <EmptyTitle>No payment links yet.</EmptyTitle>
+              <EmptyDescription>Create a reusable checkout link or counter QR.</EmptyDescription>
+              <EmptyAction>
+                <Button
+                  onClick={() => {
+                    setFailure("");
+                    setCreating(true);
+                  }}
+                  disabled={!profileReady}
+                >
+                  <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                  Create your first link
+                </Button>
+              </EmptyAction>
             </Empty>
           ) : (
-            <Table>
-              <TableCaption>Payment links for this merchant</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Kind</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((link) => (
-                  <TableRow key={link.id}>
-                    <TableCell>{link.title ?? "Untitled"}</TableCell>
-                    <TableCell>
-                      <Badge>{KIND_LABEL[link.kind]}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{amountLabel(link)}</TableCell>
-                    <TableCell>
-                      <Badge variant={link.payable ? "success" : "default"}>
-                        {link.payable ? "Payable" : "Retired"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      <time dateTime={isoAttr(link.createdAt)}>
-                        {formatDateTime(link.createdAt)}
-                      </time>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="flex justify-end gap-1">
-                        {/* The counter action, and the primary one: it starts a
-                            sale and produces a code a wallet can pay. */}
-                        <Button size="sm" onClick={() => openCharge(link)} disabled={!link.payable}>
-                          <QrCodeIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                          Take payment
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setSharing(link)}
-                          aria-label={`Share the link for ${link.title ?? link.id}`}
-                        >
-                          <ShareNetworkIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setPendingDisable(link)}
-                          disabled={!link.payable}
-                          aria-label={`Retire ${link.title ?? link.id}`}
-                        >
-                          <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                        </Button>
-                      </span>
-                    </TableCell>
+            <div className="flex flex-col gap-3">
+              <Table>
+                <TableCaption>Payment links for this merchant</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Kind</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((link) => (
+                    <TableRow key={link.id}>
+                      <TableCell>{link.title ?? "Untitled"}</TableCell>
+                      <TableCell>
+                        <Badge>{KIND_LABEL[link.kind]}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{amountLabel(link)}</TableCell>
+                      <TableCell>
+                        <Badge variant={link.payable ? "success" : "default"}>
+                          {link.payable ? "Payable" : "Retired"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <time dateTime={isoAttr(link.createdAt)}>
+                          {formatDateTime(link.createdAt)}
+                        </time>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="flex justify-end gap-1">
+                          {/* The counter action, and the primary one: it starts a
+                            sale and produces a code a wallet can pay. */}
+                          <Button
+                            size="sm"
+                            onClick={() => openCharge(link)}
+                            disabled={!link.payable}
+                          >
+                            <QrCodeIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                            Take payment
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setSharing(link)}
+                            aria-label={`Share the link for ${link.title ?? link.id}`}
+                          >
+                            <ShareNetworkIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setPendingDisable(link)}
+                            disabled={!link.payable}
+                            aria-label={`Retire ${link.title ?? link.id}`}
+                          >
+                            <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          </Button>
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <CursorPagination
+                label="Payment link pages"
+                page={pagination.page}
+                canPrevious={pagination.canPrevious}
+                nextCursor={links.data?.nextCursor}
+                busy={links.isFetching}
+                onPrevious={pagination.previous}
+                onNext={pagination.next}
+              />
+            </div>
           ),
         )}
 
@@ -587,7 +632,13 @@ function PaymentLinks() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent
+          className={
+            takenPaymentId === null
+              ? "max-h-[calc(100vh-2rem)] max-w-md overflow-y-auto"
+              : "max-h-[calc(100vh-2rem)] max-w-3xl overflow-y-auto"
+          }
+        >
           <DialogHeader>
             <DialogTitle>{charging?.title ?? "Take payment"}</DialogTitle>
             <DialogDescription>
@@ -614,12 +665,15 @@ function PaymentLinks() {
                   <FieldLabel htmlFor="charge-asset">Paying with</FieldLabel>
                   <Select items={assetOptions} value={chargeAsset} onValueChange={setChargeAsset}>
                     <SelectTrigger id="charge-asset">
-                      <SelectValue placeholder="Select an asset" />
+                      <SelectValue
+                        placeholder="Select an asset"
+                        renderValue={(option) => <AssetLabel symbol={option.value} />}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {assetOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                          {option.label}
+                          <AssetLabel symbol={option.value} />
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -663,16 +717,28 @@ function PaymentLinks() {
               {/* What the customer would send, per accepted asset. Indicative:
                   the figure they are actually charged is locked when the
                   payment is confirmed, a moment later. */}
-              {quoted !== null && (
+              {quote.isPending ? (
+                <PageLoader
+                  label="Fetching payment quote"
+                  size={32}
+                  className="min-h-16 border-border border-t pt-3"
+                />
+              ) : quoted !== null ? (
                 <div className="flex flex-col gap-2 border-t border-border pt-3">
-                  <p className="label text-muted-foreground">{quoted.source.display} is about</p>
+                  <p className="label text-muted-foreground mb-2">
+                    {quoted.source.display} is about
+                  </p>
                   <ul className="flex flex-col gap-1">
                     {quoted.quotes.map((line) => (
                       <li
                         key={line.asset}
                         className="flex items-baseline justify-between gap-3 text-sm"
                       >
-                        <span className="text-muted-foreground">{line.asset}</span>
+                        <AssetLabel
+                          symbol={line.asset}
+                          size={18}
+                          className="text-muted-foreground"
+                        />
                         {line.available && line.amount !== null ? (
                           <span className="font-medium text-foreground">{line.amount.display}</span>
                         ) : (
@@ -686,11 +752,11 @@ function PaymentLinks() {
                       </li>
                     ))}
                   </ul>
-                  <p className="text-xs text-subtle-foreground">
+                  <p className="text-xs text-subtle-foreground mt-1">
                     Indicative. The exact amount is locked when you start the payment.
                   </p>
                 </div>
-              )}
+              ) : null}
             </div>
           ) : (
             <DepositQr paymentIntentId={takenPaymentId} />
@@ -707,6 +773,7 @@ function PaymentLinks() {
                 disabled={
                   chargeAsset === "" ||
                   charge.isPending ||
+                  quote.isPending ||
                   (charging?.kind === "open" && !isValidAmount(chargeAmount)) ||
                   selectedQuote?.available === false
                 }

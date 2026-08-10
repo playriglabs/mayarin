@@ -1,15 +1,13 @@
 /**
  * Merchant analytics — a React island over the real `/payments` endpoint.
  *
- * Every figure is derived from the same page the explorer reads, so the
- * numbers can never disagree with the list behind them. There is no analytics
- * endpoint yet; when one lands (pre-aggregated, unwindowed), it replaces the
- * derivation here and the charts stay as they are. Until then the window is
- * stated honestly: the most recent 100 payments.
+ * Every figure is derived from the dedicated, unpaginated analytics read. The
+ * explorer and settlement table remain independently paginated; changing page
+ * can therefore never change a chart or headline metric.
  *
- * Volume is charted for ONE asset — the one most completed payments are
- * priced in — because adding two currencies without a rate would be a lie the
- * ledger would not recognise.
+ * Volume is charted in the merchant's dominant completed settlement asset.
+ * This makes customer prices in IDR and USD directly comparable after they
+ * have actually settled, without inventing a dashboard-side exchange rate.
  *
  * Two charts, both single-series, both drawn in one hue. Shading bars
  * light-to-dark by value would be colour following RANK rather than an
@@ -29,11 +27,18 @@ import { ChartBarIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
-import { Alert } from "@/components/ui/alert";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { PageLoader } from "@/components/ui/page-loader";
+import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
-import { PanelSkeleton, StatGridSkeleton } from "@/components/ui/skeleton";
 import { Stat, StatGrid } from "@/components/ui/stat";
 import {
   Table,
@@ -44,7 +49,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { usePayments } from "@/hooks/payments";
+import { useAnalytics } from "@/hooks/analytics";
 import { ApiError } from "@/lib/api/client";
 import { compactMoney, percentOf } from "@/lib/compact";
 import { ICON_CARD } from "@/lib/icons";
@@ -52,6 +57,7 @@ import { dominantAsset } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
 import type { PaymentIntentDto } from "@/types/payment";
+import type { SettlementDto } from "@/types/settlement";
 
 const DAY_LABEL = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" });
 
@@ -75,16 +81,26 @@ interface AssetShare {
 }
 
 /**
- * Completed payments in `asset`, grouped by the UTC day they completed.
+ * Completed settlements in `asset`, grouped by the UTC day they completed.
  * At most the 14 most recent days that actually had a payment.
  */
-function dailyOf(payments: readonly PaymentIntentDto[], asset: AssetCode): readonly DayPoint[] {
+function dailyOf(settlements: readonly SettlementDto[], asset: AssetCode): readonly DayPoint[] {
   const byDay = new Map<string, { volume: bigint; count: number }>();
-  for (const p of payments) {
-    if (p.status !== "COMPLETED" || p.amount.asset !== asset) continue;
-    const day = (p.completedAt ?? p.createdAt).slice(0, 10);
+  for (const settlement of settlements) {
+    const amount = settlement.settlementAmount;
+    if (
+      (settlement.state !== "SUCCESS" && settlement.state !== "SETTLED") ||
+      amount === null ||
+      amount.asset !== asset
+    ) {
+      continue;
+    }
+    const day = (settlement.completedAt ?? settlement.updatedAt).slice(0, 10);
     const bucket = byDay.get(day) ?? { volume: 0n, count: 0 };
-    byDay.set(day, { volume: bucket.volume + BigInt(p.amount.amount), count: bucket.count + 1 });
+    byDay.set(day, {
+      volume: bucket.volume + BigInt(amount.amount),
+      count: bucket.count + 1,
+    });
   }
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
@@ -274,31 +290,33 @@ function DataDisclosure({ summary, children }: { summary: string; children: Reac
 }
 
 function Analytics() {
-  const payments = usePayments(100);
+  const analytics = useAnalytics();
 
-  return match(payments)
+  return match(analytics)
     .with({ status: "pending" }, () => (
-      <div role="status" aria-live="polite" className="flex flex-col gap-8">
-        <span className="sr-only">Loading analytics</span>
-        <StatGridSkeleton />
-        <PanelSkeleton lines={5} />
-        <PanelSkeleton lines={4} />
-      </div>
+      <PageLoader label="Loading analytics" className="min-h-128" />
     ))
     .with({ status: "error" }, ({ error }) => (
-      <Alert variant="destructive">
-        {error instanceof ApiError ? error.message : "Failed to load analytics"}
-      </Alert>
+      <QueryError
+        message={error instanceof ApiError ? error.message : "Failed to load analytics"}
+        retry={() => void analytics.refetch()}
+        retrying={analytics.isFetching}
+      />
     ))
     .with({ status: "success" }, ({ data }) => {
       const all = data.payments;
-      const asset = dominantAsset(all.filter((p) => p.status === "COMPLETED").map((p) => p.amount));
+      const settlementRows = data.settlements;
+      const completedAmounts = settlementRows
+        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
+        .map((row) => row.settlementAmount)
+        .filter((amount) => amount !== null);
+      const asset = dominantAsset(completedAmounts);
 
       if (asset === undefined) {
         return (
           <div className="flex flex-col gap-8">
             <StatGrid>
-              <Stat label="Payments" value={String(all.length)} hint="In the most recent 100." />
+              <Stat label="Payments" value={String(all.length)} hint="Across all payments." />
               <Stat label="Completed" value="0" hint="Nothing to chart yet." />
               <Stat label="Volume" value="—" hint="No completed payments." />
               <Stat label="Busiest day" value="—" hint="No completed payments." />
@@ -308,6 +326,14 @@ function Analytics() {
                 <ChartBarIcon size={ICON_CARD} aria-hidden="true" />
               </EmptyMedia>
               <EmptyTitle>Charts appear after the first completed payment.</EmptyTitle>
+              <EmptyDescription>
+                Take a payment to begin tracking volume and settlement.
+              </EmptyDescription>
+              <EmptyAction>
+                <a href="/links" className={buttonVariants()}>
+                  Take your first payment
+                </a>
+              </EmptyAction>
             </Empty>
           </div>
         );
@@ -315,11 +341,12 @@ function Analytics() {
 
       const decimals = assetDecimals(asset);
       const symbol = assetSymbol(asset) ?? asset;
-      const daily = dailyOf(all, asset);
+      const daily = dailyOf(settlementRows, asset);
       const mix = mixOf(all);
 
-      const totalVolume = daily.reduce((acc, p) => acc + p.volume, 0n);
-      const totalCount = daily.reduce((acc, p) => acc + p.count, 0);
+      const amountsInAsset = completedAmounts.filter((amount) => amount.asset === asset);
+      const totalVolume = amountsInAsset.reduce((acc, amount) => acc + BigInt(amount.amount), 0n);
+      const totalCount = amountsInAsset.length;
       const average = totalCount === 0 ? 0n : totalVolume / BigInt(totalCount);
       const busiest = daily.reduce(
         (acc, p) => (p.volume > acc.volume ? p : acc),
@@ -330,15 +357,15 @@ function Analytics() {
         <div className="flex flex-col gap-8">
           <StatGrid>
             <Stat
-              label="Volume"
+              label={`Settled volume · ${asset}`}
               value={compactMoney(totalVolume, decimals, symbol)}
-              hint={`Completed, in ${asset}. Most recent 100.`}
+              hint={`Gross settlement across ${totalCount} completed payment${totalCount === 1 ? "" : "s"}.`}
             />
-            <Stat label="Payments" value={String(all.length)} hint="In the most recent 100." />
+            <Stat label="Payments" value={String(all.length)} hint="Across all payments." />
             <Stat
-              label="Average payment"
+              label={`Average settlement · ${asset}`}
               value={formatMoneyLocale(money(average, asset), { trimZeroFraction: true })}
-              hint="Volume divided by completed count."
+              hint="Gross settled volume divided by completed settlements."
             />
             <Stat
               label="Busiest day"
@@ -348,7 +375,7 @@ function Analytics() {
           </StatGrid>
 
           <section className="flex flex-col gap-3">
-            <SectionHeader title="Daily volume" />
+            <SectionHeader title={`Daily volume · ${asset}`} />
             <Card className="gap-4">
               <VolumeChart points={daily} asset={asset} decimals={decimals} symbol={symbol} />
               <DataDisclosure summary="Show the numbers">

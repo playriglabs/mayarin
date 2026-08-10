@@ -12,7 +12,7 @@
  */
 
 import { AddressBookIcon, PencilSimpleIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { match } from "ts-pattern";
 import { Alert } from "@/components/ui/alert";
 import {
@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import {
   Dialog,
   DialogClose,
@@ -35,9 +36,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { QueryError } from "@/components/ui/query-error";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  type SelectOption,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -74,6 +90,11 @@ interface Draft {
 
 const EMPTY_DRAFT: Draft = { name: "", email: "", notes: "" };
 
+const SORT_OPTIONS: readonly SelectOption[] = [
+  { value: "-created", label: "Newest first" },
+  { value: "created", label: "Oldest first" },
+];
+
 function draftOf(editing: Editing): Draft {
   if (editing.mode === "create") return EMPTY_DRAFT;
   const { customer } = editing;
@@ -89,7 +110,18 @@ function reasonOf(error: unknown): string {
 }
 
 function Customers() {
-  const customers = useCustomers();
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"created" | "-created">("-created");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const deferredQuery = useDeferredValue(query.trim());
+  const customers = useCustomers({
+    limit: 200,
+    ...(deferredQuery === "" ? {} : { q: deferredQuery }),
+    sort,
+    ...(from === "" ? {} : { from }),
+    ...(to === "" ? {} : { to }),
+  });
   const create = useCreateCustomer();
   const update = useUpdateCustomer();
   const remove = useDeleteCustomer();
@@ -155,6 +187,40 @@ function Customers() {
 
   return (
     <section className="flex flex-col gap-4">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
+        <Field>
+          <FieldLabel htmlFor="customer-search">Search</FieldLabel>
+          <Input
+            id="customer-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Name, email, or customer id"
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="customer-sort">Sort</FieldLabel>
+          <Select
+            items={SORT_OPTIONS}
+            value={sort}
+            onValueChange={(value) => setSort(value as typeof sort)}
+          >
+            <SelectTrigger id="customer-sort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      <div className="grid max-w-sm grid-cols-2 gap-3">
+        <DateRangeFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+      </div>
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-xs text-subtle-foreground">
           {rows.length} customer{rows.length === 1 ? "" : "s"}
@@ -172,9 +238,13 @@ function Customers() {
       {failure !== "" && editing === null && <Alert variant="destructive">{failure}</Alert>}
 
       {match(customers)
-        .with({ isPending: true }, () => <TableSkeleton rows={4} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={7} />)
         .with({ isError: true }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void customers.refetch()}
+            retrying={customers.isFetching}
+          />
         ))
         .otherwise(() =>
           rows.length === 0 ? (
@@ -183,6 +253,13 @@ function Customers() {
                 <AddressBookIcon size={ICON_CARD} aria-hidden="true" />
               </EmptyMedia>
               <EmptyTitle>No customers yet.</EmptyTitle>
+              <EmptyDescription>Save customer details to recognize repeat buyers.</EmptyDescription>
+              <EmptyAction>
+                <Button onClick={() => open({ mode: "create" })}>
+                  <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                  Add your first customer
+                </Button>
+              </EmptyAction>
             </Empty>
           ) : (
             <Table>

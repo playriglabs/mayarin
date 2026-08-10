@@ -16,9 +16,11 @@
  * merchant should be able to read the answer rather than infer it.
  */
 
+import { Tabs } from "@base-ui-components/react/tabs";
 import { BankIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
+import { AssetLabel } from "@/components/asset-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +28,8 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { SectionHeader } from "@/components/ui/section-header";
+import { PageLoader } from "@/components/ui/page-loader";
+import { QueryError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -35,7 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PanelSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -70,6 +72,8 @@ interface Draft {
   readonly countryCode: string;
 }
 
+type SettingsTab = "settlement" | "profile" | "history";
+
 function draftOf(settings: SettingsDto): Draft {
   return {
     settlementAsset: settings.settlementAsset,
@@ -98,6 +102,7 @@ function Settings() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("settlement");
 
   // The server's copy is the source of truth; the draft is only what is being
   // typed. Reset when the loaded settings change so a successful save leaves
@@ -139,9 +144,13 @@ function Settings() {
       </p>
 
       {match(settings)
-        .with({ isPending: true }, () => <PanelSkeleton />)
+        .with({ isPending: true }, () => <PageLoader label="Loading settings" />)
         .with({ isError: true }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void settings.refetch()}
+            retrying={settings.isFetching}
+          />
         ))
         .otherwise(() => {
           if (draft === null || loaded === undefined) return null;
@@ -149,166 +158,206 @@ function Settings() {
             <>
               {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
 
-              <div className="flex flex-col gap-4">
-                <SectionHeader title="Settlement" />
-
-                <Card className="flex flex-col gap-4 p-4">
-                  <Field>
-                    <FieldLabel htmlFor="settlement-asset">Settlement asset</FieldLabel>
-                    <Select
-                      items={SETTLEMENT_OPTIONS}
-                      value={draft.settlementAsset}
-                      onValueChange={(next) => setDraft({ ...draft, settlementAsset: next })}
+              <Tabs.Root
+                value={activeTab}
+                onValueChange={(value) => setActiveTab(value as SettingsTab)}
+              >
+                <Tabs.List
+                  aria-label="Settings sections"
+                  className="flex w-full overflow-x-auto border-border border-b"
+                >
+                  {(
+                    [
+                      ["settlement", "Settlement"],
+                      ["profile", "Profile"],
+                      ["history", "Change history"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Tabs.Tab
+                      key={value}
+                      value={value}
+                      className="min-h-11 shrink-0 cursor-pointer border-transparent border-b-2 px-4 font-mono text-muted-foreground text-xs uppercase tracking-[0.16em] transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-active:border-brand data-active:text-foreground dark:data-active:border-electric"
                     >
-                      <SelectTrigger id="settlement-asset">
-                        <SelectValue placeholder="Select an asset" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SETTLEMENT_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FieldDescription>
-                      What you are paid in. Whatever a payer sends is converted to this before it
-                      reaches you.
-                    </FieldDescription>
-                  </Field>
+                      {label}
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
 
-                  <Field>
-                    <FieldLabel>Accepted payer assets</FieldLabel>
-                    <div className="flex flex-wrap gap-4 pt-1">
-                      {PAYABLE_ASSETS.map((asset) => (
-                        <span key={asset} className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            id={`accepted-${asset}`}
-                            checked={draft.acceptedAssets.includes(asset)}
-                            onCheckedChange={(checked) => toggleAsset(asset, checked === true)}
+                <Tabs.Panel value="settlement" className="pt-6 focus-visible:outline-none">
+                  <Card className="flex flex-col gap-4 p-4">
+                    <Field>
+                      <FieldLabel htmlFor="settlement-asset">Settlement asset</FieldLabel>
+                      <Select
+                        items={SETTLEMENT_OPTIONS}
+                        value={draft.settlementAsset}
+                        onValueChange={(next) => setDraft({ ...draft, settlementAsset: next })}
+                      >
+                        <SelectTrigger id="settlement-asset">
+                          <SelectValue
+                            placeholder="Select an asset"
+                            renderValue={(option) => <AssetLabel symbol={option.value} size={18} />}
                           />
-                          <label htmlFor={`accepted-${asset}`}>{asset}</label>
-                        </span>
-                      ))}
-                    </div>
-                    <FieldDescription>
-                      Accepting the asset you settle in is what enables the no-swap path. It is kept
-                      in the set whether you tick it or not.
-                    </FieldDescription>
-                  </Field>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SETTLEMENT_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <AssetLabel symbol={option.value} size={18} />
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>
+                        What you are paid in. Whatever a payer sends is converted to this before it
+                        reaches you.
+                      </FieldDescription>
+                    </Field>
 
-                  <Field>
-                    <FieldLabel htmlFor="settlement-address">Settlement address</FieldLabel>
-                    <Input
-                      id="settlement-address"
-                      value={draft.settlementAddress}
-                      onChange={(e) => setDraft({ ...draft, settlementAddress: e.target.value })}
-                      placeholder="0x…"
-                      className="font-mono text-xs"
-                    />
-                    <FieldDescription>
-                      Leave it blank to be paid at your managed wallet. There is no shared default:
-                      one address for every merchant would pay every merchant into the same wallet.
-                    </FieldDescription>
-                  </Field>
+                    <Field>
+                      <FieldLabel>Accepted payer assets</FieldLabel>
+                      <div className="flex flex-wrap gap-4 pt-1">
+                        {PAYABLE_ASSETS.map((asset) => (
+                          <span key={asset} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              id={`accepted-${asset}`}
+                              checked={draft.acceptedAssets.includes(asset)}
+                              onCheckedChange={(checked) => toggleAsset(asset, checked === true)}
+                            />
+                            <label htmlFor={`accepted-${asset}`} className="mt-1">
+                              <AssetLabel symbol={asset} size={18} />
+                            </label>
+                          </span>
+                        ))}
+                      </div>
+                      <FieldDescription>
+                        Accepting the asset you settle in is what enables the no-swap path. It is
+                        kept in the set whether you tick it or not.
+                      </FieldDescription>
+                    </Field>
 
-                  {/* Shown in full and never truncated in the DOM: an address a
+                    <Field>
+                      <FieldLabel htmlFor="settlement-address">Settlement address</FieldLabel>
+                      <Input
+                        id="settlement-address"
+                        value={draft.settlementAddress}
+                        onChange={(e) => setDraft({ ...draft, settlementAddress: e.target.value })}
+                        placeholder="0x…"
+                        className="font-mono text-xs"
+                      />
+                      <FieldDescription>
+                        Leave it blank to be paid at your managed wallet. There is no shared
+                        default: one address for every merchant would pay every merchant into the
+                        same wallet.
+                      </FieldDescription>
+                    </Field>
+
+                    {/* Shown in full and never truncated in the DOM: an address a
                       merchant cannot copy whole is worse than one they scroll. */}
-                  <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm">
-                    <BankIcon
-                      size={ICON_CARD}
-                      aria-hidden="true"
-                      className="text-muted-foreground"
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm">
+                      <BankIcon
+                        size={ICON_CARD}
+                        aria-hidden="true"
+                        className="text-muted-foreground"
+                      />
+                      <span className="text-muted-foreground">Paid to</span>
+                      <span className="break-all font-mono text-xs">
+                        {loaded.effectiveSettlementAddress ?? "nowhere yet"}
+                      </span>
+                      <Badge variant={loaded.canSettleOnChain ? "success" : "warning"}>
+                        {loaded.canSettleOnChain ? "Can settle on chain" : "No address"}
+                      </Badge>
+                    </div>
+                  </Card>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="profile" className="pt-6 focus-visible:outline-none">
+                  <Card className="flex flex-col gap-4 p-4">
+                    <Field>
+                      <FieldLabel htmlFor="merchant-city">City</FieldLabel>
+                      <Input
+                        id="merchant-city"
+                        value={draft.city}
+                        onChange={(e) => setDraft({ ...draft, city: e.target.value })}
+                        placeholder="Jakarta"
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="merchant-country">Country</FieldLabel>
+                      <Input
+                        id="merchant-country"
+                        value={draft.countryCode}
+                        onChange={(e) => setDraft({ ...draft, countryCode: e.target.value })}
+                        placeholder="ID"
+                        maxLength={2}
+                        className="w-24 uppercase"
+                      />
+                      <FieldDescription>
+                        Two letters, e.g. ID. Both fields are frozen into every payment a link
+                        takes, and a payment link cannot be created without them.
+                      </FieldDescription>
+                    </Field>
+                  </Card>
+                </Tabs.Panel>
+
+                <Tabs.Panel
+                  value="history"
+                  className="flex flex-col gap-4 pt-6 focus-visible:outline-none"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    Who changed what, and when. Append-only — a redirect of your money survives the
+                    redirect itself.
+                  </p>
+                  {history.isPending ? (
+                    <PageLoader label="Loading change history" />
+                  ) : history.isError ? (
+                    <QueryError
+                      message={reasonOf(history.error)}
+                      retry={() => void history.refetch()}
+                      retrying={history.isFetching}
                     />
-                    <span className="text-muted-foreground">Paid to</span>
-                    <span className="break-all font-mono text-xs">
-                      {loaded.effectiveSettlementAddress ?? "nowhere yet"}
-                    </span>
-                    <Badge variant={loaded.canSettleOnChain ? "success" : "warning"}>
-                      {loaded.canSettleOnChain ? "Can settle on chain" : "No address"}
-                    </Badge>
-                  </div>
-                </Card>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <SectionHeader title="Profile" />
-
-                <Card className="flex flex-col gap-4 p-4">
-                  <Field>
-                    <FieldLabel htmlFor="merchant-city">City</FieldLabel>
-                    <Input
-                      id="merchant-city"
-                      value={draft.city}
-                      onChange={(e) => setDraft({ ...draft, city: e.target.value })}
-                      placeholder="Jakarta"
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel htmlFor="merchant-country">Country</FieldLabel>
-                    <Input
-                      id="merchant-country"
-                      value={draft.countryCode}
-                      onChange={(e) => setDraft({ ...draft, countryCode: e.target.value })}
-                      placeholder="ID"
-                      maxLength={2}
-                      className="w-24 uppercase"
-                    />
-                    <FieldDescription>
-                      Two letters, e.g. ID. Both fields are frozen into every payment a link takes,
-                      and a payment link cannot be created without them.
-                    </FieldDescription>
-                  </Field>
-                </Card>
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={save} disabled={update.isPending}>
-                  Save settings
-                </Button>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                <SectionHeader title="Change history" />
-                <p className="text-sm text-muted-foreground">
-                  Who changed what, and when. Append-only — a redirect of your money survives the
-                  redirect itself.
-                </p>
-                {(history.data?.changes.length ?? 0) === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nothing has been changed yet.</p>
-                ) : (
-                  <Table>
-                    <TableCaption>Settlement setting changes</TableCaption>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Field</TableHead>
-                        <TableHead>From</TableHead>
-                        <TableHead>To</TableHead>
-                        <TableHead>Changed</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(history.data?.changes ?? []).map((change) => (
-                        <TableRow key={change.id}>
-                          <TableCell className="font-mono text-xs">{change.field}</TableCell>
-                          <TableCell className="break-all font-mono text-xs text-muted-foreground">
-                            {change.previousValue ?? "—"}
-                          </TableCell>
-                          <TableCell className="break-all font-mono text-xs">
-                            {change.nextValue ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            <time dateTime={isoAttr(change.changedAt)}>
-                              {formatDateTime(change.changedAt)}
-                            </time>
-                          </TableCell>
+                  ) : (history.data?.changes.length ?? 0) === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nothing has been changed yet.</p>
+                  ) : (
+                    <Table>
+                      <TableCaption>Settlement setting changes</TableCaption>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Field</TableHead>
+                          <TableHead>From</TableHead>
+                          <TableHead>To</TableHead>
+                          <TableHead>Changed</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
+                      </TableHeader>
+                      <TableBody>
+                        {(history.data?.changes ?? []).map((change) => (
+                          <TableRow key={change.id}>
+                            <TableCell className="font-mono text-xs">{change.field}</TableCell>
+                            <TableCell className="break-all font-mono text-xs text-muted-foreground">
+                              {change.previousValue ?? "—"}
+                            </TableCell>
+                            <TableCell className="break-all font-mono text-xs">
+                              {change.nextValue ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              <time dateTime={isoAttr(change.changedAt)}>
+                                {formatDateTime(change.changedAt)}
+                              </time>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </Tabs.Panel>
+              </Tabs.Root>
+
+              {activeTab !== "history" && (
+                <div className="flex justify-end">
+                  <Button onClick={save} disabled={update.isPending}>
+                    Save settings
+                  </Button>
+                </div>
+              )}
             </>
           );
         })}

@@ -95,6 +95,7 @@
   /* Charts are single-hue by design: length carries magnitude, labels carry
      identity. One series colour is all this needs. */
   --chart-1: #1f6f54;
+  --loader-color: var(--brand);
 }
 
 /**
@@ -149,13 +150,110 @@
   --brand-foreground: #050505;
   --brand-muted: #0b2016;
 
-  --success: #31b285;
+  --success: #0eeb2e;
   --success-muted: #0b2016;
   --warning: #d9a514;
   --warning-muted: #271f04;
   --destructive-muted: #2a1113;
 
   --chart-1: #0eeb2e;
+  --loader-color: var(--electric);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mayarin-square-loader * {
+    animation-duration: 3s !important;
+  }
+}
+
+/* Sonner follows the app's explicit data-theme rather than the OS preference. */
+:root .mayarin-toaster[data-sonner-toaster] {
+  --border-radius: 0;
+  --normal-bg: var(--card);
+  --normal-border: var(--brand);
+  --normal-text: var(--brand);
+}
+
+:root .mayarin-toaster [data-sonner-toast][data-styled="true"] {
+  --toast-color: var(--brand);
+  background: var(--card);
+  border-color: var(--toast-color);
+  color: var(--toast-color);
+}
+
+:root .mayarin-toaster [data-sonner-toast][data-type="success"] {
+  --toast-color: var(--success);
+}
+
+:root .mayarin-toaster [data-sonner-toast][data-type="error"] {
+  --toast-color: var(--destructive);
+}
+
+:root .mayarin-toaster [data-sonner-toast][data-type="warning"] {
+  --toast-color: var(--warning);
+}
+
+:root .mayarin-toaster [data-sonner-toast] [data-close-button] {
+  background: var(--card);
+  border-color: var(--toast-color);
+  color: var(--toast-color);
+}
+
+:root .mayarin-toaster [data-sonner-toast] [data-close-button]:hover {
+  background: var(--card);
+  border-color: var(--toast-color);
+  color: var(--toast-color);
+}
+
+:root[data-theme="dark"] .mayarin-toaster[data-sonner-toaster] {
+  --normal-bg: var(--sidebar-border);
+  --normal-border: var(--electric);
+  --normal-text: var(--electric);
+}
+
+:root[data-theme="dark"]
+  .mayarin-toaster
+  [data-sonner-toast][data-styled="true"] {
+  --toast-color: var(--electric);
+  background: var(--sidebar-border);
+  border-color: var(--toast-color);
+  color: var(--toast-color);
+}
+
+:root[data-theme="dark"]
+  .mayarin-toaster
+  [data-sonner-toast][data-styled="true"][data-type="success"] {
+  --toast-color: var(--success);
+}
+
+:root[data-theme="dark"]
+  .mayarin-toaster
+  [data-sonner-toast][data-styled="true"][data-type="error"] {
+  --toast-color: var(--destructive);
+}
+
+:root[data-theme="dark"]
+  .mayarin-toaster
+  [data-sonner-toast][data-styled="true"][data-type="warning"] {
+  --toast-color: var(--warning);
+}
+
+:root[data-theme="dark"]
+  .mayarin-toaster
+  [data-sonner-toast]
+  [data-close-button]:hover {
+  background: var(--sidebar-border);
+  border-color: var(--toast-color);
+  color: var(--toast-color);
+}
+
+:root[data-theme="dark"]
+  .mayarin-toaster
+  [data-sonner-toast]
+  [data-close-button] {
+  background: var(--sidebar-border);
+  border-color: var(--toast-color);
+  color: var(--toast-color);
 }
 
 @theme inline {
@@ -335,6 +433,106 @@
   /* Tabular figures wherever a number is compared down a column. */
   table {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (min-width: 48rem) {
+  [data-sidebar] {
+    overflow: hidden;
+    transition: width 240ms var(--ease-out-expo);
+  }
+
+  [data-sidebar-logo],
+  [data-sidebar-section-label],
+  [data-sidebar-nav-label],
+  [data-sidebar-profile-details] {
+    transition:
+      opacity 140ms ease,
+      visibility 140ms ease;
+  }
+
+  html[data-sidebar-collapsed="true"] [data-sidebar] {
+    width: 5rem;
+  }
+
+  html[data-sidebar-collapsed="true"] [data-sidebar-header] {
+    justify-content: center;
+    padding-inline: 0.75rem;
+  }
+
+  html[data-sidebar-collapsed="true"] [data-sidebar-logo],
+  html[data-sidebar-collapsed="true"] [data-sidebar-section-label],
+  html[data-sidebar-collapsed="true"] [data-sidebar-nav-label],
+  html[data-sidebar-collapsed="true"] [data-sidebar-profile-details] {
+    position: absolute;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  html[data-sidebar-collapsed="true"] [data-sidebar-nav] {
+    align-items: center;
+    padding-inline: 1.25rem;
+  }
+
+  html[data-sidebar-collapsed="true"] [data-sidebar-section] {
+    width: 2.5rem;
+  }
+
+  html[data-sidebar-collapsed="true"] [data-sidebar-link] {
+    width: 2.5rem;
+    justify-content: center;
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  html[data-sidebar-collapsed="true"] [data-sidebar-profile] {
+    flex-direction: column;
+    padding-inline: 1.125rem;
+  }
+}
+
+@media (max-width: 47.999rem) {
+  [data-menu-close-icon] {
+    display: none;
+  }
+
+  [data-sidebar-backdrop] {
+    display: none;
+  }
+
+  [data-sidebar] {
+    transition: translate 240ms var(--ease-out-expo);
+  }
+
+  html[data-sidebar-mobile-open="true"] [data-sidebar] {
+    translate: 0 0;
+  }
+
+  html[data-sidebar-mobile-open="true"] [data-sidebar-backdrop] {
+    display: block;
+  }
+
+  html[data-sidebar-mobile-open="true"] [data-menu-open-icon] {
+    display: none;
+  }
+
+  html[data-sidebar-mobile-open="true"] [data-menu-close-icon] {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sidebar],
+  [data-sidebar-logo],
+  [data-sidebar-section-label],
+  [data-sidebar-nav-label],
+  [data-sidebar-profile-details] {
+    transition-duration: 0ms;
+  }
+
+  [data-sidebar-backdrop] {
+    transition-duration: 0ms;
   }
 }
 

@@ -86,11 +86,12 @@ function LogoutButton() {
           if (!next && !logout.isPending) setConfirming(false);
         }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
+        <AlertDialogContent className="max-w-md gap-6 p-6">
+          <AlertDialogHeader className="gap-2">
             <AlertDialogTitle>Sign out?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You will need to sign in again to see payments and settlement.
+            <AlertDialogDescription className="text-base">
+              You’ll be signed out of this dashboard on this device. Sign in again to view payments,
+              settlements, and account settings.
             </AlertDialogDescription>
           </AlertDialogHeader>
 

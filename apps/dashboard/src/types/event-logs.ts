@@ -11,6 +11,7 @@ export type EventKind = "clearing" | "settlement" | "webhook";
 export type EventSeverity = "info" | "success" | "warning" | "error";
 
 export interface MerchantEventDto {
+  readonly id: string;
   readonly kind: EventKind;
   readonly occurredAt: string;
   readonly merchantId: string;
@@ -21,4 +22,14 @@ export interface MerchantEventDto {
 
 export interface EventLogListResponse {
   readonly events: readonly MerchantEventDto[];
+  readonly nextCursor: string | null;
+}
+
+export interface EventLogListFilter {
+  readonly limit?: number;
+  readonly q?: string;
+  readonly status?: EventSeverity;
+  readonly sort?: "created" | "-created";
+  readonly from?: string;
+  readonly to?: string;
 }

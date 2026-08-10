@@ -100,6 +100,37 @@ describe("catalog routes", () => {
     expect(listed.body?.products).toHaveLength(1);
   });
 
+  test("paginates products seven at a time without duplicate rows", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        post(harness, auth, "/catalog/products", {
+          ...PRODUCT,
+          sku: `PAGE-${index}`,
+          name: `Product ${index}`,
+        }),
+      ),
+    );
+
+    const first = await get(harness, auth, "/catalog/products?limit=7");
+    expect(first.body?.products).toHaveLength(7);
+    expect(typeof first.body?.nextCursor).toBe("string");
+
+    const second = await get(
+      harness,
+      auth,
+      `/catalog/products?limit=7&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+    );
+    expect(second.body?.products).toHaveLength(1);
+    const firstIds = first.body?.products.map((product: { id: string }) => product.id) ?? [];
+    expect(firstIds).not.toContain(second.body?.products[0].id);
+    expect(second.body?.nextCursor).toBeNull();
+
+    const options = await get(harness, auth, "/catalog/products/options");
+    expect(options.body?.products).toHaveLength(8);
+  });
+
   test("a merchant id cannot be smuggled into the create body", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -174,6 +205,33 @@ describe("catalog routes", () => {
 });
 
 describe("payment link routes", () => {
+  test("paginates links seven at a time without duplicate rows", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        post(harness, auth, "/payment-links", {
+          kind: "open",
+          currency: "IDR",
+          title: `Counter ${index}`,
+        }),
+      ),
+    );
+
+    const first = await get(harness, auth, "/payment-links?limit=7");
+    expect(first.body?.paymentLinks).toHaveLength(7);
+    expect(typeof first.body?.nextCursor).toBe("string");
+    const second = await get(
+      harness,
+      auth,
+      `/payment-links?limit=7&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+    );
+    expect(second.body?.paymentLinks).toHaveLength(1);
+    const firstIds = first.body?.paymentLinks.map((link: { id: string }) => link.id) ?? [];
+    expect(firstIds).not.toContain(second.body?.paymentLinks[0].id);
+    expect(second.body?.nextCursor).toBeNull();
+  });
+
   test("a fixed link carries a hosted checkout URL on the payment API", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);

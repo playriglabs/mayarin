@@ -15,6 +15,7 @@ import type {
   CreateCustomerRequest,
   CustomerDetailResponse,
   CustomerDto,
+  CustomerListFilter,
   CustomerListResponse,
   UpdateCustomerRequest,
 } from "@/types/customers";
@@ -23,10 +24,10 @@ const CUSTOMERS_KEY = ["customers", "list"];
 const customerDetailKey = (id: string) => ["customers", "detail", id] as const;
 
 /** GET `/customers` — the merchant's own directory. */
-export function useCustomers() {
+export function useCustomers(filter: CustomerListFilter = {}) {
   return useEffectQuery<CustomerListResponse, ApiError>({
-    queryKey: CUSTOMERS_KEY,
-    query: () => customersApi.list(),
+    queryKey: [...CUSTOMERS_KEY, filter],
+    query: () => customersApi.list(filter),
   });
 }
 
@@ -41,6 +42,7 @@ export function useCustomerDetail(id: string) {
 export function useCreateCustomer() {
   return useEffectMutation<CustomerDto, CreateCustomerRequest, ApiError>({
     mutation: (body) => customersApi.create(body),
+    toast: { loading: "Creating customer…", success: "Customer created" },
     invalidate: [CUSTOMERS_KEY],
   });
 }
@@ -53,6 +55,7 @@ export interface UpdateCustomerVars {
 export function useUpdateCustomer() {
   return useEffectMutation<CustomerDto, UpdateCustomerVars, ApiError>({
     mutation: ({ id, patch }) => customersApi.update(id, patch),
+    toast: { loading: "Updating customer…", success: "Customer updated" },
     invalidate: [CUSTOMERS_KEY],
   });
 }
@@ -60,6 +63,7 @@ export function useUpdateCustomer() {
 export function useDeleteCustomer() {
   return useEffectMutation<void, string, ApiError>({
     mutation: (id) => customersApi.remove(id),
+    toast: { loading: "Deleting customer…", success: "Customer deleted" },
     invalidate: [CUSTOMERS_KEY],
   });
 }

@@ -10,15 +10,22 @@
 import type { ApiError } from "@/lib/api/client";
 import { ordersApi } from "@/lib/api/orders";
 import { useEffectQuery } from "@/lib/query";
-import type { OrderListResponse } from "@/types/orders";
+import type { OrderListFilter, OrderListResponse } from "@/types/orders";
 
 /** Terminal intent states — nothing about these rows will change again. */
 const TERMINAL_STATES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
 
 export function useOrders(limit?: number, customerId?: string) {
+  return useOrderPage({
+    ...(limit === undefined ? {} : { limit }),
+    ...(customerId === undefined ? {} : { customerId }),
+  });
+}
+
+export function useOrderPage(filter: OrderListFilter, cursor?: string) {
   return useEffectQuery<OrderListResponse, ApiError>({
-    queryKey: ["orders", "list", limit ?? null, customerId ?? null],
-    query: () => ordersApi.list(limit, customerId),
+    queryKey: ["orders", "list", filter, cursor ?? null],
+    query: () => ordersApi.list(filter, cursor),
     refetchInterval: (data) => {
       const live = (data?.orders ?? []).some((order) => !TERMINAL_STATES.includes(order.status));
       return live ? 5_000 : false;

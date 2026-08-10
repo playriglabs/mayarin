@@ -7,16 +7,17 @@ import { cn } from "@/lib/utils";
  */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div
+    <section
       data-slot="table-container"
-      className="w-full overflow-x-auto border border-border bg-card"
+      aria-label="Scrollable data table"
+      className="w-full max-w-full overscroll-x-contain overflow-x-auto border border-border bg-card"
     >
       <table
         data-slot="table"
         className={cn("w-full border-collapse text-sm", className)}
         {...props}
       />
-    </div>
+    </section>
   );
 }
 

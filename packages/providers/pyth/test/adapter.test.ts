@@ -196,6 +196,10 @@ describe("PythPriceOracle", () => {
 const USD_IDR_FEED = "6693afcd49878bbd622e46bd805e7177932cf6ab0b1c91b135d71151b9207433";
 const USD_IDR_PRICE = "1600000000";
 const USD_IDR_EXPO = -5;
+/** FX.USD/SGD at 1.28000000 Singapore dollars per US dollar. */
+const USD_SGD_FEED = "396a969a9c1480fa15ed50bc59149e2c0075a72fe8f458ed941ddec48bdb4918";
+const USD_SGD_PRICE = "128000000";
+const USD_SGD_EXPO = -8;
 
 describe("invertPythPrice", () => {
   test("takes the reciprocal into minor units of the target, exactly", () => {
@@ -260,6 +264,20 @@ describe("PythPriceOracle with an inverted feed", () => {
     // the rate. Inversion is configuration, never inference, precisely because
     // this reads correctly and is catastrophically wrong.
     expect(price.scaledRate).toBe(16_000_000_000n * RATE_SCALE);
+  });
+
+  test("serves SGD -> USDC from the USD/SGD feed", async () => {
+    const stub = stubFetch(() =>
+      json(hermesBody({ id: USD_SGD_FEED, price: USD_SGD_PRICE, expo: USD_SGD_EXPO })),
+    );
+    const pyth = oracle(stub.fn, {
+      "SGD/USDC": { id: USD_SGD_FEED, invert: true },
+    });
+
+    const usdc = await pyth.reference("SGD", "USDC");
+
+    expect(usdc.scaledRate).toBe(781_250n * RATE_SCALE);
+    expect(usdc.to).toBe("USDC");
   });
 
   test("a bare string feed still works unchanged", async () => {

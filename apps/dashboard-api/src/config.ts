@@ -43,7 +43,7 @@ const configSchema = z.object({
     .default("true")
     .transform((value) => value === "true"),
   /** Page size cap for payment listings. */
-  paymentsPageSize: z.coerce.number().int().positive().max(200).default(50),
+  paymentsPageSize: z.coerce.number().int().positive().max(200).default(7),
   /**
    * Public origin of the payment API, where hosted checkout is served (#15).
    *

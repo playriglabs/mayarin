@@ -42,6 +42,8 @@ export const updateProductBodySchema = z
   });
 
 export const listProductsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  cursor: z.string().min(1).optional(),
   active: z
     .enum(["true", "false"])
     .optional()

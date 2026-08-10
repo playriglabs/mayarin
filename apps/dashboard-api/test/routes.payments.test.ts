@@ -104,6 +104,50 @@ describe("payment routes", () => {
     expect(ids).toEqual([intentB.id]);
   });
 
+  test("search, status, sort, and cursor stay inside the caller's merchant", async () => {
+    const { harness, intentA, intentB } = await seed();
+    const second = await harness.intentService.create({
+      merchant: { id: "mch_a", name: "Warung A", city: "Jakarta", countryCode: "ID" },
+      amount: { amount: 125_000n, asset: "IDR" },
+      source: { type: "manual" },
+      merchantReference: "ORDER-437",
+    });
+    const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
+
+    const search = await harness.request(
+      "GET",
+      "/payments?q=ORDER-437&status=CREATED&sort=-amount&merchantId=mch_b",
+      { cookies: jar },
+    );
+    expect(search.status).toBe(200);
+    expect(((search.body?.payments ?? []) as Array<{ id: string }>).map((row) => row.id)).toEqual([
+      second.id,
+    ]);
+    expect(
+      ((search.body?.payments ?? []) as Array<{ id: string }>).map((row) => row.id),
+    ).not.toContain(intentB.id);
+
+    const firstPage = await harness.request("GET", "/payments?limit=1&sort=-created", {
+      cookies: jar,
+    });
+    expect(firstPage.status).toBe(200);
+    expect(((firstPage.body?.payments ?? []) as unknown[]).length).toBe(1);
+    expect(typeof firstPage.body?.nextCursor).toBe("string");
+
+    const secondPage = await harness.request(
+      "GET",
+      `/payments?limit=1&sort=-created&cursor=${encodeURIComponent(String(firstPage.body?.nextCursor))}`,
+      { cookies: jar },
+    );
+    expect(secondPage.status).toBe(200);
+    const pageIds = ((secondPage.body?.payments ?? []) as Array<{ id: string }>).map(
+      (row) => row.id,
+    );
+    expect(pageIds).toHaveLength(1);
+    expect(pageIds).toContain(intentA.id);
+    expect(pageIds).not.toContain(intentB.id);
+  });
+
   test("a cross-merchant payment detail is 404, not 403", async () => {
     const { harness, intentB } = await seed();
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");

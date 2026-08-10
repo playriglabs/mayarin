@@ -22,5 +22,6 @@ export function useAdminUsers() {
 export function useCreateUser() {
   return useEffectMutation<CreateUserResponse, CreateUserRequest, ApiError>({
     mutation: (body) => adminApi.createUser(body),
+    toast: { loading: "Creating account…", success: "Account created" },
   });
 }

@@ -13,7 +13,7 @@
  * comparison that makes it visible.
  */
 
-import type { SettlementRow } from "../services/settlement-read-service.ts";
+import type { SettlementRow, SettlementSummary } from "../services/settlement-read-service.ts";
 import { optionalMoney, toMoneyDto } from "./money.ts";
 
 export function toSettlementDto(row: SettlementRow) {
@@ -73,5 +73,16 @@ export function toSettlementDto(row: SettlementRow) {
      */
     expiresAt: intent.expiresAt.toISOString(),
     completedAt: intent.completedAt?.toISOString() ?? null,
+  };
+}
+
+export function toSettlementSummaryDto(summary: SettlementSummary) {
+  return {
+    settledCount: summary.settledCount,
+    inFlightCount: summary.inFlightCount,
+    failedCount: summary.failedCount,
+    asset: summary.asset ?? null,
+    netAmount: optionalMoney(summary.netAmount) ?? null,
+    fee: optionalMoney(summary.fee) ?? null,
   };
 }

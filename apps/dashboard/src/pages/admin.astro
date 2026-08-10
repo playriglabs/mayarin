@@ -14,8 +14,6 @@ const canManageUsers = user?.permissions.includes("users:manage") ?? false;
 <Protected title="Admin">
   <PageHeader title="Admin" description="Manage accounts in this merchant." />
 
-  <UsersTable client:load />
-
   {canManageUsers && <CreateUserForm client:load />}
   {
     !canManageUsers && (
@@ -25,4 +23,6 @@ const canManageUsers = user?.permissions.includes("users:manage") ?? false;
       </p>
     )
   }
+
+  <UsersTable client:load />
 </Protected>

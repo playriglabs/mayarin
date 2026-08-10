@@ -17,6 +17,7 @@ import type {
   PaymentLinkListResponse,
   PaymentLinkResponse,
   ProductListResponse,
+  ProductOptionsResponse,
   ProductResponse,
   QuoteRequest,
   QuoteResponse,
@@ -24,20 +25,22 @@ import type {
 } from "@/types/catalog";
 
 const PRODUCTS_KEY = ["catalog", "products"];
+const PRODUCT_OPTIONS_KEY = ["catalog", "product-options"];
 const LINKS_KEY = ["payment-links", "list"];
 
 /** GET `/catalog/products` — the caller's own products. */
-export function useProducts() {
+export function useProducts(limit?: number, cursor?: string) {
   return useEffectQuery<ProductListResponse, ApiError>({
-    queryKey: PRODUCTS_KEY,
-    query: () => catalogApi.listProducts(),
+    queryKey: [...PRODUCTS_KEY, limit ?? null, cursor ?? null],
+    query: () => catalogApi.listProducts(limit, cursor),
   });
 }
 
 export function useCreateProduct() {
   return useEffectMutation<ProductResponse, CreateProductRequest, ApiError>({
     mutation: (body) => catalogApi.createProduct(body),
-    invalidate: [PRODUCTS_KEY],
+    toast: { loading: "Creating product…", success: "Product created" },
+    invalidate: [PRODUCTS_KEY, PRODUCT_OPTIONS_KEY],
   });
 }
 
@@ -49,21 +52,30 @@ export interface UpdateProductVars {
 export function useUpdateProduct() {
   return useEffectMutation<ProductResponse, UpdateProductVars, ApiError>({
     mutation: ({ id, patch }) => catalogApi.updateProduct(id, patch),
-    invalidate: [PRODUCTS_KEY],
+    toast: { loading: "Updating product…", success: "Product updated" },
+    invalidate: [PRODUCTS_KEY, PRODUCT_OPTIONS_KEY],
   });
 }
 
 /** GET `/payment-links` — every link this merchant has minted. */
-export function usePaymentLinks() {
+export function useProductOptions() {
+  return useEffectQuery<ProductOptionsResponse, ApiError>({
+    queryKey: PRODUCT_OPTIONS_KEY,
+    query: catalogApi.productOptions,
+  });
+}
+
+export function usePaymentLinks(limit?: number, cursor?: string) {
   return useEffectQuery<PaymentLinkListResponse, ApiError>({
-    queryKey: LINKS_KEY,
-    query: () => linksApi.list(),
+    queryKey: [...LINKS_KEY, limit ?? null, cursor ?? null],
+    query: () => linksApi.list(limit, cursor),
   });
 }
 
 export function useCreateLink() {
   return useEffectMutation<PaymentLinkResponse, CreateLinkRequest, ApiError>({
     mutation: (body) => linksApi.create(body),
+    toast: { loading: "Creating payment link…", success: "Payment link created" },
     invalidate: [LINKS_KEY],
   });
 }
@@ -90,6 +102,7 @@ export function useQuoteLink() {
 export function useChargeLink() {
   return useEffectMutation<ChargeLinkResponse, ChargeLinkRequest, ApiError>({
     mutation: (body) => linksApi.charge(body),
+    toast: { loading: "Starting payment…", success: "Payment started" },
     invalidate: [["payments"]],
   });
 }
@@ -98,6 +111,7 @@ export function useChargeLink() {
 export function useDisableLink() {
   return useEffectMutation<PaymentLinkResponse, string, ApiError>({
     mutation: (id) => linksApi.disable(id),
+    toast: { loading: "Disabling payment link…", success: "Payment link disabled" },
     invalidate: [LINKS_KEY],
   });
 }

@@ -95,6 +95,8 @@ export type MerchantEventSeverity = "info" | "success" | "warning" | "error";
 export type MerchantEventKind = "clearing" | "settlement" | "webhook";
 
 export interface MerchantEventRow {
+  /** Stable source-row id used as the cursor tie-breaker. */
+  readonly id: string;
   /** Which source the row came from — drives the timeline's icon and grouping. */
   readonly kind: MerchantEventKind;
   readonly occurredAt: Date;
@@ -104,6 +106,15 @@ export interface MerchantEventRow {
   /** A one-line human label for the timeline. */
   readonly summary: string;
   readonly severity: MerchantEventSeverity;
+}
+
+export interface MerchantEventFilter {
+  readonly q?: string;
+  readonly status?: MerchantEventSeverity;
+  readonly sort?: "created" | "-created";
+  readonly from?: Date;
+  readonly to?: Date;
+  readonly cursor?: { readonly occurredAt: Date; readonly id: string };
 }
 
 /** One ledger figure that disagrees with the chain. */

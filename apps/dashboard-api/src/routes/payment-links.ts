@@ -91,11 +91,21 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
     return scope;
   };
 
+  const listQuerySchema = z.object({
+    limit: z.coerce.number().int().positive().max(200).optional(),
+    cursor: z.string().min(1).optional(),
+  });
+
   app.get("/", async (c) => {
-    const links = await container.catalog.listLinks(scopeOf(c));
+    const query = listQuerySchema.parse(c.req.query());
+    const page = await container.catalog.listLinks(scopeOf(c), {
+      ...(query.limit === undefined ? {} : { limit: query.limit }),
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+    });
     const now = new Date();
     return c.json({
-      paymentLinks: links.map((link) => toPaymentLinkDto(link, checkoutBaseUrl, now)),
+      paymentLinks: page.items.map((link) => toPaymentLinkDto(link, checkoutBaseUrl, now)),
+      nextCursor: page.nextCursor,
     });
   });
 

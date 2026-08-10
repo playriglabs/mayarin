@@ -32,9 +32,10 @@ import {
   WalletIcon,
   WebhooksLogoIcon,
 } from "@phosphor-icons/react";
-import { ICON_NAV } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import type { Permission } from "@/types/user";
+
+const SIDEBAR_ICON_SIZE = 20;
 
 interface NavItem {
   readonly href: string;
@@ -49,6 +50,11 @@ interface NavItem {
    * some accounts: every merchant seeded before it exists has none.
    */
   readonly permission?: Permission;
+}
+
+interface NavGroup {
+  readonly label: string;
+  readonly items: readonly NavItem[];
 }
 
 const PRIMARY: readonly NavItem[] = [
@@ -82,7 +88,7 @@ const DEVELOPERS: readonly NavItem[] = [
  * every hour the same weight as one they open on setup day.
  */
 const CONFIGURATION: readonly NavItem[] = [
-  { href: "/wallets", label: "Wallets", icon: WalletIcon, permission: "settings:manage" },
+  { href: "/wallets", label: "Merchant Wallets", icon: WalletIcon, permission: "settings:manage" },
   { href: "/settings", label: "Settings", icon: GearSixIcon, permission: "settings:manage" },
 ];
 
@@ -92,6 +98,12 @@ const ADMIN: NavItem = {
   icon: UsersThreeIcon,
   permission: "admin:access",
 };
+
+const NAV_GROUPS: readonly NavGroup[] = [
+  { label: "Menu", items: PRIMARY },
+  { label: "Developers", items: DEVELOPERS },
+  { label: "Tools", items: [...CONFIGURATION, ADMIN] },
+];
 
 /** `/` matches only itself; every other item matches its own subtree. */
 function isActive(href: string, pathname: string): boolean {
@@ -105,44 +117,68 @@ export default function SideNav({
   pathname: string;
   permissions: readonly Permission[];
 }) {
-  const items = [...PRIMARY, ...DEVELOPERS, ...CONFIGURATION, ADMIN].filter(
-    (item) => item.permission === undefined || permissions.includes(item.permission),
-  );
-
   return (
     <nav
       aria-label="Primary"
-      className="flex flex-row gap-0.5 overflow-x-auto p-2 md:flex-col md:overflow-x-visible"
+      data-sidebar-nav
+      className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-5 py-5"
     >
-      {items.map(({ href, label, icon: IconComponent }) => {
-        const active = isActive(href, pathname);
+      {NAV_GROUPS.map((group) => {
+        const items = group.items.filter(
+          (item) => item.permission === undefined || permissions.includes(item.permission),
+        );
+        if (items.length === 0) return null;
+
         return (
-          <a
-            key={href}
-            href={href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              // 8px padding — the navigation rule. Sharp, like everything else.
-              "relative flex shrink-0 items-center gap-2 p-2 text-sm",
-              active
-                ? "bg-sidebar-accent font-medium text-sidebar-foreground"
-                : "font-normal text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
-            )}
+          <section
+            key={group.label}
+            aria-labelledby={`nav-${group.label.toLowerCase()}`}
+            data-sidebar-section
+            className="block border-sidebar-border border-b py-3 first:pt-0 last:border-b-0 last:pb-0"
           >
-            {active && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-y-0 left-0 w-0.5 bg-electric max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:h-0.5 max-md:w-auto"
-              />
-            )}
-            <IconComponent
-              size={ICON_NAV}
-              weight={active ? "fill" : "regular"}
-              aria-hidden="true"
-              className={active ? "text-electric" : "text-sidebar-muted-foreground"}
-            />
-            {label}
-          </a>
+            <h2
+              id={`nav-${group.label.toLowerCase()}`}
+              data-sidebar-section-label
+              className="mb-2 block text-xs font-medium tracking-[0.08em] text-sidebar-muted-foreground/60 uppercase"
+            >
+              {group.label}
+            </h2>
+
+            <div className="flex flex-col gap-0.5">
+              {items.map(({ href, label, icon: IconComponent }) => {
+                const active = isActive(href, pathname);
+                return (
+                  <a
+                    key={href}
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    data-sidebar-link
+                    title={label}
+                    className={cn(
+                      "relative flex min-h-10 shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-base transition-colors duration-200",
+                      active
+                        ? "bg-sidebar-accent font-medium text-sidebar-foreground"
+                        : "font-normal text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                    )}
+                  >
+                    {active && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-electric"
+                      />
+                    )}
+                    <IconComponent
+                      size={SIDEBAR_ICON_SIZE}
+                      weight={active ? "fill" : "regular"}
+                      aria-hidden="true"
+                      className={active ? "text-electric" : "text-sidebar-muted-foreground"}
+                    />
+                    <span data-sidebar-nav-label>{label}</span>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
         );
       })}
     </nav>

@@ -5,6 +5,7 @@ export {
   type WebhookDispatcherOptions,
 } from "./dispatcher.ts";
 export {
+  type ListWebhookDeliveriesOptions,
   replayed,
   type WebhookCursorRepository,
   type WebhookDeliveryRepository,

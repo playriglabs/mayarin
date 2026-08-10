@@ -17,7 +17,7 @@ function PageHeader({
     // hangs from it, which is what makes the pages read as one ledger.
     <header
       className={cn(
-        "flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5",
+        "flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5 mb-4",
         className,
       )}
       {...props}

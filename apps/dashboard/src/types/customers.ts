@@ -23,6 +23,14 @@ export interface CustomerListResponse {
   readonly customers: readonly CustomerDto[];
 }
 
+export interface CustomerListFilter {
+  readonly limit?: number;
+  readonly q?: string;
+  readonly sort?: "created" | "-created";
+  readonly from?: string;
+  readonly to?: string;
+}
+
 export interface CustomerDetailResponse {
   readonly customer: CustomerDto;
   /** Completed order volume, in the currency of the first completed order. */

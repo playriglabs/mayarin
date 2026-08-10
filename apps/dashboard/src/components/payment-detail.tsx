@@ -7,18 +7,21 @@
  * filled with dashes, because "not started" and "zero" are different facts.
  */
 
-import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ArrowSquareOutIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { match } from "ts-pattern";
+import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { DepositQr } from "@/components/deposit-qr";
 import PaymentTimeline from "@/components/payment-timeline";
-import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/page-loader";
+import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
-import { PanelSkeleton, Skeleton } from "@/components/ui/skeleton";
-import { usePayment } from "@/hooks/payments";
+import { useDeposit, usePayment } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
+import { transactionExplorerUrl } from "@/lib/chain-explorer";
 import { intentStatusLabel, labelOf, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { withQuery } from "@/lib/with-query";
@@ -51,6 +54,7 @@ const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
 
 function PaymentDetail({ id }: { id: string }) {
   const payment = usePayment(id);
+  const deposit = useDeposit(id);
 
   return (
     <section className="flex flex-col gap-6">
@@ -64,33 +68,48 @@ function PaymentDetail({ id }: { id: string }) {
 
       {match(payment)
         .with({ status: "pending" }, () => (
-          <div role="status" aria-live="polite" className="flex flex-col gap-6">
-            <span className="sr-only">Loading payment</span>
-            <Skeleton aria-hidden="true" className="h-10 w-2/3" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <PanelSkeleton lines={7} />
-              <PanelSkeleton lines={7} />
-            </div>
-            <PanelSkeleton lines={3} />
-          </div>
+          <PageLoader label="Loading payment" className="min-h-128" />
         ))
         .with({ status: "error" }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void payment.refetch()}
+            retrying={payment.isFetching}
+          />
         ))
         .with({ status: "success" }, ({ data }) => {
           const { paymentIntent: intent, clearing, timeline } = data;
+          const payerDeposit = deposit.data?.deposit;
+          const explorerUrl =
+            clearing?.transactionHash == null || intent.payment === null
+              ? undefined
+              : transactionExplorerUrl(intent.payment.chain, clearing.transactionHash);
+
           return (
             <div className="flex flex-col gap-6">
               <header className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-1">
-                  <h1 className="truncate font-mono text-2xl font-medium text-foreground">
+                  <h1 className="truncate font-mono text-[18px] md:text-2xl font-medium text-foreground">
                     {intent.id}
                   </h1>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground mt-2">
                     {intent.merchant.name} · {intent.merchant.city}
                   </p>
                 </div>
-                <Badge variant={toneOf(intent.status)}>{intentStatusLabel(intent.status)}</Badge>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {explorerUrl !== undefined && (
+                    <a
+                      href={explorerUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className={buttonVariants({ variant: "secondary" })}
+                    >
+                      View on blockchain
+                      <ArrowSquareOutIcon size={14} aria-hidden="true" />
+                    </a>
+                  )}
+                  <Badge variant={toneOf(intent.status)}>{intentStatusLabel(intent.status)}</Badge>
+                </div>
               </header>
 
               {/* The code the payer scans, while there is still a payment to
@@ -100,7 +119,7 @@ function PaymentDetail({ id }: { id: string }) {
               {!TERMINAL_STATUSES.includes(intent.status) && (
                 <section className="flex flex-col gap-3">
                   <SectionHeader title="Payment code" />
-                  <Card className="items-center">
+                  <Card>
                     <DepositQr paymentIntentId={intent.id} />
                   </Card>
                 </section>
@@ -109,16 +128,21 @@ function PaymentDetail({ id }: { id: string }) {
               <div className="grid gap-8 md:grid-cols-2 md:gap-4">
                 <section className="flex flex-col gap-3">
                   <SectionHeader title="Payment intent" />
-                  <Card>
+                  <Card className="flex-1">
                     <dl className="flex flex-col">
-                      <Row label="Amount">{intent.amount.formatted}</Row>
-                      <Row label="Settles in">{intent.settlementAsset}</Row>
+                      <Row label="Customer amount">{intent.amount.display}</Row>
+                      <Row label="Settles in">
+                        <AssetLabel symbol={intent.settlementAsset} size={18} />
+                      </Row>
                       <Row label="Provider">{intent.provider}</Row>
                       <Row label="Payer rail">
                         {intent.payment === null ? (
                           <span className="text-subtle-foreground">Not selected</span>
                         ) : (
-                          `${intent.payment.asset} on ${intent.payment.chain}`
+                          <span className="inline-flex items-center gap-1.5">
+                            <AssetLabel symbol={intent.payment.asset} size={18} />
+                            <span>on {intent.payment.chain}</span>
+                          </span>
                         )}
                       </Row>
                       <Row label="Source">
@@ -141,25 +165,64 @@ function PaymentDetail({ id }: { id: string }) {
                 {clearing !== null && (
                   <section className="flex flex-col gap-3">
                     <SectionHeader title="Clearing" />
-                    <Card>
+                    <Card className="flex-1">
                       <dl className="flex flex-col">
                         <Row label="State">
                           <Badge variant={toneOf(clearing.state)}>{labelOf(clearing.state)}</Badge>
                         </Row>
-                        <Row label="Source amount">{clearing.sourceAmount.formatted}</Row>
+                        <Row label="Priced amount">{clearing.sourceAmount.display}</Row>
+                        <Row label="Payer sends">
+                          {deposit.isPending ? (
+                            <span className="text-subtle-foreground">Loading…</span>
+                          ) : payerDeposit == null ? (
+                            <span className="text-subtle-foreground">—</span>
+                          ) : (
+                            <AssetAmount
+                              asset={payerDeposit.asset}
+                              display={payerDeposit.amount.display}
+                            />
+                          )}
+                        </Row>
+                        <Row label="Received">
+                          {deposit.isPending ? (
+                            <span className="text-subtle-foreground">Loading…</span>
+                          ) : payerDeposit == null ? (
+                            <span className="text-subtle-foreground">—</span>
+                          ) : (
+                            <AssetAmount
+                              asset={payerDeposit.asset}
+                              display={payerDeposit.received.display}
+                            />
+                          )}
+                        </Row>
                         <Row label="Settlement">
-                          {clearing.settlementAmount?.formatted ?? (
+                          {clearing.settlementAmount === null ? (
                             <span className="text-subtle-foreground">Not priced yet</span>
+                          ) : (
+                            <AssetAmount
+                              asset={clearing.settlementAmount.asset}
+                              display={clearing.settlementAmount.display}
+                            />
                           )}
                         </Row>
                         <Row label="Fee">
-                          {clearing.fee?.formatted ?? (
+                          {clearing.fee === null ? (
                             <span className="text-subtle-foreground">—</span>
+                          ) : (
+                            <AssetAmount
+                              asset={clearing.fee.asset}
+                              display={clearing.fee.display}
+                            />
                           )}
                         </Row>
                         <Row label="Net to merchant">
-                          {clearing.netAmount?.formatted ?? (
+                          {clearing.netAmount === null ? (
                             <span className="text-subtle-foreground">—</span>
+                          ) : (
+                            <AssetAmount
+                              asset={clearing.netAmount.asset}
+                              display={clearing.netAmount.display}
+                            />
                           )}
                         </Row>
                         <Row label="Locked rate">

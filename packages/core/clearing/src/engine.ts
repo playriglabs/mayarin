@@ -366,7 +366,8 @@ export class ClearingEngine {
         if (!canTransition(current.state, "FAILED")) throw error;
         const reason = error instanceof Error ? error.message : String(error);
         const code = isMayarinError(error) ? error.code : "CLEARING_FAILED";
-        return { transaction: await this.#fail(current, reason, code), waiting: false };
+        const details = isMayarinError(error) ? error.details : {};
+        return { transaction: await this.#fail(current, reason, code, details), waiting: false };
       }
 
       if (stepped === null) return { transaction: current, waiting: true };
@@ -635,6 +636,12 @@ export class ClearingEngine {
       chain: rail.chain,
       // The payer has no address on this path; excess is Mayarin's.
       payerAddress: treasury,
+      // Price freshness and execution availability are different clocks. A
+      // scanning or custodial payer may fund until the intent expires, and the
+      // watcher still needs confirmation/indexing time after that.
+      orderExpiresAt: new Date(
+        intent.expiresAt.getTime() + this.#contractExpiryGraceSeconds * 1_000,
+      ),
     });
 
     const netAmount = subtract(lock.settlementAmount, lock.fee);
@@ -649,10 +656,15 @@ export class ClearingEngine {
       );
     }
 
-    if (!isPositive(lock.payerEstimate)) {
+    // The planner prices at the asset's native precision. A payer-facing
+    // deposit must use the registry's payable precision instead, and must
+    // round up so the displayed/encoded amount can never underfund the lock.
+    const payerAmount = roundUpToPayerPrecision(lock.payerEstimate);
+
+    if (!isPositive(payerAmount)) {
       throw new ValidationError("Deposit amount must be greater than zero", {
-        amount: lock.payerEstimate.amount.toString(),
-        asset: lock.payerEstimate.asset,
+        amount: payerAmount.amount.toString(),
+        asset: payerAmount.asset,
       });
     }
 
@@ -670,7 +682,7 @@ export class ClearingEngine {
       chain: rail.chain,
       address: allocated.address,
       // What the payer must send. Grossed, so a normal fill clears `minOut`.
-      amount: lock.payerEstimate,
+      amount: payerAmount,
       rate: lock.rate,
     };
 
@@ -687,7 +699,7 @@ export class ClearingEngine {
           deposit,
           contract: {
             order: lock.order,
-            payerEstimate: lock.payerEstimate,
+            payerEstimate: payerAmount,
             expiresAt: lock.expiresAt,
           },
         },
@@ -1072,9 +1084,10 @@ export class ClearingEngine {
     transaction: ClearingTransaction,
     reason: string,
     code: string,
+    details: Readonly<Record<string, unknown>> = {},
   ): Promise<ClearingTransaction> {
     const failed = await this.#apply(
-      failTransaction(transaction, { reason, code, at: this.#clock.now() }),
+      failTransaction(transaction, { reason, code, at: this.#clock.now() }, details),
     );
 
     const intent = await this.#intents.getById(transaction.paymentIntentId);

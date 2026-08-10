@@ -8,6 +8,7 @@
 
 import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Effect } from "effect";
+import { toast } from "sonner";
 import { runEffect } from "./run";
 
 export const queryClient = new QueryClient({
@@ -56,6 +57,11 @@ export function useEffectQuery<T, E>(options: EffectQueryOptions<T, E>) {
 
 export interface EffectMutationOptions<T, V, E> {
   readonly mutation: (vars: V) => Effect.Effect<T, E>;
+  /** User-facing lifecycle copy. Omit for mutations, such as auth, that use inline feedback. */
+  readonly toast?: {
+    readonly loading: string;
+    readonly success: string;
+  };
   /**
    * Query keys to invalidate after a success.
    *
@@ -72,13 +78,25 @@ export function useEffectMutation<T, V, E>(options: EffectMutationOptions<T, V, 
   const invalidate = options.invalidate;
 
   return useMutation({
-    mutationFn: (vars: V) => runEffect(options.mutation(vars)),
-    ...(invalidate === undefined
-      ? {}
-      : {
-          onSuccess: async () => {
-            await Promise.all(invalidate.map((queryKey) => client.invalidateQueries({ queryKey })));
-          },
-        }),
+    mutationFn: (vars: V) => {
+      const promise = runEffect(options.mutation(vars)).then(async (result) => {
+        if (invalidate !== undefined) {
+          await Promise.all(invalidate.map((queryKey) => client.invalidateQueries({ queryKey })));
+        }
+        return result;
+      });
+      const feedback = options.toast;
+
+      if (feedback === undefined) return promise;
+
+      return toast
+        .promise(promise, {
+          loading: feedback.loading,
+          success: feedback.success,
+          error: (error: unknown) =>
+            error instanceof Error ? error.message : "Something went wrong. Please try again.",
+        })
+        .unwrap();
+    },
   });
 }

@@ -38,6 +38,14 @@ export interface CreateCustomerInput {
   readonly notes?: string;
 }
 
+export interface CustomerListFilter {
+  readonly limit?: number;
+  readonly q?: string;
+  readonly sort?: "created" | "-created";
+  readonly from?: Date;
+  readonly to?: Date;
+}
+
 export type UpdateCustomerInput = Parameters<typeof updateCustomer>[1];
 
 export interface CustomerDetail {
@@ -59,10 +67,14 @@ export class CustomerService {
     this.#pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
   }
 
-  async list(scope: Scope, limit?: number): Promise<readonly Customer[]> {
+  async list(scope: Scope, filter: CustomerListFilter = {}): Promise<readonly Customer[]> {
     return this.#customers.listByMerchant({
       merchantId: scope.merchantId,
-      limit: Math.min(limit ?? this.#pageSize, this.#pageSize),
+      limit: Math.min(filter.limit ?? this.#pageSize, this.#pageSize),
+      ...(filter.q === undefined ? {} : { q: filter.q }),
+      ...(filter.sort === undefined ? {} : { sort: filter.sort }),
+      ...(filter.from === undefined ? {} : { from: filter.from }),
+      ...(filter.to === undefined ? {} : { to: filter.to }),
     });
   }
 

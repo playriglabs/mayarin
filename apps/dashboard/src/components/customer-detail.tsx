@@ -10,10 +10,17 @@
 
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
-import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatGridSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { Stat, StatGrid } from "@/components/ui/stat";
@@ -61,11 +68,15 @@ function CustomerDetail({ id }: { id: string }) {
         .with({ isPending: true }, () => (
           <>
             <StatGridSkeleton />
-            <TableSkeleton rows={3} />
+            <TableSkeleton rows={7} />
           </>
         ))
         .with({ isError: true }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void detail.refetch()}
+            retrying={detail.isFetching}
+          />
         ))
         .otherwise(() => {
           const data = detail.data;
@@ -123,6 +134,14 @@ function CustomerDetail({ id }: { id: string }) {
                       <ArrowLeftIcon size={ICON_CARD} aria-hidden="true" />
                     </EmptyMedia>
                     <EmptyTitle>No orders for this customer yet.</EmptyTitle>
+                    <EmptyDescription>
+                      Start a payment and attach this customer to see their order history here.
+                    </EmptyDescription>
+                    <EmptyAction>
+                      <a href="/links" className={buttonVariants()}>
+                        Take a payment
+                      </a>
+                    </EmptyAction>
                   </Empty>
                 ) : (
                   <Table>

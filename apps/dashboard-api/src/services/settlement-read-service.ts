@@ -16,6 +16,7 @@
 import type { SettlementEvent, SettlementEventRepository } from "@mayarin/chain";
 import type { ClearingTransaction } from "@mayarin/clearing";
 import type { PaymentIntent } from "@mayarin/payment-intent";
+import type { Money } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
 import type { PaymentReadService } from "./payment-read-service.ts";
 
@@ -41,6 +42,21 @@ export interface SettlementRow {
   readonly transaction: ClearingTransaction;
   /** Present only on the contract path, and only once the indexer has read the log. */
   readonly event: SettlementEvent | undefined;
+}
+
+export interface SettlementSummary {
+  readonly settledCount: number;
+  readonly inFlightCount: number;
+  readonly failedCount: number;
+  readonly asset: string | undefined;
+  readonly netAmount: Money | undefined;
+  readonly fee: Money | undefined;
+}
+
+export interface SettlementList {
+  readonly rows: readonly SettlementRow[];
+  readonly summary: SettlementSummary;
+  readonly nextCursor: string | null;
 }
 
 /**
@@ -84,7 +100,29 @@ export class SettlementReadService {
    * a payment that has not got there.
    */
   async list(scope: Scope, limit?: number): Promise<readonly SettlementRow[]> {
-    const intents = await this.#payments.list(scope, limit);
+    const { items: intents } = await this.#payments.list(scope, {
+      ...(limit === undefined ? {} : { limit }),
+    });
+    return this.#rows(intents);
+  }
+
+  async listWithSummary(scope: Scope, limit?: number, cursor?: string): Promise<SettlementList> {
+    const [page, allIntents] = await Promise.all([
+      this.#payments.list(scope, {
+        ...(limit === undefined ? {} : { limit }),
+        ...(cursor === undefined ? {} : { cursor }),
+      }),
+      this.#payments.listAll(scope),
+    ]);
+    const [rows, allRows] = await Promise.all([this.#rows(page.items), this.#rows(allIntents)]);
+    return { rows, summary: summarize(allRows), nextCursor: page.nextCursor };
+  }
+
+  async listAll(scope: Scope): Promise<readonly SettlementRow[]> {
+    return this.#rows(await this.#payments.listAll(scope));
+  }
+
+  async #rows(intents: readonly PaymentIntent[]): Promise<readonly SettlementRow[]> {
     if (intents.length === 0) return [];
 
     const transactions = await this.#clearing.listByPaymentIntentIds(
@@ -119,4 +157,40 @@ export class SettlementReadService {
     }
     return rows;
   }
+}
+
+function isPaid(row: SettlementRow): boolean {
+  return row.transaction.state === "SUCCESS" || row.transaction.state === "SETTLED";
+}
+
+function summarize(rows: readonly SettlementRow[]): SettlementSummary {
+  const paid = rows.filter(isPaid);
+  const assetCounts = paid.reduce<ReadonlyMap<Money["asset"], number>>((counts, row) => {
+    const asset = row.transaction.netAmount?.asset;
+    if (asset === undefined) return counts;
+    const next = new Map(counts);
+    next.set(asset, (next.get(asset) ?? 0) + 1);
+    return next;
+  }, new Map<Money["asset"], number>());
+  const asset = [...assetCounts].sort(
+    ([leftAsset, leftCount], [rightAsset, rightCount]) =>
+      rightCount - leftCount || leftAsset.localeCompare(rightAsset),
+  )[0]?.[0];
+  const inAsset = <T extends Money | undefined>(value: T): value is T & Money =>
+    value !== undefined && value.asset === asset;
+  const nets = paid.map((row) => row.transaction.netAmount).filter(inAsset);
+  const fees = paid.map((row) => row.transaction.fee).filter(inAsset);
+  const total = (values: readonly Money[]): Money | undefined =>
+    asset === undefined
+      ? undefined
+      : { asset, amount: values.reduce((sum, value) => sum + value.amount, 0n) };
+
+  return {
+    settledCount: paid.length,
+    inFlightCount: rows.filter((row) => !isPaid(row) && row.transaction.state !== "FAILED").length,
+    failedCount: rows.filter((row) => row.transaction.state === "FAILED").length,
+    asset,
+    netAmount: total(nets),
+    fee: total(fees),
+  };
 }

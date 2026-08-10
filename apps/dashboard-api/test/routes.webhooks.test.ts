@@ -214,6 +214,37 @@ describe("deliveries", () => {
     });
     expect(status).toBe(403);
   });
+
+  test("filters and paginates deliveries with opaque cursors", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const now = harness.clock.now();
+    await seedDelivery(harness, harness.merchantId, {
+      id: "whd_keep_1",
+      eventId: "evt_keep_1",
+      endpointId: "whe_keep_1",
+      createdAt: new Date(now.getTime() - 1_000),
+    });
+    await seedDelivery(harness, harness.merchantId, {
+      id: "whd_keep_2",
+      eventId: "evt_keep_2",
+      endpointId: "whe_keep_2",
+    });
+
+    const first = await harness.request("GET", "/webhooks/deliveries?q=keep&status=DEAD&limit=1", {
+      cookies: auth.jar,
+    });
+    expect(first.body?.deliveries).toHaveLength(1);
+    expect(typeof first.body?.nextCursor).toBe("string");
+
+    const second = await harness.request(
+      "GET",
+      `/webhooks/deliveries?q=keep&status=DEAD&limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+      { cookies: auth.jar },
+    );
+    expect(second.body?.deliveries).toHaveLength(1);
+    expect(second.body?.deliveries[0].id).not.toBe(first.body?.deliveries[0].id);
+  });
 });
 
 describe("cross-tenant isolation", () => {

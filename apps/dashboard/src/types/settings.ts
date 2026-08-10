@@ -147,6 +147,16 @@ export interface WebhookDeliveryDto {
 
 export interface WebhookDeliveryListResponse {
   readonly deliveries: readonly WebhookDeliveryDto[];
+  readonly nextCursor: string | null;
+}
+
+export interface WebhookDeliveryListFilter {
+  readonly limit?: number;
+  readonly q?: string;
+  readonly status?: "PENDING" | "DELIVERED" | "DEAD";
+  readonly sort?: "created" | "-created";
+  readonly from?: string;
+  readonly to?: string;
 }
 
 export interface WebhookDeliveryResponse {

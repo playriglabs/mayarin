@@ -24,6 +24,7 @@ export interface ProductDto {
 
 export interface ProductListResponse {
   readonly products: readonly ProductDto[];
+  readonly nextCursor: string | null;
 }
 
 export interface ProductResponse {
@@ -85,6 +86,11 @@ export interface PaymentLinkDto {
 
 export interface PaymentLinkListResponse {
   readonly paymentLinks: readonly PaymentLinkDto[];
+  readonly nextCursor: string | null;
+}
+
+export interface ProductOptionsResponse {
+  readonly products: readonly ProductDto[];
 }
 
 export interface PaymentLinkResponse {

@@ -29,6 +29,7 @@ import { type AssetCode, ConfigurationError, money, ProviderError } from "@mayar
 import {
   type Account,
   type Address,
+  decodeErrorResult,
   decodeEventLog,
   encodeFunctionData,
   getAddress,
@@ -439,10 +440,13 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     const gasCost = money(receipt.gasUsed * receipt.effectiveGasPrice, "ETH");
 
     if (receipt.status !== "success") {
-      // Retryable: the router hard-reverts on a `minOut` miss without moving
-      // funds, and a stale route looks the same. The executor decides whether
-      // another attempt is worth it, and bounds how many.
-      throw new ProviderError(`Transaction ${hash} reverted`, { hash, to }, { retryable: true });
+      throw await this.#revertedTransaction({
+        hash,
+        to,
+        data,
+        value,
+        blockNumber: receipt.blockNumber,
+      });
     }
 
     if (measure === undefined) {
@@ -454,6 +458,47 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       output: this.#outputFrom(receipt.logs, measure.paymentRouter, measure.settlementAsset),
       gasCost,
     };
+  }
+
+  /** Replays a reverted call to recover the router's custom-error selector. */
+  async #revertedTransaction(request: {
+    readonly hash: Hex;
+    readonly to: Address;
+    readonly data: Hex;
+    readonly value: bigint;
+    readonly blockNumber: bigint;
+  }): Promise<ProviderError> {
+    try {
+      await this.#options.publicClient.call({
+        account: this.#options.account,
+        to: request.to,
+        data: request.data,
+        value: request.value,
+        blockNumber: request.blockNumber,
+      });
+    } catch (error) {
+      const data = errorData(error);
+      if (data !== undefined) {
+        try {
+          const decoded = decodeErrorResult({ abi: paymentRouterAbi, data });
+          const retryable = !TERMINAL_ROUTER_ERRORS.has(decoded.errorName);
+          return new ProviderError(
+            `Transaction ${request.hash} reverted with ${decoded.errorName}`,
+            { hash: request.hash, to: request.to, revert: decoded.errorName },
+            { cause: error, retryable },
+          );
+        } catch {
+          // The revert may belong to Permit2, a token or the swap router. Keep
+          // the existing bounded-retry behaviour when it is not our selector.
+        }
+      }
+    }
+
+    return new ProviderError(
+      `Transaction ${request.hash} reverted with an unknown reason`,
+      { hash: request.hash, to: request.to },
+      { retryable: true },
+    );
   }
 
   /**
@@ -531,6 +576,21 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       token,
     });
   }
+}
+
+const TERMINAL_ROUTER_ERRORS: ReadonlySet<string> = new Set([
+  "AlreadyConsumed",
+  "ExpiredOrder",
+  "InvalidSigner",
+]);
+
+function errorData(error: unknown): Hex | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+
+  const data = (error as { data?: unknown }).data;
+  if (typeof data === "string" && /^0x[0-9a-fA-F]+$/.test(data)) return data as Hex;
+
+  return errorData((error as { cause?: unknown }).cause);
 }
 
 function requireRoute<T>(route: T | undefined): T {

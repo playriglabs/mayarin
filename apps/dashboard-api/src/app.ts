@@ -17,6 +17,7 @@ import { requirePermission } from "./middleware/require-permission.ts";
 import { sessionMiddleware } from "./middleware/session.ts";
 import type { AuthVars } from "./middleware/types.ts";
 import { adminRoutes } from "./routes/admin.ts";
+import { analyticsRoutes } from "./routes/analytics.ts";
 import { apiKeyRoutes } from "./routes/api-keys.ts";
 import { auditRoutes } from "./routes/audit.ts";
 import { authRoutes } from "./routes/auth.ts";
@@ -54,6 +55,9 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // Authenticated merchant reads (own merchant only — no cross-merchant view).
   app.use("/payments/*", requireAuth(), requirePermission("payments:read"));
   app.route("/payments", paymentRoutes(container));
+
+  app.use("/analytics", requireAuth(), requirePermission("payments:read"));
+  app.route("/analytics", analyticsRoutes(container));
 
   // The compliance audit trail (#16). Same permission as payments: it is a
   // deeper view of the same records, not a wider one.

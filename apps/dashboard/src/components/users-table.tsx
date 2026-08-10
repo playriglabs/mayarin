@@ -10,10 +10,17 @@
 
 import { UsersThreeIcon } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
-import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PermissionBadges } from "@/components/permission-badges";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { PageLoader } from "@/components/ui/page-loader";
+import { QueryError } from "@/components/ui/query-error";
 import {
   Table,
   TableBody,
@@ -26,7 +33,7 @@ import { useAdminUsers } from "@/hooks/admin";
 import { ApiError } from "@/lib/api/client";
 import { ICON_CARD } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
-import { PERMISSION_LABELS, type UserDto } from "@/types/user";
+import type { UserDto } from "@/types/user";
 
 function reasonOf(error: unknown): string {
   return match(error)
@@ -44,16 +51,13 @@ function UsersTable() {
     <section className="flex flex-col gap-3">
       <h2 className="text-sm font-medium text-foreground">Accounts in this merchant</h2>
       {match(users)
-        .with({ status: "pending" }, () => (
-          <div role="status" aria-live="polite" className="flex flex-col gap-2">
-            <span className="sr-only">Loading accounts</span>
-            <Skeleton aria-hidden="true" />
-            <Skeleton aria-hidden="true" />
-            <Skeleton aria-hidden="true" />
-          </div>
-        ))
+        .with({ status: "pending" }, () => <PageLoader label="Loading accounts" />)
         .with({ status: "error" }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void users.refetch()}
+            retrying={users.isFetching}
+          />
         ))
         .with({ status: "success" }, ({ data }) =>
           data.users.length === 0 ? (
@@ -62,6 +66,14 @@ function UsersTable() {
                 <UsersThreeIcon size={ICON_CARD} aria-hidden="true" />
               </EmptyMedia>
               <EmptyTitle>No accounts yet.</EmptyTitle>
+              <EmptyDescription>
+                Grant access to the first member of this merchant.
+              </EmptyDescription>
+              <EmptyAction>
+                <Button onClick={() => window.dispatchEvent(new Event("mayarin:grant-account"))}>
+                  Grant an account
+                </Button>
+              </EmptyAction>
             </Empty>
           ) : (
             <Table>
@@ -77,11 +89,7 @@ function UsersTable() {
                   <TableRow key={u.id}>
                     <TableCell>{u.email}</TableCell>
                     <TableCell>
-                      <span className="flex flex-wrap gap-1">
-                        {u.permissions.map((p) => (
-                          <Badge key={p}>{PERMISSION_LABELS[p]}</Badge>
-                        ))}
-                      </span>
+                      <PermissionBadges permissions={u.permissions} />
                     </TableCell>
                     <TableCell className="text-muted-foreground font-mono text-xs">
                       {u.merchantId}

@@ -30,9 +30,13 @@ export function catalogRoutes(container: Container): Hono<{ Variables: AuthVars 
   };
 
   app.get("/products", async (c) => {
-    const { active } = listProductsQuerySchema.parse(c.req.query());
-    const products = await container.catalog.listProducts(scopeOf(c), active);
-    return c.json({ products: products.map(toProductDto) });
+    const query = listProductsQuerySchema.parse(c.req.query());
+    const page = await container.catalog.listProducts(scopeOf(c), {
+      ...(query.limit === undefined ? {} : { limit: query.limit }),
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+      ...(query.active === undefined ? {} : { active: query.active }),
+    });
+    return c.json({ products: page.items.map(toProductDto), nextCursor: page.nextCursor });
   });
 
   app.post("/products", csrfMiddleware(), async (c) => {
@@ -45,6 +49,11 @@ export function catalogRoutes(container: Container): Hono<{ Variables: AuthVars 
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
     });
     return c.json({ product: toProductDto(product) }, 201);
+  });
+
+  app.get("/products/options", async (c) => {
+    const products = await container.catalog.listProductOptions(scopeOf(c));
+    return c.json({ products: products.map(toProductDto) });
   });
 
   app.get("/products/:id", async (c) => {

@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CursorPagination } from "@/components/ui/cursor-pagination";
 import {
   Dialog,
   DialogClose,
@@ -41,10 +42,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { QueryError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -64,17 +72,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCreateProduct, useProducts, useUpdateProduct } from "@/hooks/catalog";
+import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
-import { isValidAmount, PRICING_CURRENCIES, symbolOf } from "@/lib/pricing";
+import { PAGE_SIZE } from "@/lib/pagination";
+import { currencyLabel, isValidAmount, PRICING_CURRENCIES, symbolOf } from "@/lib/pricing";
 import { withQuery } from "@/lib/with-query";
 import type { DecimalMoneyRequest, ProductDto } from "@/types/catalog";
 import type { MoneyDto } from "@/types/payment";
 
 const CURRENCY_OPTIONS: readonly SelectOption[] = PRICING_CURRENCIES.map((code) => ({
   value: code,
-  label: code,
+  label: currencyLabel(code),
 }));
 
 /** Editing an existing product, or creating one. */
@@ -139,7 +149,8 @@ function mergePrice(
 }
 
 function Catalog() {
-  const products = useProducts();
+  const pagination = useCursorPagination();
+  const products = useProducts(PAGE_SIZE, pagination.cursor);
   const create = useCreateProduct();
   const update = useUpdateProduct();
 
@@ -210,7 +221,7 @@ function Catalog() {
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-xs text-subtle-foreground">
-          {rows.length} product{rows.length === 1 ? "" : "s"}
+          {rows.length} product{rows.length === 1 ? "" : "s"} on this page
         </p>
         <Button onClick={() => open({ mode: "create" })}>
           <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
@@ -226,9 +237,13 @@ function Catalog() {
       {failure !== "" && editing === null && <Alert variant="destructive">{failure}</Alert>}
 
       {match(products)
-        .with({ isPending: true }, () => <TableSkeleton rows={4} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void products.refetch()}
+            retrying={products.isFetching}
+          />
         ))
         .otherwise(() =>
           rows.length === 0 ? (
@@ -237,69 +252,89 @@ function Catalog() {
                 <PackageIcon size={ICON_CARD} aria-hidden="true" />
               </EmptyMedia>
               <EmptyTitle>No products yet.</EmptyTitle>
+              <EmptyDescription>
+                Add an item before creating a catalog payment link.
+              </EmptyDescription>
+              <EmptyAction>
+                <Button onClick={() => open({ mode: "create" })}>
+                  <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                  Create your first product
+                </Button>
+              </EmptyAction>
             </Empty>
           ) : (
-            <Table>
-              <TableCaption>Products in this catalog</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Updated</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>{p.name}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {p.sku}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {/* One line per priced currency: a product priced in two
-                          currencies has two prices, not an average. */}
-                      <span className="flex flex-col items-end">
-                        {p.prices.map((price) => (
-                          <span key={price.asset}>{price.display}</span>
-                        ))}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={p.active ? "success" : "default"}>
-                        {p.active ? "Active" : "Archived"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      <time dateTime={isoAttr(p.updatedAt)}>{formatDateTime(p.updatedAt)}</time>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => open({ mode: "edit", product: p })}
-                          aria-label={`Edit ${p.name}`}
-                        >
-                          <PencilSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setPendingArchive(p)}
-                          disabled={!p.active}
-                          aria-label={`Archive ${p.name}`}
-                        >
-                          <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                        </Button>
-                      </span>
-                    </TableCell>
+            <div className="flex flex-col gap-3">
+              <Table>
+                <TableCaption>Products in this catalog</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead className="text-right">Price</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>{p.name}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {p.sku}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {/* One line per priced currency: a product priced in two
+                          currencies has two prices, not an average. */}
+                        <span className="flex flex-col items-end">
+                          {p.prices.map((price) => (
+                            <span key={price.asset}>{price.display}</span>
+                          ))}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={p.active ? "success" : "default"}>
+                          {p.active ? "Active" : "Archived"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <time dateTime={isoAttr(p.updatedAt)}>{formatDateTime(p.updatedAt)}</time>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => open({ mode: "edit", product: p })}
+                            aria-label={`Edit ${p.name}`}
+                          >
+                            <PencilSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setPendingArchive(p)}
+                            disabled={!p.active}
+                            aria-label={`Archive ${p.name}`}
+                          >
+                            <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          </Button>
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <CursorPagination
+                label="Product pages"
+                page={pagination.page}
+                canPrevious={pagination.canPrevious}
+                nextCursor={products.data?.nextCursor}
+                busy={products.isFetching}
+                onPrevious={pagination.previous}
+                onNext={pagination.next}
+              />
+            </div>
           ),
         )}
 

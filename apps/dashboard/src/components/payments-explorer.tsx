@@ -11,13 +11,23 @@
  */
 
 import { MagnifyingGlassIcon, ReceiptIcon } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { match } from "ts-pattern";
-import { Alert } from "@/components/ui/alert";
+import { AssetLabel } from "@/components/asset-logo";
 import { Badge } from "@/components/ui/badge";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { buttonVariants } from "@/components/ui/button";
+import { CursorPagination } from "@/components/ui/cursor-pagination";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { QueryError } from "@/components/ui/query-error";
 import {
   Select,
   SelectContent,
@@ -36,11 +46,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { usePayments } from "@/hooks/payments";
+import { useCursorPagination } from "@/hooks/cursor-pagination";
+import { usePaymentPage } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
+import { PAGE_SIZE } from "@/lib/pagination";
 import { withQuery } from "@/lib/with-query";
 import type { PaymentIntentDto, PaymentIntentStatus } from "@/types/payment";
 
@@ -59,30 +71,36 @@ const STATUS_OPTIONS: readonly SelectOption[] = [
   ...STATUSES.map((s) => ({ value: s, label: intentStatusLabel(s) })),
 ];
 
+const SORT_OPTIONS: readonly SelectOption[] = [
+  { value: "-created", label: "Newest first" },
+  { value: "created", label: "Oldest first" },
+  { value: "-amount", label: "Highest amount" },
+];
+
 function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load payments";
 }
 
-function matches(payment: PaymentIntentDto, query: string, status: string): boolean {
-  if (status !== "all" && payment.status !== status) return false;
-  if (query === "") return true;
-  const needle = query.toLowerCase();
-  return (
-    payment.id.toLowerCase().includes(needle) ||
-    payment.merchant.name.toLowerCase().includes(needle)
-  );
-}
-
 function PaymentsExplorer() {
-  const payments = usePayments(100);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string>("all");
+  const [sort, setSort] = useState<"created" | "-created" | "-amount">("-created");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const deferredQuery = useDeferredValue(query.trim());
+  const pagination = useCursorPagination();
+  const filter = {
+    limit: PAGE_SIZE,
+    ...(deferredQuery === "" ? {} : { q: deferredQuery }),
+    ...(status === "all" ? {} : { status: status as PaymentIntentDto["status"] }),
+    sort,
+    ...(from === "" ? {} : { from }),
+    ...(to === "" ? {} : { to }),
+  } as const;
+  const payments = usePaymentPage(filter, pagination.cursor);
 
   const all = payments.data?.payments ?? [];
-  const rows = useMemo(
-    () => all.filter((p) => matches(p, query.trim(), status)),
-    [all, query, status],
-  );
+  const rows = all;
 
   return (
     <section className="flex flex-col gap-4">
@@ -98,7 +116,10 @@ function PaymentsExplorer() {
                 id="payment-search"
                 type="search"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  pagination.reset();
+                }}
                 placeholder="pi_…"
                 aria-describedby="payment-search-hint"
               />
@@ -108,10 +129,17 @@ function PaymentsExplorer() {
             </FieldDescription>
           </Field>
         </div>
-        <div className="w-44">
+        <div className="w-full sm:w-44">
           <Field>
             <FieldLabel htmlFor="payment-status">Status</FieldLabel>
-            <Select items={STATUS_OPTIONS} value={status} onValueChange={setStatus}>
+            <Select
+              items={STATUS_OPTIONS}
+              value={status}
+              onValueChange={(value) => {
+                setStatus(value);
+                pagination.reset();
+              }}
+            >
               <SelectTrigger id="payment-status">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
@@ -125,22 +153,64 @@ function PaymentsExplorer() {
             </Select>
           </Field>
         </div>
+        <div className="grid w-full grid-cols-2 gap-3 sm:w-auto">
+          <DateRangeFilter
+            from={from}
+            to={to}
+            onFromChange={(value) => {
+              setFrom(value);
+              pagination.reset();
+            }}
+            onToChange={(value) => {
+              setTo(value);
+              pagination.reset();
+            }}
+          />
+        </div>
+        <div className="w-full sm:w-44">
+          <Field>
+            <FieldLabel htmlFor="payment-sort">Sort</FieldLabel>
+            <Select
+              items={SORT_OPTIONS}
+              value={sort}
+              onValueChange={(value) => {
+                setSort(value as typeof sort);
+                pagination.reset();
+              }}
+            >
+              <SelectTrigger id="payment-sort">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
       </div>
 
       <p aria-live="polite" className="font-mono text-xs text-subtle-foreground">
         {payments.status === "success" &&
-          `${rows.length} of ${all.length} payment${all.length === 1 ? "" : "s"}`}
+          `${rows.length} payment${rows.length === 1 ? "" : "s"} loaded`}
       </p>
 
       {match(payments)
         .with({ status: "pending" }, () => (
           <div role="status" aria-live="polite">
             <span className="sr-only">Loading payments</span>
-            <TableSkeleton rows={8} />
+            <TableSkeleton rows={PAGE_SIZE} />
           </div>
         ))
         .with({ status: "error" }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void payments.refetch()}
+            retrying={payments.isFetching}
+          />
         ))
         .with({ status: "success" }, () =>
           rows.length === 0 ? (
@@ -151,42 +221,69 @@ function PaymentsExplorer() {
               <EmptyTitle>
                 {all.length === 0 ? "No payments yet." : "No payment matches this filter."}
               </EmptyTitle>
+              {all.length === 0 ? (
+                <>
+                  <EmptyDescription>
+                    Start with a reusable checkout link or counter QR.
+                  </EmptyDescription>
+                  <EmptyAction>
+                    <a href="/links" className={buttonVariants()}>
+                      Create a payment link
+                    </a>
+                  </EmptyAction>
+                </>
+              ) : (
+                <EmptyDescription>Try a broader search or choose another status.</EmptyDescription>
+              )}
             </Empty>
           ) : (
-            <Table>
-              <TableCaption>Payments for this merchant</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Settles in</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((p) => (
-                  <TableRow key={p.id} className="hover:bg-muted">
-                    <TableCell>
-                      <a
-                        href={`/payments/${encodeURIComponent(p.id)}`}
-                        className="font-mono text-xs text-foreground underline decoration-input underline-offset-2 hover:decoration-foreground"
-                      >
-                        {p.id}
-                      </a>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={toneOf(p.status)}>{intentStatusLabel(p.status)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{p.amount.formatted}</TableCell>
-                    <TableCell className="text-muted-foreground">{p.settlementAsset}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      <time dateTime={isoAttr(p.createdAt)}>{formatDateTime(p.createdAt)}</time>
-                    </TableCell>
+            <div className="flex flex-col gap-3">
+              <Table>
+                <TableCaption>Payments for this merchant</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Customer amount</TableHead>
+                    <TableHead>Settles in</TableHead>
+                    <TableHead>Created</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((p) => (
+                    <TableRow key={p.id} className="hover:bg-muted">
+                      <TableCell>
+                        <a
+                          href={`/payments/${encodeURIComponent(p.id)}`}
+                          className="font-mono text-xs text-foreground underline decoration-input underline-offset-2 hover:decoration-foreground"
+                        >
+                          {p.id}
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={toneOf(p.status)}>{intentStatusLabel(p.status)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{p.amount.display}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <AssetLabel symbol={p.settlementAsset} size={18} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <time dateTime={isoAttr(p.createdAt)}>{formatDateTime(p.createdAt)}</time>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <CursorPagination
+                label="Payment pages"
+                page={pagination.page}
+                canPrevious={pagination.canPrevious}
+                nextCursor={payments.data?.nextCursor}
+                busy={payments.isFetching}
+                onPrevious={pagination.previous}
+                onNext={pagination.next}
+              />
+            </div>
           ),
         )
         .exhaustive()}

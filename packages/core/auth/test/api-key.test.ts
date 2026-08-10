@@ -9,7 +9,7 @@ function key() {
     merchantId: "mrc_1",
     name: "POS register 3",
     secretHash: "hash-of-secret",
-    prefix: "mk_live_ab12",
+    prefix: "pk_ab12cd34",
     permissions: ["payments:read"],
     now: NOW,
   });

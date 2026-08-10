@@ -55,8 +55,8 @@ describe("POST /api-keys", () => {
     });
     expect(res.status).toBe(201);
     expect(res.body?.apiKey.name).toBe("POS register 3");
-    expect(res.body?.apiKey.prefix).toMatch(/^mk_live_/);
-    expect(res.body?.secret).toMatch(/^mk_live_/);
+    expect(res.body?.apiKey.prefix).toMatch(/^pk_[0-9a-f]{9}$/);
+    expect(res.body?.secret).toMatch(/^pk_[0-9a-f]{64}$/);
     // The listing never shows the secret.
     const listed = await harness.request("GET", "/api-keys", { cookies: auth.jar });
     expect(listed.body?.apiKeys[0].secret).toBeUndefined();
@@ -79,6 +79,29 @@ describe("POST /api-keys", () => {
       headers: { "x-csrf-token": auth.csrf },
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api-keys", () => {
+  test("filters by name and active status", async () => {
+    const { harness, auth } = await seed();
+    await harness.request("POST", "/api-keys", {
+      body: { name: "Production reader", permissions: ["payments:read"] },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+    await harness.request("POST", "/api-keys", {
+      body: { name: "Development reader", permissions: ["payments:read"] },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+
+    const res = await harness.request("GET", "/api-keys?q=production&status=active", {
+      cookies: auth.jar,
+    });
+    expect(res.body?.apiKeys.map((key: { name: string }) => key.name)).toEqual([
+      "Production reader",
+    ]);
   });
 });
 
@@ -150,7 +173,7 @@ describe("bearer auth", () => {
     expect(deactivated.status).toBe(200);
     expect(deactivated.body?.apiKey.active).toBe(false);
 
-    const before = await bearer(harness, "GET", "/orders", "mk_live_not_a_real_key");
+    const before = await bearer(harness, "GET", "/orders", "pk_not_a_real_key");
     const after = await bearer(harness, "GET", "/orders", secret);
     expect(after.status).toBe(before.status);
     expect(after.status).toBe(401);

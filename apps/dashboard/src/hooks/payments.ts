@@ -14,11 +14,13 @@
 
 import type { ApiError } from "@/lib/api/client";
 import { paymentsApi } from "@/lib/api/payments";
+import { useLiveChannel } from "@/lib/live-updates";
 import { useEffectQuery } from "@/lib/query";
 import type {
   DepositResponse,
   PaymentDetailResponse,
   PaymentIntentStatus,
+  PaymentListFilter,
   PaymentListResponse,
 } from "@/types/payment";
 
@@ -33,11 +35,26 @@ function isLive(status: PaymentIntentStatus): boolean {
 
 /** GET `/payments` — the caller's own merchant only. */
 export function usePayments(limit?: number) {
+  const isStreamConnected = useLiveChannel("payments");
   return useEffectQuery<PaymentListResponse, ApiError>({
     queryKey: ["payments", "list", limit ?? null],
-    query: () => paymentsApi.list(limit),
+    query: () => paymentsApi.list(limit === undefined ? {} : { limit }),
     refetchInterval: (data) =>
-      (data?.payments ?? []).some((payment) => isLive(payment.status)) ? POLL_MS : false,
+      !isStreamConnected && (data?.payments ?? []).some((payment) => isLive(payment.status))
+        ? POLL_MS
+        : false,
+  });
+}
+
+export function usePaymentPage(filter: PaymentListFilter, cursor?: string) {
+  const isStreamConnected = useLiveChannel("payments");
+  return useEffectQuery<PaymentListResponse, ApiError>({
+    queryKey: ["payments", "list", filter, cursor ?? null],
+    query: () => paymentsApi.list(filter, cursor),
+    refetchInterval: (data) =>
+      !isStreamConnected && (data?.payments ?? []).some((payment) => isLive(payment.status))
+        ? POLL_MS
+        : false,
   });
 }
 
@@ -46,13 +63,14 @@ export function usePayments(limit?: number) {
  * Disabled until `id` is known so React Query does not fire with `undefined`.
  */
 export function usePayment(id: string | undefined) {
+  const isStreamConnected = useLiveChannel("payments");
   return useEffectQuery<PaymentDetailResponse, ApiError>({
     queryKey: ["payments", "detail", id ?? null],
     query: () => paymentsApi.detail(id ?? ""),
     enabled: id !== undefined,
     refetchInterval: (data) => {
       const status = data?.paymentIntent.status;
-      return status !== undefined && isLive(status) ? POLL_MS : false;
+      return !isStreamConnected && status !== undefined && isLive(status) ? POLL_MS : false;
     },
   });
 }

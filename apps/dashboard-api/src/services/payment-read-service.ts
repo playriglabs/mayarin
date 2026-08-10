@@ -22,6 +22,7 @@ import type {
 } from "@mayarin/payment-intent";
 import { NotFoundError } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
+import { cursorPage, decodeCursor } from "../pagination.ts";
 
 /** The slice of `ClearingRepository` a read-only dashboard needs. */
 export interface ClearingReadRepository {
@@ -41,6 +42,23 @@ export interface PaymentDetail {
   readonly events: readonly ClearingEvent[];
 }
 
+export interface PaymentListFilter {
+  readonly limit?: number;
+  readonly q?: string;
+  readonly status?: PaymentIntent["status"];
+  readonly sort?: NonNullable<ListPaymentIntentsOptions["sort"]>;
+  readonly from?: Date;
+  readonly to?: Date;
+  readonly cursor?: string;
+}
+
+export interface PaymentPage {
+  readonly items: readonly PaymentIntent[];
+  readonly nextCursor: string | null;
+}
+
+export type PaymentListAllFilter = Omit<PaymentListFilter, "limit" | "cursor">;
+
 export class PaymentReadService {
   readonly #intents: PaymentIntentRepository;
   readonly #clearing: ClearingReadRepository;
@@ -53,12 +71,44 @@ export class PaymentReadService {
   }
 
   /** Lists the caller's own intents, newest-first. */
-  async list(scope: Scope, limit?: number): Promise<readonly PaymentIntent[]> {
+  async list(scope: Scope, filter: PaymentListFilter = {}): Promise<PaymentPage> {
+    const limit = Math.min(filter.limit ?? this.#pageSize, this.#pageSize);
+    const cursor = decodeCursor(filter.cursor);
     const options: ListPaymentIntentsOptions = {
-      limit: Math.min(limit ?? this.#pageSize, this.#pageSize),
+      limit: limit + 1,
       merchantId: scope.merchantId,
+      ...(filter.q === undefined ? {} : { q: filter.q }),
+      ...(filter.status === undefined ? {} : { status: filter.status }),
+      ...(filter.sort === undefined ? {} : { sort: filter.sort }),
+      ...(filter.from === undefined ? {} : { from: filter.from }),
+      ...(filter.to === undefined ? {} : { to: filter.to }),
+      ...(cursor === undefined ? {} : { cursor }),
     };
-    return this.#intents.list(options);
+    const rows = await this.#intents.list(options);
+    return cursorPage(rows, limit, (last) => ({
+      id: last.id,
+      createdAt: last.createdAt,
+      ...(options.sort === "-amount" ? { amount: last.amount.amount } : {}),
+    }));
+  }
+
+  async listAll(
+    scope: Scope,
+    filter: PaymentListAllFilter = {},
+  ): Promise<readonly PaymentIntent[]> {
+    const items: PaymentIntent[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const page = await this.list(scope, {
+        ...filter,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      items.push(...page.items);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+
+    return items;
   }
 
   /**

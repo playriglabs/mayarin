@@ -5,14 +5,13 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
-import type { EventLogListResponse } from "@/types/event-logs";
-
-function query(limit?: number): string {
-  if (limit === undefined) return "";
-  return `?limit=${String(limit)}`;
-}
+import { listPath } from "@/lib/api/list-path";
+import type { EventLogListFilter, EventLogListResponse } from "@/types/event-logs";
 
 export const eventLogsApi = {
-  list: (limit?: number): Effect.Effect<EventLogListResponse, ApiError> =>
-    request<EventLogListResponse>(`/event-logs${query(limit)}`),
+  list: (
+    filter: EventLogListFilter = {},
+    cursor?: string,
+  ): Effect.Effect<EventLogListResponse, ApiError> =>
+    request<EventLogListResponse>(listPath("/event-logs", filter, cursor)),
 };

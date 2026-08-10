@@ -35,4 +35,15 @@ export interface OrderDto {
 
 export interface OrderListResponse {
   readonly orders: readonly OrderDto[];
+  readonly nextCursor: string | null;
+}
+
+export interface OrderListFilter {
+  readonly limit?: number;
+  readonly customerId?: string;
+  readonly q?: string;
+  readonly status?: string;
+  readonly sort?: "created" | "-created" | "-amount";
+  readonly from?: string;
+  readonly to?: string;
 }

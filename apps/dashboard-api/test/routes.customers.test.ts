@@ -65,6 +65,19 @@ describe("GET /customers", () => {
     const res = await harness.request("GET", "/customers");
     expect(res.status).toBe(401);
   });
+
+  test("filters by name or email", async () => {
+    const { harness, auth } = await seed();
+    await createCustomerApi(harness, auth, { name: "Budi", email: "budi@example.com" });
+    await createCustomerApi(harness, auth, { name: "Sari", email: "sari@example.com" });
+
+    const res = await harness.request("GET", "/customers?q=budi%40example.com", {
+      cookies: auth.jar,
+    });
+    expect(res.body?.customers.map((customer: { name: string }) => customer.name)).toEqual([
+      "Budi",
+    ]);
+  });
 });
 
 describe("POST /customers", () => {

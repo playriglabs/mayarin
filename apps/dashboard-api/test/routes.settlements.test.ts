@@ -136,6 +136,60 @@ describe("GET /settlements", () => {
     expect(row.netAmount.amount).toBe("2990000");
   });
 
+  test("summary covers every settlement when the table page is limited to seven", async () => {
+    const { harness } = await seed();
+    const intents = await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        harness.intentService.create({
+          merchant: { id: "mch_a", name: "Warung A", city: "Jakarta", countryCode: "ID" },
+          amount: { amount: BigInt(50_000 + index), asset: "IDR" },
+          source: { type: "manual" },
+        }),
+      ),
+    );
+    await Promise.all(
+      intents.map((intent, index) =>
+        harness.clearing.insert(
+          transaction(
+            "mch_a",
+            `clr_summary_${index}`,
+            intent.id,
+            new Date(`2026-01-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`),
+          ),
+          [],
+        ),
+      ),
+    );
+    const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
+
+    const res = await harness.request("GET", "/settlements", { cookies: jar });
+
+    expect(res.body?.settlements).toHaveLength(7);
+    expect(res.body?.summary).toMatchObject({
+      settledCount: 8,
+      inFlightCount: 0,
+      failedCount: 0,
+      asset: "USDC",
+    });
+    expect(res.body?.summary.netAmount.amount).toBe("23920000");
+    expect(res.body?.summary.fee.amount).toBe("80000");
+    expect(typeof res.body?.nextCursor).toBe("string");
+
+    const next = await harness.request(
+      "GET",
+      `/settlements?cursor=${encodeURIComponent(String(res.body?.nextCursor))}`,
+      { cookies: jar },
+    );
+    const firstIds = res.body?.settlements.map(
+      (row: { paymentIntentId: string }) => row.paymentIntentId,
+    );
+    const nextIds = next.body?.settlements.map(
+      (row: { paymentIntentId: string }) => row.paymentIntentId,
+    );
+    expect(nextIds.some((id: string) => firstIds.includes(id))).toBe(false);
+    expect(next.body?.summary).toEqual(res.body?.summary);
+  });
+
   test("another merchant's settlements are never listed", async () => {
     const { harness, intentA, intentB } = await seed();
     await harness.clearing.insert(

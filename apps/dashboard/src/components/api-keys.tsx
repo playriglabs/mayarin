@@ -8,8 +8,9 @@
  */
 
 import { CheckIcon, CopyIcon, KeyIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { match } from "ts-pattern";
+import { PermissionBadges } from "@/components/permission-badges";
 import { Alert } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -24,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import {
   Dialog,
   DialogClose,
@@ -33,10 +35,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Empty, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyAction,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { QueryError } from "@/components/ui/query-error";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  type SelectOption,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -55,12 +72,35 @@ import { withQuery } from "@/lib/with-query";
 import type { ApiKeyDto } from "@/types/api-keys";
 import { PERMISSION_LABELS, PERMISSION_LIST, type Permission } from "@/types/user";
 
+const STATUS_OPTIONS: readonly SelectOption[] = [
+  { value: "all", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const SORT_OPTIONS: readonly SelectOption[] = [
+  { value: "-created", label: "Newest first" },
+  { value: "created", label: "Oldest first" },
+];
+
 function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load API keys";
 }
 
 function ApiKeys() {
-  const keys = useApiKeys();
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
+  const [sort, setSort] = useState<"created" | "-created">("-created");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const deferredQuery = useDeferredValue(query.trim());
+  const keys = useApiKeys({
+    ...(deferredQuery === "" ? {} : { q: deferredQuery }),
+    ...(status === "all" ? {} : { status: status as "active" | "inactive" }),
+    sort,
+    ...(from === "" ? {} : { from }),
+    ...(to === "" ? {} : { to }),
+  });
   const create = useCreateApiKey();
   const deactivate = useDeactivateApiKey();
 
@@ -129,6 +169,55 @@ function ApiKeys() {
 
   return (
     <section className="flex flex-col gap-4">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_11rem]">
+        <Field>
+          <FieldLabel htmlFor="key-search">Search</FieldLabel>
+          <Input
+            id="key-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Name, prefix, or key id"
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="key-status">Status</FieldLabel>
+          <Select items={STATUS_OPTIONS} value={status} onValueChange={setStatus}>
+            <SelectTrigger id="key-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="key-sort">Sort</FieldLabel>
+          <Select
+            items={SORT_OPTIONS}
+            value={sort}
+            onValueChange={(value) => setSort(value as typeof sort)}
+          >
+            <SelectTrigger id="key-sort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      <div className="grid max-w-sm grid-cols-2 gap-3">
+        <DateRangeFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+      </div>
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-xs text-subtle-foreground">
           {rows.length} key{rows.length === 1 ? "" : "s"}
@@ -151,9 +240,13 @@ function ApiKeys() {
       {failure !== "" && !creating && <Alert variant="destructive">{failure}</Alert>}
 
       {match(keys)
-        .with({ isPending: true }, () => <TableSkeleton rows={3} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={7} />)
         .with({ isError: true }, ({ error }) => (
-          <Alert variant="destructive">{reasonOf(error)}</Alert>
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void keys.refetch()}
+            retrying={keys.isFetching}
+          />
         ))
         .otherwise(() =>
           rows.length === 0 ? (
@@ -162,6 +255,20 @@ function ApiKeys() {
                 <KeyIcon size={ICON_CARD} aria-hidden="true" />
               </EmptyMedia>
               <EmptyTitle>No API keys yet.</EmptyTitle>
+              <EmptyDescription>
+                Create a scoped key to connect your first integration.
+              </EmptyDescription>
+              <EmptyAction>
+                <Button
+                  onClick={() => {
+                    setFailure("");
+                    setCreating(true);
+                  }}
+                >
+                  <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                  Mint your first API key
+                </Button>
+              </EmptyAction>
             </Empty>
           ) : (
             <Table>
@@ -184,13 +291,7 @@ function ApiKeys() {
                       {key.prefix}…
                     </TableCell>
                     <TableCell>
-                      <span className="flex flex-wrap gap-1">
-                        {key.permissions.map((p) => (
-                          <Badge key={p} variant="default">
-                            {PERMISSION_LABELS[p]}
-                          </Badge>
-                        ))}
-                      </span>
+                      <PermissionBadges permissions={key.permissions} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {key.lastUsedAt === null ? (
@@ -332,10 +433,10 @@ function ApiKeys() {
         open={pendingRevoke !== null}
         onOpenChange={(next) => !next && setPendingRevoke(null)}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
+        <AlertDialogContent className="max-w-md gap-6 p-6">
+          <AlertDialogHeader className="gap-2">
             <AlertDialogTitle>Revoke this API key?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-base">
               <strong className="font-medium text-foreground">{pendingRevoke?.name}</strong> stops
               working immediately. Anything using it will get a 401 on its next request. A revoked
               key cannot be reactivated.

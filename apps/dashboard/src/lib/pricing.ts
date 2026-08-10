@@ -25,6 +25,11 @@ export function symbolOf(asset: string): string {
   return (isPricingCurrency(asset) ? assetSymbol(asset) : undefined) ?? asset;
 }
 
+/** Human label for selectors; the code disambiguates shared symbols such as `$`. */
+export function currencyLabel(asset: string): string {
+  return `${symbolOf(asset)} ${asset}`;
+}
+
 export function isPricingCurrency(asset: string): asset is AssetCode {
   return PRICING_CURRENCIES.includes(asset as AssetCode);
 }

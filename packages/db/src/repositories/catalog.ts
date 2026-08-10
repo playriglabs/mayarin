@@ -19,7 +19,7 @@ import type {
   ProductRepository,
 } from "@mayarin/catalog";
 import { ConcurrencyError, type Money } from "@mayarin/shared";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction, toAsset, toMoney } from "../mapping.ts";
 import { customers, paymentLinks, productPrices, products } from "../schema.ts";
@@ -93,15 +93,27 @@ export class DrizzleProductRepository implements ProductRepository {
   }
 
   async list(options: ListProductsOptions): Promise<readonly Product[]> {
+    const cursorFilter =
+      options.cursor === undefined
+        ? undefined
+        : or(
+            lt(products.createdAt, options.cursor.createdAt),
+            and(
+              eq(products.createdAt, options.cursor.createdAt),
+              lt(products.id, options.cursor.id),
+            ),
+          );
     const rows = await this.#db
       .select()
       .from(products)
       .where(
-        options.active === undefined
-          ? eq(products.merchantId, options.merchantId)
-          : and(eq(products.merchantId, options.merchantId), eq(products.active, options.active)),
+        and(
+          eq(products.merchantId, options.merchantId),
+          options.active === undefined ? undefined : eq(products.active, options.active),
+          cursorFilter,
+        ),
       )
-      .orderBy(desc(products.createdAt))
+      .orderBy(desc(products.createdAt), desc(products.id))
       .limit(options.limit ?? 100);
     return this.#withPrices(rows);
   }
@@ -176,11 +188,21 @@ export class DrizzlePaymentLinkRepository implements PaymentLinkRepository {
   }
 
   async list(options: ListPaymentLinksOptions): Promise<readonly PaymentLink[]> {
+    const cursorFilter =
+      options.cursor === undefined
+        ? undefined
+        : or(
+            lt(paymentLinks.createdAt, options.cursor.createdAt),
+            and(
+              eq(paymentLinks.createdAt, options.cursor.createdAt),
+              lt(paymentLinks.id, options.cursor.id),
+            ),
+          );
     const rows = await this.#db
       .select()
       .from(paymentLinks)
-      .where(eq(paymentLinks.merchantId, options.merchantId))
-      .orderBy(desc(paymentLinks.createdAt))
+      .where(and(eq(paymentLinks.merchantId, options.merchantId), cursorFilter))
+      .orderBy(desc(paymentLinks.createdAt), desc(paymentLinks.id))
       .limit(options.limit ?? 100);
     return rows.map(toLink);
   }
@@ -306,11 +328,23 @@ export class DrizzleCustomerRepository implements CustomerRepository {
   }
 
   async listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]> {
+    const filters = [
+      eq(customers.merchantId, options.merchantId),
+      options.q === undefined
+        ? undefined
+        : or(
+            ilike(customers.id, `%${options.q}%`),
+            ilike(customers.name, `%${options.q}%`),
+            ilike(customers.email, `%${options.q}%`),
+          ),
+      options.from === undefined ? undefined : gte(customers.createdAt, options.from),
+      options.to === undefined ? undefined : lt(customers.createdAt, options.to),
+    ].filter((filter) => filter !== undefined);
     const rows = await this.#db
       .select()
       .from(customers)
-      .where(eq(customers.merchantId, options.merchantId))
-      .orderBy(desc(customers.createdAt))
+      .where(and(...filters))
+      .orderBy(options.sort === "created" ? asc(customers.createdAt) : desc(customers.createdAt))
       .limit(options.limit ?? 100);
     return rows.map(toCustomer);
   }

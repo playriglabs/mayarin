@@ -52,4 +52,13 @@ export interface SettlementDto {
 
 export interface SettlementListResponse {
   readonly settlements: readonly SettlementDto[];
+  readonly nextCursor: string | null;
+  readonly summary: {
+    readonly settledCount: number;
+    readonly inFlightCount: number;
+    readonly failedCount: number;
+    readonly asset: string | null;
+    readonly netAmount: MoneyDto | null;
+    readonly fee: MoneyDto | null;
+  };
 }
