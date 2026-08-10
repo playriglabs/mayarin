@@ -58,6 +58,16 @@ export interface DepositRepository {
   listByAddress(chain: ChainId, address: string): Promise<Deposit[]>;
   /** Sum of CONFIRMED deposits at an address. The number the funding rule uses. */
   confirmedTotal(chain: ChainId, address: string, asset: AssetCode): Promise<Money>;
+  /**
+   * Sum of every deposit at an address that has not been orphaned.
+   *
+   * What the balance reconciliation subtracts from: it asks "how much of what
+   * this address holds have we already accounted for", and a PENDING deposit is
+   * accounted for — counting only CONFIRMED ones would record the same value a
+   * second time in the window before it confirms. An ORPHANED one is excluded
+   * because the chain no longer holds it either.
+   */
+  recordedTotal(chain: ChainId, address: string, asset: AssetCode): Promise<Money>;
 }
 
 /**
@@ -94,4 +104,12 @@ export interface SettlementEventRepository {
   /** Marks a settlement as handed to the engine, so it is never replayed. */
   markCompleted(id: string, at: Date): Promise<void>;
   findByIntentId(intentId: string): Promise<SettlementEvent | null>;
+  /**
+   * The settlements behind a page of on-chain intent ids, in one round trip.
+   *
+   * What a merchant-facing settlement listing needs: it already holds the page
+   * of payments and wants the chain's word on each. Ids with no settlement are
+   * absent rather than null-padded — the caller indexes by `intentId` anyway.
+   */
+  listByIntentIds(intentIds: readonly string[]): Promise<readonly SettlementEvent[]>;
 }

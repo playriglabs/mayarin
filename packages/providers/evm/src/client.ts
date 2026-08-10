@@ -7,9 +7,11 @@
  */
 
 import type {
+  BalanceQuery,
   BlockRef,
   ChainClient,
   ChainId,
+  NativeBalance,
   SettlementLog,
   SettlementQuery,
   TransferLog,
@@ -26,6 +28,7 @@ import {
   parseAbiItem,
 } from "viem";
 import { base, baseSepolia } from "viem/chains";
+import { shortReason } from "./errors.ts";
 
 const TRANSFER_EVENT = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -62,18 +65,52 @@ export interface EvmChainClientOptions {
    * be silently scanned as if it were.
    */
   readonly nativeAssets?: Readonly<Partial<Record<ChainId, AssetCode>>>;
+  /**
+   * Blocks per `eth_getLogs` call.
+   *
+   * A provider limit, not a policy one: Alchemy's free tier refuses a range
+   * wider than ten. Left as the watcher's whole range, that cap became the
+   * watcher's catch-up rate — ten blocks per tick against a chain producing
+   * seven and a half, so an hour of downtime took four hours to work off and
+   * any real outage never closed at all.
+   *
+   * Splitting the range into calls the provider will answer decouples the two:
+   * how far the watcher advances per tick is now a decision about RPC budget,
+   * not a number dictated by one endpoint's limit.
+   */
+  readonly logRange?: number;
+  /**
+   * How many times viem retries one RPC call before giving up.
+   *
+   * One, not viem's three. A provider answering 429 is not a blip to ride out:
+   * three exponential retries turn every rate-limited call into seconds of
+   * waiting, and the calls that wait include the one a payer's page is blocked
+   * on. The watcher's next tick re-scans the same range anyway — that is the
+   * retry, and it costs nothing while it waits.
+   */
+  readonly retryCount?: number;
+  /** Per-call ceiling, so a stalled provider cannot hold a request open. */
+  readonly timeoutMs?: number;
 }
 
 export class EvmChainClient implements ChainClient {
   readonly #rpcUrls: EvmChainClientOptions["rpcUrls"];
   readonly #tokens: EvmChainClientOptions["tokens"];
   readonly #nativeAssets: NonNullable<EvmChainClientOptions["nativeAssets"]>;
+  readonly #logRange: bigint;
+  readonly #retryCount: number;
+  readonly #timeoutMs: number;
   readonly #clients = new Map<ChainId, PublicClient>();
 
   constructor(options: EvmChainClientOptions) {
     this.#rpcUrls = options.rpcUrls;
     this.#tokens = options.tokens;
     this.#nativeAssets = options.nativeAssets ?? {};
+    // Ten is the tightest cap seen in the wild (Alchemy free tier), so it is
+    // the default a deployment gets without being asked.
+    this.#logRange = BigInt(Math.max(1, options.logRange ?? 10));
+    this.#retryCount = options.retryCount ?? 1;
+    this.#timeoutMs = options.timeoutMs ?? 10_000;
   }
 
   async head(chain: ChainId): Promise<BlockRef> {
@@ -107,16 +144,27 @@ export class EvmChainClient implements ChainClient {
     }
 
     const token = this.#tokenAddress(query.chain, query.asset);
-    const logs = await this.#rpc(
-      query.chain,
-      this.#clientFor(query.chain).getLogs({
-        address: token,
-        event: TRANSFER_EVENT,
-        args: { to: query.addresses.map((address) => getAddress(address)) },
-        fromBlock: query.fromBlock,
-        toBlock: query.toBlock,
-      }),
-    );
+    const to = query.addresses.map((address) => getAddress(address));
+    const client = this.#clientFor(query.chain);
+
+    // Split into windows the provider will answer. One wide call and a series
+    // of narrow ones return the same logs; only the second is a request every
+    // tier accepts.
+    const logs = [];
+    for (const [fromBlock, toBlock] of windows(query.fromBlock, query.toBlock, this.#logRange)) {
+      logs.push(
+        ...(await this.#rpc(
+          query.chain,
+          client.getLogs({
+            address: token,
+            event: TRANSFER_EVENT,
+            args: { to },
+            fromBlock,
+            toBlock,
+          }),
+        )),
+      );
+    }
 
     return logs.flatMap((log) => {
       if (log.blockNumber === null || log.blockHash === null || log.transactionHash === null) {
@@ -146,15 +194,24 @@ export class EvmChainClient implements ChainClient {
       throw new ConfigurationError("The PaymentRouter ABI declares no PaymentCompleted event", {});
     }
 
-    const logs = await this.#rpc(
-      query.chain,
-      this.#clientFor(query.chain).getLogs({
-        address: getAddress(query.router),
-        event: PAYMENT_COMPLETED_EVENT,
-        fromBlock: query.fromBlock,
-        toBlock: query.toBlock,
-      }),
-    );
+    // Windowed for the same reason the transfer scan is: the settlement indexer
+    // falls behind on exactly the outages the watcher does, and a catch-up it
+    // cannot perform is a merchant whose settled payment stays open.
+    const client = this.#clientFor(query.chain);
+    const logs = [];
+    for (const [fromBlock, toBlock] of windows(query.fromBlock, query.toBlock, this.#logRange)) {
+      logs.push(
+        ...(await this.#rpc(
+          query.chain,
+          client.getLogs({
+            address: getAddress(query.router),
+            event: PAYMENT_COMPLETED_EVENT,
+            fromBlock,
+            toBlock,
+          }),
+        )),
+      );
+    }
 
     return logs.flatMap((log) => {
       // A log without a block or a transaction is a pending log, which
@@ -248,6 +305,45 @@ export class EvmChainClient implements ChainClient {
     return transfers;
   }
 
+  /**
+   * What each watched address holds at one settled block.
+   *
+   * The complement to the block-body scan, and the reason it exists: a block
+   * body lists only top-level transactions, so ETH moved by a contract — a
+   * smart-contract wallet, an exchange sweeping through a router — never
+   * appears there. A balance sees it however it arrived.
+   *
+   * Read at one pinned height, and the block's hash is fetched with it, so the
+   * observation carries the same `(blockNumber, blockHash)` pair a transfer log
+   * does and the reorg probe applies to it unchanged.
+   *
+   * One `eth_getBalance` per open payment, not per block — the cost scales with
+   * how many payments are waiting rather than with how far the scan has to
+   * walk.
+   */
+  async nativeBalances(query: BalanceQuery): Promise<NativeBalance[]> {
+    if (query.addresses.length === 0) return [];
+
+    const client = this.#clientFor(query.chain);
+    const block = await this.#rpc(query.chain, client.getBlock({ blockNumber: query.block }));
+    if (block.hash === null || block.number === null) return [];
+
+    const balances: NativeBalance[] = [];
+    for (const address of query.addresses) {
+      const amount = await this.#rpc(
+        query.chain,
+        client.getBalance({ address: getAddress(address), blockNumber: query.block }),
+      );
+      balances.push({
+        address: address.toLowerCase(),
+        amount,
+        blockNumber: block.number,
+        blockHash: block.hash,
+      });
+    }
+    return balances;
+  }
+
   #tokenAddress(chain: ChainId, asset: AssetCode): `0x${string}` {
     const address = this.#tokens[chain]?.[asset];
     if (address === undefined) {
@@ -272,7 +368,7 @@ export class EvmChainClient implements ChainClient {
 
     const client = createPublicClient({
       chain: CHAINS[chain],
-      transport: http(url),
+      transport: http(url, { retryCount: this.#retryCount, timeout: this.#timeoutMs }),
     });
     this.#clients.set(chain, client);
     return client;
@@ -284,13 +380,41 @@ export class EvmChainClient implements ChainClient {
       return await promise;
     } catch (error) {
       if (error instanceof ConfigurationError || isBlockNotFound(error)) throw error;
+      // Named rather than folded into "RPC call failed", because the operator's
+      // action is different: a rate limit is a budget to widen or a tick to
+      // slow, not an endpoint to fix. Reported in one line — viem's own error
+      // prints thirty, which is how a throttled watcher reads as a crash.
+      if (isRateLimited(error)) {
+        throw new ProviderError(
+          `EVM RPC rate limited on ${chain}; the next tick re-scans the same range`,
+          { chain, rateLimited: true },
+          { cause: error, retryable: true },
+        );
+      }
       throw new ProviderError(
-        `EVM RPC call failed for ${chain}: ${error instanceof Error ? error.message : String(error)}`,
+        `EVM RPC call failed for ${chain}: ${shortReason(error)}`,
         { chain },
         { cause: error, retryable: true },
       );
     }
   }
+}
+
+/** Splits an inclusive block range into windows of at most `size` blocks. */
+function windows(from: bigint, to: bigint, size: bigint): [bigint, bigint][] {
+  const ranges: [bigint, bigint][] = [];
+  for (let start = from; start <= to; start += size) {
+    const end = start + size - 1n;
+    ranges.push([start, end > to ? to : end]);
+  }
+  return ranges;
+}
+
+/** A provider saying "slow down", however it phrases it. */
+function isRateLimited(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const status = (error as { status?: unknown }).status;
+  return status === 429 || /429|too many requests|rate.?limit/i.test(error.message);
 }
 
 function isBlockNotFound(error: unknown): boolean {
