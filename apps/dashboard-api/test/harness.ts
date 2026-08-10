@@ -106,7 +106,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     SESSION_TTL_SECONDS: "3600",
     COOKIE_SECURE:
       options.cookieSecure === undefined ? "false" : options.cookieSecure ? "true" : "false",
-    PAYMENTS_PAGE_SIZE: "50",
+    PAYMENTS_PAGE_SIZE: "7",
   });
 
   const users = new InMemoryUserRepository();

@@ -5,18 +5,13 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
-import type { OrderListResponse } from "@/types/orders";
-
-/** Builds the query string for optional list parameters. */
-function query(limit?: number, customerId?: string): string {
-  const params = new URLSearchParams();
-  if (limit !== undefined) params.set("limit", String(limit));
-  if (customerId !== undefined) params.set("customerId", customerId);
-  const qs = params.toString();
-  return qs === "" ? "" : `?${qs}`;
-}
+import { listPath } from "@/lib/api/list-path";
+import type { OrderListFilter, OrderListResponse } from "@/types/orders";
 
 export const ordersApi = {
-  list: (limit?: number, customerId?: string): Effect.Effect<OrderListResponse, ApiError> =>
-    request<OrderListResponse>(`/orders${query(limit, customerId)}`),
+  list: (
+    filter: OrderListFilter = {},
+    cursor?: string,
+  ): Effect.Effect<OrderListResponse, ApiError> =>
+    request<OrderListResponse>(listPath("/orders", filter, cursor)),
 };

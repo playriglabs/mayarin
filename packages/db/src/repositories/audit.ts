@@ -14,12 +14,13 @@ import type { ClearingState } from "@mayarin/clearing";
 import type {
   AuditFilter,
   AuditQueryRepository,
+  MerchantEventFilter,
   MerchantEventRepository,
   MerchantEventRow,
   MerchantEventSeverity,
   PaymentAuditSummary,
 } from "@mayarin/compliance";
-import { and, desc, eq, gte, lt, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lt, or, type SQL, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, toAsset, toMoney, toOptionalMoney } from "../mapping.ts";
 import {
@@ -124,12 +125,20 @@ export class DrizzleMerchantEventRepository implements MerchantEventRepository {
     this.#db = db;
   }
 
-  async listByMerchant(merchantId: string, limit?: number): Promise<readonly MerchantEventRow[]> {
+  async listByMerchant(
+    merchantId: string,
+    limit?: number,
+    filter: MerchantEventFilter = {},
+  ): Promise<readonly MerchantEventRow[]> {
     const n = eventLimit(limit);
+    const ascending = filter.sort === "created";
+    const settlementOccurredAt = sql<Date>`coalesce(${settlementEvents.confirmedAt}, ${settlementEvents.firstSeenAt})`;
+    const webhookOccurredAt = sql<Date>`coalesce(${webhookDeliveries.deliveredAt}, ${webhookDeliveries.createdAt})`;
 
     const [clearing, settlements, webhooks] = await Promise.all([
       this.#db
         .select({
+          id: clearingEvents.id,
           toState: clearingEvents.toState,
           occurredAt: clearingEvents.occurredAt,
           intentId: clearingTransactions.paymentIntentId,
@@ -139,11 +148,20 @@ export class DrizzleMerchantEventRepository implements MerchantEventRepository {
           clearingTransactions,
           eq(clearingEvents.clearingTransactionId, clearingTransactions.id),
         )
-        .where(eq(clearingTransactions.merchantId, merchantId))
-        .orderBy(desc(clearingEvents.occurredAt))
+        .where(
+          and(
+            eq(clearingTransactions.merchantId, merchantId),
+            eventDateFilter(clearingEvents.occurredAt, clearingEvents.id, filter),
+          ),
+        )
+        .orderBy(
+          ascending ? asc(clearingEvents.occurredAt) : desc(clearingEvents.occurredAt),
+          ascending ? asc(clearingEvents.id) : desc(clearingEvents.id),
+        )
         .limit(n),
       this.#db
         .select({
+          id: settlementEvents.id,
           status: settlementEvents.status,
           confirmedAt: settlementEvents.confirmedAt,
           firstSeenAt: settlementEvents.firstSeenAt,
@@ -155,23 +173,41 @@ export class DrizzleMerchantEventRepository implements MerchantEventRepository {
           clearingTransactions,
           eq(clearingTransactions.contractIntentId, settlementEvents.intentId),
         )
-        .where(eq(clearingTransactions.merchantId, merchantId))
-        .orderBy(desc(settlementEvents.firstSeenAt))
+        .where(
+          and(
+            eq(clearingTransactions.merchantId, merchantId),
+            eventDateFilter(settlementOccurredAt, settlementEvents.id, filter, toTimestampParam),
+          ),
+        )
+        .orderBy(
+          ascending ? asc(settlementOccurredAt) : desc(settlementOccurredAt),
+          ascending ? asc(settlementEvents.id) : desc(settlementEvents.id),
+        )
         .limit(n),
       this.#db
         .select({
+          id: webhookDeliveries.id,
           status: webhookDeliveries.status,
           deliveredAt: webhookDeliveries.deliveredAt,
           createdAt: webhookDeliveries.createdAt,
         })
         .from(webhookDeliveries)
-        .where(eq(webhookDeliveries.merchantId, merchantId))
-        .orderBy(desc(webhookDeliveries.createdAt))
+        .where(
+          and(
+            eq(webhookDeliveries.merchantId, merchantId),
+            eventDateFilter(webhookOccurredAt, webhookDeliveries.id, filter, toTimestampParam),
+          ),
+        )
+        .orderBy(
+          ascending ? asc(webhookOccurredAt) : desc(webhookOccurredAt),
+          ascending ? asc(webhookDeliveries.id) : desc(webhookDeliveries.id),
+        )
         .limit(n),
     ]);
 
     const rows: MerchantEventRow[] = [
       ...clearing.map((r) => ({
+        id: r.id,
         kind: "clearing" as const,
         occurredAt: r.occurredAt,
         merchantId,
@@ -180,6 +216,7 @@ export class DrizzleMerchantEventRepository implements MerchantEventRepository {
         severity: clearingSeverity(r.toState as ClearingState),
       })),
       ...settlements.map((r) => ({
+        id: r.id,
         kind: "settlement" as const,
         occurredAt: r.confirmedAt ?? r.firstSeenAt,
         merchantId,
@@ -188,6 +225,7 @@ export class DrizzleMerchantEventRepository implements MerchantEventRepository {
         severity: settlementSeverity(r.status, r.orphanedAt),
       })),
       ...webhooks.map((r) => ({
+        id: r.id,
         kind: "webhook" as const,
         occurredAt: r.deliveredAt ?? r.createdAt,
         merchantId,
@@ -197,8 +235,51 @@ export class DrizzleMerchantEventRepository implements MerchantEventRepository {
       })),
     ];
 
-    return rows.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()).slice(0, n);
+    const q = filter.q?.toLocaleLowerCase();
+    const direction = ascending ? 1 : -1;
+    return rows
+      .filter((row) => q === undefined || row.summary.toLocaleLowerCase().includes(q))
+      .filter((row) => filter.status === undefined || row.severity === filter.status)
+      .sort((a, b) => {
+        const time = a.occurredAt.getTime() - b.occurredAt.getTime();
+        return time === 0 ? direction * a.id.localeCompare(b.id) : direction * time;
+      })
+      .slice(0, n);
   }
+}
+
+function eventDateFilter(
+  occurredAt: Parameters<typeof gte>[0],
+  id: Parameters<typeof eq>[0],
+  filter: MerchantEventFilter,
+  dateParam: (date: Date) => Date | string = identity,
+) {
+  const cursor = filter.cursor;
+  const cursorFilter =
+    cursor === undefined
+      ? undefined
+      : filter.sort === "created"
+        ? or(
+            gt(occurredAt, dateParam(cursor.occurredAt)),
+            and(eq(occurredAt, dateParam(cursor.occurredAt)), gt(id, cursor.id)),
+          )
+        : or(
+            lt(occurredAt, dateParam(cursor.occurredAt)),
+            and(eq(occurredAt, dateParam(cursor.occurredAt)), lt(id, cursor.id)),
+          );
+  return and(
+    filter.from === undefined ? undefined : gte(occurredAt, dateParam(filter.from)),
+    filter.to === undefined ? undefined : lt(occurredAt, dateParam(filter.to)),
+    cursorFilter,
+  );
+}
+
+function identity(date: Date): Date {
+  return date;
+}
+
+function toTimestampParam(date: Date): string {
+  return date.toISOString();
 }
 
 function eventLimit(limit: number | undefined): number {

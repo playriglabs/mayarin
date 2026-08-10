@@ -1,4 +1,12 @@
-import type { PaymentIntent } from "./types.ts";
+import type { PaymentIntent, PaymentIntentStatus } from "./types.ts";
+
+export type PaymentIntentListSort = "created" | "-created" | "-amount";
+
+export interface PaymentIntentListCursor {
+  readonly id: string;
+  readonly createdAt: Date;
+  readonly amount?: bigint;
+}
 
 /**
  * Persistence port for payment intents.
@@ -16,6 +24,12 @@ export interface ListPaymentIntentsOptions {
    * attempts that expired.
    */
   readonly merchantReference?: string;
+  readonly q?: string;
+  readonly status?: PaymentIntentStatus;
+  readonly sort?: PaymentIntentListSort;
+  readonly from?: Date;
+  readonly to?: Date;
+  readonly cursor?: PaymentIntentListCursor;
   /** Caps the page size; defaults to the adapter's own bound. */
   readonly limit?: number;
 }

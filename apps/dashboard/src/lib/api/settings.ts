@@ -8,6 +8,7 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
+import { listPath } from "@/lib/api/list-path";
 import type {
   ChallengeResponse,
   SettingsHistoryResponse,
@@ -17,6 +18,7 @@ import type {
   WalletBalanceResponse,
   WalletListResponse,
   WalletResponse,
+  WebhookDeliveryListFilter,
   WebhookDeliveryListResponse,
   WebhookDeliveryResponse,
   WebhookEndpointListResponse,
@@ -96,10 +98,11 @@ export const webhooksApi = {
       method: "POST",
     }),
 
-  listDeliveries: (limit?: number): Effect.Effect<WebhookDeliveryListResponse, ApiError> =>
-    request<WebhookDeliveryListResponse>(
-      limit === undefined ? "/webhooks/deliveries" : `/webhooks/deliveries?limit=${limit}`,
-    ),
+  listDeliveries: (
+    filter: WebhookDeliveryListFilter = {},
+    cursor?: string,
+  ): Effect.Effect<WebhookDeliveryListResponse, ApiError> =>
+    request<WebhookDeliveryListResponse>(listPath("/webhooks/deliveries", filter, cursor)),
 
   replayDelivery: (id: string): Effect.Effect<WebhookDeliveryResponse, ApiError> =>
     request<WebhookDeliveryResponse>(`/webhooks/deliveries/${encodeURIComponent(id)}/replay`, {

@@ -6,15 +6,18 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
+import { listPath } from "@/lib/api/list-path";
 import type {
   ApiKeyCreateResponse,
   ApiKeyDto,
+  ApiKeyListFilter,
   ApiKeyListResponse,
   CreateApiKeyRequest,
 } from "@/types/api-keys";
 
 export const apiKeysApi = {
-  list: (): Effect.Effect<ApiKeyListResponse, ApiError> => request<ApiKeyListResponse>("/api-keys"),
+  list: (filter: ApiKeyListFilter = {}): Effect.Effect<ApiKeyListResponse, ApiError> =>
+    request<ApiKeyListResponse>(listPath("/api-keys", filter)),
 
   create: (body: CreateApiKeyRequest): Effect.Effect<ApiKeyCreateResponse, ApiError> =>
     request<ApiKeyCreateResponse>("/api-keys", { method: "POST", body }),

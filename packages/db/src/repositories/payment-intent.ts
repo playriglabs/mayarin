@@ -10,7 +10,7 @@ import type {
 } from "@mayarin/payment-intent";
 import type { QrScheme } from "@mayarin/qr-parser";
 import { ConcurrencyError, ValidationError } from "@mayarin/shared";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, lt, or } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, toAsset, toMoney } from "../mapping.ts";
 import { paymentIntents } from "../schema.ts";
@@ -75,16 +75,58 @@ export class DrizzlePaymentIntentRepository implements PaymentIntentRepository {
       options.merchantReference === undefined
         ? undefined
         : eq(paymentIntents.merchantReference, options.merchantReference),
+      options.q === undefined
+        ? undefined
+        : or(
+            ilike(paymentIntents.id, `%${options.q}%`),
+            ilike(paymentIntents.merchantReference, `%${options.q}%`),
+          ),
+      options.status === undefined ? undefined : eq(paymentIntents.status, options.status),
+      options.from === undefined ? undefined : gte(paymentIntents.createdAt, options.from),
+      options.to === undefined ? undefined : lt(paymentIntents.createdAt, options.to),
+      cursorFilter(options),
     ].filter((filter) => filter !== undefined);
+
+    const sort = options.sort ?? "-created";
+    const order =
+      sort === "created"
+        ? [asc(paymentIntents.createdAt), asc(paymentIntents.id)]
+        : sort === "-amount"
+          ? [desc(paymentIntents.amount), desc(paymentIntents.id)]
+          : [desc(paymentIntents.createdAt), desc(paymentIntents.id)];
 
     const rows = await this.#db
       .select()
       .from(paymentIntents)
       .where(filters.length === 0 ? undefined : and(...filters))
-      .orderBy(desc(paymentIntents.createdAt))
+      .orderBy(...order)
       .limit(limit);
     return rows.map(toDomain);
   }
+}
+
+function cursorFilter(options: ListPaymentIntentsOptions) {
+  const cursor = options.cursor;
+  if (cursor === undefined) return undefined;
+  const sort = options.sort ?? "-created";
+  if (sort === "-amount") {
+    if (cursor.amount === undefined) return undefined;
+    const amount = cursor.amount.toString();
+    return or(
+      lt(paymentIntents.amount, amount),
+      and(eq(paymentIntents.amount, amount), lt(paymentIntents.id, cursor.id)),
+    );
+  }
+  if (sort === "created") {
+    return or(
+      gt(paymentIntents.createdAt, cursor.createdAt),
+      and(eq(paymentIntents.createdAt, cursor.createdAt), gt(paymentIntents.id, cursor.id)),
+    );
+  }
+  return or(
+    lt(paymentIntents.createdAt, cursor.createdAt),
+    and(eq(paymentIntents.createdAt, cursor.createdAt), lt(paymentIntents.id, cursor.id)),
+  );
 }
 
 function toRow(intent: PaymentIntent): typeof paymentIntents.$inferInsert {

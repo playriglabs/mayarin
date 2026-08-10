@@ -23,6 +23,14 @@ export interface ApiKeyListResponse {
   readonly apiKeys: readonly ApiKeyDto[];
 }
 
+export interface ApiKeyListFilter {
+  readonly q?: string;
+  readonly status?: "active" | "inactive";
+  readonly sort?: "created" | "-created";
+  readonly from?: string;
+  readonly to?: string;
+}
+
 export interface ApiKeyCreateResponse {
   readonly apiKey: ApiKeyDto;
   readonly secret: string;

@@ -59,6 +59,8 @@ export class InMemoryPaymentIntentRepository implements PaymentIntentRepository 
 
   async list(options: ListPaymentIntentsOptions = {}): Promise<readonly PaymentIntent[]> {
     const limit = options.limit ?? 100;
+    const q = options.q?.toLocaleLowerCase();
+    const sort = options.sort ?? "-created";
     const scoped = [...this.#byId.values()]
       .filter(
         (intent) => options.merchantId === undefined || intent.merchant.id === options.merchantId,
@@ -67,7 +69,51 @@ export class InMemoryPaymentIntentRepository implements PaymentIntentRepository 
         (intent) =>
           options.merchantReference === undefined ||
           intent.merchantReference === options.merchantReference,
+      )
+      .filter(
+        (intent) =>
+          q === undefined ||
+          intent.id.toLocaleLowerCase().includes(q) ||
+          intent.merchantReference?.toLocaleLowerCase().includes(q) === true,
+      )
+      .filter((intent) => options.status === undefined || intent.status === options.status)
+      .filter((intent) => options.from === undefined || intent.createdAt >= options.from)
+      .filter((intent) => options.to === undefined || intent.createdAt < options.to)
+      .sort((a, b) => compareIntents(a, b, sort))
+      .filter((intent) =>
+        options.cursor === undefined
+          ? true
+          : compareIntentToCursor(intent, options.cursor, sort) > 0,
       );
-    return scoped.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
+    return scoped.slice(0, limit);
   }
+}
+
+function compareIntents(
+  a: PaymentIntent,
+  b: PaymentIntent,
+  sort: NonNullable<ListPaymentIntentsOptions["sort"]>,
+): number {
+  if (sort === "-amount") {
+    if (a.amount.amount !== b.amount.amount) return a.amount.amount > b.amount.amount ? -1 : 1;
+    return b.id.localeCompare(a.id);
+  }
+  const direction = sort === "created" ? 1 : -1;
+  const time = a.createdAt.getTime() - b.createdAt.getTime();
+  return time === 0 ? direction * a.id.localeCompare(b.id) : direction * time;
+}
+
+function compareIntentToCursor(
+  intent: PaymentIntent,
+  cursor: NonNullable<ListPaymentIntentsOptions["cursor"]>,
+  sort: NonNullable<ListPaymentIntentsOptions["sort"]>,
+): number {
+  const cursorIntent: PaymentIntent = {
+    ...intent,
+    id: cursor.id,
+    createdAt: cursor.createdAt,
+    amount:
+      cursor.amount === undefined ? intent.amount : { ...intent.amount, amount: cursor.amount },
+  };
+  return compareIntents(intent, cursorIntent, sort);
 }

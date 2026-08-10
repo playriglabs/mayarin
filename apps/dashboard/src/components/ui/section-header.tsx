@@ -22,7 +22,7 @@ function SectionHeader({
       className={cn("flex items-baseline justify-between gap-3", className)}
       {...props}
     >
-      <h2 className="label flex items-center gap-2.5 text-muted-foreground">
+      <h2 className="label flex items-center gap-2.5 text-muted-foreground mt-4">
         <span aria-hidden="true" className="inline-block size-1.5 bg-electric" />
         {title}
       </h2>

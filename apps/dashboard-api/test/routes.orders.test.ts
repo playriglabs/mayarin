@@ -135,6 +135,25 @@ describe("GET /orders", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  test("filters and paginates referenced orders with opaque cursors", async () => {
+    const { harness, auth } = await seed();
+    await createIntent(harness, { merchantReference: "KEEP-001" });
+    await createIntent(harness, { merchantReference: "KEEP-002" });
+    await createIntent(harness, { merchantReference: "DROP-001" });
+
+    const first = await harness.request("GET", "/orders?q=KEEP&limit=1", { cookies: auth.jar });
+    expect(first.body?.orders).toHaveLength(1);
+    expect(typeof first.body?.nextCursor).toBe("string");
+
+    const second = await harness.request(
+      "GET",
+      `/orders?q=KEEP&limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+      { cookies: auth.jar },
+    );
+    expect(second.body?.orders).toHaveLength(1);
+    expect(second.body?.orders[0].id).not.toBe(first.body?.orders[0].id);
+  });
 });
 
 describe("GET /orders?customerId=", () => {

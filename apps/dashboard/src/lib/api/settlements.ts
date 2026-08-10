@@ -5,11 +5,12 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
+import { listPath } from "@/lib/api/list-path";
 import type { SettlementListResponse } from "@/types/settlement";
 
 export const settlementsApi = {
-  list: (limit?: number): Effect.Effect<SettlementListResponse, ApiError> =>
+  list: (limit?: number, cursor?: string): Effect.Effect<SettlementListResponse, ApiError> =>
     request<SettlementListResponse>(
-      limit === undefined ? "/settlements" : `/settlements?limit=${limit}`,
+      listPath("/settlements", limit === undefined ? {} : { limit }, cursor),
     ),
 };

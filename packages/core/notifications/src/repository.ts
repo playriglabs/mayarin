@@ -11,6 +11,17 @@
 
 import type { NotifiableEvent, WebhookDelivery, WebhookEndpoint } from "./types.ts";
 
+export interface ListWebhookDeliveriesOptions {
+  readonly merchantId: string;
+  readonly limit: number;
+  readonly q?: string;
+  readonly status?: WebhookDelivery["status"];
+  readonly sort?: "created" | "-created";
+  readonly from?: Date;
+  readonly to?: Date;
+  readonly cursor?: { readonly createdAt: Date; readonly id: string };
+}
+
 export interface WebhookOutbox {
   /**
    * Events with an id after `cursor`, oldest first. Event ids are ULIDs, so id
@@ -51,7 +62,7 @@ export interface WebhookDeliveryRepository {
    * they will not trust — and a dead-lettered one they cannot see is a payment
    * they silently miss.
    */
-  listByMerchant(merchantId: string, limit: number): Promise<readonly WebhookDelivery[]>;
+  listByMerchant(options: ListWebhookDeliveriesOptions): Promise<readonly WebhookDelivery[]>;
 }
 
 /**

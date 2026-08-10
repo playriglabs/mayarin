@@ -74,7 +74,17 @@ export class InMemoryProductRepository implements ProductRepository {
     return [...this.#byId.values()]
       .filter((product) => product.merchantId === options.merchantId)
       .filter((product) => options.active === undefined || product.active === options.active)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .sort((a, b) => {
+        const time = b.createdAt.getTime() - a.createdAt.getTime();
+        return time === 0 ? b.id.localeCompare(a.id) : time;
+      })
+      .filter(
+        (product) =>
+          options.cursor === undefined ||
+          product.createdAt < options.cursor.createdAt ||
+          (product.createdAt.getTime() === options.cursor.createdAt.getTime() &&
+            product.id < options.cursor.id),
+      )
       .slice(0, options.limit ?? DEFAULT_LIMIT);
   }
 }
@@ -125,7 +135,17 @@ export class InMemoryPaymentLinkRepository implements PaymentLinkRepository {
   async list(options: ListPaymentLinksOptions): Promise<readonly PaymentLink[]> {
     return [...this.#byId.values()]
       .filter((link) => link.merchant.id === options.merchantId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .sort((a, b) => {
+        const time = b.createdAt.getTime() - a.createdAt.getTime();
+        return time === 0 ? b.id.localeCompare(a.id) : time;
+      })
+      .filter(
+        (link) =>
+          options.cursor === undefined ||
+          link.createdAt < options.cursor.createdAt ||
+          (link.createdAt.getTime() === options.cursor.createdAt.getTime() &&
+            link.id < options.cursor.id),
+      )
       .slice(0, options.limit ?? DEFAULT_LIMIT);
   }
 }
@@ -145,9 +165,20 @@ export class InMemoryCustomerRepository implements CustomerRepository {
   }
 
   async listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]> {
+    const q = options.q?.toLocaleLowerCase();
+    const direction = options.sort === "created" ? 1 : -1;
     return [...this.#byId.values()]
       .filter((customer) => customer.merchantId === options.merchantId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .filter(
+        (customer) =>
+          q === undefined ||
+          customer.id.toLocaleLowerCase().includes(q) ||
+          customer.name.toLocaleLowerCase().includes(q) ||
+          customer.email?.toLocaleLowerCase().includes(q) === true,
+      )
+      .filter((customer) => options.from === undefined || customer.createdAt >= options.from)
+      .filter((customer) => options.to === undefined || customer.createdAt < options.to)
+      .sort((a, b) => direction * (a.createdAt.getTime() - b.createdAt.getTime()))
       .slice(0, options.limit ?? DEFAULT_LIMIT);
   }
 

@@ -24,6 +24,7 @@ import type {
   WalletBalanceResponse,
   WalletListResponse,
   WalletResponse,
+  WebhookDeliveryListFilter,
   WebhookDeliveryListResponse,
   WebhookDeliveryResponse,
   WebhookEndpointListResponse,
@@ -56,6 +57,7 @@ export function useSettingsHistory() {
 export function useUpdateSettings() {
   return useEffectMutation<UpdateSettingsResponse, UpdateSettingsRequest, ApiError>({
     mutation: (body) => settingsApi.update(body),
+    toast: { loading: "Saving settings…", success: "Settings saved" },
     invalidate: [SETTINGS_KEY, SETTINGS_HISTORY_KEY],
   });
 }
@@ -70,6 +72,7 @@ export function useWallets() {
 export function useLinkWallet() {
   return useEffectMutation<WalletResponse, LinkWalletRequest, ApiError>({
     mutation: (body) => walletsApi.link(body),
+    toast: { loading: "Linking wallet…", success: "Wallet linked" },
     invalidate: [WALLETS_KEY],
   });
 }
@@ -78,6 +81,7 @@ export function useLinkWallet() {
 export function useProvisionWallet() {
   return useEffectMutation<WalletResponse, string, ApiError>({
     mutation: (chain) => walletsApi.provision(chain),
+    toast: { loading: "Provisioning wallet…", success: "Wallet provisioned" },
     invalidate: [WALLETS_KEY, SETTINGS_KEY],
   });
 }
@@ -86,12 +90,14 @@ export function useProvisionWallet() {
 export function useWalletChallenge() {
   return useEffectMutation<ChallengeResponse, string, ApiError>({
     mutation: (walletId) => walletsApi.challenge(walletId),
+    toast: { loading: "Preparing signature…", success: "Signature request ready" },
   });
 }
 
 export function useVerifyWallet() {
   return useEffectMutation<WalletResponse, VerifyWalletRequest, ApiError>({
     mutation: (vars) => walletsApi.verify(vars),
+    toast: { loading: "Verifying wallet…", success: "Wallet verified" },
     invalidate: [WALLETS_KEY, SETTINGS_KEY],
   });
 }
@@ -114,6 +120,7 @@ export function useWalletBalance() {
 export function useWithdraw() {
   return useEffectMutation<WithdrawResponse, WithdrawRequest, ApiError>({
     mutation: (body) => walletsApi.withdraw(body),
+    toast: { loading: "Submitting withdrawal…", success: "Withdrawal submitted" },
     invalidate: [WALLET_BALANCE_KEY],
   });
 }
@@ -128,6 +135,7 @@ export function useWebhookEndpoints() {
 export function useCreateWebhookEndpoint() {
   return useEffectMutation<WebhookEndpointResponse, string, ApiError>({
     mutation: (url) => webhooksApi.createEndpoint(url),
+    toast: { loading: "Creating webhook…", success: "Webhook created" },
     invalidate: [ENDPOINTS_KEY],
   });
 }
@@ -135,6 +143,7 @@ export function useCreateWebhookEndpoint() {
 export function useRotateWebhookSecret() {
   return useEffectMutation<WebhookEndpointResponse, string, ApiError>({
     mutation: (id) => webhooksApi.rotateSecret(id),
+    toast: { loading: "Rotating secret…", success: "Webhook secret rotated" },
     invalidate: [ENDPOINTS_KEY],
   });
 }
@@ -142,6 +151,7 @@ export function useRotateWebhookSecret() {
 export function useDeactivateWebhookEndpoint() {
   return useEffectMutation<WebhookEndpointResponse, string, ApiError>({
     mutation: (id) => webhooksApi.deactivateEndpoint(id),
+    toast: { loading: "Deactivating webhook…", success: "Webhook deactivated" },
     invalidate: [ENDPOINTS_KEY],
   });
 }
@@ -150,10 +160,10 @@ export function useDeactivateWebhookEndpoint() {
  * Deliveries poll while any is still pending: a retry lands on its own
  * schedule, and a merchant watching one land should not have to reload.
  */
-export function useWebhookDeliveries(limit?: number) {
+export function useWebhookDeliveries(filter: WebhookDeliveryListFilter = {}, cursor?: string) {
   return useEffectQuery<WebhookDeliveryListResponse, ApiError>({
-    queryKey: [...DELIVERIES_KEY, limit ?? null],
-    query: () => webhooksApi.listDeliveries(limit),
+    queryKey: [...DELIVERIES_KEY, filter, cursor ?? null],
+    query: () => webhooksApi.listDeliveries(filter, cursor),
     refetchInterval: (data) =>
       (data?.deliveries ?? []).some((d) => d.deliveredAt === null) ? 10_000 : false,
   });
@@ -162,6 +172,7 @@ export function useWebhookDeliveries(limit?: number) {
 export function useReplayDelivery() {
   return useEffectMutation<WebhookDeliveryResponse, string, ApiError>({
     mutation: (id) => webhooksApi.replayDelivery(id),
+    toast: { loading: "Replaying delivery…", success: "Webhook replay queued" },
     invalidate: [DELIVERIES_KEY],
   });
 }

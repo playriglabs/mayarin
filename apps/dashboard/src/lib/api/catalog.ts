@@ -7,6 +7,7 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
+import { listPath } from "@/lib/api/list-path";
 import type {
   ChargeLinkRequest,
   ChargeLinkResponse,
@@ -15,6 +16,7 @@ import type {
   PaymentLinkListResponse,
   PaymentLinkResponse,
   ProductListResponse,
+  ProductOptionsResponse,
   ProductResponse,
   QuoteRequest,
   QuoteResponse,
@@ -23,8 +25,10 @@ import type {
 
 export const catalogApi = {
   /** GET `/catalog/products` — the caller's own products. */
-  listProducts: (): Effect.Effect<ProductListResponse, ApiError> =>
-    request<ProductListResponse>("/catalog/products"),
+  listProducts: (limit?: number, cursor?: string): Effect.Effect<ProductListResponse, ApiError> =>
+    request<ProductListResponse>(
+      listPath("/catalog/products", limit === undefined ? {} : { limit }, cursor),
+    ),
 
   createProduct: (body: CreateProductRequest): Effect.Effect<ProductResponse, ApiError> =>
     request<ProductResponse>("/catalog/products", { method: "POST", body }),
@@ -37,11 +41,16 @@ export const catalogApi = {
       method: "PATCH",
       body,
     }),
+
+  productOptions: (): Effect.Effect<ProductOptionsResponse, ApiError> =>
+    request<ProductOptionsResponse>("/catalog/products/options"),
 };
 
 export const linksApi = {
-  list: (): Effect.Effect<PaymentLinkListResponse, ApiError> =>
-    request<PaymentLinkListResponse>("/payment-links"),
+  list: (limit?: number, cursor?: string): Effect.Effect<PaymentLinkListResponse, ApiError> =>
+    request<PaymentLinkListResponse>(
+      listPath("/payment-links", limit === undefined ? {} : { limit }, cursor),
+    ),
 
   create: (body: CreateLinkRequest): Effect.Effect<PaymentLinkResponse, ApiError> =>
     request<PaymentLinkResponse>("/payment-links", { method: "POST", body }),

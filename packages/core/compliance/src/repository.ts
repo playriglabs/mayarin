@@ -11,7 +11,12 @@
  * the same data two ports and two chances to drift.
  */
 
-import type { AuditFilter, MerchantEventRow, PaymentAuditSummary } from "./types.ts";
+import type {
+  AuditFilter,
+  MerchantEventFilter,
+  MerchantEventRow,
+  PaymentAuditSummary,
+} from "./types.ts";
 
 export interface AuditQueryRepository {
   /**
@@ -31,5 +36,9 @@ export interface AuditQueryRepository {
  * than a cross-table union over three tables that share no column.
  */
 export interface MerchantEventRepository {
-  listByMerchant(merchantId: string, limit?: number): Promise<readonly MerchantEventRow[]>;
+  listByMerchant(
+    merchantId: string,
+    limit?: number,
+    filter?: MerchantEventFilter,
+  ): Promise<readonly MerchantEventRow[]>;
 }

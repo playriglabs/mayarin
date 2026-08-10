@@ -4,11 +4,21 @@
  * on narrow viewports. Auth gating itself lives in `src/middleware.ts`; the
  * guard below only narrows `user` for TypeScript.
  */
+import { Avatar, Style } from "@dicebear/core";
+import loopsDefinition from "@dicebear/styles/loops.json" with { type: "json" };
+import {
+  BellIcon,
+  UserIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import LogoutButton from "../components/logout-button.tsx";
+import LiveUpdates from "../components/live-updates.tsx";
+import SidebarToggle from "../components/sidebar-toggle.tsx";
 import SideNav from "../components/side-nav.tsx";
 import ThemeToggle from "../components/theme-toggle.tsx";
-import type { UserDto } from "../types/user";
+import Toaster from "../components/ui/toaster.tsx";
 import "../styles/global.css";
+import type { UserDto } from "../types/user";
 
 interface Props {
   title: string;
@@ -21,6 +31,13 @@ if (user === undefined) return Astro.redirect("/login");
 
 const isAdmin = user.permissions.includes("admin:access");
 const roleLabel = isAdmin ? "Administrator" : "Merchant";
+const loopsStyle = new Style(loopsDefinition);
+const avatarSvg = new Avatar(loopsStyle, {
+  seed: user.email,
+  size: 88,
+}).toString();
+
+const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarSvg)}`;
 ---
 
 <!doctype html>
@@ -39,9 +56,13 @@ const roleLabel = isAdmin ? "Administrator" : "Merchant";
       // Before first paint. Dark is the default; "light" is the stored opt-out.
       document.documentElement.dataset.theme =
         localStorage.getItem("mayarin-theme") === "light" ? "light" : "dark";
+      document.documentElement.dataset.sidebarCollapsed =
+        localStorage.getItem("mayarin-sidebar-collapsed") === "true" ? "true" : "false";
     </script>
   </head>
   <body class="min-h-full">
+    <Toaster client:load />
+    <LiveUpdates client:load />
     <a
       href="#main"
       class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
@@ -49,45 +70,159 @@ const roleLabel = isAdmin ? "Administrator" : "Merchant";
       Skip to content
     </a>
 
-    <div class="flex min-h-screen flex-col md:flex-row">
+    <button
+      type="button"
+      data-sidebar-backdrop
+      class="fixed inset-0 z-40 bg-black/60 md:hidden"
+      aria-label="Close navigation menu"
+      tabindex="-1"
+    ></button>
+
+    <div class="flex min-h-screen md:flex-row">
       <!-- The landing's dark tone, brought into the product as its anchor. -->
       <aside
+        id="dashboard-sidebar"
+        data-sidebar
         data-tone="dark"
-        class="flex shrink-0 flex-col border-b border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:h-screen md:w-56 md:border-r md:border-b-0"
+        class="fixed inset-y-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shrink-0 -translate-x-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:h-screen md:w-72 md:translate-x-0"
       >
         <div
-          class="flex items-center justify-between gap-2 border-b border-sidebar-border p-2 md:p-3"
+          data-sidebar-header
+          class="flex min-h-14 items-center justify-between gap-2 border-b border-sidebar-border px-3 py-[9.5px] md:px-2"
         >
           <a
             href="/"
-            class="flex items-center gap-2.5 p-2 font-mono text-sm font-medium tracking-[0.08em] text-sidebar-foreground uppercase"
+            data-sidebar-logo
+            aria-label="Mayarin dashboard"
+            class="flex min-h-11 items-center gap-2 px-2"
           >
-            <span aria-hidden="true" class="inline-block size-1.5 bg-electric"></span>
-            Mayarin
+            <img
+              src="/images/mayarin-logo-white.png"
+              alt=""
+              aria-hidden="true"
+              width="510"
+              height="489"
+              class="h-9 w-auto"
+            />
+            <span class="font-mono text-[17px] font-medium tracking-[0.1em] text-sidebar-foreground uppercase"
+              >Mayarin</span
+            >
           </a>
-          <!-- Display preference, so it lives in the shell chrome — never in
-               the account block, where it would sit one slip from sign-out. -->
-          <ThemeToggle client:only="react" />
+          <button
+            type="button"
+            data-sidebar-close
+            aria-label="Close navigation menu"
+            class="inline-flex size-10 items-center justify-center text-sidebar-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden"
+          >
+            <XIcon size={22} weight="bold" aria-hidden="true" />
+          </button>
+          <SidebarToggle client:load />
         </div>
 
         <SideNav pathname={Astro.url.pathname} permissions={user.permissions} />
 
         <div
-          class="mt-auto flex items-center justify-between gap-2 border-t border-sidebar-border p-2 md:p-3"
+          data-sidebar-profile
+          class="mt-auto flex items-center gap-3 border-t border-sidebar-border p-3 md:p-5"
         >
-          <div class="flex min-w-0 flex-col gap-0.5">
-            <span class="truncate text-xs text-sidebar-foreground">{user.email}</span>
-            <span class="label text-sidebar-muted-foreground">{roleLabel}</span>
+          <img
+            src={avatarUrl}
+            alt=""
+            aria-hidden="true"
+            width="44"
+            height="44"
+            data-sidebar-avatar
+            class="size-11 shrink-0 rounded-lg border border-sidebar-border bg-sidebar-accent object-cover"
+          />
+          <div data-sidebar-profile-details class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="truncate text-sm font-medium text-sidebar-foreground">{user.email}</span>
+            <span class="truncate text-xs text-sidebar-muted-foreground">{roleLabel}</span>
           </div>
-          <LogoutButton client:load />
+          <div data-sidebar-logout>
+            <LogoutButton client:load />
+          </div>
         </div>
       </aside>
 
-      <main id="main" class="min-w-0 flex-1 p-4 md:p-8 lg:p-10">
-        <div class="mx-auto flex max-w-6xl flex-col gap-8">
+      <main id="main" class="min-w-0 flex-1">
+        <header
+          class="flex min-h-16 items-center justify-between gap-4 border-b border-border bg-background px-4 md:px-8 lg:px-10"
+        >
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              data-sidebar-open
+              aria-label="Open navigation menu"
+              aria-controls="dashboard-sidebar"
+              aria-expanded="false"
+              class="inline-flex size-10 items-center justify-center border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+            >
+              <span data-menu-open-icon aria-hidden="true" class="flex w-5 flex-col gap-1">
+                <span class="h-0.5 w-full bg-current"></span>
+                <span class="h-0.5 w-full bg-current"></span>
+              </span>
+              <XIcon data-menu-close-icon size={22} weight="bold" aria-hidden="true" />
+            </button>
+            <span class="text-[17px] font-medium text-foreground">Dashboard</span>
+          </div>
+
+          <nav aria-label="Dashboard shortcuts" class="flex items-center gap-2">
+            <ThemeToggle client:load />
+          
+            <a
+              href="/event-logs"
+              aria-label="Open notifications"
+              title="Notifications"
+              class="flex size-10 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground"
+            >
+              <BellIcon size={20} weight="regular" aria-hidden="true" />
+            </a>
+            <a
+              href="/settings"
+              aria-label="Open account settings"
+              title="Account settings"
+              class="flex size-10 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground"
+            >
+              <UserIcon size={20} weight="regular" aria-hidden="true" />
+            </a>
+          </nav>
+        </header>
+
+        <div class="w-full gap-8 p-4 md:p-8 lg:pt-5 lg:px-10">
           <slot />
         </div>
       </main>
     </div>
+
+    <script>
+      const root = document.documentElement;
+      const openButton = document.querySelector<HTMLButtonElement>("[data-sidebar-open]");
+      const closeButton = document.querySelector<HTMLButtonElement>("[data-sidebar-close]");
+      const backdrop = document.querySelector<HTMLButtonElement>("[data-sidebar-backdrop]");
+      const desktop = window.matchMedia("(min-width: 48rem)");
+
+      function setMobileSidebar(open: boolean) {
+        root.dataset.sidebarMobileOpen = String(open);
+        openButton?.setAttribute("aria-expanded", String(open));
+        openButton?.setAttribute("aria-label", open ? "Close navigation menu" : "Open navigation menu");
+        document.body.style.overflow = open ? "hidden" : "";
+        if (open) closeButton?.focus();
+        else openButton?.focus();
+      }
+
+      openButton?.addEventListener("click", () =>
+        setMobileSidebar(root.dataset.sidebarMobileOpen !== "true"),
+      );
+      closeButton?.addEventListener("click", () => setMobileSidebar(false));
+      backdrop?.addEventListener("click", () => setMobileSidebar(false));
+      desktop.addEventListener("change", ({ matches }) => {
+        if (matches && root.dataset.sidebarMobileOpen === "true") setMobileSidebar(false);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && root.dataset.sidebarMobileOpen === "true") {
+          setMobileSidebar(false);
+        }
+      });
+    </script>
   </body>
 </html>

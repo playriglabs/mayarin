@@ -11,6 +11,7 @@
 import type { MerchantEventRow } from "@mayarin/compliance";
 
 export interface MerchantEventDto {
+  readonly id: string;
   readonly kind: MerchantEventRow["kind"];
   readonly occurredAt: string;
   readonly merchantId: string;
@@ -21,11 +22,13 @@ export interface MerchantEventDto {
 
 export interface EventLogListResponse {
   readonly events: readonly MerchantEventDto[];
+  readonly nextCursor: string | null;
 }
 
 export function toEventDto(row: MerchantEventRow): MerchantEventDto {
   const { intentId } = row;
   return {
+    id: row.id,
     kind: row.kind,
     occurredAt: row.occurredAt.toISOString(),
     merchantId: row.merchantId,

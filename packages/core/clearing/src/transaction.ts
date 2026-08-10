@@ -102,12 +102,13 @@ export function transition(
 export function failTransaction(
   transaction: ClearingTransaction,
   failure: ClearingFailure,
+  details: Readonly<Record<string, unknown>> = {},
 ): TransitionResult {
   return transition(
     transaction,
     "FAILED",
     failure.at,
     { failure },
-    { reason: failure.reason, code: failure.code },
+    { ...details, reason: failure.reason, code: failure.code },
   );
 }

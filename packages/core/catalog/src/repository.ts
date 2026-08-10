@@ -13,6 +13,7 @@ export interface ListProductsOptions {
   /** Omitted, both active and retired products are listed. */
   readonly active?: boolean;
   readonly limit?: number;
+  readonly cursor?: { readonly id: string; readonly createdAt: Date };
 }
 
 export interface ProductRepository {
@@ -28,6 +29,7 @@ export interface ProductRepository {
 export interface ListPaymentLinksOptions {
   readonly merchantId: string;
   readonly limit?: number;
+  readonly cursor?: { readonly id: string; readonly createdAt: Date };
 }
 
 export interface PaymentLinkRepository {
@@ -40,6 +42,10 @@ export interface PaymentLinkRepository {
 
 export interface ListCustomersOptions {
   readonly merchantId: string;
+  readonly q?: string;
+  readonly sort?: "created" | "-created";
+  readonly from?: Date;
+  readonly to?: Date;
   readonly limit?: number;
 }
 

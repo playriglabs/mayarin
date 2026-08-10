@@ -10,6 +10,7 @@
 
 import type { ClearingEventType, ClearingState } from "@mayarin/clearing";
 import {
+  type ListWebhookDeliveriesOptions,
   type NotifiableEvent,
   toWebhookEventType,
   type WebhookCursorRepository,
@@ -20,7 +21,7 @@ import {
   type WebhookEndpointRepository,
   type WebhookOutbox,
 } from "@mayarin/notifications";
-import { and, asc, desc, eq, gt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, lt, lte, or } from "drizzle-orm";
 import type { Database } from "../client.ts";
 import { present } from "../mapping.ts";
 import {
@@ -201,13 +202,47 @@ export class DrizzleWebhookDeliveryRepository implements WebhookDeliveryReposito
     return row === undefined ? null : toDelivery(row);
   }
 
-  async listByMerchant(merchantId: string, limit: number): Promise<readonly WebhookDelivery[]> {
+  async listByMerchant(options: ListWebhookDeliveriesOptions): Promise<readonly WebhookDelivery[]> {
+    const ascending = options.sort === "created";
+    const filters = [
+      eq(webhookDeliveries.merchantId, options.merchantId),
+      options.q === undefined
+        ? undefined
+        : or(
+            ilike(webhookDeliveries.id, `%${options.q}%`),
+            ilike(webhookDeliveries.eventId, `%${options.q}%`),
+            ilike(webhookDeliveries.endpointId, `%${options.q}%`),
+          ),
+      options.status === undefined ? undefined : eq(webhookDeliveries.status, options.status),
+      options.from === undefined ? undefined : gte(webhookDeliveries.createdAt, options.from),
+      options.to === undefined ? undefined : lt(webhookDeliveries.createdAt, options.to),
+      options.cursor === undefined
+        ? undefined
+        : ascending
+          ? or(
+              gt(webhookDeliveries.createdAt, options.cursor.createdAt),
+              and(
+                eq(webhookDeliveries.createdAt, options.cursor.createdAt),
+                gt(webhookDeliveries.id, options.cursor.id),
+              ),
+            )
+          : or(
+              lt(webhookDeliveries.createdAt, options.cursor.createdAt),
+              and(
+                eq(webhookDeliveries.createdAt, options.cursor.createdAt),
+                lt(webhookDeliveries.id, options.cursor.id),
+              ),
+            ),
+    ].filter((filter) => filter !== undefined);
     const rows = await this.#db
       .select()
       .from(webhookDeliveries)
-      .where(eq(webhookDeliveries.merchantId, merchantId))
-      .orderBy(desc(webhookDeliveries.id))
-      .limit(limit);
+      .where(and(...filters))
+      .orderBy(
+        ascending ? asc(webhookDeliveries.createdAt) : desc(webhookDeliveries.createdAt),
+        ascending ? asc(webhookDeliveries.id) : desc(webhookDeliveries.id),
+      )
+      .limit(options.limit);
     return rows.map(toDelivery);
   }
 }

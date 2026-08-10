@@ -57,7 +57,7 @@ export interface ContractLock {
   readonly rate: LockedRate;
   /** What the payer is shown, slippage-grossed. An estimate, never a lock. */
   readonly payerEstimate: Money;
-  /** The lock deadline; the engine fails the payment past it (plus grace). */
+  /** Quote freshness deadline; distinct from an overridden order deadline. */
   readonly expiresAt: Date;
   readonly order: ContractOrder;
 }
@@ -75,6 +75,12 @@ export interface ContractLockRequest {
   readonly chain: ChainId;
   /** The payer's address, from the intent's rail — the order's `refundTo`. */
   readonly payerAddress: string;
+  /**
+   * Optional on-chain execution deadline, distinct from quote freshness.
+   * Deposit payers may use the full payment-intent window to transfer funds;
+   * connected-wallet payments leave this absent and use the quote deadline.
+   */
+  readonly orderExpiresAt?: Date;
 }
 
 /**

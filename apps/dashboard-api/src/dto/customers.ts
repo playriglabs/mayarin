@@ -32,6 +32,10 @@ export const updateCustomerBodySchema = z
 
 export const listQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(200).optional(),
+  q: z.string().trim().min(1).optional(),
+  sort: z.enum(["created", "-created"]).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
 });
 
 export function toCustomerDto(customer: Customer) {

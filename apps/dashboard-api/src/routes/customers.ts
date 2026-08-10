@@ -30,8 +30,14 @@ export function customerRoutes(container: Container): Hono<{ Variables: AuthVars
   };
 
   app.get("/", async (c) => {
-    const { limit } = listQuerySchema.parse(c.req.query());
-    const customers = await container.customers.list(scopeOf(c), limit);
+    const query = listQuerySchema.parse(c.req.query());
+    const customers = await container.customers.list(scopeOf(c), {
+      ...(query.limit === undefined ? {} : { limit: query.limit }),
+      ...(query.q === undefined ? {} : { q: query.q }),
+      ...(query.sort === undefined ? {} : { sort: query.sort }),
+      ...(query.from === undefined ? {} : { from: query.from }),
+      ...(query.to === undefined ? {} : { to: query.to }),
+    });
     return c.json({ customers: customers.map(toCustomerDto) });
   });
 

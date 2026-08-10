@@ -11,6 +11,7 @@ export function toClearingDto(transaction: ClearingTransaction) {
     state: transaction.state,
     provider: transaction.provider,
     providerReference: transaction.providerReference ?? null,
+    transactionHash: transaction.contract?.txHash ?? null,
     sourceAmount: toMoneyDto(transaction.sourceAmount),
     settlementAmount: optionalMoney(transaction.settlementAmount) ?? null,
     fee: optionalMoney(transaction.fee) ?? null,

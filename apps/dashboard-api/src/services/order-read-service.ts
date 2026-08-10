@@ -23,6 +23,8 @@ import {
 import type { PaymentIntent, PaymentIntentRepository } from "@mayarin/payment-intent";
 import { type Money, money, NotFoundError } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
+import { DEFAULT_PAGE_SIZE, decodeCursor, encodeCursor } from "../pagination.ts";
+import type { PaymentListFilter } from "./payment-read-service.ts";
 
 export interface OrderReadServiceOptions {
   readonly intents: PaymentIntentRepository;
@@ -30,8 +32,6 @@ export interface OrderReadServiceOptions {
   /** Caps a listing; the route's own limit is clamped to it. */
   readonly pageSize?: number;
 }
-
-const DEFAULT_PAGE_SIZE = 100;
 
 /** One row of the order view: a payment, its parsed lines, and its customer. */
 export interface OrderRow {
@@ -41,6 +41,11 @@ export interface OrderRow {
   readonly lines: readonly CartLine[];
   /** The customer this order was taken for, if `metadata.customerId` resolves to one of the merchant's own. */
   readonly customer: Pick<Customer, "id" | "name"> | undefined;
+}
+
+export interface OrderPage {
+  readonly items: readonly OrderRow[];
+  readonly nextCursor: string | null;
 }
 
 export class OrderReadService {
@@ -61,12 +66,33 @@ export class OrderReadService {
    * a payment with neither is a plain transfer the payments surface already
    * shows, and listing it here too would be a second copy of the same table.
    */
-  async list(scope: Scope, limit?: number): Promise<readonly OrderRow[]> {
+  async list(scope: Scope, filter: PaymentListFilter = {}): Promise<OrderPage> {
+    const limit = Math.min(filter.limit ?? this.#pageSize, this.#pageSize);
+    const cursor = decodeCursor(filter.cursor);
     const intents = await this.#intents.list({
       merchantId: scope.merchantId,
-      limit: Math.min(limit ?? this.#pageSize, this.#pageSize),
+      limit: limit + 1,
+      ...(filter.q === undefined ? {} : { q: filter.q }),
+      ...(filter.status === undefined ? {} : { status: filter.status }),
+      ...(filter.sort === undefined ? {} : { sort: filter.sort }),
+      ...(filter.from === undefined ? {} : { from: filter.from }),
+      ...(filter.to === undefined ? {} : { to: filter.to }),
+      ...(cursor === undefined ? {} : { cursor }),
     });
-    return this.#toRows(scope, intents);
+    const scanned = intents.slice(0, limit);
+    const rows = await this.#toRows(scope, scanned);
+    const last = scanned.at(-1);
+    return {
+      items: rows,
+      nextCursor:
+        intents.length <= limit || last === undefined
+          ? null
+          : encodeCursor({
+              id: last.id,
+              createdAt: last.createdAt,
+              ...(filter.sort === "-amount" ? { amount: last.amount.amount } : {}),
+            }),
+    };
   }
 
   /**

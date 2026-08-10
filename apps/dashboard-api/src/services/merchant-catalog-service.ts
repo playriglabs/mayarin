@@ -30,6 +30,7 @@ import {
 import type { MerchantSnapshot } from "@mayarin/payment-intent";
 import { type Money, NotFoundError, ValidationError } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
+import { cursorPage, DEFAULT_PAGE_SIZE, decodeCursor } from "../pagination.ts";
 import type { MerchantSettingsService } from "./merchant-settings-service.ts";
 
 export interface MerchantCatalogServiceOptions {
@@ -81,11 +82,19 @@ export class MerchantCatalogService {
     return priceLink(this.#products, link, amount);
   }
 
-  async listProducts(scope: Scope, active?: boolean): Promise<readonly Product[]> {
-    return this.#catalog.listProducts({
+  async listProducts(
+    scope: Scope,
+    filter: { readonly active?: boolean; readonly limit?: number; readonly cursor?: string } = {},
+  ) {
+    const limit = Math.min(filter.limit ?? DEFAULT_PAGE_SIZE, DEFAULT_PAGE_SIZE);
+    const cursor = decodeCursor(filter.cursor);
+    const products = await this.#catalog.listProducts({
       merchantId: scope.merchantId,
-      ...(active === undefined ? {} : { active }),
+      limit: limit + 1,
+      ...(filter.active === undefined ? {} : { active: filter.active }),
+      ...(cursor === undefined ? {} : { cursor }),
     });
+    return cursorPage(products, limit, (last) => ({ id: last.id, createdAt: last.createdAt }));
   }
 
   async createProduct(scope: Scope, input: CreateProductInput): Promise<Product> {
@@ -107,8 +116,32 @@ export class MerchantCatalogService {
     return this.#catalog.updateProduct(id, patch);
   }
 
-  async listLinks(scope: Scope): Promise<readonly PaymentLink[]> {
-    return this.#catalog.listLinks({ merchantId: scope.merchantId });
+  async listProductOptions(scope: Scope): Promise<readonly Product[]> {
+    const items: Product[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.listProducts(scope, {
+        active: true,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      items.push(...page.items);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+    return items;
+  }
+
+  async listLinks(
+    scope: Scope,
+    filter: { readonly limit?: number; readonly cursor?: string } = {},
+  ) {
+    const limit = Math.min(filter.limit ?? DEFAULT_PAGE_SIZE, DEFAULT_PAGE_SIZE);
+    const cursor = decodeCursor(filter.cursor);
+    const links = await this.#catalog.listLinks({
+      merchantId: scope.merchantId,
+      limit: limit + 1,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    return cursorPage(links, limit, (last) => ({ id: last.id, createdAt: last.createdAt }));
   }
 
   async getLink(scope: Scope, id: string): Promise<PaymentLink> {

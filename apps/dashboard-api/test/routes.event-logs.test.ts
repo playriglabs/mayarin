@@ -17,8 +17,11 @@ import { cookieJar, createDashboardHarness } from "./harness.ts";
 const ADMIN_EMAIL = "admin@mayarin.local";
 const ADMIN_PASSWORD = "correct-horse-battery-staple";
 
-function row(merchantId: string, partial: Omit<MerchantEventRow, "merchantId">): MerchantEventRow {
-  return { merchantId, ...partial };
+function row(
+  merchantId: string,
+  partial: Omit<MerchantEventRow, "merchantId" | "id">,
+): MerchantEventRow {
+  return { id: `${partial.kind}-${partial.occurredAt.getTime()}`, merchantId, ...partial };
 }
 
 async function seed() {
@@ -115,6 +118,33 @@ describe("GET /event-logs", () => {
     expect(res.status).toBe(200);
     expect(res.body?.events).toHaveLength(1);
     expect(res.body?.events[0].kind).toBe("webhook");
+  });
+
+  test("filters by search and severity without widening merchant scope", async () => {
+    const { harness, jar } = await seed();
+    const res = await harness.request(
+      "GET",
+      "/event-logs?q=settlement&status=success&merchantId=mch_other",
+      { cookies: jar },
+    );
+    expect(res.status).toBe(200);
+    expect(res.body?.events.map((event: { summary: string }) => event.summary)).toEqual([
+      "Settlement confirmed",
+    ]);
+  });
+
+  test("uses an opaque cursor without duplicating rows", async () => {
+    const { harness, jar } = await seed();
+    const first = await harness.request("GET", "/event-logs?limit=1", { cookies: jar });
+    expect(typeof first.body?.nextCursor).toBe("string");
+
+    const second = await harness.request(
+      "GET",
+      `/event-logs?limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+      { cookies: jar },
+    );
+    expect(second.body?.events).toHaveLength(1);
+    expect(second.body?.events[0].id).not.toBe(first.body?.events[0].id);
   });
 
   test("a bearer key with payments:read reaches the timeline without a session", async () => {

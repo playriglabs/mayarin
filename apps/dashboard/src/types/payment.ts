@@ -59,6 +59,16 @@ export interface PaymentIntentDto {
 
 export interface PaymentListResponse {
   readonly payments: readonly PaymentIntentDto[];
+  readonly nextCursor: string | null;
+}
+
+export interface PaymentListFilter {
+  readonly limit?: number;
+  readonly q?: string;
+  readonly status?: PaymentIntentStatus;
+  readonly sort?: "created" | "-created" | "-amount";
+  readonly from?: string;
+  readonly to?: string;
 }
 
 export interface ClearingDto {
@@ -66,6 +76,7 @@ export interface ClearingDto {
   readonly state: string;
   readonly provider: string;
   readonly providerReference: string | null;
+  readonly transactionHash: string | null;
   readonly sourceAmount: MoneyDto;
   readonly settlementAmount: MoneyDto | null;
   readonly fee: MoneyDto | null;

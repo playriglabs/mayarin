@@ -3,7 +3,7 @@ import type { ExecuteRequest, SweepRequest } from "@mayarin/clearing";
 import { paymentRouterAbi } from "@mayarin/contracts";
 import type { ExecutableRoute, RouteRequest, SwapRouteSource } from "@mayarin/execution";
 import { ConfigurationError, money, ProviderError } from "@mayarin/shared";
-import { encodeEventTopics, encodeFunctionData, parseAbi } from "viem";
+import { encodeErrorResult, encodeEventTopics, encodeFunctionData, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { depositSalt } from "../src/forwarder-deriver.ts";
 import { EvmTreasuryExecutionPort } from "../src/treasury-executor.ts";
@@ -32,6 +32,12 @@ interface Sent {
   data: string;
   value: bigint;
   nonce: number;
+}
+
+class RevertError extends Error {
+  constructor(readonly data: `0x${string}`) {
+    super("execution reverted");
+  }
 }
 
 /** The nonce the fake node's mempool starts at — arbitrary, just not zero. */
@@ -85,6 +91,7 @@ function harness(
     index?: number | undefined;
     logs?: readonly { address: string; topics: readonly string[]; data: string }[];
     status?: "success" | "reverted";
+    revert?: "ExpiredOrder" | "AlreadyConsumed" | "InvalidSigner" | "MinOutNotMet";
   } = {},
 ) {
   const sent: Sent[] = [];
@@ -108,10 +115,26 @@ function harness(
     async waitForTransactionReceipt() {
       return {
         status: options.status ?? "success",
+        blockNumber: 100n,
         gasUsed: 99_061n,
         effectiveGasPrice: 6_000_000n,
         logs: options.logs ?? [paymentCompletedLog(2_990_000n, 10_000n, 80_000n)],
       };
+    },
+    async call() {
+      if (options.revert === undefined) return { data: undefined };
+      const data =
+        options.revert === "MinOutNotMet"
+          ? encodeErrorResult({
+              abi: paymentRouterAbi,
+              errorName: "MinOutNotMet",
+              args: [2_900_000n, 3_000_000n],
+            })
+          : encodeErrorResult({
+              abi: paymentRouterAbi,
+              errorName: options.revert,
+            });
+      throw new RevertError(data);
     },
   };
 
@@ -143,9 +166,7 @@ function harness(
   };
 
   const port = new EvmTreasuryExecutionPort({
-    // biome-ignore lint/suspicious/noExplicitAny: structural fakes for viem clients
     publicClient: publicClient as any,
-    // biome-ignore lint/suspicious/noExplicitAny: structural fakes for viem clients
     walletClient: walletClient as any,
     account: ACCOUNT,
     lookup: {
@@ -286,6 +307,27 @@ describe("executing a native deposit", () => {
 
     await expect(port.execute(EXECUTE)).rejects.toThrow(ProviderError);
     await expect(port.execute(EXECUTE)).rejects.toMatchObject({ retryable: true });
+  });
+
+  test.each(["ExpiredOrder", "AlreadyConsumed", "InvalidSigner"] as const)(
+    "%s is terminal and is not presented as a retryable route miss",
+    async (revert) => {
+      const { port } = harness({ status: "reverted", revert });
+
+      await expect(port.execute(EXECUTE)).rejects.toMatchObject({
+        retryable: false,
+        details: { revert },
+      });
+    },
+  );
+
+  test("MinOutNotMet remains retryable", async () => {
+    const { port } = harness({ status: "reverted", revert: "MinOutNotMet" });
+
+    await expect(port.execute(EXECUTE)).rejects.toMatchObject({
+      retryable: true,
+      details: { revert: "MinOutNotMet" },
+    });
   });
 
   test("a transaction with no PaymentCompleted log is not silently treated as settled", async () => {

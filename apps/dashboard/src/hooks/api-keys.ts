@@ -13,6 +13,7 @@ import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
   ApiKeyCreateResponse,
   ApiKeyDto,
+  ApiKeyListFilter,
   ApiKeyListResponse,
   CreateApiKeyRequest,
 } from "@/types/api-keys";
@@ -20,16 +21,17 @@ import type {
 const API_KEYS_KEY = ["api-keys", "list"];
 
 /** GET `/api-keys` — the merchant's keys, without secrets. */
-export function useApiKeys() {
+export function useApiKeys(filter: ApiKeyListFilter = {}) {
   return useEffectQuery<ApiKeyListResponse, ApiError>({
-    queryKey: API_KEYS_KEY,
-    query: () => apiKeysApi.list(),
+    queryKey: [...API_KEYS_KEY, filter],
+    query: () => apiKeysApi.list(filter),
   });
 }
 
 export function useCreateApiKey() {
   return useEffectMutation<ApiKeyCreateResponse, CreateApiKeyRequest, ApiError>({
     mutation: (body) => apiKeysApi.create(body),
+    toast: { loading: "Creating API key…", success: "API key created" },
     invalidate: [API_KEYS_KEY],
   });
 }
@@ -37,6 +39,7 @@ export function useCreateApiKey() {
 export function useDeactivateApiKey() {
   return useEffectMutation<ApiKeyDto, string, ApiError>({
     mutation: (id) => apiKeysApi.deactivate(id),
+    toast: { loading: "Deactivating API key…", success: "API key deactivated" },
     invalidate: [API_KEYS_KEY],
   });
 }

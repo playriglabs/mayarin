@@ -37,6 +37,7 @@ export interface OrderDto {
 
 export interface OrderListResponse {
   readonly orders: readonly OrderDto[];
+  readonly nextCursor: string | null;
 }
 
 export function toOrderDto(row: OrderRow): OrderDto {

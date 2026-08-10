@@ -22,9 +22,12 @@
 import { CheckIcon, CopyIcon, QrCodeIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
+import { AssetAmount } from "@/components/asset-logo";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PanelSkeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/ui/query-error";
+import { DepositQrSkeleton } from "@/components/ui/skeleton";
 import { useDeposit } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
 import { ICON_NAV } from "@/lib/icons";
@@ -54,8 +57,19 @@ export function DepositQr({ paymentIntentId }: DepositQrProps) {
   }
 
   return match(deposit)
-    .with({ isPending: true }, () => <PanelSkeleton lines={4} />)
-    .with({ isError: true }, ({ error }) => <Alert variant="destructive">{reasonOf(error)}</Alert>)
+    .with({ isPending: true }, () => (
+      <div role="status" aria-live="polite">
+        <span className="sr-only">Loading payment code</span>
+        <DepositQrSkeleton />
+      </div>
+    ))
+    .with({ isError: true }, ({ error }) => (
+      <QueryError
+        message={reasonOf(error)}
+        retry={() => void deposit.refetch()}
+        retrying={deposit.isFetching}
+      />
+    ))
     .otherwise(() => {
       const value = deposit.data?.deposit;
       const qrUrl = deposit.data?.qrUrl ?? null;
@@ -93,71 +107,91 @@ function Paid({ deposit, qrUrl, copied, onCopy, children }: PaidProps) {
   const funded = BigInt(deposit.received.amount) >= BigInt(deposit.amount.amount);
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {qrUrl === null ? (
-        <Alert role="status">
-          {deposit.asset} names nothing transferable on {deposit.chain}, so there is no code to
-          scan. Send the exact amount to the address below.
-        </Alert>
-      ) : (
-        <>
-          {/* White plate under the code: a QR is read by contrast, and a dark
-              theme behind a dark-module code is a code no scanner resolves. */}
-          <img
-            src={qrUrl}
-            alt={`Payment code for ${deposit.amount.display} to ${deposit.address}`}
-            className="size-56 bg-white p-2"
-          />
-          <p className="flex items-center gap-2 text-center text-sm text-muted-foreground">
-            <QrCodeIcon size={ICON_NAV} aria-hidden="true" />
-            Scan with any crypto wallet. It opens a transfer, already filled in.
-          </p>
-        </>
-      )}
-
-      <dl className="flex w-full flex-col gap-3 border-t border-border pt-3">
-        <div className="flex flex-col gap-1">
-          <dt className="text-xs text-subtle-foreground">Send exactly</dt>
-          <dd className="text-lg font-medium text-foreground">{deposit.amount.display}</dd>
+    <div className="flex w-full flex-col gap-4">
+      <div className="grid gap-5 md:grid-cols-[13rem_minmax(0,1fr)] md:items-center md:gap-6">
+        <div className="flex flex-col items-center gap-3">
+          {qrUrl === null ? (
+            <Alert role="status">
+              {deposit.asset} names nothing transferable on {deposit.chain}, so there is no code to
+              scan. Send the exact amount to the address shown here.
+            </Alert>
+          ) : (
+            <>
+              {/* White plate under the code: a QR is read by contrast, and a
+                  dark theme behind a dark-module code is unreadable. */}
+              <img
+                src={qrUrl}
+                alt={`Payment code for ${deposit.amount.display} to ${deposit.address}`}
+                className="size-48 bg-white p-2 md:size-52"
+              />
+              <p className="flex items-center gap-2 text-center text-xs text-muted-foreground">
+                <QrCodeIcon size={16} aria-hidden="true" />
+                Scan with any crypto wallet
+              </p>
+            </>
+          )}
         </div>
 
-        <div className="flex flex-col gap-1">
-          <dt className="text-xs text-subtle-foreground">To this address, on {deposit.chain}</dt>
-          {/* Never truncated in the DOM: an address a payer cannot copy whole is
-              worse than one they have to scroll. */}
-          <dd className="flex items-start gap-2">
-            <span className="min-w-0 break-all font-mono text-xs">{deposit.address}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => void onCopy(deposit.address, "address")}
-              aria-label="Copy the payment address"
-            >
-              {copied === "address" ? (
-                <CheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-              ) : (
-                <CopyIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-              )}
-            </Button>
-          </dd>
-        </div>
-      </dl>
+        <div className="flex min-w-0 flex-col gap-4">
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-subtle-foreground">Send exactly</dt>
+              <dd className="text-2xl font-medium text-foreground">
+                <AssetAmount
+                  asset={deposit.amount.asset}
+                  display={deposit.amount.display}
+                  size={24}
+                />
+              </dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-xs text-subtle-foreground">Network</dt>
+              <dd>
+                <Badge>{deposit.chain}</Badge>
+              </dd>
+            </div>
+          </dl>
 
-      <p aria-live="polite" className="text-center text-sm">
-        {funded ? (
-          <span className="text-success">
-            Received in full. The payment is clearing — you can close this.
-          </span>
-        ) : (
-          <span className="text-muted-foreground">
-            Waiting for the transfer. {deposit.received.display} received so far; it counts after{" "}
-            {deposit.required} confirmation{deposit.required === 1 ? "" : "s"}.
-          </span>
-        )}
-      </p>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-subtle-foreground">Payment address</span>
+            {/* Never truncated in the DOM: an address a merchant cannot copy
+                whole is worse than one they have to scroll. */}
+            <div className="flex items-center gap-2 border border-border bg-muted px-3 py-2">
+              <span className="min-w-0 flex-1 break-all font-mono text-sm">{deposit.address}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => void onCopy(deposit.address, "address")}
+                aria-label="Copy the payment address"
+              >
+                {copied === "address" ? (
+                  <CheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                ) : (
+                  <CopyIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          <div
+            aria-live="polite"
+            className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm"
+          >
+            <Badge variant={funded ? "success" : "warning"}>
+              {funded ? "Received" : "Waiting for payment"}
+            </Badge>
+            <span className={funded ? "text-success" : "text-muted-foreground"}>
+              {funded
+                ? "Received in full. The payment is clearing."
+                : `${deposit.received.display} received · ${deposit.required} confirmation${deposit.required === 1 ? "" : "s"} required`}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* One address per sale, so a second payer must not be sent here. */}
-      <p className="text-center text-xs text-subtle-foreground">
+      <p className="border-t border-border pt-3 text-center text-xs text-subtle-foreground md:text-left">
         This address belongs to this sale only. Start a new one for the next customer.
       </p>
 

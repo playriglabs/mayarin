@@ -28,8 +28,7 @@ export type SecretGenerator = () => string;
 /** Hashes a secret for storage and lookup. Injected so a test can use a plain hash. */
 export type SecretHasher = (secret: string) => string;
 
-export const systemSecretGenerator: SecretGenerator = () =>
-  `mk_live_${randomBytes(32).toString("hex")}`;
+export const systemSecretGenerator: SecretGenerator = () => `pk_${randomBytes(32).toString("hex")}`;
 
 export const systemSecretHasher: SecretHasher = (secret) =>
   createHash("sha256").update(secret).digest("hex");
@@ -39,6 +38,14 @@ export interface ApiKeyServiceOptions {
   readonly clock: Clock;
   readonly secretGenerator?: SecretGenerator;
   readonly secretHasher?: SecretHasher;
+}
+
+export interface ApiKeyListFilter {
+  readonly q?: string;
+  readonly status?: "active" | "inactive";
+  readonly sort?: "created" | "-created";
+  readonly from?: Date;
+  readonly to?: Date;
 }
 
 export interface CreateApiKeyInput {
@@ -65,8 +72,21 @@ export class ApiKeyService {
     this.#hash = options.secretHasher ?? systemSecretHasher;
   }
 
-  async list(scope: Scope): Promise<readonly ApiKey[]> {
-    return this.#keys.listByMerchant(scope.merchantId);
+  async list(scope: Scope, filter: ApiKeyListFilter = {}): Promise<readonly ApiKey[]> {
+    const q = filter.q?.toLocaleLowerCase();
+    const direction = filter.sort === "created" ? 1 : -1;
+    return (await this.#keys.listByMerchant(scope.merchantId))
+      .filter(
+        (key) =>
+          q === undefined ||
+          key.id.toLocaleLowerCase().includes(q) ||
+          key.name.toLocaleLowerCase().includes(q) ||
+          key.prefix.toLocaleLowerCase().includes(q),
+      )
+      .filter((key) => filter.status === undefined || key.active === (filter.status === "active"))
+      .filter((key) => filter.from === undefined || key.createdAt >= filter.from)
+      .filter((key) => filter.to === undefined || key.createdAt < filter.to)
+      .sort((a, b) => direction * (a.createdAt.getTime() - b.createdAt.getTime()));
   }
 
   /**

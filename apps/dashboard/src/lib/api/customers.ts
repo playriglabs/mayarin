@@ -6,17 +6,19 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
+import { listPath } from "@/lib/api/list-path";
 import type {
   CreateCustomerRequest,
   CustomerDetailResponse,
   CustomerDto,
+  CustomerListFilter,
   CustomerListResponse,
   UpdateCustomerRequest,
 } from "@/types/customers";
 
 export const customersApi = {
-  list: (limit?: number): Effect.Effect<CustomerListResponse, ApiError> =>
-    request<CustomerListResponse>(limit === undefined ? "/customers" : `/customers?limit=${limit}`),
+  list: (filter: CustomerListFilter = {}): Effect.Effect<CustomerListResponse, ApiError> =>
+    request<CustomerListResponse>(listPath("/customers", filter)),
 
   detail: (id: string): Effect.Effect<CustomerDetailResponse, ApiError> =>
     request<CustomerDetailResponse>(`/customers/${encodeURIComponent(id)}`),

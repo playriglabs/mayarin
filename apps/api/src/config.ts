@@ -108,7 +108,7 @@ const configSchema = z.object({
    * either the token scan crawls or the native scan spends a call per block
    * until the provider answers 429.
    */
-  watcherNativeBlockRange: z.coerce.number().int().positive().default(25),
+  watcherNativeBlockRange: z.coerce.number().int().positive().default(100),
   /**
    * Blocks per `eth_getLogs` call, which is a provider limit rather than a
    * policy one — Alchemy's free tier refuses a wider range. The watcher's own

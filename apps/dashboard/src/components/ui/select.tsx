@@ -129,20 +129,22 @@ function SelectTrigger({
 function SelectValue({
   className,
   placeholder,
+  renderValue,
   ...props
 }: Omit<React.ComponentProps<typeof SelectPrimitive.Value>, "children"> & {
   placeholder?: string;
+  renderValue?: (option: SelectOption) => React.ReactNode;
 }) {
   const { items } = React.useContext(SelectContext);
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
-      className={cn("truncate", className)}
+      className={cn("flex min-w-0 items-center truncate", className)}
       {...props}
     >
       {(value: unknown) => {
         const match = items.find((item) => item.value === value);
-        if (match !== undefined) return match.label;
+        if (match !== undefined) return renderValue?.(match) ?? match.label;
         return <span className="text-subtle-foreground">{placeholder ?? ""}</span>;
       }}
     </SelectPrimitive.Value>
