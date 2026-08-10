@@ -29,7 +29,8 @@ export const createProductBodySchema = z.object({
 
 export const updateProductBodySchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  description: z.string().max(2_000).optional(),
+  /** `null` clears it; an absent field leaves it alone. */
+  description: z.string().max(2_000).nullable().optional(),
   prices: z.array(decimalMoneySchema).min(1).optional(),
   active: z.boolean().optional(),
   metadata: metadataSchema,
