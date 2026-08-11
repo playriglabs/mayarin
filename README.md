@@ -109,6 +109,7 @@ Full setup, commands and tooling: [docs/development.md](./docs/development.md).
 | [REST API](./docs/api.md)                          | Endpoints, request and response shapes, error codes                |
 | [Configuration](./docs/configuration.md)           | Deployment identity vs merchant settings vs market data            |
 | [Development](./docs/development.md)               | Running locally, commands, formatting, git hooks                   |
+| [Deployment Targets](./docs/deployment.md)         | Manual Railway testnet/mainnet selection and safety gates          |
 | [Roadmap](./docs/roadmap.md)                       | What is shipped and what comes next                                |
 
 ---

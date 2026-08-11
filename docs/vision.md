@@ -57,7 +57,7 @@ locks, and — when the assets differ — converts on-chain before settlement.
 ```
 Merchant prices      IDR 50.000
 Customer pays        0.00028 ETH
-Mayarr converts      ETH → USDC (on-chain, atomic)
+Mayarin converts      ETH → USDC (on-chain, atomic)
 Merchant receives    0.95 USDC
 ```
 

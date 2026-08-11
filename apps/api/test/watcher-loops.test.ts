@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { TickResult } from "@mayarin/chain";
 import type { AssetCode } from "@mayarin/shared";
 import {
+  startIndexerLoops,
   startWatcherLoops,
   type TimerPort,
   type WatchedPair,
@@ -149,5 +150,40 @@ describe("watcher loops", () => {
     await flush();
     expect(timers.scheduled).toHaveLength(1);
     stop();
+  });
+});
+
+describe("indexer loops", () => {
+  test("runs immediately and schedules only after the tick completes", async () => {
+    const timers = fakeTimers();
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    let calls = 0;
+    const indexer = {
+      tick: () => {
+        calls += 1;
+        return pending;
+      },
+    };
+
+    const stop = startIndexerLoops({
+      indexers: new Map([[CHAIN, indexer]]),
+      intervalMs: 15_000,
+      timers: timers.port,
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    await flush();
+    expect(calls).toBe(1);
+    expect(timers.scheduled).toHaveLength(0);
+
+    finish?.();
+    await flush();
+    expect(timers.scheduled.map((entry) => entry.delayMs)).toEqual([15_000]);
+
+    stop();
+    expect(timers.scheduled).toHaveLength(0);
   });
 });

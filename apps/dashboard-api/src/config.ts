@@ -161,7 +161,7 @@ function withoutEmpty(env: Record<string, string | undefined>): Record<string, s
 export function loadConfig(rawEnv: Record<string, string | undefined> = process.env): Config {
   const env = withoutEmpty(rawEnv);
   const result = configSchema.safeParse({
-    port: env.DASHBOARD_API_PORT,
+    port: env.DASHBOARD_API_PORT ?? env.PORT,
     databaseUrl: env.DATABASE_URL,
     sessionTtlSeconds: env.SESSION_TTL_SECONDS,
     cookieSecure: env.COOKIE_SECURE,

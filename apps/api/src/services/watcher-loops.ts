@@ -10,6 +10,10 @@ interface WatcherPort {
   tick(chain: ChainId, asset: AssetCode): Promise<TickResult>;
 }
 
+interface IndexerPort {
+  tick(chain: ChainId): Promise<unknown>;
+}
+
 interface WatcherLogger {
   info(message: string): void;
   warn(message: string): void;
@@ -27,6 +31,13 @@ export interface WatcherLoopOptions {
   readonly intervalMs: number;
   readonly catchUpIntervalMs: number;
   readonly rangeOf: (pair: WatchedPair) => number;
+  readonly logger?: WatcherLogger;
+  readonly timers?: TimerPort;
+}
+
+export interface IndexerLoopOptions {
+  readonly indexers: ReadonlyMap<ChainId, IndexerPort>;
+  readonly intervalMs: number;
   readonly logger?: WatcherLogger;
   readonly timers?: TimerPort;
 }
@@ -95,6 +106,39 @@ export function startWatcherLoops(options: WatcherLoopOptions): () => void {
       } catch (error) {
         logger.error(`[watcher] ${nameOf(pair)} tick failed: ${reasonOf(error)}`);
         schedule(options.intervalMs, run);
+      }
+    };
+
+    void run();
+
+    return () => {
+      stopped = true;
+      cancelTimer?.();
+    };
+  });
+
+  return () => {
+    for (const stop of stops) stop();
+  };
+}
+
+/** Starts one non-overlapping, completion-driven loop per settlement indexer. */
+export function startIndexerLoops(options: IndexerLoopOptions): () => void {
+  const timers = options.timers ?? systemTimers;
+  const logger = options.logger ?? consoleLogger;
+  const stops = [...options.indexers].map(([chain, indexer]) => {
+    let stopped = false;
+    let cancelTimer: (() => void) | undefined;
+
+    const run = async (): Promise<void> => {
+      try {
+        await indexer.tick(chain);
+      } catch (error) {
+        logger.error(`[indexer] ${chain} tick failed: ${reasonOf(error)}`);
+      }
+
+      if (!stopped) {
+        cancelTimer = timers.schedule(() => void run(), options.intervalMs);
       }
     };
 

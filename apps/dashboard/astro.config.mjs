@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import node from "@astrojs/node";
+import cloudflare from "@astrojs/cloudflare";
 import react from "@astrojs/react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
@@ -10,7 +10,7 @@ const dashboardApiUrl = process.env.DASHBOARD_API_URL ?? "http://localhost:3001"
 
 export default defineConfig({
   output: "server",
-  adapter: node({ mode: "standalone" }),
+  adapter: cloudflare(),
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
