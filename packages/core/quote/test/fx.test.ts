@@ -188,6 +188,27 @@ describe("priceInSettlement — a closed FX market", () => {
     expect(result.settlementAmount).toEqual(money(35_000_00n, "IDRX"));
   });
 
+  test("USD/USDC is a 1:1 peg, so a USD price rescales into USDC — not widened", async () => {
+    // A USDC-settling deployment that prices in USD declares the pair pegged:
+    // it is the same currency in two representations (2-decimal fiat into
+    // 6-decimal stablecoin), not an FX rate. The weekend spread below is for a
+    // floating pair with a gap risk; a peg has none, and widening it would
+    // charge a USD-priced merchant 75 bps of phantom FX over a weekend.
+    const policy = { ...WEEKEND_POLICY, pegged: ["USD/USDC"] };
+    const result = await priceInSettlement(
+      oracle(),
+      money(100_00n, "USD"), // $100.00
+      "USDC",
+      policy,
+      WEEKEND,
+    );
+
+    expect(result.kind).toBe("pegged");
+    expect(result.source).toBe("peg");
+    // $100.00 (2 dp) rescales to 100 USDC (6 dp): 10_000 minor × 10^4 = 100_000_000.
+    expect(result.settlementAmount).toEqual(money(100_000_000n, "USDC"));
+  });
+
   test("refuses a negative spread — that would short the merchant", async () => {
     await expect(
       priceInSettlement(
