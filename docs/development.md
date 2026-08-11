@@ -20,11 +20,13 @@ bun run db:migrate     # apply migrations
 bun run dev            # API on http://localhost:3000
 ```
 
-Pay something:
+Pay something. Creating an intent is a merchant act, so it needs an API key —
+`bun run seed:merchant` prints one (`apiKey:`) when it creates the merchant:
 
 ```bash
 curl -X POST localhost:3000/payment-intents \
   -H 'content-type: application/json' \
+  -H 'Authorization: Bearer <apiKey from seed:merchant>' \
   -H 'Idempotency-Key: order-4711' \
   -d '{"merchant":{"id":"M-1","name":"Warung Kopi","city":"Jakarta","countryCode":"ID"},
        "amount":{"amount":"50000.00","asset":"IDR"}}'

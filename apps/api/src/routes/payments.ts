@@ -13,9 +13,10 @@ import { toContractCallDto } from "../dto/contract-call.ts";
 import { toDepositDto } from "../dto/deposit.ts";
 import { toPaymentDto } from "../dto/payment.ts";
 import { refundBodySchema, toRefundDto, toRefundSummaryDto } from "../dto/refund.ts";
+import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
 
-export function paymentRoutes(container: Container): Hono {
-  const app = new Hono();
+export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
+  const app = new Hono<ApiKeyAuthEnv>();
 
   app.get("/:id", async (c) => {
     const { intent, transaction, events, deposit } = await container.paymentApp.getPayment(
@@ -45,8 +46,13 @@ export function paymentRoutes(container: Container): Hono {
    * `POST` is idempotent on `Idempotency-Key`: a retried request returns the
    * refund it made rather than issuing a second one. An omitted amount refunds
    * everything still refundable.
+   *
+   * Any valid key may refund for now: an intent minted from a QR carries an
+   * EMVCo merchant identity, not a Mayarin tenant id, so a tenant match here
+   * would refuse every scanned-QR payment. Who may sign a refund is exactly
+   * what #12 (on hold) decides — the check lands with it.
    */
-  app.post("/:id/refunds", async (c) => {
+  app.post("/:id/refunds", requireApiKey(container.verifyApiKey), async (c) => {
     const raw = await c.req.json().catch(() => ({}));
     const body = refundBodySchema.parse(raw);
     const idempotencyKey = c.req.header("Idempotency-Key");

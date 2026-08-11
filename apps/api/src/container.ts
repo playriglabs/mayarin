@@ -25,6 +25,7 @@ import {
 import {
   createDatabase,
   type DatabaseHandle,
+  DrizzleApiKeyRepository,
   DrizzleClearingRepository,
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
@@ -79,13 +80,22 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
 import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./contract-layer.ts";
 import { RuntimeMarket, RuntimePriceSource, RuntimeStablecoinRegistry } from "./market.ts";
+import type { ApiKeyVerifier } from "./middleware/api-key.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
+import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
 import { FetchWebhookTransport } from "./services/webhook-transport.ts";
 
 export interface Container {
   readonly config: Config;
+  /**
+   * Resolves a bearer secret to the merchant scope its key grants (#14).
+   *
+   * The keys themselves are minted on the dashboard; this API only verifies
+   * them, which is why the container carries a verifier and not the service.
+   */
+  readonly verifyApiKey: ApiKeyVerifier;
   readonly intents: PaymentIntentService;
   /** Products and payment links (#10). Optional to use, always wired. */
   readonly catalog: CatalogService;
@@ -597,6 +607,7 @@ export function createContainer({
 
   return {
     config,
+    verifyApiKey: createApiKeyVerifier({ keys: new DrizzleApiKeyRepository(handle.db), clock }),
     intents,
     catalog,
     commerce,

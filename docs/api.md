@@ -4,6 +4,40 @@
 
 # REST API
 
+## Authentication
+
+The payment API has two kinds of caller, and the routes split along that line.
+
+**Buyer routes are open.** A buyer holds an unguessable id, not an account. The
+hosted checkout and invoice pages, `POST /payment-links/:id/checkout`,
+`POST /invoices/:id/checkout`, `POST /payment-intents/:id/confirm`,
+`POST /quotes`, and the `GET` routes for one resource by id stay keyless.
+
+**Merchant routes require an API key.** Mint one on the dashboard
+(`POST /api-keys`). Send the secret as a bearer token on every request:
+
+```http
+Authorization: Bearer mak_...
+```
+
+| Route                                                          | Needs                                     |
+| -------------------------------------------------------------- | ----------------------------------------- |
+| `POST /payment-intents`                                        | a valid key                               |
+| `POST /carts/checkout`                                         | a valid key, for the named merchant       |
+| `POST /payments/:id/refunds`                                   | a valid key (a tenant check waits on #12) |
+| `POST/PATCH /catalog/products[/:id]`                           | `catalog:manage`, for the named merchant  |
+| `POST /payment-links`, `POST /payment-links/:id/disable`       | `catalog:manage`, for the named merchant  |
+| `POST/PATCH /invoices[/:id]`, `/:id/issue`, `/:id/void`        | `catalog:manage`, for the named merchant  |
+| `GET /catalog/products`, `GET /payment-links`, `GET /invoices` | a valid key, for the named merchant       |
+
+On a list route, an omitted `merchantId` means the key's own merchant.
+
+The refusal shape encodes what the caller was allowed to know. A missing key
+and an unknown one get the same `401` — a revoked secret does not learn that it
+once existed. A body that names another merchant gets a `403`, because the
+caller named that merchant themselves. A path id that belongs to another
+merchant gets the same `404` an absent id does.
+
 ## Create Payment Intent
 
 ```
@@ -30,6 +64,7 @@ deployment default — an explicit request still wins over both.
 
 ```http
 POST /payment-intents
+Authorization: Bearer mak_...
 Idempotency-Key: order-4711
 
 { "qr": "00020101021226670014ID.CO.QRIS.WWW..." }
@@ -264,6 +299,8 @@ message is for humans.
 | Code                                                                                   | Status |
 | -------------------------------------------------------------------------------------- | ------ |
 | `VALIDATION_ERROR`, `QR_PARSE_ERROR`                                                   | 400    |
+| `UNAUTHORIZED`                                                                         | 401    |
+| `FORBIDDEN`                                                                            | 403    |
 | `NOT_FOUND`                                                                            | 404    |
 | `CONFLICT`, `IDEMPOTENCY_CONFLICT`, `INVALID_STATE_TRANSITION`, `CONCURRENCY_CONFLICT` | 409    |
 | `LEDGER_IMBALANCE`, `CONFIGURATION_ERROR`, `INTERNAL_ERROR`                            | 500    |

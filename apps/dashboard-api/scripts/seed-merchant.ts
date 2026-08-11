@@ -252,6 +252,15 @@ try {
     console.log("password:  (used the supplied password)");
   }
 
+  // The payment API requires a bearer key on its merchant routes (#14), and
+  // keys are minted on the dashboard — so the seed mints the first one, or the
+  // quickstart's first curl answers 401 with no way forward but the browser.
+  const minted = await container.apiKeys.create(
+    { merchantId: result.user.merchantId, permissions: new Set(permissions) },
+    { name: "seed key", permissions },
+  );
+  console.log(`apiKey:    ${minted.secret}  (printed once — store it now)`);
+
   // Seeding cannot provision a wallet, and saying so here is the difference
   // between an operator who knows the next step and one who finds out when a
   // payment refuses to lock. Provisioning needs a *verified merchant-held*

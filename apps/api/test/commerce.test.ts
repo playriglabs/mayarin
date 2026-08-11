@@ -428,16 +428,19 @@ describe("merchant reference", () => {
       },
     });
 
+    // The admin surface has its own bearer token, so the merchant API key the
+    // harness sends by default must not stand in for it.
     const unauthorised = await harness.request(
       "GET",
       `/admin/payment-intents?merchantId=${merchant.id}&merchantReference=ORDER-8`,
+      { auth: false },
     );
     expect(unauthorised.status).toBe(401);
 
     const authorised = await harness.request(
       "GET",
       `/admin/payment-intents?merchantId=${merchant.id}&merchantReference=ORDER-8`,
-      { headers: { Authorization: "Bearer admin-token-1234567890" } },
+      { auth: false, headers: { Authorization: "Bearer admin-token-1234567890" } },
     );
     expect(authorised.status).toBe(200);
     expect(authorised.body.paymentIntents).toHaveLength(1);

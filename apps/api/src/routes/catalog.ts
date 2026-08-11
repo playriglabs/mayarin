@@ -8,6 +8,7 @@
  * Thin by design: validate input, call an application service, shape a response.
  */
 
+import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import {
@@ -18,12 +19,16 @@ import {
   updateProductBodySchema,
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
 
-export function catalogRoutes(container: Container): Hono {
-  const app = new Hono();
+export function catalogRoutes(container: Container): Hono<ApiKeyAuthEnv> {
+  const app = new Hono<ApiKeyAuthEnv>();
+  const auth = requireApiKey(container.verifyApiKey);
+  const manage = requireApiKey(container.verifyApiKey, "catalog:manage");
 
-  app.post("/products", async (c) => {
+  app.post("/products", manage, async (c) => {
     const body = createProductBodySchema.parse(await c.req.json());
+    assertMerchant(c.get("scope"), body.merchantId);
     const product = await container.catalog.createProduct({
       merchantId: body.merchantId,
       sku: body.sku,
@@ -35,8 +40,13 @@ export function catalogRoutes(container: Container): Hono {
     return c.json({ product: toProductDto(product) }, 201);
   });
 
-  app.get("/products", async (c) => {
-    const merchantId = c.req.query("merchantId") ?? "";
+  // A listing keyed by a guessable merchant id enumerates a whole catalog, so
+  // it requires a key — and only for the merchant the key belongs to. An
+  // omitted `merchantId` means the key's own merchant.
+  app.get("/products", auth, async (c) => {
+    const scope = c.get("scope");
+    const merchantId = c.req.query("merchantId") ?? scope.merchantId;
+    assertMerchant(scope, merchantId);
     const active = c.req.query("active");
     const products = await container.catalog.listProducts({
       merchantId,
@@ -50,8 +60,14 @@ export function catalogRoutes(container: Container): Hono {
     return c.json({ product: toProductDto(product) });
   });
 
-  app.patch("/products/:id", async (c) => {
+  app.patch("/products/:id", manage, async (c) => {
     const body = updateProductBodySchema.parse(await c.req.json());
+    // A foreign product answers 404, not 403 — the id was not the caller's to
+    // know, so the response does not say whether it exists.
+    const existing = await container.catalog.getProduct(c.req.param("id"));
+    if (existing.merchantId !== c.get("scope").merchantId) {
+      throw new NotFoundError(`Product ${existing.id} not found`, { id: existing.id });
+    }
     const product = await container.catalog.updateProduct(c.req.param("id"), {
       ...(body.name === undefined ? {} : { name: body.name }),
       ...(body.description === undefined ? {} : { description: body.description }),
@@ -73,11 +89,15 @@ export function catalogRoutes(container: Container): Hono {
  * deliberately no `GET /carts/:id` to add later without saying so — a mutable
  * cart behind an existing intent could move the price after `PRICE_LOCKED`.
  */
-export function cartRoutes(container: Container): Hono {
-  const app = new Hono();
+export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
+  const app = new Hono<ApiKeyAuthEnv>();
 
-  app.post("/checkout", async (c) => {
+  // A cart checkout is the POS ringing up a sale, not a buyer paying one — the
+  // buyer-facing mints live under `/payment-links/:id/checkout` and
+  // `/invoices/:id/checkout`, which stay open.
+  app.post("/checkout", requireApiKey(container.verifyApiKey), async (c) => {
     const body = checkoutCartBodySchema.parse(await c.req.json());
+    assertMerchant(c.get("scope"), body.merchant.id);
     const idempotencyKey = c.req.header("Idempotency-Key");
 
     const { merchant, currency, lines, ...options } = body;

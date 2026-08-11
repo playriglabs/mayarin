@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mayarin/auth": "workspace:*",
     "@mayarin/catalog": "workspace:*",
     "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
