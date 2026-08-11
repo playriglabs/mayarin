@@ -16,6 +16,7 @@ understand why any of it exists.
 | [Architecture](./architecture.md)   | You need the layers, the payment flow, and where code lives                |
 | [Development](./development.md)     | You are running it locally or touching the tooling                         |
 | [REST API](./api.md)                | You are integrating against it                                             |
+| [Embeddable Checkout](./embed.md)   | You are putting the checkout on a merchant's own page                      |
 | [Roadmap](./roadmap.md)             | You want to know what is shipped and what is next                          |
 | [Threat Model](./threat-model.md)   | You want the risks the design carries, and the ones it does not yet answer |
 | [Quote Signing](./quote-signing.md) | You are touching the EIP-712 order or the signing key                      |
