@@ -4,6 +4,31 @@
 
 # REST API
 
+## Base URL and versioning
+
+The developer/merchant API lives under the `/v1` path prefix (#138). Prepend
+`/v1` to every route this document shows, unless the route is in the
+unversioned list below. Example: `POST /payment-intents` is served at
+`/v1/payment-intents`.
+
+Two version axes exist, and they do not replace each other:
+
+- **The path (`/v1`) is the breaking boundary.** A `/v2` is a new URL. A client
+  opts in; the old surface stays up beside it.
+- **The `Mayarin-Version` header is the date rev within v1.** It covers
+  additive change. The SDK pins it (`packages/sdk/src/version.ts`).
+
+**Unversioned routes.** These stay at the root forever. A printed QR and a
+shared link encode them, so a version bump must never move them:
+
+- `GET /checkout/:id` and `GET /checkout/pay/:intentId` — the hosted checkout
+  page, plus its own sub-routes (`GET /checkout/events/:intentId`,
+  `GET /checkout/qr`).
+- `GET /invoices/:id/view` — the hosted invoice page.
+- `GET /health` — the deployment probe.
+
+A buyer page has no version. It renders whatever the current API serves.
+
 ## Authentication
 
 The payment API has two kinds of caller, and the routes split along that line.
@@ -193,6 +218,11 @@ One route for every rail — the provider is resolved through the adapter
 registry, so adding a payment rail does not add a route. The raw body is passed
 to the adapter untouched, so signatures are verified over exactly the bytes that
 were signed.
+
+This route is under `/v1` like the rest of the API. Register the callback URL
+with the provider as `${baseUrl}/v1/webhooks/:provider`. This is deployment
+configuration, not a code change: a spoofed or stale webhook cannot settle a
+payment on its own, and a missed one is recovered by `resumeStuck`.
 
 ## Outbound Webhooks (RFC #13)
 

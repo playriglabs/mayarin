@@ -1,11 +1,16 @@
 /**
  * The HTTP transport every SDK module calls through.
  *
- * Table stakes live here so no module re-implements them: the pinned
- * `Mayarin-Version` header, bearer auth when a secret key is present, an
- * auto-generated `Idempotency-Key` on every write, and the mapping of every
- * failure onto `MayarinApiError`. Effects are injected — `fetch` and the key
- * generator come from config, so tests run without a server.
+ * Table stakes live here so no module re-implements them: the `/v1` path
+ * prefix, the pinned `Mayarin-Version` header, bearer auth when a secret key is
+ * present, an auto-generated `Idempotency-Key` on every write, and the mapping
+ * of every failure onto `MayarinApiError`. Effects are injected — `fetch` and
+ * the key generator come from config, so tests run without a server.
+ *
+ * `/v1` is the breaking axis: a `/v2` is a new URL a client opts into.
+ * `Mayarin-Version` is the date rev within v1 (#138). Buyer pages
+ * (`/checkout/:id`, `/invoices/:id/view`) live outside `/v1`, and the SDK never
+ * fetches them — it hands their URLs to a browser.
  */
 
 import { errorFromResponse, INVALID_RESPONSE, MayarinApiError, NETWORK_ERROR } from "./errors.ts";
@@ -40,7 +45,8 @@ export interface Transport {
 export function createTransport(config: TransportConfig): Transport {
   const fetchFn = config.fetch ?? globalThis.fetch;
   const generateKey = config.generateIdempotencyKey ?? (() => crypto.randomUUID());
-  const baseUrl = config.baseUrl.replace(/\/+$/, "");
+  // Every module path is relative to the versioned API base (#138).
+  const baseUrl = `${config.baseUrl.replace(/\/+$/, "")}/v1`;
 
   async function request<T>(
     method: "GET" | "POST" | "PATCH",

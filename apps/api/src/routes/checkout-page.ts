@@ -146,7 +146,7 @@ export function checkoutPageRoutes(container: Container): Hono {
         amount: intent.amount,
         merchant: intent.merchant,
         expiresAt: intent.expiresAt,
-        statusUrl: `${baseUrl}/payments/${intent.id}`,
+        statusUrl: `${baseUrl}/v1/payments/${intent.id}`,
         streaming: container.stream !== undefined,
       }),
     );
@@ -496,7 +496,7 @@ ${
     timer = setTimeout(async () => {
       estimate.textContent = "…";
       try {
-        const response = await fetch("/quotes", {
+        const response = await fetch("/v1/quotes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ amount: { amount, asset: currency }, assets: [asset] }),
@@ -556,7 +556,7 @@ ${
       }
 
       try {
-        const response = await fetch(${JSON.stringify(`/payment-links/${link.id}/checkout`)}, {
+        const response = await fetch(${JSON.stringify(`/v1/payment-links/${link.id}/checkout`)}, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -572,7 +572,7 @@ ${
         // payment page has nothing to show until this call has run, so it runs
         // here rather than after the redirect.
         const intentId = payload.paymentIntent.id;
-        const confirmation = await fetch("/payment-intents/" + intentId + "/confirm", {
+        const confirmation = await fetch("/v1/payment-intents/" + intentId + "/confirm", {
           method: "POST",
         });
         const confirmed = await confirmation.json();

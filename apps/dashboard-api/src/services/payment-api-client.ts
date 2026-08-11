@@ -90,7 +90,9 @@ export class PaymentApiClient {
   readonly #fetch: typeof fetch;
 
   constructor(options: PaymentApiClientOptions) {
-    this.#baseUrl = options.baseUrl.replace(/\/+$/, "");
+    // The merchant API lives under `/v1` (#138); every path here is relative
+    // to that base.
+    this.#baseUrl = `${options.baseUrl.replace(/\/+$/, "")}/v1`;
     this.#fetch = options.fetch ?? fetch;
   }
 

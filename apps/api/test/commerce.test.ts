@@ -4,7 +4,7 @@ import { createApiHarness, qrisPayload } from "./harness.ts";
 const merchant = { id: "mrc_1", name: "Warung Kopi", city: "Jakarta", countryCode: "ID" };
 
 async function createCoffee(harness: ReturnType<typeof createApiHarness>) {
-  const { body } = await harness.request("POST", "/catalog/products", {
+  const { body } = await harness.request("POST", "/v1/catalog/products", {
     body: {
       merchantId: merchant.id,
       sku: "KOPI-01",
@@ -21,14 +21,14 @@ async function createCoffee(harness: ReturnType<typeof createApiHarness>) {
 describe("the catalog is optional", () => {
   test("a payment is taken end to end without a single product row", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
     expect(created.status).toBe(201);
 
     const confirmed = await harness.request(
       "POST",
-      `/payment-intents/${created.body.paymentIntent.id}/confirm`,
+      `/v1/payment-intents/${created.body.paymentIntent.id}/confirm`,
     );
     expect(confirmed.status).toBe(200);
     expect(confirmed.body.paymentIntent.status).toBe("COMPLETED");
@@ -38,7 +38,7 @@ describe("the catalog is optional", () => {
 describe("POST /catalog/products", () => {
   test("prices one product in several currencies", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/catalog/products", {
+    const { status, body } = await harness.request("POST", "/v1/catalog/products", {
       body: {
         merchantId: merchant.id,
         sku: "KOPI-01",
@@ -60,7 +60,7 @@ describe("POST /catalog/products", () => {
   test("refuses a duplicate SKU for the same merchant", async () => {
     const harness = createApiHarness();
     await createCoffee(harness);
-    const { status } = await harness.request("POST", "/catalog/products", {
+    const { status } = await harness.request("POST", "/v1/catalog/products", {
       body: {
         merchantId: merchant.id,
         sku: "KOPI-01",
@@ -74,7 +74,7 @@ describe("POST /catalog/products", () => {
   test("lists a merchant's products", async () => {
     const harness = createApiHarness();
     await createCoffee(harness);
-    const { body } = await harness.request("GET", `/catalog/products?merchantId=${merchant.id}`);
+    const { body } = await harness.request("GET", `/v1/catalog/products?merchantId=${merchant.id}`);
     expect(body.products).toHaveLength(1);
   });
 });
@@ -84,7 +84,7 @@ describe("POST /carts/checkout", () => {
     const harness = createApiHarness();
     const product = await createCoffee(harness);
 
-    const { status, body } = await harness.request("POST", "/carts/checkout", {
+    const { status, body } = await harness.request("POST", "/v1/carts/checkout", {
       body: {
         merchant,
         currency: "IDR",
@@ -111,8 +111,8 @@ describe("POST /carts/checkout", () => {
     };
     const headers = { "Idempotency-Key": "cart-key-00001" };
 
-    const first = await harness.request("POST", "/carts/checkout", { body, headers });
-    const second = await harness.request("POST", "/carts/checkout", { body, headers });
+    const first = await harness.request("POST", "/v1/carts/checkout", { body, headers });
+    const second = await harness.request("POST", "/v1/carts/checkout", { body, headers });
 
     expect(second.body.paymentIntent.id).toBe(first.body.paymentIntent.id);
   });
@@ -121,7 +121,7 @@ describe("POST /carts/checkout", () => {
     const harness = createApiHarness();
     const product = await createCoffee(harness);
 
-    const { status } = await harness.request("POST", "/carts/checkout", {
+    const { status } = await harness.request("POST", "/v1/carts/checkout", {
       body: { merchant, currency: "THB", lines: [{ productId: product.id, quantity: 1 }] },
     });
     expect(status).toBe(400);
@@ -131,7 +131,7 @@ describe("POST /carts/checkout", () => {
 describe("payment links", () => {
   test("a fixed link is payable and carries a shareable URL", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-links", {
+    const created = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
     });
 
@@ -143,7 +143,7 @@ describe("payment links", () => {
 
     const paid = await harness.request(
       "POST",
-      `/payment-links/${created.body.paymentLink.id}/checkout`,
+      `/v1/payment-links/${created.body.paymentLink.id}/checkout`,
       { body: {} },
     );
     expect(paid.status).toBe(201);
@@ -152,16 +152,24 @@ describe("payment links", () => {
 
   test("an open link takes the amount the buyer enters, twice over", async () => {
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "open", merchant, currency: "IDR", title: "Kasir 1" },
     });
 
-    const first = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: { amount: { amount: "10000.00", asset: "IDR" } },
-    });
-    const second = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: { amount: { amount: "20000.00", asset: "IDR" } },
-    });
+    const first = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: { amount: { amount: "10000.00", asset: "IDR" } },
+      },
+    );
+    const second = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: { amount: { amount: "20000.00", asset: "IDR" } },
+      },
+    );
 
     expect(first.body.paymentIntent.id).not.toBe(second.body.paymentIntent.id);
     expect(second.body.paymentIntent.amount).toMatchObject({ amount: "2000000" });
@@ -171,7 +179,7 @@ describe("payment links", () => {
     const harness = createApiHarness();
     const product = await createCoffee(harness);
 
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: {
         kind: "catalog",
         merchant,
@@ -180,28 +188,36 @@ describe("payment links", () => {
       },
     });
 
-    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: {},
-    });
+    const paid = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: {},
+      },
+    );
     expect(paid.body.paymentIntent.amount).toMatchObject({ amount: "7500000" });
   });
 
   test("a disabled link cannot be paid", async () => {
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "open", merchant, currency: "IDR" },
     });
-    await harness.request("POST", `/payment-links/${body.paymentLink.id}/disable`);
+    await harness.request("POST", `/v1/payment-links/${body.paymentLink.id}/disable`);
 
-    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: { amount: { amount: "10000.00", asset: "IDR" } },
-    });
+    const paid = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: { amount: { amount: "10000.00", asset: "IDR" } },
+      },
+    );
     expect(paid.status).toBe(409);
   });
 
   test("an expired link cannot be paid", async () => {
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: {
         kind: "open",
         merchant,
@@ -211,9 +227,13 @@ describe("payment links", () => {
     });
 
     harness.clock.set("2026-01-01T00:10:00.000Z");
-    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: { amount: { amount: "10000.00", asset: "IDR" } },
-    });
+    const paid = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: { amount: { amount: "10000.00", asset: "IDR" } },
+      },
+    );
     expect(paid.status).toBe(409);
   });
 
@@ -222,8 +242,8 @@ describe("payment links", () => {
     const body = { kind: "open", merchant, currency: "IDR" };
     const headers = { "Idempotency-Key": "link-key-00001" };
 
-    const first = await harness.request("POST", "/payment-links", { body, headers });
-    const second = await harness.request("POST", "/payment-links", { body, headers });
+    const first = await harness.request("POST", "/v1/payment-links", { body, headers });
+    const second = await harness.request("POST", "/v1/payment-links", { body, headers });
 
     expect(second.body.paymentLink.id).toBe(first.body.paymentLink.id);
   });
@@ -232,7 +252,7 @@ describe("payment links", () => {
 describe("hosted checkout", () => {
   test("renders the link page with its amount, and no QR of its own URL", async () => {
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: {
         kind: "fixed",
         merchant,
@@ -260,14 +280,14 @@ describe("hosted checkout", () => {
     // Minting alone locks no price and allocates no deposit address, so a page
     // that only mints leaves the payer staring at "menyiapkan alamat" forever.
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
     });
 
     const html = await (await harness.app.request(`/checkout/${body.paymentLink.id}`)).text();
 
-    expect(html).toContain(`/payment-links/${body.paymentLink.id}/checkout`);
-    expect(html).toContain('"/payment-intents/" + intentId + "/confirm"');
+    expect(html).toContain(`/v1/payment-links/${body.paymentLink.id}/checkout`);
+    expect(html).toContain('"/v1/payment-intents/" + intentId + "/confirm"');
   });
 
   test("the link page asks for the deposit path, whatever the deployment default is", async () => {
@@ -275,7 +295,7 @@ describe("hosted checkout", () => {
     // own wallet to sign the router call, and there is no wallet to connect
     // here, so a deployment defaulting to it would fail every hosted checkout.
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
     });
 
@@ -286,7 +306,7 @@ describe("hosted checkout", () => {
 
   test("escapes a merchant name rather than rendering it as markup", async () => {
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: {
         kind: "open",
         merchant: { ...merchant, name: "<script>alert(1)</script>" },
@@ -303,12 +323,16 @@ describe("hosted checkout", () => {
 
   test("renders the payment page for a minted intent", async () => {
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
     });
-    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: {},
-    });
+    const paid = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: {},
+      },
+    );
 
     const response = await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`);
     const html = await response.text();
@@ -324,7 +348,7 @@ describe("hosted checkout", () => {
     // intent to find it out would lock a price for a buyer who has not decided.
     const harness = createApiHarness();
     const product = await createCoffee(harness);
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: {
         kind: "catalog",
         merchant,
@@ -347,12 +371,16 @@ describe("hosted checkout", () => {
     // funds against a payment that will not accept them, so the deadline is on
     // the screen from the first render rather than discovered at the status.
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
     });
-    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: {},
-    });
+    const paid = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: {},
+      },
+    );
 
     const html = await (
       await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)
@@ -366,12 +394,16 @@ describe("hosted checkout", () => {
     // A finished payment must stop asking to be paid: a QR and an address left
     // on screen invite a second transfer to an address that will not clear it.
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
     });
-    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: {},
-    });
+    const paid = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: {},
+      },
+    );
 
     const html = await (
       await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)
@@ -403,7 +435,7 @@ describe("hosted checkout", () => {
 describe("merchant reference", () => {
   test("round-trips through creation and retrieval", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: {
         merchant,
         amount: { amount: "25000.00", asset: "IDR" },
@@ -413,14 +445,14 @@ describe("merchant reference", () => {
 
     const fetched = await harness.request(
       "GET",
-      `/payment-intents/${created.body.paymentIntent.id}`,
+      `/v1/payment-intents/${created.body.paymentIntent.id}`,
     );
     expect(fetched.body.paymentIntent.merchantReference).toBe("ORDER-7");
   });
 
   test("is looked up behind the admin token, never on the public surface", async () => {
     const harness = createApiHarness({ adminToken: "admin-token-1234567890" });
-    await harness.request("POST", "/payment-intents", {
+    await harness.request("POST", "/v1/payment-intents", {
       body: {
         merchant,
         amount: { amount: "25000.00", asset: "IDR" },
@@ -432,14 +464,14 @@ describe("merchant reference", () => {
     // harness sends by default must not stand in for it.
     const unauthorised = await harness.request(
       "GET",
-      `/admin/payment-intents?merchantId=${merchant.id}&merchantReference=ORDER-8`,
+      `/v1/admin/payment-intents?merchantId=${merchant.id}&merchantReference=ORDER-8`,
       { auth: false },
     );
     expect(unauthorised.status).toBe(401);
 
     const authorised = await harness.request(
       "GET",
-      `/admin/payment-intents?merchantId=${merchant.id}&merchantReference=ORDER-8`,
+      `/v1/admin/payment-intents?merchantId=${merchant.id}&merchantReference=ORDER-8`,
       { auth: false, headers: { Authorization: "Bearer admin-token-1234567890" } },
     );
     expect(authorised.status).toBe(200);
@@ -452,7 +484,7 @@ describe("live payment status", () => {
     const harness = createApiHarness();
     await harness.stream.start();
 
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
     const id = created.body.paymentIntent.id;
@@ -484,12 +516,16 @@ describe("live payment status", () => {
 
   test("the page asks for the stream and keeps polling as a fallback", async () => {
     const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/payment-links", {
+    const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
     });
-    const paid = await harness.request("POST", `/payment-links/${body.paymentLink.id}/checkout`, {
-      body: {},
-    });
+    const paid = await harness.request(
+      "POST",
+      `/v1/payment-links/${body.paymentLink.id}/checkout`,
+      {
+        body: {},
+      },
+    );
 
     const html = await (
       await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)

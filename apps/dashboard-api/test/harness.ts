@@ -285,7 +285,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
           },
         });
       }
-      if (url.pathname === "/quotes") {
+      if (url.pathname === "/v1/quotes") {
         return json({
           source: { display: "Rp 75.000,00" },
           quotes: [
@@ -300,7 +300,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
           indicative: true,
         });
       }
-      if (url.pathname.startsWith("/payments/")) {
+      if (url.pathname.startsWith("/v1/payments/")) {
         return json({
           deposit: {
             address: "0x00000000000000000000000000000000000dead0",

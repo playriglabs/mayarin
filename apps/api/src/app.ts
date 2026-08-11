@@ -30,28 +30,35 @@ export function createApp(container: Container): Hono {
   });
 
   app.route("/", healthRoutes(container));
-  app.route("/payment-intents", paymentIntentRoutes(container));
-  app.route("/payments", paymentRoutes(container));
+
+  // The developer/merchant API lives under `/v1` (#138). The path is the
+  // breaking axis — a `/v2` is a new URL, opt-in, side by side. The
+  // `Mayarin-Version` header stays as the date rev within v1. Root paths 404.
+  const v1 = new Hono();
+  v1.route("/payment-intents", paymentIntentRoutes(container));
+  v1.route("/payments", paymentRoutes(container));
   // Indicative pricing, for a counter showing a payer what each accepted asset
   // would take. Locks nothing and records nothing (#15).
-  app.route("/quotes", quoteRoutes(container));
-  app.route("/webhooks", webhookRoutes(container));
+  v1.route("/quotes", quoteRoutes(container));
+  v1.route("/webhooks", webhookRoutes(container));
   // The commerce layer (#10). Mounted unconditionally and depended on by
   // nothing above it: every route already registered works without it.
-  app.route("/catalog", catalogRoutes(container));
-  app.route("/carts", cartRoutes(container));
-  app.route("/payment-links", paymentLinkRoutes(container));
+  v1.route("/catalog", catalogRoutes(container));
+  v1.route("/carts", cartRoutes(container));
+  v1.route("/payment-links", paymentLinkRoutes(container));
   // Invoices (#112): the commerce layer plus a buyer, a due date and a number.
-  app.route("/invoices", invoiceRoutes(container));
-  // The hosted page shares the /invoices prefix, so it mounts after the API
-  // routes: Hono matches in registration order and `/:id/view` is narrower.
-  app.route("/invoices", invoicePageRoutes(container));
-  app.route("/checkout", checkoutPageRoutes(container));
+  v1.route("/invoices", invoiceRoutes(container));
 
   const adminToken = container.config.adminToken;
   if (adminToken !== undefined) {
-    app.route("/admin", adminRoutes(container, adminToken));
+    v1.route("/admin", adminRoutes(container, adminToken));
   }
+  app.route("/v1", v1);
+
+  // Buyer-facing pages stay unversioned forever: a printed QR and a shared
+  // link encode these paths, so a `/v2` must never move them (#138).
+  app.route("/invoices", invoicePageRoutes(container));
+  app.route("/checkout", checkoutPageRoutes(container));
 
   return app;
 }
