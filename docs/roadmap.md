@@ -393,8 +393,8 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
 
 ### Developer SDK
 
-- ☐ One Client SDK (TypeScript) — commerce, payment, QR helpers
-- ☐ POS and Merchant presets, not separate packages
+- ☑ One Client SDK (TypeScript) — merchant commerce, payment, QR helpers
+- POS support is excluded from the current SDK scope; the merchant preset ships alone
 - ☑ REST API — `apps/api` (payments) and `apps/dashboard-api` (merchant surface)
 - ☑ Webhooks
 
@@ -434,8 +434,9 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
   settlement, and webhook events in one derived read. Three bounded `LIMIT n`
   queries merged in JS — no table of its own, since the three sources are
   already append-only. A webhook row carries no `intentId` in v1
-- ☐ Developers → SDK — the one Client SDK (TypeScript) is still ahead; the
-  dashboard's own API client is the reference shape it will mirror
+- ☑ Developers → SDK — `@mayarin/sdk` provides merchant commerce, payment,
+  QR helpers and webhook verification. Publication remains a release decision;
+  POS-specific behavior is excluded from the current scope
 
 Every surface above reads a real endpoint. The dashboard carries no fixture data:
 a merchant seeds an account, signs in, prices a product, mints a link, and the

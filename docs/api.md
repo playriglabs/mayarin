@@ -284,13 +284,15 @@ GET /health
 ## Errors
 
 Every failure returns the same envelope. `code` is the stable contract; the
-message is for humans.
+message is for humans. `retryable` says whether sending the same request again
+can succeed later without changing it.
 
 ```json
 {
   "error": {
     "code": "IDEMPOTENCY_CONFLICT",
     "message": "Idempotency key \"order-4711\" was already used with different parameters",
+    "retryable": false,
     "details": { "existingIntentId": "pi_01KZ..." }
   }
 }

@@ -1,0 +1,19 @@
+{
+  "name": "@mayarin/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/qr-parser": "workspace:*"
+  },
+  "devDependencies": {
+    "@mayarin/api": "workspace:*"
+  }
+}

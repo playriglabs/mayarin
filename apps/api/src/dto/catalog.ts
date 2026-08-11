@@ -36,6 +36,9 @@ export const updateProductBodySchema = z.object({
   metadata: metadataSchema,
 });
 
+export type CreateProductBody = z.input<typeof createProductBodySchema>;
+export type UpdateProductBody = z.input<typeof updateProductBodySchema>;
+
 /** The intent-shaping options every checkout accepts, whatever it is checking out. */
 const intentOptionsSchema = z.object({
   settlementAsset: assetCodeSchema.optional(),
@@ -114,6 +117,9 @@ export const checkoutLinkBodySchema = intentOptionsSchema.extend({
   amount: decimalMoneySchema.optional(),
 });
 
+export type CreatePaymentLinkBody = z.input<typeof createPaymentLinkBodySchema>;
+export type CheckoutPaymentLinkBody = z.input<typeof checkoutLinkBodySchema>;
+
 type IntentOptionsBody = z.infer<typeof intentOptionsSchema>;
 
 /**
@@ -151,6 +157,8 @@ export function toProductDto(product: Product) {
   };
 }
 
+export type ProductDto = ReturnType<typeof toProductDto>;
+
 /**
  * A link on the wire.
  *
@@ -178,3 +186,5 @@ export function toPaymentLinkDto(link: PaymentLink, baseUrl: string, now: Date) 
     version: link.version,
   };
 }
+
+export type PaymentLinkDto = ReturnType<typeof toPaymentLinkDto>;
