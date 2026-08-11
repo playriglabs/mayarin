@@ -252,6 +252,31 @@ export class ClearingEngine {
   }
 
   /**
+   * Fails clearing transactions abandoned at `PAYMENT_PENDING` past their
+   * intent's deadline. A payer who scanned the QR and walked away leaves the
+   * transaction parked there forever: `isExpired` deliberately excludes
+   * `PROCESSING` so a late-funded payment is never wedged, which means nothing
+   * else fails an abandoned one. The `PAYMENT_PENDING` guard is what keeps the
+   * late-funder safe — once the asset has arrived the transaction is past
+   * `PAYMENT_PENDING`, so this sweep cannot reach it.
+   */
+  async sweepExpired(limit = 100): Promise<ClearingTransaction[]> {
+    const stuck = await this.#repository.listResumable(limit);
+    const now = this.#clock.now();
+    const failed: ClearingTransaction[] = [];
+    for (const transaction of stuck) {
+      if (transaction.state !== "PAYMENT_PENDING") continue;
+      const intent = await this.#intents.getById(transaction.paymentIntentId);
+      if (intent.expiresAt.getTime() <= now.getTime()) {
+        failed.push(
+          await this.#fail(transaction, "payment expired before funds arrived", "PAYMENT_EXPIRED"),
+        );
+      }
+    }
+    return failed;
+  }
+
+  /**
    * Records that the payer's asset has arrived.
    *
    * The seam Phase 2's wallet watcher plugs into; until then it is driven by

@@ -231,6 +231,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     intents,
     clearing,
     pageSize: config.paymentsPageSize,
+    clock,
   });
 
   // The compliance read stack. All repositories, no engine: the audit trail is
@@ -285,6 +286,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     intents,
     customers: customerRepository,
     pageSize: config.paymentsPageSize,
+    clock,
   });
   const customers = new CustomerService({
     customers: customerRepository,

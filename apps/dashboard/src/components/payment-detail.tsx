@@ -9,7 +9,7 @@
 
 import { ArrowLeftIcon, ArrowSquareOutIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
-import { match } from "ts-pattern";
+import { match, P } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { DepositQr } from "@/components/deposit-qr";
 import PaymentTimeline from "@/components/payment-timeline";
@@ -21,8 +21,8 @@ import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useDeposit, usePayment } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
-import { transactionExplorerUrl } from "@/lib/chain-explorer";
-import { intentStatusLabel, labelOf, toneOf } from "@/lib/clearing";
+import { addressExplorerUrl, transactionExplorerUrl } from "@/lib/chain-explorer";
+import { intentStatusLabel, labelOf, stepIndex, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { withQuery } from "@/lib/with-query";
 
@@ -54,7 +54,10 @@ const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
 
 function PaymentDetail({ id }: { id: string }) {
   const payment = usePayment(id);
-  const deposit = useDeposit(id);
+  const status = payment.data?.paymentIntent.status;
+  // A terminal intent has nothing left for a payer to send, so the deposit view
+  // is hidden (below) and its poll is switched off — see `useDeposit`.
+  const deposit = useDeposit(id, status === undefined || !TERMINAL_STATUSES.includes(status));
 
   return (
     <section className="flex flex-col gap-6">
@@ -80,10 +83,31 @@ function PaymentDetail({ id }: { id: string }) {
         .with({ status: "success" }, ({ data }) => {
           const { paymentIntent: intent, clearing, timeline } = data;
           const payerDeposit = deposit.data?.deposit;
-          const explorerUrl =
-            clearing?.transactionHash == null || intent.payment === null
-              ? undefined
-              : transactionExplorerUrl(intent.payment.chain, clearing.transactionHash);
+          // The contract path carries an on-chain transaction hash; the deposit
+          // path does not — its on-chain footprint is the payer's transfer to the
+          // deposit address. A merchant can only "see it on chain" once the asset
+          // has actually arrived, so before ASSET_RECEIVED there is nothing to
+          // show, and at or after it the deposit path links to the address page.
+          const explorerUrl = match({
+            payment: intent.payment,
+            transactionHash: clearing?.transactionHash ?? null,
+            deposit: payerDeposit,
+            state: clearing?.state ?? "CREATED",
+          })
+            .with({ payment: null }, () => undefined)
+            .with(
+              { payment: P.nonNullable, transactionHash: P.nonNullable },
+              ({ payment, transactionHash }) =>
+                transactionExplorerUrl(payment.chain, transactionHash),
+            )
+            .with(
+              {
+                deposit: P.nonNullable,
+                state: P.when((s) => stepIndex(s) >= stepIndex("ASSET_RECEIVED")),
+              },
+              ({ deposit }) => addressExplorerUrl(deposit.chain, deposit.address),
+            )
+            .otherwise(() => undefined);
 
           return (
             <div className="flex flex-col gap-6">

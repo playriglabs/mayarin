@@ -20,8 +20,12 @@ import {
   type CustomerRepository,
   parseCartSnapshot,
 } from "@mayarin/catalog";
-import type { PaymentIntent, PaymentIntentRepository } from "@mayarin/payment-intent";
-import { type Money, money, NotFoundError } from "@mayarin/shared";
+import {
+  isExpired,
+  type PaymentIntent,
+  type PaymentIntentRepository,
+} from "@mayarin/payment-intent";
+import { type Clock, type Money, money, NotFoundError } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
 import { DEFAULT_PAGE_SIZE, decodeCursor, encodeCursor } from "../pagination.ts";
 import type { PaymentListFilter } from "./payment-read-service.ts";
@@ -31,6 +35,7 @@ export interface OrderReadServiceOptions {
   readonly customers: CustomerRepository;
   /** Caps a listing; the route's own limit is clamped to it. */
   readonly pageSize?: number;
+  readonly clock: Clock;
 }
 
 /** One row of the order view: a payment, its parsed lines, and its customer. */
@@ -52,11 +57,18 @@ export class OrderReadService {
   readonly #intents: PaymentIntentRepository;
   readonly #customers: CustomerRepository;
   readonly #pageSize: number;
+  readonly #clock: Clock;
 
   constructor(options: OrderReadServiceOptions) {
     this.#intents = options.intents;
     this.#customers = options.customers;
     this.#pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
+    this.#clock = options.clock;
+  }
+
+  /** Read-only expiry projection — see `PaymentReadService.#withExpiredView`. */
+  #withExpiredView(intent: PaymentIntent): PaymentIntent {
+    return isExpired(intent, this.#clock.now()) ? { ...intent, status: "EXPIRED" } : intent;
   }
 
   /**
@@ -141,7 +153,7 @@ export class OrderReadService {
       const lines = snapshot === undefined ? syntheticLine(intent) : toCartLines(snapshot);
       const customerId = intent.metadata?.customerId;
       rows.push({
-        intent,
+        intent: this.#withExpiredView(intent),
         total: intent.amount,
         lines,
         customer: customerId === undefined ? undefined : customers.get(customerId),

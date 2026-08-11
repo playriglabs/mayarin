@@ -140,7 +140,12 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   });
   const authService = new AuthService({ users, hasher, sessions: sessionService });
   const userService = new UserService({ users, accounts, hasher, clock });
-  const payments = new PaymentReadService({ intents, clearing, pageSize: config.paymentsPageSize });
+  const payments = new PaymentReadService({
+    intents,
+    clearing,
+    pageSize: config.paymentsPageSize,
+    clock,
+  });
 
   // The compliance read stack, on the same in-memory repos the rest of the
   // harness uses — `audits` is fed clearing transactions directly, since the
@@ -224,6 +229,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     intents,
     customers: customerRepository,
     pageSize: config.paymentsPageSize,
+    clock,
   });
   const customers = new CustomerService({
     customers: customerRepository,

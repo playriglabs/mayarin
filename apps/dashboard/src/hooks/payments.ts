@@ -81,14 +81,18 @@ export function usePayment(id: string | undefined) {
  *
  * Polls while the deposit is unfunded: the address is allocated at price lock,
  * so it can arrive a moment after the payment does, and the received total
- * moves as transfers confirm. Stops once the full amount has landed.
+ * moves as transfers confirm. Stops once the full amount has landed, or once
+ * the intent is terminal — an expired or failed payment has nothing left for a
+ * payer to send, so the deposit view is hidden and polling it would be traffic
+ * for a row that will never move again.
  */
-export function useDeposit(id: string | undefined) {
+export function useDeposit(id: string | undefined, active = true) {
   return useEffectQuery<DepositResponse, ApiError>({
     queryKey: ["payments", "deposit", id ?? null],
     query: () => paymentsApi.deposit(id ?? ""),
-    enabled: id !== undefined,
+    enabled: id !== undefined && active,
     refetchInterval: (data) => {
+      if (!active) return false;
       const deposit = data?.deposit;
       if (deposit === undefined) return POLL_MS;
       if (deposit === null) return false;

@@ -1,16 +1,28 @@
-const TRANSACTION_EXPLORERS = {
-  base: "https://basescan.org/tx/",
-  "base-sepolia": "https://sepolia.basescan.org/tx/",
+const EXPLORERS = {
+  base: "https://basescan.org/",
+  "base-sepolia": "https://sepolia.basescan.org/",
 } as const satisfies Readonly<Record<string, string>>;
 
-type ExplorerChain = keyof typeof TRANSACTION_EXPLORERS;
+type ExplorerChain = keyof typeof EXPLORERS;
 
 function isExplorerChain(chain: string): chain is ExplorerChain {
-  return chain in TRANSACTION_EXPLORERS;
+  return chain in EXPLORERS;
 }
+
+const TX_HASH = /^0x[\da-f]{64}$/i;
+const ADDRESS = /^0x[\da-f]{40}$/i;
 
 /** Returns no link for internal references, malformed hashes, or unsupported chains. */
 export function transactionExplorerUrl(chain: string, transactionHash: string): string | undefined {
-  if (!isExplorerChain(chain) || !/^0x[\da-f]{64}$/i.test(transactionHash)) return undefined;
-  return `${TRANSACTION_EXPLORERS[chain]}${transactionHash}`;
+  if (!isExplorerChain(chain) || !TX_HASH.test(transactionHash)) return undefined;
+  return `${EXPLORERS[chain]}tx/${transactionHash}`;
+}
+
+/**
+ * The deposit address's page — where a merchant watches the payer's transfer
+ * land. Returns no link for malformed addresses or unsupported chains.
+ */
+export function addressExplorerUrl(chain: string, address: string): string | undefined {
+  if (!isExplorerChain(chain) || !ADDRESS.test(address)) return undefined;
+  return `${EXPLORERS[chain]}address/${address}`;
 }
