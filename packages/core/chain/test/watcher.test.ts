@@ -307,6 +307,25 @@ describe("WalletWatcher", () => {
   });
 
   describe("native value that no block body shows", () => {
+    test("a native payment beyond the scan range is reconciled and closes the downtime gap", async () => {
+      const address = await harness.awaitingNativePayment();
+      // The watcher was down for 2,000 blocks. The payment lands just beyond
+      // the native block-body range, where replaying history would not see it
+      // on this pass.
+      harness.chain.mine(2_000);
+      harness.chain.transfer({ asset: NATIVE, to: address, amount: NATIVE_REQUIRED.amount });
+      harness.chain.mine(8);
+
+      const result = await harness.nativeWatcher.tick(CHAIN, NATIVE);
+
+      // Balance reconciliation accounts through head - depth, leaving only the
+      // finality window for the ordinary scanner on the next pass.
+      expect(result.scannedTo).toBe(result.headNumber - 6n);
+      expect(result.recorded).toBe(1);
+      expect(harness.funded).toEqual(["clr_native"]);
+      expect(await harness.cursors.get(CHAIN, NATIVE)).toBe(result.headNumber - 6n);
+    });
+
     test("an internal transfer is found by balance and funds the payment", async () => {
       const address = await harness.awaitingNativePayment();
       // Paid by a smart-contract wallet: the value is at the address and no

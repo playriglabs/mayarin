@@ -99,6 +99,8 @@ const configSchema = z.object({
   chainStartBlocks: jsonObject<StartBlockMap>("CHAIN_START_BLOCKS", "{}"),
   depositXpub: z.string().min(1).optional(),
   watcherIntervalMs: z.coerce.number().int().min(0).default(15_000),
+  /** Delay between passes while a watcher is catching up to the chain head. */
+  watcherCatchUpIntervalMs: z.coerce.number().int().min(0).default(1_000),
   watcherBlockRange: z.coerce.number().int().positive().default(2_000),
   /**
    * Blocks per pass for the chain's own currency, which is scanned by reading
@@ -277,6 +279,7 @@ export interface ChainConfig {
   readonly startBlocks: Readonly<Partial<Record<ChainId, bigint>>>;
   readonly xpub: string;
   readonly intervalMs: number;
+  readonly catchUpIntervalMs: number;
   readonly blockRange: number;
   readonly nativeBlockRange: number;
   /** Blocks per `eth_getLogs` call. The provider's cap, not the watcher's. */
@@ -608,6 +611,7 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
     ),
     xpub: data.depositXpub ?? "",
     intervalMs: data.watcherIntervalMs,
+    catchUpIntervalMs: data.watcherCatchUpIntervalMs,
     blockRange: data.watcherBlockRange,
     nativeBlockRange: data.watcherNativeBlockRange,
     logRange: data.chainLogRange,
@@ -713,6 +717,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainStartBlocks: env.CHAIN_START_BLOCKS,
     depositXpub: env.DEPOSIT_XPUB,
     watcherIntervalMs: env.WATCHER_INTERVAL_MS,
+    watcherCatchUpIntervalMs: env.WATCHER_CATCH_UP_INTERVAL_MS,
     watcherBlockRange: env.WATCHER_BLOCK_RANGE,
     watcherNativeBlockRange: env.WATCHER_NATIVE_BLOCK_RANGE,
     chainLogRange: env.CHAIN_LOG_RANGE,

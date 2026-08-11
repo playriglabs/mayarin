@@ -107,6 +107,16 @@ no `txHash`, no sender, and no block hash for `classifyDeposit` to probe against
 The confirmation and reorg policy below is reused **unchanged** precisely
 because a block body carries all three.
 
+The watcher nevertheless uses confirmed balances as a **downtime
+reconciliation**, not as the ordinary transaction scanner. It reads each
+fundable native address at `head - confirmationDepth`; any value not already
+represented by a transfer becomes an idempotent synthetic deposit carrying that
+settled block's number and hash. A successful reconciliation advances the native
+cursor to the same settled height, leaving the final confirmation window for the
+normal block-body scan. ETH therefore recovers immediately after an outage
+without issuing one RPC call for every historical block, while recent value is
+still never skipped ahead of finality.
+
 Two limits worth stating. The scan costs one `eth_getBlockByNumber` per block,
 where the ERC-20 path costs one `eth_getLogs` for the whole range — so
 `WATCHER_BLOCK_RANGE` now has a per-block cost on native chains. And only
