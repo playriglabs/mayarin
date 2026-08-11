@@ -32,6 +32,7 @@ export const ID_PREFIXES = {
   walletNonce: "wnc",
   product: "prd",
   paymentLink: "lnk",
+  invoice: "inv",
   merchantSettingChange: "msc",
   refund: "rfd",
   webhookEndpoint: "whe",

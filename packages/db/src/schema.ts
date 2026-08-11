@@ -527,6 +527,67 @@ export const paymentLinks = pgTable(
 );
 
 /**
+ * Invoices (#112).
+ *
+ * A document, so the columns hold what it said rather than what is currently
+ * true: the buyer is flattened here as a snapshot for the same reason the
+ * merchant is, and the line prices are frozen into `lines` rather than read
+ * back from `products`.
+ *
+ * Only `draft`, `issued` and `void` are stored. Paid, partly paid and overdue
+ * are derived from the intents carrying `number` as their merchant reference,
+ * so no column here can disagree with the ledger.
+ */
+export const invoices = pgTable(
+  "invoices",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id").notNull(),
+    merchantName: text("merchant_name").notNull(),
+    merchantCity: text("merchant_city").notNull(),
+    merchantCountryCode: text("merchant_country_code").notNull(),
+    merchantCategoryCode: text("merchant_category_code"),
+
+    /** Both set at issue, never before, never again. */
+    number: text("number"),
+    sequence: integer("sequence"),
+    state: text("state").notNull(),
+
+    buyerName: text("buyer_name").notNull(),
+    buyerEmail: text("buyer_email"),
+    buyerTaxId: text("buyer_tax_id"),
+    buyerAddress: text("buyer_address"),
+
+    currency: text("currency").notNull(),
+    /** Frozen at write. `unitPrice` is minor units of `currency`, as a string. */
+    lines: jsonb("lines")
+      .$type<{ productId?: string; name: string; unitPrice: string; quantity: number }[]>()
+      .notNull(),
+    total: minorUnits("total").notNull(),
+    totalAsset: text("total_asset").notNull(),
+
+    notes: text("notes"),
+    metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
+
+    issuedAt: timestamp("issued_at", { withTimezone: true, mode: "date" }),
+    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }),
+    voidedAt: timestamp("voided_at", { withTimezone: true, mode: "date" }),
+    idempotencyKey: text("idempotency_key"),
+
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    uniqueIndex("invoices_idempotency_key_idx").on(table.idempotencyKey),
+    // The database, not the allocator, is the last word on a number being used
+    // once. An allocator bug must surface as a failed write, not a duplicate.
+    uniqueIndex("invoices_number_idx").on(table.merchantId, table.number),
+    index("invoices_merchant_idx").on(table.merchantId, table.createdAt),
+  ],
+);
+
+/**
  * Merchant-managed customer directory.
  *
  * Commerce, like `products`: the merchant knows who their customers are, Mayarin
@@ -555,6 +616,23 @@ export const customers = pgTable(
     uniqueIndex("customers_merchant_email_idx").on(table.merchantId, table.email),
   ],
 );
+
+/**
+ * The per-merchant invoice number counter.
+ *
+ * A table rather than a Postgres sequence, because a sequence cannot be
+ * gapless: it hands out a value outside transaction control, so a rollback
+ * skips one. A row is incremented inside the issuing transaction and holds a
+ * row lock for its duration, which serialises issuance for that merchant only.
+ *
+ * Issuance is a human-rate action, so the contention this creates is one
+ * merchant clicking twice, not a throughput ceiling.
+ */
+export const invoiceCounters = pgTable("invoice_counters", {
+  merchantId: text("merchant_id").primaryKey(),
+  /** The value the NEXT invoice will take. Starts at 1. */
+  nextNumber: integer("next_number").notNull(),
+});
 
 /**
  * Append-only record of merchant settings edits (#95).
@@ -852,6 +930,8 @@ export const schema = {
   products,
   productPrices,
   paymentLinks,
+  invoices,
+  invoiceCounters,
   customers,
   merchantApiKeys,
   merchantSettingChanges,

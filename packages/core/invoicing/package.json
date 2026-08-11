@@ -1,0 +1,18 @@
+{
+  "name": "@mayarin/invoicing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./testing/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/catalog": "workspace:*",
+    "@mayarin/payment-intent": "workspace:*",
+    "@mayarin/shared": "workspace:*"
+  }
+}

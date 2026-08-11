@@ -16,6 +16,8 @@ import {
   TablePriceSource,
 } from "@mayarin/clearing";
 import { InMemoryClearingRepository, InMemoryRefundRepository } from "@mayarin/clearing/testing";
+import { InvoiceService } from "@mayarin/invoicing";
+import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
 import { LedgerService } from "@mayarin/ledger";
 import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
 import { type MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
@@ -74,8 +76,9 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   ]);
   const registry = new InMemoryStablecoinRegistry(config.stablecoins);
 
+  const intentRepository = new InMemoryPaymentIntentRepository();
   const intents = new PaymentIntentService({
-    repository: new InMemoryPaymentIntentRepository(),
+    repository: intentRepository,
     clock,
     events,
     registry,
@@ -114,6 +117,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
 
   const products = new InMemoryProductRepository();
   const links = new InMemoryPaymentLinkRepository();
+  const commerce = new CheckoutService({ products, links, intents, clock });
   // Market config over an in-memory store: the harness exercises the same
   // runtime path production takes, seeded from the same environment values.
   const marketStore = new InMemoryMarketConfigStore();
@@ -143,7 +147,13 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     intents,
     merchantPolicies,
     catalog: new CatalogService({ products, links, clock }),
-    commerce: new CheckoutService({ products, links, intents, clock }),
+    commerce,
+    invoices: new InvoiceService({
+      invoices: new InMemoryInvoiceRepository(),
+      checkout: commerce,
+      payments: intentRepository,
+      clock,
+    }),
     ledger,
     engine,
     rates,
@@ -191,12 +201,19 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     return { status: response.status, body: (await response.json()) as Record<string, any> };
   }
 
+  /** A server-rendered page returns HTML, so `request` cannot parse it. */
+  async function requestHtml(path: string) {
+    const response = await app.request(path, { method: "GET" });
+    return { status: response.status, text: await response.text() };
+  }
+
   return {
     app,
     clock,
     adapter,
     container,
     request,
+    requestHtml,
     ledger,
     engine,
     intents,

@@ -29,6 +29,7 @@ import {
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
   DrizzleInternalSettlementStore,
+  DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
   DrizzleMarketConfigRepository,
   DrizzleMerchantAssetPolicySource,
@@ -46,6 +47,7 @@ import {
   DrizzleWebhookOutbox,
   listenPaymentChanged,
 } from "@mayarin/db";
+import { InvoiceService } from "@mayarin/invoicing";
 import { LedgerService } from "@mayarin/ledger";
 import {
   type WebhookDeliveryRepository,
@@ -89,6 +91,8 @@ export interface Container {
   readonly catalog: CatalogService;
   /** The one seam commerce crosses into payments: cart or link → intent. */
   readonly commerce: CheckoutService;
+  /** Invoices: a payment link that also carries a buyer, a due date and a number (#112). */
+  readonly invoices: InvoiceService;
   readonly ledger: LedgerService;
   readonly engine: ClearingEngine;
   /**
@@ -304,8 +308,9 @@ export function createContainer({
     new DrizzleMerchantRepository(handle.db),
   );
 
+  const intentRepository = new DrizzlePaymentIntentRepository(handle.db);
   const intents = new PaymentIntentService({
-    repository: new DrizzlePaymentIntentRepository(handle.db),
+    repository: intentRepository,
     clock,
     events,
     registry,
@@ -333,6 +338,16 @@ export function createContainer({
     products: catalogProducts,
     links: catalogLinks,
     intents,
+    clock,
+  });
+
+  // Invoicing sits on top of checkout and is never depended on by it. The
+  // intent repository doubles as the payment reader: an invoice's balance is
+  // the sum of the intents carrying its number.
+  const invoices = new InvoiceService({
+    invoices: new DrizzleInvoiceRepository(handle.db),
+    checkout: commerce,
+    payments: intentRepository,
     clock,
   });
 
@@ -585,6 +600,7 @@ export function createContainer({
     intents,
     catalog,
     commerce,
+    invoices,
     ledger,
     engine,
     rates,
