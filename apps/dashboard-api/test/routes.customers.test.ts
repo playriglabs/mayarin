@@ -25,7 +25,7 @@ async function seed() {
 }
 
 async function login(harness: Harness) {
-  const res = await harness.request("POST", "/auth/login", {
+  const res = await harness.request("POST", "/v1/auth/login", {
     body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
   expect(res.status).toBe(200);
@@ -38,7 +38,7 @@ async function createCustomerApi(
   auth: { jar: Record<string, string>; csrf: string },
   body: unknown,
 ) {
-  return harness.request("POST", "/customers", {
+  return harness.request("POST", "/v1/customers", {
     body,
     cookies: auth.jar,
     headers: { "x-csrf-token": auth.csrf },
@@ -51,7 +51,7 @@ describe("GET /customers", () => {
     await createCustomerApi(harness, auth, { name: "Budi", email: "budi@example.com" });
     await createCustomerApi(harness, auth, { name: "Sari" });
 
-    const res = await harness.request("GET", "/customers", { cookies: auth.jar });
+    const res = await harness.request("GET", "/v1/customers", { cookies: auth.jar });
     expect(res.status).toBe(200);
     expect(res.body?.customers).toHaveLength(2);
     expect(res.body?.customers.map((c: { name: string }) => c.name).sort()).toEqual([
@@ -62,7 +62,7 @@ describe("GET /customers", () => {
 
   test("requires authentication", async () => {
     const { harness } = await seed();
-    const res = await harness.request("GET", "/customers");
+    const res = await harness.request("GET", "/v1/customers");
     expect(res.status).toBe(401);
   });
 
@@ -71,7 +71,7 @@ describe("GET /customers", () => {
     await createCustomerApi(harness, auth, { name: "Budi", email: "budi@example.com" });
     await createCustomerApi(harness, auth, { name: "Sari", email: "sari@example.com" });
 
-    const res = await harness.request("GET", "/customers?q=budi%40example.com", {
+    const res = await harness.request("GET", "/v1/customers?q=budi%40example.com", {
       cookies: auth.jar,
     });
     expect(res.body?.customers.map((customer: { name: string }) => customer.name)).toEqual([
@@ -95,7 +95,7 @@ describe("POST /customers", () => {
 
   test("without a CSRF token is refused", async () => {
     const { harness, auth } = await seed();
-    const res = await harness.request("POST", "/customers", {
+    const res = await harness.request("POST", "/v1/customers", {
       body: { name: "Budi" },
       cookies: auth.jar,
     });
@@ -109,7 +109,7 @@ describe("GET /customers/:id", () => {
     const created = await createCustomerApi(harness, auth, { name: "Budi" });
     const id = created.body?.customer.id;
 
-    const res = await harness.request("GET", `/customers/${id}`, { cookies: auth.jar });
+    const res = await harness.request("GET", `/v1/customers/${id}`, { cookies: auth.jar });
     expect(res.status).toBe(200);
     expect(res.body?.customer.id).toBe(id);
     expect(res.body?.orders).toEqual([]);
@@ -126,7 +126,7 @@ describe("GET /customers/:id", () => {
     });
     await harness.customerRepository.insert(foreign);
 
-    const res = await harness.request("GET", `/customers/${foreign.id}`, { cookies: auth.jar });
+    const res = await harness.request("GET", `/v1/customers/${foreign.id}`, { cookies: auth.jar });
     expect(res.status).toBe(404);
   });
 });
@@ -137,7 +137,7 @@ describe("PATCH /customers/:id", () => {
     const created = await createCustomerApi(harness, auth, { name: "Budi" });
     const id = created.body?.customer.id;
 
-    const res = await harness.request("PATCH", `/customers/${id}`, {
+    const res = await harness.request("PATCH", `/v1/customers/${id}`, {
       body: { name: "Budi Hartono" },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -155,7 +155,7 @@ describe("PATCH /customers/:id", () => {
     });
     const id = created.body?.customer.id;
 
-    const res = await harness.request("PATCH", `/customers/${id}`, {
+    const res = await harness.request("PATCH", `/v1/customers/${id}`, {
       body: { email: null },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -166,7 +166,7 @@ describe("PATCH /customers/:id", () => {
   test("without a CSRF token is refused", async () => {
     const { harness, auth } = await seed();
     const created = await createCustomerApi(harness, auth, { name: "Budi" });
-    const res = await harness.request("PATCH", `/customers/${created.body?.customer.id}`, {
+    const res = await harness.request("PATCH", `/v1/customers/${created.body?.customer.id}`, {
       body: { name: "X" },
       cookies: auth.jar,
     });
@@ -180,13 +180,13 @@ describe("DELETE /customers/:id", () => {
     const created = await createCustomerApi(harness, auth, { name: "Budi" });
     const id = created.body?.customer.id;
 
-    const res = await harness.request("DELETE", `/customers/${id}`, {
+    const res = await harness.request("DELETE", `/v1/customers/${id}`, {
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
     expect(res.status).toBe(204);
 
-    const after = await harness.request("GET", `/customers/${id}`, { cookies: auth.jar });
+    const after = await harness.request("GET", `/v1/customers/${id}`, { cookies: auth.jar });
     expect(after.status).toBe(404);
   });
 
@@ -199,7 +199,7 @@ describe("DELETE /customers/:id", () => {
     });
     await harness.customerRepository.insert(foreign);
 
-    const res = await harness.request("DELETE", `/customers/${foreign.id}`, {
+    const res = await harness.request("DELETE", `/v1/customers/${foreign.id}`, {
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });

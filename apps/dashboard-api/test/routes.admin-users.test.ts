@@ -52,7 +52,7 @@ async function loginAs(
   email: string,
   password: string,
 ): Promise<{ jar: Record<string, string>; csrf: string }> {
-  const res = await harness.request("POST", "/auth/login", { body: { email, password } });
+  const res = await harness.request("POST", "/v1/auth/login", { body: { email, password } });
   expect(res.status).toBe(200);
   const jar = cookieJar(res.setCookies);
   return { jar, csrf: jar.mayarin_csrf ?? "" };
@@ -61,7 +61,7 @@ async function loginAs(
 describe("admin users routes", () => {
   test("GET /admin/users is 401 for an anonymous caller", async () => {
     const harness = await seed();
-    const res = await harness.request("GET", "/admin/users");
+    const res = await harness.request("GET", "/v1/admin/users");
     expect(res.status).toBe(401);
   });
 
@@ -69,7 +69,7 @@ describe("admin users routes", () => {
     const harness = await seed();
     await insertUser(harness, "staff@mayarin.local", "pw-staff", ["payments:read"]);
     const { jar } = await loginAs(harness, "staff@mayarin.local", "pw-staff");
-    const res = await harness.request("GET", "/admin/users", { cookies: jar });
+    const res = await harness.request("GET", "/v1/admin/users", { cookies: jar });
     expect(res.status).toBe(403);
   });
 
@@ -77,7 +77,7 @@ describe("admin users routes", () => {
     const harness = await seed();
     await insertUser(harness, "staff@mayarin.local", "pw-staff", ["payments:read"]);
     const { jar } = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const res = await harness.request("GET", "/admin/users", { cookies: jar });
+    const res = await harness.request("GET", "/v1/admin/users", { cookies: jar });
     expect(res.status).toBe(200);
     const emails = ((res.body?.users ?? []) as Array<{ email: string; merchantId: string }>).map(
       (u) => u.email,
@@ -93,7 +93,7 @@ describe("admin users routes", () => {
   test("POST /admin/users without CSRF is 403", async () => {
     const harness = await seed();
     const { jar } = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const res = await harness.request("POST", "/admin/users", {
+    const res = await harness.request("POST", "/v1/admin/users", {
       cookies: jar,
       body: { email: "new@mayarin.local", permissions: ["payments:read"] },
     });
@@ -104,7 +104,7 @@ describe("admin users routes", () => {
     const harness = await seed();
     await insertUser(harness, "op@mayarin.local", "pw-op", ["admin:access"]);
     const { jar, csrf } = await loginAs(harness, "op@mayarin.local", "pw-op");
-    const res = await harness.request("POST", "/admin/users", {
+    const res = await harness.request("POST", "/v1/admin/users", {
       cookies: jar,
       headers: { "x-csrf-token": csrf },
       body: { email: "new@mayarin.local", permissions: ["payments:read"] },
@@ -116,7 +116,7 @@ describe("admin users routes", () => {
   test("POST /admin/users creates a same-merchant account with a supplied password", async () => {
     const harness = await seed();
     const { jar, csrf } = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const res = await harness.request("POST", "/admin/users", {
+    const res = await harness.request("POST", "/v1/admin/users", {
       cookies: jar,
       headers: { "x-csrf-token": csrf },
       body: {
@@ -136,7 +136,7 @@ describe("admin users routes", () => {
   test("POST /admin/users generates + echoes a password when none is supplied", async () => {
     const harness = await seed();
     const { jar, csrf } = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const res = await harness.request("POST", "/admin/users", {
+    const res = await harness.request("POST", "/v1/admin/users", {
       cookies: jar,
       headers: { "x-csrf-token": csrf },
       body: { email: "gen@mayarin.local", permissions: ["payments:read"] },
@@ -149,7 +149,7 @@ describe("admin users routes", () => {
   test("POST /admin/users rejects a duplicate email with 409", async () => {
     const harness = await seed();
     const { jar, csrf } = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const res = await harness.request("POST", "/admin/users", {
+    const res = await harness.request("POST", "/v1/admin/users", {
       cookies: jar,
       headers: { "x-csrf-token": csrf },
       body: { email: ADMIN_EMAIL, permissions: ["payments:read"] },

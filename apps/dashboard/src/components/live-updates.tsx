@@ -9,7 +9,7 @@ export default function LiveUpdates() {
     if (!("EventSource" in window)) return;
 
     const streams = CHANNELS.map((channel) => {
-      const source = new EventSource(`/api/${channel}/events`);
+      const source = new EventSource(`/api/v1/${channel}/events`);
       source.onopen = () => setLiveChannel(channel, true);
       source.addEventListener("refresh", () => {
         void queryClient.invalidateQueries({ queryKey: [channel] });

@@ -47,7 +47,7 @@ async function insertUser(
 }
 
 async function loginAs(harness: Harness, email: string, password: string) {
-  const res = await harness.request("POST", "/auth/login", { body: { email, password } });
+  const res = await harness.request("POST", "/v1/auth/login", { body: { email, password } });
   expect(res.status).toBe(200);
   const jar = cookieJar(res.setCookies);
   return { jar, csrf: jar.mayarin_csrf ?? "" };
@@ -58,7 +58,7 @@ async function patch(
   auth: { jar: Record<string, string>; csrf: string },
   body: unknown,
 ) {
-  return harness.request("PATCH", "/settings", {
+  return harness.request("PATCH", "/v1/settings", {
     body,
     cookies: auth.jar,
     headers: { "x-csrf-token": auth.csrf },
@@ -70,7 +70,7 @@ describe("GET /settings", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const { status, body } = await harness.request("GET", "/settings", { cookies: auth.jar });
+    const { status, body } = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
 
     expect(status).toBe(200);
     expect(body?.settings).toMatchObject({
@@ -101,7 +101,7 @@ describe("GET /settings", () => {
       updatedAt: now,
     });
 
-    const { body } = await harness.request("GET", "/settings", { cookies: auth.jar });
+    const { body } = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
 
     expect(body?.settings.settlementAddress).toBeNull();
     expect(body?.settings.effectiveSettlementAddress).toBe(MANAGED_ADDRESS);
@@ -124,14 +124,14 @@ describe("GET /settings", () => {
     });
     await patch(harness, auth, { settlementAddress: ADDRESS });
 
-    const { body } = await harness.request("GET", "/settings", { cookies: auth.jar });
+    const { body } = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
 
     expect(body?.settings.effectiveSettlementAddress).toBe(ADDRESS);
   });
 
   test("an anonymous caller is refused", async () => {
     const harness = await seed();
-    const { status } = await harness.request("GET", "/settings");
+    const { status } = await harness.request("GET", "/v1/settings");
     expect(status).toBe(401);
   });
 
@@ -140,7 +140,7 @@ describe("GET /settings", () => {
     await insertUser(harness, "reader@mayarin.local", "reader-password-1", ["payments:read"]);
     const auth = await loginAs(harness, "reader@mayarin.local", "reader-password-1");
 
-    const { status } = await harness.request("GET", "/settings", { cookies: auth.jar });
+    const { status } = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
     expect(status).toBe(403);
   });
 });
@@ -169,7 +169,7 @@ describe("PATCH /settings", () => {
       { city: null, countryCode: null },
     );
 
-    const before = await harness.request("GET", "/settings", { cookies: auth.jar });
+    const before = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
     expect(before.body?.settings.canCreateLinks).toBe(false);
 
     const { status, body } = await patch(harness, auth, { city: "Bandung", countryCode: "id" });
@@ -197,7 +197,7 @@ describe("PATCH /settings", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
     await patch(harness, auth, { settlementAddress: ADDRESS });
-    const { body } = await harness.request("GET", "/settings/history", { cookies: auth.jar });
+    const { body } = await harness.request("GET", "/v1/settings/history", { cookies: auth.jar });
 
     expect(body?.changes).toHaveLength(1);
     expect(body?.changes[0]).toMatchObject({
@@ -228,7 +228,7 @@ describe("PATCH /settings", () => {
     const { status } = await patch(harness, auth, { settlementAddress: "0xnope" });
 
     expect(status).toBe(400);
-    const after = await harness.request("GET", "/settings", { cookies: auth.jar });
+    const after = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
     expect(after.body?.settings.settlementAddress).toBeNull();
   });
 
@@ -264,7 +264,7 @@ describe("PATCH /settings", () => {
     const { body } = await patch(harness, auth, { settlementAsset: "USDC" });
 
     expect(body?.changes).toEqual([]);
-    const history = await harness.request("GET", "/settings/history", { cookies: auth.jar });
+    const history = await harness.request("GET", "/v1/settings/history", { cookies: auth.jar });
     expect(history.body?.changes).toEqual([]);
   });
 
@@ -272,7 +272,7 @@ describe("PATCH /settings", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const { status } = await harness.request("PATCH", "/settings", {
+    const { status } = await harness.request("PATCH", "/v1/settings", {
       body: { settlementAddress: ADDRESS },
       cookies: auth.jar,
     });
@@ -375,7 +375,7 @@ describe("cross-tenant isolation", () => {
     await patch(harness, mine, { settlementAddress: ADDRESS });
 
     const theirs = await loginAs(harness, "other@mayarin.local", "other-password-12345");
-    const { body } = await harness.request("GET", "/settings/history", { cookies: theirs.jar });
+    const { body } = await harness.request("GET", "/v1/settings/history", { cookies: theirs.jar });
 
     expect(body?.changes).toEqual([]);
     expect(otherSeed.user.merchantId).not.toBe(harness.merchantId);

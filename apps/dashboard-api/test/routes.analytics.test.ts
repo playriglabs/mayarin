@@ -29,11 +29,11 @@ describe("GET /analytics", () => {
       amount: { amount: 99n, asset: "IDR" },
       source: { type: "manual" },
     });
-    const login = await harness.request("POST", "/auth/login", {
+    const login = await harness.request("POST", "/v1/auth/login", {
       body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
     });
 
-    const response = await harness.request("GET", "/analytics?limit=1&cursor=ignored", {
+    const response = await harness.request("GET", "/v1/analytics?limit=1&cursor=ignored", {
       cookies: cookieJar(login.setCookies),
     });
 

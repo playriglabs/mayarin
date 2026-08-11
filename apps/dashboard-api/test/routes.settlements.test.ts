@@ -85,7 +85,7 @@ async function makeUser(
 }
 
 async function loginAs(harness: Harness, email: string, password: string) {
-  const res = await harness.request("POST", "/auth/login", { body: { email, password } });
+  const res = await harness.request("POST", "/v1/auth/login", { body: { email, password } });
   expect(res.status).toBe(200);
   return cookieJar(res.setCookies);
 }
@@ -112,7 +112,7 @@ async function seed() {
 describe("GET /settlements", () => {
   test("an anonymous request is 401", async () => {
     const { harness } = await seed();
-    expect((await harness.request("GET", "/settlements")).status).toBe(401);
+    expect((await harness.request("GET", "/v1/settlements")).status).toBe(401);
   });
 
   test("returns what clearing booked for the caller's own payments", async () => {
@@ -123,7 +123,7 @@ describe("GET /settlements", () => {
     );
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
 
-    const res = await harness.request("GET", "/settlements", { cookies: jar });
+    const res = await harness.request("GET", "/v1/settlements", { cookies: jar });
     expect(res.status).toBe(200);
     expect(res.body?.settlements).toHaveLength(1);
 
@@ -162,7 +162,7 @@ describe("GET /settlements", () => {
     );
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
 
-    const res = await harness.request("GET", "/settlements", { cookies: jar });
+    const res = await harness.request("GET", "/v1/settlements", { cookies: jar });
 
     expect(res.body?.settlements).toHaveLength(7);
     expect(res.body?.summary).toMatchObject({
@@ -177,7 +177,7 @@ describe("GET /settlements", () => {
 
     const next = await harness.request(
       "GET",
-      `/settlements?cursor=${encodeURIComponent(String(res.body?.nextCursor))}`,
+      `/v1/settlements?cursor=${encodeURIComponent(String(res.body?.nextCursor))}`,
       { cookies: jar },
     );
     const firstIds = res.body?.settlements.map(
@@ -202,7 +202,7 @@ describe("GET /settlements", () => {
     );
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
 
-    const res = await harness.request("GET", "/settlements", { cookies: jar });
+    const res = await harness.request("GET", "/v1/settlements", { cookies: jar });
     expect(res.body?.settlements).toHaveLength(1);
     expect(res.body?.settlements[0].paymentIntentId).toBe(intentA.id);
   });
@@ -215,7 +215,7 @@ describe("GET /settlements", () => {
     );
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
 
-    const res = await harness.request("GET", "/settlements?merchantId=mch_b", { cookies: jar });
+    const res = await harness.request("GET", "/v1/settlements?merchantId=mch_b", { cookies: jar });
     expect(res.body?.settlements).toHaveLength(0);
   });
 
@@ -223,7 +223,7 @@ describe("GET /settlements", () => {
     const { harness } = await seed();
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
 
-    const res = await harness.request("GET", "/settlements", { cookies: jar });
+    const res = await harness.request("GET", "/v1/settlements", { cookies: jar });
     expect(res.body?.settlements).toHaveLength(0);
   });
 
@@ -252,7 +252,7 @@ describe("GET /settlements", () => {
     );
 
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
-    const res = await harness.request("GET", "/settlements", { cookies: jar });
+    const res = await harness.request("GET", "/v1/settlements", { cookies: jar });
 
     const row = res.body?.settlements[0];
     expect(row.destination).toBe(`0x${"11".repeat(20)}`);

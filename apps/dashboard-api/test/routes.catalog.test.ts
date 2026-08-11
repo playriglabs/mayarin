@@ -24,7 +24,7 @@ async function seed() {
 }
 
 async function loginAs(harness: Harness, email: string, password: string): Promise<Auth> {
-  const res = await harness.request("POST", "/auth/login", { body: { email, password } });
+  const res = await harness.request("POST", "/v1/auth/login", { body: { email, password } });
   expect(res.status).toBe(200);
   const jar = cookieJar(res.setCookies);
   return { jar, csrf: jar.mayarin_csrf ?? "" };
@@ -72,7 +72,7 @@ const PRODUCT = {
 describe("catalog routes", () => {
   test("an anonymous request is 401", async () => {
     const harness = await seed();
-    const res = await harness.request("GET", "/catalog/products");
+    const res = await harness.request("GET", "/v1/catalog/products");
     expect(res.status).toBe(401);
   });
 
@@ -81,7 +81,7 @@ describe("catalog routes", () => {
     await insertUser(harness, "cashier@mayarin.local", "pw-12345678", ["payments:read"]);
     const auth = await loginAs(harness, "cashier@mayarin.local", "pw-12345678");
 
-    const res = await get(harness, auth, "/catalog/products");
+    const res = await get(harness, auth, "/v1/catalog/products");
     expect(res.status).toBe(403);
   });
 
@@ -89,14 +89,14 @@ describe("catalog routes", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const created = await post(harness, auth, "/catalog/products", PRODUCT);
+    const created = await post(harness, auth, "/v1/catalog/products", PRODUCT);
     expect(created.status).toBe(201);
     expect(created.body?.product.sku).toBe("BEV-001");
     // Money crosses the wire as minor units plus rendered forms, never a float.
     expect(created.body?.product.prices[0].amount).toBe("2500000");
     expect(created.body?.product.active).toBe(true);
 
-    const listed = await get(harness, auth, "/catalog/products");
+    const listed = await get(harness, auth, "/v1/catalog/products");
     expect(listed.body?.products).toHaveLength(1);
   });
 
@@ -105,7 +105,7 @@ describe("catalog routes", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await Promise.all(
       Array.from({ length: 8 }, (_, index) =>
-        post(harness, auth, "/catalog/products", {
+        post(harness, auth, "/v1/catalog/products", {
           ...PRODUCT,
           sku: `PAGE-${index}`,
           name: `Product ${index}`,
@@ -113,21 +113,21 @@ describe("catalog routes", () => {
       ),
     );
 
-    const first = await get(harness, auth, "/catalog/products?limit=7");
+    const first = await get(harness, auth, "/v1/catalog/products?limit=7");
     expect(first.body?.products).toHaveLength(7);
     expect(typeof first.body?.nextCursor).toBe("string");
 
     const second = await get(
       harness,
       auth,
-      `/catalog/products?limit=7&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+      `/v1/catalog/products?limit=7&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
     );
     expect(second.body?.products).toHaveLength(1);
     const firstIds = first.body?.products.map((product: { id: string }) => product.id) ?? [];
     expect(firstIds).not.toContain(second.body?.products[0].id);
     expect(second.body?.nextCursor).toBeNull();
 
-    const options = await get(harness, auth, "/catalog/products/options");
+    const options = await get(harness, auth, "/v1/catalog/products/options");
     expect(options.body?.products).toHaveLength(8);
   });
 
@@ -135,7 +135,7 @@ describe("catalog routes", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await post(harness, auth, "/catalog/products", {
+    const res = await post(harness, auth, "/v1/catalog/products", {
       ...PRODUCT,
       merchantId: "mrc_someone_else",
     });
@@ -147,7 +147,7 @@ describe("catalog routes", () => {
   test("another merchant's product is 404, not 403", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/catalog/products", PRODUCT);
+    const created = await post(harness, auth, "/v1/catalog/products", PRODUCT);
     const productId = created.body?.product.id as string;
 
     const other = await harness.container.users.createMerchantAccount({
@@ -160,27 +160,27 @@ describe("catalog routes", () => {
     });
     const otherAuth = await loginAs(harness, other.user.email, "pw-12345678");
 
-    const res = await get(harness, otherAuth, `/catalog/products/${productId}`);
+    const res = await get(harness, otherAuth, `/v1/catalog/products/${productId}`);
     expect(res.status).toBe(404);
   });
 
   test("a description is cleared by null and left alone by absence", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/catalog/products", {
+    const created = await post(harness, auth, "/v1/catalog/products", {
       ...PRODUCT,
       description: "Iced, one sugar",
     });
     const productId = created.body?.product.id as string;
 
-    const renamed = await harness.request("PATCH", `/catalog/products/${productId}`, {
+    const renamed = await harness.request("PATCH", `/v1/catalog/products/${productId}`, {
       body: { name: "Kopi Susu" },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
     expect(renamed.body?.product.description).toBe("Iced, one sugar");
 
-    const cleared = await harness.request("PATCH", `/catalog/products/${productId}`, {
+    const cleared = await harness.request("PATCH", `/v1/catalog/products/${productId}`, {
       body: { description: null },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -191,10 +191,10 @@ describe("catalog routes", () => {
   test("archiving a product leaves it readable and not sellable", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/catalog/products", PRODUCT);
+    const created = await post(harness, auth, "/v1/catalog/products", PRODUCT);
     const productId = created.body?.product.id as string;
 
-    const patched = await harness.request("PATCH", `/catalog/products/${productId}`, {
+    const patched = await harness.request("PATCH", `/v1/catalog/products/${productId}`, {
       body: { active: false },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -210,7 +210,7 @@ describe("payment link routes", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await Promise.all(
       Array.from({ length: 8 }, (_, index) =>
-        post(harness, auth, "/payment-links", {
+        post(harness, auth, "/v1/payment-links", {
           kind: "open",
           currency: "IDR",
           title: `Counter ${index}`,
@@ -218,13 +218,13 @@ describe("payment link routes", () => {
       ),
     );
 
-    const first = await get(harness, auth, "/payment-links?limit=7");
+    const first = await get(harness, auth, "/v1/payment-links?limit=7");
     expect(first.body?.paymentLinks).toHaveLength(7);
     expect(typeof first.body?.nextCursor).toBe("string");
     const second = await get(
       harness,
       auth,
-      `/payment-links?limit=7&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+      `/v1/payment-links?limit=7&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
     );
     expect(second.body?.paymentLinks).toHaveLength(1);
     const firstIds = first.body?.paymentLinks.map((link: { id: string }) => link.id) ?? [];
@@ -236,7 +236,7 @@ describe("payment link routes", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await post(harness, auth, "/payment-links", {
+    const res = await post(harness, auth, "/v1/payment-links", {
       kind: "fixed",
       amount: { amount: "50000", asset: "IDR" },
       title: "Counter",
@@ -254,7 +254,7 @@ describe("payment link routes", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const res = await post(harness, auth, "/v1/payment-links", { kind: "open", currency: "IDR" });
     expect(res.status).toBe(201);
     expect(res.body?.paymentLink.amount).toBeNull();
     expect(res.body?.paymentLink.currency).toBe("IDR");
@@ -274,7 +274,7 @@ describe("payment link routes", () => {
     });
     const auth = await loginAs(harness, bare.user.email, "pw-12345678");
 
-    const res = await post(harness, auth, "/payment-links", {
+    const res = await post(harness, auth, "/v1/payment-links", {
       kind: "fixed",
       amount: { amount: "50000", asset: "IDR" },
     });
@@ -286,24 +286,27 @@ describe("payment link routes", () => {
   test("a retired link stops being payable and stays listed", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", {
+    const created = await post(harness, auth, "/v1/payment-links", {
       kind: "open",
       currency: "IDR",
     });
     const linkId = created.body?.paymentLink.id as string;
 
-    const disabled = await post(harness, auth, `/payment-links/${linkId}/disable`);
+    const disabled = await post(harness, auth, `/v1/payment-links/${linkId}/disable`);
     expect(disabled.status).toBe(200);
     expect(disabled.body?.paymentLink.payable).toBe(false);
 
-    const listed = await get(harness, auth, "/payment-links");
+    const listed = await get(harness, auth, "/v1/payment-links");
     expect(listed.body?.paymentLinks).toHaveLength(1);
   });
 
   test("another merchant's link is 404, not 403", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
     const linkId = created.body?.paymentLink.id as string;
 
     const other = await harness.container.users.createMerchantAccount({
@@ -318,8 +321,10 @@ describe("payment link routes", () => {
     });
     const otherAuth = await loginAs(harness, other.user.email, "pw-12345678");
 
-    expect((await get(harness, otherAuth, `/payment-links/${linkId}`)).status).toBe(404);
-    expect((await post(harness, otherAuth, `/payment-links/${linkId}/disable`)).status).toBe(404);
+    expect((await get(harness, otherAuth, `/v1/payment-links/${linkId}`)).status).toBe(404);
+    expect((await post(harness, otherAuth, `/v1/payment-links/${linkId}/disable`)).status).toBe(
+      404,
+    );
   });
 
   test("a catalog link cannot name another merchant's product", async () => {
@@ -337,13 +342,13 @@ describe("payment link routes", () => {
       permissions: ["catalog:manage"],
     });
     const otherAuth = await loginAs(harness, other.user.email, "pw-12345678");
-    const theirs = await post(harness, otherAuth, "/catalog/products", PRODUCT);
+    const theirs = await post(harness, otherAuth, "/v1/catalog/products", PRODUCT);
     const theirProductId = theirs.body?.product.id as string;
 
     // Refused at creation rather than at checkout: otherwise the link is
     // accepted, listed and rendered as a QR, and the buyer is the one who finds
     // out it can never be paid.
-    const res = await post(harness, auth, "/payment-links", {
+    const res = await post(harness, auth, "/v1/payment-links", {
       kind: "catalog",
       currency: "IDR",
       lines: [{ productId: theirProductId, quantity: 1 }],
@@ -354,10 +359,13 @@ describe("payment link routes", () => {
   test("taking a payment mints one and pins the deposit path", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
     const linkId = created.body?.paymentLink.id as string;
 
-    const res = await post(harness, auth, `/payment-links/${linkId}/charge`, {
+    const res = await post(harness, auth, `/v1/payment-links/${linkId}/charge`, {
       asset: "USDC",
       amount: { amount: "75000", asset: "IDR" },
     });
@@ -380,7 +388,10 @@ describe("payment link routes", () => {
   test("a payment that cannot be priced is reported, not handed back as an id", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
     const linkId = created.body?.paymentLink.id as string;
 
     // A confirm that answers 200 with a FAILED intent: the request was handled,
@@ -388,7 +399,7 @@ describe("payment link routes", () => {
     // sheet shows "no address to scan" and no reason.
     harness.failNextConfirm("No rate configured for IDR -> USDC");
 
-    const res = await post(harness, auth, `/payment-links/${linkId}/charge`, {
+    const res = await post(harness, auth, `/v1/payment-links/${linkId}/charge`, {
       asset: "USDC",
       amount: { amount: "75000.00", asset: "IDR" },
     });
@@ -404,10 +415,13 @@ describe("payment link routes", () => {
     // happens before a record exists.
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
     const linkId = created.body?.paymentLink.id as string;
 
-    const res = await post(harness, auth, `/payment-links/${linkId}/charge`, {
+    const res = await post(harness, auth, `/v1/payment-links/${linkId}/charge`, {
       asset: "ETH",
       amount: { amount: "75000.00", asset: "IDR" },
     });
@@ -425,18 +439,20 @@ describe("payment link routes", () => {
     // unchargeable at the counter.
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const product = await post(harness, auth, "/catalog/products", PRODUCT);
-    const created = await post(harness, auth, "/payment-links", {
+    const product = await post(harness, auth, "/v1/catalog/products", PRODUCT);
+    const created = await post(harness, auth, "/v1/payment-links", {
       kind: "catalog",
       currency: "IDR",
       lines: [{ productId: product.body?.product.id, quantity: 3 }],
     });
     const linkId = created.body?.paymentLink.id as string;
 
-    const quote = await post(harness, auth, `/payment-links/${linkId}/quote`, {});
+    const quote = await post(harness, auth, `/v1/payment-links/${linkId}/quote`, {});
     expect(quote.status).toBe(200);
 
-    const charged = await post(harness, auth, `/payment-links/${linkId}/charge`, { asset: "USDC" });
+    const charged = await post(harness, auth, `/v1/payment-links/${linkId}/charge`, {
+      asset: "USDC",
+    });
     expect(charged.status).toBe(201);
     // Three at 25.000 — the counter charges what the products say, and the
     // amount that reached the payment API is that total rather than a blank.
@@ -447,10 +463,13 @@ describe("payment link routes", () => {
   test("an open link cannot be charged without an amount", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
     const linkId = created.body?.paymentLink.id as string;
 
-    const res = await post(harness, auth, `/payment-links/${linkId}/charge`, { asset: "USDC" });
+    const res = await post(harness, auth, `/v1/payment-links/${linkId}/charge`, { asset: "USDC" });
 
     expect(res.status).toBe(400);
     expect(harness.paymentApiCalls.some((call) => call.path.endsWith("/checkout"))).toBe(false);
@@ -459,7 +478,10 @@ describe("payment link routes", () => {
   test("another merchant's link cannot be charged", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
     const linkId = created.body?.paymentLink.id as string;
 
     const other = await harness.container.users.createMerchantAccount({
@@ -474,7 +496,7 @@ describe("payment link routes", () => {
     });
     const otherAuth = await loginAs(harness, other.user.email, "pw-12345678");
 
-    const res = await post(harness, otherAuth, `/payment-links/${linkId}/charge`, {
+    const res = await post(harness, otherAuth, `/v1/payment-links/${linkId}/charge`, {
       asset: "USDC",
     });
     expect(res.status).toBe(404);
@@ -483,10 +505,13 @@ describe("payment link routes", () => {
   test("a quote prices the sale in every accepted asset", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
     const linkId = created.body?.paymentLink.id as string;
 
-    const res = await post(harness, auth, `/payment-links/${linkId}/quote`, {
+    const res = await post(harness, auth, `/v1/payment-links/${linkId}/quote`, {
       amount: { amount: "75000", asset: "IDR" },
     });
 
@@ -503,10 +528,13 @@ describe("payment link routes", () => {
   test("an open link with no amount cannot be quoted", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/payment-links", { kind: "open", currency: "IDR" });
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
     const linkId = created.body?.paymentLink.id as string;
 
-    const res = await post(harness, auth, `/payment-links/${linkId}/quote`, {});
+    const res = await post(harness, auth, `/v1/payment-links/${linkId}/quote`, {});
     expect(res.status).toBe(400);
   });
 
@@ -514,7 +542,7 @@ describe("payment link routes", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await harness.request("POST", "/payment-links", {
+    const res = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "open", currency: "IDR" },
       cookies: auth.jar,
     });

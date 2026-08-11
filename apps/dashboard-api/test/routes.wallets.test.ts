@@ -35,7 +35,7 @@ async function seed() {
 }
 
 async function loginAs(harness: Harness, email: string, password: string) {
-  const res = await harness.request("POST", "/auth/login", { body: { email, password } });
+  const res = await harness.request("POST", "/v1/auth/login", { body: { email, password } });
   const jar = cookieJar(res.setCookies);
   return { jar, csrf: jar.mayarin_csrf ?? "" };
 }
@@ -53,9 +53,9 @@ async function post(harness: Harness, auth: Auth, path: string, body: unknown = 
 /** Links, then proves control — the state managed provisioning requires. */
 async function linkAndVerify(harness: Harness, auth: Auth) {
   const { id, account } = await link(harness, auth);
-  const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+  const challenge = await post(harness, auth, `/v1/wallets/${id}/challenge`);
   const signature = await account.signMessage({ message: challenge.body?.message as string });
-  await post(harness, auth, `/wallets/${id}/verify`, {
+  await post(harness, auth, `/v1/wallets/${id}/verify`, {
     challengeId: challenge.body?.challengeId,
     signature,
   });
@@ -65,7 +65,7 @@ async function linkAndVerify(harness: Harness, auth: Auth) {
 /** Links the merchant key's address and returns the wallet id. */
 async function link(harness: Harness, auth: Auth) {
   const account = privateKeyToAccount(MERCHANT_KEY);
-  const res = await post(harness, auth, "/wallets", {
+  const res = await post(harness, auth, "/v1/wallets", {
     chain: "base-sepolia",
     address: account.address,
   });
@@ -92,7 +92,7 @@ describe("linking", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const account = privateKeyToAccount(MERCHANT_KEY);
 
-    const res = await post(harness, auth, "/wallets", {
+    const res = await post(harness, auth, "/v1/wallets", {
       chain: "base-sepolia",
       address: account.address.toUpperCase().replace("0X", "0x"),
     });
@@ -104,7 +104,7 @@ describe("linking", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await post(harness, auth, "/wallets", {
+    const res = await post(harness, auth, "/v1/wallets", {
       chain: "base-sepolia",
       address: "0xnope",
     });
@@ -127,10 +127,10 @@ describe("proving control", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { id, account } = await link(harness, auth);
 
-    const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+    const challenge = await post(harness, auth, `/v1/wallets/${id}/challenge`);
     const signature = await account.signMessage({ message: challenge.body?.message as string });
 
-    const verified = await post(harness, auth, `/wallets/${id}/verify`, {
+    const verified = await post(harness, auth, `/v1/wallets/${id}/verify`, {
       challengeId: challenge.body?.challengeId,
       signature,
     });
@@ -144,7 +144,7 @@ describe("proving control", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { id } = await link(harness, auth);
 
-    const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+    const challenge = await post(harness, auth, `/v1/wallets/${id}/challenge`);
 
     // A wallet prompt showing opaque hex is a prompt people approve unread.
     expect(challenge.body?.message).toContain("moves no funds");
@@ -156,11 +156,11 @@ describe("proving control", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { id } = await link(harness, auth);
 
-    const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+    const challenge = await post(harness, auth, `/v1/wallets/${id}/challenge`);
     const impostor = privateKeyToAccount(OTHER_KEY);
     const signature = await impostor.signMessage({ message: challenge.body?.message as string });
 
-    const res = await post(harness, auth, `/wallets/${id}/verify`, {
+    const res = await post(harness, auth, `/v1/wallets/${id}/verify`, {
       challengeId: challenge.body?.challengeId,
       signature,
     });
@@ -172,13 +172,13 @@ describe("proving control", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { id, account } = await link(harness, auth);
 
-    const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+    const challenge = await post(harness, auth, `/v1/wallets/${id}/challenge`);
     const signature = await account.signMessage({ message: challenge.body?.message as string });
     const body = { challengeId: challenge.body?.challengeId, signature };
 
-    expect((await post(harness, auth, `/wallets/${id}/verify`, body)).status).toBe(200);
+    expect((await post(harness, auth, `/v1/wallets/${id}/verify`, body)).status).toBe(200);
     // Replaying it after an unlink-and-reclaim is exactly what this prevents.
-    expect((await post(harness, auth, `/wallets/${id}/verify`, body)).status).toBe(409);
+    expect((await post(harness, auth, `/v1/wallets/${id}/verify`, body)).status).toBe(409);
   });
 
   test("verification without a CSRF token is refused", async () => {
@@ -186,7 +186,7 @@ describe("proving control", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { id } = await link(harness, auth);
 
-    const res = await harness.request("POST", `/wallets/${id}/challenge`, { cookies: auth.jar });
+    const res = await harness.request("POST", `/v1/wallets/${id}/challenge`, { cookies: auth.jar });
     expect(res.status).toBe(403);
   });
 });
@@ -208,7 +208,7 @@ describe("scoping", () => {
     expect(other.user.merchantId).not.toBe(harness.merchantId);
 
     const theirs = await loginAs(harness, "other@mayarin.local", "other-password-12345");
-    const res = await post(harness, theirs, `/wallets/${id}/challenge`);
+    const res = await post(harness, theirs, `/v1/wallets/${id}/challenge`);
 
     expect(res.status).toBe(404);
   });
@@ -227,7 +227,7 @@ describe("scoping", () => {
     });
     const auth = await loginAs(harness, "reader@mayarin.local", "reader-password-1");
 
-    const res = await harness.request("GET", "/wallets", { cookies: auth.jar });
+    const res = await harness.request("GET", "/v1/wallets", { cookies: auth.jar });
     expect(res.status).toBe(403);
   });
 });
@@ -240,7 +240,7 @@ describe("passkey wallets", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await post(harness, auth, "/wallets/passkey", {
+    const res = await post(harness, auth, "/v1/wallets/passkey", {
       chain: "base-sepolia",
       attestation: ATTESTATION,
     });
@@ -256,7 +256,7 @@ describe("passkey wallets", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    await post(harness, auth, "/wallets/passkey", {
+    await post(harness, auth, "/v1/wallets/passkey", {
       chain: "base-sepolia",
       attestation: ATTESTATION,
     });
@@ -274,7 +274,7 @@ describe("passkey wallets", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await post(harness, auth, "/wallets/passkey", {
+    const res = await post(harness, auth, "/v1/wallets/passkey", {
       chain: "base-sepolia",
       attestation: { ...ATTESTATION, transports: ["carrier-pigeon"] },
     });
@@ -291,14 +291,14 @@ describe("passkey wallets", () => {
     const account = privateKeyToAccount(PASSKEY_KEY);
     harness.merchantKeyProvider.addresses.push(account.address);
 
-    const created = await post(harness, auth, "/wallets/passkey", {
+    const created = await post(harness, auth, "/v1/wallets/passkey", {
       chain: "base-sepolia",
       attestation: ATTESTATION,
     });
     const id = created.body?.wallet.id as string;
-    const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
+    const challenge = await post(harness, auth, `/v1/wallets/${id}/challenge`);
     const signature = await account.signMessage({ message: challenge.body?.message as string });
-    const verified = await post(harness, auth, `/wallets/${id}/verify`, {
+    const verified = await post(harness, auth, `/v1/wallets/${id}/verify`, {
       challengeId: challenge.body?.challengeId,
       signature,
     });
@@ -314,18 +314,18 @@ describe("passkey wallets", () => {
     const account = privateKeyToAccount(PASSKEY_KEY);
     harness.merchantKeyProvider.addresses.push(account.address);
 
-    const created = await post(harness, auth, "/wallets/passkey", {
+    const created = await post(harness, auth, "/v1/wallets/passkey", {
       chain: "base-sepolia",
       attestation: ATTESTATION,
     });
     const id = created.body?.wallet.id as string;
-    const challenge = await post(harness, auth, `/wallets/${id}/challenge`);
-    await post(harness, auth, `/wallets/${id}/verify`, {
+    const challenge = await post(harness, auth, `/v1/wallets/${id}/challenge`);
+    await post(harness, auth, `/v1/wallets/${id}/verify`, {
       challengeId: challenge.body?.challengeId,
       signature: await account.signMessage({ message: challenge.body?.message as string }),
     });
 
-    const managed = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    const managed = await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
 
     expect(managed.status).toBe(200);
     expect(managed.body?.wallet.signers.merchant).toBe(account.address.toLowerCase());
@@ -341,7 +341,7 @@ describe("managed provisioning", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { account } = await linkAndVerify(harness, auth);
 
-    const res = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    const res = await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
 
     expect(res.status).toBe(200);
     expect(res.body?.wallet.provenance).toBe("provisioned");
@@ -356,7 +356,7 @@ describe("managed provisioning", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await link(harness, auth);
 
-    const res = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    const res = await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
 
     expect(res.status).toBe(400);
   });
@@ -366,8 +366,8 @@ describe("managed provisioning", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await linkAndVerify(harness, auth);
 
-    const first = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
-    const second = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    const first = await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
+    const second = await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
 
     expect(second.body?.wallet.id).toBe(first.body?.wallet.id);
     // Two smart accounts would be two addresses a payer could be told to pay.
@@ -382,9 +382,9 @@ describe("managed provisioning", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await linkAndVerify(harness, auth);
-    await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
 
-    const listed = await harness.request("GET", "/wallets", { cookies: auth.jar });
+    const listed = await harness.request("GET", "/v1/wallets", { cookies: auth.jar });
     const wallets = (listed.body?.wallets ?? []) as { provenance: string }[];
     const provenances = wallets.map((wallet) => wallet.provenance).sort();
 
@@ -395,7 +395,7 @@ describe("managed provisioning", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await linkAndVerify(harness, auth);
-    await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
 
     await harness.container.users.createMerchantAccount({
       email: "other@mayarin.local",
@@ -406,7 +406,7 @@ describe("managed provisioning", () => {
       permissions: ["settings:manage"],
     });
     const theirs = await loginAs(harness, "other@mayarin.local", "other-password-12345");
-    const res = await post(harness, theirs, "/wallets/managed", { chain: "base-sepolia" });
+    const res = await post(harness, theirs, "/v1/wallets/managed", { chain: "base-sepolia" });
 
     // No verified address of their own, so nothing is provisioned — and
     // certainly not the first merchant's wallet handed over.
@@ -418,7 +418,7 @@ describe("managed provisioning", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await harness.request("POST", "/wallets/managed", {
+    const res = await harness.request("POST", "/v1/wallets/managed", {
       body: { chain: "base-sepolia" },
       cookies: auth.jar,
     });
@@ -434,7 +434,7 @@ describe("the fee destination", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const res = await post(harness, auth, "/wallets", {
+    const res = await post(harness, auth, "/v1/wallets", {
       chain: "base-sepolia",
       address: TREASURY_ADDRESS,
     });
@@ -453,13 +453,13 @@ describe("the settlement balance", () => {
     harness.walletBalances.set(configured, "USDC", 1_500_000n);
     harness.walletBalances.set(configured, "ETH", 3_000_000_000_000_000n);
 
-    await harness.request("PATCH", "/settings", {
+    await harness.request("PATCH", "/v1/settings", {
       body: { settlementAddress: configured },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
 
-    const res = await harness.request("GET", "/wallets/balance", { cookies: auth.jar });
+    const res = await harness.request("GET", "/v1/wallets/balance", { cookies: auth.jar });
 
     expect(res.status).toBe(200);
     expect(res.body?.address).toBe(configured);
@@ -479,11 +479,11 @@ describe("the settlement balance", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await linkAndVerify(harness, auth);
-    const provisioned = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    const provisioned = await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
     const address = provisioned.body?.wallet.address as string;
     harness.walletBalances.set(address, "USDC", 42n);
 
-    const res = await harness.request("GET", "/wallets/balance", { cookies: auth.jar });
+    const res = await harness.request("GET", "/v1/wallets/balance", { cookies: auth.jar });
 
     expect(res.body?.address).toBe(address);
     expect(res.body?.withdrawable).toBe(true);
@@ -496,13 +496,13 @@ describe("the settlement balance", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const configured = `0x${"dd".repeat(20)}`;
-    await harness.request("PATCH", "/settings", {
+    await harness.request("PATCH", "/v1/settings", {
       body: { settlementAddress: configured },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
 
-    const res = await harness.request("GET", "/wallets/balance", { cookies: auth.jar });
+    const res = await harness.request("GET", "/v1/wallets/balance", { cookies: auth.jar });
 
     expect(res.body?.balances).toEqual([]);
   });
@@ -512,7 +512,7 @@ describe("withdrawing", () => {
   /** A provisioned wallet plus a verified own address to withdraw to. */
   async function withdrawable(harness: Harness, auth: Auth) {
     const { account } = await linkAndVerify(harness, auth);
-    const provisioned = await post(harness, auth, "/wallets/managed", { chain: "base-sepolia" });
+    const provisioned = await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
     return { destination: account.address.toLowerCase(), safe: provisioned.body?.wallet.address };
   }
 
@@ -521,7 +521,7 @@ describe("withdrawing", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { destination, safe } = await withdrawable(harness, auth);
 
-    const res = await post(harness, auth, "/wallets/withdraw", {
+    const res = await post(harness, auth, "/v1/wallets/withdraw", {
       asset: "USDC",
       amount: "2500000",
       to: destination,
@@ -547,7 +547,7 @@ describe("withdrawing", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await withdrawable(harness, auth);
 
-    const res = await post(harness, auth, "/wallets/withdraw", {
+    const res = await post(harness, auth, "/v1/wallets/withdraw", {
       asset: "USDC",
       amount: "1",
       to: `0x${"ee".repeat(20)}`,
@@ -562,12 +562,12 @@ describe("withdrawing", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await withdrawable(harness, auth);
     const unverified = privateKeyToAccount(OTHER_KEY);
-    await post(harness, auth, "/wallets", {
+    await post(harness, auth, "/v1/wallets", {
       chain: "base-sepolia",
       address: unverified.address,
     });
 
-    const res = await post(harness, auth, "/wallets/withdraw", {
+    const res = await post(harness, auth, "/v1/wallets/withdraw", {
       asset: "USDC",
       amount: "1",
       to: unverified.address,
@@ -582,7 +582,7 @@ describe("withdrawing", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { account } = await linkAndVerify(harness, auth);
 
-    const res = await post(harness, auth, "/wallets/withdraw", {
+    const res = await post(harness, auth, "/v1/wallets/withdraw", {
       asset: "USDC",
       amount: "1",
       to: account.address,
@@ -596,7 +596,7 @@ describe("withdrawing", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { destination } = await withdrawable(harness, auth);
 
-    const res = await post(harness, auth, "/wallets/withdraw", {
+    const res = await post(harness, auth, "/v1/wallets/withdraw", {
       asset: "USDC",
       amount: "0",
       to: destination,
@@ -610,7 +610,7 @@ describe("withdrawing", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const { destination } = await withdrawable(harness, auth);
 
-    const res = await harness.request("POST", "/wallets/withdraw", {
+    const res = await harness.request("POST", "/v1/wallets/withdraw", {
       body: { asset: "USDC", amount: "1", to: destination },
       cookies: auth.jar,
     });

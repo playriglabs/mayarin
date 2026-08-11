@@ -29,7 +29,7 @@ async function seed() {
     adminEmail: ADMIN_EMAIL,
     adminPassword: ADMIN_PASSWORD,
   });
-  const res = await harness.request("POST", "/auth/login", {
+  const res = await harness.request("POST", "/v1/auth/login", {
     body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
   expect(res.status).toBe(200);
@@ -75,12 +75,12 @@ async function seed() {
 describe("GET /event-logs", () => {
   test("an anonymous request is 401", async () => {
     const { harness } = await seed();
-    expect((await harness.request("GET", "/event-logs")).status).toBe(401);
+    expect((await harness.request("GET", "/v1/event-logs")).status).toBe(401);
   });
 
   test("lists the caller's own events, newest-first, across all three kinds", async () => {
     const { harness, jar } = await seed();
-    const res = await harness.request("GET", "/event-logs", { cookies: jar });
+    const res = await harness.request("GET", "/v1/event-logs", { cookies: jar });
     expect(res.status).toBe(200);
     const events = res.body?.events ?? [];
     // Three own-merchant rows; the foreign one is absent.
@@ -93,28 +93,28 @@ describe("GET /event-logs", () => {
 
   test("a webhook row carries a null intentId in v1", async () => {
     const { harness, jar } = await seed();
-    const res = await harness.request("GET", "/event-logs", { cookies: jar });
+    const res = await harness.request("GET", "/v1/event-logs", { cookies: jar });
     const webhook = (res.body?.events ?? []).find((e: { kind: string }) => e.kind === "webhook");
     expect(webhook?.intentId).toBeNull();
   });
 
   test("a clearing row links into its payment intent", async () => {
     const { harness, jar } = await seed();
-    const res = await harness.request("GET", "/event-logs", { cookies: jar });
+    const res = await harness.request("GET", "/v1/event-logs", { cookies: jar });
     const clearing = (res.body?.events ?? []).find((e: { kind: string }) => e.kind === "clearing");
     expect(clearing?.intentId).toBe("pmt_a");
   });
 
   test("another merchant's events are never listed", async () => {
     const { harness, jar } = await seed();
-    const res = await harness.request("GET", "/event-logs", { cookies: jar });
+    const res = await harness.request("GET", "/v1/event-logs", { cookies: jar });
     const summaries = (res.body?.events ?? []).map((e: { summary: string }) => e.summary);
     expect(summaries).not.toContain("Clearing FAILED");
   });
 
   test("limit bounds the page", async () => {
     const { harness, jar } = await seed();
-    const res = await harness.request("GET", "/event-logs?limit=1", { cookies: jar });
+    const res = await harness.request("GET", "/v1/event-logs?limit=1", { cookies: jar });
     expect(res.status).toBe(200);
     expect(res.body?.events).toHaveLength(1);
     expect(res.body?.events[0].kind).toBe("webhook");
@@ -124,7 +124,7 @@ describe("GET /event-logs", () => {
     const { harness, jar } = await seed();
     const res = await harness.request(
       "GET",
-      "/event-logs?q=settlement&status=success&merchantId=mch_other",
+      "/v1/event-logs?q=settlement&status=success&merchantId=mch_other",
       { cookies: jar },
     );
     expect(res.status).toBe(200);
@@ -135,12 +135,12 @@ describe("GET /event-logs", () => {
 
   test("uses an opaque cursor without duplicating rows", async () => {
     const { harness, jar } = await seed();
-    const first = await harness.request("GET", "/event-logs?limit=1", { cookies: jar });
+    const first = await harness.request("GET", "/v1/event-logs?limit=1", { cookies: jar });
     expect(typeof first.body?.nextCursor).toBe("string");
 
     const second = await harness.request(
       "GET",
-      `/event-logs?limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+      `/v1/event-logs?limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
       { cookies: jar },
     );
     expect(second.body?.events).toHaveLength(1);
@@ -149,14 +149,14 @@ describe("GET /event-logs", () => {
 
   test("a bearer key with payments:read reaches the timeline without a session", async () => {
     const { harness, jar, csrf } = await seed();
-    const created = await harness.request("POST", "/api-keys", {
+    const created = await harness.request("POST", "/v1/api-keys", {
       body: { name: "Reader", permissions: ["payments:read"] },
       cookies: jar,
       headers: { "x-csrf-token": csrf },
     });
     const secret = created.body?.secret;
 
-    const res = await harness.request("GET", "/event-logs", {
+    const res = await harness.request("GET", "/v1/event-logs", {
       headers: { authorization: `Bearer ${secret}` },
     });
     expect(res.status).toBe(200);
