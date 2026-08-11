@@ -76,8 +76,8 @@ export function intentStatusLabel(status: string): string {
 export type StateVariant = "default" | "success" | "destructive" | "warning";
 
 export function toneOf(state: string): StateVariant {
-  if (state === "FAILED" || state === "EXPIRED") return "destructive";
+  if (state === "FAILED") return "destructive";
   if (state === "SUCCESS" || state === "SETTLED" || state === "COMPLETED") return "success";
-  if (state === "CREATED" || state === "QR_PARSED") return "default";
+  if (state === "CREATED" || state === "QR_PARSED" || state === "EXPIRED") return "default";
   return "warning";
 }

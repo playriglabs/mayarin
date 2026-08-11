@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { transactionExplorerUrl } from "./chain-explorer";
+import { addressExplorerUrl, transactionExplorerUrl } from "./chain-explorer";
 
 const HASH = `0x${"ab".repeat(32)}`;
+const ADDRESS = `0x${"12".repeat(20)}`;
 
 describe("transactionExplorerUrl", () => {
   test("builds Base and Base Sepolia transaction links", () => {
@@ -14,5 +15,19 @@ describe("transactionExplorerUrl", () => {
   test("does not turn internal references or unsupported chains into links", () => {
     expect(transactionExplorerUrl("base-sepolia", "stl_01KZ")).toBeUndefined();
     expect(transactionExplorerUrl("ethereum", HASH)).toBeUndefined();
+  });
+});
+
+describe("addressExplorerUrl", () => {
+  test("builds Base and Base Sepolia address links", () => {
+    expect(addressExplorerUrl("base", ADDRESS)).toBe(`https://basescan.org/address/${ADDRESS}`);
+    expect(addressExplorerUrl("base-sepolia", ADDRESS)).toBe(
+      `https://sepolia.basescan.org/address/${ADDRESS}`,
+    );
+  });
+
+  test("does not turn an internal id or an unsupported chain into a link", () => {
+    expect(addressExplorerUrl("base-sepolia", "pi_01KZ")).toBeUndefined();
+    expect(addressExplorerUrl("ethereum", ADDRESS)).toBeUndefined();
   });
 });

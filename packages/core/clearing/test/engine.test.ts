@@ -278,3 +278,45 @@ describe("clearing engine — failure", () => {
     expect(transaction.failure?.reason).toMatch(/Fee consumes/);
   });
 });
+
+describe("clearing engine — expiry sweep", () => {
+  test("fails a payment abandoned at PAYMENT_PENDING past its deadline", async () => {
+    const harness = createHarness({ autoConfirmAssetReceipt: false });
+    const transaction = await harness.engine.start(await harness.confirmedIntent());
+    expect(transaction.state).toBe("PAYMENT_PENDING");
+
+    // The intent's TTL is 900s (harness default); step past it.
+    harness.clock.advance(900_000 + 1);
+
+    const swept = await harness.engine.sweepExpired();
+    expect(swept).toHaveLength(1);
+    const failed = swept[0];
+    expect(failed?.state).toBe("FAILED");
+    expect(failed?.failure?.code).toBe("PAYMENT_EXPIRED");
+
+    const intent = await harness.intents.getById(transaction.paymentIntentId);
+    expect(intent.status).toBe("FAILED");
+    expect(await harness.engine.sweepExpired()).toHaveLength(0);
+  });
+
+  test("leaves a payment alone before its deadline", async () => {
+    const harness = createHarness({ autoConfirmAssetReceipt: false });
+    await harness.engine.start(await harness.confirmedIntent());
+
+    harness.clock.advance(60_000);
+
+    expect(await harness.engine.sweepExpired()).toHaveLength(0);
+  });
+
+  test("does not fail a payment whose asset is already in flight", async () => {
+    const harness = createHarness({ behaviour: "pending" });
+    const settling = await harness.engine.start(await harness.confirmedIntent());
+    expect(settling.state).toBe("SETTLING");
+
+    harness.clock.advance(900_000 + 1);
+
+    expect(await harness.engine.sweepExpired()).toHaveLength(0);
+    const reloaded = await harness.engine.getById(settling.id);
+    expect(reloaded.state).toBe("SETTLING");
+  });
+});

@@ -368,7 +368,7 @@ function PaymentLinks() {
       </p>
 
       {match(links)
-        .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
+        .with({ isPending: true }, () => <TableSkeleton bigSize rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
           <QueryError
             message={reasonOf(error)}

@@ -15,12 +15,13 @@
  */
 
 import type { ClearingEvent, ClearingTransaction } from "@mayarin/clearing";
-import type {
-  ListPaymentIntentsOptions,
-  PaymentIntent,
-  PaymentIntentRepository,
+import {
+  isExpired,
+  type ListPaymentIntentsOptions,
+  type PaymentIntent,
+  type PaymentIntentRepository,
 } from "@mayarin/payment-intent";
-import { NotFoundError } from "@mayarin/shared";
+import { type Clock, NotFoundError } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
 import { cursorPage, decodeCursor } from "../pagination.ts";
 
@@ -34,6 +35,7 @@ export interface PaymentReadServiceOptions {
   readonly intents: PaymentIntentRepository;
   readonly clearing: ClearingReadRepository;
   readonly pageSize: number;
+  readonly clock: Clock;
 }
 
 export interface PaymentDetail {
@@ -63,11 +65,25 @@ export class PaymentReadService {
   readonly #intents: PaymentIntentRepository;
   readonly #clearing: ClearingReadRepository;
   readonly #pageSize: number;
+  readonly #clock: Clock;
 
   constructor(options: PaymentReadServiceOptions) {
     this.#intents = options.intents;
     this.#clearing = options.clearing;
     this.#pageSize = options.pageSize;
+    this.#clock = options.clock;
+  }
+
+  /**
+   * A read-only view of an intent with due expiry applied. The dashboard has no
+   * write path, so it cannot call `PaymentIntentService.expireIfDue` the way the
+   * payment API does on `getById`; instead it shows the same result the write
+   * would have produced, without persisting it. A `PROCESSING` intent is never
+   * expired here — `isExpired` excludes it, and the clearing engine's
+   * `sweepExpired` is what fails an abandoned one.
+   */
+  #withExpiredView(intent: PaymentIntent): PaymentIntent {
+    return isExpired(intent, this.#clock.now()) ? { ...intent, status: "EXPIRED" } : intent;
   }
 
   /** Lists the caller's own intents, newest-first. */
@@ -85,11 +101,15 @@ export class PaymentReadService {
       ...(cursor === undefined ? {} : { cursor }),
     };
     const rows = await this.#intents.list(options);
-    return cursorPage(rows, limit, (last) => ({
+    const page = cursorPage(rows, limit, (last) => ({
       id: last.id,
       createdAt: last.createdAt,
       ...(options.sort === "-amount" ? { amount: last.amount.amount } : {}),
     }));
+    return {
+      items: page.items.map((intent) => this.#withExpiredView(intent)),
+      nextCursor: page.nextCursor,
+    };
   }
 
   async listAll(
@@ -125,6 +145,6 @@ export class PaymentReadService {
 
     const transaction = await this.#clearing.findByPaymentIntentId(intent.id);
     const events = transaction === null ? [] : await this.#clearing.listEvents(transaction.id);
-    return { intent, transaction, events };
+    return { intent: this.#withExpiredView(intent), transaction, events };
   }
 }

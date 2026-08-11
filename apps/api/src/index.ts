@@ -41,9 +41,14 @@ if (recovered.length > 0) {
   console.log(`[api] resumed ${recovered.length} clearing transaction(s) on startup`);
 }
 
-/** One line, and the whole message when there is one worth reading. */
-function reasonOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+// A payer who scanned the QR and walked away leaves the clearing transaction
+// at PAYMENT_PENDING past the intent's deadline; nothing else fails it, since
+// `isExpired` excludes PROCESSING to keep a late-funded payment from wedging.
+// Sweep once at startup, then periodically — a payment that expires while the
+// process runs must not sit at "awaiting payment" until a restart.
+const swept = await container.engine.sweepExpired();
+if (swept.length > 0) {
+  console.log(`[api] swept ${swept.length} expired payment(s) on startup`);
 }
 
 const chain = config.chain;
@@ -62,6 +67,11 @@ if (chain !== undefined && chain.intervalMs > 0 && container.watchers.size > 0) 
   console.log(
     `[watcher] polling ${pairs.length} pair(s) every ${chain.intervalMs}ms; catch-up every ${chain.catchUpIntervalMs}ms`,
   );
+}
+
+/** One line, and the whole message when there is one worth reading. */
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 // The indexer runs on the same interval and for the same reason: a failed pass
@@ -102,6 +112,22 @@ if (webhooks !== undefined && config.webhookIntervalMs > 0) {
   }, config.webhookIntervalMs);
   console.log(`[webhooks] dispatching every ${config.webhookIntervalMs}ms`);
 }
+
+// The expiry sweep runs on its own timer in the watcher's shape: a failed pass
+// leaves the abandoned transactions where they were, so the next pass repeats
+// them. Independent of the chain layer — a chainless deployment still expires.
+const EXPIRY_SWEEP_INTERVAL_MS = 60_000;
+setInterval(() => {
+  void container.engine
+    .sweepExpired()
+    .then((swept) => {
+      if (swept.length > 0) console.log(`[clearing] swept ${swept.length} expired payment(s)`);
+    })
+    .catch((error) => {
+      console.error("[clearing] expiry sweep tick failed", error);
+    });
+}, EXPIRY_SWEEP_INTERVAL_MS);
+console.log(`[clearing] sweeping expired payments every ${EXPIRY_SWEEP_INTERVAL_MS}ms`);
 
 const app = createApp(container);
 

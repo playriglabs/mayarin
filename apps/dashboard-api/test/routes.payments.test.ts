@@ -163,6 +163,33 @@ describe("payment routes", () => {
     expect(res.body?.paymentIntent?.id).toBe(intentA.id);
   });
 
+  test("a past-due CREATED intent reads as EXPIRED on detail and list views", async () => {
+    const { harness } = await seed();
+    const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
+    const created = await harness.intentService.create({
+      merchant: { id: "mch_a", name: "Warung A", city: "Jakarta", countryCode: "ID" },
+      amount: { amount: 50_000n, asset: "IDR" },
+      source: { type: "manual" },
+    });
+
+    // Before the deadline the intent is still CREATED.
+    const before = await harness.request("GET", `/payments/${created.id}`, { cookies: jar });
+    expect(before.body?.paymentIntent?.status).toBe("CREATED");
+
+    // Step past the 900s TTL. The dashboard has no write path, so this is a read
+    // projection — the persisted row stays CREATED; the view says EXPIRED.
+    harness.clock.advance(900_000 + 1);
+
+    const detail = await harness.request("GET", `/payments/${created.id}`, { cookies: jar });
+    expect(detail.body?.paymentIntent?.status).toBe("EXPIRED");
+
+    const list = await harness.request("GET", "/payments", { cookies: jar });
+    const row = ((list.body?.payments ?? []) as Array<{ id: string; status: string }>).find(
+      (p) => p.id === created.id,
+    );
+    expect(row?.status).toBe("EXPIRED");
+  });
+
   test("the merchant-admin (own tenant) sees no intents created under other merchants", async () => {
     const { harness, intentA, intentB } = await seed();
     const jar = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);

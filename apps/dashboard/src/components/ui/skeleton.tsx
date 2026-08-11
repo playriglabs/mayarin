@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -39,15 +40,18 @@ function StatGridSkeleton({ cells = 4 }: { cells?: number }) {
 }
 
 /** Mirrors `Table`: a bordered surface with a header band and row bars. */
-function TableSkeleton({ rows = 5 }: { rows?: number }) {
+function TableSkeleton({ rows = 5, bigSize = false }: { rows?: number; bigSize?: boolean }) {
   return (
     <div aria-hidden="true" className="w-full border border-border bg-card">
-      <div className="border-b border-border px-4 py-2.5">
-        <Skeleton className="h-3 w-1/3" />
+      <div className={clsx("border-b border-border", bigSize ? "p-4" : "px-4 py-3")}>
+        <Skeleton className={clsx("w-1/3", bigSize ? "h-4" : "h-3.5")} />
       </div>
       {run(rows).map((row) => (
-        <div key={row} className="border-b border-border px-4 py-3 last:border-b-0">
-          <Skeleton className="h-4 w-full" />
+        <div
+          key={row}
+          className={clsx("border-b border-border last:border-b-0", bigSize ? "p-4" : "px-4 py-3")}
+        >
+          <Skeleton className={clsx("w-full", bigSize ? "h-4.5" : "h-4")} />
         </div>
       ))}
     </div>
