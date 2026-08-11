@@ -73,9 +73,15 @@ async function priceFor(
 ): Promise<{ priced: Money; source: string; scaledRate: bigint | null }> {
   const quote = await container.market.quote();
 
-  // The guarded engine only crosses fiat. A merchant already pricing in crypto
-  // has no fiat leg for it to own, so the table is the only source there is.
-  if (quote === undefined || getAsset(amount.asset).kind !== "fiat") {
+  // Without the quote layer the static rate table is the only source there is,
+  // so a preview falls back to it — the same development stand-in the deposit
+  // path uses when no venue is wired. With the layer on, the guarded engine
+  // prices the swap leg through the venue; a merchant already pricing in crypto
+  // has no fiat leg for it to own, so the engine refuses the pair exactly as
+  // the contract and executable-deposit locks do. Routing that through the
+  // table instead would show a number the lock can never produce — a preview
+  // that lies about a payment it cannot make.
+  if (quote === undefined) {
     const rate = await container.rates.quote(amount.asset, payerAsset, amount);
     return {
       priced: convert(amount, payerAsset, rate.scaledRate),
