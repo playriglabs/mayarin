@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./dto": "./src/dto/index.ts"
+  },
   "scripts": {
     "dev": "bun --env-file=../../.env run --hot src/index.ts",
     "start": "bun run src/index.ts",

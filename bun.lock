@@ -429,6 +429,13 @@
         "zod": "^3.24.1",
       },
     },
+    "packages/sdk": {
+      "name": "@mayarin/sdk",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@mayarin/api": "workspace:*",
+      },
+    },
     "packages/shared": {
       "name": "@mayarin/shared",
       "version": "0.1.0",
@@ -1035,6 +1042,8 @@
     "@mayarin/qr-parser": ["@mayarin/qr-parser@workspace:packages/core/qr-parser"],
 
     "@mayarin/quote": ["@mayarin/quote@workspace:packages/core/quote"],
+
+    "@mayarin/sdk": ["@mayarin/sdk@workspace:packages/sdk"],
 
     "@mayarin/settlement": ["@mayarin/settlement@workspace:packages/core/settlement"],
 
