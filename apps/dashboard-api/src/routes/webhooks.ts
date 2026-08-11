@@ -51,9 +51,17 @@ export function webhookRoutes(container: Container): Hono<{ Variables: AuthVars 
 
   /** The inspection surface: a webhook a merchant cannot see is one they will not trust. */
   app.get("/deliveries", async (c) => {
-    const { limit } = listQuerySchema.parse(c.req.query());
-    const deliveries = await container.webhooks.listDeliveries(scopeOf(c), limit);
-    return c.json({ deliveries: deliveries.map(toDeliveryDto) });
+    const query = listQuerySchema.parse(c.req.query());
+    const page = await container.webhooks.listDeliveries(scopeOf(c), {
+      ...(query.limit === undefined ? {} : { limit: query.limit }),
+      ...(query.q === undefined ? {} : { q: query.q }),
+      ...(query.status === undefined ? {} : { status: query.status }),
+      ...(query.sort === undefined ? {} : { sort: query.sort }),
+      ...(query.from === undefined ? {} : { from: query.from }),
+      ...(query.to === undefined ? {} : { to: query.to }),
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+    });
+    return c.json({ deliveries: page.items.map(toDeliveryDto), nextCursor: page.nextCursor });
   });
 
   app.post("/deliveries/:id/replay", csrfMiddleware(), async (c) => {

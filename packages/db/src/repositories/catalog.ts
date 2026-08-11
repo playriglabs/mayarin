@@ -7,6 +7,9 @@
  */
 
 import type {
+  Customer,
+  CustomerRepository,
+  ListCustomersOptions,
   ListPaymentLinksOptions,
   ListProductsOptions,
   PaymentLink,
@@ -16,13 +19,14 @@ import type {
   ProductRepository,
 } from "@mayarin/catalog";
 import { ConcurrencyError, type Money } from "@mayarin/shared";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction, toAsset, toMoney } from "../mapping.ts";
-import { paymentLinks, productPrices, products } from "../schema.ts";
+import { customers, paymentLinks, productPrices, products } from "../schema.ts";
 
 type ProductRow = typeof products.$inferSelect;
 type LinkRow = typeof paymentLinks.$inferSelect;
+type CustomerRow = typeof customers.$inferSelect;
 
 export class DrizzleProductRepository implements ProductRepository {
   readonly #db: Executor;
@@ -89,15 +93,27 @@ export class DrizzleProductRepository implements ProductRepository {
   }
 
   async list(options: ListProductsOptions): Promise<readonly Product[]> {
+    const cursorFilter =
+      options.cursor === undefined
+        ? undefined
+        : or(
+            lt(products.createdAt, options.cursor.createdAt),
+            and(
+              eq(products.createdAt, options.cursor.createdAt),
+              lt(products.id, options.cursor.id),
+            ),
+          );
     const rows = await this.#db
       .select()
       .from(products)
       .where(
-        options.active === undefined
-          ? eq(products.merchantId, options.merchantId)
-          : and(eq(products.merchantId, options.merchantId), eq(products.active, options.active)),
+        and(
+          eq(products.merchantId, options.merchantId),
+          options.active === undefined ? undefined : eq(products.active, options.active),
+          cursorFilter,
+        ),
       )
-      .orderBy(desc(products.createdAt))
+      .orderBy(desc(products.createdAt), desc(products.id))
       .limit(options.limit ?? 100);
     return this.#withPrices(rows);
   }
@@ -172,11 +188,21 @@ export class DrizzlePaymentLinkRepository implements PaymentLinkRepository {
   }
 
   async list(options: ListPaymentLinksOptions): Promise<readonly PaymentLink[]> {
+    const cursorFilter =
+      options.cursor === undefined
+        ? undefined
+        : or(
+            lt(paymentLinks.createdAt, options.cursor.createdAt),
+            and(
+              eq(paymentLinks.createdAt, options.cursor.createdAt),
+              lt(paymentLinks.id, options.cursor.id),
+            ),
+          );
     const rows = await this.#db
       .select()
       .from(paymentLinks)
-      .where(eq(paymentLinks.merchantId, options.merchantId))
-      .orderBy(desc(paymentLinks.createdAt))
+      .where(and(eq(paymentLinks.merchantId, options.merchantId), cursorFilter))
+      .orderBy(desc(paymentLinks.createdAt), desc(paymentLinks.id))
       .limit(options.limit ?? 100);
     return rows.map(toLink);
   }
@@ -283,4 +309,88 @@ function toLink(row: LinkRow): PaymentLink {
 function linkAmount(row: LinkRow): Money | undefined {
   if (row.amount === null || row.amountAsset === null) return undefined;
   return toMoney(row.amount, row.amountAsset);
+}
+
+export class DrizzleCustomerRepository implements CustomerRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async insert(customer: Customer): Promise<void> {
+    await this.#db.insert(customers).values(toCustomerRow(customer));
+  }
+
+  async findById(id: string): Promise<Customer | null> {
+    const [row] = await this.#db.select().from(customers).where(eq(customers.id, id)).limit(1);
+    return row === undefined ? null : toCustomer(row);
+  }
+
+  async listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]> {
+    const filters = [
+      eq(customers.merchantId, options.merchantId),
+      options.q === undefined
+        ? undefined
+        : or(
+            ilike(customers.id, `%${options.q}%`),
+            ilike(customers.name, `%${options.q}%`),
+            ilike(customers.email, `%${options.q}%`),
+          ),
+      options.from === undefined ? undefined : gte(customers.createdAt, options.from),
+      options.to === undefined ? undefined : lt(customers.createdAt, options.to),
+    ].filter((filter) => filter !== undefined);
+    const rows = await this.#db
+      .select()
+      .from(customers)
+      .where(and(...filters))
+      .orderBy(options.sort === "created" ? asc(customers.createdAt) : desc(customers.createdAt))
+      .limit(options.limit ?? 100);
+    return rows.map(toCustomer);
+  }
+
+  async update(customer: Customer, expectedVersion: number): Promise<void> {
+    const updated = await this.#db
+      .update(customers)
+      .set(toCustomerRow(customer))
+      .where(and(eq(customers.id, customer.id), eq(customers.version, expectedVersion)))
+      .returning({ id: customers.id });
+
+    if (updated.length === 0) {
+      throw new ConcurrencyError(`Customer ${customer.id} was modified concurrently`, {
+        id: customer.id,
+        expectedVersion,
+      });
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.#db.delete(customers).where(eq(customers.id, id));
+  }
+}
+
+function toCustomerRow(customer: Customer): typeof customers.$inferInsert {
+  return {
+    id: customer.id,
+    merchantId: customer.merchantId,
+    name: customer.name,
+    email: customer.email ?? null,
+    notes: customer.notes ?? null,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+    version: customer.version,
+  };
+}
+
+function toCustomer(row: CustomerRow): Customer {
+  return {
+    id: row.id,
+    merchantId: row.merchantId,
+    name: row.name,
+    ...present("email", row.email),
+    ...present("notes", row.notes),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+  };
 }

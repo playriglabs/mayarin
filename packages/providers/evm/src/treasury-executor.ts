@@ -29,6 +29,7 @@ import { type AssetCode, ConfigurationError, money, ProviderError } from "@mayar
 import {
   type Account,
   type Address,
+  decodeErrorResult,
   decodeEventLog,
   encodeFunctionData,
   getAddress,
@@ -36,6 +37,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
+import { shortReason } from "./errors.ts";
 import { depositSalt } from "./forwarder-deriver.ts";
 import { buildPayERC20Call, buildPayEthCall, type Permit2Single } from "./payment-router.ts";
 
@@ -168,8 +170,43 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
    */
   #submissions: Promise<unknown> = Promise.resolve();
 
+  /**
+   * The next nonce this port will hand out, once it has handed out one.
+   *
+   * In memory on purpose: it is a repair for propagation lag within a process,
+   * not a source of truth. A restart re-reads the chain, which is correct — by
+   * then everything in flight has either landed or been dropped.
+   */
+  #nextNonce: number | undefined;
+
   constructor(options: EvmTreasuryExecutionPortOptions) {
     this.#options = options;
+  }
+
+  /**
+   * Broadcasts under the lock, and reports what went wrong in one line.
+   *
+   * viem's send errors carry the whole request — calldata, arguments, docs URL,
+   * version — and this one is stored as a payment's failure reason and shown to
+   * a merchant. `shortReason` keeps the sentence and drops the transcript.
+   *
+   * Retryable, all of it: a nonce that raced, a node that had not seen the last
+   * broadcast, a provider throttling. The executor bounds how many attempts are
+   * worth making; none of these are terminal on their own.
+   */
+  async #send(work: () => Promise<Hex>): Promise<Hex> {
+    try {
+      return await this.#serialize(work);
+    } catch (error) {
+      // A dropped nonce would stall every later submission, so the counter is
+      // rebuilt from the chain on the next attempt rather than trusted.
+      this.#nextNonce = undefined;
+      throw new ProviderError(
+        `Submitting the transaction failed: ${shortReason(error)}`,
+        {},
+        { cause: error, retryable: true },
+      );
+    }
   }
 
   /** Runs `work` after every submission queued before it, failures included. */
@@ -369,12 +406,31 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     // Nonce read and broadcast happen together under the lock. Left to viem the
     // nonce is fetched per call and cached across back-to-back sends, which is
     // exactly the collision this exists to prevent.
-    const hash = await this.#serialize(async () => {
-      const nonce = await publicClient.getTransactionCount({
+    //
+    // The lock alone is not enough. `pending` is answered by whichever node the
+    // load balancer picked, and a node that has not yet seen the transaction
+    // sent a second ago answers with the nonce that transaction already used —
+    // so the next submission reuses it and the provider replies "already
+    // known". Remembering what was handed out closes that window: the node's
+    // answer can only ever move the counter forward.
+    const hash = await this.#send(async () => {
+      const observed = await publicClient.getTransactionCount({
         address: account.address,
         blockTag: "pending",
       });
-      return walletClient.sendTransaction({ account, to, data, value, nonce, chain: null });
+      const nonce = this.#nextNonce === undefined ? observed : Math.max(observed, this.#nextNonce);
+      const sent = await walletClient.sendTransaction({
+        account,
+        to,
+        data,
+        value,
+        nonce,
+        chain: null,
+      });
+      // Advanced only on a successful broadcast: a rejected send consumed
+      // nothing, and skipping a nonce would stall every later submission.
+      this.#nextNonce = nonce + 1;
+      return sent;
     });
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
@@ -384,10 +440,13 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     const gasCost = money(receipt.gasUsed * receipt.effectiveGasPrice, "ETH");
 
     if (receipt.status !== "success") {
-      // Retryable: the router hard-reverts on a `minOut` miss without moving
-      // funds, and a stale route looks the same. The executor decides whether
-      // another attempt is worth it, and bounds how many.
-      throw new ProviderError(`Transaction ${hash} reverted`, { hash, to }, { retryable: true });
+      throw await this.#revertedTransaction({
+        hash,
+        to,
+        data,
+        value,
+        blockNumber: receipt.blockNumber,
+      });
     }
 
     if (measure === undefined) {
@@ -399,6 +458,47 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       output: this.#outputFrom(receipt.logs, measure.paymentRouter, measure.settlementAsset),
       gasCost,
     };
+  }
+
+  /** Replays a reverted call to recover the router's custom-error selector. */
+  async #revertedTransaction(request: {
+    readonly hash: Hex;
+    readonly to: Address;
+    readonly data: Hex;
+    readonly value: bigint;
+    readonly blockNumber: bigint;
+  }): Promise<ProviderError> {
+    try {
+      await this.#options.publicClient.call({
+        account: this.#options.account,
+        to: request.to,
+        data: request.data,
+        value: request.value,
+        blockNumber: request.blockNumber,
+      });
+    } catch (error) {
+      const data = errorData(error);
+      if (data !== undefined) {
+        try {
+          const decoded = decodeErrorResult({ abi: paymentRouterAbi, data });
+          const retryable = !TERMINAL_ROUTER_ERRORS.has(decoded.errorName);
+          return new ProviderError(
+            `Transaction ${request.hash} reverted with ${decoded.errorName}`,
+            { hash: request.hash, to: request.to, revert: decoded.errorName },
+            { cause: error, retryable },
+          );
+        } catch {
+          // The revert may belong to Permit2, a token or the swap router. Keep
+          // the existing bounded-retry behaviour when it is not our selector.
+        }
+      }
+    }
+
+    return new ProviderError(
+      `Transaction ${request.hash} reverted with an unknown reason`,
+      { hash: request.hash, to: request.to },
+      { retryable: true },
+    );
   }
 
   /**
@@ -476,6 +576,21 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       token,
     });
   }
+}
+
+const TERMINAL_ROUTER_ERRORS: ReadonlySet<string> = new Set([
+  "AlreadyConsumed",
+  "ExpiredOrder",
+  "InvalidSigner",
+]);
+
+function errorData(error: unknown): Hex | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+
+  const data = (error as { data?: unknown }).data;
+  if (typeof data === "string" && /^0x[0-9a-fA-F]+$/.test(data)) return data as Hex;
+
+  return errorData((error as { cause?: unknown }).cause);
 }
 
 function requireRoute<T>(route: T | undefined): T {

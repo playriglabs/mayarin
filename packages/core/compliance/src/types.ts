@@ -80,6 +80,43 @@ export interface PaymentAuditRecord {
   readonly reconciliation: ReconciliationVerdict;
 }
 
+/**
+ * One row of the merchant event log — a unified, derived read over the three
+ * append-only sources the system already keeps: clearing events, settlement
+ * events, and webhook deliveries.
+ *
+ * Like the audit trail, this is a *read* concern with no table of its own. The
+ * row is the smallest thing worth showing on a timeline: what happened, when,
+ * for which payment, and how loudly to surface it. It carries no money and no
+ * state machine — open the payment for the detail.
+ */
+export type MerchantEventSeverity = "info" | "success" | "warning" | "error";
+
+export type MerchantEventKind = "clearing" | "settlement" | "webhook";
+
+export interface MerchantEventRow {
+  /** Stable source-row id used as the cursor tie-breaker. */
+  readonly id: string;
+  /** Which source the row came from — drives the timeline's icon and grouping. */
+  readonly kind: MerchantEventKind;
+  readonly occurredAt: Date;
+  readonly merchantId: string;
+  /** The payment intent this event concerns, when one is reachable. */
+  readonly intentId?: string;
+  /** A one-line human label for the timeline. */
+  readonly summary: string;
+  readonly severity: MerchantEventSeverity;
+}
+
+export interface MerchantEventFilter {
+  readonly q?: string;
+  readonly status?: MerchantEventSeverity;
+  readonly sort?: "created" | "-created";
+  readonly from?: Date;
+  readonly to?: Date;
+  readonly cursor?: { readonly occurredAt: Date; readonly id: string };
+}
+
 /** One ledger figure that disagrees with the chain. */
 export interface ReconciliationDifference {
   /** What was compared, e.g. `"net"` or `"fee"`. */

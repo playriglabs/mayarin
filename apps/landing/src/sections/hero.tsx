@@ -24,8 +24,8 @@ export function Hero() {
 
         <Reveal delay={160}>
           <p class="mt-8 max-w-[62ch] text-lg leading-[1.6] text-slate">
-            Merchants price in local currency. Customers pay with any supported crypto assets.
-            Settlement happens in stablecoins.
+            The fastest way for internet businesses in emerging markets to get paid globally and
+            settle locally.
           </p>
         </Reveal>
 

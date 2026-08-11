@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import createGlobe, { type Arc, type COBEOptions, type Marker } from "cobe";
+import createGlobe, { type COBEOptions, type Marker } from "cobe";
 import { useEffect, useRef } from "preact/hooks";
 
 type City = {
@@ -8,57 +8,79 @@ type City = {
   location: [number, number];
 };
 
-/**
- * A route rather than a hub. Every corridor used to be drawn back to Jakarta,
- * which bundled ten arcs into one point and read as a starburst; hopping city
- * to city gives each stop two lines and shows value actually travelling.
- *
- * The order is the story: out through Asia first, where the adoption is, then
- * across the Pacific to the Americas and back over the Atlantic into Europe,
- * the Gulf and South Asia. It stops at Mumbai rather than closing the ring —
- * a Mumbai-to-Jakarta hop would sling one more arc across the whole face.
- *
- * Neighbouring entries are kept geographically close on purpose: the longer
- * the hop, the further its arc bows off the sphere.
- */
+/** A regional corridor: Asia → MENA → Europe → APAC → LATAM. */
 const ROUTE: City[] = [
-  { id: "sydney", label: "Sydney", location: [-33.8688, 151.2093] },
   { id: "jakarta", label: "Jakarta", location: [-6.2088, 106.8456] },
   { id: "singapore", label: "Singapore", location: [1.3521, 103.8198] },
-  { id: "kualalumpur", label: "Kuala Lumpur", location: [3.139, 101.6869] },
   { id: "bangkok", label: "Bangkok", location: [13.7563, 100.5018] },
-  { id: "manila", label: "Manila", location: [14.5995, 120.9842] },
-  { id: "hongkong", label: "Hong Kong", location: [22.3193, 114.1694] },
-  { id: "seoul", label: "Seoul", location: [37.5665, 126.978] },
   { id: "tokyo", label: "Tokyo", location: [35.6762, 139.6503] },
-  { id: "sanfrancisco", label: "San Francisco", location: [37.7749, -122.4194] },
-  { id: "newyork", label: "New York", location: [40.7128, -74.006] },
-  { id: "saopaulo", label: "São Paulo", location: [-23.5505, -46.6333] },
-  { id: "london", label: "London", location: [51.5074, -0.1278] },
-  { id: "frankfurt", label: "Frankfurt", location: [50.1109, 8.6821] },
   { id: "dubai", label: "Dubai", location: [25.2048, 55.2708] },
-  { id: "mumbai", label: "Mumbai", location: [19.076, 72.8777] },
+  { id: "riyadh", label: "Riyadh", location: [24.7136, 46.6753] },
+  { id: "frankfurt", label: "Frankfurt", location: [50.1109, 8.6821] },
+  { id: "london", label: "London", location: [51.5074, -0.1278] },
+  { id: "sydney", label: "Sydney", location: [-33.8688, 151.2093] },
+  { id: "saopaulo", label: "São Paulo", location: [-23.5505, -46.6333] },
+  { id: "mexicocity", label: "Mexico City", location: [19.4326, -99.1332] },
 ];
-
-/** Jakarta stays the origin — first stop, and the one drawn heaviest. */
-const HUB = ROUTE[0] as City;
 
 /* Every stop is named. An unlabelled dot just reads as an unexplained speck;
    overlapping chips are culled per frame instead. */
 const LABELLED = ROUTE;
 
-const MARKERS: Marker[] = ROUTE.map((city) => ({
-  location: city.location,
-  size: city.id === HUB.id ? 0.055 : 0.028,
-}));
+type Vector = readonly [number, number, number];
 
-/** One hop per consecutive pair — an open path, not a ring. */
-const ARCS: Arc[] = ROUTE.slice(0, -1).map((city, index) => ({
-  from: city.location,
-  to: (ROUTE[index + 1] as City).location,
-}));
+const toCartesian = ([latitude, longitude]: [number, number]): Vector => {
+  const lat = (latitude * Math.PI) / 180;
+  const lon = (longitude * Math.PI) / 180;
+  return [Math.cos(lat) * Math.cos(lon), Math.sin(lat), Math.cos(lat) * Math.sin(lon)];
+};
 
-/** Longitude the globe opens on, so Jakarta faces the reader from the start. */
+const toLocation = ([x, y, z]: Vector): [number, number] => [
+  (Math.atan2(y, Math.sqrt(x * x + z * z)) * 180) / Math.PI,
+  (Math.atan2(z, x) * 180) / Math.PI,
+];
+
+/** Great-circle interpolation keeps long inter-region hops on the sphere. */
+const interpolateRoute = (
+  from: [number, number],
+  to: [number, number],
+  steps: number,
+): [number, number][] => {
+  const start = toCartesian(from);
+  const end = toCartesian(to);
+  const dot = Math.min(1, Math.max(-1, start[0] * end[0] + start[1] * end[1] + start[2] * end[2]));
+  const angle = Math.acos(dot);
+  const denominator = Math.sin(angle);
+
+  if (denominator === 0) return [];
+
+  return Array.from({ length: steps - 1 }, (_, index) => {
+    const amount = (index + 1) / steps;
+    const startWeight = Math.sin((1 - amount) * angle) / denominator;
+    const endWeight = Math.sin(amount * angle) / denominator;
+    return toLocation([
+      start[0] * startWeight + end[0] * endWeight,
+      start[1] * startWeight + end[1] * endWeight,
+      start[2] * startWeight + end[2] * endWeight,
+    ]);
+  });
+};
+
+const ROUTE_DOTS: Marker[] = ROUTE.slice(0, -1).flatMap((city, index) => {
+  const next = ROUTE[index + 1];
+  if (!next) return [];
+  return interpolateRoute(city.location, next.location, 5).map((location) => ({
+    location,
+    size: 0.009,
+  }));
+});
+
+const MARKERS: Marker[] = [
+  ...ROUTE_DOTS,
+  ...ROUTE.map((city) => ({ location: city.location, size: 0.032 })),
+];
+
+/** Longitude the globe opens on, with Asia and MENA facing the reader. */
 const START_PHI = 4.1;
 const THETA = 0.22;
 /** ~21s per revolution: plainly turning, without pulling the eye off the copy. */
@@ -272,12 +294,7 @@ export function Globe({ class: className = "" }: { class?: string }) {
         markerColor: [0.055, 0.92, 0.18],
         glowColor: [1, 1, 1],
         markers: MARKERS,
-        arcs: ARCS,
-        arcColor: [0.122, 0.435, 0.329],
-        arcWidth: 0.3,
-        /* Height scales with hop length, so anything above ~0.15 sends the
-           intercontinental legs looping out into white space. */
-        arcHeight: 0.12,
+        arcs: [],
       });
     };
 
@@ -337,7 +354,7 @@ export function Globe({ class: className = "" }: { class?: string }) {
       <canvas
         ref={canvasRef}
         class="size-full cursor-grab touch-pan-y contain-[layout_paint_size]"
-        aria-label="Rotating globe. Mayarin's merchant footprint runs from Jakarta out through Singapore, Kuala Lumpur, Bangkok, Manila, Hong Kong, Seoul and Tokyo, on to San Francisco, New York and São Paulo, then London, Frankfurt, Dubai and Mumbai before closing back to Jakarta."
+        aria-label="Rotating globe showing a dotted settlement corridor through Jakarta, Singapore, Bangkok and Tokyo in Asia; Dubai and Riyadh in MENA; Frankfurt and London in Europe; Sydney in APAC; and São Paulo and Mexico City in LATAM."
         role="img"
       />
 

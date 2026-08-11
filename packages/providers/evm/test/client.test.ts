@@ -123,6 +123,7 @@ function rpcBlock(number: bigint, transactions: readonly StubTx[]) {
 function stubRpc(blocks: ReadonlyMap<bigint, readonly StubTx[]>) {
   const seen: string[] = [];
   const server = Bun.serve({
+    idleTimeout: 30,
     port: 0,
     async fetch(request) {
       const body = (await request.json()) as { id: number; method: string; params: unknown[] };

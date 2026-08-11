@@ -9,9 +9,21 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sign in — Mayarin Dashboard</title>
+    <title>Sign in — Mayarin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+    <script is:inline>
+      // Before first paint. Dark is the default; "light" is the stored opt-out.
+      document.documentElement.dataset.theme =
+        localStorage.getItem("mayarin-theme") === "light" ? "light" : "dark";
+    </script>
   </head>
-  <body class="flex min-h-full items-center justify-center px-4 py-12">
+  <!-- The landing's dark tone: a paper card floating on the void. -->
+  <body class="flex min-h-full items-center justify-center bg-sidebar px-4 py-12">
     <slot />
   </body>
 </html>

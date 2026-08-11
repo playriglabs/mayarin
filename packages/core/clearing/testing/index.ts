@@ -124,6 +124,18 @@ export class InMemoryClearingRepository implements ClearingRepository {
     return id === undefined ? null : (this.#byId.get(id) ?? null);
   }
 
+  async listByPaymentIntentIds(
+    paymentIntentIds: readonly string[],
+  ): Promise<readonly ClearingTransaction[]> {
+    const found: ClearingTransaction[] = [];
+    for (const paymentIntentId of paymentIntentIds) {
+      const id = this.#byPaymentIntentId.get(paymentIntentId);
+      const transaction = id === undefined ? undefined : this.#byId.get(id);
+      if (transaction !== undefined) found.push(transaction);
+    }
+    return found;
+  }
+
   async findByContractIntentId(intentId: string): Promise<ClearingTransaction | null> {
     for (const transaction of this.#byId.values()) {
       if (transaction.contract?.order.intentId === intentId) return transaction;

@@ -15,34 +15,39 @@ const FIGURES = [
 export function Impact() {
   return (
     <Section id="impact">
-      <Reveal>
-        <Label>Impact</Label>
-      </Reveal>
+      <div class="grid items-center gap-16 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20 xl:gap-28">
+        <div>
+          <Reveal>
+            <Label>Impact</Label>
+          </Reveal>
 
-      <div class="md:flex md:items-end md:justify-between md:gap-20">
-        <Reveal delay={60}>
-          <SectionHeading>Money crosses borders. Your integration doesn't.</SectionHeading>
-        </Reveal>
-        <Reveal delay={120}>
-          <Lede class="md:mb-3 md:max-w-[36ch]">
-            Assets and chains are the new borders. The clearing path crosses them — adding a chain
-            or asset is an adapter, not a rebuild.
-          </Lede>
+          <Reveal delay={60}>
+            <SectionHeading class="max-w-[15ch]">
+              Money crosses borders. Your integration doesn't.
+            </SectionHeading>
+          </Reveal>
+
+          <Reveal delay={120}>
+            <Lede class="max-w-[42ch]">
+              Assets and chains are the new borders. The clearing path crosses them — adding a chain
+              or asset is an adapter, not a rebuild.
+            </Lede>
+          </Reveal>
+        </div>
+
+        <Reveal delay={160}>
+          <div class="mx-auto w-full max-w-152">
+            <Globe />
+          </div>
+
+          <p class="label mt-3 flex items-center justify-center gap-2.5 text-center text-slate leading-5">
+            <span aria-hidden="true" class="inline-block size-1.5 shrink-0 bg-accent" />
+            One clearing layer, across global markets — drag to spin
+          </p>
         </Reveal>
       </div>
 
-      <Reveal delay={160} class="mt-16 md:mt-20">
-        <div class="mx-auto w-full max-w-136">
-          <Globe />
-        </div>
-
-        <p class="label mt-2 flex items-center justify-center gap-2.5 text-slate leading-5">
-          <span aria-hidden="true" class="inline-block size-1.5 bg-accent" />
-          Jakarta outward, through Asia — drag to spin
-        </p>
-      </Reveal>
-
-      <div class="mt-16 grid gap-px border-y border-line bg-line md:mt-20 sm:grid-cols-3">
+      <div class="mt-20 grid gap-px border-y border-line bg-line lg:mt-24 sm:grid-cols-3">
         {FIGURES.map((figure, index) => (
           <div key={figure.value} class="bg-paper">
             <Reveal delay={index * 70} class="h-full px-2 py-8 sm:px-8 md:px-10 md:py-10">

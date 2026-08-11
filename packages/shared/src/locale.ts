@@ -39,6 +39,18 @@ export interface MoneyFormatOptions {
   readonly symbol?: boolean;
   /** Drop an all-zero fraction: `Rp 50.432` rather than `Rp 50.432,00`. */
   readonly trimZeroFraction?: boolean;
+  /**
+   * Drop trailing zeros past two decimals: `12,50 USDC`, not `12,500000 USDC`.
+   *
+   * Lossless — it removes zeros and nothing else, so the value still reads
+   * exactly. Six decimals of a stablecoin and eighteen of ETH are the asset's
+   * precision, not information a person needs; printed in full they are noise a
+   * reader has to count through to find the magnitude.
+   *
+   * Two is the floor because money is written with two: trimming `1,00` to `1`
+   * makes an amount look like a quantity.
+   */
+  readonly trimTrailingZeros?: boolean;
 }
 
 /**
@@ -51,13 +63,19 @@ export interface MoneyFormatOptions {
  * ```
  */
 export function formatMoneyLocale(value: Money, options: MoneyFormatOptions = {}): string {
-  const { locale = DEFAULT_LOCALE, symbol = true, trimZeroFraction = false } = options;
+  const {
+    locale = DEFAULT_LOCALE,
+    symbol = true,
+    trimZeroFraction = false,
+    trimTrailingZeros = false,
+  } = options;
   const format = LOCALE_FORMATS[locale];
 
   const machine = toDecimalString(value);
   const negative = machine.startsWith("-");
-  const [whole = "", fraction = ""] = (negative ? machine.slice(1) : machine).split(".");
+  const [whole = "", rawFraction = ""] = (negative ? machine.slice(1) : machine).split(".");
 
+  const fraction = trimTrailingZeros ? trimZeros(rawFraction) : rawFraction;
   const grouped = groupDigits(whole, format.group);
   const keepFraction = fraction !== "" && !(trimZeroFraction && /^0+$/.test(fraction));
   const digits = `${negative ? "-" : ""}${grouped}${keepFraction ? format.decimal + fraction : ""}`;
@@ -66,6 +84,16 @@ export function formatMoneyLocale(value: Money, options: MoneyFormatOptions = {}
 
   const currency = assetSymbol(value.asset);
   return currency === undefined ? `${digits} ${value.asset}` : `${currency} ${digits}`;
+}
+
+/** Minimum fractional digits a trimmed amount keeps, so money still looks like money. */
+const MIN_FRACTION_DIGITS = 2;
+
+/** Strips trailing zeros, never below two digits and never below what is there. */
+function trimZeros(fraction: string): string {
+  let end = fraction.length;
+  while (end > MIN_FRACTION_DIGITS && fraction[end - 1] === "0") end -= 1;
+  return fraction.slice(0, end);
 }
 
 /**

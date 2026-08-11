@@ -1,4 +1,5 @@
 export * from "./cart.ts";
+export * from "./customer.ts";
 export * from "./link.ts";
 export * from "./product.ts";
 export * from "./repository.ts";

@@ -18,6 +18,7 @@ import {
   BasisPointsFeePolicy,
   ClearingEngine,
   LiquidityRouter,
+  type RateProvider,
   RefundService,
   TreasuryExecutor,
 } from "@mayarin/clearing";
@@ -27,6 +28,7 @@ import {
   DrizzleClearingRepository,
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
+  DrizzleInternalSettlementStore,
   DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
   DrizzleMarketConfigRepository,
@@ -52,7 +54,7 @@ import {
   WebhookDispatcher,
   type WebhookEndpointRepository,
 } from "@mayarin/notifications";
-import { PaymentIntentService } from "@mayarin/payment-intent";
+import { type MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
 import {
   Create2DepositAddressDeriver,
   EvmChainClient,
@@ -93,6 +95,14 @@ export interface Container {
   readonly invoices: InvoiceService;
   readonly ledger: LedgerService;
   readonly engine: ClearingEngine;
+  /**
+   * The rate provider the engine prices with (#15).
+   *
+   * Exposed so the indicative-quote route answers from the same source that
+   * will later lock the price. A second provider wired for previews would show
+   * a payer one number and charge them another.
+   */
+  readonly rates: RateProvider;
   readonly paymentApp: PaymentAppService;
   /** Refunds against settled payments (#12). */
   readonly refunds: RefundService;
@@ -107,6 +117,15 @@ export interface Container {
   readonly events: EventPublisher;
   /** Admissible stablecoins and their on-chain identities. */
   readonly registry: StablecoinRegistry;
+  /**
+   * Per-merchant asset policy (#95).
+   *
+   * Exposed because the hosted checkout has to offer a payer the assets *this
+   * merchant* accepts, not the deployment's whole admissible set — a buyer
+   * offered an asset the merchant refuses gets the refusal after they have
+   * decided.
+   */
+  readonly merchantPolicies: MerchantAssetPolicySource;
   /**
    * Market data held in the database rather than the environment (#95).
    *
@@ -344,7 +363,13 @@ export function createContainer({
         ? {}
         : { webhookSecret: config.mockWebhookSecret }),
     }),
-    new StablecoinSettlementAdapter({ clock }),
+    // Backed by Postgres, not memory: the engine asks this adapter what became
+    // of a settlement it already recorded, and that question outlives the
+    // process that answered the first one.
+    new StablecoinSettlementAdapter({
+      clock,
+      store: new DrizzleInternalSettlementStore(handle.db),
+    }),
   ]);
 
   const fees = new BasisPointsFeePolicy(config.feeBasisPoints);
@@ -392,12 +417,14 @@ export function createContainer({
     depositAddresses,
   });
 
+  const rates = new LiquidityRouter({ source: new RuntimePriceSource(market) });
+
   const engine = new ClearingEngine({
     repository: new DrizzleClearingRepository(handle.db),
     intents,
     ledger,
     adapters,
-    rates: new LiquidityRouter({ source: new RuntimePriceSource(market) }),
+    rates,
     fees,
     clock,
     events,
@@ -431,6 +458,7 @@ export function createContainer({
       rpcUrls: chain.rpcUrls,
       tokens: tokensOf(config.stablecoins),
       nativeAssets: config.chainNativeAssets,
+      logRange: chain.logRange,
     });
     const cursors = new DrizzleWatcherCursorRepository(handle.db);
     chainHead = (id: ChainId) => client.head(id);
@@ -459,8 +487,14 @@ export function createContainer({
             reorgWatchWindow: chain.reorgWatchWindow,
           },
           blockRange: chain.blockRange,
+          nativeBlockRange: chain.nativeBlockRange,
           retentionSeconds: chain.retentionSeconds,
           startBlocks: chain.startBlocks,
+          // Which asset on this chain is the chain's own. Only that one gets the
+          // balance reconciliation: an ERC-20 emits a Transfer log however it
+          // moves, so `eth_getLogs` already sees an internal call. Native value
+          // moved by a contract emits nothing at all.
+          nativeAssets: config.chainNativeAssets,
         }),
       );
     }
@@ -569,6 +603,7 @@ export function createContainer({
     invoices,
     ledger,
     engine,
+    rates,
     paymentApp,
     refunds,
     ...(stream === undefined ? {} : { stream }),
@@ -576,6 +611,7 @@ export function createContainer({
     events,
     registry,
     market,
+    merchantPolicies,
     walletGuard,
     watchers,
     indexers,

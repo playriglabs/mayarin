@@ -20,7 +20,7 @@ import { InvoiceService } from "@mayarin/invoicing";
 import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
 import { LedgerService } from "@mayarin/ledger";
 import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
-import { PaymentIntentService } from "@mayarin/payment-intent";
+import { type MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
@@ -98,12 +98,17 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   const clearingRepository = new InMemoryClearingRepository();
   const refundRepository = new InMemoryRefundRepository();
 
+  // One provider for the engine and the quote route: a preview priced from a
+  // different source than the lock would show a payer one number and charge
+  // them another.
+  const rates = new LiquidityRouter({ source: new TablePriceSource(config.exchangeRates) });
+
   const engine = new ClearingEngine({
     repository: clearingRepository,
     intents,
     ledger,
     adapters,
-    rates: new LiquidityRouter({ source: new TablePriceSource(config.exchangeRates) }),
+    rates,
     fees: new BasisPointsFeePolicy(config.feeBasisPoints),
     clock,
     events,
@@ -132,9 +137,15 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     },
   });
 
+  // No merchant records in the harness, so every merchant reads as "no policy"
+  // — which is the state the routes must handle anyway: the deployment default
+  // stands and the checkout offers what this deployment can receive.
+  const merchantPolicies: MerchantAssetPolicySource = { policyFor: async () => undefined };
+
   const container: Container = {
     config,
     intents,
+    merchantPolicies,
     catalog: new CatalogService({ products, links, clock }),
     commerce,
     invoices: new InvoiceService({
@@ -145,6 +156,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     }),
     ledger,
     engine,
+    rates,
     paymentApp: new PaymentAppService({ intents, engine, ledger }),
     stream,
     refunds: new RefundService({

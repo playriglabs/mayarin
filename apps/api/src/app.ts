@@ -18,6 +18,7 @@ import { invoiceRoutes } from "./routes/invoices.ts";
 import { paymentIntentRoutes } from "./routes/payment-intents.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
+import { quoteRoutes } from "./routes/quotes.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
 
 export function createApp(container: Container): Hono {
@@ -31,6 +32,9 @@ export function createApp(container: Container): Hono {
   app.route("/", healthRoutes(container));
   app.route("/payment-intents", paymentIntentRoutes(container));
   app.route("/payments", paymentRoutes(container));
+  // Indicative pricing, for a counter showing a payer what each accepted asset
+  // would take. Locks nothing and records nothing (#15).
+  app.route("/quotes", quoteRoutes(container));
   app.route("/webhooks", webhookRoutes(container));
   // The commerce layer (#10). Mounted unconditionally and depended on by
   // nothing above it: every route already registered works without it.

@@ -1,0 +1,11 @@
+---
+import PaymentDetail from "../../components/payment-detail.tsx";
+import Protected from "../../layouts/dashboard.astro";
+
+const { id } = Astro.params;
+if (id === undefined) return Astro.redirect("/payments");
+---
+
+<Protected title="Payment">
+  <PaymentDetail id={id} client:load />
+</Protected>

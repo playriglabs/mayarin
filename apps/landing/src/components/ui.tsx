@@ -21,7 +21,7 @@ export function Section({
 
   return (
     <section id={id} class={clsx("relative", toned, className)}>
-      <div class="shell py-24 md:py-28 lg:py-32">{children}</div>
+      <div class="shell py-20 md:py-24 lg:py-28">{children}</div>
     </section>
   );
 }

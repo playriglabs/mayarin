@@ -171,6 +171,10 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       merchantSafe: merchantSafe as Hex,
       refundTo: request.payerAddress as Hex,
     };
+    const orderDeadline =
+      request.orderExpiresAt === undefined
+        ? undefined
+        : BigInt(request.orderExpiresAt.getTime()) / 1_000n;
 
     const composed = "composed" in fiat ? fiat.composed : undefined;
     if (composed === undefined) {
@@ -181,7 +185,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         ...context,
         minOut: settlementAmount.amount,
         fee: fee.amount,
-        deadline: BigInt(expiresAt.getTime()) / 1_000n,
+        deadline: orderDeadline ?? BigInt(expiresAt.getTime()) / 1_000n,
       };
       const signed = await signOrder(quote.signer, domain, order);
       return this.#contractLock({
@@ -212,7 +216,11 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       },
       now,
     );
-    const signed = await signOrder(quote.signer, domain, assembleOrder(locked, context, now));
+    const assembled = assembleOrder(locked, context, now);
+    const signed = await signOrder(quote.signer, domain, {
+      ...assembled,
+      deadline: orderDeadline ?? assembled.deadline,
+    });
 
     return this.#contractLock({
       settlementAmount,

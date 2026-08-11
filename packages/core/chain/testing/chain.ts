@@ -162,6 +162,21 @@ export class InMemoryDepositRepository implements DepositRepository {
         zero(asset),
       );
   }
+
+  /**
+   * Everything the chain still holds for us, confirmed or not — what the
+   * balance reconciliation subtracts. An orphaned deposit is excluded because
+   * the chain no longer holds it either.
+   */
+  async recordedTotal(chain: ChainId, address: string, asset: AssetCode): Promise<Money> {
+    const deposits = await this.listByAddress(chain, address);
+    return deposits
+      .filter((deposit) => deposit.status !== "ORPHANED" && deposit.amount.asset === asset)
+      .reduce<Money>(
+        (total, deposit) => ({ amount: total.amount + deposit.amount.amount, asset }),
+        zero(asset),
+      );
+  }
 }
 
 export class InMemoryWatcherCursorRepository implements WatcherCursorRepository {
@@ -248,6 +263,11 @@ export class InMemorySettlementEventRepository implements SettlementEventReposit
 
   async findByIntentId(intentId: string): Promise<SettlementEvent | null> {
     return [...this.#byKey.values()].find((event) => event.intentId === intentId) ?? null;
+  }
+
+  async listByIntentIds(intentIds: readonly string[]): Promise<readonly SettlementEvent[]> {
+    const wanted = new Set(intentIds);
+    return [...this.#byKey.values()].filter((event) => wanted.has(event.intentId));
   }
 
   #sorted(chain: ChainId, keep: (event: SettlementEvent) => boolean): SettlementEvent[] {

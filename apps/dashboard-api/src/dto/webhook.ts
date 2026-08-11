@@ -16,6 +16,12 @@ export const createEndpointBodySchema = z
 
 export const listQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(200).optional(),
+  q: z.string().trim().min(1).optional(),
+  status: z.enum(["PENDING", "DELIVERED", "DEAD"]).optional(),
+  sort: z.enum(["created", "-created"]).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  cursor: z.string().min(1).optional(),
 });
 
 /** The listing shape. Secrets never appear here — only creation and rotation show one. */

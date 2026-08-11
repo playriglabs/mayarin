@@ -6,13 +6,14 @@
  * as a `ConcurrencyError` instead of overwriting another writer's edit.
  */
 
-import type { PaymentLink, Product } from "./types.ts";
+import type { Customer, PaymentLink, Product } from "./types.ts";
 
 export interface ListProductsOptions {
   readonly merchantId: string;
   /** Omitted, both active and retired products are listed. */
   readonly active?: boolean;
   readonly limit?: number;
+  readonly cursor?: { readonly id: string; readonly createdAt: Date };
 }
 
 export interface ProductRepository {
@@ -28,6 +29,7 @@ export interface ProductRepository {
 export interface ListPaymentLinksOptions {
   readonly merchantId: string;
   readonly limit?: number;
+  readonly cursor?: { readonly id: string; readonly createdAt: Date };
 }
 
 export interface PaymentLinkRepository {
@@ -36,4 +38,21 @@ export interface PaymentLinkRepository {
   findByIdempotencyKey(key: string): Promise<PaymentLink | null>;
   update(link: PaymentLink, expectedVersion: number): Promise<void>;
   list(options: ListPaymentLinksOptions): Promise<readonly PaymentLink[]>;
+}
+
+export interface ListCustomersOptions {
+  readonly merchantId: string;
+  readonly q?: string;
+  readonly sort?: "created" | "-created";
+  readonly from?: Date;
+  readonly to?: Date;
+  readonly limit?: number;
+}
+
+export interface CustomerRepository {
+  insert(customer: Customer): Promise<void>;
+  findById(id: string): Promise<Customer | null>;
+  listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]>;
+  update(customer: Customer, expectedVersion: number): Promise<void>;
+  delete(id: string): Promise<void>;
 }

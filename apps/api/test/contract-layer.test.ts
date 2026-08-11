@@ -125,6 +125,16 @@ describe("ApiContractPlanner", () => {
     expect(signer.calls[0]?.message.intentId).toBe(lock.order.intentId as `0x${string}`);
   });
 
+  test("can keep the signed order executable beyond the quote freshness window", async () => {
+    const { planner } = createPlanner();
+    const orderExpiresAt = new Date(NOW.getTime() + 960_000);
+
+    const lock = await planner.lock({ ...lockRequest("ETH"), orderExpiresAt });
+
+    expect(lock.expiresAt).toEqual(new Date(NOW.getTime() + 120_000));
+    expect(lock.order.deadline).toBe(BigInt(orderExpiresAt.getTime()) / 1_000n);
+  });
+
   test("the intent id derives from the clearing transaction: a re-lock signs the same id", async () => {
     const { planner } = createPlanner();
 

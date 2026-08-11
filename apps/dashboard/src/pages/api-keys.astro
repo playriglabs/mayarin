@@ -1,0 +1,13 @@
+---
+import ApiKeys from "../components/api-keys.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="API keys · Mayarin">
+  <PageHeader
+    title="API keys"
+    description="Bearer tokens for a POS or integration that cannot hold a session cookie. Each key grants a subset of your own permissions."
+  />
+  <ApiKeys client:load />
+</Protected>

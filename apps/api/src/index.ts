@@ -40,6 +40,11 @@ if (recovered.length > 0) {
   console.log(`[api] resumed ${recovered.length} clearing transaction(s) on startup`);
 }
 
+/** One line, and the whole message when there is one worth reading. */
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 const chain = config.chain;
 const pairs = watchedPairs(config);
 if (chain !== undefined && chain.intervalMs > 0 && container.watchers.size > 0) {
@@ -49,11 +54,24 @@ if (chain !== undefined && chain.intervalMs > 0 && container.watchers.size > 0) 
         const watcher = container.watchers.get(pair.chain);
         if (watcher === undefined) continue;
         try {
-          await watcher.tick(pair.chain, pair.asset);
+          const result = await watcher.tick(pair.chain, pair.asset);
+          // A watcher behind the head reads as a payment that never arrived:
+          // the deposit is on chain, in a block this pass has not reached. It
+          // is not an error and nothing throws, so without this line the only
+          // symptom is a payer staring at "awaiting payment" while the explorer
+          // shows their transfer confirmed.
+          const lag = result.headNumber - result.scannedTo;
+          if (lag > BigInt(chain.blockRange)) {
+            console.warn(
+              `[watcher] ${pair.chain}/${pair.asset} is ${lag} block(s) behind the head; deposits in that gap are not seen yet`,
+            );
+          }
         } catch (error) {
           // A failed pass is not fatal: the cursor was not advanced, so the next
-          // tick re-scans the same range.
-          console.error(`[watcher] ${pair.chain}/${pair.asset} tick failed`, error);
+          // tick re-scans the same range. A rate limit is the expected failure
+          // on a metered endpoint, so it prints as one line — the full viem
+          // error is thirty, and thirty lines of stack reads as a crash.
+          console.error(`[watcher] ${pair.chain}/${pair.asset} tick failed: ${reasonOf(error)}`);
         }
       }
     })();
@@ -70,7 +88,7 @@ if (chain !== undefined && chain.intervalMs > 0 && container.indexers.size > 0) 
         try {
           await indexer.tick(indexedChain);
         } catch (error) {
-          console.error(`[indexer] ${indexedChain} tick failed`, error);
+          console.error(`[indexer] ${indexedChain} tick failed: ${reasonOf(error)}`);
         }
       }
     })();
@@ -105,6 +123,7 @@ const app = createApp(container);
 console.log(`[api] listening on http://localhost:${config.port}`);
 
 export default {
+  idleTimeout: 30,
   port: config.port,
   fetch: app.fetch,
 };

@@ -21,7 +21,12 @@ export default defineConfig({
     },
     server: {
       proxy: {
-        "/api": {
+        // `/api/` (trailing slash), not `/api`: a startsWith match on `/api`
+        // would also swallow the `/api-keys` *page* route and proxy it to the
+        // dashboard API, where the rewrite mangles it into a 404. Every client
+        // call is `/api/<path>`, so `/api/` matches those and leaves the page
+        // alone.
+        "/api/": {
           target: dashboardApiUrl,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ""),

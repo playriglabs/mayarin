@@ -212,7 +212,7 @@ export function adminRoutes(container: Container, token: string): Hono {
     }
     const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
     return c.json({
-      deliveries: (await deliveries.listByMerchant(merchantId, limit)).map(toDeliveryDto),
+      deliveries: (await deliveries.listByMerchant({ merchantId, limit })).map(toDeliveryDto),
     });
   });
 

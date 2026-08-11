@@ -116,6 +116,11 @@ describe("PaymentIntentService admissibility", () => {
 
 describe("PaymentIntentService execution path", () => {
   const rail: PaymentRail = { asset: "USDC", chain: "base-sepolia" };
+  /** The contract path plans an order against the payer, so it needs one. */
+  const contractRail: PaymentRail = {
+    ...rail,
+    payerAddress: "0x00000000000000000000000000000000000000a1",
+  };
 
   test("defaults to deposit-match for an intent that names a payment rail", async () => {
     const intent = await service(registry()).create({
@@ -142,10 +147,50 @@ describe("PaymentIntentService execution path", () => {
       merchant,
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" },
-      payment: rail,
+      payment: contractRail,
       executionPath: "on-chain-contract",
     });
     expect(intent.executionPath).toBe("on-chain-contract");
+  });
+
+  test("rejects the on-chain-contract path for a rail with no payer address", async () => {
+    // The price lock would refuse it — the signed order's `refundTo` has
+    // nowhere to point. Refusing here means no intent row whose only future is
+    // FAILED, and a 400 the caller can act on rather than a dead payment.
+    await expect(
+      service(registry()).create({
+        merchant,
+        amount: money(5_000_000n, "IDR"),
+        source: { type: "manual" },
+        payment: rail,
+        executionPath: "on-chain-contract",
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  test("rejects a rail with no payer address when the deployment defaults to the contract path", async () => {
+    // The silent case behind the dead intents: the caller named no path, so it
+    // took the deployment's, and the refusal only surfaced at the price lock.
+    const contractDefault = new PaymentIntentService({
+      repository: new InMemoryPaymentIntentRepository(),
+      clock: new FixedClock(NOW),
+      defaults: {
+        settlementAsset: "IDRX",
+        provider: "mock",
+        ttlSeconds: 900,
+        executionPath: "on-chain-contract",
+      },
+      registry: new InMemoryStablecoinRegistry(registry()),
+    });
+
+    await expect(
+      contractDefault.create({
+        merchant,
+        amount: money(5_000_000n, "IDR"),
+        source: { type: "manual" },
+        payment: rail,
+      }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   test("rejects the on-chain-contract path without a payment rail", async () => {
@@ -164,7 +209,8 @@ describe("PaymentIntentService execution path", () => {
       merchant,
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" as const },
-      payment: rail,
+      // One rail for both, so the fingerprint's only input that moves is the path.
+      payment: contractRail,
     };
     const deposit = await service(registry()).create(base);
     const contract = await service(registry()).create({

@@ -1,4 +1,4 @@
--- Invoices (#112): the document, and the counter that numbers it.
+-- Invoices (#112): the document, and the counter that numbers it (migration 0023).
 --
 -- Written by hand for the same reason `0011_commerce_layer` was:
 -- `0009_scaled_rate` was added to the journal without a matching

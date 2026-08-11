@@ -7,6 +7,7 @@
  */
 
 import type {
+  ListWebhookDeliveriesOptions,
   NotifiableEvent,
   WebhookCursorRepository,
   WebhookDelivery,
@@ -101,11 +102,32 @@ export class InMemoryWebhookDeliveryRepository implements WebhookDeliveryReposit
     return this.#deliveries.get(id) ?? null;
   }
 
-  async listByMerchant(merchantId: string, limit: number): Promise<readonly WebhookDelivery[]> {
+  async listByMerchant(options: ListWebhookDeliveriesOptions): Promise<readonly WebhookDelivery[]> {
+    const q = options.q?.toLocaleLowerCase();
+    const direction = options.sort === "created" ? 1 : -1;
     return [...this.#deliveries.values()]
-      .filter((delivery) => delivery.merchantId === merchantId)
-      .sort((a, b) => (a.id < b.id ? 1 : -1))
-      .slice(0, limit);
+      .filter((delivery) => delivery.merchantId === options.merchantId)
+      .filter(
+        (delivery) =>
+          q === undefined ||
+          delivery.id.toLocaleLowerCase().includes(q) ||
+          delivery.eventId.toLocaleLowerCase().includes(q) ||
+          delivery.endpointId.toLocaleLowerCase().includes(q),
+      )
+      .filter((delivery) => options.status === undefined || delivery.status === options.status)
+      .filter((delivery) => options.from === undefined || delivery.createdAt >= options.from)
+      .filter((delivery) => options.to === undefined || delivery.createdAt < options.to)
+      .sort((a, b) => {
+        const time = a.createdAt.getTime() - b.createdAt.getTime();
+        return time === 0 ? direction * a.id.localeCompare(b.id) : direction * time;
+      })
+      .filter((delivery) => {
+        if (options.cursor === undefined) return true;
+        const time = delivery.createdAt.getTime() - options.cursor.createdAt.getTime();
+        const compared = time === 0 ? delivery.id.localeCompare(options.cursor.id) : time;
+        return direction * compared > 0;
+      })
+      .slice(0, options.limit);
   }
 
   /** Every delivery ever stored, for assertions. */

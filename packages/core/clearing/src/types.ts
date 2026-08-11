@@ -64,8 +64,9 @@ export interface ClearingFailure {
  *
  * The counterpart of `ClearingDeposit` for the on-chain-contract path: the
  * signed order the checkout submits, the payer's display estimate, and the
- * deadline the engine enforces off-chain exactly as the contract enforces it
- * on-chain.
+ * quote deadline the engine enforces off-chain and the signed order deadline
+ * the contract enforces on-chain. They differ for deposit payments, whose
+ * execution window lasts through the payment-intent expiry.
  */
 /** The settled, fee and refund legs a `PaymentCompleted` log reported. */
 export interface OnChainSettlement {
@@ -78,7 +79,7 @@ export interface ClearingContract {
   readonly order: ContractOrder;
   /** What the payer is shown, slippage-grossed. Never a custody lock. */
   readonly payerEstimate: Money;
-  /** Past this (plus grace) the engine fails the payment with `QUOTE_EXPIRED`. */
+  /** Quote freshness deadline; the signed order may remain executable longer. */
   readonly expiresAt: Date;
   /** Set when `PaymentCompleted` is recorded; doubles as `providerReference`. */
   readonly txHash?: string;

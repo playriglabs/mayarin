@@ -7,6 +7,8 @@
  */
 
 import type {
+  ApiKey,
+  ApiKeyRepository,
   Merchant,
   MerchantAccountRepository,
   MerchantRepository,
@@ -30,11 +32,12 @@ import {
 import { and, desc, eq, lt } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction } from "../mapping.ts";
-import { merchantSettingChanges, merchants, sessions, users } from "../schema.ts";
+import { merchantApiKeys, merchantSettingChanges, merchants, sessions, users } from "../schema.ts";
 
 type UserRow = typeof users.$inferSelect;
 type SessionRow = typeof sessions.$inferSelect;
 type MerchantRow = typeof merchants.$inferSelect;
+type ApiKeyRow = typeof merchantApiKeys.$inferSelect;
 
 export class DrizzleUserRepository implements UserRepository {
   readonly #db: Executor;
@@ -285,6 +288,8 @@ function toMerchant(row: MerchantRow): Merchant {
     settlementAsset: assertAssetCode(row.settlementAsset, row.id),
     acceptedAssets: row.acceptedAssets.map((asset) => assertAssetCode(asset, row.id)),
     ...present("settlementAddress", row.settlementAddress),
+    ...present("city", row.city),
+    ...present("countryCode", row.countryCode),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     version: row.version,
@@ -312,6 +317,8 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
     settlementAsset: merchant.settlementAsset,
     acceptedAssets: [...merchant.acceptedAssets],
     settlementAddress: merchant.settlementAddress ?? null,
+    city: merchant.city ?? null,
+    countryCode: merchant.countryCode ?? null,
     createdAt: merchant.createdAt,
     updatedAt: merchant.updatedAt,
     version: merchant.version,
@@ -346,4 +353,94 @@ function toConflict(error: unknown, key: string): unknown {
     return new ConflictError(`Already exists: ${key}`, { key });
   }
   return error;
+}
+
+export class DrizzleApiKeyRepository implements ApiKeyRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async insert(key: ApiKey): Promise<void> {
+    await this.#db.insert(merchantApiKeys).values(toApiKeyRow(key));
+  }
+
+  async findById(id: string): Promise<ApiKey | null> {
+    const [row] = await this.#db
+      .select()
+      .from(merchantApiKeys)
+      .where(eq(merchantApiKeys.id, id))
+      .limit(1);
+    return row === undefined ? null : toApiKey(row);
+  }
+
+  async findBySecretHash(secretHash: string): Promise<ApiKey | null> {
+    const [row] = await this.#db
+      .select()
+      .from(merchantApiKeys)
+      .where(eq(merchantApiKeys.secretHash, secretHash))
+      .limit(1);
+    return row === undefined ? null : toApiKey(row);
+  }
+
+  async listByMerchant(merchantId: string): Promise<readonly ApiKey[]> {
+    const rows = await this.#db
+      .select()
+      .from(merchantApiKeys)
+      .where(eq(merchantApiKeys.merchantId, merchantId))
+      .orderBy(desc(merchantApiKeys.createdAt));
+    return rows.map(toApiKey);
+  }
+
+  async updateLastUsed(id: string, lastUsedAt: Date): Promise<void> {
+    await this.#db.update(merchantApiKeys).set({ lastUsedAt }).where(eq(merchantApiKeys.id, id));
+  }
+
+  async update(key: ApiKey, expectedVersion: number): Promise<void> {
+    const updated = await this.#db
+      .update(merchantApiKeys)
+      .set(toApiKeyRow(key))
+      .where(and(eq(merchantApiKeys.id, key.id), eq(merchantApiKeys.version, expectedVersion)))
+      .returning({ id: merchantApiKeys.id });
+
+    if (updated.length === 0) {
+      throw new ConcurrencyError(`API key ${key.id} was modified concurrently`, {
+        id: key.id,
+        expectedVersion,
+      });
+    }
+  }
+}
+
+function toApiKey(row: ApiKeyRow): ApiKey {
+  return {
+    id: row.id,
+    merchantId: row.merchantId,
+    name: row.name,
+    secretHash: row.secretHash,
+    prefix: row.prefix,
+    permissions: row.permissions as Permission[],
+    ...present("lastUsedAt", row.lastUsedAt),
+    active: row.active,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    version: row.version,
+  };
+}
+
+function toApiKeyRow(key: ApiKey): typeof merchantApiKeys.$inferInsert {
+  return {
+    id: key.id,
+    merchantId: key.merchantId,
+    name: key.name,
+    secretHash: key.secretHash,
+    prefix: key.prefix,
+    permissions: [...key.permissions],
+    lastUsedAt: key.lastUsedAt ?? null,
+    active: key.active,
+    createdAt: key.createdAt,
+    updatedAt: key.updatedAt,
+    version: key.version,
+  };
 }

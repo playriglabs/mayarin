@@ -1,5 +1,6 @@
 ---
 import CreateUserForm from "../components/create-user-form.tsx";
+import { PageHeader } from "../components/page-header.tsx";
 import UsersTable from "../components/users-table.tsx";
 import Protected from "../layouts/dashboard.astro";
 
@@ -10,20 +11,18 @@ const user = Astro.locals.user;
 const canManageUsers = user?.permissions.includes("users:manage") ?? false;
 ---
 
-<Protected>
-  <section class="flex flex-col gap-8">
-    <div>
-      <h1 class="text-2xl font-semibold text-stone-800">Admin</h1>
-      <p class="text-sm text-stone-500">Manage accounts in this merchant.</p>
-    </div>
+<Protected title="Admin">
+  <PageHeader title="Admin" description="Manage accounts in this merchant." />
 
-    <UsersTable client:load />
-
-    {canManageUsers && <CreateUserForm client:load />}
-    {!canManageUsers && (
-      <p class="text-sm text-stone-400">
-        You can view accounts but need the <code>users:manage</code> permission to create new ones.
+  {canManageUsers && <CreateUserForm client:load />}
+  {
+    !canManageUsers && (
+      <p class="text-xs text-subtle-foreground">
+        You can view accounts but need the <code class="font-mono">users:manage</code> permission
+        to create new ones.
       </p>
-    )}
-  </section>
+    )
+  }
+
+  <UsersTable client:load />
 </Protected>

@@ -1,0 +1,13 @@
+---
+import Catalog from "../components/catalog.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Catalog">
+  <PageHeader
+    title="Catalog"
+    description="Products priced in your own currency. Optional — payments work without them."
+  />
+  <Catalog client:load />
+</Protected>

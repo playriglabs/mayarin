@@ -1,0 +1,13 @@
+---
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+import Webhooks from "../components/webhooks.tsx";
+---
+
+<Protected title="Webhooks">
+  <PageHeader
+    title="Webhooks"
+    description="Where payment events are sent, and what your server said back."
+  />
+  <Webhooks client:load />
+</Protected>

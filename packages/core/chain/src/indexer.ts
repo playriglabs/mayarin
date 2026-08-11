@@ -36,7 +36,12 @@
  * longer `PAYMENT_PENDING`.
  */
 
-import { type Clock, type EventPublisher, noopEventPublisher } from "@mayarin/shared";
+import {
+  type Clock,
+  type EventPublisher,
+  isMayarinError,
+  noopEventPublisher,
+} from "@mayarin/shared";
 import type { ChainClient, PaymentCompletionSink } from "./client.ts";
 import { settlementOrphanedEvent, settlementUnmatchedEvent } from "./events.ts";
 import {
@@ -218,15 +223,7 @@ export class SettlementIndexer {
     let completed = 0;
     let unmatched = 0;
     for (const event of completable) {
-      const matched = await this.#sink.complete(event.intentId, {
-        txHash: event.txHash,
-        // The amounts the log carried, not the ones that were quoted. What the
-        // engine does with a difference is its business; losing it here would
-        // remove the choice.
-        settledAmount: event.settledAmount,
-        fee: event.fee,
-        refundAmount: event.refundAmount,
-      });
+      const matched = await this.#hand(event);
       // Marked either way. An unmatched log is not a transient miss to retry —
       // the router only emits `PaymentCompleted` for an `intentId` this backend
       // signed, so no match means the two records disagree, and repeating the
@@ -241,6 +238,33 @@ export class SettlementIndexer {
     }
 
     return { completed, unmatched };
+  }
+
+  /**
+   * Hands one settlement to the engine, reading a refusal as an answer.
+   *
+   * A sink that throws non-retryably has decided about this log, and the log
+   * will not change — so re-raising would stall the whole pass, and the pass
+   * repeats every tick, which turns one disagreeing record into a permanent
+   * error loop that also blocks every settlement behind it. A retryable failure
+   * (an RPC or a database) still propagates: the cursor is written last, so the
+   * next pass picks the range up again.
+   */
+  async #hand(event: SettlementEvent): Promise<boolean> {
+    try {
+      return await this.#sink.complete(event.intentId, {
+        // The amounts the log carried, not the ones that were quoted. What the
+        // engine does with a difference is its business; losing it here would
+        // remove the choice.
+        txHash: event.txHash,
+        settledAmount: event.settledAmount,
+        fee: event.fee,
+        refundAmount: event.refundAmount,
+      });
+    } catch (error) {
+      if (isMayarinError(error) && error.retryable) throw error;
+      return false;
+    }
   }
 }
 

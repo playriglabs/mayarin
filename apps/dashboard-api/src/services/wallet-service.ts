@@ -20,12 +20,16 @@
  * defaulting to the managed wallet when it is not.
  */
 
+import type { MerchantRepository } from "@mayarin/auth";
 import type { ChainId } from "@mayarin/chain";
 import {
+  type AssetCode,
   type Clock,
   ConfigurationError,
   ConflictError,
   generateId,
+  type Money,
+  money,
   NotFoundError,
   ValidationError,
 } from "@mayarin/shared";
@@ -33,14 +37,19 @@ import {
   assertChallengeSigned,
   challengeMessage,
   createChallenge,
+  isMerchantHeld,
+  isVerified,
   type ManagedWalletProvisioner,
   type MerchantKeyProvider,
   type MerchantWallet,
   type MerchantWalletRepository,
   type PasskeyAttestation,
+  type SettlementAddressResolver,
   type SignatureVerifier,
+  type WalletBalanceReader,
   type WalletChallenge,
   type WalletChallengeRepository,
+  type WalletProvider,
 } from "@mayarin/wallet";
 import type { Scope } from "../dto/auth.ts";
 
@@ -70,6 +79,39 @@ export interface WalletServiceOptions {
    * ledger shows one payment.
    */
   readonly treasuryAddresses?: readonly string[];
+  /** The merchant record, for the settlement asset and the address they configured. */
+  readonly merchants: MerchantRepository;
+  /** Where a merchant's Safe lives, and therefore where a balance is read. */
+  readonly chain: ChainId;
+  /**
+   * Reads what the settlement address holds. Absent on a deployment with no
+   * chain access — the balance endpoint then reports the address and no
+   * figures, rather than reporting zero.
+   */
+  readonly balances?: WalletBalanceReader;
+  /** Resolves the address a merchant is actually paid at, configured or managed. */
+  readonly settlementAddresses: SettlementAddressResolver;
+  /** Moves funds out of a managed wallet. The provisioner's provider, when there is one. */
+  readonly walletProvider?: WalletProvider;
+  /** The chain's own currency, reported alongside the settlement asset. */
+  readonly nativeAsset?: AssetCode;
+}
+
+/** What a merchant's payout address holds right now. */
+export interface SettlementBalance {
+  readonly chain: ChainId;
+  /** Absent when the merchant has neither configured an address nor been provisioned one. */
+  readonly address: string | undefined;
+  /** Whether Mayarin can move this balance, which needs a wallet it provisioned. */
+  readonly withdrawable: boolean;
+  readonly balances: readonly Money[];
+}
+
+export interface WithdrawRequest {
+  readonly asset: AssetCode;
+  /** Minor units, exactly as the balance reports them. */
+  readonly amount: bigint;
+  readonly to: string;
 }
 
 const DEFAULT_CHALLENGE_TTL = 600;
@@ -84,6 +126,12 @@ export class WalletService {
   readonly #provisioner: ManagedWalletProvisioner | undefined;
   readonly #keyProvider: MerchantKeyProvider | undefined;
   readonly #treasury: ReadonlySet<string>;
+  readonly #merchants: MerchantRepository;
+  readonly #chain: ChainId;
+  readonly #balances: WalletBalanceReader | undefined;
+  readonly #settlementAddresses: SettlementAddressResolver;
+  readonly #walletProvider: WalletProvider | undefined;
+  readonly #nativeAsset: AssetCode | undefined;
 
   constructor(options: WalletServiceOptions) {
     this.#wallets = options.wallets;
@@ -96,6 +144,119 @@ export class WalletService {
     this.#treasury = new Set(
       (options.treasuryAddresses ?? []).map((address) => address.toLowerCase()),
     );
+    this.#merchants = options.merchants;
+    this.#chain = options.chain;
+    this.#balances = options.balances;
+    this.#settlementAddresses = options.settlementAddresses;
+    this.#walletProvider = options.walletProvider;
+    this.#nativeAsset = options.nativeAsset;
+  }
+
+  /**
+   * What the merchant's payout address holds on-chain.
+   *
+   * Read from the chain rather than from the ledger, because after an on-chain
+   * settlement the money is not Mayarin's to account for: the ledger's last word
+   * on it is that it left. The gas asset comes back alongside the settlement
+   * asset — a Safe with a balance and no way to pay for moving it is the state
+   * a merchant needs to see before they try.
+   */
+  async balance(scope: Scope): Promise<SettlementBalance> {
+    const merchant = await this.#merchant(scope);
+    const address = await this.#settlementAddresses.effective(
+      scope.merchantId,
+      this.#chain,
+      merchant.settlementAddress,
+    );
+
+    if (address === undefined || this.#balances === undefined) {
+      return { chain: this.#chain, address, withdrawable: false, balances: [] };
+    }
+
+    const assets = [merchant.settlementAsset, this.#nativeAsset].filter(
+      (asset): asset is AssetCode => asset !== undefined,
+    );
+    const managed = await this.#wallets.findManaged(scope.merchantId, this.#chain);
+
+    return {
+      chain: this.#chain,
+      address,
+      // Only a wallet Mayarin provisioned can be moved from here. A merchant who
+      // pointed settlement at an address they hold themselves withdraws from it
+      // in their own wallet, and it would be a lie to offer them a button.
+      withdrawable:
+        this.#walletProvider !== undefined &&
+        managed !== null &&
+        isVerified(managed) &&
+        managed.address === address,
+      balances: await this.#balances.balances({
+        chain: this.#chain,
+        address,
+        assets: [...new Set(assets)],
+      }),
+    };
+  }
+
+  /**
+   * Moves settlement out of the merchant's managed wallet.
+   *
+   * The destination must be one of *this* merchant's verified merchant-held
+   * wallets. Not any address they type: a dashboard session is a bearer
+   * credential, and an arbitrary destination turns a stolen session into a
+   * transfer. Verification is a signature the merchant produced, so the
+   * destination is an address somebody proved they control — and proving it is
+   * a step an attacker with a session cannot take.
+   */
+  async withdraw(scope: Scope, request: WithdrawRequest): Promise<{ txHash: string }> {
+    const provider = this.#walletProvider;
+    if (provider === undefined) {
+      throw new ConfigurationError(
+        "This deployment has no wallet provider configured and cannot move funds",
+        {},
+      );
+    }
+    if (request.amount <= 0n) {
+      throw new ValidationError("A withdrawal must be a positive amount", {
+        amount: request.amount.toString(),
+      });
+    }
+
+    const managed = await this.#wallets.findManaged(scope.merchantId, this.#chain);
+    if (managed === null || !isVerified(managed)) {
+      throw new NotFoundError("This merchant has no provisioned wallet to withdraw from", {
+        chain: this.#chain,
+      });
+    }
+
+    const to = normaliseAddress(request.to);
+    const destinations = await this.#wallets.listByMerchant(scope.merchantId);
+    const destination = destinations.find(
+      (wallet) =>
+        wallet.address === to &&
+        wallet.chain === this.#chain &&
+        isMerchantHeld(wallet) &&
+        isVerified(wallet),
+    );
+    if (destination === undefined) {
+      throw new ValidationError(
+        "A withdrawal may only go to one of your own verified wallets; link and verify the address first",
+        { to, chain: this.#chain },
+      );
+    }
+
+    return provider.propose(managed, {
+      kind: "withdraw",
+      amount: money(request.amount, request.asset),
+      to: destination.address,
+    });
+  }
+
+  async #merchant(scope: Scope) {
+    const merchant = await this.#merchants.findById(scope.merchantId);
+    if (merchant === null) {
+      throw new NotFoundError(`Merchant ${scope.merchantId} not found`, { id: scope.merchantId });
+    }
+    return merchant;
   }
 
   async list(scope: Scope): Promise<readonly MerchantWallet[]> {

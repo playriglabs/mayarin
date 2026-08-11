@@ -41,6 +41,17 @@ export interface Merchant {
    * is what makes it a managed smart account.
    */
   readonly settlementAddress?: string;
+  /**
+   * Where the merchant trades, as a buyer is shown it.
+   *
+   * Part of the merchant snapshot every Payment Intent freezes, and an EMVCo
+   * QR carries both fields by construction. Optional because a merchant exists
+   * before anyone has filled in their profile — but a payment link cannot be
+   * minted without them, so the surface that mints links asks for them.
+   */
+  readonly city?: string;
+  /** ISO 3166-1 alpha-2, uppercase. */
+  readonly countryCode?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   /**
@@ -93,6 +104,8 @@ export const MERCHANT_SETTING_FIELDS = [
   "settlementAsset",
   "acceptedAssets",
   "settlementAddress",
+  "city",
+  "countryCode",
 ] as const;
 
 export type MerchantSettingField = (typeof MERCHANT_SETTING_FIELDS)[number];
@@ -113,6 +126,9 @@ export interface MerchantSettingsPatch {
    * second.
    */
   readonly settlementAddress?: string | null;
+  /** Same `null`-clears-it rule as the address. */
+  readonly city?: string | null;
+  readonly countryCode?: string | null;
 }
 
 /**
@@ -147,18 +163,34 @@ export function updateMerchantSettings(
         ? undefined
         : normaliseAddress(patch.settlementAddress);
 
+  const city = patchOptional(patch.city, merchant.city, normaliseCity);
+  const countryCode = patchOptional(patch.countryCode, merchant.countryCode, normaliseCountryCode);
+
   // Destructured away rather than spread over: `...merchant` would carry the
-  // existing address through, so clearing one would silently leave it in place.
-  const { settlementAddress: _previous, ...rest } = merchant;
+  // existing values through, so clearing one would silently leave it in place.
+  const { settlementAddress: _address, city: _city, countryCode: _country, ...rest } = merchant;
 
   return {
     ...rest,
     settlementAsset,
     acceptedAssets,
     ...(settlementAddress === undefined ? {} : { settlementAddress }),
+    ...(city === undefined ? {} : { city }),
+    ...(countryCode === undefined ? {} : { countryCode }),
     updatedAt: new Date(now),
     version: merchant.version + 1,
   };
+}
+
+/** Absent leaves the current value, `null` clears it, a value is normalised. */
+function patchOptional(
+  patched: string | null | undefined,
+  current: string | undefined,
+  normalise: (value: string) => string,
+): string | undefined {
+  if (patched === undefined) return current;
+  if (patched === null) return undefined;
+  return normalise(patched);
 }
 
 /** The fields that actually differ between two versions of a merchant. */
@@ -182,11 +214,12 @@ export function diffMerchantSettings(
     changes.push({ field: "acceptedAssets", previous: beforeAccepted, next: afterAccepted });
   }
 
-  if (before.settlementAddress !== after.settlementAddress) {
+  for (const field of ["settlementAddress", "city", "countryCode"] as const) {
+    if (before[field] === after[field]) continue;
     changes.push({
-      field: "settlementAddress",
-      ...(before.settlementAddress === undefined ? {} : { previous: before.settlementAddress }),
-      ...(after.settlementAddress === undefined ? {} : { next: after.settlementAddress }),
+      field,
+      ...(before[field] === undefined ? {} : { previous: before[field] }),
+      ...(after[field] === undefined ? {} : { next: after[field] }),
     });
   }
 
@@ -214,6 +247,28 @@ function normaliseAddress(value: string): string {
     throw new ValidationError("The zero address cannot receive settlement", {});
   }
   return lowered;
+}
+
+function normaliseCity(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > 64) {
+    throw new ValidationError("A city must be between 1 and 64 characters", { city: trimmed });
+  }
+  return trimmed;
+}
+
+/**
+ * ISO 3166-1 alpha-2, uppercased.
+ *
+ * Two letters and nothing else: the EMVCo tag it ends up in is fixed-width, so
+ * a three-letter code accepted here is a QR that fails to parse at a terminal.
+ */
+function normaliseCountryCode(value: string): string {
+  const trimmed = value.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(trimmed)) {
+    throw new ValidationError("A country code is two letters, e.g. ID", { countryCode: trimmed });
+  }
+  return trimmed;
 }
 
 /**

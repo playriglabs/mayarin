@@ -6,12 +6,22 @@
  * Query mutation; a success redirects to the dashboard, a failure maps the
  * typed `ApiError` to a human reason. `withQuery` mounts this component below
  * the shared `QueryClientProvider` so SSR resolves the context.
+ *
+ * The error is announced through `role="alert"` and bound to both inputs with
+ * `aria-describedby`, so a failed sign-in reaches a screen reader without the
+ * user hunting for it.
  */
 
+import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
+import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { useLogin } from "@/hooks/auth";
 import { ApiError } from "@/lib/api/client";
+import { ICON_NAV } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
 
 type FormState =
@@ -36,8 +46,10 @@ function LoginForm() {
   const [state, setState] = useState<FormState>({ status: "idle" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [revealed, setRevealed] = useState(false);
   const login = useLogin();
   const submitting = login.isPending || state.status === "submitting";
+  const errorId = state.status === "error" ? "login-error" : undefined;
 
   function onSubmit(event: { preventDefault(): void }) {
     event.preventDefault();
@@ -56,52 +68,86 @@ function LoginForm() {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-    >
-      <h1 className="text-xl font-semibold text-stone-800">Mayarin Dashboard</h1>
-      <p className="text-sm text-stone-500">Sign in to manage payments.</p>
+    <form onSubmit={onSubmit} className="flex w-full max-w-sm flex-col gap-6 bg-card p-6">
+      <div className="flex flex-col gap-4">
+        <p className="label flex items-center gap-2.5 text-muted-foreground">
+          <span aria-hidden="true" className="inline-block size-1.5 bg-electric" />
+          Mayarin
+        </p>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-medium text-foreground">Sign in</h1>
+          <p className="text-sm text-muted-foreground">Manage payments and settlement.</p>
+        </div>
+      </div>
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-stone-600">Email</span>
-        <input
-          type="email"
-          required
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={submitting}
-          className="rounded border border-stone-300 px-3 py-2 disabled:opacity-60"
-        />
-      </label>
+      <div className="flex flex-col gap-3">
+        <Field>
+          <FieldLabel htmlFor="login-email">Email</FieldLabel>
+          <Input
+            id="login-email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={submitting}
+            aria-describedby={errorId}
+          />
+        </Field>
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-stone-600">Password</span>
-        <input
-          type="password"
-          required
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={submitting}
-          className="rounded border border-stone-300 px-3 py-2 disabled:opacity-60"
-        />
-      </label>
+        <Field>
+          <FieldLabel htmlFor="login-password">Password</FieldLabel>
+          <InputGroup>
+            <InputGroupInput
+              id="login-password"
+              // Swapping `type` is what actually reveals the value. The field
+              // keeps its `autoComplete` either way, so a password manager
+              // still recognises it while revealed.
+              type={revealed ? "text" : "password"}
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={submitting}
+              aria-describedby={errorId}
+            />
+            <InputGroupButton
+              onClick={() => setRevealed((previous) => !previous)}
+              disabled={submitting}
+              // The label states the ACTION the press performs; `aria-pressed`
+              // carries the current state. Together a screen reader announces
+              // both what pressing does and whether it is already on.
+              aria-label={revealed ? "Hide password" : "Show password"}
+              aria-pressed={revealed}
+              aria-controls="login-password"
+            >
+              {revealed ? (
+                <EyeSlashIcon size={ICON_NAV} aria-hidden="true" />
+              ) : (
+                <EyeIcon size={ICON_NAV} aria-hidden="true" />
+              )}
+            </InputGroupButton>
+          </InputGroup>
+        </Field>
+      </div>
 
-      {match(state)
-        .with({ status: "idle" }, () => null)
-        .with({ status: "submitting" }, () => <p className="text-sm text-stone-500">Signing in…</p>)
-        .with({ status: "error" }, (s) => <p className="text-sm text-red-600">{s.reason}</p>)
-        .exhaustive()}
+      <div aria-live="polite" className="empty:hidden">
+        {match(state)
+          .with({ status: "idle" }, () => null)
+          .with({ status: "submitting" }, () => (
+            <p className="text-xs text-subtle-foreground">Signing in…</p>
+          ))
+          .with({ status: "error" }, (s) => (
+            <p id="login-error" role="alert" className="text-xs text-destructive">
+              {s.reason}
+            </p>
+          ))
+          .exhaustive()}
+      </div>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded bg-stone-800 px-4 py-2 font-medium text-white disabled:opacity-60"
-      >
-        Sign in
-      </button>
+      <Button type="submit" disabled={submitting} className="w-full">
+        {submitting ? "Signing in…" : "Sign in"}
+      </Button>
     </form>
   );
 }

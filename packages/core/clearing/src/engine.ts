@@ -45,6 +45,7 @@ import {
   noopEventPublisher,
   ProviderError,
   QuoteExpiredError,
+  roundUpToPayerPrecision,
   serializeMoney,
   subtract,
   ValidationError,
@@ -61,7 +62,7 @@ import {
 } from "./postings.ts";
 import { lockRate, type RateProvider } from "./rate.ts";
 import type { ClearingRepository } from "./repository.ts";
-import { isTerminal } from "./state-machine.ts";
+import { canTransition, isTerminal } from "./state-machine.ts";
 import {
   createClearingTransaction,
   failTransaction,
@@ -280,6 +281,12 @@ export class ClearingEngine {
   ): Promise<ClearingProgress> {
     const transaction = await this.getById(id);
     if (transaction.executionPath !== "on-chain-contract") {
+      // The deposit path reaches the router too, through the treasury executor
+      // (#11): the engine made that call itself and recorded what came back, so
+      // the indexer's log is an echo of work already done rather than news.
+      // Advancing is the honest answer — a no-op for a payment that finished,
+      // and a resume for one that stalled after the call went through.
+      if (transaction.contract !== undefined) return this.#advance(transaction);
       throw new ValidationError(`Clearing transaction ${id} is not on the on-chain-contract path`, {
         id,
         executionPath: transaction.executionPath,
@@ -351,9 +358,16 @@ export class ClearingEngine {
         // Retryable failures leave the transaction where it is so a later retry
         // — or `resumeStuck` — can pick it up from the same state.
         if (isMayarinError(error) && error.retryable) throw error;
+        // A state the machine cannot fail from is one where failing is not the
+        // honest answer either: `SETTLED` means the money has already moved, so
+        // there is nothing to fail — only a step left to finish. Attempting it
+        // anyway raised a second, misleading error that buried the first, and
+        // left the payment wedged with no way to read what had gone wrong.
+        if (!canTransition(current.state, "FAILED")) throw error;
         const reason = error instanceof Error ? error.message : String(error);
         const code = isMayarinError(error) ? error.code : "CLEARING_FAILED";
-        return { transaction: await this.#fail(current, reason, code), waiting: false };
+        const details = isMayarinError(error) ? error.details : {};
+        return { transaction: await this.#fail(current, reason, code, details), waiting: false };
       }
 
       if (stepped === null) return { transaction: current, waiting: true };
@@ -622,6 +636,12 @@ export class ClearingEngine {
       chain: rail.chain,
       // The payer has no address on this path; excess is Mayarin's.
       payerAddress: treasury,
+      // Price freshness and execution availability are different clocks. A
+      // scanning or custodial payer may fund until the intent expires, and the
+      // watcher still needs confirmation/indexing time after that.
+      orderExpiresAt: new Date(
+        intent.expiresAt.getTime() + this.#contractExpiryGraceSeconds * 1_000,
+      ),
     });
 
     const netAmount = subtract(lock.settlementAmount, lock.fee);
@@ -636,10 +656,15 @@ export class ClearingEngine {
       );
     }
 
-    if (!isPositive(lock.payerEstimate)) {
+    // The planner prices at the asset's native precision. A payer-facing
+    // deposit must use the registry's payable precision instead, and must
+    // round up so the displayed/encoded amount can never underfund the lock.
+    const payerAmount = roundUpToPayerPrecision(lock.payerEstimate);
+
+    if (!isPositive(payerAmount)) {
       throw new ValidationError("Deposit amount must be greater than zero", {
-        amount: lock.payerEstimate.amount.toString(),
-        asset: lock.payerEstimate.asset,
+        amount: payerAmount.amount.toString(),
+        asset: payerAmount.asset,
       });
     }
 
@@ -657,7 +682,7 @@ export class ClearingEngine {
       chain: rail.chain,
       address: allocated.address,
       // What the payer must send. Grossed, so a normal fill clears `minOut`.
-      amount: lock.payerEstimate,
+      amount: payerAmount,
       rate: lock.rate,
     };
 
@@ -674,7 +699,7 @@ export class ClearingEngine {
           deposit,
           contract: {
             order: lock.order,
-            payerEstimate: lock.payerEstimate,
+            payerEstimate: payerAmount,
             expiresAt: lock.expiresAt,
           },
         },
@@ -718,7 +743,16 @@ export class ClearingEngine {
       rail.asset,
       transaction.sourceAmount,
     );
-    const amount = convert(transaction.sourceAmount, rail.asset, quote.scaledRate);
+    // Rounded up to what a payer can actually type. ETH converts to eighteen
+    // decimals, and an amount written out that far is one no wallet field
+    // accepts and no human enters correctly — so it is entered short, and a
+    // short deposit never funds, because funding wants the total to *reach*
+    // what is owed. Rounding up costs the payer dust and always clears. Done
+    // here rather than at display time so the address, the QR and the figure on
+    // screen all carry the same number.
+    const amount = roundUpToPayerPrecision(
+      convert(transaction.sourceAmount, rail.asset, quote.scaledRate),
+    );
 
     if (!isPositive(amount)) {
       throw new ValidationError("Deposit amount must be greater than zero", {
@@ -1050,9 +1084,10 @@ export class ClearingEngine {
     transaction: ClearingTransaction,
     reason: string,
     code: string,
+    details: Readonly<Record<string, unknown>> = {},
   ): Promise<ClearingTransaction> {
     const failed = await this.#apply(
-      failTransaction(transaction, { reason, code, at: this.#clock.now() }),
+      failTransaction(transaction, { reason, code, at: this.#clock.now() }, details),
     );
 
     const intent = await this.#intents.getById(transaction.paymentIntentId);

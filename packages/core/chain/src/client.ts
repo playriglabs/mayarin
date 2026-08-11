@@ -40,6 +40,21 @@ export interface ChainClient {
   /** Canonical hash at a height, or `null` past the head. Drives the reorg probe. */
   blockHash(chain: ChainId, number: bigint): Promise<string | null>;
   transfers(query: TransferQuery): Promise<TransferLog[]>;
+  /**
+   * Balances of watched addresses at a settled height (#15).
+   *
+   * The complement to `transfers` for a native asset. A block body lists only
+   * top-level transactions, so ETH moved by a contract — a smart-contract
+   * wallet, an exchange sweeping through a router — arrives as an internal call
+   * and is invisible to that scan. Smart-contract wallets are not an edge case
+   * any more, and a payer whose transfer is never noticed is a payer who paid
+   * and was told they did not.
+   *
+   * A balance sees value however it arrived, at the cost of saying nothing
+   * about how: no sender, no transaction. Read at a height already past the
+   * confirmation depth, so what it reports is settled by construction.
+   */
+  nativeBalances(query: BalanceQuery): Promise<NativeBalance[]>;
   /** `PaymentCompleted` logs emitted by the router in the range. */
   settlements(query: SettlementQuery): Promise<SettlementLog[]>;
 }
@@ -50,6 +65,22 @@ export interface ChainClient {
  * A port so that secp256k1 and BIP-32 stay out of `core`. The implementation
  * holds a watch-only extended public key and cannot sign.
  */
+export interface BalanceQuery {
+  readonly chain: ChainId;
+  readonly asset: AssetCode;
+  readonly addresses: readonly string[];
+  /** Read at this height — already confirmed, so the answer cannot un-happen. */
+  readonly block: bigint;
+}
+
+/** What an address holds at one settled block. */
+export interface NativeBalance {
+  readonly address: string;
+  readonly amount: bigint;
+  readonly blockNumber: bigint;
+  readonly blockHash: string;
+}
+
 export interface DepositAddressDeriver {
   derive(index: number): string;
 }

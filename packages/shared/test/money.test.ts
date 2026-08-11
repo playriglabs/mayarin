@@ -10,6 +10,7 @@ import {
   fromDecimalString,
   money,
   multiplyByBasisPoints,
+  roundUpToPayerPrecision,
   scaledRateFrom,
   serializeMoney,
   subtract,
@@ -190,5 +191,35 @@ describe("rate precision (#90)", () => {
   test("refuses a non-positive denominator rather than dividing by zero", () => {
     expect(() => scaledRateFrom(1n, 0n)).toThrow(ValidationError);
     expect(() => scaledRateFrom(1n, -1n)).toThrow(ValidationError);
+  });
+});
+
+describe("roundUpToPayerPrecision", () => {
+  test("rounds an ETH amount up to the eight decimals a wallet accepts", () => {
+    // 0.004166666666666663 ETH — the exact conversion, and a figure no payer
+    // enters correctly into a wallet field that stops at eight.
+    const exact = money(4_166_666_666_666_663n, "ETH");
+    expect(toDecimalString(roundUpToPayerPrecision(exact))).toBe("0.004166670000000000");
+  });
+
+  test("rounds up, never down — a short deposit never funds", () => {
+    const exact = money(4_166_666_666_666_663n, "ETH");
+    // Funding needs the confirmed total to *reach* what is owed, so the rounded
+    // figure must never be less than the amount actually required.
+    expect(roundUpToPayerPrecision(exact).amount).toBeGreaterThan(exact.amount);
+  });
+
+  test("leaves an amount already at the payer's precision alone", () => {
+    const round = money(4_166_670_000_000_000n, "ETH");
+    expect(roundUpToPayerPrecision(round)).toEqual(round);
+  });
+
+  test("is the identity for assets whose own precision is already payable", () => {
+    // USDC's six decimals and IDR's two are figures a payer can type as they
+    // are, so nothing is rounded and no dust is asked for.
+    const usdc = money(12_500_000n, "USDC");
+    expect(roundUpToPayerPrecision(usdc)).toEqual(usdc);
+    const idr = money(5_043_217n, "IDR");
+    expect(roundUpToPayerPrecision(idr)).toEqual(idr);
   });
 });

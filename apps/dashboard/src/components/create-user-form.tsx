@@ -11,19 +11,37 @@
  * `QueryClientProvider`.
  */
 
+import { UserPlusIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
-import { useCreateUser } from "@/hooks/admin";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAdminUsers, useCreateUser } from "@/hooks/admin";
 import { ApiError } from "@/lib/api/client";
 import { withQuery } from "@/lib/with-query";
-import { PERMISSION_LIST, type Permission } from "@/types/user";
-
-const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
-  "payments:read": "View payments",
-  "users:manage": "Manage users",
-  "admin:access": "Admin dashboard",
-} as const;
+import { PERMISSION_LABELS, PERMISSION_LIST, type Permission } from "@/types/user";
 
 type FormState =
   | { readonly status: "idle" }
@@ -50,7 +68,9 @@ function reasonOf(error: unknown): string {
 
 function CreateUserForm() {
   const queryClient = useQueryClient();
+  const users = useAdminUsers();
   const create = useCreateUser();
+  const [open, setOpen] = useState(false);
   const [state, setState] = useState<FormState>({ status: "idle" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,6 +79,20 @@ function CreateUserForm() {
   const submitting = create.isPending || state.status === "submitting";
   const passwordInvalid = password.length > 0 && password.length < 12;
   const canSubmit = email.trim() !== "" && perms.size > 0 && !passwordInvalid && !submitting;
+
+  useEffect(() => {
+    const show = () => {
+      setState({ status: "idle" });
+      setOpen(true);
+    };
+    window.addEventListener("mayarin:grant-account", show);
+    return () => window.removeEventListener("mayarin:grant-account", show);
+  }, []);
+
+  function changeOpen(next: boolean) {
+    setOpen(next);
+    if (next) setState({ status: "idle" });
+  }
 
   function togglePerm(p: Permission) {
     setPerms((prev) => {
@@ -98,92 +132,126 @@ function CreateUserForm() {
     );
   }
 
+  if (users.isPending) return null;
+
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex w-full max-w-md flex-col gap-4 rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
-    >
-      <div>
-        <h2 className="text-lg font-semibold text-stone-800">Grant an account</h2>
-        <p className="text-sm text-stone-500">New accounts are scoped to this merchant only.</p>
-      </div>
-
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-stone-600">Email</span>
-        <input
-          type="email"
-          required
-          autoComplete="off"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={submitting}
-          className="rounded border border-stone-300 px-3 py-2 disabled:opacity-60"
+    <div id="grant-account" className="flex justify-end">
+      <Dialog open={open} onOpenChange={changeOpen}>
+        <DialogTrigger
+          render={
+            <Button>
+              <UserPlusIcon size={16} weight="bold" aria-hidden="true" />
+              Grant account
+            </Button>
+          }
         />
-      </label>
+        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Grant an account</DialogTitle>
+            <DialogDescription>New accounts are scoped to this merchant only.</DialogDescription>
+          </DialogHeader>
 
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-stone-600">Password (optional)</span>
-        <input
-          type="text"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={submitting}
-          className="rounded border border-stone-300 px-3 py-2 font-mono text-xs disabled:opacity-60"
-        />
-        <span className="text-xs text-stone-400">
-          Leave blank to auto-generate a strong password. If set, at least 12 characters.
-        </span>
-        {passwordInvalid && (
-          <span className="text-xs text-red-600">Password must be at least 12 characters.</span>
-        )}
-      </label>
+          <form onSubmit={onSubmit} className="flex flex-col gap-5">
+            <div className="flex flex-col gap-3">
+              <Field>
+                <FieldLabel htmlFor="new-user-email">Email</FieldLabel>
+                <Input
+                  id="new-user-email"
+                  type="email"
+                  required
+                  autoComplete="off"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={submitting}
+                />
+              </Field>
 
-      <fieldset className="flex flex-col gap-2 text-sm">
-        <legend className="font-medium text-stone-600">Permissions</legend>
-        {PERMISSION_LIST.map((p) => (
-          <label key={p} className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={perms.has(p)}
-              onChange={() => togglePerm(p)}
-              disabled={submitting}
-              className="h-4 w-4"
-            />
-            <span className="text-stone-700">{PERMISSION_LABELS[p]}</span>
-          </label>
-        ))}
-      </fieldset>
+              <Field>
+                <FieldLabel htmlFor="new-user-password">Password</FieldLabel>
+                <Input
+                  id="new-user-password"
+                  type="text"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={submitting}
+                  aria-invalid={passwordInvalid}
+                  aria-describedby="new-user-password-hint"
+                  className="font-mono text-xs"
+                />
+                <FieldDescription id="new-user-password-hint">
+                  Leave blank to auto-generate a strong password. If set, at least 12 characters.
+                </FieldDescription>
+                {passwordInvalid && (
+                  <FieldError>Password must be at least 12 characters.</FieldError>
+                )}
+              </Field>
+            </div>
 
-      {match(state)
-        .with({ status: "idle" }, () => null)
-        .with({ status: "submitting" }, () => (
-          <p className="text-sm text-stone-500">Creating account…</p>
-        ))
-        .with({ status: "error" }, (s) => <p className="text-sm text-red-600">{s.reason}</p>)
-        .with({ status: "created" }, (s) => (
-          <div className="rounded border border-green-200 bg-green-50 p-3 text-sm">
-            <p className="font-medium text-green-800">Account created.</p>
-            {s.generatedPassword !== undefined ? (
-              <p className="mt-1 text-green-700">
-                Generated password (store it now):{" "}
-                <code className="font-mono">{s.generatedPassword}</code>
-              </p>
-            ) : (
-              <p className="mt-1 text-green-700">The supplied password is active.</p>
-            )}
-          </div>
-        ))
-        .exhaustive()}
+            <FieldSet>
+              <FieldLegend className="mb-3">Permissions</FieldLegend>
+              {PERMISSION_LIST.map((p) => {
+                // `Checkbox` renders a <button role="checkbox">. A button IS a
+                // labelable element, so `htmlFor` both names it and toggles it on
+                // click — which wrapping it in the label would NOT have done.
+                const id = `perm-${p.replace(":", "-")}`;
+                return (
+                  <div key={p} className="flex items-center gap-2">
+                    <Checkbox
+                      id={id}
+                      checked={perms.has(p)}
+                      onCheckedChange={() => togglePerm(p)}
+                      disabled={submitting}
+                    />
+                    <Label htmlFor={id} className="cursor-pointer text-sm text-foreground">
+                      {PERMISSION_LABELS[p]}
+                    </Label>
+                  </div>
+                );
+              })}
+            </FieldSet>
 
-      <button
-        type="submit"
-        disabled={!canSubmit}
-        className="rounded bg-stone-800 px-4 py-2 font-medium text-white disabled:opacity-60"
-      >
-        Create account
-      </button>
-    </form>
+            <div aria-live="polite" className="empty:hidden">
+              {match(state)
+                .with({ status: "idle" }, () => null)
+                .with({ status: "submitting" }, () => (
+                  <p className="text-xs text-subtle-foreground">Creating account…</p>
+                ))
+                .with({ status: "error" }, (s) => <Alert variant="destructive">{s.reason}</Alert>)
+                .with({ status: "created" }, (s) => (
+                  <div className="border border-border bg-brand-muted px-3 py-2">
+                    <p className="text-xs font-medium text-success">Account created.</p>
+                    {s.generatedPassword !== undefined ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Generated password (store it now):{" "}
+                        <code className="font-mono text-foreground">{s.generatedPassword}</code>
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        The supplied password is active.
+                      </p>
+                    )}
+                  </div>
+                ))
+                .exhaustive()}
+            </div>
+
+            <DialogFooter>
+              <DialogClose
+                render={
+                  <Button type="button" variant="secondary">
+                    Cancel
+                  </Button>
+                }
+              />
+              <Button type="submit" variant="default" disabled={!canSubmit}>
+                Create account
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

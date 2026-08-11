@@ -5,7 +5,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./testing": "./testing/index.ts"
+    "./testing": "./testing/index.ts",
+    "./asset": "./src/asset.ts",
+    "./money": "./src/money.ts",
+    "./locale": "./src/locale.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

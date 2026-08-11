@@ -116,6 +116,16 @@ describe("expiry", () => {
     expect(isExpired(completed, new Date(NOW.getTime() + 3_600_000))).toBe(false);
   });
 
+  test("never applies to a payment already being processed", () => {
+    // The payer's asset is in flight and the clearing engine owns the outcome,
+    // so "nobody paid in time" has stopped being true. `PROCESSING` lists no
+    // `EXPIRED` successor, and calling it expired anyway made every later read
+    // of the intent throw — wedging a payment that funded slowly instead of
+    // settling it.
+    const processing = markProcessing(confirm(intent, NOW), "clr_x", NOW);
+    expect(isExpired(processing, new Date(NOW.getTime() + 3_600_000))).toBe(false);
+  });
+
   test("blocks confirmation after the deadline", () => {
     expect(() => confirm(intent, new Date(NOW.getTime() + 60_000))).toThrow(
       InvalidStateTransitionError,

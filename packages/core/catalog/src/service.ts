@@ -59,7 +59,8 @@ export type CreatePaymentLinkCommand = Omit<CreatePaymentLinkInput, "now">;
 
 export interface UpdateProductCommand {
   readonly name?: string;
-  readonly description?: string;
+  /** `null` clears the description; an absent field leaves it alone. */
+  readonly description?: string | null;
   readonly prices?: readonly Money[];
   readonly active?: boolean;
   readonly metadata?: Readonly<Record<string, string>>;
@@ -180,6 +181,13 @@ export interface CheckoutCartCommand extends IntentOptions {
   readonly lines: readonly CheckoutLineInput[];
 }
 
+/** What a link costs, and what makes up that cost. */
+export interface LinkPreview {
+  readonly lines: readonly CartLine[];
+  readonly currency: AssetCode;
+  readonly total: Money;
+}
+
 export interface CheckoutLinkCommand extends IntentOptions {
   /** Required by an `open` link, refused by the others — they price themselves. */
   readonly amount?: Money;
@@ -207,8 +215,32 @@ export class CheckoutService {
 
   /** Prices a cart and mints one intent for the total. */
   async checkoutCart(command: CheckoutCartCommand): Promise<PaymentIntent> {
-    const lines = await this.#resolveLines(command.merchant.id, command.lines, command.currency);
+    const lines = await resolveLines(
+      this.#products,
+      command.merchant.id,
+      command.lines,
+      command.currency,
+    );
     return this.#mint(command.merchant, lines, command.currency, command);
+  }
+
+  /**
+   * Prices a link without minting anything.
+   *
+   * The hosted checkout shows a buyer what they are about to pay for *before*
+   * they commit, and a catalog link's total lives in the products rather than
+   * on the link — so the page cannot add it up on its own. Minting an intent to
+   * find out would lock a price and burn a deposit address for a buyer who has
+   * not decided yet.
+   *
+   * Same pricing path as `checkoutLink`, so the preview and the payment agree.
+   */
+  async previewLink(linkId: string, amount?: Money): Promise<LinkPreview> {
+    const link = await this.#links.findById(linkId);
+    if (link === null) {
+      throw new NotFoundError(`Payment link ${linkId} not found`, { id: linkId });
+    }
+    return priceLink(this.#products, link, amount);
   }
 
   /** Mints an intent from a link, in whichever shape the link takes. */
@@ -219,7 +251,7 @@ export class CheckoutService {
     }
     assertPayable(link, this.#clock.now());
 
-    const { lines, currency } = await this.#linkLines(link, command.amount);
+    const { lines, currency } = await linkLines(this.#products, link, command.amount);
 
     const merchantReference = command.merchantReference ?? link.merchantReference;
 
@@ -229,126 +261,6 @@ export class CheckoutService {
       // it, and `paymentLinkId` is ours to set last so neither can forge it.
       metadata: { ...link.metadata, ...command.metadata, paymentLinkId: link.id },
       ...(merchantReference === undefined ? {} : { merchantReference }),
-    });
-  }
-
-  async #linkLines(
-    link: PaymentLink,
-    amount: Money | undefined,
-  ): Promise<{ lines: readonly CartLine[]; currency: AssetCode }> {
-    switch (link.kind) {
-      case "fixed": {
-        // Narrowed by `createPaymentLink`, which refuses a fixed link without one.
-        const fixed = link.amount;
-        if (fixed === undefined) {
-          throw new ValidationError(`Payment link ${link.id} is missing its amount`, {
-            id: link.id,
-          });
-        }
-        if (amount !== undefined) {
-          throw new ValidationError(
-            `Payment link ${link.id} has a fixed amount and cannot be overridden`,
-            { id: link.id },
-          );
-        }
-        return {
-          lines: [{ name: link.title ?? "Payment", unitPrice: fixed, quantity: 1 }],
-          currency: fixed.asset,
-        };
-      }
-      case "open": {
-        const currency = link.currency;
-        if (currency === undefined) {
-          throw new ValidationError(`Payment link ${link.id} is missing its currency`, {
-            id: link.id,
-          });
-        }
-        if (amount === undefined) {
-          throw new ValidationError(`Payment link ${link.id} requires an amount`, { id: link.id });
-        }
-        if (amount.asset !== currency) {
-          throw new ValidationError(
-            `Payment link ${link.id} is denominated in ${currency}, not ${amount.asset}`,
-            { id: link.id, currency, submitted: amount.asset },
-          );
-        }
-        return {
-          lines: [{ name: link.title ?? "Payment", unitPrice: amount, quantity: 1 }],
-          currency,
-        };
-      }
-      case "catalog": {
-        const currency = link.currency;
-        if (currency === undefined || link.lines === undefined) {
-          throw new ValidationError(`Payment link ${link.id} is missing its catalog lines`, {
-            id: link.id,
-          });
-        }
-        if (amount !== undefined) {
-          throw new ValidationError(
-            `Payment link ${link.id} is priced from the catalog and cannot be overridden`,
-            { id: link.id },
-          );
-        }
-        const lines = await this.#resolveLines(link.merchant.id, link.lines, currency);
-        return { lines, currency };
-      }
-    }
-  }
-
-  /**
-   * Turns submitted lines into priced ones.
-   *
-   * A catalog reference is resolved now and frozen: the unit price that reaches
-   * the intent is the one that was live at checkout, and a later price edit
-   * cannot reach back into a payment already under way.
-   */
-  async #resolveLines(
-    merchantId: string,
-    lines: readonly (CheckoutLineInput | PaymentLinkLine)[],
-    currency: AssetCode,
-  ): Promise<readonly CartLine[]> {
-    const ids = lines
-      .map((line) => ("productId" in line ? line.productId : undefined))
-      .filter((id): id is string => id !== undefined);
-
-    const byId = new Map(
-      ids.length === 0
-        ? []
-        : (await this.#products.findManyById(ids)).map((product) => [product.id, product] as const),
-    );
-
-    return lines.map((line) => {
-      if (!("productId" in line)) {
-        return { name: line.name, unitPrice: line.unitPrice, quantity: line.quantity };
-      }
-
-      const product = byId.get(line.productId);
-      if (product === undefined) {
-        throw new NotFoundError(`Product ${line.productId} not found`, { id: line.productId });
-      }
-      if (product.merchantId !== merchantId) {
-        throw new ValidationError(`Product ${product.id} belongs to another merchant`, {
-          productId: product.id,
-          merchantId,
-        });
-      }
-      if (!product.active) {
-        throw new ValidationError(`Product ${product.id} is not for sale`, {
-          productId: product.id,
-        });
-      }
-
-      const unitPrice = priceIn(product.prices, currency);
-      if (unitPrice === undefined) {
-        throw new ValidationError(`Product ${product.id} has no price in ${currency}`, {
-          productId: product.id,
-          currency,
-          pricedIn: product.prices.map((price) => price.asset),
-        });
-      }
-
-      return { productId: product.id, name: product.name, unitPrice, quantity: line.quantity };
     });
   }
 
@@ -378,4 +290,144 @@ export class CheckoutService {
       ...(options.ttlSeconds === undefined ? {} : { ttlSeconds: options.ttlSeconds }),
     });
   }
+}
+
+/**
+ * The priced lines a link stands for.
+ *
+ * A free function rather than a method because two services need it and only
+ * one of them mints payments: the dashboard prices a link to show a counter
+ * what it costs, and threading an `IntentMinter` through that surface would be
+ * inventing a dependency to reach a pure calculation.
+ */
+export async function linkLines(
+  products: ProductRepository,
+  link: PaymentLink,
+  amount: Money | undefined,
+): Promise<{ lines: readonly CartLine[]; currency: AssetCode }> {
+  switch (link.kind) {
+    case "fixed": {
+      // Narrowed by `createPaymentLink`, which refuses a fixed link without one.
+      const fixed = link.amount;
+      if (fixed === undefined) {
+        throw new ValidationError(`Payment link ${link.id} is missing its amount`, {
+          id: link.id,
+        });
+      }
+      if (amount !== undefined) {
+        throw new ValidationError(
+          `Payment link ${link.id} has a fixed amount and cannot be overridden`,
+          { id: link.id },
+        );
+      }
+      return {
+        lines: [{ name: link.title ?? "Payment", unitPrice: fixed, quantity: 1 }],
+        currency: fixed.asset,
+      };
+    }
+    case "open": {
+      const currency = link.currency;
+      if (currency === undefined) {
+        throw new ValidationError(`Payment link ${link.id} is missing its currency`, {
+          id: link.id,
+        });
+      }
+      if (amount === undefined) {
+        throw new ValidationError(`Payment link ${link.id} requires an amount`, { id: link.id });
+      }
+      if (amount.asset !== currency) {
+        throw new ValidationError(
+          `Payment link ${link.id} is denominated in ${currency}, not ${amount.asset}`,
+          { id: link.id, currency, submitted: amount.asset },
+        );
+      }
+      return {
+        lines: [{ name: link.title ?? "Payment", unitPrice: amount, quantity: 1 }],
+        currency,
+      };
+    }
+    case "catalog": {
+      const currency = link.currency;
+      if (currency === undefined || link.lines === undefined) {
+        throw new ValidationError(`Payment link ${link.id} is missing its catalog lines`, {
+          id: link.id,
+        });
+      }
+      if (amount !== undefined) {
+        throw new ValidationError(
+          `Payment link ${link.id} is priced from the catalog and cannot be overridden`,
+          { id: link.id },
+        );
+      }
+      const lines = await resolveLines(products, link.merchant.id, link.lines, currency);
+      return { lines, currency };
+    }
+  }
+}
+
+/**
+ * Turns submitted lines into priced ones.
+ *
+ * A catalog reference is resolved now and frozen: the unit price that reaches
+ * the intent is the one that was live at checkout, and a later price edit
+ * cannot reach back into a payment already under way.
+ */
+export async function resolveLines(
+  products: ProductRepository,
+  merchantId: string,
+  lines: readonly (CheckoutLineInput | PaymentLinkLine)[],
+  currency: AssetCode,
+): Promise<readonly CartLine[]> {
+  const ids = lines
+    .map((line) => ("productId" in line ? line.productId : undefined))
+    .filter((id): id is string => id !== undefined);
+
+  const byId = new Map(
+    ids.length === 0
+      ? []
+      : (await products.findManyById(ids)).map((product) => [product.id, product] as const),
+  );
+
+  return lines.map((line) => {
+    if (!("productId" in line)) {
+      return { name: line.name, unitPrice: line.unitPrice, quantity: line.quantity };
+    }
+
+    const product = byId.get(line.productId);
+    if (product === undefined) {
+      throw new NotFoundError(`Product ${line.productId} not found`, { id: line.productId });
+    }
+    if (product.merchantId !== merchantId) {
+      throw new ValidationError(`Product ${product.id} belongs to another merchant`, {
+        productId: product.id,
+        merchantId,
+      });
+    }
+    if (!product.active) {
+      throw new ValidationError(`Product ${product.id} is not for sale`, {
+        productId: product.id,
+      });
+    }
+
+    const unitPrice = priceIn(product.prices, currency);
+    if (unitPrice === undefined) {
+      throw new ValidationError(`Product ${product.id} has no price in ${currency}`, {
+        productId: product.id,
+        currency,
+        pricedIn: product.prices.map((price) => price.asset),
+      });
+    }
+
+    return { productId: product.id, name: product.name, unitPrice, quantity: line.quantity };
+  });
+}
+
+/** What a link costs right now, lines and all, without minting anything. */
+export async function priceLink(
+  products: ProductRepository,
+  link: PaymentLink,
+  amount?: Money,
+): Promise<LinkPreview> {
+  const { lines, currency } = await linkLines(products, link, amount);
+  return { lines, currency, total: priceCart(lines, currency).total };
 }

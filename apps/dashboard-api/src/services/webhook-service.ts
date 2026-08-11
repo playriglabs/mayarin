@@ -17,6 +17,7 @@
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import type {
+  ListWebhookDeliveriesOptions,
   WebhookDelivery,
   WebhookDeliveryRepository,
   WebhookEndpoint,
@@ -31,6 +32,7 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
+import { cursorPage, DEFAULT_PAGE_SIZE, decodeCursor } from "../pagination.ts";
 
 /**
  * Resolves a hostname to its addresses.
@@ -54,7 +56,20 @@ export interface WebhookServiceOptions {
   readonly resolver?: HostnameResolver;
 }
 
-const DEFAULT_PAGE_SIZE = 50;
+export interface WebhookDeliveryListFilter {
+  readonly limit?: number;
+  readonly q?: string;
+  readonly status?: WebhookDelivery["status"];
+  readonly sort?: NonNullable<ListWebhookDeliveriesOptions["sort"]>;
+  readonly from?: Date;
+  readonly to?: Date;
+  readonly cursor?: string;
+}
+
+export interface WebhookDeliveryPage {
+  readonly items: readonly WebhookDelivery[];
+  readonly nextCursor: string | null;
+}
 
 export class WebhookService {
   readonly #endpoints: WebhookEndpointRepository;
@@ -138,9 +153,23 @@ export class WebhookService {
     return deactivated;
   }
 
-  async listDeliveries(scope: Scope, limit?: number): Promise<readonly WebhookDelivery[]> {
-    const capped = Math.min(limit ?? this.#pageSize, this.#pageSize);
-    return this.#deliveries.listByMerchant(scope.merchantId, capped);
+  async listDeliveries(
+    scope: Scope,
+    filter: WebhookDeliveryListFilter = {},
+  ): Promise<WebhookDeliveryPage> {
+    const limit = Math.min(filter.limit ?? this.#pageSize, this.#pageSize);
+    const cursor = decodeCursor(filter.cursor);
+    const rows = await this.#deliveries.listByMerchant({
+      merchantId: scope.merchantId,
+      limit: limit + 1,
+      ...(filter.q === undefined ? {} : { q: filter.q }),
+      ...(filter.status === undefined ? {} : { status: filter.status }),
+      ...(filter.sort === undefined ? {} : { sort: filter.sort }),
+      ...(filter.from === undefined ? {} : { from: filter.from }),
+      ...(filter.to === undefined ? {} : { to: filter.to }),
+      ...(cursor === undefined ? {} : { cursor: { id: cursor.id, createdAt: cursor.createdAt } }),
+    });
+    return cursorPage(rows, limit, (last) => ({ id: last.id, createdAt: last.createdAt }));
   }
 
   /**

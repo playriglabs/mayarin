@@ -373,6 +373,10 @@ export const merchants = pgTable(
     acceptedAssets: text("accepted_assets").array().notNull(),
     /** Where the merchant is paid on-chain — the order's `merchantSafe`. */
     settlementAddress: text("settlement_address"),
+    /** Merchant profile, frozen into every intent's snapshot. */
+    city: text("city"),
+    /** ISO 3166-1 alpha-2, uppercase. */
+    countryCode: text("country_code"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
     /** Optimistic concurrency control; settlement settings redirect money. */
@@ -584,6 +588,36 @@ export const invoices = pgTable(
 );
 
 /**
+ * Merchant-managed customer directory.
+ *
+ * Commerce, like `products`: the merchant knows who their customers are, Mayarin
+ * does not. A payer's wallet address is not stored on the intent, so a customer
+ * is a merchant-managed record rather than derived from on-chain activity. A
+ * payment links to one through `metadata.customerId` stamped at intent creation.
+ */
+export const customers = pgTable(
+  "customers",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    name: text("name").notNull(),
+    email: text("email"),
+    notes: text("notes"),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    index("customers_merchant_idx").on(table.merchantId),
+    // One customer per email per merchant. Null emails are allowed many: a
+    // walk-up customer known only by name should not need an invented email.
+    uniqueIndex("customers_merchant_email_idx").on(table.merchantId, table.email),
+  ],
+);
+
+/**
  * The per-merchant invoice number counter.
  *
  * A table rather than a Postgres sequence, because a sequence cannot be
@@ -607,6 +641,34 @@ export const invoiceCounters = pgTable("invoice_counters", {
  * when has to survive the change itself. Nothing in the application updates or
  * deletes a row here.
  */
+/**
+ * What the internal stablecoin rail settled (#15).
+ *
+ * The rail has no external provider to ask, so its own record IS the record —
+ * and the clearing engine asks for it again after the fact, sometimes after a
+ * restart. Held in process memory it did not survive one: a payment that had
+ * settled came back "unknown settlement" and failed, with the money already
+ * moved. The clearing transaction was durable; its counterparty was not.
+ */
+export const stablecoinSettlements = pgTable(
+  "stablecoin_settlements",
+  {
+    providerReference: text("provider_reference").primaryKey(),
+    clearingTransactionId: text("clearing_transaction_id").notNull(),
+    /** Replaying a settle must not credit twice, so the key is unique. */
+    idempotencyKey: text("idempotency_key").notNull(),
+    state: text("state").notNull(),
+    amount: text("amount").notNull(),
+    asset: text("asset").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("stablecoin_settlements_idempotency_idx").on(table.idempotencyKey),
+    index("stablecoin_settlements_clearing_idx").on(table.clearingTransactionId),
+  ],
+);
+
 export const merchantSettingChanges = pgTable(
   "merchant_setting_changes",
   {
@@ -819,6 +881,39 @@ export const walletChallenges = pgTable("wallet_challenges", {
   createdAt: createdAt(),
 });
 
+/**
+ * Merchant API keys — bearer-token access to the dashboard API.
+ *
+ * The secret is stored as a sha-256 hash, not argon2: the threat is an online
+ * lookup against a high-entropy secret, not offline cracking of a low-entropy
+ * password, so a fast hash is the right trade. `prefix` is the first characters
+ * of the plaintext, shown in listings so a merchant can tell two keys apart
+ * without the secret. `permissions` is a subset of the merchant's own, stored
+ * the same way the users table stores its flag set.
+ */
+export const merchantApiKeys = pgTable(
+  "merchant_api_keys",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    name: text("name").notNull(),
+    secretHash: text("secret_hash").notNull(),
+    prefix: text("prefix").notNull(),
+    permissions: text("permissions").array().notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "date" }),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    index("merchant_api_keys_merchant_idx").on(table.merchantId),
+    index("merchant_api_keys_secret_hash_idx").on(table.secretHash),
+  ],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -837,7 +932,10 @@ export const schema = {
   paymentLinks,
   invoices,
   invoiceCounters,
+  customers,
+  merchantApiKeys,
   merchantSettingChanges,
+  stablecoinSettlements,
   marketConfig,
   refunds,
   merchantWallets,

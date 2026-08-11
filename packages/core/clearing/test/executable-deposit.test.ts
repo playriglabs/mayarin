@@ -70,9 +70,8 @@ function executingPort(output = money(5_000_000n, "IDRX")): TreasuryExecutionPor
   };
 }
 
-function executableHarness(port: TreasuryExecutionPort, output?: undefined) {
-  void output;
-  const planner = new FakeContractPlanner(depositLock());
+function executableHarness(port: TreasuryExecutionPort, lock: ContractLock = depositLock()) {
+  const planner = new FakeContractPlanner(lock);
   const harness = createHarness({
     contractPlanner: planner,
     treasuryPort: port,
@@ -104,13 +103,15 @@ describe("locking a deposit that will be executed", () => {
   test("prices through the planner and signs an order, rather than quoting twice", async () => {
     const { harness, planner, depositIntent } = executableHarness(executingPort());
 
-    const transaction = await harness.engine.start(await depositIntent());
+    const intent = await depositIntent();
+    const transaction = await harness.engine.start(intent);
 
     expect(planner.calls).toHaveLength(1);
     // One pricing pass. The RateProvider is not consulted for this payment, so
     // there is no second price that could disagree with the signed order.
     expect(transaction.contract?.order.minOut).toBe(5_000_000n);
     expect(transaction.settlementAmount).toEqual(money(5_000_000n, "IDRX"));
+    expect(planner.calls[0]?.orderExpiresAt).toEqual(new Date(intent.expiresAt.getTime() + 60_000));
   });
 
   test("signs refundTo to the treasury, since the payer has no address here", async () => {
@@ -132,6 +133,19 @@ describe("locking a deposit that will be executed", () => {
     expect(transaction.deposit?.amount).toEqual(PAYER_ESTIMATE);
     expect(transaction.deposit?.asset).toBe("ETH");
     expect(transaction.deposit?.address).toBeDefined();
+  });
+
+  test("rounds a payer estimate up to the asset's payable precision", async () => {
+    const lock = {
+      ...depositLock(),
+      payerEstimate: money(5_017_663_781_602_422n, "ETH"),
+    };
+    const { harness, depositIntent } = executableHarness(executingPort(), lock);
+
+    const transaction = await harness.engine.start(await depositIntent());
+
+    expect(transaction.deposit?.amount).toEqual(money(5_017_670_000_000_000n, "ETH"));
+    expect(transaction.contract?.payerEstimate).toEqual(money(5_017_670_000_000_000n, "ETH"));
   });
 
   test("settles end to end, with the executor submitting the persisted order", async () => {
@@ -165,6 +179,57 @@ describe("locking a deposit that will be executed", () => {
       money(0n, "ETH"),
     );
     expect((await harness.ledger.balance("GAS_EXPENSE", "ETH")).balance).toEqual(GAS);
+  });
+});
+
+describe("the indexer's log for an executed deposit", () => {
+  /**
+   * The router emits `PaymentCompleted` for this path too — the treasury
+   * executor is what submitted the order. The engine made that call itself and
+   * recorded what came back, so the log is an echo of settled work. Refusing it
+   * left the settlement unmarked, and the indexer re-read the same log every
+   * pass: one payment turning into an error every tick, forever.
+   */
+  test("is a no-op rather than a refusal, since the engine already recorded it", async () => {
+    const { harness, depositIntent } = executableHarness(executingPort());
+    const settled = await harness.engine.start(await depositIntent());
+
+    const { transaction } = await harness.engine.recordPaymentCompleted(settled.id, {
+      txHash: `0x${"fe".repeat(32)}`,
+      settledAmount: settled.netAmount?.amount ?? 0n,
+      fee: settled.fee?.amount ?? 0n,
+      refundAmount: 0n,
+    });
+
+    expect(transaction.state).toBe("SUCCESS");
+    expect(transaction.version).toBe(settled.version);
+  });
+});
+
+describe("a terminal router failure", () => {
+  test("keeps the decoded revert in the state.failed event payload", async () => {
+    const port: TreasuryExecutionPort = {
+      async sweep() {},
+      async execute() {
+        throw new ProviderError(
+          "Transaction reverted with ExpiredOrder",
+          { revert: "ExpiredOrder" },
+          { retryable: false },
+        );
+      },
+    };
+    const { harness, depositIntent } = executableHarness(port);
+
+    const transaction = await harness.engine.start(await depositIntent());
+    const failed = (await harness.engine.history(transaction.id)).find(
+      (event) => event.type === "state.failed",
+    );
+
+    expect(transaction.state).toBe("FAILED");
+    expect(failed?.payload).toMatchObject({
+      code: "PROVIDER_ERROR",
+      revert: "ExpiredOrder",
+    });
   });
 });
 

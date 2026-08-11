@@ -293,13 +293,15 @@ commerce platform (Shopify), not payment infrastructure (Stripe).
 
 - ☑ Wallet Provider abstraction — `packages/core/wallet`, Turnkey behind it
 - ☑ Managed smart-account provisioning (Safe default), resumable and idempotent
-- ☑ Policy-gated signing — the port proposes from a closed union and never takes bytes; the Turnkey policy binds a non-root signer to that merchant's Safe. `propose()` itself throws pending #9
+- ☑ Policy-gated signing — the port proposes from a closed union and never takes bytes; the Turnkey policy binds a non-root signer to that merchant's Safe
 - ☑ Connect-existing wallet (Safe, EOA) — additive, not a rewrite
 - ☑ Passkey-held merchant key — a merchant who owns no wallet gets one only their authenticator can use, so provisioning no longer presupposes MetaMask
 - ☑ Merchant is a Safe signer (Turnkey co-signs, never sole) + merchant-controlled recovery — self-custody enforced, and executed on Base Sepolia
 - ☑ PaymentRouter signer allowlists `merchantSafe` to known merchant-owned Safes (RFC #6) — `WalletGuard`, on the contract and deposit paths alike
 - ☑ Settlement address defaults to the managed wallet on that chain, so a provisioned merchant is payable without finding a settings field
 - ☑ `GET /settings` reports the address the signer will actually use, so "chosen nothing" is not reported as "cannot settle"
+- ☑ Settlement balance read from the chain — `GET /wallets/balance`, settlement asset plus the gas asset, an unconfigured token omitted rather than zeroed
+- ☑ Withdrawal — `POST /wallets/withdraw`, to one of the merchant's own verified wallets only. The sub-org key sends `execTransaction` to the Safe (the destination its policy already checks) and the Safe accepts it pre-validated from an owner; the deployer funds that one submission, which is the slice of #9 this needed
 
 The wallet **backend** is done. What is left is browser work and belongs to the
 dashboard, not here (Merchant Dashboard → Wallets, below):
@@ -398,20 +400,57 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
 
 ### Merchant Dashboard
 
-- ☐ Product and catalog management
-- ☐ Payment explorer and transaction timeline
-- ☐ Settlement status
-- ☐ Merchant analytics
-- ☐ Overview
-- ☐ Orders
-- ☐ Wallets — the API is complete behind it (create a passkey key, prove control,
-  provision the Safe, add a second authenticator, set the settlement address);
-  what is missing is the browser half of the passkey ceremony
-- ☐ Customers
-- ☐ Analytics
-- ☐ Payment Links
-- ☐ Developers
-- ☐ Settings
+- ☑ Product and catalog management — real `/catalog/products`, create and edit
+- ☑ Payment explorer and transaction timeline
+- ☑ Settlement status — `/settlements`, the booked amounts plus what the chain
+  reported, per payment
+- ☑ Merchant analytics, derived from the payments page and honest about the window
+- ☑ Overview
+- ☑ Payment Links — fixed, open and catalog-backed, with the hosted-checkout QR
+- ☑ Counter sale ("Take payment") — mints one payment from a link and shows its
+  EIP-681 deposit code, which a wallet scans as a transfer rather than as a URL,
+  plus an indicative price in every accepted payer asset
+- ☑ Wallets — connect an existing address, prove control by signature, provision
+  the managed Safe. What is still missing is the browser half of the **passkey**
+  ceremony (`navigator.credentials.create`, then a Turnkey request stamped by
+  that passkey); the other two paths are complete
+- ☑ Settings — settlement asset, accepted assets, settlement address, merchant
+  profile, and the change history behind them
+- ☑ Developers → Webhooks: endpoints, secret rotation, delivery inspection, replay
+- ☑ Orders — `/orders`, a derived read of cart-bearing or referenced payment
+  intents. Line items, the linked customer, and the payment status — no
+  fulfillment state, no second state machine; an order is the commerce view of
+  a payment, and its detail is the payment detail
+- ☑ Customers — `/customers`, a merchant-managed directory linked to orders via
+  `metadata.customerId` stamped at intent creation. CRUD plus a detail view:
+  lifetime value (sum of `COMPLETED` amounts) and the orders taken for them.
+  No payer-address auto-derivation — a deposit-match transfer has no sender
+- ☑ Developers → API keys: bearer-token access to the dashboard API, with
+  per-key permissions (a subset of the merchant's own). The secret is shown
+  once at creation; listings carry only a prefix. A bearer request is exempt
+  from CSRF (it is not auto-sent cross-origin) and reaches exactly the surfaces
+  its permissions allow
+- ☑ Developers → Event logs: `/event-logs`, a unified timeline of clearing,
+  settlement, and webhook events in one derived read. Three bounded `LIMIT n`
+  queries merged in JS — no table of its own, since the three sources are
+  already append-only. A webhook row carries no `intentId` in v1
+- ☐ Developers → SDK — the one Client SDK (TypeScript) is still ahead; the
+  dashboard's own API client is the reference shape it will mirror
+
+Every surface above reads a real endpoint. The dashboard carries no fixture data:
+a merchant seeds an account, signs in, prices a product, mints a link, and the
+buyer who opens that link mints a Payment Intent — with no script anywhere on the
+path.
+
+A payment link freezes a merchant snapshot, which needs city and country, so the
+merchant record carries them (migration 0019) and the settings surface asks for
+them. The link route refuses without them rather than freezing a blank into every
+payment it takes.
+
+The payments and settlement views poll while anything on them can still move and
+stop once nothing can. The hosted checkout has a real event stream (#13); the
+merchant side does not, and a poll that switches itself off is the honest version
+of live rather than a pretence of one.
 
 So we have this feature for our product
 
