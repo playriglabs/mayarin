@@ -146,7 +146,8 @@ export class WalletWatcher {
     const cursor = await this.#cursors.get(chain, asset);
     const start = cursor ?? this.#startBlocks[chain] ?? 0n;
     const from = start + 1n;
-    const range = this.#nativeAssets[chain] === asset ? this.#nativeBlockRange : this.#blockRange;
+    const isNative = this.#nativeAssets[chain] === asset;
+    const range = isNative ? this.#nativeBlockRange : this.#blockRange;
     const to = min(head.number, start + range);
     // A reorg replaces blocks without advancing the head, so there can be
     // nothing new to scan and still be everything to reclassify. Only the scan
@@ -160,28 +161,40 @@ export class WalletWatcher {
     // Balances are read every tick, not only when there are new blocks: value
     // that arrived internally leaves nothing in a block body to scan, so a pass
     // that skipped the scan is exactly a pass that must still look.
-    const reconciled =
-      this.#nativeAssets[chain] === asset
-        ? await this.#reconcileBalances(chain, asset, head.number, watched, now)
-        : 0;
+    const reconciled = isNative
+      ? await this.#reconcileBalances(chain, asset, head.number, watched, now)
+      : 0;
     const { confirmed, orphaned } = await this.#reclassify(chain, head.number, watched, now);
     const funded = await this.#fund(chain, asset, watched);
 
-    // Written last: a crash before this line re-scans the same range, which the
-    // deposit key makes harmless.
-    if (hasNewBlocks) await this.#cursors.set(chain, asset, to);
+    // A confirmed native balance accounts for everything through its settled
+    // height, including transfers buried in a downtime gap. Advancing there
+    // avoids replaying one block-body RPC per historical block. The final
+    // confirmation window is deliberately left for the ordinary scanner, so a
+    // recent payment is never skipped before it becomes visible in a balance.
+    const reconciledTo = isNative ? this.#settledBlock(head.number) : undefined;
+    const cursorTo = max(hasNewBlocks ? to : start, reconciledTo ?? start);
+
+    // Written last: a crash before this line repeats the scan and balance read,
+    // both of which are idempotent.
+    if (cursorTo > start) await this.#cursors.set(chain, asset, cursorTo);
 
     return {
       chain,
       asset,
       scannedFrom: from,
-      scannedTo: hasNewBlocks ? to : start,
+      scannedTo: cursorTo,
       headNumber: head.number,
       recorded: recorded + reconciled,
       confirmed,
       orphaned,
       funded,
     };
+  }
+
+  #settledBlock(headNumber: bigint): bigint | undefined {
+    const depth = BigInt(this.#policy.depth);
+    return headNumber < depth ? undefined : headNumber - depth;
   }
 
   /**
@@ -217,9 +230,8 @@ export class WalletWatcher {
 
     // Read one confirmation depth back, so the balance reported is already past
     // the depth this deployment requires and cannot un-happen under it.
-    const depth = BigInt(this.#policy.depth);
-    if (headNumber < depth) return 0;
-    const block = headNumber - depth;
+    const block = this.#settledBlock(headNumber);
+    if (block === undefined) return 0;
 
     const balances = await this.#client.nativeBalances({ chain, asset, addresses, block });
 
@@ -399,4 +411,8 @@ function covers(total: Money, required: Money): boolean {
 
 function min(a: bigint, b: bigint): bigint {
   return a < b ? a : b;
+}
+
+function max(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
 }
