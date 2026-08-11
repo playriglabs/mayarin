@@ -2,7 +2,7 @@
  * Auth route tests — the full cookie lifecycle through the Hono app.
  *
  * Covers login issuance, cookie flags (session HttpOnly, CSRF JS-readable), the
- * `/auth/me` mirror, CSRF enforcement on logout, and cookie clearing on logout.
+ * `/v1/auth/me` mirror, CSRF enforcement on logout, and cookie clearing on logout.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -19,7 +19,7 @@ async function seededHarness() {
 }
 
 async function login(harness: Awaited<ReturnType<typeof createDashboardHarness>>) {
-  const res = await harness.request("POST", "/auth/login", {
+  const res = await harness.request("POST", "/v1/auth/login", {
     body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
   expect(res.status).toBe(200);
@@ -33,6 +33,12 @@ describe("auth routes", () => {
     const res = await harness.request("GET", "/health");
     expect(res.status).toBe(200);
     expect(res.body?.status).toBe("ok");
+  });
+
+  test("the old root dashboard API surface is not mounted", async () => {
+    const harness = await seededHarness();
+    const res = await harness.request("GET", "/auth/me");
+    expect(res.status).toBe(404);
   });
 
   test("login issues session + CSRF cookies with the right flags", async () => {
@@ -55,7 +61,7 @@ describe("auth routes", () => {
 
   test("login with a wrong password returns 401 with the constant message", async () => {
     const harness = await seededHarness();
-    const res = await harness.request("POST", "/auth/login", {
+    const res = await harness.request("POST", "/v1/auth/login", {
       body: { email: ADMIN_EMAIL, password: "wrong" },
     });
     expect(res.status).toBe(401);
@@ -65,7 +71,7 @@ describe("auth routes", () => {
 
   test("GET /auth/me without a session returns user null", async () => {
     const harness = await seededHarness();
-    const res = await harness.request("GET", "/auth/me");
+    const res = await harness.request("GET", "/v1/auth/me");
     expect(res.status).toBe(200);
     expect(res.body?.user).toBeNull();
   });
@@ -73,21 +79,21 @@ describe("auth routes", () => {
   test("GET /auth/me with a session cookie returns the user", async () => {
     const harness = await seededHarness();
     const { jar } = await login(harness);
-    const res = await harness.request("GET", "/auth/me", { cookies: jar });
+    const res = await harness.request("GET", "/v1/auth/me", { cookies: jar });
     expect(res.status).toBe(200);
     expect(res.body?.user?.email).toBe(ADMIN_EMAIL);
   });
 
   test("logout without a session returns 401", async () => {
     const harness = await seededHarness();
-    const res = await harness.request("POST", "/auth/logout");
+    const res = await harness.request("POST", "/v1/auth/logout");
     expect(res.status).toBe(401);
   });
 
   test("logout with a session but no CSRF token returns 403", async () => {
     const harness = await seededHarness();
     const { jar } = await login(harness);
-    const res = await harness.request("POST", "/auth/logout", { cookies: jar });
+    const res = await harness.request("POST", "/v1/auth/logout", { cookies: jar });
     expect(res.status).toBe(403);
     expect(res.body?.error?.code).toBe("FORBIDDEN");
   });
@@ -95,7 +101,7 @@ describe("auth routes", () => {
   test("logout with a wrong CSRF token returns 403", async () => {
     const harness = await seededHarness();
     const { jar } = await login(harness);
-    const res = await harness.request("POST", "/auth/logout", {
+    const res = await harness.request("POST", "/v1/auth/logout", {
       cookies: jar,
       headers: { "x-csrf-token": "wrong" },
     });
@@ -105,7 +111,7 @@ describe("auth routes", () => {
   test("logout with the correct CSRF token clears the cookies", async () => {
     const harness = await seededHarness();
     const { jar } = await login(harness);
-    const res = await harness.request("POST", "/auth/logout", {
+    const res = await harness.request("POST", "/v1/auth/logout", {
       cookies: jar,
       headers: { "x-csrf-token": jar.mayarin_csrf ?? "" },
     });
@@ -123,7 +129,7 @@ describe("auth routes", () => {
     // Advance the clock past the 1-hour TTL and re-issue a verify by hitting /me:
     // the session middleware drops the expired session, so /me reports no user.
     harness.clock.advance(2 * 60 * 60 * 1000);
-    const res = await harness.request("GET", "/auth/me", { cookies: jar });
+    const res = await harness.request("GET", "/v1/auth/me", { cookies: jar });
     expect(res.status).toBe(200);
     expect(res.body?.user).toBeNull();
   });

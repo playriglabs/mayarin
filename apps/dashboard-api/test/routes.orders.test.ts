@@ -30,7 +30,7 @@ async function seed() {
 }
 
 async function login(harness: Harness) {
-  const res = await harness.request("POST", "/auth/login", {
+  const res = await harness.request("POST", "/v1/auth/login", {
     body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
   expect(res.status).toBe(200);
@@ -96,7 +96,7 @@ describe("GET /orders", () => {
     // A plain transfer with neither is not an order.
     await createIntent(harness, {});
 
-    const res = await harness.request("GET", "/orders", { cookies: auth.jar });
+    const res = await harness.request("GET", "/v1/orders", { cookies: auth.jar });
     expect(res.status).toBe(200);
     const orders = res.body?.orders ?? [];
     expect(orders).toHaveLength(2);
@@ -114,7 +114,7 @@ describe("GET /orders", () => {
     const { harness, auth } = await seed();
     await createIntent(harness, { merchantReference: "INV-0001" });
 
-    const res = await harness.request("GET", "/orders", { cookies: auth.jar });
+    const res = await harness.request("GET", "/v1/orders", { cookies: auth.jar });
     const order = res.body?.orders[0];
     expect(order.merchantReference).toBe("INV-0001");
     expect(order.lines).toHaveLength(1);
@@ -124,13 +124,13 @@ describe("GET /orders", () => {
 
   test("requires authentication", async () => {
     const { harness } = await seed();
-    const res = await harness.request("GET", "/orders");
+    const res = await harness.request("GET", "/v1/orders");
     expect(res.status).toBe(401);
   });
 
   test("a foreign customer id returns 404, not the other merchant's orders", async () => {
     const { harness, auth } = await seed();
-    const res = await harness.request("GET", "/orders?customerId=cus_foreign", {
+    const res = await harness.request("GET", "/v1/orders?customerId=cus_foreign", {
       cookies: auth.jar,
     });
     expect(res.status).toBe(404);
@@ -142,13 +142,13 @@ describe("GET /orders", () => {
     await createIntent(harness, { merchantReference: "KEEP-002" });
     await createIntent(harness, { merchantReference: "DROP-001" });
 
-    const first = await harness.request("GET", "/orders?q=KEEP&limit=1", { cookies: auth.jar });
+    const first = await harness.request("GET", "/v1/orders?q=KEEP&limit=1", { cookies: auth.jar });
     expect(first.body?.orders).toHaveLength(1);
     expect(typeof first.body?.nextCursor).toBe("string");
 
     const second = await harness.request(
       "GET",
-      `/orders?q=KEEP&limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+      `/v1/orders?q=KEEP&limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
       { cookies: auth.jar },
     );
     expect(second.body?.orders).toHaveLength(1);
@@ -161,7 +161,7 @@ describe("GET /orders?customerId=", () => {
     const { harness, auth } = await seed();
 
     // Seed a customer through the directory.
-    const created = await harness.request("POST", "/customers", {
+    const created = await harness.request("POST", "/v1/customers", {
       body: { name: "Budi" },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -177,7 +177,7 @@ describe("GET /orders?customerId=", () => {
     });
     await createIntent(harness, { merchantReference: "INV-2" });
 
-    const res = await harness.request("GET", `/orders?customerId=${customerId}`, {
+    const res = await harness.request("GET", `/v1/orders?customerId=${customerId}`, {
       cookies: auth.jar,
     });
     expect(res.status).toBe(200);
@@ -191,7 +191,7 @@ describe("GET /orders?customerId=", () => {
 describe("customer detail lifetime value", () => {
   test("sums completed orders in the first completed order's currency", async () => {
     const { harness, auth } = await seed();
-    const created = await harness.request("POST", "/customers", {
+    const created = await harness.request("POST", "/v1/customers", {
       body: { name: "Sari" },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -215,7 +215,7 @@ describe("customer detail lifetime value", () => {
     });
     await complete(harness, b.id);
 
-    const res = await harness.request("GET", `/customers/${customerId}`, { cookies: auth.jar });
+    const res = await harness.request("GET", `/v1/customers/${customerId}`, { cookies: auth.jar });
     expect(res.status).toBe(200);
     expect(res.body?.lifetimeValue.amount).toBe("20000");
     expect(res.body?.lifetimeValue.asset).toBe("IDR");
@@ -224,14 +224,14 @@ describe("customer detail lifetime value", () => {
 
   test("is null when the customer has no completed orders", async () => {
     const { harness, auth } = await seed();
-    const created = await harness.request("POST", "/customers", {
+    const created = await harness.request("POST", "/v1/customers", {
       body: { name: "Walk-in" },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
     const customerId = created.body?.customer.id;
 
-    const res = await harness.request("GET", `/customers/${customerId}`, { cookies: auth.jar });
+    const res = await harness.request("GET", `/v1/customers/${customerId}`, { cookies: auth.jar });
     expect(res.body?.lifetimeValue).toBeNull();
   });
 });

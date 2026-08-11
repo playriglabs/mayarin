@@ -25,7 +25,7 @@ async function seed() {
 }
 
 async function loginAs(harness: Harness, email: string, password: string) {
-  const res = await harness.request("POST", "/auth/login", { body: { email, password } });
+  const res = await harness.request("POST", "/v1/auth/login", { body: { email, password } });
   expect(res.status).toBe(200);
   const jar = cookieJar(res.setCookies);
   return { jar, csrf: jar.mayarin_csrf ?? "" };
@@ -92,13 +92,13 @@ describe("endpoints", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const created = await post(harness, auth, "/webhooks/endpoints", { url: URL });
+    const created = await post(harness, auth, "/v1/webhooks/endpoints", { url: URL });
 
     expect(created.status).toBe(201);
     expect(created.body?.secret).toMatch(/^whsec_/);
     expect(created.body?.endpoint.url).toBe(URL);
 
-    const listed = await harness.request("GET", "/webhooks/endpoints", { cookies: auth.jar });
+    const listed = await harness.request("GET", "/v1/webhooks/endpoints", { cookies: auth.jar });
     expect(listed.body?.endpoints).toHaveLength(1);
     // The listing must never show it again.
     expect(listed.body?.endpoints[0].secret).toBeUndefined();
@@ -108,8 +108,8 @@ describe("endpoints", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    await post(harness, auth, "/webhooks/endpoints", { url: URL });
-    const second = await post(harness, auth, "/webhooks/endpoints", {
+    await post(harness, auth, "/v1/webhooks/endpoints", { url: URL });
+    const second = await post(harness, auth, "/v1/webhooks/endpoints", {
       url: "https://hooks.example.com/other",
     });
 
@@ -120,7 +120,7 @@ describe("endpoints", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const { status } = await post(harness, auth, "/webhooks/endpoints", {
+    const { status } = await post(harness, auth, "/v1/webhooks/endpoints", {
       url: "https://127.0.0.1/hook",
     });
     expect(status).toBe(400);
@@ -130,7 +130,7 @@ describe("endpoints", () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const { status } = await post(harness, auth, "/webhooks/endpoints", {
+    const { status } = await post(harness, auth, "/v1/webhooks/endpoints", {
       url: "http://hooks.example.com/hook",
     });
     expect(status).toBe(400);
@@ -139,13 +139,13 @@ describe("endpoints", () => {
   test("rotation keeps the previous secret valid", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/webhooks/endpoints", { url: URL });
+    const created = await post(harness, auth, "/v1/webhooks/endpoints", { url: URL });
     const first = created.body?.secret;
 
     const rotated = await post(
       harness,
       auth,
-      `/webhooks/endpoints/${created.body?.endpoint.id}/rotate`,
+      `/v1/webhooks/endpoints/${created.body?.endpoint.id}/rotate`,
     );
 
     expect(rotated.body?.secret).not.toBe(first);
@@ -156,10 +156,10 @@ describe("endpoints", () => {
   test("deactivating frees the slot", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
-    const created = await post(harness, auth, "/webhooks/endpoints", { url: URL });
+    const created = await post(harness, auth, "/v1/webhooks/endpoints", { url: URL });
 
-    await post(harness, auth, `/webhooks/endpoints/${created.body?.endpoint.id}/deactivate`);
-    const again = await post(harness, auth, "/webhooks/endpoints", { url: URL });
+    await post(harness, auth, `/v1/webhooks/endpoints/${created.body?.endpoint.id}/deactivate`);
+    const again = await post(harness, auth, "/v1/webhooks/endpoints", { url: URL });
 
     expect(again.status).toBe(201);
   });
@@ -171,7 +171,7 @@ describe("deliveries", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     await seedDelivery(harness, harness.merchantId);
 
-    const { status, body } = await harness.request("GET", "/webhooks/deliveries", {
+    const { status, body } = await harness.request("GET", "/v1/webhooks/deliveries", {
       cookies: auth.jar,
     });
 
@@ -194,7 +194,7 @@ describe("deliveries", () => {
     const { status, body } = await post(
       harness,
       auth,
-      `/webhooks/deliveries/${delivery.id}/replay`,
+      `/v1/webhooks/deliveries/${delivery.id}/replay`,
     );
 
     expect(status).toBe(202);
@@ -209,9 +209,13 @@ describe("deliveries", () => {
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const delivery = await seedDelivery(harness, harness.merchantId);
 
-    const { status } = await harness.request("POST", `/webhooks/deliveries/${delivery.id}/replay`, {
-      cookies: auth.jar,
-    });
+    const { status } = await harness.request(
+      "POST",
+      `/v1/webhooks/deliveries/${delivery.id}/replay`,
+      {
+        cookies: auth.jar,
+      },
+    );
     expect(status).toBe(403);
   });
 
@@ -231,15 +235,19 @@ describe("deliveries", () => {
       endpointId: "whe_keep_2",
     });
 
-    const first = await harness.request("GET", "/webhooks/deliveries?q=keep&status=DEAD&limit=1", {
-      cookies: auth.jar,
-    });
+    const first = await harness.request(
+      "GET",
+      "/v1/webhooks/deliveries?q=keep&status=DEAD&limit=1",
+      {
+        cookies: auth.jar,
+      },
+    );
     expect(first.body?.deliveries).toHaveLength(1);
     expect(typeof first.body?.nextCursor).toBe("string");
 
     const second = await harness.request(
       "GET",
-      `/webhooks/deliveries?q=keep&status=DEAD&limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
+      `/v1/webhooks/deliveries?q=keep&status=DEAD&limit=1&cursor=${encodeURIComponent(String(first.body?.nextCursor))}`,
       { cookies: auth.jar },
     );
     expect(second.body?.deliveries).toHaveLength(1);
@@ -253,7 +261,7 @@ describe("cross-tenant isolation", () => {
     await seedDelivery(harness, "mrc_someone_else");
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const { body } = await harness.request("GET", "/webhooks/deliveries", { cookies: auth.jar });
+    const { body } = await harness.request("GET", "/v1/webhooks/deliveries", { cookies: auth.jar });
     expect(body?.deliveries).toEqual([]);
   });
 
@@ -262,7 +270,7 @@ describe("cross-tenant isolation", () => {
     const theirs = await seedDelivery(harness, "mrc_someone_else");
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-    const { status } = await post(harness, auth, `/webhooks/deliveries/${theirs.id}/replay`);
+    const { status } = await post(harness, auth, `/v1/webhooks/deliveries/${theirs.id}/replay`);
 
     // 404 rather than 403: a 403 confirms the id exists, which is the one bit a
     // caller should not learn from an id they were never given.
@@ -273,7 +281,7 @@ describe("cross-tenant isolation", () => {
 describe("permissions", () => {
   test("an anonymous caller is refused", async () => {
     const harness = await seed();
-    const { status } = await harness.request("GET", "/webhooks/deliveries");
+    const { status } = await harness.request("GET", "/v1/webhooks/deliveries");
     expect(status).toBe(401);
   });
 
@@ -285,7 +293,9 @@ describe("permissions", () => {
     ]);
     const auth = await loginAs(harness, "reader@mayarin.local", "reader-password-1");
 
-    const { status } = await harness.request("GET", "/webhooks/deliveries", { cookies: auth.jar });
+    const { status } = await harness.request("GET", "/v1/webhooks/deliveries", {
+      cookies: auth.jar,
+    });
     expect(status).toBe(403);
   });
 });

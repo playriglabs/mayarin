@@ -4,7 +4,7 @@
  * The two properties worth holding at the HTTP edge: the merchant scope comes
  * from the session and cannot be overridden by a caller, and the record carries
  * every source that recorded the payment. Cross-merchant reads resolve to the
- * same 404 an absent id does, exactly as `/payments` already does.
+ * same 404 an absent id does, exactly as `/v1/payments` already does.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -78,7 +78,7 @@ async function loginAs(
   email: string,
   password: string,
 ): Promise<Record<string, string>> {
-  const res = await harness.request("POST", "/auth/login", { body: { email, password } });
+  const res = await harness.request("POST", "/v1/auth/login", { body: { email, password } });
   expect(res.status).toBe(200);
   return cookieJar(res.setCookies);
 }
@@ -86,14 +86,14 @@ async function loginAs(
 describe("audit routes", () => {
   test("an anonymous request to /audit is 401", async () => {
     const { harness } = await seed();
-    const res = await harness.request("GET", "/audit");
+    const res = await harness.request("GET", "/v1/audit");
     expect(res.status).toBe(401);
   });
 
   test("a merchant sees only their own payments", async () => {
     const { harness } = await seed();
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
-    const res = await harness.request("GET", "/audit", { cookies: jar });
+    const res = await harness.request("GET", "/v1/audit", { cookies: jar });
 
     expect(res.status).toBe(200);
     const ids = ((res.body?.payments ?? []) as Array<{ clearingTransactionId: string }>).map(
@@ -106,7 +106,7 @@ describe("audit routes", () => {
     const { harness } = await seed();
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
     // The scope is taken from the session; an unknown query param is ignored.
-    const res = await harness.request("GET", "/audit?merchantId=mch_b", { cookies: jar });
+    const res = await harness.request("GET", "/v1/audit?merchantId=mch_b", { cookies: jar });
 
     expect(res.status).toBe(200);
     const ids = ((res.body?.payments ?? []) as Array<{ clearingTransactionId: string }>).map(
@@ -118,14 +118,14 @@ describe("audit routes", () => {
   test("an unsupported asset is a 400, not an empty list", async () => {
     const { harness } = await seed();
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
-    const res = await harness.request("GET", "/audit?asset=NOTACOIN", { cookies: jar });
+    const res = await harness.request("GET", "/v1/audit?asset=NOTACOIN", { cookies: jar });
     expect(res.status).toBe(400);
   });
 
   test("the record carries the ledger postings and a reconciliation verdict", async () => {
     const { harness } = await seed();
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
-    const res = await harness.request("GET", "/audit/clr_a", { cookies: jar });
+    const res = await harness.request("GET", "/v1/audit/clr_a", { cookies: jar });
 
     expect(res.status).toBe(200);
     expect(res.body?.clearing?.id).toBe("clr_a");
@@ -139,7 +139,7 @@ describe("audit routes", () => {
   test("a cross-merchant audit record is 404, not 403", async () => {
     const { harness } = await seed();
     const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
-    const res = await harness.request("GET", "/audit/clr_b", { cookies: jar });
+    const res = await harness.request("GET", "/v1/audit/clr_b", { cookies: jar });
     expect(res.status).toBe(404);
   });
 });

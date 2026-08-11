@@ -24,7 +24,7 @@ async function seed() {
 }
 
 async function login(harness: Harness) {
-  const res = await harness.request("POST", "/auth/login", {
+  const res = await harness.request("POST", "/v1/auth/login", {
     body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   });
   expect(res.status).toBe(200);
@@ -48,7 +48,7 @@ async function bearer(
 describe("POST /api-keys", () => {
   test("creates a key and returns the secret exactly once", async () => {
     const { harness, auth } = await seed();
-    const res = await harness.request("POST", "/api-keys", {
+    const res = await harness.request("POST", "/v1/api-keys", {
       body: { name: "POS register 3", permissions: ["payments:read"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -58,13 +58,13 @@ describe("POST /api-keys", () => {
     expect(res.body?.apiKey.prefix).toMatch(/^pk_[0-9a-f]{9}$/);
     expect(res.body?.secret).toMatch(/^pk_[0-9a-f]{64}$/);
     // The listing never shows the secret.
-    const listed = await harness.request("GET", "/api-keys", { cookies: auth.jar });
+    const listed = await harness.request("GET", "/v1/api-keys", { cookies: auth.jar });
     expect(listed.body?.apiKeys[0].secret).toBeUndefined();
   });
 
   test("without a CSRF token is refused (session path)", async () => {
     const { harness, auth } = await seed();
-    const res = await harness.request("POST", "/api-keys", {
+    const res = await harness.request("POST", "/v1/api-keys", {
       body: { name: "K", permissions: ["payments:read"] },
       cookies: auth.jar,
     });
@@ -73,7 +73,7 @@ describe("POST /api-keys", () => {
 
   test("a permission the caller cannot grant is refused at the schema", async () => {
     const { harness, auth } = await seed();
-    const res = await harness.request("POST", "/api-keys", {
+    const res = await harness.request("POST", "/v1/api-keys", {
       body: { name: "K", permissions: ["not-a-permission"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -85,18 +85,18 @@ describe("POST /api-keys", () => {
 describe("GET /api-keys", () => {
   test("filters by name and active status", async () => {
     const { harness, auth } = await seed();
-    await harness.request("POST", "/api-keys", {
+    await harness.request("POST", "/v1/api-keys", {
       body: { name: "Production reader", permissions: ["payments:read"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
-    await harness.request("POST", "/api-keys", {
+    await harness.request("POST", "/v1/api-keys", {
       body: { name: "Development reader", permissions: ["payments:read"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
 
-    const res = await harness.request("GET", "/api-keys?q=production&status=active", {
+    const res = await harness.request("GET", "/v1/api-keys?q=production&status=active", {
       cookies: auth.jar,
     });
     expect(res.body?.apiKeys.map((key: { name: string }) => key.name)).toEqual([
@@ -108,14 +108,14 @@ describe("GET /api-keys", () => {
 describe("bearer auth", () => {
   test("a key with payments:read reaches /orders without a session or CSRF token", async () => {
     const { harness, auth } = await seed();
-    const created = await harness.request("POST", "/api-keys", {
+    const created = await harness.request("POST", "/v1/api-keys", {
       body: { name: "Reader", permissions: ["payments:read"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
     const secret = created.body?.secret;
 
-    const res = await bearer(harness, "GET", "/orders", secret);
+    const res = await bearer(harness, "GET", "/v1/orders", secret);
     expect(res.status).toBe(200);
     expect(res.body?.orders).toEqual([]);
   });
@@ -123,14 +123,14 @@ describe("bearer auth", () => {
   test("a key without the route's permission is 403", async () => {
     const { harness, auth } = await seed();
     // payments:read does not open the settings:manage /api-keys write surface.
-    const created = await harness.request("POST", "/api-keys", {
+    const created = await harness.request("POST", "/v1/api-keys", {
       body: { name: "Reader", permissions: ["payments:read"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
     const secret = created.body?.secret;
 
-    const res = await bearer(harness, "POST", "/api-keys", secret, {
+    const res = await bearer(harness, "POST", "/v1/api-keys", secret, {
       name: "Another",
       permissions: ["payments:read"],
     });
@@ -140,7 +140,7 @@ describe("bearer auth", () => {
   test("CSRF is skipped for a bearer mutating request with the right permission", async () => {
     const { harness, auth } = await seed();
     // Mint a key that itself holds settings:manage, so it may create keys.
-    const created = await harness.request("POST", "/api-keys", {
+    const created = await harness.request("POST", "/v1/api-keys", {
       body: { name: "Manager", permissions: ["settings:manage"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -148,7 +148,7 @@ describe("bearer auth", () => {
     const secret = created.body?.secret;
 
     // No CSRF token, no cookie — only the bearer header.
-    const res = await bearer(harness, "POST", "/api-keys", secret, {
+    const res = await bearer(harness, "POST", "/v1/api-keys", secret, {
       name: "Child",
       permissions: ["payments:read"],
     });
@@ -158,7 +158,7 @@ describe("bearer auth", () => {
 
   test("a deactivated key is 401, indistinguishable from an absent token", async () => {
     const { harness, auth } = await seed();
-    const created = await harness.request("POST", "/api-keys", {
+    const created = await harness.request("POST", "/v1/api-keys", {
       body: { name: "Old", permissions: ["payments:read"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
@@ -166,22 +166,22 @@ describe("bearer auth", () => {
     const secret = created.body?.secret;
     const id = created.body?.apiKey.id;
 
-    const deactivated = await harness.request("DELETE", `/api-keys/${id}`, {
+    const deactivated = await harness.request("DELETE", `/v1/api-keys/${id}`, {
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
     expect(deactivated.status).toBe(200);
     expect(deactivated.body?.apiKey.active).toBe(false);
 
-    const before = await bearer(harness, "GET", "/orders", "pk_not_a_real_key");
-    const after = await bearer(harness, "GET", "/orders", secret);
+    const before = await bearer(harness, "GET", "/v1/orders", "pk_not_a_real_key");
+    const after = await bearer(harness, "GET", "/v1/orders", secret);
     expect(after.status).toBe(before.status);
     expect(after.status).toBe(401);
   });
 
   test("an unknown bearer scheme is not authenticated", async () => {
     const { harness } = await seed();
-    const res = await harness.request("GET", "/orders", {
+    const res = await harness.request("GET", "/v1/orders", {
       headers: { authorization: "Basic dXNlcjpwYXNz" },
     });
     expect(res.status).toBe(401);

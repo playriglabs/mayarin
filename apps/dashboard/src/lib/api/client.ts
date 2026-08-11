@@ -25,15 +25,20 @@ type AnyContext = APIContext;
  *   1. Edge runtime binding/secret (a future `locals.runtime.env.API_URL`)
  *   2. Build-time env                       (`import.meta.env.DASHBOARD_API_URL`)
  *   3. Dev fallback                         (dashboard API on :3001)
+ *
+ * The configured value is an origin. This function appends the dashboard
+ * API's breaking-version boundary so SSR and browser requests target the same
+ * contract.
  */
 export function getApiBase(context?: AnyContext): string {
   const runtime = (context?.locals as { runtime?: { env?: { API_URL?: string } } } | undefined)
     ?.runtime;
-  return (
+  const origin = (
     runtime?.env?.API_URL ??
     (import.meta.env.DASHBOARD_API_URL as string | undefined) ??
     "http://localhost:3001"
-  );
+  ).replace(/\/+$/, "");
+  return `${origin}/v1`;
 }
 
 /** Typed failure for any non-2xx response, network error, or parse error. */
@@ -43,7 +48,7 @@ export class ApiError extends Data.TaggedError("ApiError")<{
 }> {}
 
 /** Browser base path: same-origin, proxied to the dashboard API in dev. */
-const BASE = "/api";
+const BASE = "/api/v1";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 

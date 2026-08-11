@@ -40,97 +40,101 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   app.notFound(() => {
     throw new NotFoundError("Route not found");
   });
+  app.route("/", healthRoutes());
+
+  const v1 = new Hono<{ Variables: AuthVars }>();
 
   // Stamps `session`/`scope` on the context when a valid session cookie is
   // present; a no-op for anonymous requests.
-  app.use("*", sessionMiddleware(container.sessions));
+  v1.use("*", sessionMiddleware(container.sessions));
   // Bearer-token (API key) auth: if no session verified, an `Authorization:
   // Bearer` header is hashed and looked up. A no-op for a session or anonymous
   // request.
-  app.use("*", apiKeyMiddleware(container.apiKeys));
+  v1.use("*", apiKeyMiddleware(container.apiKeys));
 
-  app.route("/", healthRoutes());
-  app.route("/auth", authRoutes(container));
+  v1.route("/auth", authRoutes(container));
 
   // Authenticated merchant reads (own merchant only — no cross-merchant view).
-  app.use("/payments/*", requireAuth(), requirePermission("payments:read"));
-  app.route("/payments", paymentRoutes(container));
+  v1.use("/payments/*", requireAuth(), requirePermission("payments:read"));
+  v1.route("/payments", paymentRoutes(container));
 
-  app.use("/analytics", requireAuth(), requirePermission("payments:read"));
-  app.route("/analytics", analyticsRoutes(container));
+  v1.use("/analytics", requireAuth(), requirePermission("payments:read"));
+  v1.route("/analytics", analyticsRoutes(container));
 
   // The compliance audit trail (#16). Same permission as payments: it is a
   // deeper view of the same records, not a wider one.
-  app.use("/audit/*", requireAuth(), requirePermission("payments:read"));
-  app.route("/audit", auditRoutes(container));
+  v1.use("/audit/*", requireAuth(), requirePermission("payments:read"));
+  v1.route("/audit", auditRoutes(container));
 
   // What the merchant was actually paid (#15). Same permission as payments, and
   // for the same reason: it is the payout side of records the caller can
   // already read, not a new set of them.
-  app.use("/settlements", requireAuth(), requirePermission("payments:read"));
-  app.use("/settlements/*", requireAuth(), requirePermission("payments:read"));
-  app.route("/settlements", settlementRoutes(container));
+  v1.use("/settlements", requireAuth(), requirePermission("payments:read"));
+  v1.use("/settlements/*", requireAuth(), requirePermission("payments:read"));
+  v1.route("/settlements", settlementRoutes(container));
 
   // The merchant event timeline — clearing, settlement, and webhook events in
   // one derived read. Same permission as payments: it is the same records read
   // another way, not a new set of them.
-  app.use("/event-logs", requireAuth(), requirePermission("payments:read"));
-  app.use("/event-logs/*", requireAuth(), requirePermission("payments:read"));
-  app.route("/event-logs", eventLogRoutes(container));
+  v1.use("/event-logs", requireAuth(), requirePermission("payments:read"));
+  v1.use("/event-logs/*", requireAuth(), requirePermission("payments:read"));
+  v1.route("/event-logs", eventLogRoutes(container));
 
   // The commerce view of a merchant's payments — line items and the customer,
   // rather than the clearing rail. Same permission as payments: it is the same
   // records read another way, not a new set of them.
-  app.use("/orders", requireAuth(), requirePermission("payments:read"));
-  app.use("/orders/*", requireAuth(), requirePermission("payments:read"));
-  app.route("/orders", orderRoutes(container));
+  v1.use("/orders", requireAuth(), requirePermission("payments:read"));
+  v1.use("/orders/*", requireAuth(), requirePermission("payments:read"));
+  v1.route("/orders", orderRoutes(container));
 
   // Products and payment links (#15). Its own permission: minting a link
   // decides what a buyer is charged and never where the money lands, so a
   // cashier can sell all day without being able to redirect the payout.
-  app.use("/catalog/*", requireAuth(), requirePermission("catalog:manage"));
-  app.route("/catalog", catalogRoutes(container));
+  v1.use("/catalog/*", requireAuth(), requirePermission("catalog:manage"));
+  v1.route("/catalog", catalogRoutes(container));
 
-  app.use("/payment-links", requireAuth(), requirePermission("catalog:manage"));
-  app.use("/payment-links/*", requireAuth(), requirePermission("catalog:manage"));
-  app.route("/payment-links", paymentLinkRoutes(container));
+  v1.use("/payment-links", requireAuth(), requirePermission("catalog:manage"));
+  v1.use("/payment-links/*", requireAuth(), requirePermission("catalog:manage"));
+  v1.route("/payment-links", paymentLinkRoutes(container));
 
   // The merchant's customer directory. Same permission as the catalog: a
   // customer is a commerce record the merchant manages, like a product, and
   // never decides where the money lands.
-  app.use("/customers", requireAuth(), requirePermission("catalog:manage"));
-  app.use("/customers/*", requireAuth(), requirePermission("catalog:manage"));
-  app.route("/customers", customerRoutes(container));
+  v1.use("/customers", requireAuth(), requirePermission("catalog:manage"));
+  v1.use("/customers/*", requireAuth(), requirePermission("catalog:manage"));
+  v1.route("/customers", customerRoutes(container));
 
   // Merchant settlement configuration (#95). Its own permission rather than
   // `admin:access`: this surface decides where the merchant's money is paid,
   // and reading payments or managing users is no reason to redirect them.
-  app.use("/settings/*", requireAuth(), requirePermission("settings:manage"));
-  app.use("/settings", requireAuth(), requirePermission("settings:manage"));
-  app.route("/settings", settingsRoutes(container));
+  v1.use("/settings/*", requireAuth(), requirePermission("settings:manage"));
+  v1.use("/settings", requireAuth(), requirePermission("settings:manage"));
+  v1.route("/settings", settingsRoutes(container));
 
   // Merchant API keys — bearer-token access with per-key permissions. Same
   // permission as settlement settings: a key decides what an integration can
   // reach within this merchant, the same perimeter settings governs.
-  app.use("/api-keys", requireAuth(), requirePermission("settings:manage"));
-  app.use("/api-keys/*", requireAuth(), requirePermission("settings:manage"));
-  app.route("/api-keys", apiKeyRoutes(container));
+  v1.use("/api-keys", requireAuth(), requirePermission("settings:manage"));
+  v1.use("/api-keys/*", requireAuth(), requirePermission("settings:manage"));
+  v1.route("/api-keys", apiKeyRoutes(container));
 
   // Webhook endpoints and delivery inspection (#13). Same permission as
   // settlement settings: both are merchant configuration, and both carry an
   // action that changes where payment detail is sent.
-  app.use("/webhooks/*", requireAuth(), requirePermission("settings:manage"));
-  app.route("/webhooks", webhookRoutes(container));
+  v1.use("/webhooks/*", requireAuth(), requirePermission("settings:manage"));
+  v1.route("/webhooks", webhookRoutes(container));
 
   // Merchant wallets (#11). Same permission as settlement settings: this is
   // what decides where the merchant's money can be paid at all.
-  app.use("/wallets/*", requireAuth(), requirePermission("settings:manage"));
-  app.use("/wallets", requireAuth(), requirePermission("settings:manage"));
-  app.route("/wallets", walletRoutes(container));
+  v1.use("/wallets/*", requireAuth(), requirePermission("settings:manage"));
+  v1.use("/wallets", requireAuth(), requirePermission("settings:manage"));
+  v1.route("/wallets", walletRoutes(container));
 
   // Admin surface within the caller's merchant: managing users, etc.
-  app.use("/admin/*", requireAuth(), requirePermission("admin:access"));
-  app.route("/admin", adminRoutes(container));
+  v1.use("/admin/*", requireAuth(), requirePermission("admin:access"));
+  v1.route("/admin", adminRoutes(container));
+
+  app.route("/v1", v1);
 
   return app;
 }

@@ -248,6 +248,7 @@ describe("GET /invoices/:id/view", () => {
     expect(page.status).toBe(200);
     expect(page.text).toContain("Sisa tagihan");
     expect(page.text).toContain("Rp 125.000,00");
+    expect(page.text).toContain(`/v1/invoices/${body.invoice.id}/checkout`);
     expect(page.text).not.toContain("<script>alert(1)</script>");
     expect(page.text).toContain("&lt;script&gt;");
   });

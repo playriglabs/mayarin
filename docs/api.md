@@ -343,6 +343,9 @@ can succeed later without changing it.
 ## Dashboard API (`apps/dashboard-api`)
 
 A second surface, on its own port, for the merchant signed into the dashboard.
+Its session and merchant routes are also mounted under `/v1`; `/health` remains
+at the root for infrastructure probes. In development the browser calls
+`/api/v1/*`, which the dashboard dev proxy forwards to this service.
 Everything above authenticates per request and takes the merchant as an argument,
 which is right for an SDK consumer holding their own credentials and wrong for a
 browser. Here the merchant is **the session's**: no route accepts a merchant id,
