@@ -10,16 +10,17 @@ understand why any of it exists.
 
 ## Orientation
 
-| Document                            | Read it when                                                               |
-| ----------------------------------- | -------------------------------------------------------------------------- |
-| [Vision & Rationale](./vision.md)   | You want the problem, the goals, and what Mayarin refuses to be            |
-| [Architecture](./architecture.md)   | You need the layers, the payment flow, and where code lives                |
-| [Development](./development.md)     | You are running it locally or touching the tooling                         |
-| [REST API](./api.md)                | You are integrating against it                                             |
-| [Embeddable Checkout](./embed.md)   | You are putting the checkout on a merchant's own page                      |
-| [Roadmap](./roadmap.md)             | You want to know what is shipped and what is next                          |
-| [Threat Model](./threat-model.md)   | You want the risks the design carries, and the ones it does not yet answer |
-| [Quote Signing](./quote-signing.md) | You are touching the EIP-712 order or the signing key                      |
+| Document                              | Read it when                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------- |
+| [Vision & Rationale](./vision.md)     | You want the problem, the goals, and what Mayarin refuses to be            |
+| [Architecture](./architecture.md)     | You need the layers, the payment flow, and where code lives                |
+| [Development](./development.md)       | You are running it locally or touching the tooling                         |
+| [Deployment Targets](./deployment.md) | You are manually deploying testnet or preparing the mainnet perimeter      |
+| [REST API](./api.md)                  | You are integrating against it                                             |
+| [Embeddable Checkout](./embed.md)     | You are putting the checkout on a merchant's own page                      |
+| [Roadmap](./roadmap.md)               | You want to know what is shipped and what is next                          |
+| [Threat Model](./threat-model.md)     | You want the risks the design carries, and the ones it does not yet answer |
+| [Quote Signing](./quote-signing.md)   | You are touching the EIP-712 order or the signing key                      |
 
 ---
 

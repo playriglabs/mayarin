@@ -25,6 +25,7 @@ coverage/
 .claude/settings.local.json
 
 .astro
+.wrangler/
 .bun/
 bun.lockb.bak
 

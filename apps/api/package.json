@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "bun --env-file=../../.env run --hot src/index.ts",
     "start": "bun run src/index.ts",
+    "start:worker": "bun run src/chain-worker.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

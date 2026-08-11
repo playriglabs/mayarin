@@ -111,5 +111,5 @@ looked and found nothing".
 - **No retention policy.** Nothing expires, which is currently the right default
   and is not the same as having decided one.
 
-See [RFC #16](https://github.com/playriglabs/mayarr/issues/16) and
+See [RFC #16](https://github.com/playriglabs/mayarin/issues/16) and
 [Threat Model](./threat-model.md).

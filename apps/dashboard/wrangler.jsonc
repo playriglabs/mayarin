@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "mayarin-dashboard-testnet",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-08-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "API_URL": "https://api-merchant-testnet.mayarin.xyz"
+  }
+}
