@@ -114,7 +114,12 @@ describe("requests", () => {
 describe("errors", () => {
   test("an API error body maps onto code, status and details", async () => {
     const body = {
-      error: { code: "NOT_FOUND", message: "No such intent", details: { id: "pi_x" } },
+      error: {
+        code: "NOT_FOUND",
+        message: "No such intent",
+        retryable: false,
+        details: { id: "pi_x" },
+      },
     };
     const { t } = transport({}, () => json(body, 404));
     const error = await t.get("/payment-intents/pi_x").catch((e: unknown) => e);
@@ -127,10 +132,21 @@ describe("errors", () => {
   });
 
   test("a concurrency conflict is retryable", async () => {
-    const body = { error: { code: "CONCURRENCY_CONFLICT", message: "Writers raced" } };
+    const body = {
+      error: { code: "CONCURRENCY_CONFLICT", message: "Writers raced", retryable: true },
+    };
     const { t } = transport({}, () => json(body, 409));
     const error = await t.post("/payment-intents", {}).catch((e: unknown) => e);
     expect((error as MayarinApiError).retryable).toBe(true);
+  });
+
+  test("a permanent provider failure stays non-retryable", async () => {
+    const body = {
+      error: { code: "PROVIDER_ERROR", message: "Route refused", retryable: false },
+    };
+    const { t } = transport({}, () => json(body, 502));
+    const error = await t.post("/payment-intents", {}).catch((e: unknown) => e);
+    expect((error as MayarinApiError).retryable).toBe(false);
   });
 
   test("a non-JSON error body still maps to the one error type", async () => {

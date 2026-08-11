@@ -16,13 +16,13 @@ export interface ClientConfig {
   readonly generateIdempotencyKey?: () => string;
 }
 
-export interface MayarinClient {
+export interface BaseMayarinClient {
   /** Raw typed transport. The escape hatch until a module covers a route. */
   readonly transport: Transport;
   readonly preset: Preset;
 }
 
-export function buildClient(config: ClientConfig, secretKey?: string): MayarinClient {
+export function buildClient(config: ClientConfig, secretKey?: string): BaseMayarinClient {
   const transportConfig: TransportConfig = {
     baseUrl: config.baseUrl,
     ...(secretKey === undefined ? {} : { secretKey }),

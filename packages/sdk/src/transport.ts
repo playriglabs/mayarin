@@ -12,7 +12,7 @@ import { errorFromResponse, INVALID_RESPONSE, MayarinApiError, NETWORK_ERROR } f
 import { MAYARIN_VERSION } from "./version.ts";
 
 export interface TransportConfig {
-  /** Origin of the payment API, e.g. `https://api.mayarin.com`. No trailing slash needed. */
+  /** Origin of the payment API, e.g. `https://api.mayarin.xyz`. No trailing slash needed. */
   readonly baseUrl: string;
   /** Secret key for the merchant surface. Absent on the browser entry point. */
   readonly secretKey?: string;
@@ -75,6 +75,7 @@ export function createTransport(config: TransportConfig): Transport {
         NETWORK_ERROR,
         "The request never reached the API",
         0,
+        true,
         {},
         {
           cause: error,
@@ -119,6 +120,7 @@ async function parseJson(response: Response): Promise<unknown> {
         INVALID_RESPONSE,
         "The API returned a body that is not JSON",
         response.status,
+        false,
         {},
         { cause: error },
       );

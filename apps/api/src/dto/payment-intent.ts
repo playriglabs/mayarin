@@ -80,6 +80,7 @@ export const createBodySchema = z
   });
 
 export type CreateBody = z.infer<typeof createBodySchema>;
+export type CreatePaymentIntentBody = z.input<typeof createBodySchema>;
 
 export function toPaymentIntentDto(intent: PaymentIntent) {
   return {
@@ -110,3 +111,5 @@ export function toPaymentIntentDto(intent: PaymentIntent) {
     completedAt: intent.completedAt?.toISOString() ?? null,
   };
 }
+
+export type PaymentIntentDto = ReturnType<typeof toPaymentIntentDto>;

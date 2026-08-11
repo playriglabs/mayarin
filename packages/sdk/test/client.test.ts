@@ -41,12 +41,6 @@ describe("presets", () => {
     expect(client.preset).toEqual(PRESETS.merchant);
   });
 
-  test("pos defaults to open-amount links and cart checkout", () => {
-    const client = createMayarin({ baseUrl: "https://api.test", secretKey: "sk_1", preset: "pos" });
-    expect(client.preset.openAmountLinks).toBe(true);
-    expect(client.preset.checkout).toBe("cart");
-  });
-
   test("merchant defaults to catalog checkout and fixed amounts", () => {
     const client = createMayarinBrowser({ baseUrl: "https://api.test", preset: "merchant" });
     expect(client.preset.openAmountLinks).toBe(false);

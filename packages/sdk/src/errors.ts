@@ -9,9 +9,6 @@
 
 import type { ErrorBody } from "@mayarin/api/dto";
 
-/** Codes the server taxonomy marks safe to retry unchanged. */
-const RETRYABLE_CODES: ReadonlySet<string> = new Set(["CONCURRENCY_CONFLICT", "PROVIDER_ERROR"]);
-
 /** The request never produced an API response (DNS, refused, aborted). */
 export const NETWORK_ERROR = "NETWORK_ERROR";
 /** The response was not the JSON the API contract promises. */
@@ -29,6 +26,7 @@ export class MayarinApiError extends Error {
     code: string,
     message: string,
     status: number,
+    retryable: boolean,
     details: Record<string, unknown> = {},
     options?: ErrorOptions,
   ) {
@@ -36,7 +34,7 @@ export class MayarinApiError extends Error {
     this.name = "MayarinApiError";
     this.code = code;
     this.status = status;
-    this.retryable = code === NETWORK_ERROR || RETRYABLE_CODES.has(code);
+    this.retryable = retryable;
     this.details = details;
   }
 }
@@ -52,10 +50,11 @@ export function errorFromResponse(status: number, body: unknown): MayarinApiErro
       body.error.code,
       body.error.message,
       status,
+      body.error.retryable,
       body.error.details ?? {},
     );
   }
-  return new MayarinApiError(INVALID_RESPONSE, `The API returned HTTP ${status}`, status);
+  return new MayarinApiError(INVALID_RESPONSE, `The API returned HTTP ${status}`, status, false);
 }
 
 function isErrorBody(body: unknown): body is ErrorBody {
@@ -65,6 +64,7 @@ function isErrorBody(body: unknown): body is ErrorBody {
     typeof error === "object" &&
     error !== null &&
     typeof (error as { code?: unknown }).code === "string" &&
-    typeof (error as { message?: unknown }).message === "string"
+    typeof (error as { message?: unknown }).message === "string" &&
+    typeof (error as { retryable?: unknown }).retryable === "boolean"
   );
 }

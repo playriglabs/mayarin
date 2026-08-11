@@ -432,6 +432,9 @@
     "packages/sdk": {
       "name": "@mayarin/sdk",
       "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/qr-parser": "workspace:*",
+      },
       "devDependencies": {
         "@mayarin/api": "workspace:*",
       },

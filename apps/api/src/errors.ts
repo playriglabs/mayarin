@@ -14,6 +14,7 @@ export interface ErrorBody {
   readonly error: {
     readonly code: string;
     readonly message: string;
+    readonly retryable: boolean;
     readonly details?: Record<string, unknown>;
   };
 }
@@ -25,6 +26,7 @@ export function errorHandler(error: Error, c: Context): Response {
         error: {
           code: "VALIDATION_ERROR",
           message: "Request failed validation",
+          retryable: false,
           details: {
             issues: error.issues.map((issue) => ({
               path: issue.path.join("."),
@@ -43,6 +45,7 @@ export function errorHandler(error: Error, c: Context): Response {
         error: {
           code: error.code,
           message: error.message,
+          retryable: error.retryable,
           ...(Object.keys(error.details).length === 0 ? {} : { details: error.details }),
         },
       },
@@ -52,7 +55,13 @@ export function errorHandler(error: Error, c: Context): Response {
 
   console.error("[api] unhandled error", error);
   return c.json<ErrorBody>(
-    { error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred" } },
+    {
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "An unexpected error occurred",
+        retryable: false,
+      },
+    },
     500,
   );
 }

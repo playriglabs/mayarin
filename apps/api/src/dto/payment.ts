@@ -22,3 +22,5 @@ export function toPaymentDto(
     timeline: toTimelineDto(events),
   };
 }
+
+export type PaymentDto = ReturnType<typeof toPaymentDto>;

@@ -48,3 +48,5 @@ export function toContractCallDto(view: ContractCallView) {
     expiresAt: view.expiresAt.toISOString(),
   };
 }
+
+export type ContractCallDto = ReturnType<typeof toContractCallDto>;

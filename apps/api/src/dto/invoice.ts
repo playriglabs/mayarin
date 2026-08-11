@@ -93,6 +93,11 @@ export const checkoutInvoiceBodySchema = z
   })
   .strict();
 
+export type CreateInvoiceBody = z.input<typeof createInvoiceBodySchema>;
+export type EditInvoiceBodyDto = z.input<typeof editInvoiceBodySchema>;
+export type IssueInvoiceBodyDto = z.input<typeof issueInvoiceBodySchema>;
+export type CheckoutInvoiceBody = z.input<typeof checkoutInvoiceBodySchema>;
+
 type EditInvoiceBody = z.infer<typeof editInvoiceBodySchema>;
 type IssueInvoiceBody = z.infer<typeof issueInvoiceBodySchema>;
 
@@ -158,6 +163,8 @@ export function toInvoiceDto(invoice: Invoice, baseUrl: string) {
   };
 }
 
+export type InvoiceDto = ReturnType<typeof toInvoiceDto>;
+
 /** The invoice with everything derived from its payments, which is what a reader wants. */
 export function toInvoiceViewDto(view: InvoiceView, baseUrl: string) {
   return {
@@ -167,3 +174,5 @@ export function toInvoiceViewDto(view: InvoiceView, baseUrl: string) {
     outstanding: toMoneyDto(view.outstanding),
   };
 }
+
+export type InvoiceViewDto = ReturnType<typeof toInvoiceViewDto>;

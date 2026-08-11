@@ -7,16 +7,24 @@
  * embed (#113) waits on that design.
  */
 
-import { buildClient, type ClientConfig, type MayarinClient } from "./client.ts";
+import { type BaseMayarinClient, buildClient, type ClientConfig } from "./client.ts";
 
 export type MayarinBrowserConfig = ClientConfig;
 
-export function createMayarinBrowser(config: MayarinBrowserConfig): MayarinClient {
+export function createMayarinBrowser(config: MayarinBrowserConfig): BaseMayarinClient {
   return buildClient(config);
 }
 
-export type { ClientConfig, MayarinClient } from "./client.ts";
+export type { BaseMayarinClient as MayarinBrowserClient, ClientConfig } from "./client.ts";
 export { isMayarinApiError, MayarinApiError } from "./errors.ts";
 export { PRESETS, type Preset, type PresetName } from "./presets.ts";
+export * as qr from "./qr.ts";
 export type { QueryParams, RequestOptions, Transport } from "./transport.ts";
 export { MAYARIN_VERSION } from "./version.ts";
+export {
+  constructWebhook,
+  MayarinWebhookError,
+  type VerifyWebhookOptions,
+  verifyWebhook,
+  type WebhookVerificationCode,
+} from "./webhooks.ts";
