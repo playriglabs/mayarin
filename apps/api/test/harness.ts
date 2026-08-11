@@ -6,6 +6,9 @@
  * clearing engine without a database.
  */
 
+import { createHash } from "node:crypto";
+import { createApiKey, MERCHANT_ADMIN_PERMISSIONS, type Permission } from "@mayarin/auth";
+import { InMemoryApiKeyRepository } from "@mayarin/auth/testing";
 import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import { InMemoryPaymentLinkRepository, InMemoryProductRepository } from "@mayarin/catalog/testing";
 import {
@@ -34,10 +37,16 @@ import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 import { RuntimeMarket } from "../src/market.ts";
+import { createApiKeyVerifier } from "../src/services/api-key-verifier.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 import { PaymentStream } from "../src/services/payment-stream.ts";
 
 export const WEBHOOK_SECRET = "whsec_mayarin_test";
+
+/** The merchant the harness's default API key belongs to. */
+export const TEST_MERCHANT_ID = "mrc_1";
+/** Full-permission secret `request` sends unless a test opts out. */
+export const API_KEY_SECRET = "mak_test_full_access";
 
 export interface ApiHarnessOptions {
   readonly behaviour?: MockBehaviour;
@@ -64,6 +73,30 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     MOCK_WEBHOOK_SECRET: WEBHOOK_SECRET,
     ...(options.adminToken === undefined ? {} : { ADMIN_TOKEN: options.adminToken }),
   });
+
+  // The same key path production takes: a repository, sha-256 lookup, and the
+  // verifier the routes call — only the storage is in memory. `mintApiKey`
+  // inserts synchronously in effect: the in-memory repository never suspends.
+  const apiKeys = new InMemoryApiKeyRepository();
+  const hashSecret = (secret: string) => createHash("sha256").update(secret).digest("hex");
+  function mintApiKey(
+    merchantId: string,
+    secret: string,
+    permissions: readonly Permission[] = MERCHANT_ADMIN_PERMISSIONS,
+  ): string {
+    void apiKeys.insert(
+      createApiKey({
+        merchantId,
+        name: `test key for ${merchantId}`,
+        secretHash: hashSecret(secret),
+        prefix: secret.slice(0, 12),
+        permissions,
+        now: clock.now(),
+      }),
+    );
+    return secret;
+  }
+  mintApiKey(TEST_MERCHANT_ID, API_KEY_SECRET);
 
   const adapter = new MockSettlementAdapter({
     clock,
@@ -144,6 +177,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
 
   const container: Container = {
     config,
+    verifyApiKey: createApiKeyVerifier({ keys: apiKeys, clock }),
     intents,
     merchantPolicies,
     catalog: new CatalogService({ products, links, clock }),
@@ -185,15 +219,25 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
 
   const app = createApp(container);
 
+  /**
+   * `auth` defaults to the full-permission key for `TEST_MERCHANT_ID`, so a
+   * test about commerce is not also a test about headers. Pass `false` to send
+   * no key, or another minted secret to impersonate a different caller.
+   */
   async function request(
     method: string,
     path: string,
-    init: { body?: unknown; headers?: Record<string, string> } = {},
+    init: { body?: unknown; headers?: Record<string, string>; auth?: false | string } = {},
   ) {
+    const authHeader =
+      init.auth === false
+        ? {}
+        : { authorization: `Bearer ${typeof init.auth === "string" ? init.auth : API_KEY_SECRET}` };
     const response = await app.request(path, {
       method,
       headers: {
         "content-type": "application/json",
+        ...authHeader,
         ...init.headers,
       },
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
@@ -223,6 +267,10 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     /** Fires a change as Postgres would, once `stream.start()` has run. */
     notifyPayment: (paymentIntentId: string) => notify?.(paymentIntentId),
     refundRepository,
+    /** Mints an extra key, for tests about other merchants or lesser permissions. */
+    mintApiKey,
+    /** The key store behind `verifyApiKey`, for tests that deactivate a key. */
+    apiKeys,
   };
 }
 

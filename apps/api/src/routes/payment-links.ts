@@ -6,6 +6,7 @@
  * what lets one printed QR on a counter serve every sale of the day.
  */
 
+import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import {
@@ -15,13 +16,17 @@ import {
   toPaymentLinkDto,
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
 
-export function paymentLinkRoutes(container: Container): Hono {
-  const app = new Hono();
+export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
+  const app = new Hono<ApiKeyAuthEnv>();
   const baseUrl = container.config.publicBaseUrl;
+  const auth = requireApiKey(container.verifyApiKey);
+  const manage = requireApiKey(container.verifyApiKey, "catalog:manage");
 
-  app.post("/", async (c) => {
+  app.post("/", manage, async (c) => {
     const body = createPaymentLinkBodySchema.parse(await c.req.json());
+    assertMerchant(c.get("scope"), body.merchant.id);
     const idempotencyKey = c.req.header("Idempotency-Key");
 
     const link = await container.catalog.createLink({
@@ -42,10 +47,13 @@ export function paymentLinkRoutes(container: Container): Hono {
     return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()) }, 201);
   });
 
-  app.get("/", async (c) => {
-    const links = await container.catalog.listLinks({
-      merchantId: c.req.query("merchantId") ?? "",
-    });
+  // Keyed by a guessable merchant id, so the listing requires a key — and only
+  // for the key's own merchant. An omitted `merchantId` means that merchant.
+  app.get("/", auth, async (c) => {
+    const scope = c.get("scope");
+    const merchantId = c.req.query("merchantId") ?? scope.merchantId;
+    assertMerchant(scope, merchantId);
+    const links = await container.catalog.listLinks({ merchantId });
     const now = new Date();
     return c.json({ paymentLinks: links.map((link) => toPaymentLinkDto(link, baseUrl, now)) });
   });
@@ -55,7 +63,13 @@ export function paymentLinkRoutes(container: Container): Hono {
     return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()) });
   });
 
-  app.post("/:id/disable", async (c) => {
+  app.post("/:id/disable", manage, async (c) => {
+    // A foreign link answers 404 before the disable runs — the id was not the
+    // caller's to know, so the response does not say whether it exists.
+    const existing = await container.catalog.getLink(c.req.param("id"));
+    if (existing.merchant.id !== c.get("scope").merchantId) {
+      throw new NotFoundError(`Payment link ${existing.id} not found`, { id: existing.id });
+    }
     const link = await container.catalog.disableLink(c.req.param("id"));
     return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()) });
   });

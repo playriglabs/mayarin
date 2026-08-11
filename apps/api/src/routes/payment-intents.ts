@@ -21,11 +21,15 @@ import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toPaymentDto } from "../dto/payment.ts";
 import { type CreateBody, createBodySchema, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
 
-export function paymentIntentRoutes(container: Container): Hono {
-  const app = new Hono();
+export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
+  const app = new Hono<ApiKeyAuthEnv>();
 
-  app.post("/", async (c) => {
+  // Creation is the merchant's (or their POS's) act; a buyer never calls it
+  // directly — links and invoices mint intents for buyers on open routes. No
+  // merchant match here: a QR names an EMVCo identity, not a Mayarin tenant.
+  app.post("/", requireApiKey(container.verifyApiKey), async (c) => {
     const body = createBodySchema.parse(await c.req.json());
     const idempotencyKey = c.req.header("Idempotency-Key");
 

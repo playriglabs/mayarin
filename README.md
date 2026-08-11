@@ -72,11 +72,13 @@ bun run db:up
 export $(grep -E '^DATABASE_URL' .env) && bun run --cwd packages/db migrate
 ```
 
-Pay something:
+Pay something. Creating an intent is a merchant act, so it needs an API key —
+`bun run seed:merchant` prints one (`apiKey:`) when it creates the merchant:
 
 ```bash
 curl -X POST localhost:3000/payment-intents \
   -H 'content-type: application/json' \
+  -H 'Authorization: Bearer <apiKey from seed:merchant>' \
   -H 'Idempotency-Key: order-4711' \
   -d '{"merchant":{"id":"M-1","name":"Warung Kopi","city":"Jakarta","countryCode":"ID"},
        "amount":{"amount":"50000.00","asset":"IDR"}}'

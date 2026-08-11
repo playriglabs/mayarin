@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
-import { createApiHarness, qrisPayload } from "./harness.ts";
+import { API_KEY_SECRET, createApiHarness, qrisPayload } from "./harness.ts";
 
 describe("POST /payment-intents", () => {
   test("creates an intent from a QRIS payload", async () => {
@@ -315,7 +315,10 @@ describe("payment rail", () => {
     const harness = createApiHarness();
     const response = await harness.app.request("/payment-intents", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${API_KEY_SECRET}`,
+      },
       body: JSON.stringify({
         merchant: {
           id: "M1",
@@ -335,7 +338,10 @@ describe("payment rail", () => {
     const harness = createApiHarness();
     const response = await harness.app.request("/payment-intents", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${API_KEY_SECRET}`,
+      },
       body: JSON.stringify({
         merchant: {
           id: "M1",

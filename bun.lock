@@ -16,6 +16,7 @@
       "name": "@mayarin/api",
       "version": "0.1.0",
       "dependencies": {
+        "@mayarin/auth": "workspace:*",
         "@mayarin/catalog": "workspace:*",
         "@mayarin/chain": "workspace:*",
         "@mayarin/clearing": "workspace:*",
