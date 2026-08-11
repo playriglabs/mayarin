@@ -9,7 +9,13 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0a0a0a" />
     <title>Sign in — Mayarin</title>
+    <link rel="icon" href="/favicon.ico" sizes="48x48" type="image/x-icon" />
+    <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
+    <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -20,6 +26,12 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
       // Before first paint. Dark is the default; "light" is the stored opt-out.
       document.documentElement.dataset.theme =
         localStorage.getItem("mayarin-theme") === "light" ? "light" : "dark";
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute(
+          "content",
+          document.documentElement.dataset.theme === "light" ? "#ffffff" : "#0a0a0a",
+        );
     </script>
   </head>
   <!-- The landing's dark tone: a paper card floating on the void. -->
