@@ -13,11 +13,11 @@ type Harness = ReturnType<typeof createApiHarness>;
 
 /** Takes a payment all the way to SUCCESS, which is the only refundable state. */
 async function settledPayment(harness: Harness) {
-  const created = await harness.request("POST", "/payment-intents", {
+  const created = await harness.request("POST", "/v1/payment-intents", {
     body: { qr: qrisPayload() },
   });
   const id = created.body.paymentIntent.id;
-  const confirmed = await harness.request("POST", `/payment-intents/${id}/confirm`);
+  const confirmed = await harness.request("POST", `/v1/payment-intents/${id}/confirm`);
   expect(confirmed.body.paymentIntent.status).toBe("COMPLETED");
   return id;
 }
@@ -27,7 +27,9 @@ describe("POST /payments/:id/refunds", () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);
 
-    const { status, body } = await harness.request("POST", `/payments/${id}/refunds`, { body: {} });
+    const { status, body } = await harness.request("POST", `/v1/payments/${id}/refunds`, {
+      body: {},
+    });
 
     expect(status).toBe(201);
     expect(body.refund.state).toBe("SUCCEEDED");
@@ -40,15 +42,15 @@ describe("POST /payments/:id/refunds", () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);
 
-    const before = await harness.request("GET", `/payments/${id}/refunds`);
+    const before = await harness.request("GET", `/v1/payments/${id}/refunds`);
     const refundable = BigInt(before.body.summary.refundable.amount);
 
-    const partial = await harness.request("POST", `/payments/${id}/refunds`, {
+    const partial = await harness.request("POST", `/v1/payments/${id}/refunds`, {
       body: { amount: { amount: "100.00", asset: "IDRX" } },
     });
     expect(partial.status).toBe(201);
 
-    const after = await harness.request("GET", `/payments/${id}/refunds`);
+    const after = await harness.request("GET", `/v1/payments/${id}/refunds`);
     expect(after.body.summary.state).toBe("PARTIAL");
     expect(BigInt(after.body.summary.remaining.amount)).toBe(refundable - 10_000n);
   });
@@ -57,17 +59,17 @@ describe("POST /payments/:id/refunds", () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);
 
-    const summary = await harness.request("GET", `/payments/${id}/refunds`);
+    const summary = await harness.request("GET", `/v1/payments/${id}/refunds`);
     const refundable = BigInt(summary.body.summary.refundable.amount);
 
-    const first = await harness.request("POST", `/payments/${id}/refunds`, {
+    const first = await harness.request("POST", `/v1/payments/${id}/refunds`, {
       body: { amount: { amount: "100.00", asset: "IDRX" } },
     });
     expect(first.status).toBe(201);
 
     // Each is within the balance on its own; together they are not — the case a
     // per-refund check misses.
-    const second = await harness.request("POST", `/payments/${id}/refunds`, {
+    const second = await harness.request("POST", `/v1/payments/${id}/refunds`, {
       body: { amount: { amount: `${refundable / 100n}.00`, asset: "IDRX" } },
     });
     expect(second.status).toBe(400);
@@ -77,7 +79,7 @@ describe("POST /payments/:id/refunds", () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);
 
-    const { status } = await harness.request("POST", `/payments/${id}/refunds`, {
+    const { status } = await harness.request("POST", `/v1/payments/${id}/refunds`, {
       body: { amount: { amount: "100.00", asset: "USDC" } },
     });
     expect(status).toBe(400);
@@ -89,23 +91,23 @@ describe("POST /payments/:id/refunds", () => {
     const headers = { "Idempotency-Key": "refund-key-00001" };
     const body = { amount: { amount: "100.00", asset: "IDRX" } };
 
-    const first = await harness.request("POST", `/payments/${id}/refunds`, { body, headers });
-    const second = await harness.request("POST", `/payments/${id}/refunds`, { body, headers });
+    const first = await harness.request("POST", `/v1/payments/${id}/refunds`, { body, headers });
+    const second = await harness.request("POST", `/v1/payments/${id}/refunds`, { body, headers });
 
     expect(second.body.refund.id).toBe(first.body.refund.id);
 
-    const listed = await harness.request("GET", `/payments/${id}/refunds`);
+    const listed = await harness.request("GET", `/v1/payments/${id}/refunds`);
     expect(listed.body.refunds).toHaveLength(1);
   });
 
   test("a payment that has not settled cannot be refunded", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
     const id = created.body.paymentIntent.id;
 
-    const { status } = await harness.request("POST", `/payments/${id}/refunds`, { body: {} });
+    const { status } = await harness.request("POST", `/v1/payments/${id}/refunds`, { body: {} });
     // No clearing transaction exists until the intent is confirmed.
     expect(status).toBe(404);
   });
@@ -114,7 +116,7 @@ describe("POST /payments/:id/refunds", () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);
 
-    await harness.request("POST", `/payments/${id}/refunds`, {
+    await harness.request("POST", `/v1/payments/${id}/refunds`, {
       body: { amount: { amount: "100.00", asset: "IDRX" } },
     });
 
@@ -132,7 +134,7 @@ describe("GET /payments/:id/refunds", () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);
 
-    const { status, body } = await harness.request("GET", `/payments/${id}/refunds`);
+    const { status, body } = await harness.request("GET", `/v1/payments/${id}/refunds`);
 
     expect(status).toBe(200);
     expect(body.refunds).toEqual([]);
@@ -144,16 +146,16 @@ describe("GET /payments/:id/refunds", () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);
 
-    await harness.request("POST", `/payments/${id}/refunds`, { body: {} });
+    await harness.request("POST", `/v1/payments/${id}/refunds`, { body: {} });
 
-    const refunds = await harness.request("GET", `/payments/${id}/refunds`);
+    const refunds = await harness.request("GET", `/v1/payments/${id}/refunds`);
     expect(refunds.body.summary.state).toBe("FULL");
     expect(refunds.body.summary.remaining.amount).toBe("0");
 
     // The payment succeeded. A refund is a new transfer, not a reversal, so the
     // payment's own status is untouched — losing it would lose the fact the
     // ledger and the audit trail are built on.
-    const payment = await harness.request("GET", `/payments/${id}`);
+    const payment = await harness.request("GET", `/v1/payments/${id}`);
     expect(payment.body.paymentIntent.status).toBe("COMPLETED");
   });
 });

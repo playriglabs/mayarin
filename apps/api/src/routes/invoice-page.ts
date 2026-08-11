@@ -26,7 +26,7 @@ export function invoicePageRoutes(container: Container): Hono {
 
   app.get("/:id/view", async (c) => {
     const view = await container.invoices.viewInvoice(c.req.param("id"));
-    return c.html(invoicePage(view, `${baseUrl}/invoices/${view.invoice.id}/checkout`));
+    return c.html(invoicePage(view, `${baseUrl}/v1/invoices/${view.invoice.id}/checkout`));
   });
 
   return app;

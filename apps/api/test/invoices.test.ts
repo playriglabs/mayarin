@@ -26,13 +26,13 @@ function invoiceBody(overrides: Record<string, unknown> = {}) {
 }
 
 async function createDraft(harness: ReturnType<typeof createApiHarness>) {
-  const { body } = await harness.request("POST", "/invoices", { body: invoiceBody() });
+  const { body } = await harness.request("POST", "/v1/invoices", { body: invoiceBody() });
   return body.invoice;
 }
 
 async function createIssued(harness: ReturnType<typeof createApiHarness>) {
   const draft = await createDraft(harness);
-  const { body } = await harness.request("POST", `/invoices/${draft.id}/issue`, {
+  const { body } = await harness.request("POST", `/v1/invoices/${draft.id}/issue`, {
     body: { dueAt: dueAt(), prefix: "INV", includeYear: true },
   });
   return body.invoice;
@@ -41,7 +41,7 @@ async function createIssued(harness: ReturnType<typeof createApiHarness>) {
 describe("POST /invoices", () => {
   test("creates an unnumbered draft and totals its lines", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/invoices", { body: invoiceBody() });
+    const { status, body } = await harness.request("POST", "/v1/invoices", { body: invoiceBody() });
 
     expect(status).toBe(201);
     expect(body.invoice.state).toBe("draft");
@@ -53,7 +53,7 @@ describe("POST /invoices", () => {
 
   test("rejects an invoice with no lines", async () => {
     const harness = createApiHarness();
-    const { status } = await harness.request("POST", "/invoices", {
+    const { status } = await harness.request("POST", "/v1/invoices", {
       body: invoiceBody({ lines: [] }),
     });
     expect(status).toBe(400);
@@ -61,11 +61,11 @@ describe("POST /invoices", () => {
 
   test("replaying an idempotency key returns the first invoice", async () => {
     const harness = createApiHarness();
-    const first = await harness.request("POST", "/invoices", {
+    const first = await harness.request("POST", "/v1/invoices", {
       body: invoiceBody(),
       headers: { "Idempotency-Key": "inv-key-1" },
     });
-    const second = await harness.request("POST", "/invoices", {
+    const second = await harness.request("POST", "/v1/invoices", {
       body: invoiceBody(),
       headers: { "Idempotency-Key": "inv-key-1" },
     });
@@ -98,7 +98,7 @@ describe("POST /invoices/:id/issue", () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
 
-    const { status, body } = await harness.request("PATCH", `/invoices/${issued.id}`, {
+    const { status, body } = await harness.request("PATCH", `/v1/invoices/${issued.id}`, {
       body: { notes: "too late" },
     });
 
@@ -110,7 +110,7 @@ describe("POST /invoices/:id/issue", () => {
     const harness = createApiHarness();
     const draft = await createDraft(harness);
 
-    const { status, body } = await harness.request("PATCH", `/invoices/${draft.id}`, {
+    const { status, body } = await harness.request("PATCH", `/v1/invoices/${draft.id}`, {
       body: {
         lines: [{ name: "Kopi", unitPrice: { amount: "25000.00", asset: "IDR" }, quantity: 1 }],
       },
@@ -126,7 +126,7 @@ describe("POST /invoices/:id/checkout", () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
 
-    const { status, body } = await harness.request("POST", `/invoices/${issued.id}/checkout`);
+    const { status, body } = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`);
 
     expect(status).toBe(201);
     expect(body.paymentIntent.merchantReference).toBe(issued.number);
@@ -137,7 +137,7 @@ describe("POST /invoices/:id/checkout", () => {
     const harness = createApiHarness();
     const draft = await createDraft(harness);
 
-    const { status } = await harness.request("POST", `/invoices/${draft.id}/checkout`);
+    const { status } = await harness.request("POST", `/v1/invoices/${draft.id}/checkout`);
     expect(status).toBe(409);
   });
 
@@ -145,13 +145,13 @@ describe("POST /invoices/:id/checkout", () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
 
-    const paid = await harness.request("POST", `/invoices/${issued.id}/checkout`, {
+    const paid = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`, {
       body: { amount: { amount: "50000.00", asset: "IDR" } },
     });
     expect(paid.status).toBe(201);
-    await harness.request("POST", `/payment-intents/${paid.body.paymentIntent.id}/confirm`);
+    await harness.request("POST", `/v1/payment-intents/${paid.body.paymentIntent.id}/confirm`);
 
-    const { body } = await harness.request("GET", `/invoices/${issued.id}`);
+    const { body } = await harness.request("GET", `/v1/invoices/${issued.id}`);
     expect(body.invoice.status).toBe("partially_paid");
     expect(body.invoice.paid.amount).toBe("5000000");
     expect(body.invoice.outstanding.amount).toBe("7500000");
@@ -161,16 +161,16 @@ describe("POST /invoices/:id/checkout", () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
 
-    const first = await harness.request("POST", `/invoices/${issued.id}/checkout`, {
+    const first = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`, {
       body: { amount: { amount: "50000.00", asset: "IDR" } },
     });
-    await harness.request("POST", `/payment-intents/${first.body.paymentIntent.id}/confirm`);
+    await harness.request("POST", `/v1/payment-intents/${first.body.paymentIntent.id}/confirm`);
 
-    const second = await harness.request("POST", `/invoices/${issued.id}/checkout`);
+    const second = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`);
     expect(second.body.paymentIntent.amount.amount).toBe("7500000");
 
-    await harness.request("POST", `/payment-intents/${second.body.paymentIntent.id}/confirm`);
-    const { body } = await harness.request("GET", `/invoices/${issued.id}`);
+    await harness.request("POST", `/v1/payment-intents/${second.body.paymentIntent.id}/confirm`);
+    const { body } = await harness.request("GET", `/v1/invoices/${issued.id}`);
     expect(body.invoice.status).toBe("paid");
     expect(body.invoice.outstanding.amount).toBe("0");
   });
@@ -179,7 +179,7 @@ describe("POST /invoices/:id/checkout", () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
 
-    const { status } = await harness.request("POST", `/invoices/${issued.id}/checkout`, {
+    const { status } = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`, {
       body: { amount: { amount: "999000.00", asset: "IDR" } },
     });
     expect(status).toBe(400);
@@ -191,7 +191,7 @@ describe("GET /invoices", () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
 
-    const { body } = await harness.request("GET", `/invoices/${issued.id}`);
+    const { body } = await harness.request("GET", `/v1/invoices/${issued.id}`);
     expect(body.invoice.status).toBe("issued");
     expect(body.invoice.paid.amount).toBe("0");
     expect(body.invoice.outstanding.amount).toBe("12500000");
@@ -203,14 +203,17 @@ describe("GET /invoices", () => {
     await createDraft(harness);
     await createIssued(harness);
 
-    const drafts = await harness.request("GET", `/invoices?merchantId=${merchant.id}&state=draft`);
+    const drafts = await harness.request(
+      "GET",
+      `/v1/invoices?merchantId=${merchant.id}&state=draft`,
+    );
     expect(drafts.body.invoices).toHaveLength(1);
     expect(drafts.body.invoices[0].state).toBe("draft");
   });
 
   test("an unknown invoice is a 404", async () => {
     const harness = createApiHarness();
-    const { status } = await harness.request("GET", "/invoices/inv_missing");
+    const { status } = await harness.request("GET", "/v1/invoices/inv_missing");
     expect(status).toBe(404);
   });
 });
@@ -220,13 +223,13 @@ describe("POST /invoices/:id/void", () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
 
-    const voided = await harness.request("POST", `/invoices/${issued.id}/void`);
+    const voided = await harness.request("POST", `/v1/invoices/${issued.id}/void`);
     expect(voided.status).toBe(200);
     expect(voided.body.invoice.state).toBe("void");
     // The number stays consumed: an auditor can explain a gap, not a reuse.
     expect(voided.body.invoice.number).toBe(issued.number);
 
-    const paid = await harness.request("POST", `/invoices/${issued.id}/checkout`);
+    const paid = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`);
     expect(paid.status).toBe(409);
   });
 });
@@ -234,10 +237,10 @@ describe("POST /invoices/:id/void", () => {
 describe("GET /invoices/:id/view", () => {
   test("renders the document, and escapes what a merchant typed", async () => {
     const harness = createApiHarness();
-    const { body: created } = await harness.request("POST", "/invoices", {
+    const { body: created } = await harness.request("POST", "/v1/invoices", {
       body: invoiceBody({ buyer: { name: "<script>alert(1)</script>" } }),
     });
-    const { body } = await harness.request("POST", `/invoices/${created.invoice.id}/issue`, {
+    const { body } = await harness.request("POST", `/v1/invoices/${created.invoice.id}/issue`, {
       body: { dueAt: dueAt(), prefix: "INV" },
     });
 
@@ -252,8 +255,8 @@ describe("GET /invoices/:id/view", () => {
   test("a settled invoice offers no payment button", async () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
-    const paid = await harness.request("POST", `/invoices/${issued.id}/checkout`);
-    await harness.request("POST", `/payment-intents/${paid.body.paymentIntent.id}/confirm`);
+    const paid = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`);
+    await harness.request("POST", `/v1/payment-intents/${paid.body.paymentIntent.id}/confirm`);
 
     const page = await harness.requestHtml(`/invoices/${issued.id}/view`);
     expect(page.text).toContain("disabled");

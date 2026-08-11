@@ -2,10 +2,20 @@ import { describe, expect, test } from "bun:test";
 import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
 import { API_KEY_SECRET, createApiHarness, qrisPayload } from "./harness.ts";
 
+describe("the /v1 boundary (#138)", () => {
+  test("an unversioned API path answers 404", async () => {
+    const harness = createApiHarness();
+    const { status } = await harness.request("POST", "/payment-intents", {
+      body: { qr: qrisPayload() },
+    });
+    expect(status).toBe(404);
+  });
+});
+
 describe("POST /payment-intents", () => {
   test("creates an intent from a QRIS payload", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/payment-intents", {
+    const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
 
@@ -22,7 +32,7 @@ describe("POST /payment-intents", () => {
 
   test("creates an intent from explicit merchant details", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/payment-intents", {
+    const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: {
         merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
         amount: { amount: "25000.00", asset: "IDR" },
@@ -43,8 +53,8 @@ describe("POST /payment-intents", () => {
     const harness = createApiHarness();
     const payload = { body: { qr: qrisPayload() }, headers: { "Idempotency-Key": "order-4711" } };
 
-    const first = await harness.request("POST", "/payment-intents", payload);
-    const second = await harness.request("POST", "/payment-intents", payload);
+    const first = await harness.request("POST", "/v1/payment-intents", payload);
+    const second = await harness.request("POST", "/v1/payment-intents", payload);
 
     expect(second.body.paymentIntent.id).toBe(first.body.paymentIntent.id);
   });
@@ -53,8 +63,8 @@ describe("POST /payment-intents", () => {
     const harness = createApiHarness();
     const headers = { "Idempotency-Key": "order-4712" };
 
-    await harness.request("POST", "/payment-intents", { body: { qr: qrisPayload() }, headers });
-    const conflict = await harness.request("POST", "/payment-intents", {
+    await harness.request("POST", "/v1/payment-intents", { body: { qr: qrisPayload() }, headers });
+    const conflict = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload("60000.00") },
       headers,
     });
@@ -65,7 +75,7 @@ describe("POST /payment-intents", () => {
 
   test("rejects a request with neither QR nor merchant", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/payment-intents", { body: {} });
+    const { status, body } = await harness.request("POST", "/v1/payment-intents", { body: {} });
 
     expect(status).toBe(400);
     expect(body.error.code).toBe("VALIDATION_ERROR");
@@ -74,7 +84,7 @@ describe("POST /payment-intents", () => {
   test("rejects a corrupt QR payload", async () => {
     const harness = createApiHarness();
     const payload = qrisPayload();
-    const { status, body } = await harness.request("POST", "/payment-intents", {
+    const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: `${payload.slice(0, -1)}0` },
     });
 
@@ -84,7 +94,7 @@ describe("POST /payment-intents", () => {
 
   test("rejects an amount that contradicts a dynamic QR", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/payment-intents", {
+    const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload(), amount: { amount: "10.00", asset: "IDR" } },
     });
 
@@ -96,13 +106,13 @@ describe("POST /payment-intents", () => {
 describe("POST /payment-intents/:id/confirm", () => {
   test("clears a payment end to end", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
 
     const { status, body } = await harness.request(
       "POST",
-      `/payment-intents/${created.body.paymentIntent.id}/confirm`,
+      `/v1/payment-intents/${created.body.paymentIntent.id}/confirm`,
     );
 
     expect(status).toBe(200);
@@ -128,10 +138,10 @@ describe("POST /payment-intents/:id/confirm", () => {
 
   test("is safe to retry", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
-    const path = `/payment-intents/${created.body.paymentIntent.id}/confirm`;
+    const path = `/v1/payment-intents/${created.body.paymentIntent.id}/confirm`;
 
     const first = await harness.request("POST", path);
     const second = await harness.request("POST", path);
@@ -144,7 +154,7 @@ describe("POST /payment-intents/:id/confirm", () => {
 
   test("settles internally via the stablecoin adapter, crediting a merchant holding", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: {
         merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
         amount: { amount: "50000.00", asset: "IDR" },
@@ -155,7 +165,7 @@ describe("POST /payment-intents/:id/confirm", () => {
 
     const { status, body } = await harness.request(
       "POST",
-      `/payment-intents/${created.body.paymentIntent.id}/confirm`,
+      `/v1/payment-intents/${created.body.paymentIntent.id}/confirm`,
     );
 
     expect(status).toBe(200);
@@ -174,7 +184,7 @@ describe("POST /payment-intents/:id/confirm", () => {
     const harness = createApiHarness();
     const { status, body } = await harness.request(
       "POST",
-      "/payment-intents/pi_01J8Z3K4M5N6P7Q8R9S0T1U2V3/confirm",
+      "/v1/payment-intents/pi_01J8Z3K4M5N6P7Q8R9S0T1U2V3/confirm",
     );
 
     expect(status).toBe(404);
@@ -185,13 +195,13 @@ describe("POST /payment-intents/:id/confirm", () => {
 describe("GET /payments/:id", () => {
   test("returns the payment by intent id", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
     const id = created.body.paymentIntent.id;
-    await harness.request("POST", `/payment-intents/${id}/confirm`);
+    await harness.request("POST", `/v1/payment-intents/${id}/confirm`);
 
-    const { status, body } = await harness.request("GET", `/payments/${id}`);
+    const { status, body } = await harness.request("GET", `/v1/payments/${id}`);
 
     expect(status).toBe(200);
     expect(body.paymentIntent.id).toBe(id);
@@ -200,17 +210,17 @@ describe("GET /payments/:id", () => {
 
   test("returns the payment by clearing transaction id", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
     const confirmed = await harness.request(
       "POST",
-      `/payment-intents/${created.body.paymentIntent.id}/confirm`,
+      `/v1/payment-intents/${created.body.paymentIntent.id}/confirm`,
     );
 
     const { status, body } = await harness.request(
       "GET",
-      `/payments/${confirmed.body.clearing.id}`,
+      `/v1/payments/${confirmed.body.clearing.id}`,
     );
 
     expect(status).toBe(200);
@@ -219,11 +229,11 @@ describe("GET /payments/:id", () => {
 
   test("reports a payment that has not been confirmed yet", async () => {
     const harness = createApiHarness();
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
 
-    const { body } = await harness.request("GET", `/payments/${created.body.paymentIntent.id}`);
+    const { body } = await harness.request("GET", `/v1/payments/${created.body.paymentIntent.id}`);
 
     expect(body.paymentIntent.status).toBe("CREATED");
     expect(body.clearing).toBeNull();
@@ -234,12 +244,12 @@ describe("GET /payments/:id", () => {
 describe("POST /webhooks/:provider", () => {
   test("drives a pending settlement to completion", async () => {
     const harness = createApiHarness({ behaviour: "pending" });
-    const created = await harness.request("POST", "/payment-intents", {
+    const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
     });
     const confirmed = await harness.request(
       "POST",
-      `/payment-intents/${created.body.paymentIntent.id}/confirm`,
+      `/v1/payment-intents/${created.body.paymentIntent.id}/confirm`,
     );
     expect(confirmed.body.clearing.state).toBe("SETTLING");
 
@@ -248,7 +258,7 @@ describe("POST /webhooks/:provider", () => {
       state: "SUCCEEDED",
     });
 
-    const response = await harness.app.request("/webhooks/mock", {
+    const response = await harness.app.request("/v1/webhooks/mock", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -261,13 +271,13 @@ describe("POST /webhooks/:provider", () => {
     expect(response.status).toBe(202);
     expect(body.clearing.state).toBe("SUCCESS");
 
-    const payment = await harness.request("GET", `/payments/${created.body.paymentIntent.id}`);
+    const payment = await harness.request("GET", `/v1/payments/${created.body.paymentIntent.id}`);
     expect(payment.body.paymentIntent.status).toBe("COMPLETED");
   });
 
   test("rejects an unsigned webhook", async () => {
     const harness = createApiHarness({ behaviour: "pending" });
-    const { status, body } = await harness.request("POST", "/webhooks/mock", {
+    const { status, body } = await harness.request("POST", "/v1/webhooks/mock", {
       body: { providerReference: "stl_whatever", state: "SUCCEEDED" },
     });
 
@@ -277,7 +287,7 @@ describe("POST /webhooks/:provider", () => {
 
   test("404s for an unregistered provider", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/webhooks/paynow", {
+    const { status, body } = await harness.request("POST", "/v1/webhooks/paynow", {
       body: {},
     });
 
@@ -313,7 +323,7 @@ describe("unknown routes", () => {
 describe("payment rail", () => {
   test("rejects an unsupported chain", async () => {
     const harness = createApiHarness();
-    const response = await harness.app.request("/payment-intents", {
+    const response = await harness.app.request("/v1/payment-intents", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -336,7 +346,7 @@ describe("payment rail", () => {
 
   test("echoes the rail on the created intent", async () => {
     const harness = createApiHarness();
-    const response = await harness.app.request("/payment-intents", {
+    const response = await harness.app.request("/v1/payment-intents", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -365,19 +375,21 @@ describe("payment rail", () => {
 describe("admin routes", () => {
   test("are not registered without an admin token", async () => {
     const harness = createApiHarness();
-    expect((await harness.app.request("/admin/watcher/tick", { method: "POST" })).status).toBe(404);
+    expect((await harness.app.request("/v1/admin/watcher/tick", { method: "POST" })).status).toBe(
+      404,
+    );
   });
 
   test("reject a missing or wrong admin token with 401 UNAUTHORIZED", async () => {
     const harness = createApiHarness({ adminToken: "a-very-long-admin-token-secret" });
-    const wrong = await harness.app.request("/admin/watcher/tick", {
+    const wrong = await harness.app.request("/v1/admin/watcher/tick", {
       method: "POST",
       headers: { authorization: "Bearer wrong-token" },
     });
     expect(wrong.status).toBe(401);
     expect((await wrong.json()).error.code).toBe("UNAUTHORIZED");
 
-    const none = await harness.app.request("/admin/watcher/tick", { method: "POST" });
+    const none = await harness.app.request("/v1/admin/watcher/tick", { method: "POST" });
     expect(none.status).toBe(401);
   });
 });
@@ -385,7 +397,7 @@ describe("admin routes", () => {
 describe("execution path selection", () => {
   test("defaults to the deployment path when the request names none", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/payment-intents", {
+    const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: {
         merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
         amount: { amount: "25000.00", asset: "IDR" },
@@ -402,7 +414,7 @@ describe("execution path selection", () => {
     // checkout where the payer connects a wallet and a payer who pastes an
     // address into an exchange withdrawal cannot share one setting.
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/payment-intents", {
+    const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: {
         merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
         amount: { amount: "25000.00", asset: "IDR" },
@@ -421,7 +433,7 @@ describe("execution path selection", () => {
 
   test("rejects an unknown execution path", async () => {
     const harness = createApiHarness();
-    const { status } = await harness.request("POST", "/payment-intents", {
+    const { status } = await harness.request("POST", "/v1/payment-intents", {
       body: {
         merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
         amount: { amount: "25000.00", asset: "IDR" },
@@ -435,7 +447,7 @@ describe("execution path selection", () => {
 
   test("a fiat-only intent carries no path even when one is asked for", async () => {
     const harness = createApiHarness();
-    const { status, body } = await harness.request("POST", "/payment-intents", {
+    const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: {
         merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
         amount: { amount: "25000.00", asset: "IDR" },

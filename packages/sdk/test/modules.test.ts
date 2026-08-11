@@ -35,13 +35,13 @@ describe("payment module", () => {
       amount: { amount: "50000.00", asset: "IDR" },
     });
     expect(result.id).toBe(paymentIntent.id);
-    expect(calls[0]).toMatchObject({ url: "https://api.test/payment-intents", method: "POST" });
+    expect(calls[0]).toMatchObject({ url: "https://api.test/v1/payment-intents", method: "POST" });
   });
 
   test("encodes an identifier before placing it in a path", async () => {
     const { calls, client } = clientReturning({ paymentIntent: { id: "a/b" } });
     await client.payment.getIntent("a/b");
-    expect(calls[0]?.url).toBe("https://api.test/payment-intents/a%2Fb");
+    expect(calls[0]?.url).toBe("https://api.test/v1/payment-intents/a%2Fb");
   });
 });
 
@@ -63,6 +63,6 @@ describe("merchant commerce module", () => {
   test("lists the authenticated merchant's invoices without requiring an id", async () => {
     const { calls, client } = clientReturning({ invoices: [] });
     await client.commerce.invoices.list();
-    expect(calls[0]?.url).toBe("https://api.test/invoices");
+    expect(calls[0]?.url).toBe("https://api.test/v1/invoices");
   });
 });

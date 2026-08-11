@@ -94,14 +94,22 @@ describe("requests", () => {
   test("query params encode onto the url and skip undefined", async () => {
     const { t, calls } = transport({}, () => json({}));
     await t.get("/quotes", { query: { asset: "USDC", amount: 5000, cursor: undefined } });
-    expect(calls[0]?.url).toBe("https://api.test/quotes?asset=USDC&amount=5000");
+    expect(calls[0]?.url).toBe("https://api.test/v1/quotes?asset=USDC&amount=5000");
   });
 
   test("a trailing slash on the base url does not double", async () => {
     const { calls, fetch } = fakeFetch(() => json({}));
     const t = createTransport({ baseUrl: "https://api.test/", fetch });
     await t.get("/health");
-    expect(calls[0]?.url).toBe("https://api.test/health");
+    expect(calls[0]?.url).toBe("https://api.test/v1/health");
+  });
+
+  test("every path targets the /v1 base (#138)", async () => {
+    const { t, calls } = transport({}, () => json({}));
+    await t.get("/payment-intents/pi_1");
+    await t.post("/payment-links", {});
+    expect(calls[0]?.url).toBe("https://api.test/v1/payment-intents/pi_1");
+    expect(calls[1]?.url).toBe("https://api.test/v1/payment-links");
   });
 
   test("a 2xx returns the parsed body", async () => {
