@@ -4,7 +4,7 @@
 
 # Roadmap
 
-Mayarin is **crypto commerce infrastructure**. Merchants price in their local
+Mayarin is **Programmable clearing infrastructure.**. Merchants price in their local
 currency and settle in a stablecoin; customers pay with any supported crypto
 asset. Mayarin bridges the two without requiring merchants to understand
 blockchain.
@@ -582,7 +582,7 @@ later phase with its own regulatory perimeter, not an MVP assumption.
 
 # Long-term Vision
 
-Mayarin aims to become programmable crypto commerce infrastructure.
+Mayarin aims to become programmable Programmable clearing infrastructure..
 
 ```
                 Integrate Once

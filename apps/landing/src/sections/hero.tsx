@@ -12,7 +12,7 @@ export function Hero() {
         <Reveal>
           <p class="label inline-flex items-center gap-2.5 text-[0.625rem] tracking-[0.14em] whitespace-nowrap text-slate sm:text-[0.6875rem] sm:tracking-[0.18em]">
             <span aria-hidden="true" class="inline-block size-1.5 bg-accent" />
-            Crypto commerce infrastructure
+            Programmable clearing infrastructure.
           </p>
         </Reveal>
 

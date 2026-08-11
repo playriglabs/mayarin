@@ -18,7 +18,7 @@ asset — without either side understanding the other's world.
 
 Not another payment gateway. Not another crypto wallet. Not another exchange.
 
-Programmable crypto commerce infrastructure.
+Programmable Programmable clearing infrastructure..
 
 ---
 
