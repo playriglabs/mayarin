@@ -120,7 +120,7 @@ function PaymentsExplorer() {
                   setQuery(e.target.value);
                   pagination.reset();
                 }}
-                placeholder="pi_…"
+                placeholder="Search with payment id e.g pi_.."
                 aria-describedby="payment-search-hint"
               />
             </InputGroup>
