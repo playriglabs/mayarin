@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "mayarin",
@@ -323,6 +324,10 @@
         "@mayarin/settlement": "workspace:*",
         "drizzle-kit": "^0.30.1",
       },
+    },
+    "packages/embed": {
+      "name": "@mayarin/embed",
+      "version": "0.1.0",
     },
     "packages/providers/argon2": {
       "name": "@mayarin/provider-argon2",
@@ -1009,6 +1014,8 @@
     "@mayarin/dashboard-api": ["@mayarin/dashboard-api@workspace:apps/dashboard-api"],
 
     "@mayarin/db": ["@mayarin/db@workspace:packages/db"],
+
+    "@mayarin/embed": ["@mayarin/embed@workspace:packages/embed"],
 
     "@mayarin/execution": ["@mayarin/execution@workspace:packages/core/execution"],
 
