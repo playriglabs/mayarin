@@ -7,8 +7,16 @@
 
 import type { Permission } from "@/types/user";
 
+/**
+ * `secret` (sk_...) lives on a server and grants chosen permissions.
+ * `publishable` (pk_...) ships in a browser bundle: it reaches only the
+ * merchant's own catalog read and cart checkout, and carries no permissions.
+ */
+export type ApiKeyKind = "secret" | "publishable";
+
 export interface ApiKeyDto {
   readonly id: string;
+  readonly kind: ApiKeyKind;
   readonly name: string;
   readonly prefix: string;
   readonly permissions: readonly Permission[];
@@ -38,5 +46,7 @@ export interface ApiKeyCreateResponse {
 
 export interface CreateApiKeyRequest {
   readonly name: string;
+  /** Defaults to `secret` on the API. */
+  readonly kind?: ApiKeyKind;
   readonly permissions: readonly Permission[];
 }
