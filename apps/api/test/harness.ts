@@ -7,7 +7,12 @@
  */
 
 import { createHash } from "node:crypto";
-import { createApiKey, MERCHANT_ADMIN_PERMISSIONS, type Permission } from "@mayarin/auth";
+import {
+  type ApiKeyKind,
+  createApiKey,
+  MERCHANT_ADMIN_PERMISSIONS,
+  type Permission,
+} from "@mayarin/auth";
 import { InMemoryApiKeyRepository } from "@mayarin/auth/testing";
 import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import { InMemoryPaymentLinkRepository, InMemoryProductRepository } from "@mayarin/catalog/testing";
@@ -83,14 +88,17 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     merchantId: string,
     secret: string,
     permissions: readonly Permission[] = MERCHANT_ADMIN_PERMISSIONS,
+    kind: ApiKeyKind = "secret",
   ): string {
     void apiKeys.insert(
       createApiKey({
         merchantId,
+        kind,
         name: `test key for ${merchantId}`,
         secretHash: hashSecret(secret),
         prefix: secret.slice(0, 12),
-        permissions,
+        // A publishable key carries no permissions by rule (#113).
+        permissions: kind === "publishable" ? [] : permissions,
         now: clock.now(),
       }),
     );

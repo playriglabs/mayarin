@@ -39,21 +39,35 @@ hosted checkout and invoice pages, `POST /payment-links/:id/checkout`,
 `POST /quotes`, and the `GET` routes for one resource by id stay keyless.
 
 **Merchant routes require an API key.** Mint one on the dashboard
-(`POST /api-keys`). Send the secret as a bearer token on every request:
+(`POST /api-keys`). Send the key as a bearer token on every request:
 
 ```http
-Authorization: Bearer mak_...
+Authorization: Bearer sk_...
 ```
 
-| Route                                                          | Needs                                     |
-| -------------------------------------------------------------- | ----------------------------------------- |
-| `POST /payment-intents`                                        | a valid key                               |
-| `POST /carts/checkout`                                         | a valid key, for the named merchant       |
-| `POST /payments/:id/refunds`                                   | a valid key (a tenant check waits on #12) |
-| `POST/PATCH /catalog/products[/:id]`                           | `catalog:manage`, for the named merchant  |
-| `POST /payment-links`, `POST /payment-links/:id/disable`       | `catalog:manage`, for the named merchant  |
-| `POST/PATCH /invoices[/:id]`, `/:id/issue`, `/:id/void`        | `catalog:manage`, for the named merchant  |
-| `GET /catalog/products`, `GET /payment-links`, `GET /invoices` | a valid key, for the named merchant       |
+Keys come in two kinds (#113):
+
+- **Secret (`sk_...`)** lives on a server and grants a subset of the
+  merchant's permissions. Never ship it in a browser bundle.
+- **Publishable (`pk_...`)** ships in a browser bundle by design. It
+  identifies the merchant and reaches exactly two things: the merchant's own
+  catalog read and cart checkout. It carries no permissions, and it never
+  authenticates to the dashboard. A secret key also works on the publishable
+  surface — it is strictly stronger.
+
+`/v1` answers cross-origin browser requests (permissive CORS). That hides
+nothing: auth is bearer-based with no cookies, so the key was always the wall.
+
+| Route                                                    | Needs                                               |
+| -------------------------------------------------------- | --------------------------------------------------- |
+| `POST /payment-intents`                                  | a valid secret key                                  |
+| `POST /carts/checkout`                                   | a secret or publishable key, for the named merchant |
+| `POST /payments/:id/refunds`                             | a valid secret key (a tenant check waits on #12)    |
+| `POST/PATCH /catalog/products[/:id]`                     | `catalog:manage`, for the named merchant            |
+| `POST /payment-links`, `POST /payment-links/:id/disable` | `catalog:manage`, for the named merchant            |
+| `POST/PATCH /invoices[/:id]`, `/:id/issue`, `/:id/void`  | `catalog:manage`, for the named merchant            |
+| `GET /catalog/products`                                  | a secret or publishable key, for the named merchant |
+| `GET /payment-links`, `GET /invoices`                    | a valid secret key, for the named merchant          |
 
 On a list route, an omitted `merchantId` means the key's own merchant.
 
@@ -89,7 +103,7 @@ deployment default — an explicit request still wins over both.
 
 ```http
 POST /payment-intents
-Authorization: Bearer mak_...
+Authorization: Bearer sk_...
 Idempotency-Key: order-4711
 
 { "qr": "00020101021226670014ID.CO.QRIS.WWW..." }

@@ -21,6 +21,8 @@ export interface TransportConfig {
   readonly baseUrl: string;
   /** Secret key for the merchant surface. Absent on the browser entry point. */
   readonly secretKey?: string;
+  /** Publishable key (`pk_...`) for the public surface. Safe in a browser bundle (#113). */
+  readonly publishableKey?: string;
   /** Injected for tests and non-global runtimes. Defaults to the global `fetch`. */
   readonly fetch?: typeof globalThis.fetch;
   /** Injected for tests. Defaults to `crypto.randomUUID`. */
@@ -58,8 +60,9 @@ export function createTransport(config: TransportConfig): Transport {
       Accept: "application/json",
       "Mayarin-Version": MAYARIN_VERSION,
     });
-    if (config.secretKey !== undefined) {
-      headers.set("Authorization", `Bearer ${config.secretKey}`);
+    const bearerKey = config.secretKey ?? config.publishableKey;
+    if (bearerKey !== undefined) {
+      headers.set("Authorization", `Bearer ${bearerKey}`);
     }
     if (method !== "GET") {
       headers.set("Idempotency-Key", options.idempotencyKey ?? generateKey());

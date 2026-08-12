@@ -21,6 +21,6 @@ export function createApiKeyVerifier(deps: {
     const key = await deps.keys.findBySecretHash(hash);
     if (key === null || !key.active) return null;
     await deps.keys.updateLastUsed(key.id, deps.clock.now());
-    return { merchantId: key.merchantId, permissions: new Set(key.permissions) };
+    return { merchantId: key.merchantId, kind: key.kind, permissions: new Set(key.permissions) };
   };
 }

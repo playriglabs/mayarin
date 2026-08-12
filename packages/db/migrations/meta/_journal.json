@@ -169,6 +169,13 @@
       "when": 1786957200000,
       "tag": "0023_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787043600000,
+      "tag": "0024_api_key_kind",
+      "breakpoints": true
     }
   ]
 }

@@ -55,8 +55,8 @@ describe("POST /api-keys", () => {
     });
     expect(res.status).toBe(201);
     expect(res.body?.apiKey.name).toBe("POS register 3");
-    expect(res.body?.apiKey.prefix).toMatch(/^pk_[0-9a-f]{9}$/);
-    expect(res.body?.secret).toMatch(/^pk_[0-9a-f]{64}$/);
+    expect(res.body?.apiKey.prefix).toMatch(/^sk_[0-9a-f]{9}$/);
+    expect(res.body?.secret).toMatch(/^sk_[0-9a-f]{64}$/);
     // The listing never shows the secret.
     const listed = await harness.request("GET", "/v1/api-keys", { cookies: auth.jar });
     expect(listed.body?.apiKeys[0].secret).toBeUndefined();
@@ -185,5 +185,55 @@ describe("bearer auth", () => {
       headers: { authorization: "Basic dXNlcjpwYXNz" },
     });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("publishable keys (#113)", () => {
+  test("mints as pk_ with no permissions, and the kind is in the DTO", async () => {
+    const { harness, auth } = await seed();
+    const res = await harness.request("POST", "/v1/api-keys", {
+      body: { name: "Storefront", kind: "publishable" },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+    expect(res.status).toBe(201);
+    expect(res.body?.apiKey.kind).toBe("publishable");
+    expect(res.body?.apiKey.permissions).toEqual([]);
+    expect(res.body?.secret).toMatch(/^pk_[0-9a-f]{64}$/);
+  });
+
+  test("refuses permissions on a publishable key", async () => {
+    const { harness, auth } = await seed();
+    const res = await harness.request("POST", "/v1/api-keys", {
+      body: { name: "Storefront", kind: "publishable", permissions: ["payments:read"] },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test("never becomes a dashboard scope", async () => {
+    const { harness, auth } = await seed();
+    const created = await harness.request("POST", "/v1/api-keys", {
+      body: { name: "Storefront", kind: "publishable" },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+    const secret = created.body?.secret;
+    expect(typeof secret).toBe("string");
+
+    // Same 401 an unknown secret gets: the payment API is where a pk_ is valid.
+    const res = await bearer(harness, "GET", "/v1/orders", secret);
+    expect(res.status).toBe(401);
+  });
+
+  test("a secret key cannot be minted without permissions", async () => {
+    const { harness, auth } = await seed();
+    const res = await harness.request("POST", "/v1/api-keys", {
+      body: { name: "POS register 3" },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+    expect(res.status).toBe(400);
   });
 });

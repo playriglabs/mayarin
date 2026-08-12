@@ -89,3 +89,50 @@ describe("deactivateApiKey", () => {
     expect(() => deactivateApiKey(deactivated, NOW)).toThrow(ValidationError);
   });
 });
+
+describe("api key kinds (#113)", () => {
+  test("defaults to secret", () => {
+    expect(key().kind).toBe("secret");
+  });
+
+  test("a secret key must grant at least one permission", () => {
+    expect(() =>
+      createApiKey({
+        merchantId: "mrc_1",
+        name: "POS",
+        secretHash: "h",
+        prefix: "sk_ab12cd34",
+        permissions: [],
+        now: NOW,
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  test("a publishable key carries no permissions", () => {
+    const k = createApiKey({
+      merchantId: "mrc_1",
+      kind: "publishable",
+      name: "Storefront",
+      secretHash: "h",
+      prefix: "pk_ab12cd34",
+      permissions: [],
+      now: NOW,
+    });
+    expect(k.kind).toBe("publishable");
+    expect(k.permissions).toEqual([]);
+  });
+
+  test("a publishable key with permissions is refused", () => {
+    expect(() =>
+      createApiKey({
+        merchantId: "mrc_1",
+        kind: "publishable",
+        name: "Storefront",
+        secretHash: "h",
+        prefix: "pk_ab12cd34",
+        permissions: ["catalog:manage"],
+        now: NOW,
+      }),
+    ).toThrow(ValidationError);
+  });
+});

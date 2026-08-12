@@ -179,3 +179,112 @@ describe("buyer routes stay open", () => {
     expect(polled.status).toBe(200);
   });
 });
+
+describe("publishable keys (#113)", () => {
+  const PK = "pk_test_publishable";
+  const mintPk = (harness: ReturnType<typeof createApiHarness>, merchantId = TEST_MERCHANT_ID) =>
+    harness.mintApiKey(merchantId, PK, [], "publishable");
+
+  test("lists the catalog for its own merchant", async () => {
+    const harness = createApiHarness();
+    const created = await harness.request("POST", "/v1/catalog/products", {
+      body: productBody(),
+    });
+    expect(created.status).toBe(201);
+
+    mintPk(harness);
+    const { status, body } = await harness.request("GET", "/v1/catalog/products", { auth: PK });
+    expect(status).toBe(200);
+    expect(body.products).toHaveLength(1);
+  });
+
+  test("checks out a cart for its own merchant", async () => {
+    const harness = createApiHarness();
+    mintPk(harness);
+    const { status, body } = await harness.request("POST", "/v1/carts/checkout", {
+      auth: PK,
+      body: {
+        merchant,
+        currency: "IDR",
+        lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
+      },
+    });
+    expect(status).toBe(201);
+    expect(body.paymentIntent.status).toBe("CREATED");
+  });
+
+  test("cannot reach another merchant's catalog or checkout", async () => {
+    const harness = createApiHarness();
+    mintPk(harness, "mrc_other");
+
+    // The query names TEST_MERCHANT_ID; the key belongs to mrc_other.
+    const listed = await harness.request(
+      "GET",
+      `/v1/catalog/products?merchantId=${TEST_MERCHANT_ID}`,
+      { auth: PK },
+    );
+    expect(listed.status).toBe(403);
+
+    const checkout = await harness.request("POST", "/v1/carts/checkout", {
+      auth: PK,
+      body: {
+        merchant,
+        currency: "IDR",
+        lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
+      },
+    });
+    expect(checkout.status).toBe(403);
+  });
+
+  test("is refused everywhere a secret key is required, with the reason", async () => {
+    const harness = createApiHarness();
+    mintPk(harness);
+
+    const writes = [
+      harness.request("POST", "/v1/catalog/products", { auth: PK, body: productBody() }),
+      harness.request("POST", "/v1/payment-intents", {
+        auth: PK,
+        body: { merchant, amount: { amount: "50000.00", asset: "IDR" } },
+      }),
+      harness.request("POST", "/v1/payment-links", {
+        auth: PK,
+        body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+      }),
+    ];
+    for (const { status, body } of await Promise.all(writes)) {
+      expect(status).toBe(403);
+      expect(body.error.message).toBe("This route requires a secret key");
+    }
+  });
+
+  test("a secret key still works on the publishable surface", async () => {
+    const harness = createApiHarness();
+    const { status } = await harness.request("POST", "/v1/carts/checkout", {
+      body: {
+        merchant,
+        currency: "IDR",
+        lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
+      },
+    });
+    expect(status).toBe(201);
+  });
+});
+
+describe("CORS on /v1 (#113)", () => {
+  test("a browser preflight from any origin is admitted", async () => {
+    const harness = createApiHarness();
+    const response = await harness.app.request("/v1/quotes", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://toko.example.com",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "authorization,content-type",
+      },
+    });
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("access-control-allow-headers")?.toLowerCase()).toContain(
+      "authorization",
+    );
+  });
+});

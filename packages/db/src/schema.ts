@@ -898,6 +898,7 @@ export const merchantApiKeys = pgTable(
     merchantId: text("merchant_id")
       .notNull()
       .references(() => merchants.id),
+    kind: text("kind").notNull().default("secret"),
     name: text("name").notNull(),
     secretHash: text("secret_hash").notNull(),
     prefix: text("prefix").notNull(),

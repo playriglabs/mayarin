@@ -7,6 +7,7 @@
 
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import type { Container } from "./container.ts";
 import { errorHandler } from "./errors.ts";
 import { adminRoutes } from "./routes/admin.ts";
@@ -35,6 +36,17 @@ export function createApp(container: Container): Hono {
   // breaking axis — a `/v2` is a new URL, opt-in, side by side. The
   // `Mayarin-Version` header stays as the date rev within v1. Root paths 404.
   const v1 = new Hono();
+  // Any origin, because the publishable surface (#113) is called from
+  // merchants' own storefront pages. This hides nothing: auth is bearer-based
+  // with no cookies, so CORS was never the wall — the key is. A browser
+  // holding only a publishable key reaches only what that key grants.
+  v1.use(
+    cors({
+      origin: "*",
+      allowHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "Mayarin-Version"],
+      allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
+    }),
+  );
   v1.route("/payment-intents", paymentIntentRoutes(container));
   v1.route("/payments", paymentRoutes(container));
   // Indicative pricing, for a counter showing a payer what each accepted asset

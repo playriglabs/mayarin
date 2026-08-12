@@ -15,6 +15,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
   type ApiKey,
+  type ApiKeyKind,
   type ApiKeyRepository,
   createApiKey,
   deactivateApiKey,
@@ -23,12 +24,18 @@ import {
 import { type Clock, NotFoundError } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
 
-/** Generates a fresh plaintext secret. Injected so a test can fix the value. */
-export type SecretGenerator = () => string;
+/** Generates a fresh plaintext for a key of the given kind. Injected so a test can fix the value. */
+export type SecretGenerator = (kind: ApiKeyKind) => string;
 /** Hashes a secret for storage and lookup. Injected so a test can use a plain hash. */
 export type SecretHasher = (secret: string) => string;
 
-export const systemSecretGenerator: SecretGenerator = () => `pk_${randomBytes(32).toString("hex")}`;
+/**
+ * `sk_` for secret, `pk_` for publishable — the prefixes every integrator
+ * knows from Stripe. (Secrets minted as `pk_...` before #113 keep verifying:
+ * the lookup is by hash and never reads the prefix.)
+ */
+export const systemSecretGenerator: SecretGenerator = (kind) =>
+  `${kind === "publishable" ? "pk" : "sk"}_${randomBytes(32).toString("hex")}`;
 
 export const systemSecretHasher: SecretHasher = (secret) =>
   createHash("sha256").update(secret).digest("hex");
@@ -50,6 +57,8 @@ export interface ApiKeyListFilter {
 
 export interface CreateApiKeyInput {
   readonly name: string;
+  /** Defaults to `secret`. A publishable key carries no permissions. */
+  readonly kind?: ApiKeyKind;
   readonly permissions: readonly Permission[];
 }
 
@@ -96,9 +105,11 @@ export class ApiKeyService {
    * keys apart without the secret.
    */
   async create(scope: Scope, input: CreateApiKeyInput): Promise<ApiKeyCreateResult> {
-    const secret = this.#generate();
+    const kind = input.kind ?? "secret";
+    const secret = this.#generate(kind);
     const key = createApiKey({
       merchantId: scope.merchantId,
+      kind,
       name: input.name,
       secretHash: this.#hash(secret),
       prefix: secret.slice(0, 12),
@@ -125,6 +136,10 @@ export class ApiKeyService {
   async verifySecret(secret: string): Promise<Scope | null> {
     const key = await this.#keys.findBySecretHash(this.#hash(secret));
     if (key === null || !key.active) return null;
+    // A publishable key never becomes a dashboard scope: it ships in browser
+    // bundles by design, and the dashboard is the merchant's back office. Same
+    // 401 as an unknown secret — the payment API is where a pk_ is valid.
+    if (key.kind === "publishable") return null;
     await this.#keys.updateLastUsed(key.id, this.#clock.now());
     return { merchantId: key.merchantId, permissions: new Set(key.permissions) };
   }
