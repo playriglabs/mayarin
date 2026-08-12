@@ -33,6 +33,24 @@ describe("entry points", () => {
     const config: MayarinBrowserConfig = { baseUrl: "https://api.test", secretKey: "sk_1" };
     expect(config.baseUrl).toBe("https://api.test");
   });
+
+  test("a publishable key goes out as the bearer header (#113)", async () => {
+    const { headers, fetch } = capturingFetch();
+    const client = createMayarinBrowser({
+      baseUrl: "https://api.test",
+      publishableKey: "pk_1",
+      fetch,
+    });
+    await client.commerce.products.list();
+    expect(headers[0]?.get("Authorization")).toBe("Bearer pk_1");
+  });
+
+  test("the browser commerce surface has no write methods", () => {
+    const client = createMayarinBrowser({ baseUrl: "https://api.test", publishableKey: "pk_1" });
+    // Compile-time property: the publishable subset carries no create/update.
+    // @ts-expect-error -- PublishableCommerceModule has no products.create
+    expect(client.commerce.products.create).toBeUndefined();
+  });
 });
 
 describe("presets", () => {

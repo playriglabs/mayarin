@@ -22,10 +22,16 @@ export interface BaseMayarinClient {
   readonly preset: Preset;
 }
 
-export function buildClient(config: ClientConfig, secretKey?: string): BaseMayarinClient {
+export interface ClientAuth {
+  readonly secretKey?: string;
+  readonly publishableKey?: string;
+}
+
+export function buildClient(config: ClientConfig, auth: ClientAuth = {}): BaseMayarinClient {
   const transportConfig: TransportConfig = {
     baseUrl: config.baseUrl,
-    ...(secretKey === undefined ? {} : { secretKey }),
+    ...(auth.secretKey === undefined ? {} : { secretKey: auth.secretKey }),
+    ...(auth.publishableKey === undefined ? {} : { publishableKey: auth.publishableKey }),
     ...(config.fetch === undefined ? {} : { fetch: config.fetch }),
     ...(config.generateIdempotencyKey === undefined
       ? {}

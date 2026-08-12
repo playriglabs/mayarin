@@ -19,11 +19,18 @@ import {
   updateProductBodySchema,
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
-import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
+import {
+  type ApiKeyAuthEnv,
+  assertMerchant,
+  requireApiKey,
+  requirePublishableKey,
+} from "../middleware/api-key.ts";
 
 export function catalogRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
-  const auth = requireApiKey(container.verifyApiKey);
+  // Reads take a publishable key (#113): a storefront lists its own catalog
+  // from the browser. Writes stay secret-key + `catalog:manage`.
+  const read = requirePublishableKey(container.verifyApiKey);
   const manage = requireApiKey(container.verifyApiKey, "catalog:manage");
 
   app.post("/products", manage, async (c) => {
@@ -43,7 +50,7 @@ export function catalogRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   // A listing keyed by a guessable merchant id enumerates a whole catalog, so
   // it requires a key — and only for the merchant the key belongs to. An
   // omitted `merchantId` means the key's own merchant.
-  app.get("/products", auth, async (c) => {
+  app.get("/products", read, async (c) => {
     const scope = c.get("scope");
     const merchantId = c.req.query("merchantId") ?? scope.merchantId;
     assertMerchant(scope, merchantId);
@@ -92,10 +99,12 @@ export function catalogRoutes(container: Container): Hono<ApiKeyAuthEnv> {
 export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
 
-  // A cart checkout is the POS ringing up a sale, not a buyer paying one — the
-  // buyer-facing mints live under `/payment-links/:id/checkout` and
-  // `/invoices/:id/checkout`, which stay open.
-  app.post("/checkout", requireApiKey(container.verifyApiKey), async (c) => {
+  // A cart checkout is a sale being rung up — by the POS with a secret key, or
+  // by a storefront in the browser with a publishable one (#113). Either way
+  // the key names the merchant, and minting commits nobody: the intent still
+  // has to be confirmed and paid. The buyer-facing mints live under
+  // `/payment-links/:id/checkout` and `/invoices/:id/checkout`, which stay open.
+  app.post("/checkout", requirePublishableKey(container.verifyApiKey), async (c) => {
     const body = checkoutCartBodySchema.parse(await c.req.json());
     assertMerchant(c.get("scope"), body.merchant.id);
     const idempotencyKey = c.req.header("Idempotency-Key");

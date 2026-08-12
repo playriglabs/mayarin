@@ -48,7 +48,11 @@ export function apiKeyRoutes(container: Container): Hono<{ Variables: AuthVars }
   app.post("/", csrfMiddleware(), async (c) => {
     const scope = scopeOf(c);
     const body = createApiKeyBodySchema.parse(await c.req.json());
-    const { key, secret } = await container.apiKeys.create(scope, body);
+    const { key, secret } = await container.apiKeys.create(scope, {
+      name: body.name,
+      ...(body.kind === undefined ? {} : { kind: body.kind }),
+      permissions: body.permissions ?? [],
+    });
     return c.json({ apiKey: toApiKeyDto(key), secret }, 201);
   });
 

@@ -65,4 +65,16 @@ describe("merchant commerce module", () => {
     await client.commerce.invoices.list();
     expect(calls[0]?.url).toBe("https://api.test/v1/invoices");
   });
+
+  test("checks out a cart through /carts/checkout (#113)", async () => {
+    const paymentIntent = { id: "pi_1", status: "CREATED" };
+    const { calls, client } = clientReturning({ paymentIntent });
+    const result = await client.commerce.carts.checkout({
+      merchant: { id: "m_1", name: "Toko", city: "Jakarta", countryCode: "ID" },
+      currency: "IDR",
+      lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
+    });
+    expect(result.id).toBe("pi_1");
+    expect(calls[0]).toMatchObject({ url: "https://api.test/v1/carts/checkout", method: "POST" });
+  });
 });

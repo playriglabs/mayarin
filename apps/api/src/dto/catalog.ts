@@ -119,6 +119,7 @@ export const checkoutLinkBodySchema = intentOptionsSchema.extend({
 
 export type CreatePaymentLinkBody = z.input<typeof createPaymentLinkBodySchema>;
 export type CheckoutPaymentLinkBody = z.input<typeof checkoutLinkBodySchema>;
+export type CheckoutCartBody = z.input<typeof checkoutCartBodySchema>;
 
 type IntentOptionsBody = z.infer<typeof intentOptionsSchema>;
 

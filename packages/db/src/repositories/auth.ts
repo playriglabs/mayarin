@@ -417,6 +417,7 @@ function toApiKey(row: ApiKeyRow): ApiKey {
   return {
     id: row.id,
     merchantId: row.merchantId,
+    kind: row.kind as ApiKey["kind"],
     name: row.name,
     secretHash: row.secretHash,
     prefix: row.prefix,
@@ -433,6 +434,7 @@ function toApiKeyRow(key: ApiKey): typeof merchantApiKeys.$inferInsert {
   return {
     id: key.id,
     merchantId: key.merchantId,
+    kind: key.kind,
     name: key.name,
     secretHash: key.secretHash,
     prefix: key.prefix,

@@ -68,9 +68,10 @@ embed goes blank at once.
 
 ## Deliberate v1 limits
 
-- **A link id is the only input.** Minting a checkout from a cart payload in
-  the browser needs publishable keys, which do not exist yet. That is the next
-  slice of #113.
+- **A link id is the only input.** Publishable keys (`pk_...`) now exist and a
+  browser can mint from a cart payload through `@mayarin/sdk/browser` — but the
+  element does not do it yet. A cart-payload attribute on the element is a
+  follow-up on the embed.
 - **No completion events.** The element does not tell the merchant's page that
   the payment settled; the buyer sees the outcome inside the frame, and the
   merchant's systems learn it from webhooks (#13). A `postMessage` status

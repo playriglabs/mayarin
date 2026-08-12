@@ -11,12 +11,13 @@
  * does not learn that it once existed — the same posture the dashboard takes.
  */
 
-import type { Permission } from "@mayarin/auth";
+import type { ApiKeyKind, Permission } from "@mayarin/auth";
 import { ForbiddenError, UnauthorizedError } from "@mayarin/shared";
 import type { MiddlewareHandler } from "hono";
 
 export interface ApiKeyScope {
   readonly merchantId: string;
+  readonly kind: ApiKeyKind;
   readonly permissions: ReadonlySet<Permission>;
 }
 
@@ -31,25 +32,24 @@ export interface ApiKeyAuthEnv {
 const BEARER_PREFIX = "bearer ";
 
 /**
- * Requires a valid bearer key, and optionally one specific permission on it.
- * On success the key's scope is set on the context for the handler to read.
+ * Requires a valid **secret** bearer key, and optionally one specific
+ * permission on it. On success the key's scope is set on the context for the
+ * handler to read.
+ *
+ * A publishable key is refused with a 403 that names the reason: the caller
+ * holds the key, so there is nothing to hide, and "requires a secret key" is
+ * the sentence that fixes their integration (#113).
  */
 export function requireApiKey(
   verify: ApiKeyVerifier,
   permission?: Permission,
 ): MiddlewareHandler<ApiKeyAuthEnv> {
   return async (c, next) => {
-    const header = c.req.header("authorization");
-    if (header === undefined || !header.toLowerCase().startsWith(BEARER_PREFIX)) {
-      throw new UnauthorizedError("This route requires an API key");
-    }
+    const scope = await verifyBearer(c.req.header("authorization"), verify);
 
-    const secret = header.slice(BEARER_PREFIX.length).trim();
-    const scope = secret === "" ? null : await verify(secret);
-    if (scope === null) {
-      throw new UnauthorizedError("This route requires an API key");
+    if (scope.kind === "publishable") {
+      throw new ForbiddenError("This route requires a secret key", {});
     }
-
     if (permission !== undefined && !scope.permissions.has(permission)) {
       throw new ForbiddenError(`This API key does not grant ${permission}`, { permission });
     }
@@ -57,6 +57,33 @@ export function requireApiKey(
     c.set("scope", scope);
     await next();
   };
+}
+
+/**
+ * The publishable surface (#113): catalog read and cart checkout. Accepts a
+ * publishable key, and a secret key too — a secret key is strictly stronger,
+ * and a server-side integration must not need a second key for the read path.
+ */
+export function requirePublishableKey(verify: ApiKeyVerifier): MiddlewareHandler<ApiKeyAuthEnv> {
+  return async (c, next) => {
+    c.set("scope", await verifyBearer(c.req.header("authorization"), verify));
+    await next();
+  };
+}
+
+async function verifyBearer(
+  header: string | undefined,
+  verify: ApiKeyVerifier,
+): Promise<ApiKeyScope> {
+  if (header === undefined || !header.toLowerCase().startsWith(BEARER_PREFIX)) {
+    throw new UnauthorizedError("This route requires an API key");
+  }
+  const secret = header.slice(BEARER_PREFIX.length).trim();
+  const scope = secret === "" ? null : await verify(secret);
+  if (scope === null) {
+    throw new UnauthorizedError("This route requires an API key");
+  }
+  return scope;
 }
 
 /**

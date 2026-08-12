@@ -6,19 +6,23 @@
  * keys apart without the secret.
  */
 
-import type { ApiKey, Permission } from "@mayarin/auth";
+import type { ApiKey, ApiKeyKind, Permission } from "@mayarin/auth";
 import { z } from "zod";
 import { permissionsSchema } from "./auth.ts";
 
+// The kind/permission pairing (a secret key needs ≥1 permission, a publishable
+// key carries none) is enforced by the domain's `createApiKey`, in one place.
 export const createApiKeyBodySchema = z
   .object({
     name: z.string().min(1).max(255),
-    permissions: permissionsSchema.min(1, "An API key must grant at least one permission"),
+    kind: z.enum(["secret", "publishable"]).optional(),
+    permissions: permissionsSchema.optional(),
   })
   .strict();
 
 export interface ApiKeyDto {
   readonly id: string;
+  readonly kind: ApiKeyKind;
   readonly name: string;
   /** First characters of the plaintext, for telling keys apart in a listing. */
   readonly prefix: string;
@@ -43,6 +47,7 @@ export interface ApiKeyCreateResponse {
 export function toApiKeyDto(key: ApiKey): ApiKeyDto {
   return {
     id: key.id,
+    kind: key.kind,
     name: key.name,
     prefix: key.prefix,
     permissions: [...key.permissions],

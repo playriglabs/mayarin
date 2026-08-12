@@ -1,4 +1,5 @@
 import type {
+  CheckoutCartBody,
   CheckoutInvoiceBody,
   CheckoutPaymentLinkBody,
   CreateInvoiceBody,
@@ -28,6 +29,16 @@ export interface CommerceModule {
       body: UpdateProductBody,
       options?: RequestOptions,
     ) => Promise<ProductDto>;
+  };
+  readonly carts: {
+    /**
+     * `POST /carts/checkout` — lines in, one Payment Intent out. The cart is
+     * never stored; it survives only as an immutable snapshot on the intent.
+     */
+    readonly checkout: (
+      body: CheckoutCartBody,
+      options?: RequestOptions,
+    ) => Promise<PaymentIntentDto>;
   };
   readonly paymentLinks: {
     readonly create: (
@@ -109,6 +120,16 @@ export function createCommerceModule(transport: Transport): CommerceModule {
           )
         ).product,
     },
+    carts: {
+      checkout: async (body, options) =>
+        (
+          await transport.post<{ paymentIntent: PaymentIntentDto }>(
+            "/carts/checkout",
+            body,
+            options,
+          )
+        ).paymentIntent,
+    },
     paymentLinks: {
       create: async (body, options) =>
         (await transport.post<{ paymentLink: PaymentLinkDto }>("/payment-links", body, options))
@@ -185,5 +206,23 @@ export function createCommerceModule(transport: Transport): CommerceModule {
           )
         ).paymentIntent,
     },
+  };
+}
+
+/**
+ * The commerce surface a publishable key reaches (#113): catalog read and cart
+ * checkout. A subset of `CommerceModule`, so the type system refuses a write
+ * from browser code the same way the API's key check would.
+ */
+export interface PublishableCommerceModule {
+  readonly products: Pick<CommerceModule["products"], "list" | "get">;
+  readonly carts: CommerceModule["carts"];
+}
+
+export function createPublishableCommerceModule(transport: Transport): PublishableCommerceModule {
+  const full = createCommerceModule(transport);
+  return {
+    products: { list: full.products.list, get: full.products.get },
+    carts: full.carts,
   };
 }

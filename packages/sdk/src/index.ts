@@ -21,7 +21,7 @@ export interface MayarinClient extends BaseMayarinClient {
 }
 
 export function createMayarin(config: MayarinConfig): MayarinClient {
-  const client = buildClient(config, config.secretKey);
+  const client = buildClient(config, { secretKey: config.secretKey });
   return {
     ...client,
     commerce: createCommerceModule(client.transport),
