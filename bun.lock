@@ -63,6 +63,10 @@
         "typescript": "^5.6.0",
       },
     },
+    "apps/chain-worker": {
+      "name": "@mayarin/chain-worker",
+      "version": "0.1.0",
+    },
     "apps/dashboard": {
       "name": "@mayarin/dashboard",
       "version": "0.1.0",
@@ -1024,6 +1028,8 @@
     "@mayarin/catalog": ["@mayarin/catalog@workspace:packages/core/catalog"],
 
     "@mayarin/chain": ["@mayarin/chain@workspace:packages/core/chain"],
+
+    "@mayarin/chain-worker": ["@mayarin/chain-worker@workspace:apps/chain-worker"],
 
     "@mayarin/clearing": ["@mayarin/clearing@workspace:packages/core/clearing"],
 
