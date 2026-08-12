@@ -527,7 +527,7 @@ export class ClearingEngine {
     // be priced by whatever prices the swap. Running `RateProvider` here and
     // the planner for the order would be two prices for one payment, free to
     // disagree; so when execution is wired, the planner prices this path too.
-    if (await this.#executesDeposit(transaction)) {
+    if (await this.#plansExecutableDeposit(transaction)) {
       return this.#lockExecutableDeposit(transaction);
     }
     const quote = await this.#rates.quote(
@@ -601,12 +601,13 @@ export class ClearingEngine {
   /**
    * Whether this deposit-path payment will be executed into the router.
    *
-   * Requires an executor, a rail (so there is a deposit at all), and a planner
-   * to sign the order. A deployment missing any of them keeps the original
-   * behaviour: price through `RateProvider`, settle internally.
+   * Requires a planner, a treasury refund address and a rail. The process that
+   * locks the payment deliberately need not hold the operator executor: an API
+   * signs and persists the order, then a separately wired worker executes it.
+   * Persisted lock data, not process-local authority, decides the later path.
    */
-  async #executesDeposit(transaction: ClearingTransaction): Promise<boolean> {
-    if (this.#treasuryExecutor === undefined || this.#contractPlanner === undefined) return false;
+  async #plansExecutableDeposit(transaction: ClearingTransaction): Promise<boolean> {
+    if (this.#contractPlanner === undefined || this.#treasuryAddress === undefined) return false;
     if (transaction.executionPath === "on-chain-contract") return false;
 
     const intent = await this.#intents.getById(transaction.paymentIntentId);

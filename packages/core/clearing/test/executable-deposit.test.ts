@@ -284,6 +284,23 @@ describe("a signed order reaching a process without an executor", () => {
 });
 
 describe("without an executor the deposit path is untouched", () => {
+  test("an API with planning authority persists the order for a separate worker", async () => {
+    const planner = new FakeContractPlanner(depositLock());
+    const harness = createHarness({
+      contractPlanner: planner,
+      treasuryAddress: TREASURY,
+      autoConfirmAssetReceipt: false,
+    });
+
+    const transaction = await harness.engine.start(
+      await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
+    );
+
+    expect(planner.calls).toHaveLength(1);
+    expect(transaction.contract?.order.refundTo).toBe(TREASURY);
+    expect(transaction.state).toBe("PAYMENT_PENDING");
+  });
+
   test("prices through the RateProvider and signs nothing", async () => {
     const planner = new FakeContractPlanner(depositLock());
     const harness = createHarness({
@@ -295,8 +312,8 @@ describe("without an executor the deposit path is untouched", () => {
       await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
     );
 
-    // A planner being available is not enough — without an executor there is
-    // nothing to convert the deposit, so the original path stays.
+    // A planner alone is not enough: without a treasury refund address the
+    // order cannot be signed safely, so the original internal path stays.
     expect(planner.calls).toHaveLength(0);
     expect(transaction.contract).toBeUndefined();
     expect(transaction.state).toBe("SUCCESS");
