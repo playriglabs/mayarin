@@ -69,7 +69,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
-import type { ApiKeyDto } from "@/types/api-keys";
+import type { ApiKeyDto, ApiKeyKind } from "@/types/api-keys";
 import { PERMISSION_LABELS, PERMISSION_LIST, type Permission } from "@/types/user";
 
 const STATUS_OPTIONS: readonly SelectOption[] = [
@@ -81,6 +81,11 @@ const STATUS_OPTIONS: readonly SelectOption[] = [
 const SORT_OPTIONS: readonly SelectOption[] = [
   { value: "-created", label: "Newest first" },
   { value: "created", label: "Oldest first" },
+];
+
+const KIND_OPTIONS: readonly SelectOption[] = [
+  { value: "secret", label: "Secret — server-side" },
+  { value: "publishable", label: "Publishable — browser-safe" },
 ];
 
 function reasonOf(error: unknown): string {
@@ -106,7 +111,9 @@ function ApiKeys() {
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  // A key must grant at least one permission; default to the read surface.
+  const [kind, setKind] = useState<ApiKeyKind>("secret");
+  // A secret key must grant at least one permission; default to the read
+  // surface. A publishable key carries none — its surface is fixed (#113).
   const [perms, setPerms] = useState<Set<Permission>>(new Set(["payments:read"]));
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
@@ -116,7 +123,7 @@ function ApiKeys() {
   );
   const [copied, setCopied] = useState(false);
 
-  const canCreate = name.trim() !== "" && perms.size > 0;
+  const canCreate = name.trim() !== "" && (kind === "publishable" || perms.size > 0);
 
   function togglePerm(p: Permission) {
     setFailure("");
@@ -144,11 +151,13 @@ function ApiKeys() {
     try {
       const result = await create.mutateAsync({
         name: name.trim(),
-        permissions: [...perms],
+        kind,
+        permissions: kind === "publishable" ? [] : [...perms],
       });
       setMinted({ name: result.apiKey.name, secret: result.secret });
       setNotice(`${name.trim()} created.`);
       setName("");
+      setKind("secret");
       setPerms(new Set(["payments:read"]));
       setCreating(false);
     } catch (error) {
@@ -291,7 +300,11 @@ function ApiKeys() {
                       {key.prefix}…
                     </TableCell>
                     <TableCell>
-                      <PermissionBadges permissions={key.permissions} />
+                      {key.kind === "publishable" ? (
+                        <Badge>Publishable</Badge>
+                      ) : (
+                        <PermissionBadges permissions={key.permissions} />
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {key.lastUsedAt === null ? (
@@ -351,25 +364,56 @@ function ApiKeys() {
               />
             </Field>
 
-            <FieldSet>
-              <FieldLegend className="mb-3">Permissions</FieldLegend>
-              {PERMISSION_LIST.map((p) => {
-                const id = `key-perm-${p.replace(":", "-")}`;
-                return (
-                  <div key={p} className="flex items-center gap-2">
-                    <Checkbox
-                      id={id}
-                      checked={perms.has(p)}
-                      onCheckedChange={() => togglePerm(p)}
-                      disabled={create.isPending}
-                    />
-                    <Label htmlFor={id} className="cursor-pointer text-sm text-foreground">
-                      {PERMISSION_LABELS[p]}
-                    </Label>
-                  </div>
-                );
-              })}
-            </FieldSet>
+            <Field>
+              <FieldLabel htmlFor="api-key-kind">Kind</FieldLabel>
+              <Select
+                items={KIND_OPTIONS}
+                value={kind}
+                onValueChange={(value) => {
+                  setKind(value as ApiKeyKind);
+                  setFailure("");
+                }}
+              >
+                <SelectTrigger id="api-key-kind">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {KIND_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            {kind === "publishable" ? (
+              <p className="text-sm text-muted-foreground">
+                A publishable key (<code className="font-mono text-xs">pk_…</code>) is safe to ship
+                in a browser bundle. It reads your catalog and checks out carts for your own
+                merchant — nothing else, and no permissions to choose.
+              </p>
+            ) : (
+              <FieldSet>
+                <FieldLegend className="mb-3">Permissions</FieldLegend>
+                {PERMISSION_LIST.map((p) => {
+                  const id = `key-perm-${p.replace(":", "-")}`;
+                  return (
+                    <div key={p} className="flex items-center gap-2">
+                      <Checkbox
+                        id={id}
+                        checked={perms.has(p)}
+                        onCheckedChange={() => togglePerm(p)}
+                        disabled={create.isPending}
+                      />
+                      <Label htmlFor={id} className="cursor-pointer text-sm text-foreground">
+                        {PERMISSION_LABELS[p]}
+                      </Label>
+                    </div>
+                  );
+                })}
+              </FieldSet>
+            )}
           </div>
 
           <DialogFooter>
