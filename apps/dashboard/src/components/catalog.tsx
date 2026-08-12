@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { CursorPagination } from "@/components/ui/cursor-pagination";
 import {
   Dialog,
@@ -51,7 +52,6 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { QueryError } from "@/components/ui/query-error";
 import {
   Select,
@@ -77,7 +77,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
 import { PAGE_SIZE } from "@/lib/pagination";
-import { currencyLabel, isValidAmount, PRICING_CURRENCIES, symbolOf } from "@/lib/pricing";
+import { currencyLabel, isValidAmount, PRICING_CURRENCIES } from "@/lib/pricing";
 import { withQuery } from "@/lib/with-query";
 import type { DecimalMoneyRequest, ProductDto } from "@/types/catalog";
 import type { MoneyDto } from "@/types/payment";
@@ -161,7 +161,9 @@ function Catalog() {
   const [pendingArchive, setPendingArchive] = useState<ProductDto | null>(null);
 
   const canSave =
-    draft.name.trim() !== "" && draft.sku.trim() !== "" && isValidAmount(draft.amount);
+    draft.name.trim() !== "" &&
+    draft.sku.trim() !== "" &&
+    isValidAmount(draft.amount, draft.currency);
   const saving = create.isPending || update.isPending;
 
   function open(next: Editing) {
@@ -395,21 +397,16 @@ function Catalog() {
 
             <Field>
               <FieldLabel htmlFor="product-price">Price</FieldLabel>
-              <InputGroup>
-                {/* The currency is meaning, not decoration, so it is not
-                    hidden from a screen reader. */}
-                <InputGroupAddon aria-hidden={false}>{symbolOf(draft.currency)}</InputGroupAddon>
-                <InputGroupInput
-                  id="product-price"
-                  inputMode="decimal"
-                  value={draft.amount}
-                  onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
-                  aria-describedby="product-price-hint"
-                  placeholder="25000"
-                />
-              </InputGroup>
+              <CurrencyInput
+                id="product-price"
+                asset={draft.currency}
+                value={draft.amount}
+                onValueChange={(amount) => setDraft({ ...draft, amount })}
+                aria-describedby="product-price-hint"
+                placeholder="25.000,00"
+              />
               <FieldDescription id="product-price-hint">
-                As written, e.g. 25000 or 25000.50.
+                Use local currency format, e.g. 25.000,00.
               </FieldDescription>
             </Field>
 

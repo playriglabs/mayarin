@@ -498,12 +498,11 @@ export function createContainer({
           },
           blockRange: chain.blockRange,
           nativeBlockRange: chain.nativeBlockRange,
+          tokenBalanceCatchUp: chain.tokenBalanceCatchUp,
           retentionSeconds: chain.retentionSeconds,
           startBlocks: chain.startBlocks,
-          // Which asset on this chain is the chain's own. Only that one gets the
-          // balance reconciliation: an ERC-20 emits a Transfer log however it
-          // moves, so `eth_getLogs` already sees an internal call. Native value
-          // moved by a contract emits nothing at all.
+          // Which asset on this chain is the chain's own. Native balance
+          // reconciliation is always on; token catch-up is an explicit option.
           nativeAssets: config.chainNativeAssets,
         }),
       );

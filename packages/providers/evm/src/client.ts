@@ -7,11 +7,11 @@
  */
 
 import type {
+  AssetBalance,
   BalanceQuery,
   BlockRef,
   ChainClient,
   ChainId,
-  NativeBalance,
   SettlementLog,
   SettlementQuery,
   TransferLog,
@@ -33,6 +33,7 @@ import { shortReason } from "./errors.ts";
 const TRANSFER_EVENT = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 value)",
 );
+const BALANCE_OF = parseAbiItem("function balanceOf(address) view returns (uint256)");
 
 /**
  * Taken from the generated ABI rather than re-declared: a hand-written
@@ -321,18 +322,28 @@ export class EvmChainClient implements ChainClient {
    * how many payments are waiting rather than with how far the scan has to
    * walk.
    */
-  async nativeBalances(query: BalanceQuery): Promise<NativeBalance[]> {
+  async balances(query: BalanceQuery): Promise<AssetBalance[]> {
     if (query.addresses.length === 0) return [];
 
     const client = this.#clientFor(query.chain);
     const block = await this.#rpc(query.chain, client.getBlock({ blockNumber: query.block }));
     if (block.hash === null || block.number === null) return [];
 
-    const balances: NativeBalance[] = [];
+    const balances: AssetBalance[] = [];
+    const native = this.#nativeAssets[query.chain] === query.asset;
     for (const address of query.addresses) {
+      const account = getAddress(address);
       const amount = await this.#rpc(
         query.chain,
-        client.getBalance({ address: getAddress(address), blockNumber: query.block }),
+        native
+          ? client.getBalance({ address: account, blockNumber: query.block })
+          : client.readContract({
+              address: this.#tokenAddress(query.chain, query.asset),
+              abi: [BALANCE_OF],
+              functionName: "balanceOf",
+              args: [account],
+              blockNumber: query.block,
+            }),
       );
       balances.push({
         address: address.toLowerCase(),

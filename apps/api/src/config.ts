@@ -111,6 +111,10 @@ const configSchema = z.object({
    * until the provider answers 429.
    */
   watcherNativeBlockRange: z.coerce.number().int().positive().default(100),
+  watcherTokenBalanceCatchUp: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   /**
    * Blocks per `eth_getLogs` call, which is a provider limit rather than a
    * policy one — Alchemy's free tier refuses a wider range. The watcher's own
@@ -282,6 +286,7 @@ export interface ChainConfig {
   readonly catchUpIntervalMs: number;
   readonly blockRange: number;
   readonly nativeBlockRange: number;
+  readonly tokenBalanceCatchUp: boolean;
   /** Blocks per `eth_getLogs` call. The provider's cap, not the watcher's. */
   readonly logRange: number;
   readonly retentionSeconds: number;
@@ -614,6 +619,7 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
     catchUpIntervalMs: data.watcherCatchUpIntervalMs,
     blockRange: data.watcherBlockRange,
     nativeBlockRange: data.watcherNativeBlockRange,
+    tokenBalanceCatchUp: data.watcherTokenBalanceCatchUp,
     logRange: data.chainLogRange,
     retentionSeconds: data.watcherRetentionSeconds,
     reorgWatchWindow: data.watcherReorgWatchWindow,
@@ -720,6 +726,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     watcherCatchUpIntervalMs: env.WATCHER_CATCH_UP_INTERVAL_MS,
     watcherBlockRange: env.WATCHER_BLOCK_RANGE,
     watcherNativeBlockRange: env.WATCHER_NATIVE_BLOCK_RANGE,
+    watcherTokenBalanceCatchUp: env.WATCHER_TOKEN_BALANCE_CATCH_UP,
     chainLogRange: env.CHAIN_LOG_RANGE,
     watcherRetentionSeconds: env.WATCHER_RETENTION_SECONDS,
     watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,

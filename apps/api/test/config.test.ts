@@ -64,6 +64,7 @@ describe("chain configuration", () => {
 
     expect(config.chain?.confirmations["base-sepolia"]).toBe(6);
     expect(config.chain?.catchUpIntervalMs).toBe(1_000);
+    expect(config.chain?.tokenBalanceCatchUp).toBe(false);
     // The watcher pairs now come from the stablecoin registry, not the chain block.
     expect(config.stablecoins).toEqual([
       { asset: "IDRX", onChain: [] },
@@ -86,6 +87,20 @@ describe("chain configuration", () => {
     });
 
     expect(config.chain?.catchUpIntervalMs).toBe(250);
+  });
+
+  test("token balance catch-up is explicit", () => {
+    const config = loadConfig({
+      ...BASE,
+      CHAIN_ENABLED: "true",
+      ASSET_RECEIPT_MODE: "manual",
+      CHAIN_RPC_URLS: '{"base-sepolia":"https://sepolia.base.org"}',
+      CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
+      DEPOSIT_XPUB: XPUB,
+      WATCHER_TOKEN_BALANCE_CATCH_UP: "true",
+    });
+
+    expect(config.chain?.tokenBalanceCatchUp).toBe(true);
   });
 
   test("refuses to boot with the watcher on and asset receipt on auto", () => {

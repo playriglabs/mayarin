@@ -19,6 +19,10 @@ const app = createApp(container);
 console.log(`[dashboard-api] listening on http://localhost:${config.port}`);
 
 export default {
+  // Local deposit detail may cross a public testnet RPC and take longer than
+  // Bun's default. Railway runs with NODE_ENV=production and keeps the existing
+  // server default; this allowance belongs only to the local development path.
+  ...(process.env.NODE_ENV === "development" ? { idleTimeout: 30 } : {}),
   port: config.port,
   fetch: app.fetch,
 };

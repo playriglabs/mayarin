@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "bun --env-file=../../.env run --hot src/index.ts",
+    "dev": "DASHBOARD_API_PORT=3001 COOKIE_SECURE=false bun --env-file=../../.env run --hot src/index.ts",
     "start": "bun run src/index.ts",
     "typecheck": "tsc --noEmit"
   },

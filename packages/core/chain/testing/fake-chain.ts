@@ -9,11 +9,11 @@
 
 import type { AssetCode } from "@mayarin/shared";
 import type {
+  AssetBalance,
   BalanceQuery,
   BlockRef,
   ChainClient,
   ChainId,
-  NativeBalance,
   SettlementLog,
   SettlementQuery,
   TransferLog,
@@ -152,7 +152,7 @@ export class FakeChainClient implements ChainClient {
     return block?.hash ?? null;
   }
 
-  async nativeBalances(query: BalanceQuery): Promise<NativeBalance[]> {
+  async balances(query: BalanceQuery): Promise<AssetBalance[]> {
     if (query.addresses.length === 0) return [];
     const block = this.#blocks.find((candidate) => candidate.number === query.block);
     if (block === undefined) return [];

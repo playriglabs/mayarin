@@ -1,0 +1,9 @@
+{
+  "name": "@mayarin/chain-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "WATCHER_TOKEN_BALANCE_CATCH_UP=true bun --env-file=../../.env run --watch src/index.ts"
+  }
+}
