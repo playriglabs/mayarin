@@ -6,10 +6,20 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { FixedClock, ValidationError } from "@mayarin/shared";
+import { TablePriceSource } from "@mayarin/clearing";
+import { FixedPriceOracle } from "@mayarin/clearing/testing";
+import { QuoteEngine } from "@mayarin/quote";
+import { FakeOrderSigner } from "@mayarin/quote/testing";
+import { FixedClock, money, ValidationError } from "@mayarin/shared";
 import { InMemoryMarketConfigStore } from "@mayarin/shared/testing";
 import { type Config, loadConfig } from "../src/config.ts";
-import { MARKET_CONFIG_KEYS, RuntimeMarket, RuntimeStablecoinRegistry } from "../src/market.ts";
+import {
+  MARKET_CONFIG_KEYS,
+  RuntimeMarket,
+  RuntimePriceSource,
+  RuntimeStablecoinRegistry,
+} from "../src/market.ts";
+import type { QuoteLayer } from "../src/quote-layer.ts";
 
 const USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const USDT = "0x1111111111111111111111111111111111111111";
@@ -83,6 +93,48 @@ describe("rates", () => {
 
     // Rates carry RATE_DECIMALS fractional digits, so "6" is 6 × 10^9 scaled.
     expect(quote.scaledRate).toBe(6_000_000_000n);
+  });
+
+  test("a configured quote layer prices fiat into stablecoin for the clearing lock", async () => {
+    const observedAt = new Date("2026-01-01T00:00:00.000Z");
+    const oracle = new FixedPriceOracle([
+      {
+        from: "SGD",
+        to: "USDC",
+        scaledRate: 781_440_000_000_000n,
+        source: "pyth",
+        observedAt,
+      },
+    ]);
+    const engine = new QuoteEngine({
+      venue: new TablePriceSource(),
+      oracle,
+      policy: { maxDeviationBps: 100, maxAgeMs: 60_000 },
+      fiat: {
+        pegged: [],
+        maxAgeMs: 300_000,
+        closedMaxAgeMs: 300_000,
+        closedSpreadBps: 0,
+      },
+      clock: new FixedClock(observedAt),
+    });
+    const quote: QuoteLayer = {
+      engine,
+      venues: [],
+      oracle,
+      signer: new FakeOrderSigner(),
+      slippageBps: 50,
+      ttlSeconds: 60,
+    };
+    const source = new RuntimePriceSource({
+      quote: async () => quote,
+      rates: async () => new TablePriceSource(),
+    });
+
+    const priced = await source.price("SGD", "USDC", money(100n, "SGD"));
+
+    expect(priced.source).toBe("pyth");
+    expect(priced.scaledRate).toBe(781_440_000_000_000n);
   });
 });
 
