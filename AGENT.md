@@ -37,6 +37,7 @@ bun run dev:all                 # turbo dev: payment API + dashboard API + dashb
 bun run typecheck               # tsc --noEmit across every workspace package
 bun test                        # whole suite
 bun run test:contracts          # forge test in packages/contracts/payment-router (needs Foundry, not managed by bun)
+bun run test:woocommerce        # php -l + pure-function tests for plugins/woocommerce (needs Docker, runs php:8.3-cli)
 bun run format                  # biome --write + prettier --write
 bun run format:check            # non-mutating
 bun run check                   # format:check + typecheck + test
