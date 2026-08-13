@@ -25,8 +25,6 @@ const COLUMNS = [
     links: [
       { label: "Use cases", href: "#use-cases" },
       { label: "Principles", href: "#principles" },
-      { label: "Developers", href: "#developers" },
-      { label: "Pitchdeck", href: "/pitch-deck" },
     ],
   },
 ];
