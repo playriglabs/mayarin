@@ -89,7 +89,7 @@ interface DemoWebhookEvent {
   readonly state: string;
 }
 
-function parseWebhookEvent(rawBody: string): DemoWebhookEvent | undefined {
+export function parseWebhookEvent(rawBody: string): DemoWebhookEvent | undefined {
   const parsed: unknown = JSON.parse(rawBody);
   if (typeof parsed !== "object" || parsed === null) return undefined;
   const data = (parsed as { data?: unknown }).data;
@@ -145,7 +145,7 @@ function catalogLinkIdempotencyKey(merchantId: string, request: CheckoutRequest)
   return `demo-catalog-v2:${merchantId}:${cart}:${DEMO_CURRENCY}`;
 }
 
-async function reusableOrNewCatalogLink(
+export async function reusableOrNewCatalogLink(
   mayarin: MayarinClient,
   config: DemoConfig,
   request: CheckoutRequest,
@@ -169,7 +169,7 @@ async function reusableOrNewCatalogLink(
   );
 }
 
-function parseCheckoutRequest(body: unknown): CheckoutRequest | undefined {
+export function parseCheckoutRequest(body: unknown): CheckoutRequest | undefined {
   if (typeof body !== "object" || body === null) return undefined;
   const { lines } = body as { lines?: unknown };
   if (!Array.isArray(lines) || lines.length === 0) return undefined;
