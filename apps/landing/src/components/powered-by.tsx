@@ -38,8 +38,10 @@ const LOGOS: Logo[] = [
   { src: "/images/logos/turnkey.svg", name: "Turnkey", lockup: true, class: "h-5 md:h-[1.5rem]" },
 ];
 
-/** Enough copies that the first half always overflows the widest viewport. */
-const MARQUEE_COPIES = 4;
+/** Two logo copies make one sequence wider than the widest visible track. */
+const LOGO_COPIES_PER_SEQUENCE = 2;
+/** Two equal sequences give the animation an exact, invisible handoff point. */
+const MARQUEE_SEQUENCES = 2;
 
 function LogoItem({ logo, muted }: { logo: Logo; muted: boolean }) {
   return (
@@ -71,13 +73,25 @@ export function PoweredBy() {
             The mobile top margin is dropped at md: in a centred row it offsets
             the logos against the label instead of spacing them. */}
         <div class="marquee-track relative -mx-6 mt-2 min-w-0 flex-1 overflow-hidden mask-[linear-gradient(to_right,transparent,#000_5%,#000_93%,transparent)] md:mx-0 md:mt-0">
-          <ul class="marquee flex w-max items-center gap-x-10 md:gap-x-14 lg:gap-x-20">
-            {Array.from({ length: MARQUEE_COPIES }, (_, copy) =>
-              LOGOS.map((logo) => (
-                <LogoItem key={`${copy}:${logo.name}`} logo={logo} muted={copy > 0} />
-              )),
-            )}
-          </ul>
+          <div class="marquee flex w-max items-center">
+            {Array.from({ length: MARQUEE_SEQUENCES }, (_, sequence) => (
+              <ul
+                key={sequence}
+                aria-hidden={sequence > 0}
+                class="flex shrink-0 items-center gap-x-10 pr-10 md:gap-x-14 md:pr-14 lg:gap-x-20 lg:pr-20"
+              >
+                {Array.from({ length: LOGO_COPIES_PER_SEQUENCE }, (_, copy) =>
+                  LOGOS.map((logo) => (
+                    <LogoItem
+                      key={`${copy}:${logo.name}`}
+                      logo={logo}
+                      muted={sequence > 0 || copy > 0}
+                    />
+                  )),
+                )}
+              </ul>
+            ))}
+          </div>
         </div>
       </div>
     </div>
