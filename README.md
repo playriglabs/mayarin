@@ -52,6 +52,7 @@ Requires [Bun](https://bun.sh) 1.2+ and Docker.
 ```bash
 bun run setup          # install, .env, Postgres, migrations, config check
 bun run dev            # API on http://localhost:3000
+bun run dev:docs       # developer docs on http://localhost:4321
 ```
 
 `setup` is also the way back to a working tree when something has drifted — it

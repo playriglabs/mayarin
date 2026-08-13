@@ -1,0 +1,76 @@
+---
+title: TypeScript quickstart
+description: Create a payment link from a server using the existing @mayarin/sdk package.
+---
+
+## Install
+
+```bash
+bun add @mayarin/sdk
+```
+
+Use the server entry point with a secret key minted from the Mayarin dashboard. Never place an `sk_` key in a browser bundle.
+
+## Create a client
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const secretKey = process.env.MAYARIN_SECRET_KEY;
+if (secretKey === undefined) {
+  throw new Error("MAYARIN_SECRET_KEY is required");
+}
+
+const mayarin = createMayarin({
+  baseUrl: "https://api.mayarin.xyz",
+  secretKey,
+});
+```
+
+## Create a payable link
+
+```ts
+const link = await mayarin.commerce.paymentLinks.create({
+  kind: "fixed",
+  merchant: {
+    id: "merchant_123",
+    name: "Warung Kopi",
+    city: "Jakarta",
+    countryCode: "ID",
+  },
+  amount: { amount: "50000.00", asset: "IDR" },
+});
+
+console.log(link.url);
+```
+
+Redirect the buyer to `link.url`. The hosted checkout owns asset selection, wallet interaction or deposit instructions, and live payment status.
+
+## Idempotency
+
+The SDK generates an `Idempotency-Key` for every write. When your system already has a stable order identifier, pass it explicitly:
+
+```ts
+const link = await mayarin.commerce.paymentLinks.create(input, {
+  idempotencyKey: "order-4711",
+});
+```
+
+Reusing the key with the same request returns the original result. Reusing it with different parameters returns a conflict.
+
+## Handle errors
+
+```ts
+import { isMayarinApiError } from "@mayarin/sdk";
+
+try {
+  await mayarin.payment.get("pi_01KZ...");
+} catch (error) {
+  if (isMayarinApiError(error) && error.retryable) {
+    // Retry with bounded backoff.
+  }
+  throw error;
+}
+```
+
+Every SDK failure is a `MayarinApiError` with a stable `code`, HTTP `status`, and `retryable` flag.

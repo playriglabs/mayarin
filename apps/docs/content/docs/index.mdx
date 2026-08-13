@@ -1,0 +1,41 @@
+---
+title: Build programmable commerce
+description: Price in fiat, settle in stablecoins, and let customers pay with any supported crypto asset through one API and TypeScript SDK.
+---
+
+Mayarin is crypto-commerce infrastructure for merchants who think in local currency. Your application creates a fiat-denominated payment request; Mayarin handles quoting, on-chain execution, settlement, and accounting.
+
+## Start with your integration
+
+| If you are building…                      | Begin here                                                     |
+| ----------------------------------------- | -------------------------------------------------------------- |
+| A server-rendered storefront or backend   | [TypeScript SDK quickstart](/quickstart)                       |
+| A browser checkout with a publishable key | [Browser SDK](/sdk/typescript/browser)                         |
+| A platform using raw HTTP                 | [API quickstart](/guides/api-quickstart)                       |
+| A production integration                  | [Webhooks](/guides/webhooks) and [errors and retries](/errors) |
+
+## The model
+
+```text
+Merchant prices       IDR 50,000
+Customer pays         ETH, USDC, USDT, or IDRX
+Mayarin executes      quote → pay → swap if needed → settle
+Merchant receives     configured stablecoin
+```
+
+The merchant does not need to reconcile the payer's asset. The customer does not need to acquire the merchant's settlement asset first.
+
+## Two payment paths
+
+- **On-chain contract** — the primary path. `PaymentRouter` atomically receives, swaps when needed, and settles. A hard `minOut` protects the merchant.
+- **Deposit match** — the fallback path. Mayarin gives the payer a per-intent address, watches the chain, and matches the plain transfer to the payment.
+
+Both paths use the same payment intent, status model, ledger, and merchant-facing API.
+
+## Core guarantees
+
+- Money is represented as exact minor units, never floating-point values.
+- Every write is idempotent.
+- Every clearing transition is persisted and auditable.
+- A webhook is a signal; Mayarin verifies authoritative state before settlement.
+- Secret keys stay on the server. Browser integrations use publishable keys with a deliberately smaller surface.

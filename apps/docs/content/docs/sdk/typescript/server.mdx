@@ -1,0 +1,15 @@
+---
+title: Server client
+description: Create a full Mayarin client with a secret merchant API key.
+---
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const mayarin = createMayarin({
+  baseUrl: "https://api.mayarin.xyz",
+  secretKey: process.env.MAYARIN_SECRET_KEY!,
+});
+```
+
+The server client exposes `commerce` and `payment` modules plus health/status behavior shared by both entry points. Validate required environment variables at application startup rather than relying on a non-null assertion in production code.

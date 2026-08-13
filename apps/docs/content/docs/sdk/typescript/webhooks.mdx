@@ -1,0 +1,8 @@
+---
+title: Webhook helpers
+description: Verify signatures and construct typed webhook payloads with WebCrypto.
+---
+
+`verifyWebhook()` validates the timestamp and signature without parsing the payload. `constructWebhook<T>()` verifies first, then parses the JSON payload.
+
+Both functions use WebCrypto, so they run in Node, Bun, and Cloudflare Workers without a Node-specific crypto dependency.

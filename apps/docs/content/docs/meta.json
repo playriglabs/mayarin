@@ -1,0 +1,15 @@
+{
+  "title": "Mayarin Docs",
+  "pages": [
+    "index",
+    "---Getting started---",
+    "quickstart",
+    "concepts",
+    "---Build---",
+    "guides",
+    "sdk",
+    "---Reference---",
+    "---API reference---",
+    "errors"
+  ]
+}

@@ -1,0 +1,64 @@
+---
+import { render } from "astro:content";
+import type { TOCItemType } from "fumadocs-core/toc";
+import defaultMdxComponents from "fumadocs-ui/mdx";
+import { APIReference } from "@/components/api-reference";
+import { Docs } from "@/components/docs";
+import Layout from "@/components/layout.astro";
+import TypeTable from "@/components/type-table.astro";
+import { getPageImageUrl, source } from "@/lib/source";
+import "@/styles/global.css";
+
+const slugs = typeof Astro.params.slug === "string" ? Astro.params.slug.split("/") : [];
+const page = source.getPage(slugs);
+if (page === undefined) return Astro.redirect("/404");
+
+const authoredPage = page.data.type === "docs" ? page.data : undefined;
+const apiPage = page.data.type === "api" ? page.data : undefined;
+const authored = authoredPage === undefined ? undefined : await render(authoredPage._raw);
+const toc: TOCItemType[] = authoredPage !== undefined
+  ? (authored?.headings ?? []).map((heading) => ({
+      depth: heading.depth,
+      title: heading.text,
+      url: `#${heading.slug}`,
+    }))
+  : (apiPage?.toc ?? []);
+const title = `${page.data.title} — Mayarin Docs`;
+const description = page.data.description ?? "Build programmable crypto-commerce with Mayarin.";
+---
+
+<Layout>
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:image" content={getPageImageUrl(page)} />
+  <Docs
+    tree={source.getPageTree()}
+    pathname={Astro.url.pathname}
+    params={Astro.params}
+    page={{ toc, tableOfContent: { style: "clerk" } }}
+    client:load
+  >
+    {
+      authoredPage !== undefined ? (
+        <>
+          <header class="mb-10 border-b border-fd-border pb-8">
+            <h1 class="docs-title text-2xl md:text-3xl">{page.data.title}</h1>
+            {page.data.description && (
+              <p class="mt-4 max-w-3xl text-lg leading-8 text-fd-muted-foreground">
+                {page.data.description}
+              </p>
+            )}
+          </header>
+          <div class="prose flex-1">
+            {authored && <authored.Content components={{ ...defaultMdxComponents, TypeTable }} />}
+          </div>
+        </>
+      ) : (
+        apiPage !== undefined && <APIReference {...apiPage.getOpenAPIPageProps()} />
+      )
+    }
+  </Docs>
+</Layout>

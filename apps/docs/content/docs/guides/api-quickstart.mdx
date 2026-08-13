@@ -1,0 +1,32 @@
+---
+title: Raw API quickstart
+description: Create and inspect a payment using HTTP without the SDK.
+---
+
+Create a payment intent from your server:
+
+```bash
+curl https://api.mayarin.xyz/v1/payment-intents \
+  --request POST \
+  --header 'Authorization: Bearer sk_...' \
+  --header 'Content-Type: application/json' \
+  --header 'Idempotency-Key: order-4711' \
+  --data '{
+    "merchant": {
+      "id": "merchant_123",
+      "name": "Warung Kopi",
+      "city": "Jakarta",
+      "countryCode": "ID"
+    },
+    "amount": { "amount": "50000.00", "asset": "IDR" }
+  }'
+```
+
+Confirm the intent, then query the payment:
+
+```bash
+curl --request POST https://api.mayarin.xyz/v1/payment-intents/pi_.../confirm
+curl https://api.mayarin.xyz/v1/payments/pi_...
+```
+
+For production, prefer a webhook over continuous polling. Polling remains useful when restoring UI state after a browser refresh.

@@ -1,0 +1,36 @@
+{
+  "name": "@mayarin/docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.6.13",
+    "@astrojs/markdown-remark": "^6.3.10",
+    "@astrojs/mdx": "^4.3.13",
+    "@astrojs/react": "^4.4.1",
+    "@orama/orama": "^3.1.15",
+    "@tailwindcss/vite": "^4.1.18",
+    "astro": "^5.16.0",
+    "fumadocs-core": "16.14.3",
+    "fumadocs-openapi": "11.2.3",
+    "fumadocs-typescript": "^5.0.3",
+    "fumadocs-ui": "16.14.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.34.5",
+    "shiki": "^4.0.2",
+    "takumi-js": "^2.7.3",
+    "tailwindcss": "^4.1.18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.3"
+  }
+}

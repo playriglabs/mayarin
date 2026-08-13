@@ -1,0 +1,21 @@
+---
+title: Errors and retries
+description: Branch on stable error codes and retry only failures explicitly marked retryable.
+---
+
+API errors use one envelope:
+
+```json
+{
+  "error": {
+    "code": "CONCURRENCY_CONFLICT",
+    "message": "The payment changed while this request was running",
+    "retryable": true,
+    "details": {}
+  }
+}
+```
+
+Treat `code` as the programmatic contract and `message` as human-readable context. Retry only when `retryable` is true, using bounded exponential backoff with jitter. Keep the same idempotency key when retrying a write.
+
+The SDK additionally emits `NETWORK_ERROR` when no response arrives and `INVALID_RESPONSE` when a successful response is not valid JSON.

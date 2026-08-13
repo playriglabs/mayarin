@@ -1,0 +1,14 @@
+---
+title: Payments module
+description: Create intents, confirm them, inspect status, and obtain contract call data.
+---
+
+The `payment` module exposes:
+
+- `createIntent(body, options?)`;
+- `getIntent(id, options?)`;
+- `confirmIntent(id, options?)`;
+- `get(id, options?)`;
+- `getContractCall(id, options?)`.
+
+`get` accepts a payment intent ID or clearing transaction ID. `getContractCall` applies only to an on-chain-contract payment waiting for payer submission; route calldata is fetched fresh because it expires faster than the locked price.

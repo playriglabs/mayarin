@@ -1,0 +1,20 @@
+---
+title: Authentication and key safety
+description: Use secret and publishable keys only in the environments they are designed for.
+---
+
+Send API keys as bearer tokens:
+
+```http
+Authorization: Bearer sk_...
+```
+
+## Secret keys
+
+An `sk_` key belongs on a server. It can carry merchant permissions such as catalog management and must never enter HTML, JavaScript bundles, logs, analytics, or source control.
+
+## Publishable keys
+
+A `pk_` key may ship in browser code. It identifies a merchant and reaches only the publishable commerce surface: the merchant's catalog read and cart checkout. It cannot manage catalog data or authenticate to the dashboard.
+
+The SDK makes the separation explicit: `@mayarin/sdk` accepts a secret key, while `@mayarin/sdk/browser` has no secret-key field.

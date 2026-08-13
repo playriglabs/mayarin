@@ -6,6 +6,10 @@ Mayarin's reference documentation. Start with the [architecture](./architecture.
 if you are here to change code, or the [vision](./vision.md) if you are here to
 understand why any of it exists.
 
+Merchant-facing API guides, SDK reference, and the interactive OpenAPI
+playground live in `apps/docs` and publish to `docs.mayarin.xyz`. This directory
+remains the repository's architecture and design record.
+
 ---
 
 ## Orientation
