@@ -10,136 +10,14 @@
 
 import { resolve } from "node:path";
 import { createMayarin } from "@mayarin/sdk";
+import seedProducts from "./products.json";
 import { DEMO_CURRENCY } from "./server/index.ts";
 
 const ENV_PATH = resolve(import.meta.dir, ".env");
 const REPO_ROOT = resolve(import.meta.dir, "../..");
 
-/**
- * The catalog of a Bandung distro: garments named after the city's streets.
- * `metadata.kind` picks the garment geometry, `metadata.tone` its colorway
- * (`src/product-art.tsx`), and `metadata.category` drives the storefront
- * filter — all ride the product's free-form metadata through the API.
- */
-const SEED_PRODUCTS = [
-  {
-    sku: "TEE-BRAGA-BLK",
-    name: "Kaos 'Braga'",
-    description: "Katun 24s, sablon plastisol satu warna di dada.",
-    amount: "129000.00",
-    kind: "tee",
-    tone: "hitam",
-    category: "Atasan",
-  },
-  {
-    sku: "TEE-RIAU-CRM",
-    name: "Kaos 'Riau'",
-    description: "Katun 24s warna krem, jahitan rantai di bahu.",
-    amount: "119000.00",
-    kind: "tee",
-    tone: "krem",
-    category: "Atasan",
-  },
-  {
-    sku: "TEE-TRUNOJOYO-BRK",
-    name: "Kaos 'Trunojoyo'",
-    description: "Katun 24s warna bata, potongan boxy.",
-    amount: "129000.00",
-    kind: "tee",
-    tone: "bata",
-    category: "Atasan",
-  },
-  {
-    sku: "FLNL-CIHAMPELAS-RED",
-    name: "Flanel 'Cihampelas'",
-    description: "Flanel kotak merah-hitam, brushed cotton.",
-    amount: "219000.00",
-    kind: "flannel",
-    tone: "merah",
-    category: "Atasan",
-  },
-  {
-    sku: "FLNL-SETIABUDI-GRN",
-    name: "Flanel 'Setiabudi'",
-    description: "Flanel kotak hijau tua, dua saku dada.",
-    amount: "229000.00",
-    kind: "flannel",
-    tone: "hijau",
-    category: "Atasan",
-  },
-  {
-    sku: "HOOD-LEMBANG-GRN",
-    name: "Hoodie 'Lembang'",
-    description: "Fleece 320 gsm, tali gepeng, saku kanguru.",
-    amount: "299000.00",
-    kind: "hoodie",
-    tone: "hijau",
-    category: "Luaran",
-  },
-  {
-    sku: "HOOD-CIWIDEY-CHR",
-    name: "Hoodie 'Ciwidey'",
-    description: "Fleece 320 gsm warna arang, rib tebal.",
-    amount: "289000.00",
-    kind: "hoodie",
-    tone: "arang",
-    category: "Luaran",
-  },
-  {
-    sku: "JKT-ASIA-AFRIKA-NVY",
-    name: "Coach Jacket 'Asia Afrika'",
-    description: "Nilon tahan angin, kancing jepret, furing jaring.",
-    amount: "349000.00",
-    kind: "jacket",
-    tone: "navy",
-    category: "Luaran",
-  },
-  {
-    sku: "JKT-CIPAGANTI-BLK",
-    name: "Coach Jacket 'Cipaganti'",
-    description: "Nilon hitam, kerah kemeja, dua saku dalam.",
-    amount: "359000.00",
-    kind: "jacket",
-    tone: "hitam",
-    category: "Luaran",
-  },
-  {
-    sku: "CRG-BUAHBATU-OLV",
-    name: "Cargo 'Buah Batu'",
-    description: "Ripstop olive, enam saku, potongan lurus.",
-    amount: "259000.00",
-    kind: "cargo",
-    tone: "olive",
-    category: "Bawahan",
-  },
-  {
-    sku: "CRG-KOPO-CHR",
-    name: "Cargo 'Kopo'",
-    description: "Ripstop arang, lutut artikulasi, pinggang karet.",
-    amount: "249000.00",
-    kind: "cargo",
-    tone: "arang",
-    category: "Bawahan",
-  },
-  {
-    sku: "CAP-DAGO-BRN",
-    name: "Topi 'Dago'",
-    description: "Corduroy enam panel, bordir mark di depan.",
-    amount: "89000.00",
-    kind: "cap",
-    tone: "cokelat",
-    category: "Aksesori",
-  },
-  {
-    sku: "CAP-PUNCLUT-BLK",
-    name: "Topi 'Punclut'",
-    description: "Twill hitam, strap belakang logam.",
-    amount: "95000.00",
-    kind: "cap",
-    tone: "hitam",
-    category: "Aksesori",
-  },
-] as const;
+/** Product metadata selects its photo, category filter, and colorway. */
+const SEED_PRODUCTS = seedProducts;
 
 async function readEnvFile(path: string): Promise<Map<string, string>> {
   const entries = new Map<string, string>();
@@ -242,7 +120,12 @@ for (const product of missing) {
     name: product.name,
     description: product.description,
     prices: [{ amount: product.amount, asset: DEMO_CURRENCY }],
-    metadata: { kind: product.kind, tone: product.tone, category: product.category },
+    metadata: {
+      kind: product.kind,
+      tone: product.tone,
+      category: product.category,
+      image: product.image,
+    },
   });
   console.log(`Created ${product.sku} — ${product.name}`);
 }

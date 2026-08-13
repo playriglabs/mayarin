@@ -16,15 +16,20 @@ export function ProductCard({
 
   return (
     <li className="card">
-      <button type="button" className="card-open" onClick={onOpen} aria-label={product.name}>
+      <button type="button" className="card-open group" onClick={onOpen} aria-label={product.name}>
         <div className="media">
-          <ProductImage kind={product.metadata.kind} tone={product.metadata.tone} />
+          <ProductImage
+            image={product.metadata.image}
+            kind={product.metadata.kind}
+            tone={product.metadata.tone}
+            name={product.name}
+          />
           {category !== undefined && <span className="tag">{category}</span>}
         </div>
         <h3>{product.name}</h3>
         {product.description !== null && <p className="description">{product.description}</p>}
         {price === undefined ? (
-          <p className="notice">Belum ada harga.</p>
+          <p className="notice">Price unavailable.</p>
         ) : (
           <p className="price">{price.display}</p>
         )}

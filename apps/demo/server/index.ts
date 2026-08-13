@@ -258,9 +258,13 @@ export function demoApi(config: DemoConfig): NextHandleFunction {
               }
             : req.method === "GET" && referencePaymentId !== undefined
               ? async () => {
+                  const intent = await mayarin.payment.getIntent(referencePaymentId);
+                  const success =
+                    intent.merchant.id === config.merchant.id && intent.status === "COMPLETED";
+                  if (success) successfulPayments.add(referencePaymentId);
                   sendJson(res, 200, {
                     referencePaymentId,
-                    success: successfulPayments.has(referencePaymentId),
+                    success: success || successfulPayments.has(referencePaymentId),
                   });
                 }
               : undefined;

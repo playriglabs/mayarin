@@ -27,11 +27,13 @@ export function LogoMark({ size = 36 }: { readonly size?: number }) {
 
 export function LogoLockup() {
   return (
-    <span className="lockup">
+    <span className="inline-flex items-center gap-3">
       <LogoMark />
-      <span className="wordmark">
+      <span className="flex flex-col font-display text-lg leading-none font-semibold tracking-wide">
         Parahyangan
-        <small>Supply</small>
+        <small className="font-sans mt-1 text-[0.6875rem] font-semibold tracking-[0.32em] text-zinc-500 uppercase">
+          Supply
+        </small>
       </span>
     </span>
   );
@@ -43,24 +45,26 @@ export function LogoLockup() {
  */
 export function HeroArt() {
   return (
-    <svg viewBox="0 0 480 400" fill="none" aria-hidden="true" className="hero-art">
-      <rect width="480" height="400" fill="var(--color-tile)" />
+    <svg
+      viewBox="0 0 480 400"
+      fill="none"
+      aria-hidden="true"
+      className="h-auto w-full border border-zinc-200"
+    >
+      <rect width="480" height="400" fill="#eef0f2" />
       {/* Sun */}
-      <circle cx="330" cy="120" r="58" fill="var(--color-accent)" />
+      <circle cx="330" cy="120" r="58" fill="#ec4899" />
       {/* Far ridge */}
       <path
         d="M0 258 L96 196 L176 244 L268 178 L364 238 L480 190 L480 400 L0 400 Z"
         fill="#3f3f46"
       />
       {/* The upturned hull, resting on the near ridge */}
-      <path d="M148 210 L332 210 L296 252 L184 252 Z" fill="var(--color-foreground)" />
+      <path d="M148 210 L332 210 L296 252 L184 252 Z" fill="#09090b" />
       {/* Near ridge */}
-      <path
-        d="M0 316 L120 268 L240 308 L368 262 L480 310 L480 400 L0 400 Z"
-        fill="var(--color-foreground)"
-      />
+      <path d="M0 316 L120 268 L240 308 L368 262 L480 310 L480 400 L0 400 Z" fill="#09090b" />
       {/* City grid lights */}
-      <g fill="var(--color-background)" opacity="0.75">
+      <g fill="#fafafa" opacity="0.75">
         <rect x="60" y="336" width="8" height="8" />
         <rect x="120" y="352" width="8" height="8" />
         <rect x="182" y="334" width="8" height="8" />

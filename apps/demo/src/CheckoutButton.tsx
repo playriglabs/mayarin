@@ -12,14 +12,16 @@ type CheckoutState =
  * storefront's job ends at the redirect.
  */
 export function CheckoutButton({
-  productId,
-  productName,
-  quantity,
+  lines,
+  label,
+  purchaseName,
+  purchaseQuantity,
   total,
 }: {
-  readonly productId: string;
-  readonly productName: string;
-  readonly quantity: number;
+  readonly lines: readonly { readonly productId: string; readonly quantity: number }[];
+  readonly label?: string;
+  readonly purchaseName: string;
+  readonly purchaseQuantity: number;
   readonly total: string;
 }) {
   const [state, setState] = useState<CheckoutState>({ status: "idle" });
@@ -30,7 +32,7 @@ export function CheckoutButton({
       const response = await fetch("/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productId, quantity }),
+        body: JSON.stringify({ lines }),
       });
       const body = (await response.json()) as { id?: string; url?: string; error?: string };
       if (!response.ok || body.url === undefined || body.id === undefined) {
@@ -38,8 +40,8 @@ export function CheckoutButton({
       }
       recordPurchase({
         linkId: body.id,
-        name: productName,
-        quantity,
+        name: purchaseName,
+        quantity: purchaseQuantity,
         total,
         url: body.url,
         at: new Date().toISOString(),
@@ -50,8 +52,8 @@ export function CheckoutButton({
         status: "error",
         message:
           error instanceof Error
-            ? `Pembayaran tidak bisa disiapkan. ${error.message}`
-            : "Pembayaran tidak bisa disiapkan.",
+            ? `Checkout could not be prepared. ${error.message}`
+            : "Checkout could not be prepared.",
       });
     }
   }
@@ -65,15 +67,15 @@ export function CheckoutButton({
         onClick={() => void checkout()}
         disabled={minting}
         aria-busy={minting}
-        aria-label={`Beli ${productName}`}
+        aria-label={label ?? `Buy ${purchaseName}`}
       >
         {minting ? (
           <>
             <span className="spinner" aria-hidden="true" />
-            Menyiapkan…
+            Preparing…
           </>
         ) : (
-          "Beli sekarang"
+          (label ?? "Buy now")
         )}
       </button>
       {state.status === "error" && (

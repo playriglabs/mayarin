@@ -1,0 +1,122 @@
+[
+  {
+    "sku": "BATIK-BRAGA-KAWUNG",
+    "name": "Braga Kawung Batik Shirt",
+    "description": "Hand-stamped kawung batik on premium cotton in a relaxed silhouette.",
+    "amount": "329000.00",
+    "kind": "flannel",
+    "image": "https://images.unsplash.com/photo-1569084755066-cbff1d9fd473?auto=format&fit=crop&w=1200&q=82",
+    "tone": "cokelat",
+    "category": "Batik"
+  },
+  {
+    "sku": "BATIK-CIREBON-MEGA",
+    "name": "Mega Mendung Batik Shirt",
+    "description": "Cirebon's cloud motif in a deep-blue palette with short sleeves.",
+    "amount": "349000.00",
+    "kind": "flannel",
+    "image": "https://images.unsplash.com/photo-1541537806773-cd2c2a215cc5?auto=format&fit=crop&w=1200&q=82",
+    "tone": "navy",
+    "category": "Batik"
+  },
+  {
+    "sku": "LURIK-MALIOBORO",
+    "name": "Malioboro Lurik Shirt",
+    "description": "Yogyakarta woven lurik with an open collar and patch pocket.",
+    "amount": "289000.00",
+    "kind": "tee",
+    "image": "https://images.unsplash.com/photo-1605794432120-f4bb5dc9067d?auto=format&fit=crop&w=1200&q=82",
+    "tone": "krem",
+    "category": "Shirts"
+  },
+  {
+    "sku": "SASIRANGAN-BANJAR",
+    "name": "Banjar Sasirangan Shirt",
+    "description": "Hand-dyed sasirangan cloth in indigo with a boxy silhouette.",
+    "amount": "319000.00",
+    "kind": "tee",
+    "image": "https://images.unsplash.com/photo-1561578428-c59823044e25?auto=format&fit=crop&w=1200&q=82",
+    "tone": "navy",
+    "category": "Shirts"
+  },
+  {
+    "sku": "OUTER-SUMBA-TENUN",
+    "name": "Sumba Woven Overshirt",
+    "description": "Sumba ikat panels set into a structured, unlined cotton overshirt.",
+    "amount": "579000.00",
+    "kind": "jacket",
+    "image": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=1200&q=82",
+    "tone": "bata",
+    "category": "Outerwear"
+  },
+  {
+    "sku": "JACKET-GARUDA-NAVY",
+    "name": "Garuda Coach Jacket",
+    "description": "Wind-resistant coach jacket with minimal Garuda embroidery at the chest.",
+    "amount": "399000.00",
+    "kind": "jacket",
+    "image": "https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?auto=format&fit=crop&w=1200&q=82",
+    "tone": "navy",
+    "category": "Outerwear"
+  },
+  {
+    "sku": "HOOD-SUNDA-ARANG",
+    "name": "Sundanese Script Hoodie",
+    "description": "Heavyweight 320 gsm fleece with a Sundanese-script print and thick ribbing.",
+    "amount": "369000.00",
+    "kind": "hoodie",
+    "image": "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=1200&q=82",
+    "tone": "arang",
+    "category": "Outerwear"
+  },
+  {
+    "sku": "TEE-WAYANG-HITAM",
+    "name": "Arjuna Wayang T-Shirt",
+    "description": "Combed cotton T-shirt featuring a single-color Arjuna illustration.",
+    "amount": "149000.00",
+    "kind": "tee",
+    "image": "https://images.unsplash.com/photo-1591838497997-e0f38428c5c5?auto=format&fit=crop&w=1200&q=82",
+    "tone": "hitam",
+    "category": "T-Shirts"
+  },
+  {
+    "sku": "TEE-BANDUNG-API",
+    "name": "Bandung Sea of Fire T-Shirt",
+    "description": "Heavyweight T-shirt with an archival Bandung graphic across the back.",
+    "amount": "169000.00",
+    "kind": "tee",
+    "image": "https://images.unsplash.com/photo-1593278641722-49b1047ede21?auto=format&fit=crop&w=1200&q=82",
+    "tone": "bata",
+    "category": "T-Shirts"
+  },
+  {
+    "sku": "CARGO-RINJANI-OLIVE",
+    "name": "Rinjani Cargo Pants",
+    "description": "Olive ripstop with six pockets and an adjustable waist for everyday wear.",
+    "amount": "299000.00",
+    "kind": "cargo",
+    "image": "https://images.unsplash.com/photo-1584302052153-623ee529b70c?auto=format&fit=crop&w=1200&q=82",
+    "tone": "olive",
+    "category": "Bottoms"
+  },
+  {
+    "sku": "CAP-PARANG-HITAM",
+    "name": "Parang Batik Cap",
+    "description": "Six-panel cap with a parang batik panel and brass back strap.",
+    "amount": "65000.00",
+    "kind": "cap",
+    "image": "https://images.unsplash.com/photo-1521369909029-2afed882baee?auto=format&fit=crop&w=1200&q=82",
+    "tone": "hitam",
+    "category": "Accessories"
+  },
+  {
+    "sku": "CAP-DAGO-CORDUROY",
+    "name": "Dago Corduroy Cap",
+    "description": "Brown six-panel corduroy cap embroidered with the Parahyangan mark.",
+    "amount": "50000.00",
+    "kind": "cap",
+    "image": "https://images.unsplash.com/photo-1534215754734-18e55d13e346?auto=format&fit=crop&w=1200&q=82",
+    "tone": "cokelat",
+    "category": "Accessories"
+  }
+]

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { recordSuccessfulPayment } from "./history.ts";
 
 type PaymentState = "waiting" | "success" | "error";
 
@@ -17,8 +18,10 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
         const body = (await response.json()) as { success?: boolean };
         if (!response.ok) throw new Error("Could not verify payment");
         if (stopped) return;
-        if (body.success === true) setState("success");
-        else timer = setTimeout(() => void check(), 1_500);
+        if (body.success === true) {
+          recordSuccessfulPayment(referencePaymentId);
+          setState("success");
+        } else timer = setTimeout(() => void check(), 1_500);
       } catch {
         if (!stopped) setState("error");
       }
@@ -32,7 +35,7 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
   }, [referencePaymentId]);
 
   return (
-    <main className="grid min-h-screen place-items-center bg-cream p-5">
+    <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-5">
       <section className="w-full max-w-xl border border-line bg-paper px-8 py-14 text-center shadow-xl sm:px-14">
         <div
           className={`mx-auto mb-6 grid size-16 place-items-center rounded-full text-3xl text-white ${state === "success" ? "bg-sage" : "bg-terracotta"}`}
@@ -41,7 +44,7 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
           {state === "success" ? "✓" : "…"}
         </div>
         <p className="mb-3 text-xs font-bold tracking-[0.14em] text-terracotta uppercase">
-          Toko Demo
+          Parahyangan Supply
         </p>
         <h1 className="m-0 font-display text-4xl">
           {state === "success"

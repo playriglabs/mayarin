@@ -19,8 +19,8 @@ export interface DemoProduct {
   readonly description: string | null;
   readonly prices: readonly DemoPrice[];
   /**
-   * Free-form product metadata. The seed sets `kind` (picks the card art)
-   * and `category` (drives the catalog filter).
+   * Free-form product metadata. The seed sets `image` (the product photo),
+   * `kind` (its fallback photo), and `category` (the catalog filter).
    */
   readonly metadata: Readonly<Record<string, string>>;
 }

@@ -14,9 +14,11 @@ const MAX_QUANTITY = 9;
  */
 export function ProductDialog({
   product,
+  onAddToCart,
   onClose,
 }: {
   readonly product: DemoProduct;
+  readonly onAddToCart: (product: DemoProduct, quantity: number) => void;
   readonly onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -32,11 +34,16 @@ export function ProductDialog({
     <dialog ref={ref} className="product-dialog" onClose={onClose} aria-label={product.name}>
       <div className="dialog-body">
         <div className="dialog-media">
-          <ProductImage kind={product.metadata.kind} tone={product.metadata.tone} />
+          <ProductImage
+            image={product.metadata.image}
+            kind={product.metadata.kind}
+            tone={product.metadata.tone}
+            name={product.name}
+          />
         </div>
         <div className="dialog-info">
           <button type="button" className="dialog-close" onClick={() => ref.current?.close()}>
-            Tutup
+            Close
           </button>
           {product.metadata.category !== undefined && (
             <p className="kicker">{product.metadata.category}</p>
@@ -44,17 +51,17 @@ export function ProductDialog({
           <h2>{product.name}</h2>
           {product.description !== null && <p className="description">{product.description}</p>}
           {price === undefined ? (
-            <p className="notice">Belum ada harga.</p>
+            <p className="notice">Price unavailable.</p>
           ) : (
             <>
               <div className="quantity">
-                <span>Jumlah</span>
+                <span>Quantity</span>
                 <div className="stepper">
                   <button
                     type="button"
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                     disabled={quantity <= 1}
-                    aria-label="Kurangi jumlah"
+                    aria-label="Decrease quantity"
                   >
                     −
                   </button>
@@ -63,19 +70,31 @@ export function ProductDialog({
                     type="button"
                     onClick={() => setQuantity((q) => Math.min(MAX_QUANTITY, q + 1))}
                     disabled={quantity >= MAX_QUANTITY}
-                    aria-label="Tambah jumlah"
+                    aria-label="Increase quantity"
                   >
                     +
                   </button>
                 </div>
               </div>
               <p className="price total">{lineTotal(price.amount, quantity)}</p>
-              <CheckoutButton
-                productId={product.id}
-                productName={product.name}
-                quantity={quantity}
-                total={lineTotal(price.amount, quantity)}
-              />
+              <div className="dialog-actions">
+                <CheckoutButton
+                  lines={[{ productId: product.id, quantity }]}
+                  purchaseName={product.name}
+                  purchaseQuantity={quantity}
+                  total={lineTotal(price.amount, quantity)}
+                />
+                <button
+                  type="button"
+                  className="add-to-cart"
+                  onClick={() => {
+                    onAddToCart(product, quantity);
+                    ref.current?.close();
+                  }}
+                >
+                  Add to cart
+                </button>
+              </div>
             </>
           )}
         </div>

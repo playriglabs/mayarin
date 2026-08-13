@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { HeroArt, LogoLockup, LogoMark } from "./brand.tsx";
+import { CartDrawer, type CartLine } from "./CartDrawer.tsx";
 import { formatTime, loadHistory, type PurchaseEntry } from "./history.ts";
 import { ProductCard } from "./ProductCard.tsx";
 import { ProductDialog } from "./ProductDialog.tsx";
@@ -11,13 +12,15 @@ type CatalogState =
   | { readonly status: "ready"; readonly products: readonly DemoProduct[] };
 
 const SKELETON_SLOTS = ["s1", "s2", "s3", "s4", "s5", "s6"] as const;
-const ALL = "Semua";
+const ALL = "All";
 
 export function Marketplace() {
   const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" });
   const [category, setCategory] = useState<string>(ALL);
   const [selected, setSelected] = useState<DemoProduct | undefined>(undefined);
   const [history, setHistory] = useState<readonly PurchaseEntry[]>([]);
+  const [cart, setCart] = useState<readonly CartLine[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
     setHistory(loadHistory());
@@ -41,8 +44,8 @@ export function Marketplace() {
             status: "error",
             message:
               error instanceof Error
-                ? `Katalog tidak bisa dimuat. ${error.message}`
-                : "Katalog tidak bisa dimuat.",
+                ? `The catalog could not be loaded. ${error.message}`
+                : "The catalog could not be loaded.",
           });
         }
       });
@@ -60,6 +63,21 @@ export function Marketplace() {
 
   const visible =
     category === ALL ? products : products.filter((p) => p.metadata.category === category);
+  const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0);
+
+  const addToCart = (product: DemoProduct, quantity: number) => {
+    setCart((current) => {
+      const existing = current.find((line) => line.product.id === product.id);
+      return existing === undefined
+        ? [...current, { product, quantity }]
+        : current.map((line) =>
+            line.product.id === product.id
+              ? { ...line, quantity: Math.min(9, line.quantity + quantity) }
+              : line,
+          );
+    });
+    setCartOpen(true);
+  };
 
   return (
     <>
@@ -68,26 +86,29 @@ export function Marketplace() {
           <LogoLockup />
         </a>
         <nav aria-label="Utama">
-          <a href="#koleksi">Koleksi</a>
-          <a href="#riwayat">Riwayat</a>
-          <a href="#tentang">Tentang</a>
+          <a href="#koleksi">Collection</a>
+          <a href="#riwayat">History</a>
+          <a href="#tentang">About</a>
+          <button type="button" className="cart-trigger" onClick={() => setCartOpen(true)}>
+            Cart <span>{cartCount}</span>
+          </button>
         </nav>
       </header>
 
       <section className="hero" id="atas">
         <div className="hero-copy">
-          <p className="kicker">Distro · Bandung</p>
+          <p className="kicker">Independent label · Bandung</p>
           <h1>
-            Rilisan kecil,
+            Small releases,
             <br />
-            <em>dijahit di Bandung.</em>
+            <em>made in Bandung.</em>
           </h1>
           <p className="lede">
-            Tiap artikel dinamai dari jalan tempat kami mengerjakannya. Produksi tetap di kota:
-            potong, jahit, sablon. Sekali rilisan habis, tidak dicetak ulang.
+            Indonesian textiles meet everyday streetwear. Every piece is cut, sewn, and finished
+            locally in small batches that are never reproduced.
           </p>
           <a className="cta" href="#koleksi">
-            Belanja koleksi
+            Shop the collection
           </a>
         </div>
         <HeroArt />
@@ -95,10 +116,9 @@ export function Marketplace() {
 
       <main className="shop" id="koleksi">
         <div className="shop-head">
-          <h2>Koleksi</h2>
+          <h2>Collection</h2>
           {catalog.status === "ready" && (
             <fieldset className="filters">
-              <legend className="visually-hidden">Filter kategori</legend>
               {categories.map((entry) => (
                 <button
                   key={entry}
@@ -132,7 +152,7 @@ export function Marketplace() {
           </p>
         )}
         {catalog.status === "ready" && visible.length === 0 && (
-          <p className="notice">Belum ada produk di kategori ini.</p>
+          <p className="notice">There are no products in this category yet.</p>
         )}
         {catalog.status === "ready" && visible.length > 0 && (
           <ul className="grid">
@@ -144,14 +164,14 @@ export function Marketplace() {
       </main>
 
       <section className="history" id="riwayat">
-        <h2>Riwayat</h2>
+        <h2>Purchase history</h2>
         {history.length === 0 ? (
-          <p className="notice">Belum ada transaksi di perangkat ini.</p>
+          <p className="notice mt-4">No purchases have been made on this device yet.</p>
         ) : (
           <>
             <ol className="receipts">
               {history.map((entry) => (
-                <li key={entry.linkId}>
+                <li key={entry.paymentId ?? entry.linkId}>
                   <div className="receipt-main">
                     <span className="receipt-name">
                       {entry.name} × {entry.quantity}
@@ -160,42 +180,50 @@ export function Marketplace() {
                   </div>
                   <div className="receipt-side">
                     <span className="price">{entry.total}</span>
-                    <a href={entry.url}>Halaman pembayaran</a>
+                    {entry.paymentId === undefined ? (
+                      <span className="payment-status pending">Pending payment</span>
+                    ) : (
+                      <>
+                        <span className="payment-status successful">Completed</span>
+                        <a
+                          href={`/checkout/success/${encodeURIComponent(entry.paymentId)}`}
+                          className="payment-reference"
+                        >
+                          View payment status
+                        </a>
+                        <code>{entry.paymentId}</code>
+                      </>
+                    )}
                   </div>
                 </li>
               ))}
             </ol>
             <p className="notice">
-              Riwayat tersimpan di perangkat ini. Status akhir tiap transaksi ada di halaman
-              pembayarannya.
+              History is stored on this device and finalized after verification.
             </p>
           </>
         )}
       </section>
 
       <section className="about" id="tentang">
-        <div>
-          <h2>Tentang</h2>
+        <div className="gap-y-2 flex-col flex">
+          <h2>About</h2>
           <p>
-            Parahyangan Supply mulai dari satu meja sablon di Buah Batu. Produksi tidak pernah
-            pindah: potong, jahit, dan kemas masih dikerjakan konveksi tetangga sendiri.
-          </p>
-          <p>
-            Nama tiap rilisan diambil dari jalan tempat prosesnya terjadi. Jumlahnya kecil dan tidak
-            diulang.
+            Parahyangan Supply began at a single printing table in Buah Batu. Every piece is still
+            cut, sewn, printed, and packed by neighboring Bandung workshops.
           </p>
         </div>
         <dl className="facts">
           <div>
-            <dt>Toko</dt>
+            <dt>Store</dt>
             <dd>Jl. Braga No. 2, Bandung</dd>
           </div>
           <div>
-            <dt>Jam buka</dt>
-            <dd>Senin–Sabtu, 10.00–21.00 WIB</dd>
+            <dt>Opening hours</dt>
+            <dd>Monday–Saturday, 10:00–21:00 WIB</dd>
           </div>
           <div>
-            <dt>Kontak</dt>
+            <dt>Contact</dt>
             <dd>halo@parahyangansupply.id</dd>
           </div>
         </dl>
@@ -205,12 +233,33 @@ export function Marketplace() {
         <span className="colophon-mark">
           <LogoMark size={28} />
         </span>
-        <p>© 2026 Parahyangan Supply, Bandung. Pembayaran oleh Mayarin.</p>
+        <p>© 2026 Parahyangan Supply, Bandung. Payments powered by Mayarin.</p>
       </footer>
 
       {selected !== undefined && (
-        <ProductDialog product={selected} onClose={() => setSelected(undefined)} />
+        <ProductDialog
+          product={selected}
+          onAddToCart={addToCart}
+          onClose={() => setSelected(undefined)}
+        />
       )}
+      <CartDrawer
+        lines={cart}
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        onQuantity={(productId, quantity) =>
+          setCart((current) =>
+            quantity <= 0
+              ? current.filter((line) => line.product.id !== productId)
+              : current.map((line) =>
+                  line.product.id === productId ? { ...line, quantity } : line,
+                ),
+          )
+        }
+        onRemove={(productId) =>
+          setCart((current) => current.filter((line) => line.product.id !== productId))
+        }
+      />
     </>
   );
 }
