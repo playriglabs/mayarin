@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { checkoutSuccessUrl } from "../src/routes/checkout-page.ts";
 import { createApiHarness, qrisPayload } from "./harness.ts";
 
 const merchant = { id: "mrc_1", name: "Warung Kopi", city: "Jakarta", countryCode: "ID" };
@@ -250,6 +251,16 @@ describe("payment links", () => {
 });
 
 describe("hosted checkout", () => {
+  test("builds only HTTPS or localhost merchant success URLs", () => {
+    expect(checkoutSuccessUrl("https://shop.example/checkout/success", "pi_1")).toBe(
+      "https://shop.example/checkout/success/pi_1",
+    );
+    expect(checkoutSuccessUrl("http://localhost:5173/checkout/success", "pi_1")).toBe(
+      "http://localhost:5173/checkout/success/pi_1",
+    );
+    expect(checkoutSuccessUrl("http://shop.example/checkout/success", "pi_1")).toBeUndefined();
+  });
+
   test("renders the link page with its amount, and no QR of its own URL", async () => {
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/v1/payment-links", {

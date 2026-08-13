@@ -4,20 +4,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && bun run verify-bundle.ts",
+    "dev": "bun --bun run vite",
+    "dev:demo": "bun --bun run vite",
+    "build": "bun --bun run vite build && bun run verify-bundle.ts",
     "seed": "bun run seed.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mayarin/notifications": "workspace:*",
     "@mayarin/sdk": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "tailwindcss": "^4.1.18",
     "vite": "^7.1.12"
   }
 }

@@ -50,26 +50,18 @@ other integration shape. The embed (`packages/embed`) demonstrates that one.
 
 ## Run it
 
-1. Start the database:
+1. Put the deployed API URL, existing merchant id, and secret key in
+   `apps/demo/.env`, then seed its products. The seed never creates merchant
+   accounts:
 
    ```bash
-   bun run db:up
+   cd apps/demo && bun run seed
    ```
 
-2. On the first run, seed the demo merchant and products. The seed creates
-   products through the API, so the API must run:
+   Products are upserted by SKU, so repeated runs change nothing.
 
-   ```bash
-   bun run dev                      # terminal 1: the API alone
-   cd apps/demo && bun run seed     # terminal 2
-   ```
-
-   If `.env` names no merchant, the seed creates one through
-   `bun run seed:merchant` and writes the merchant id and the secret key back
-   into `apps/demo/.env`. Products are upserted by SKU, so repeated runs
-   change nothing. Stop terminal 1 after the seed.
-
-3. Start the API and the demo together, from the repo root:
+2. Start the demo from the repo root. It uses `MAYARIN_API_URL` from
+   `apps/demo/.env`:
 
    ```bash
    bun run dev:demo
@@ -77,9 +69,17 @@ other integration shape. The embed (`packages/embed`) demonstrates that one.
 
    Open http://localhost:5173 and click **Checkout** on a product.
 
+To run only the demo against the `MAYARIN_API_URL` configured in
+`apps/demo/.env`, run this from `apps/demo`:
+
+```bash
+bun run dev:demo
+```
+
 ## Configuration
 
-All variables live in `apps/demo/.env`. The seed writes them on first run.
+All variables live in `apps/demo/.env`. Add the existing merchant credentials
+before running the product seed.
 
 | Variable                   | Default                 | Meaning                                    |
 | -------------------------- | ----------------------- | ------------------------------------------ |
@@ -89,6 +89,25 @@ All variables live in `apps/demo/.env`. The seed writes them on first run.
 | `MAYARIN_MERCHANT_NAME`    | `Parahyangan Supply`    | Merchant snapshot on the payment link      |
 | `MAYARIN_MERCHANT_CITY`    | `Bandung`               | Merchant snapshot on the payment link      |
 | `MAYARIN_MERCHANT_COUNTRY` | `ID`                    | Two-letter country code                    |
+| `DEMO_PUBLIC_URL`          | `http://localhost:5173` | Public demo origin used for success URLs.  |
+| `MAYARIN_WEBHOOK_SECRET`   | —                       | Signing secret for the merchant webhook.   |
 
 If the secret key or the merchant id is missing, the dev server refuses to
 boot and names the missing variable.
+
+## Payment success webhook
+
+Register the merchant webhook endpoint as:
+
+```text
+https://<public-demo-origin>/api/webhooks/mayarin
+```
+
+Put the endpoint's one-time signing secret in `MAYARIN_WEBHOOK_SECRET` and set
+`DEMO_PUBLIC_URL` to the same public demo origin. A local `localhost` server
+cannot receive Railway webhooks directly; use an HTTPS tunnel or deploy the
+demo. After a payment reaches `SUCCESS`, the payer is returned to:
+
+```text
+/checkout/success/<paymentIntentId>
+```

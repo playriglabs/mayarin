@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import { demoApi, loadDemoConfig } from "./server/index.ts";
@@ -18,6 +19,16 @@ function demoServer(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), demoServer()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, import.meta.dirname, "");
+  const publicUrl = env.DEMO_PUBLIC_URL;
+  const allowedHost =
+    publicUrl === undefined || publicUrl === "" ? undefined : new URL(publicUrl).hostname;
+
+  return {
+    plugins: [react(), tailwindcss(), demoServer()],
+    server: {
+      ...(allowedHost === undefined ? {} : { allowedHosts: [allowedHost] }),
+    },
+  };
 });
