@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "deploy": "bun run typecheck && bun run build && wrangler d1 migrations apply mayarin-landing-early-access --remote && wrangler pages deploy",
+    "deploy": "bun run typecheck && bun run build && wrangler d1 migrations apply mayarin-landing-early-access --remote && wrangler pages deploy --branch main",
     "early-access:list": "wrangler d1 execute mayarin-landing-early-access --remote --command \"select email, datetime(created_at, 'unixepoch') as submitted_at from early_access_signups order by created_at desc\"",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
