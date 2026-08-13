@@ -2,5 +2,14 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "mayarin-landing",
   "pages_build_output_dir": "./dist",
-  "compatibility_date": "2026-08-13"
+  "compatibility_date": "2026-08-13",
+  "d1_databases": [
+    {
+      "binding": "EARLY_ACCESS",
+      "database_name": "mayarin-landing-early-access",
+      "database_id": "32e92e62-7934-4299-8bc2-8b9b001e8975",
+      "preview_database_id": "32e92e62-7934-4299-8bc2-8b9b001e8975",
+      "migrations_dir": "migrations"
+    }
+  ]
 }

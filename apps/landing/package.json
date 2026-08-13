@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "deploy": "bun run typecheck && bun run build && wrangler pages deploy",
+    "deploy": "bun run typecheck && bun run build && wrangler d1 migrations apply mayarin-landing-early-access --remote && wrangler pages deploy",
+    "early-access:list": "wrangler d1 execute mayarin-landing-early-access --remote --command \"select email, datetime(created_at, 'unixepoch') as submitted_at from early_access_signups order by created_at desc\"",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
@@ -17,6 +18,7 @@
     "preact": "^10.27.2"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@preact/preset-vite": "^2.10.2",
     "@tailwindcss/vite": "^4.1.18",
     "shiki": "^4.4.1",

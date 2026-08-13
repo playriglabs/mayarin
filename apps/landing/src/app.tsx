@@ -5,6 +5,7 @@ import { startSmoothScroll } from "./lib/smooth-scroll.ts";
 import { Architecture } from "./sections/architecture.tsx";
 import { Capabilities } from "./sections/capabilities.tsx";
 import { Developers } from "./sections/developers.tsx";
+import { EarlyAccess } from "./sections/early-access.tsx";
 import { FinalCta } from "./sections/final-cta.tsx";
 import { Hero } from "./sections/hero.tsx";
 import { HowItWorks } from "./sections/how-it-works.tsx";
@@ -37,6 +38,7 @@ export function App() {
         <UseCases />
         <Impact />
         <Principles />
+        <EarlyAccess />
         <FinalCta />
       </main>
       <Footer />

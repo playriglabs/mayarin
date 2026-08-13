@@ -31,13 +31,13 @@ export function Hero() {
 
         <Reveal delay={240} class="mt-10 flex items-center gap-3">
           <a
-            href="#start"
+            href="https://docs.mayarin.xyz"
             class="btn-fill [--btn-fill:var(--color-forest)] label inline-flex h-14 cursor-pointer items-center bg-ink px-8 text-white"
           >
             Start building
           </a>
           <a
-            href="#start"
+            href="https://docs.mayarin.xyz"
             aria-label="Start building"
             class="inline-flex size-14 cursor-pointer items-center justify-center border border-black/20 text-ink transition-colors duration-200 hover:border-ink"
           >
@@ -47,7 +47,7 @@ export function Hero() {
 
         <Reveal delay={300}>
           <a
-            href="#developers"
+            href="https://docs.mayarin.xyz"
             class="label mt-10 inline-flex items-center gap-2 text-slate transition-colors duration-200 hover:text-ink"
           >
             Read the documentation
