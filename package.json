@@ -33,6 +33,7 @@
     "deploy:dashboard:testnet": "bun run --cwd apps/dashboard deploy:testnet",
     "dev": "bun run --cwd apps/api dev",
     "dev:all": "turbo dev --filter=@mayarin/api --filter=@mayarin/chain-worker --filter=@mayarin/dashboard-api --filter=@mayarin/dashboard",
+    "dev:dashboard:railway": "bun run scripts/with-railway-db.ts -- turbo dev --filter=@mayarin/api --filter=@mayarin/dashboard-api --filter=@mayarin/dashboard",
     "dev:railway": "bun run scripts/with-railway-db.ts -- bun run dev:all",
     "dev:demo": "turbo dev --filter=@mayarin/demo",
     "dev:blog": "bun run --cwd apps/blog dev",
