@@ -76,7 +76,7 @@ export function EarlyAccess() {
                 autocomplete="email"
                 placeholder="you@company.com"
                 disabled={submitting}
-                class="h-13 min-w-0 flex-1 border border-line bg-paper px-4 text-base text-ink outline-none transition-colors duration-200 placeholder:text-slate focus:border-forest disabled:cursor-not-allowed disabled:opacity-60"
+                class="h-13 min-w-0 flex-1 border border-line py-3 bg-paper px-4 text-base text-ink outline-none transition-colors duration-200 placeholder:text-slate focus:border-forest disabled:cursor-not-allowed disabled:opacity-60"
               />
               <button
                 type="submit"
