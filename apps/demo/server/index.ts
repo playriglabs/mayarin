@@ -142,8 +142,8 @@ export function demoApi(config: DemoConfig): NextHandleFunction {
         sendJson(res, error.status === 0 ? 502 : error.status, { error: error.message });
         return;
       }
-      console.error("[demo] unexpected error:", error);
-      sendJson(res, 500, { error: "Something went wrong on the demo server." });
+      console.error("[storefront] unexpected error:", error);
+      sendJson(res, 500, { error: "Terjadi kesalahan pada server. Coba lagi." });
     });
   };
 }

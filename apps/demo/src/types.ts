@@ -1,13 +1,15 @@
 /**
  * What the storefront renders — the fields it uses from the wire, no more.
  *
- * The demo server passes `ProductDto` through untouched; typing only the used
+ * The server passes `ProductDto` through untouched; typing only the used
  * subset keeps the browser code free of a dependency on the API package.
  */
 
 export interface DemoPrice {
   readonly asset: string;
-  /** Human form, e.g. `Rp 129.000`. Shown, never parsed. */
+  /** Minor units as an integer string. The field for arithmetic. */
+  readonly amount: string;
+  /** Human form, e.g. `Rp 129.000,00`. Shown, never parsed. */
   readonly display: string;
 }
 
@@ -16,6 +18,9 @@ export interface DemoProduct {
   readonly name: string;
   readonly description: string | null;
   readonly prices: readonly DemoPrice[];
-  /** Free-form product metadata; the seed sets `kind` to pick the card art. */
+  /**
+   * Free-form product metadata. The seed sets `kind` (picks the card art)
+   * and `category` (drives the catalog filter).
+   */
   readonly metadata: Readonly<Record<string, string>>;
 }

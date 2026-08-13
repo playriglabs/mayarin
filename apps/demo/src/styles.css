@@ -1,10 +1,9 @@
 /*
  * Parahyangan Supply — editorial apparel storefront (#137).
  *
- * Design tokens follow the ui-ux-pro-max recommendation for fashion
- * e-commerce: editorial black on near-white, one accent, Playfair Display
- * for display type, Inter for UI. Plain CSS on purpose — the demo is a
- * reference, not a design system.
+ * Tokens follow the ui-ux-pro-max recommendation for fashion e-commerce:
+ * editorial black on near-white, one accent, Playfair Display for display
+ * type, Inter for UI. Plain CSS on purpose — the app is a readable reference.
  */
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap");
@@ -28,65 +27,138 @@
   --space-3: 1.5rem;
   --space-4: 3rem;
   --space-5: 6rem;
+  --measure: 1120px;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   font-family: var(--font-body);
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--color-foreground);
   background: var(--color-background);
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.kicker {
+  margin: 0 0 var(--space-1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted-text);
+}
+
 /* --- Masthead --- */
 
+.masthead,
+.hero,
+.shop,
+.about,
+.colophon {
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
 .masthead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: var(--space-3) var(--space-2);
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  background: color-mix(in srgb, var(--color-background) 88%, transparent);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-border);
 }
 
-.brand {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.375rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+.brand-link {
+  color: var(--color-foreground);
+  text-decoration: none;
 }
 
-.tagline {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--color-muted-text);
-  letter-spacing: 0.08em;
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+}
+
+.wordmark small {
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.32em;
   text-transform: uppercase;
+  color: var(--color-muted-text);
+}
+
+.masthead nav {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.masthead nav a {
+  color: var(--color-foreground);
+  text-decoration: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  border-bottom: 2px solid transparent;
+  transition: border-color 200ms ease;
+}
+
+.masthead nav a:hover {
+  border-bottom-color: var(--color-accent);
 }
 
 /* --- Hero --- */
 
 .hero {
-  max-width: 1080px;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: var(--space-4);
+  align-items: center;
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: var(--space-5) var(--space-2) var(--space-4);
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-5);
 }
 
 .hero h1 {
   margin: 0 0 var(--space-2);
   font-family: var(--font-display);
-  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
   font-weight: 500;
-  line-height: 1.15;
-  max-width: 18ch;
+  line-height: 1.12;
 }
 
 .hero h1 em {
@@ -94,19 +166,112 @@ body {
   color: var(--color-muted-text);
 }
 
-.hero p {
-  margin: 0;
+.lede {
+  margin: 0 0 var(--space-3);
   max-width: 52ch;
   color: var(--color-muted-text);
 }
 
-/* --- Product grid --- */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 1.75rem;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  text-decoration: none;
+  font-weight: 500;
+  border: 1px solid var(--color-primary);
+  transition:
+    background 200ms ease,
+    color 200ms ease;
+}
+
+.cta:hover {
+  background: var(--color-on-primary);
+  color: var(--color-primary);
+}
+
+.cta:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+.hero-art {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--color-border);
+}
+
+/* --- Shop --- */
 
 .shop {
-  max-width: 1080px;
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: 0 var(--space-2) var(--space-5);
+  padding-bottom: var(--space-5);
+  scroll-margin-top: 5rem;
 }
+
+.shop-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.shop-head h2,
+.about h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.chip {
+  min-height: 40px;
+  padding: 0 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    color 200ms ease;
+}
+
+.chip:hover {
+  border-color: var(--color-foreground);
+}
+
+.chip.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+
+/* --- Cards --- */
 
 .grid {
   list-style: none;
@@ -118,12 +283,8 @@ body {
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  padding: var(--space-2);
   transition:
     border-color 200ms ease,
     transform 200ms ease;
@@ -131,30 +292,53 @@ body {
 
 .card:hover {
   border-color: var(--color-foreground);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
 }
 
-.card .art {
-  aspect-ratio: 1;
+.card-open {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-tile);
-  color: var(--color-foreground);
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-open:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+
+.media {
+  position: relative;
   margin-bottom: var(--space-1);
-  transition: color 200ms ease;
 }
 
-.card:hover .art {
-  color: var(--color-accent);
+.product-image {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
-.card .art svg {
-  width: 56%;
-  height: 56%;
+.tag {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.card h2 {
+.card h3 {
   margin: 0;
   font-family: var(--font-display);
   font-size: 1.125rem;
@@ -166,15 +350,6 @@ body {
   margin: 0;
   font-size: 0.875rem;
   color: var(--color-muted-text);
-  flex-grow: 1;
-}
-
-.buy {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1);
-  margin-top: var(--space-1);
 }
 
 .price {
@@ -183,14 +358,115 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Product dialog --- */
+
+.product-dialog {
+  width: min(860px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 4rem);
+  padding: 0;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.product-dialog::backdrop {
+  background: rgb(9 9 11 / 0.55);
+}
+
+.dialog-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.dialog-media {
+  background: var(--color-tile);
+}
+
+.dialog-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.dialog-info h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.dialog-close {
+  align-self: flex-end;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--color-muted-text);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dialog-close:hover {
+  color: var(--color-foreground);
+}
+
+.quantity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9375rem;
+  color: var(--color-muted-text);
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+}
+
+.stepper button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: var(--color-surface);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.stepper button:hover:enabled {
+  background: var(--color-tile);
+}
+
+.stepper button:disabled {
+  color: var(--color-border);
+  cursor: default;
+}
+
+.stepper output {
+  min-width: 2.5rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.price.total {
+  font-size: 1.375rem;
+}
+
 /* --- Checkout button --- */
 
 .checkout button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  min-height: 44px;
-  padding: 0 1.25rem;
+  min-height: 48px;
+  padding: 0 1.75rem;
   border: 1px solid var(--color-primary);
   background: var(--color-primary);
   color: var(--color-on-primary);
@@ -239,10 +515,21 @@ body {
 
 /* --- Skeletons (shaped like the card they stand in for) --- */
 
-.skeleton .art,
+.skeleton .media,
 .skeleton .line {
   background: var(--color-tile);
   animation: pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton {
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.skeleton .media {
+  aspect-ratio: 4 / 5;
 }
 
 .skeleton .line {
@@ -265,7 +552,50 @@ body {
   }
 }
 
-/* --- Notices, footer --- */
+/* --- About, notices, footer --- */
+
+.about {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding-bottom: var(--space-5);
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-4);
+  scroll-margin-top: 5rem;
+}
+
+.about p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted-text);
+  max-width: 60ch;
+}
+
+.facts {
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.facts dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-muted-text);
+}
+
+.facts dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  text-align: right;
+}
 
 .notice {
   margin: 0;
@@ -278,10 +608,19 @@ body {
 }
 
 .colophon {
-  max-width: 1080px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: var(--space-3) var(--space-2);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
   border-top: 1px solid var(--color-border);
+}
+
+.colophon-mark {
+  display: inline-flex;
+  color: var(--color-muted-text);
 }
 
 .colophon p {
@@ -290,7 +629,35 @@ body {
   color: var(--color-muted-text);
 }
 
+/* --- Responsive --- */
+
+@media (max-width: 760px) {
+  .hero,
+  .about,
+  .dialog-body {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-4);
+  }
+
+  .dialog-media {
+    max-height: 40dvh;
+    overflow: hidden;
+  }
+
+  .product-dialog {
+    overflow-y: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   *,
   *::before,
   *::after {

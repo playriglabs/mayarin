@@ -1,23 +1,27 @@
-# Parahyangan Supply — demo storefront
+# Parahyangan Supply — reference storefront
 
-A Bandung apparel store that shows the SDK integration end to end (#137). The
-page lists garments from the catalog, each named after a street in Bandung.
-Each product has a **Beli** button that mints a `catalog` payment link through
-`@mayarin/sdk` and redirects the browser to the hosted checkout.
+A Bandung apparel store that shows the SDK integration end to end (#137).
+Garments are named after streets in Bandung and grouped by category. A product
+opens a detail view with a quantity stepper; **Beli sekarang** mints a
+`catalog` payment link through `@mayarin/sdk` and redirects the browser to the
+hosted checkout.
 
-The demo is a living reference: the use case is a real storefront, but the
-code stays small enough to read in one sitting. The design follows the
-`ui-ux-pro-max` recommendation for fashion e-commerce — editorial black on
-near-white, Playfair Display and Inter, one accent color.
+The app is a living reference: the use case is a real storefront, and the code
+stays small enough to read in one sitting. The identity is built in — a
+Tangkuban Perahu logo mark, illustrated product imagery (one colorway per
+garment, `src/product-art.tsx`), and an editorial design per the
+`ui-ux-pro-max` recommendation for fashion e-commerce: black on near-white,
+Playfair Display and Inter, one accent color.
 
 ## The flow
 
 1. The page loads and calls `GET /api/products` on the thin server. The server
-   calls `commerce.products.list(merchantId)` with the secret key.
-2. A click on **Checkout** posts `{ productId, quantity }` to `/api/checkout`.
-   The server calls `commerce.paymentLinks.create({ kind: "catalog", ... })`.
+   calls `commerce.products.list(merchantId)` with the secret key. Category
+   filters and product art come from `metadata` on each product.
+2. **Beli sekarang** posts `{ productId, quantity }` to `/api/checkout`. The
+   server calls `commerce.paymentLinks.create({ kind: "catalog", ... })`.
 3. The browser goes to the link's `url`. The hosted checkout owns the payer
-   flow from there. The demo stops at the redirect.
+   flow from there. The storefront stops at the redirect.
 
 ## Why a thin server
 

@@ -6,15 +6,17 @@ type CheckoutState =
   | { readonly status: "error"; readonly message: string };
 
 /**
- * Mints a `catalog` payment link through the thin server and hands the browser
- * to the hosted checkout. The demo's job ends at the redirect (#137).
+ * Mints a `catalog` payment link through the thin server and hands the
+ * browser to the hosted checkout. The storefront's job ends at the redirect.
  */
 export function CheckoutButton({
   productId,
   productName,
+  quantity,
 }: {
   readonly productId: string;
   readonly productName: string;
+  readonly quantity: number;
 }) {
   const [state, setState] = useState<CheckoutState>({ status: "idle" });
 
@@ -24,17 +26,20 @@ export function CheckoutButton({
       const response = await fetch("/api/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productId, quantity: 1 }),
+        body: JSON.stringify({ productId, quantity }),
       });
       const body = (await response.json()) as { url?: string; error?: string };
       if (!response.ok || body.url === undefined) {
-        throw new Error(body.error ?? `The demo server answered HTTP ${response.status}`);
+        throw new Error(body.error ?? `HTTP ${response.status}`);
       }
       window.location.assign(body.url);
     } catch (error) {
       setState({
         status: "error",
-        message: error instanceof Error ? error.message : "Checkout failed.",
+        message:
+          error instanceof Error
+            ? `Pembayaran tidak bisa disiapkan — ${error.message}`
+            : "Pembayaran tidak bisa disiapkan.",
       });
     }
   }
@@ -56,7 +61,7 @@ export function CheckoutButton({
             Menyiapkan…
           </>
         ) : (
-          "Beli"
+          "Beli sekarang"
         )}
       </button>
       {state.status === "error" && (

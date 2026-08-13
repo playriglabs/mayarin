@@ -1,28 +1,34 @@
-import { CheckoutButton } from "./CheckoutButton.tsx";
-import { GarmentArt } from "./garments.tsx";
+import { ProductImage } from "./product-art.tsx";
 import type { DemoProduct } from "./types.ts";
 
-/** The demo prices in IDR only; a product without an IDR price is not payable. */
-const CURRENCY = "IDR";
+/** The store prices in IDR only; a product without an IDR price is not payable. */
+export const CURRENCY = "IDR";
 
-export function ProductCard({ product }: { readonly product: DemoProduct }) {
+export function ProductCard({
+  product,
+  onOpen,
+}: {
+  readonly product: DemoProduct;
+  readonly onOpen: () => void;
+}) {
   const price = product.prices.find((entry) => entry.asset === CURRENCY);
+  const category = product.metadata.category;
 
   return (
     <li className="card">
-      <div className="art">
-        <GarmentArt kind={product.metadata.kind} />
-      </div>
-      <h2>{product.name}</h2>
-      {product.description !== null && <p className="description">{product.description}</p>}
-      {price === undefined ? (
-        <p className="notice">Belum ada harga.</p>
-      ) : (
-        <div className="buy">
-          <p className="price">{price.display}</p>
-          <CheckoutButton productId={product.id} productName={product.name} />
+      <button type="button" className="card-open" onClick={onOpen} aria-label={product.name}>
+        <div className="media">
+          <ProductImage kind={product.metadata.kind} />
+          {category !== undefined && <span className="tag">{category}</span>}
         </div>
-      )}
+        <h3>{product.name}</h3>
+        {product.description !== null && <p className="description">{product.description}</p>}
+        {price === undefined ? (
+          <p className="notice">Belum ada harga.</p>
+        ) : (
+          <p className="price">{price.display}</p>
+        )}
+      </button>
     </li>
   );
 }

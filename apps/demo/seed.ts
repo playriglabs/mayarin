@@ -17,8 +17,9 @@ const REPO_ROOT = resolve(import.meta.dir, "../..");
 
 /**
  * The catalog of a Bandung distro: garments named after the city's streets.
- * `metadata.kind` picks the card illustration in `src/garments.tsx` — it
- * rides the product's free-form metadata through the API untouched.
+ * `metadata.kind` picks the illustration in `src/product-art.tsx` and
+ * `metadata.category` drives the storefront filter — both ride the product's
+ * free-form metadata through the API untouched.
  */
 const SEED_PRODUCTS = [
   {
@@ -27,13 +28,7 @@ const SEED_PRODUCTS = [
     description: "Kaos katun 24s, sablon plastisol. Hitam, unisex.",
     amount: "129000.00",
     kind: "tee",
-  },
-  {
-    sku: "HOOD-LEMBANG",
-    name: "Hoodie 'Lembang'",
-    description: "Fleece 320 gsm untuk dingin-dinginnya dataran tinggi.",
-    amount: "299000.00",
-    kind: "hoodie",
+    category: "Atasan",
   },
   {
     sku: "FLNL-CIHAMPELAS",
@@ -41,13 +36,15 @@ const SEED_PRODUCTS = [
     description: "Kemeja flanel kotak-kotak, brushed cotton.",
     amount: "219000.00",
     kind: "flannel",
+    category: "Atasan",
   },
   {
-    sku: "CAP-DAGO",
-    name: "Topi 'Dago'",
-    description: "Topi corduroy enam panel, bordir logo.",
-    amount: "89000.00",
-    kind: "cap",
+    sku: "HOOD-LEMBANG",
+    name: "Hoodie 'Lembang'",
+    description: "Fleece 320 gsm untuk dingin-dinginnya dataran tinggi.",
+    amount: "299000.00",
+    kind: "hoodie",
+    category: "Luaran",
   },
   {
     sku: "JKT-ASIA-AFRIKA",
@@ -55,6 +52,7 @@ const SEED_PRODUCTS = [
     description: "Jaket coach nilon, kancing jepret, tahan angin.",
     amount: "349000.00",
     kind: "jacket",
+    category: "Luaran",
   },
   {
     sku: "CRG-BUAHBATU",
@@ -62,6 +60,15 @@ const SEED_PRODUCTS = [
     description: "Celana cargo ripstop, potongan lurus.",
     amount: "259000.00",
     kind: "cargo",
+    category: "Bawahan",
+  },
+  {
+    sku: "CAP-DAGO",
+    name: "Topi 'Dago'",
+    description: "Topi corduroy enam panel, bordir logo.",
+    amount: "89000.00",
+    kind: "cap",
+    category: "Aksesori",
   },
 ] as const;
 
@@ -166,7 +173,7 @@ for (const product of missing) {
     name: product.name,
     description: product.description,
     prices: [{ amount: product.amount, asset: DEMO_CURRENCY }],
-    metadata: { kind: product.kind },
+    metadata: { kind: product.kind, category: product.category },
   });
   console.log(`Created ${product.sku} — ${product.name}`);
 }
