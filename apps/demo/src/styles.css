@@ -1,0 +1,310 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply m-0 bg-zinc-50 font-sans text-base leading-relaxed text-zinc-950 antialiased;
+  }
+  button,
+  a {
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950;
+  }
+}
+
+@layer components {
+  .kicker {
+    @apply m-0 text-xs font-semibold tracking-[0.14em] text-zinc-500 uppercase;
+  }
+  .notice {
+    @apply m-0 text-sm text-zinc-500;
+  }
+  .notice.error {
+    @apply text-red-600;
+  }
+  .price {
+    @apply m-0 font-semibold tabular-nums;
+  }
+
+  .masthead {
+    @apply sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-zinc-200 bg-zinc-50/90 px-4 py-3 backdrop-blur-md md:px-8;
+  }
+  .brand-link {
+    @apply shrink-0 text-zinc-950 no-underline;
+  }
+  .brand-link svg {
+    @apply size-9;
+  }
+  .masthead nav {
+    @apply flex items-center gap-2 md:gap-6;
+  }
+  .masthead nav a {
+    @apply hidden min-h-11 items-center border-b-2 border-transparent text-sm font-medium text-zinc-950 no-underline transition hover:border-pink-500 md:inline-flex;
+  }
+  .cart-trigger {
+    @apply min-h-11 border border-zinc-950 bg-zinc-950 px-3 text-sm font-semibold text-white transition hover:bg-white hover:text-zinc-950;
+  }
+  .cart-trigger span {
+    @apply ml-1 inline-grid size-6 place-items-center rounded-full bg-pink-500 text-xs text-zinc-950;
+  }
+
+  .hero {
+    @apply mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-[1.1fr_0.9fr] md:px-8 md:py-24;
+  }
+  .hero-copy {
+    @apply max-w-2xl;
+  }
+  .hero h1 {
+    @apply my-4 font-display text-5xl leading-[0.98] font-medium tracking-tight sm:text-6xl;
+  }
+  .hero h1 em {
+    @apply text-pink-500;
+  }
+  .lede {
+    @apply mb-8 max-w-xl text-lg leading-8 text-zinc-600;
+  }
+  .cta {
+    @apply inline-flex min-h-12 items-center border border-zinc-950 bg-zinc-950 px-6 font-semibold text-white no-underline transition hover:bg-pink-500 hover:text-zinc-950;
+  }
+
+  .shop,
+  .history,
+  .about,
+  .colophon {
+    @apply mx-auto max-w-6xl px-4 md:px-8;
+  }
+  .shop {
+    @apply scroll-mt-24 py-12 md:py-20;
+  }
+  .shop-head {
+    @apply mb-8 flex flex-col justify-between gap-5 border-b border-zinc-200 pb-6 md:flex-row md:items-end;
+  }
+  .shop h2,
+  .history h2,
+  .about h2 {
+    @apply m-0 font-display text-4xl font-semibold;
+  }
+  .filters {
+    @apply flex flex-wrap gap-2 border-0 p-0;
+  }
+  .chip {
+    @apply min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-medium transition hover:border-zinc-950;
+  }
+  .chip.active {
+    @apply border-zinc-950 bg-zinc-950 text-white;
+  }
+  .grid {
+    @apply m-0 grid list-none gap-x-6 gap-y-12 p-0 sm:grid-cols-2 lg:grid-cols-3;
+  }
+  .card {
+    @apply min-w-0;
+  }
+  .card-open {
+    @apply block w-full cursor-pointer border-0 bg-transparent p-0 text-left;
+  }
+  .media {
+    @apply relative mb-4 aspect-[4/5] overflow-hidden bg-zinc-200;
+  }
+  .tag {
+    @apply absolute top-3 left-3 bg-white/90 px-3 py-1 text-xs font-semibold tracking-wide uppercase backdrop-blur;
+  }
+  .card h3 {
+    @apply m-0 font-display text-2xl font-semibold;
+  }
+  .description {
+    @apply my-2 text-sm leading-6 text-zinc-600;
+  }
+  .skeleton {
+    @apply grid gap-3;
+  }
+  .skeleton .media,
+  .skeleton .line {
+    @apply animate-pulse bg-zinc-200;
+  }
+  .skeleton .line {
+    @apply h-4 w-full;
+  }
+  .skeleton .line.title {
+    @apply h-7 w-3/4;
+  }
+  .skeleton .line.price {
+    @apply w-1/3;
+  }
+
+  .product-dialog {
+    @apply fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[min(960px,calc(100vw-2rem))] overflow-auto border border-zinc-200 bg-white p-0 shadow-2xl;
+  }
+  .product-dialog::backdrop {
+    @apply bg-zinc-950/60 backdrop-blur-sm;
+  }
+  .dialog-body {
+    @apply grid md:grid-cols-2;
+  }
+  .dialog-media {
+    @apply aspect-[4/5] min-h-0 overflow-hidden bg-zinc-100;
+  }
+  .dialog-info {
+    @apply flex flex-col items-start gap-5 p-6 md:p-10;
+  }
+  .dialog-info h2 {
+    @apply m-0 font-display text-4xl leading-tight font-semibold;
+  }
+  .dialog-close {
+    @apply self-end border-0 bg-transparent text-sm text-zinc-500 underline underline-offset-4 hover:text-zinc-950;
+  }
+  .quantity {
+    @apply flex items-center gap-4 text-sm text-zinc-600;
+  }
+  .stepper {
+    @apply inline-flex items-center border border-zinc-300;
+  }
+  .stepper button {
+    @apply grid size-11 place-items-center border-0 bg-white text-xl transition hover:bg-zinc-100 disabled:text-zinc-300;
+  }
+  .stepper output {
+    @apply min-w-10 text-center font-semibold text-zinc-950;
+  }
+  .price.total {
+    @apply text-2xl;
+  }
+  .dialog-actions {
+    @apply flex flex-wrap gap-3;
+  }
+  .add-to-cart {
+    @apply min-h-12 border border-zinc-950 bg-white px-5 font-semibold text-zinc-950 transition hover:bg-zinc-100;
+  }
+
+  .checkout button {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 border border-zinc-950 bg-zinc-950 px-6 font-semibold text-white transition hover:bg-pink-500 hover:text-zinc-950 disabled:cursor-wait disabled:opacity-70;
+  }
+  .spinner {
+    @apply size-4 animate-spin rounded-full border-2 border-current border-t-transparent;
+  }
+
+  .cart-layer {
+    @apply fixed inset-0 z-40;
+  }
+  .cart-backdrop {
+    @apply absolute inset-0 h-full w-full border-0 bg-zinc-950/60 backdrop-blur-sm;
+  }
+  .cart-drawer {
+    @apply absolute top-0 right-0 flex h-dvh w-[min(440px,100vw)] flex-col gap-5 overflow-y-auto bg-white p-6 shadow-2xl;
+  }
+  .cart-head,
+  .cart-line-actions,
+  .cart-summary {
+    @apply flex items-center justify-between gap-4;
+  }
+  .cart-head h2 {
+    @apply m-0 font-display text-3xl font-semibold;
+  }
+  .cart-close {
+    @apply grid size-11 place-items-center border border-zinc-200 bg-white text-3xl hover:bg-zinc-100;
+  }
+  .cart-empty {
+    @apply my-auto text-zinc-500;
+  }
+  .cart-lines {
+    @apply m-0 grid list-none p-0;
+  }
+  .cart-lines li {
+    @apply grid gap-4 border-t border-zinc-200 py-5 last:border-b;
+  }
+  .cart-line-copy {
+    @apply flex justify-between gap-4;
+  }
+  .cart-line-copy span {
+    @apply whitespace-nowrap tabular-nums;
+  }
+  .cart-remove {
+    @apply min-h-11 border-0 bg-transparent text-sm text-red-600 underline underline-offset-4;
+  }
+  .cart-summary {
+    @apply mt-auto border-t border-zinc-950 pt-5 text-lg;
+  }
+  .cart-drawer .checkout button {
+    @apply w-full;
+  }
+
+  .history {
+    @apply scroll-mt-24 border-t border-zinc-200 py-10 md:py-12;
+  }
+  .receipts {
+    @apply my-8 grid list-none p-0;
+  }
+  .receipts li {
+    @apply flex flex-col justify-between gap-4 border-t border-zinc-200 py-5 sm:flex-row sm:items-center;
+  }
+  .receipt-main,
+  .receipt-side {
+    @apply flex flex-col gap-1;
+  }
+  .receipt-name {
+    @apply font-semibold;
+  }
+  .receipt-main time {
+    @apply text-sm text-zinc-500;
+  }
+  .receipt-side {
+    @apply sm:items-end;
+  }
+  .receipt-side a {
+    @apply text-sm text-zinc-600 underline underline-offset-4;
+  }
+  .receipt-side .payment-reference {
+    @apply font-medium text-zinc-950;
+  }
+  .receipt-side code {
+    @apply max-w-64 overflow-hidden text-ellipsis text-xs text-zinc-500;
+  }
+  .payment-status {
+    @apply text-xs font-semibold tracking-wider uppercase;
+  }
+  .payment-status.pending {
+    @apply text-amber-700;
+  }
+  .payment-status.successful {
+    @apply text-emerald-700;
+  }
+  .about {
+    @apply grid gap-8 border-t border-zinc-200 py-10 md:grid-cols-2 md:py-12;
+  }
+  .about p {
+    @apply max-w-xl text-zinc-600;
+  }
+  .facts {
+    @apply m-0 grid content-start;
+  }
+  .facts div {
+    @apply flex justify-between gap-5 border-t border-zinc-200 py-4;
+  }
+  .facts dt {
+    @apply text-xs font-semibold tracking-wider text-zinc-500 uppercase;
+  }
+  .facts dd {
+    @apply m-0 text-right text-sm;
+  }
+  .colophon {
+    @apply flex items-center gap-3 border-t border-zinc-200 py-6 text-sm text-zinc-500;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}

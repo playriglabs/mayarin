@@ -140,6 +140,7 @@ export function checkoutPageRoutes(container: Container): Hono {
   app.get("/pay/:intentId", async (c) => {
     const intentId = c.req.param("intentId");
     const { intent } = await container.paymentApp.getPayment(intentId);
+    const successUrl = checkoutSuccessUrl(intent.metadata.checkoutSuccessBaseUrl, intent.id);
     return c.html(
       payPage({
         intentId: intent.id,
@@ -148,6 +149,7 @@ export function checkoutPageRoutes(container: Container): Hono {
         expiresAt: intent.expiresAt,
         statusUrl: `${baseUrl}/v1/payments/${intent.id}`,
         streaming: container.stream !== undefined,
+        ...(successUrl === undefined ? {} : { successUrl }),
       }),
     );
   });
@@ -605,6 +607,17 @@ interface PayPageOptions {
   readonly expiresAt: Date;
   readonly statusUrl: string;
   readonly streaming: boolean;
+  readonly successUrl?: string;
+}
+
+export function checkoutSuccessUrl(base: string | undefined, intentId: string): string | undefined {
+  if (base === undefined) return undefined;
+  try {
+    const url = new URL(`${base.replace(/\/+$/, "")}/${encodeURIComponent(intentId)}`);
+    return url.protocol === "https:" || url.hostname === "localhost" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -616,7 +629,7 @@ interface PayPageOptions {
  * first render rather than discovered when the status flips.
  */
 function payPage(options: PayPageOptions): string {
-  const { intentId, amount, merchant, expiresAt, statusUrl, streaming } = options;
+  const { intentId, amount, merchant, expiresAt, statusUrl, streaming, successUrl } = options;
 
   const body = `<div class="brand">Mayarin</div>
 <div class="card">
@@ -637,6 +650,7 @@ function payPage(options: PayPageOptions): string {
   const statusUrl = ${JSON.stringify(statusUrl)};
   const expiresAt = ${JSON.stringify(expiresAt.toISOString())};
   const done = ["COMPLETED", "FAILED", "EXPIRED"];
+  const successUrl = ${JSON.stringify(successUrl ?? null)};
 
   /**
    * Status in the payer's own terms.
@@ -748,6 +762,9 @@ function payPage(options: PayPageOptions): string {
       // nothing left to be in time for, so a running clock only misleads.
       document.getElementById("countdown").textContent = "—";
       stopEverything();
+      if (status === "COMPLETED" && successUrl !== null) {
+        setTimeout(() => location.assign(successUrl), 600);
+      }
       return;
     }
 
