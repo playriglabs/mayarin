@@ -32,6 +32,7 @@
     "deploy:studio": "bun run --cwd apps/studio deploy",
     "deploy:dashboard:testnet": "bun run --cwd apps/dashboard deploy:testnet",
     "deploy:landing": "bun run --cwd apps/landing deploy",
+    "deploy:testnet": "bun run scripts/deploy-testnet.ts",
     "dev": "bun run --cwd apps/api dev",
     "dev:all": "turbo dev --filter=@mayarin/api --filter=@mayarin/chain-worker --filter=@mayarin/dashboard-api --filter=@mayarin/dashboard --filter=@mayarin/checkout-ui",
     "dev:dashboard:local": "bun run scripts/dev-dashboard-local.ts",

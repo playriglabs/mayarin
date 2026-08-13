@@ -11,6 +11,13 @@ intentionally disabled. The operator runs the local verification suite, chooses
 a target, migrates that target's database, deploys each service, and performs
 smoke checks.
 
+`bun run deploy:testnet` is the packaged form of that sequence
+(`scripts/deploy-testnet.ts`). It preserves every gate: the local check suite,
+the checkout UI build, target validation against the registry below, explicit
+migration (`--migrate` only), dependency-ordered service deploys, the
+Cloudflare surfaces, and the smoke checks. It is still operator-initiated —
+nothing triggers it on push or merge.
+
 ---
 
 ## Target Registry
@@ -35,14 +42,26 @@ Each target owns an isolated copy of the backend:
 
 | Service         | Responsibility                                                |
 | --------------- | ------------------------------------------------------------- |
-| `core-api`      | Public payment API                                            |
+| `core-api`      | Public payment API, and the hosted checkout/invoice pages     |
 | `dashboard-api` | Merchant dashboard API                                        |
 | `chain-worker`  | Continuous wallet watcher and settlement indexer              |
 | `Postgres`      | Target-specific application state, cursors, ledger, and audit |
 
-The dashboard UI and static landing site are deployed separately to Cloudflare
-Pages. The dashboard API URL must point to the matching Railway target; a
-testnet UI must never call the mainnet dashboard API, or the reverse.
+`core-api` serves the checkout UI SPA (#151) from its own image. The
+Dockerfile builds `apps/checkout-ui` during the image build, so the bundle and
+the API always deploy as one artifact — there is no separate checkout deploy
+and no version skew between them.
+
+The browser-facing surfaces deploy to Cloudflare separately:
+
+| Surface   | Cloudflare project          | Path                               |
+| --------- | --------------------------- | ---------------------------------- |
+| Dashboard | `mayarin-dashboard-testnet` | `bun run deploy:dashboard:testnet` |
+| Demo      | `mayarin-demo`              | `bun run --cwd apps/demo deploy`   |
+| Landing   | `mayarin-landing`           | `bun run deploy:landing`           |
+
+The dashboard's API URL must point to the matching Railway target; a testnet
+UI must never call the mainnet dashboard API, or the reverse.
 
 ---
 
@@ -67,6 +86,16 @@ value deliberately and verify it against the mainnet deployment record.
 ---
 
 ## Manual Deployment
+
+`bun run deploy:testnet` runs steps 1–7 below in order. Its flags map onto the
+steps: `--migrate` enables step 4, `--only services,dashboard,demo` narrows
+steps 5–6, `--skip-gate` skips step 1 after a just-green local run. The
+sections below remain the reference for what each step means and for running
+any step by hand.
+
+The demo (`apps/demo`) deploys with the same command its README documents:
+`bun run --cwd apps/demo deploy`, to the `mayarin-demo` Pages project. Its
+worker secret (`MAYARIN_SECRET_KEY`) lives in Cloudflare, never in this repo.
 
 Set the target explicitly at the start of the shell session. These examples use
 testnet:
@@ -240,6 +269,11 @@ curl --fail --silent --show-error \
 curl --fail --silent --show-error \
   https://dashboard-testnet.mayarin.xyz/login
 
+# The core-api image must carry the built checkout UI (#151): a payment link
+# that renders a blank page is a checkout that loses the sale.
+curl --fail --silent --show-error \
+  https://api-testnet.mayarin.xyz/checkout-ui/favicon.svg
+
 railway logs \
   --project "$MAYARIN_RAILWAY_PROJECT" \
   --environment "$MAYARIN_RAILWAY_ENVIRONMENT" \
@@ -311,10 +345,10 @@ offer a default target.
 - No branch-to-environment inference.
 - No implicit use of the locally linked Railway project.
 
-Automation may package the commands into explicit `deploy:testnet` and
-`deploy:mainnet` wrappers later, but it must preserve the local verification,
-target validation, migration ordering, mainnet confirmation, and smoke checks
-described here.
+`deploy:testnet` (`scripts/deploy-testnet.ts`) is that wrapper for testnet. It
+preserves the local verification, target validation, migration ordering, and
+smoke checks described here. A `deploy:mainnet` wrapper must additionally
+enforce the confirmation phrase above before it exists.
 
 ---
 
