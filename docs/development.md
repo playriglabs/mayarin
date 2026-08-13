@@ -37,15 +37,28 @@ curl localhost:3000/v1/payments/<id>
 
 ### Commands
 
-| Command                | Does                                                                     |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `bun test`             | Runs every suite. Postgres tests are skipped without `TEST_DATABASE_URL` |
-| `bun run typecheck`    | Typechecks every package                                                 |
-| `bun run lint`         | Lints with Biome                                                         |
-| `bun run format`       | Formats everything in place                                              |
-| `bun run format:check` | Fails if anything is unformatted                                         |
-| `bun run check`        | Format check, typecheck and tests — the same gate CI should run          |
-| `bun run db:generate`  | Regenerates migrations after a schema change                             |
+| Command                       | Does                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| `bun run dev:dashboard:local` | Wipes local Postgres, migrates, seeds a merchant, then starts the dashboard flow |
+| `bun test`                    | Runs every suite. Postgres tests are skipped without `TEST_DATABASE_URL`         |
+| `bun run typecheck`           | Typechecks every package                                                         |
+| `bun run lint`                | Lints with Biome                                                                 |
+| `bun run format`              | Formats everything in place                                                      |
+| `bun run format:check`        | Fails if anything is unformatted                                                 |
+| `bun run check`               | Format check, typecheck and tests — the same gate CI should run                  |
+| `bun run db:generate`         | Regenerates migrations after a schema change                                     |
+
+`dev:dashboard:local` is intentionally destructive to the local Docker
+database. It performs these steps in order:
+
+1. Installs workspace dependencies and validates `.env`.
+2. Removes and recreates the local Postgres Docker volume.
+3. Waits for Postgres and applies every migration from an empty database.
+4. Prompts for the first merchant account and seeds it.
+5. Starts the core API, dashboard API, and dashboard.
+
+The reset targets only the local Compose database. The underlying wipe/reset
+guard refuses non-local database hosts.
 
 The Postgres integration suite runs the full clearing flow against real
 repositories. It truncates every table it touches, so it keys on its own
