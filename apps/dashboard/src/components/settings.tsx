@@ -169,7 +169,7 @@ function Settings() {
                   {(
                     [
                       ["settlement", "Settlement"],
-                      ["profile", "Profile"],
+                      ["profile", "Profile location"],
                       ["history", "Change history"],
                     ] as const
                   ).map(([value, label]) => (
@@ -271,31 +271,35 @@ function Settings() {
 
                 <Tabs.Panel value="profile" className="pt-6 focus-visible:outline-none">
                   <Card className="flex flex-col gap-4 p-4">
-                    <Field>
-                      <FieldLabel htmlFor="merchant-city">City</FieldLabel>
-                      <Input
-                        id="merchant-city"
-                        value={draft.city}
-                        onChange={(e) => setDraft({ ...draft, city: e.target.value })}
-                        placeholder="Jakarta"
-                      />
-                    </Field>
+                    {/* One row: a city and a country are one fact — where the
+                        merchant is — not two settings a reader hunts for. */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field>
+                        <FieldLabel htmlFor="merchant-city">City</FieldLabel>
+                        <Input
+                          id="merchant-city"
+                          value={draft.city}
+                          onChange={(e) => setDraft({ ...draft, city: e.target.value })}
+                          placeholder="Jakarta"
+                        />
+                      </Field>
 
-                    <Field>
-                      <FieldLabel htmlFor="merchant-country">Country</FieldLabel>
-                      <Input
-                        id="merchant-country"
-                        value={draft.countryCode}
-                        onChange={(e) => setDraft({ ...draft, countryCode: e.target.value })}
-                        placeholder="ID"
-                        maxLength={2}
-                        className="w-24 uppercase"
-                      />
-                      <FieldDescription>
-                        Two letters, e.g. ID. Both fields are frozen into every payment a link
-                        takes, and a payment link cannot be created without them.
-                      </FieldDescription>
-                    </Field>
+                      <Field>
+                        <FieldLabel htmlFor="merchant-country">Country</FieldLabel>
+                        <Input
+                          id="merchant-country"
+                          value={draft.countryCode}
+                          onChange={(e) => setDraft({ ...draft, countryCode: e.target.value })}
+                          placeholder="ID"
+                          maxLength={2}
+                          className="uppercase"
+                        />
+                      </Field>
+                    </div>
+                    <FieldDescription>
+                      Country is two letters, e.g. ID. Both fields are frozen into every payment a
+                      link takes, and a payment link cannot be created without them.
+                    </FieldDescription>
                   </Card>
                 </Tabs.Panel>
 

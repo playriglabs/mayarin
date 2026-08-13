@@ -92,6 +92,12 @@ type Editing =
   | { readonly mode: "create" }
   | { readonly mode: "edit"; readonly product: ProductDto };
 
+/** One metadata row as typed. Assembled into a record only at save. */
+interface MetadataPair {
+  readonly key: string;
+  readonly value: string;
+}
+
 interface Draft {
   readonly name: string;
   readonly sku: string;
@@ -99,6 +105,7 @@ interface Draft {
   /** Decimal as typed — `"25000"`, `"25000.50"`. Parsed server-side. */
   readonly amount: string;
   readonly currency: string;
+  readonly pairs: readonly MetadataPair[];
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -107,6 +114,7 @@ const EMPTY_DRAFT: Draft = {
   description: "",
   amount: "",
   currency: PRICING_CURRENCIES[0] ?? "IDR",
+  pairs: [],
 };
 
 function draftOf(editing: Editing): Draft {
@@ -121,7 +129,20 @@ function draftOf(editing: Editing): Draft {
     description: product.description ?? "",
     amount: first?.formatted ?? "",
     currency: first?.asset ?? EMPTY_DRAFT.currency,
+    pairs: Object.entries(product.metadata).map(([key, value]) => ({ key, value })),
   };
+}
+
+/**
+ * The typed rows as the wire record. A row with an empty key is still being
+ * typed, not a fact about the product, so it is dropped rather than refused.
+ */
+function metadataOf(pairs: readonly MetadataPair[]): Record<string, string> {
+  return Object.fromEntries(
+    pairs
+      .filter((pair) => pair.key.trim() !== "")
+      .map((pair) => [pair.key.trim(), pair.value.trim()]),
+  );
 }
 
 function reasonOf(error: unknown): string {
@@ -176,6 +197,7 @@ function Catalog() {
     if (editing === null || !canSave) return;
     const edited = { amount: draft.amount.trim(), asset: draft.currency };
     const description = draft.description.trim();
+    const metadata = metadataOf(draft.pairs);
 
     try {
       if (editing.mode === "create") {
@@ -184,6 +206,7 @@ function Catalog() {
           name: draft.name.trim(),
           prices: [edited],
           ...(description === "" ? {} : { description }),
+          ...(Object.keys(metadata).length === 0 ? {} : { metadata }),
         });
         setNotice(`${draft.name.trim()} created.`);
       } else {
@@ -195,6 +218,9 @@ function Catalog() {
             // `null` clears it, an absent field leaves it alone — so emptying
             // the field actually empties it rather than reverting on refetch.
             description: description === "" ? null : description,
+            // Sent even when empty: the API replaces metadata wholesale, and
+            // an empty record is how "I removed the last pair" is spelled.
+            metadata,
           },
         });
         setNotice(`${draft.name.trim()} updated.`);
@@ -417,6 +443,70 @@ function Catalog() {
                 value={draft.description}
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               />
+            </Field>
+
+            <Field>
+              <FieldLabel>Metadata</FieldLabel>
+              {draft.pairs.map((pair, index) => (
+                <div
+                  className="flex items-center gap-2"
+                  // biome-ignore lint/suspicious/noArrayIndexKey: rows only append and remove, and every input is controlled
+                  key={index}
+                >
+                  <Input
+                    value={pair.key}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        pairs: draft.pairs.map((p, i) =>
+                          i === index ? { ...p, key: e.target.value } : p,
+                        ),
+                      })
+                    }
+                    placeholder="key"
+                    aria-label={`Metadata key ${index + 1}`}
+                    className="font-mono text-xs"
+                  />
+                  <Input
+                    value={pair.value}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        pairs: draft.pairs.map((p, i) =>
+                          i === index ? { ...p, value: e.target.value } : p,
+                        ),
+                      })
+                    }
+                    placeholder="value"
+                    aria-label={`Metadata value ${index + 1}`}
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      setDraft({ ...draft, pairs: draft.pairs.filter((_, i) => i !== index) })
+                    }
+                    aria-label={`Remove metadata pair ${index + 1}`}
+                  >
+                    <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="secondary"
+                className="w-fit"
+                onClick={() =>
+                  setDraft({ ...draft, pairs: [...draft.pairs, { key: "", value: "" }] })
+                }
+              >
+                <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                Add metadata
+              </Button>
+              <FieldDescription>
+                Key-value pairs stored on the product and returned by the API — an internal
+                category, a warehouse bin, a supplier code. Buyers never see them.
+              </FieldDescription>
             </Field>
           </div>
 

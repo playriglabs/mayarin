@@ -42,6 +42,7 @@ export interface CreateProductRequest {
   readonly name: string;
   readonly description?: string;
   readonly prices: readonly DecimalMoneyRequest[];
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 export interface UpdateProductRequest {
@@ -50,6 +51,8 @@ export interface UpdateProductRequest {
   readonly description?: string | null;
   readonly prices?: readonly DecimalMoneyRequest[];
   readonly active?: boolean;
+  /** Replaced wholesale when present, so removing a pair is sending the rest. */
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 /**

@@ -7,6 +7,8 @@
  * filled with dashes, because "not started" and "zero" are different facts.
  */
 
+import { type CartSnapshot, parseCartSnapshot } from "@mayarin/catalog";
+import { formatMoneyLocale, money } from "@mayarin/shared";
 import { getAsset, isAssetCode } from "@mayarin/shared/asset";
 import { ArrowLeftIcon, ArrowSquareOutIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
@@ -58,6 +60,81 @@ function assetName(code: string): string {
 /** Statuses after which there is nothing left for a payer to send. */
 const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
 
+/**
+ * Where this payment came from, read off the intent's metadata.
+ *
+ * The commerce layer stamps what minted the intent: an invoice checkout writes
+ * `invoiceId`, a link checkout writes `paymentLinkId`, and anything that priced
+ * a cart writes the `cart` snapshot. A payment with none of those was created
+ * straight through the API — by a QR scan or a server integration.
+ */
+interface Purchase {
+  readonly label: string;
+  /** The minting record's id, when one exists. */
+  readonly reference?: string;
+  readonly cart?: CartSnapshot;
+}
+
+function purchaseOf(intent: {
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly source: { readonly type: "qr"; readonly scheme: string } | { readonly type: "manual" };
+}): Purchase {
+  const raw = intent.metadata.cart;
+  const cart = raw === undefined ? undefined : parseCartSnapshot(raw);
+  const invoiceId = intent.metadata.invoiceId;
+  const linkId = intent.metadata.paymentLinkId;
+
+  if (invoiceId !== undefined) {
+    return { label: "Invoice", reference: invoiceId, ...(cart === undefined ? {} : { cart }) };
+  }
+  if (linkId !== undefined) {
+    return { label: "Payment link", reference: linkId, ...(cart === undefined ? {} : { cart }) };
+  }
+  if (cart !== undefined) {
+    return { label: "Product catalog", cart };
+  }
+  return intent.source.type === "qr"
+    ? { label: `QR scan · ${intent.source.scheme}` }
+    : { label: "Direct API" };
+}
+
+/** A snapshot amount, in the human form. Minor units stay strings until here. */
+function snapshotDisplay(amount: string, currency: CartSnapshot["currency"]): string {
+  return formatMoneyLocale(money(BigInt(amount), currency), { trimTrailingZeros: true });
+}
+
+/**
+ * What was bought, when the intent carries a cart snapshot.
+ *
+ * The snapshot is a receipt: clearing settles `intent.amount`, and these lines
+ * exist so a merchant reading a payment can answer "for what?" without opening
+ * the orders page. Unit prices are shown per line; the total is the snapshot's
+ * own, never re-added here.
+ */
+function CartItems({ cart }: { readonly cart: CartSnapshot }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionHeader title="Items" />
+      <Card>
+        <dl className="flex flex-col">
+          {cart.lines.map((line, index) => (
+            <Row
+              // biome-ignore lint/suspicious/noArrayIndexKey: a frozen receipt, lines never reorder
+              key={index}
+              label={line.quantity === 1 ? line.name : `${line.name} × ${line.quantity}`}
+            >
+              {snapshotDisplay(line.unitPrice, cart.currency)}
+            </Row>
+          ))}
+          <Row label="Total">
+            <span className="font-medium">{snapshotDisplay(cart.total, cart.currency)}</span>
+          </Row>
+        </dl>
+      </Card>
+    </section>
+  );
+}
+
 function PaymentDetail({ id }: { id: string }) {
   const payment = usePayment(id);
   const status = payment.data?.paymentIntent.status;
@@ -89,6 +166,7 @@ function PaymentDetail({ id }: { id: string }) {
         .with({ status: "success" }, ({ data }) => {
           const { paymentIntent: intent, clearing, timeline } = data;
           const payerDeposit = deposit.data?.deposit;
+          const purchase = purchaseOf(intent);
           // The contract path carries an on-chain transaction hash; the deposit
           // path does not — its on-chain footprint is the payer's transfer to the
           // deposit address. A merchant can only "see it on chain" once the asset
@@ -176,8 +254,15 @@ function PaymentDetail({ id }: { id: string }) {
                           </span>
                         )}
                       </Row>
-                      <Row label="Source">
-                        {intent.source.type === "qr" ? `QR · ${intent.source.scheme}` : "Manual"}
+                      <Row label="Purchased via">
+                        <span className="inline-flex flex-wrap items-baseline justify-end gap-1.5">
+                          <span>{purchase.label}</span>
+                          {purchase.reference !== undefined && (
+                            <span className="break-all font-mono text-xs text-muted-foreground">
+                              {purchase.reference}
+                            </span>
+                          )}
+                        </span>
                       </Row>
                       <Row label="Created">
                         <time dateTime={isoAttr(intent.createdAt)}>
@@ -277,6 +362,8 @@ function PaymentDetail({ id }: { id: string }) {
                   </section>
                 )}
               </div>
+
+              {purchase.cart !== undefined && <CartItems cart={purchase.cart} />}
 
               <section className="flex flex-col gap-3">
                 <SectionHeader title="Clearing timeline" />
