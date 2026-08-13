@@ -241,6 +241,7 @@ helper instead:
 railway login
 bun run db:check:railway
 bun run db:studio:railway
+bun run dev:dashboard:railway
 bun run dev:railway
 bun run seed:merchant:railway
 ```
@@ -251,8 +252,13 @@ runtime, verifies the connection, and injects `DATABASE_URL` into the selected
 local process. Credentials are kept in process memory and are neither printed
 nor written to `.env`.
 
-Use `bun run dev:railway` to run the core API, dashboard API, and dashboard UI
-locally against testnet Railway Postgres. Use `bun run db:migrate:railway` only
+Use `bun run dev:dashboard:railway` for the merchant-to-checkout workflow: it
+runs the local dashboard, dashboard API, and core API against testnet Railway
+Postgres, without starting a second chain worker. Open the dashboard at
+`http://localhost:4321`; checkout links remain on the local API origin at
+`http://localhost:3000/checkout/:linkId`.
+Use `bun run dev:railway` when the core API, chain worker, dashboard API, and
+dashboard UI all need to run locally. Use `bun run db:migrate:railway` only
 after reviewing pending migrations; it changes the shared testnet database.
 Use `bun run seed:merchant:railway` to create a merchant in that shared testnet
 database; all normal seed flags and interactive prompts are forwarded.
