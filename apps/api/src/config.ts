@@ -47,6 +47,8 @@ const configSchema = z.object({
   /** Admissible settlement set, JSON array of AssetCode. Defaults to IDRX only. */
   settlementAssets: jsonObject<string[]>("SETTLEMENT_ASSETS", '["IDRX"]'),
   feeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(50),
+  /** Successful relayed PaymentRouter calls reimburse gas from settlement. */
+  relayerGasFeeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(10),
   defaultProvider: z.string().min(1).default("mock"),
   paymentIntentTtlSeconds: z.coerce.number().int().positive().default(900),
   /**
@@ -226,17 +228,20 @@ const configSchema = z.object({
 
   // --- Quote signing (RFC #6 — #41) --------------------------------------
   /**
-   * `turnkey` keeps the key in an enclave. `local` holds it in this process and
-   * is refused outside development — see `docs/quote-signing.md`.
+   * `aws-kms` keeps the production key non-exportable. `local` holds it in this
+   * process and is accepted only for development/testnet routers.
    */
-  quoteSigner: z.enum(["turnkey", "local"]).default("turnkey"),
+  quoteSigner: z.enum(["turnkey", "local", "aws-kms"]).default("turnkey"),
   turnkeyOrganizationId: z.string().min(1).optional(),
   turnkeySignWith: z.string().min(1).optional(),
   turnkeySignerAddress: z.string().min(1).optional(),
   turnkeyApiPublicKey: z.string().min(1).optional(),
   turnkeyApiPrivateKey: z.string().min(1).optional(),
-  /** Development only. Refused when `NODE_ENV` is not `development`. */
+  /** Local/testnet only. Refused whenever a mainnet PaymentRouter is configured. */
   quoteSignerPrivateKey: z.string().min(1).optional(),
+  awsKmsKeyId: z.string().min(1).optional(),
+  awsKmsRegion: z.string().min(1).optional(),
+  awsKmsSignerAddress: z.string().min(1).optional(),
 
   // --- Contract execution path (#61) --------------------------------------
   /**
@@ -305,7 +310,7 @@ export interface QuoteConfig {
   readonly fxClosedSpreadBps: number;
   readonly slippageBps: number;
   readonly ttlSeconds: number;
-  readonly signer: "turnkey" | "local";
+  readonly signer: "turnkey" | "local" | "aws-kms";
 }
 
 /** Resolved contract-path configuration. Present only when `CONTRACT_PATH_ENABLED=true`. */
@@ -392,19 +397,24 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     if (data.turnkeySignerAddress === undefined) issues.push("TURNKEY_SIGNER_ADDRESS is required");
     if (data.turnkeyApiPublicKey === undefined) issues.push("TURNKEY_API_PUBLIC_KEY is required");
     if (data.turnkeyApiPrivateKey === undefined) issues.push("TURNKEY_API_PRIVATE_KEY is required");
-  } else {
+  } else if (data.quoteSigner === "local") {
     // The promise `docs/quote-signing.md` makes: the composition root refuses an
     // in-process signing key outside development. Anything that can read the
     // process could otherwise authorize settlement amounts.
-    if (data.nodeEnv !== "development") {
+    const mainnetRouters = Object.keys(data.paymentRouters).filter((chain) => chain === "base");
+    if (data.nodeEnv !== "development" && mainnetRouters.length > 0) {
       issues.push(
-        `QUOTE_SIGNER=local holds the quote-signing key in this process and is refused when ` +
-          `NODE_ENV is "${data.nodeEnv}"; use QUOTE_SIGNER=turnkey outside development`,
+        `QUOTE_SIGNER=local holds the quote-signing key in this process and is refused for ` +
+          `mainnet PaymentRouter chains: ${mainnetRouters.join(", ")}`,
       );
     }
     if (data.quoteSignerPrivateKey === undefined) {
       issues.push("QUOTE_SIGNER_PRIVATE_KEY is required when QUOTE_SIGNER is local");
     }
+  } else {
+    if (data.awsKmsKeyId === undefined) issues.push("AWS_KMS_KEY_ID is required");
+    if (data.awsKmsRegion === undefined) issues.push("AWS_KMS_REGION is required");
+    if (data.awsKmsSignerAddress === undefined) issues.push("AWS_KMS_SIGNER_ADDRESS is required");
   }
 
   if (issues.length > 0) {
@@ -710,6 +720,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     settlementAsset: env.SETTLEMENT_ASSET,
     settlementAssets: env.SETTLEMENT_ASSETS,
     feeBasisPoints: env.FEE_BASIS_POINTS,
+    relayerGasFeeBasisPoints: env.RELAYER_GAS_FEE_BASIS_POINTS,
     defaultProvider: env.DEFAULT_SETTLEMENT_PROVIDER,
     paymentIntentTtlSeconds: env.PAYMENT_INTENT_TTL_SECONDS,
     assetReceiptMode: env.ASSET_RECEIPT_MODE,
@@ -765,6 +776,9 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     turnkeyApiPublicKey: env.TURNKEY_API_PUBLIC_KEY,
     turnkeyApiPrivateKey: env.TURNKEY_API_PRIVATE_KEY,
     quoteSignerPrivateKey: env.QUOTE_SIGNER_PRIVATE_KEY,
+    awsKmsKeyId: env.AWS_KMS_KEY_ID,
+    awsKmsRegion: env.AWS_KMS_REGION,
+    awsKmsSignerAddress: env.AWS_KMS_SIGNER_ADDRESS,
     contractPathEnabled: env.CONTRACT_PATH_ENABLED,
     paymentRouters: env.PAYMENT_ROUTERS,
     treasuryExecutionEnabled: env.TREASURY_EXECUTION_ENABLED,
@@ -781,6 +795,19 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     throw new ConfigurationError("Invalid environment configuration", {
       issues: result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`),
     });
+  }
+
+  if (
+    result.data.treasuryExecutionEnabled &&
+    result.data.feeBasisPoints + result.data.relayerGasFeeBasisPoints >= 10_000
+  ) {
+    throw new ConfigurationError(
+      "FEE_BASIS_POINTS + RELAYER_GAS_FEE_BASIS_POINTS must leave a positive merchant payout",
+      {
+        feeBasisPoints: result.data.feeBasisPoints,
+        relayerGasFeeBasisPoints: result.data.relayerGasFeeBasisPoints,
+      },
+    );
   }
 
   const stablecoins = resolveStablecoins(result.data);

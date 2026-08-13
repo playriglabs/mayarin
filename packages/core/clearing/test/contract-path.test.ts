@@ -86,6 +86,7 @@ describe("contract path: lock", () => {
     expect(transaction.state).toBe("PAYMENT_PENDING");
     expect(transaction.settlementAmount).toEqual(IDRX(5_000_000n));
     expect(transaction.fee).toEqual(IDRX(25_000n));
+    expect(harness.planner.calls[0]?.submission).toBe("payer");
     expect(transaction.netAmount).toEqual(IDRX(4_975_000n));
     expect(transaction.rate?.source).toBe("0x");
     expect(transaction.deposit).toBeUndefined();

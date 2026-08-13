@@ -383,6 +383,7 @@ export function createContainer({
   ]);
 
   const fees = new BasisPointsFeePolicy(config.feeBasisPoints);
+  const relayerGasFees = new BasisPointsFeePolicy(config.relayerGasFeeBasisPoints);
 
   // `resolveContract` guarantees the quote layer is configured when the
   // contract block is, so the resolver below always yields one; the throw is
@@ -410,6 +411,7 @@ export function createContainer({
           contract: config.contract,
           quote: resolveQuote,
           fees,
+          relayerGasFees,
           stablecoins: registry,
           merchantPolicies,
           wallets: walletGuard,

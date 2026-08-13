@@ -27,6 +27,7 @@ function createPlanner(
   settlementAddress: string | null = MERCHANT_SAFE,
   wallets?: WalletGuard,
   settlementAddresses?: SettlementAddressResolver,
+  relayerGasFeeBasisPoints = 10,
 ) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
@@ -66,6 +67,7 @@ function createPlanner(
     contract: { paymentRouters: { base: ROUTER } },
     quote: async () => quote,
     fees: new BasisPointsFeePolicy(50),
+    relayerGasFees: new BasisPointsFeePolicy(relayerGasFeeBasisPoints),
     stablecoins: new InMemoryStablecoinRegistry([
       { asset: "IDRX", onChain: [{ chain: "base", address: IDRX_TOKEN }] },
     ]),
@@ -93,6 +95,7 @@ function lockRequest(payerAsset: "ETH" | "IDRX") {
     payerAsset,
     chain: "base",
     payerAddress: PAYER,
+    submission: "payer",
   } as const;
 }
 
@@ -123,6 +126,22 @@ describe("ApiContractPlanner", () => {
     expect(signer.calls[0]?.domain.chainId).toBe(8_453n);
     expect(signer.calls[0]?.domain.verifyingContract).toBe(ROUTER);
     expect(signer.calls[0]?.message.intentId).toBe(lock.order.intentId as `0x${string}`);
+  });
+
+  test("adds gas reimbursement only to a relayer-submitted signed fee", async () => {
+    const { planner } = createPlanner();
+
+    const payer = await planner.lock(lockRequest("ETH"));
+    const relayed = await planner.lock({
+      ...lockRequest("ETH"),
+      clearingTransactionId: "clr_test_relayed",
+      paymentIntentId: "pi_test_relayed",
+      submission: "relayer",
+    });
+
+    expect(payer.fee).toEqual(money(25_000n, "IDRX"));
+    expect(relayed.fee).toEqual(money(30_000n, "IDRX"));
+    expect(relayed.order.fee).toBe(30_000n);
   });
 
   test("can keep the signed order executable beyond the quote freshness window", async () => {

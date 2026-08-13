@@ -76,6 +76,15 @@ export interface ContractLockRequest {
   /** The payer's address, from the intent's rail — the order's `refundTo`. */
   readonly payerAddress: string;
   /**
+   * Who submits the PaymentRouter transaction.
+   *
+   * A connected payer pays network gas directly. A relayer pays it up front,
+   * so the planner includes the configured gas reimbursement in the signed
+   * fee. Because the router transfers that fee atomically, a reverted payment
+   * charges the merchant nothing.
+   */
+  readonly submission: "payer" | "relayer";
+  /**
    * Optional on-chain execution deadline, distinct from quote freshness.
    * Deposit payers may use the full payment-intent window to transfer funds;
    * connected-wallet payments leave this absent and use the quote deadline.

@@ -120,6 +120,7 @@ describe("locking a deposit that will be executed", () => {
     const transaction = await harness.engine.start(await depositIntent());
 
     expect(planner.calls[0]?.payerAddress).toBe(TREASURY);
+    expect(planner.calls[0]?.submission).toBe("relayer");
     expect(transaction.contract?.order.refundTo).toBe(TREASURY);
   });
 

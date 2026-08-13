@@ -662,6 +662,7 @@ export class ClearingEngine {
       chain: rail.chain,
       // The payer has no address on this path; excess is Mayarin's.
       payerAddress: treasury,
+      submission: "relayer",
       // Price freshness and execution availability are different clocks. A
       // scanning or custodial payer may fund until the intent expires, and the
       // watcher still needs confirmation/indexing time after that.
@@ -850,6 +851,7 @@ export class ClearingEngine {
       payerAsset: rail.asset,
       chain: rail.chain,
       payerAddress: rail.payerAddress,
+      submission: "payer",
     });
 
     if (
