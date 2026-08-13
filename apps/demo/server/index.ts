@@ -50,8 +50,8 @@ export function loadDemoConfig(env: Record<string, string | undefined>): DemoCon
     apiUrl: env.MAYARIN_API_URL ?? "http://localhost:3000",
     merchant: {
       id: merchantId,
-      name: env.MAYARIN_MERCHANT_NAME ?? "Toko Demo",
-      city: env.MAYARIN_MERCHANT_CITY ?? "Jakarta",
+      name: env.MAYARIN_MERCHANT_NAME ?? "Parahyangan Supply",
+      city: env.MAYARIN_MERCHANT_CITY ?? "Bandung",
       countryCode: env.MAYARIN_MERCHANT_COUNTRY ?? "ID",
     },
     secretKey,

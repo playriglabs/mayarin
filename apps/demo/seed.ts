@@ -15,30 +15,53 @@ import { DEMO_CURRENCY } from "./server/index.ts";
 const ENV_PATH = resolve(import.meta.dir, ".env");
 const REPO_ROOT = resolve(import.meta.dir, "../..");
 
+/**
+ * The catalog of a Bandung distro: garments named after the city's streets.
+ * `metadata.kind` picks the card illustration in `src/garments.tsx` — it
+ * rides the product's free-form metadata through the API untouched.
+ */
 const SEED_PRODUCTS = [
   {
-    sku: "KOPI-GAYO-250",
-    name: "Kopi Gayo 250 g",
-    description: "Single-origin arabica beans from Aceh.",
-    amount: "95000.00",
+    sku: "TEE-BRAGA",
+    name: "Kaos 'Braga'",
+    description: "Kaos katun 24s, sablon plastisol. Hitam, unisex.",
+    amount: "129000.00",
+    kind: "tee",
   },
   {
-    sku: "BATIK-SCARF",
-    name: "Batik scarf",
-    description: "Hand-stamped batik cotton scarf.",
-    amount: "150000.00",
+    sku: "HOOD-LEMBANG",
+    name: "Hoodie 'Lembang'",
+    description: "Fleece 320 gsm untuk dingin-dinginnya dataran tinggi.",
+    amount: "299000.00",
+    kind: "hoodie",
   },
   {
-    sku: "KERIPIK-SKG",
-    name: "Keripik singkong",
-    description: "Crispy cassava chips with sambal balado.",
-    amount: "35000.00",
+    sku: "FLNL-CIHAMPELAS",
+    name: "Flanel 'Cihampelas'",
+    description: "Kemeja flanel kotak-kotak, brushed cotton.",
+    amount: "219000.00",
+    kind: "flannel",
   },
   {
-    sku: "MADU-HUTAN-500",
-    name: "Madu hutan 500 ml",
-    description: "Wild forest honey from Sumatra.",
-    amount: "120000.00",
+    sku: "CAP-DAGO",
+    name: "Topi 'Dago'",
+    description: "Topi corduroy enam panel, bordir logo.",
+    amount: "89000.00",
+    kind: "cap",
+  },
+  {
+    sku: "JKT-ASIA-AFRIKA",
+    name: "Coach Jacket 'Asia Afrika'",
+    description: "Jaket coach nilon, kancing jepret, tahan angin.",
+    amount: "349000.00",
+    kind: "jacket",
+  },
+  {
+    sku: "CRG-BUAHBATU",
+    name: "Cargo 'Buah Batu'",
+    description: "Celana cargo ripstop, potongan lurus.",
+    amount: "259000.00",
+    kind: "cargo",
   },
 ] as const;
 
@@ -108,8 +131,8 @@ function createMerchant(name: string, city: string, countryCode: string) {
 const env = await readEnvFile(ENV_PATH);
 const get = (key: string): string | undefined => process.env[key] ?? env.get(key);
 
-const merchantName = get("MAYARIN_MERCHANT_NAME") ?? "Toko Demo";
-const merchantCity = get("MAYARIN_MERCHANT_CITY") ?? "Jakarta";
+const merchantName = get("MAYARIN_MERCHANT_NAME") ?? "Parahyangan Supply";
+const merchantCity = get("MAYARIN_MERCHANT_CITY") ?? "Bandung";
 const merchantCountry = get("MAYARIN_MERCHANT_COUNTRY") ?? "ID";
 const apiUrl = get("MAYARIN_API_URL") ?? "http://localhost:3000";
 
@@ -143,6 +166,7 @@ for (const product of missing) {
     name: product.name,
     description: product.description,
     prices: [{ amount: product.amount, asset: DEMO_CURRENCY }],
+    metadata: { kind: product.kind },
   });
   console.log(`Created ${product.sku} — ${product.name}`);
 }

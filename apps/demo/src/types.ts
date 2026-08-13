@@ -1,5 +1,5 @@
 /**
- * What the marketplace renders — the fields it uses from the wire, no more.
+ * What the storefront renders — the fields it uses from the wire, no more.
  *
  * The demo server passes `ProductDto` through untouched; typing only the used
  * subset keeps the browser code free of a dependency on the API package.
@@ -7,7 +7,7 @@
 
 export interface DemoPrice {
   readonly asset: string;
-  /** Human form, e.g. `Rp 95.000`. Shown, never parsed. */
+  /** Human form, e.g. `Rp 129.000`. Shown, never parsed. */
   readonly display: string;
 }
 
@@ -16,4 +16,6 @@ export interface DemoProduct {
   readonly name: string;
   readonly description: string | null;
   readonly prices: readonly DemoPrice[];
+  /** Free-form product metadata; the seed sets `kind` to pick the card art. */
+  readonly metadata: Readonly<Record<string, string>>;
 }

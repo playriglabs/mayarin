@@ -1,4 +1,34 @@
-/* Deliberately plain (#137): the demo is a readable reference, not a design system. */
+/*
+ * Parahyangan Supply — editorial apparel storefront (#137).
+ *
+ * Design tokens follow the ui-ux-pro-max recommendation for fashion
+ * e-commerce: editorial black on near-white, one accent, Playfair Display
+ * for display type, Inter for UI. Plain CSS on purpose — the demo is a
+ * reference, not a design system.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap");
+
+:root {
+  --color-primary: #18181b;
+  --color-on-primary: #ffffff;
+  --color-accent: #ec4899;
+  --color-background: #fafafa;
+  --color-foreground: #09090b;
+  --color-muted-text: #52525b;
+  --color-tile: #eef0f2;
+  --color-surface: #ffffff;
+  --color-border: #e4e4e7;
+  --color-destructive: #dc2626;
+  --color-ring: #18181b;
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 3rem;
+  --space-5: 6rem;
+}
 
 * {
   box-sizing: border-box;
@@ -6,25 +36,76 @@
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
-  color: #1a1a1a;
-  background: #fafaf7;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-foreground);
+  background: var(--color-background);
 }
 
-.marketplace {
-  max-width: 960px;
+/* --- Masthead --- */
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 2rem 1rem 4rem;
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
 }
 
-header h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.75rem;
+.brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
-header p {
-  margin: 0 0 2rem;
-  color: #555;
+.tagline {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-muted-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* --- Hero --- */
+
+.hero {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-2) var(--space-4);
+}
+
+.hero h1 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 500;
+  line-height: 1.15;
+  max-width: 18ch;
+}
+
+.hero h1 em {
+  font-style: italic;
+  color: var(--color-muted-text);
+}
+
+.hero p {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--color-muted-text);
+}
+
+/* --- Product grid --- */
+
+.shop {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 var(--space-2) var(--space-5);
 }
 
 .grid {
@@ -32,57 +113,188 @@ header p {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--space-3);
 }
 
 .card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #fff;
-  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: var(--space-2);
+  transition:
+    border-color 200ms ease,
+    transform 200ms ease;
+}
+
+.card:hover {
+  border-color: var(--color-foreground);
+  transform: translateY(-2px);
+}
+
+.card .art {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-tile);
+  color: var(--color-foreground);
+  margin-bottom: var(--space-1);
+  transition: color 200ms ease;
+}
+
+.card:hover .art {
+  color: var(--color-accent);
+}
+
+.card .art svg {
+  width: 56%;
+  height: 56%;
 }
 
 .card h2 {
   margin: 0;
-  font-size: 1.1rem;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .description {
   margin: 0;
-  color: #555;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  color: var(--color-muted-text);
   flex-grow: 1;
+}
+
+.buy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
 }
 
 .price {
   margin: 0;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
+/* --- Checkout button --- */
+
 .checkout button {
-  width: 100%;
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 6px;
-  background: #1a1a1a;
-  color: #fff;
-  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    background 200ms ease,
+    color 200ms ease;
+}
+
+.checkout button:hover:enabled {
+  background: var(--color-on-primary);
+  color: var(--color-primary);
+}
+
+.checkout button:active:enabled {
+  transform: scale(0.97);
+}
+
+.checkout button:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
 }
 
 .checkout button:disabled {
-  opacity: 0.6;
+  opacity: 0.7;
   cursor: wait;
 }
 
+.spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Skeletons (shaped like the card they stand in for) --- */
+
+.skeleton .art,
+.skeleton .line {
+  background: var(--color-tile);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton .line {
+  height: 0.875rem;
+}
+
+.skeleton .line.title {
+  height: 1.125rem;
+  width: 70%;
+}
+
+.skeleton .line.price {
+  width: 40%;
+  margin-top: var(--space-1);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* --- Notices, footer --- */
+
 .notice {
-  color: #555;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-muted-text);
 }
 
 .notice.error {
-  color: #b00020;
+  color: var(--color-destructive);
+}
+
+.colophon {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.colophon p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-muted-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

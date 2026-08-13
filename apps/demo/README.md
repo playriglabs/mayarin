@@ -1,13 +1,14 @@
-# Demo marketplace
+# Parahyangan Supply — demo storefront
 
-A merchant marketplace that shows the SDK integration end to end (#137). The
-page lists products from the catalog. Each product has a **Checkout** button
-that mints a `catalog` payment link through `@mayarin/sdk` and redirects the
-browser to the hosted checkout.
+A Bandung apparel store that shows the SDK integration end to end (#137). The
+page lists garments from the catalog, each named after a street in Bandung.
+Each product has a **Beli** button that mints a `catalog` payment link through
+`@mayarin/sdk` and redirects the browser to the hosted checkout.
 
-The demo is a living reference. It shows the code a merchant storefront writes
-against a running API. It is deliberately plain: one page, one button, no
-design system.
+The demo is a living reference: the use case is a real storefront, but the
+code stays small enough to read in one sitting. The design follows the
+`ui-ux-pro-max` recommendation for fashion e-commerce — editorial black on
+near-white, Playfair Display and Inter, one accent color.
 
 ## The flow
 
@@ -68,8 +69,8 @@ All variables live in `apps/demo/.env`. The seed writes them on first run.
 | `MAYARIN_API_URL`          | `http://localhost:3000` | Base URL of the payment API                |
 | `MAYARIN_SECRET_KEY`       | —                       | `sk_` key. Required. Server-side only.     |
 | `MAYARIN_MERCHANT_ID`      | —                       | Merchant the catalog belongs to. Required. |
-| `MAYARIN_MERCHANT_NAME`    | `Toko Demo`             | Merchant snapshot on the payment link      |
-| `MAYARIN_MERCHANT_CITY`    | `Jakarta`               | Merchant snapshot on the payment link      |
+| `MAYARIN_MERCHANT_NAME`    | `Parahyangan Supply`    | Merchant snapshot on the payment link      |
+| `MAYARIN_MERCHANT_CITY`    | `Bandung`               | Merchant snapshot on the payment link      |
 | `MAYARIN_MERCHANT_COUNTRY` | `ID`                    | Two-letter country code                    |
 
 If the secret key or the merchant id is missing, the dev server refuses to

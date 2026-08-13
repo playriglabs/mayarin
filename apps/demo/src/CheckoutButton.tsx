@@ -9,7 +9,13 @@ type CheckoutState =
  * Mints a `catalog` payment link through the thin server and hands the browser
  * to the hosted checkout. The demo's job ends at the redirect (#137).
  */
-export function CheckoutButton({ productId }: { readonly productId: string }) {
+export function CheckoutButton({
+  productId,
+  productName,
+}: {
+  readonly productId: string;
+  readonly productName: string;
+}) {
   const [state, setState] = useState<CheckoutState>({ status: "idle" });
 
   async function checkout(): Promise<void> {
@@ -33,12 +39,31 @@ export function CheckoutButton({ productId }: { readonly productId: string }) {
     }
   }
 
+  const minting = state.status === "minting";
+
   return (
     <div className="checkout">
-      <button type="button" onClick={() => void checkout()} disabled={state.status === "minting"}>
-        {state.status === "minting" ? "Preparing…" : "Checkout"}
+      <button
+        type="button"
+        onClick={() => void checkout()}
+        disabled={minting}
+        aria-busy={minting}
+        aria-label={`Beli ${productName}`}
+      >
+        {minting ? (
+          <>
+            <span className="spinner" aria-hidden="true" />
+            Menyiapkan…
+          </>
+        ) : (
+          "Beli"
+        )}
       </button>
-      {state.status === "error" && <p className="notice error">{state.message}</p>}
+      {state.status === "error" && (
+        <p className="notice error" role="alert">
+          {state.message}
+        </p>
+      )}
     </div>
   );
 }
