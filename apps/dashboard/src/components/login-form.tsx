@@ -14,7 +14,7 @@
 
 import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
-import { match } from "ts-pattern";
+import { match, P } from "ts-pattern";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -68,16 +68,10 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full max-w-sm flex-col gap-6 bg-card p-6">
-      <div className="flex flex-col gap-4">
-        <p className="label flex items-center gap-2.5 text-muted-foreground">
-          <span aria-hidden="true" className="inline-block size-1.5 bg-electric" />
-          Mayarin
-        </p>
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-medium text-foreground">Sign in</h1>
-          <p className="text-sm text-muted-foreground">Manage payments and settlement.</p>
-        </div>
+    <form onSubmit={onSubmit} className="flex w-full max-w-md flex-col gap-4 bg-card p-6 sm:p-8">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-medium text-foreground">Sign in to your dashboard</h1>
+        <p className="text-sm text-muted-foreground">Manage payments, customers and settlement.</p>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -86,30 +80,34 @@ function LoginForm() {
           <Input
             id="login-email"
             type="email"
+            placeholder="you@company.com"
             required
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={submitting}
             aria-describedby={errorId}
+            className="h-12 px-4"
           />
         </Field>
 
         <Field>
           <FieldLabel htmlFor="login-password">Password</FieldLabel>
-          <InputGroup>
+          <InputGroup className="h-12">
             <InputGroupInput
               id="login-password"
               // Swapping `type` is what actually reveals the value. The field
               // keeps its `autoComplete` either way, so a password manager
               // still recognises it while revealed.
               type={revealed ? "text" : "password"}
+              placeholder="Enter your password"
               required
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={submitting}
               aria-describedby={errorId}
+              className="first:pl-4"
             />
             <InputGroupButton
               onClick={() => setRevealed((previous) => !previous)}
@@ -120,6 +118,7 @@ function LoginForm() {
               aria-label={revealed ? "Hide password" : "Show password"}
               aria-pressed={revealed}
               aria-controls="login-password"
+              className="size-12"
             >
               {revealed ? (
                 <EyeSlashIcon size={ICON_NAV} aria-hidden="true" />
@@ -133,10 +132,7 @@ function LoginForm() {
 
       <div aria-live="polite" className="empty:hidden">
         {match(state)
-          .with({ status: "idle" }, () => null)
-          .with({ status: "submitting" }, () => (
-            <p className="text-xs text-subtle-foreground">Signing in…</p>
-          ))
+          .with(P.union({ status: "idle" }, { status: "submitting" }), () => null)
           .with({ status: "error" }, (s) => (
             <p id="login-error" role="alert" className="text-xs text-destructive">
               {s.reason}
@@ -145,8 +141,8 @@ function LoginForm() {
           .exhaustive()}
       </div>
 
-      <Button type="submit" disabled={submitting} className="w-full">
-        {submitting ? "Signing in…" : "Sign in"}
+      <Button type="submit" disabled={submitting} className="login-submit h-12 w-full px-6 text-xl">
+        {submitting ? "Processing.." : "Continue"}
       </Button>
     </form>
   );

@@ -30,6 +30,16 @@ export function Nav() {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
+
   // The sheet closes on navigation itself, so the links stay plain anchors.
   useEffect(() => {
     const close = () => setOpen(false);
@@ -93,18 +103,48 @@ export function Nav() {
         >
           <svg viewBox="0 0 20 20" width="20" height="20" fill="none" aria-hidden="true">
             <path
-              d={open ? "M5 5l10 10M15 5L5 15" : "M2 6h16M2 14h16"}
+              d="M2 6h16"
               stroke="currentColor"
               stroke-width="1.5"
               stroke-linecap="square"
+              class={clsx(
+                "origin-center transition-transform duration-300 ease-out motion-reduce:transition-none",
+                open && "translate-y-1 rotate-45",
+              )}
+            />
+            <path
+              d="M2 14h16"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="square"
+              class={clsx(
+                "origin-center transition-transform duration-300 ease-out motion-reduce:transition-none",
+                open && "-translate-y-1 -rotate-45",
+              )}
             />
           </svg>
         </button>
       </div>
 
-      {open ? (
-        <div id="mobile-nav" class="border-t border-line bg-paper lg:hidden">
-          <nav aria-label="Primary" class="shell flex flex-col py-4">
+      <div
+        id="mobile-nav"
+        aria-hidden={!open}
+        inert={!open}
+        class={clsx(
+          "grid bg-paper transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none lg:hidden",
+          open
+            ? "grid-rows-[1fr] border-t border-line opacity-100"
+            : "pointer-events-none grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div class="min-h-0 overflow-hidden">
+          <nav
+            aria-label="Primary"
+            class={clsx(
+              "shell flex flex-col py-4 transition-transform duration-300 ease-out motion-reduce:transition-none",
+              open ? "translate-y-0" : "-translate-y-3",
+            )}
+          >
             {links.map((link) => (
               <a key={link.href} href={link.href} class="border-b border-line py-4 text-lg">
                 {link.label}
@@ -125,7 +165,7 @@ export function Nav() {
             </a>
           </nav>
         </div>
-      ) : null}
+      </div>
     </header>
   );
 }

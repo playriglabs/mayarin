@@ -17,7 +17,7 @@ const COLUMNS = [
       { label: "Documentation", href: "https://docs.mayarin.xyz" },
       { label: "API reference", href: "https://docs.mayarin.xyz" },
       { label: "Architecture", href: "#architecture" },
-      { label: "Status", href: "#top" },
+      // { label: "Status", href: "#top" },
     ],
   },
   {

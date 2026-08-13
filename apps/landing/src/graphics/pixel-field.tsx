@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "preact/hooks";
 
-const CELL = 12;
-const CELL_NARROW = 10;
+const CELL = 8;
+const CELL_NARROW = 7;
+const DENSITY_SCALE = 0.82;
 const POINTER_RADIUS = 132;
 const TAU = Math.PI * 2;
 
@@ -64,7 +65,7 @@ export function PixelField() {
           const diagonal = (x / width) * 0.95 + (y / height) * 0.82;
           const density = smoothstep(0.38, 1.3, diagonal);
           const checker = (row + column) % 2 === 0;
-          if (!checker || grain > density) continue;
+          if (!checker || grain > density * DENSITY_SCALE) continue;
 
           nextPixels.push({ x, y, grain, size: 3.2 + density * 2.8 });
         }

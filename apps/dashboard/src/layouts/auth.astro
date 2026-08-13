@@ -1,5 +1,7 @@
 ---
 import "../styles/global.css";
+import AuthPixelField from "../components/auth-pixel-field.tsx";
+import ThemeToggle from "../components/theme-toggle.tsx";
 // Auth layout: for the login page. A logged-in user has no business here.
 if (Astro.locals.user !== undefined) return Astro.redirect("/");
 ---
@@ -20,7 +22,7 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap"
     />
     <script is:inline>
       // Before first paint. Dark is the default; "light" is the stored opt-out.
@@ -34,8 +36,62 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
         );
     </script>
   </head>
-  <!-- The landing's dark tone: a paper card floating on the void. -->
-  <body class="flex min-h-full items-center justify-center bg-sidebar px-4 py-12">
-    <slot />
+  <body class="min-h-full bg-background">
+    <main class="grid min-h-svh md:grid-cols-2">
+      <section
+        aria-label="Mayarin"
+        class="auth-brand-panel relative flex min-h-72 overflow-hidden border-border border-b bg-background p-6 md:min-h-svh md:border-r md:border-b-0 md:p-10 lg:p-14"
+      >
+        <AuthPixelField client:load />
+        <div class="relative z-10 flex w-full flex-col justify-between">
+          <a href="https://mayarin.xyz" aria-label="Mayarin home" class="inline-flex w-fit">
+            <img
+              src="/images/mayarin-full-black.png"
+              alt="Mayarin"
+              width="571"
+              height="186"
+              class="auth-logo auth-logo-light h-auto w-36"
+            />
+            <img
+              src="/images/mayarin-full-white.png"
+              alt=""
+              width="571"
+              height="186"
+              class="auth-logo auth-logo-dark h-auto w-36"
+            />
+          </a>
+
+          <p class="auth-tagline max-w-[17ch] text-[clamp(2rem,4vw,3.5rem)] leading-[0.98] tracking-[-0.035em]">
+            Clearing infrastructure for money <em class="italic">in motion</em>.
+          </p>
+        </div>
+      </section>
+
+      <section class="relative flex min-h-[32rem] items-center justify-center bg-background px-5 py-16 sm:px-10 md:min-h-svh lg:px-16">
+        <div class="absolute top-5 right-5 md:top-8 md:right-8">
+          <ThemeToggle client:load />
+        </div>
+        <slot />
+      </section>
+    </main>
+
   </body>
 </html>
+
+<style>
+  .auth-tagline em {
+    font-family: "Instrument Serif", Georgia, serif;
+  }
+
+  .auth-logo-dark {
+    display: none;
+  }
+
+  :global(:root[data-theme="dark"]) .auth-logo-light {
+    display: none;
+  }
+
+  :global(:root[data-theme="dark"]) .auth-logo-dark {
+    display: block;
+  }
+</style>
