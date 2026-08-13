@@ -14,8 +14,8 @@ const COLUMNS = [
   {
     heading: "Developers",
     links: [
-      { label: "Documentation", href: "#developers" },
-      { label: "API reference", href: "#developers" },
+      { label: "Documentation", href: "https://docs.mayarin.xyz" },
+      { label: "API reference", href: "https://docs.mayarin.xyz" },
       { label: "Architecture", href: "#architecture" },
       { label: "Status", href: "#top" },
     ],
@@ -25,7 +25,7 @@ const COLUMNS = [
     links: [
       { label: "Use cases", href: "#use-cases" },
       { label: "Principles", href: "#principles" },
-      { label: "Contact", href: "#start" },
+      { label: "Developers", href: "#developers" },
       { label: "Pitchdeck", href: "/pitch-deck" },
     ],
   },

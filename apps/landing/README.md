@@ -5,7 +5,18 @@ Marketing site for Mayarin. Vite + Preact + Tailwind v4, no runtime dependency o
 ```bash
 bun run dev:landing      # http://localhost:4321
 bun run build:landing    # static output in apps/landing/dist
+bun run deploy:landing   # verify, build, and deploy to Cloudflare Pages
+bun run --cwd apps/landing early-access:list # list early-access submissions
 ```
+
+The deployment target is the `mayarin-landing` Cloudflare Pages project, as
+recorded in `wrangler.jsonc`. Deployment is manual; the project is not connected
+to GitHub. Wrangler requires Node.js 22 or newer for deployment.
+
+Early-access submissions are stored in the bound
+`mayarin-landing-early-access` D1 database. `deploy:landing` applies pending D1
+migrations before uploading the site. The list command prints email and
+submission time, newest first; it does not expose a public listing endpoint.
 
 ## Design system
 

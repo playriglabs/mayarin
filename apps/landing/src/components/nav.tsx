@@ -10,6 +10,8 @@ const links = [
   { label: "Use cases", href: "#use-cases" },
 ];
 
+const DASHBOARD_URL = "https://dashboard-testnet.mayarin.xyz/login";
+
 export function Nav() {
   const [lifted, setLifted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -66,16 +68,16 @@ export function Nav() {
         <div class="hidden justify-end lg:flex">
           <div class="flex items-center gap-2.5">
             <a
-              href="#start"
+              href="#early-access"
               class="btn-fill [--btn-fill:var(--color-ink)] inline-flex h-10 cursor-pointer items-center border border-ink bg-transparent px-5 text-sm font-medium text-ink transition-colors duration-200 hover:text-white"
             >
               Request demo
             </a>
             <a
-              href="/login"
+              href={DASHBOARD_URL}
               class="btn-fill [--btn-fill:var(--color-forest)] inline-flex h-10 cursor-pointer items-center gap-2 bg-ink px-5 text-sm font-medium text-white"
             >
-              Sign in
+              Dashboard
               <ArrowRight />
             </a>
           </div>
@@ -109,16 +111,16 @@ export function Nav() {
               </a>
             ))}
             <a
-              href="#start"
+              href="#early-access"
               class="btn-fill [--btn-fill:var(--color-ink)] mt-6 inline-flex h-12 items-center justify-center border border-ink bg-transparent px-5 text-sm font-medium text-ink transition-colors duration-200 hover:text-white"
             >
               Request demo
             </a>
             <a
-              href="/login"
+              href={DASHBOARD_URL}
               class="btn-fill [--btn-fill:var(--color-forest)] mt-2 mb-2 inline-flex h-12 items-center justify-center gap-2 bg-ink text-sm font-medium text-white"
             >
-              Sign in
+              Dashboard
               <ArrowRight />
             </a>
           </nav>
