@@ -31,7 +31,7 @@ export function Hero() {
 
         <Reveal delay={240} class="mt-10 flex items-center gap-3">
           <a
-            href="https://docs.mayarin.xyz"
+            href="#developers"
             class="btn-fill [--btn-fill:var(--color-forest)] label inline-flex h-14 cursor-pointer items-center bg-ink px-8 text-white"
           >
             Start building

@@ -32,6 +32,16 @@ const USE_CASES = [
     title: "Cross-border commerce",
     body: "Route across assets and chains per payment, priced at lock time, settled in the merchant's stablecoin.",
   },
+  {
+    index: "07",
+    title: "Content creators",
+    body: "Share a payment link for tips, commissions or digital work — priced locally and payable with supported crypto assets.",
+  },
+  {
+    index: "08",
+    title: "Freelancers & agencies",
+    body: "Issue an invoice with your own reference, collect across borders and reconcile every payment to the right client.",
+  },
 ];
 
 export function UseCases() {

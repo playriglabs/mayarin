@@ -51,7 +51,7 @@ export function EarlyAccess() {
         <Reveal>
           <Label>Early access</Label>
           <h2 class="mt-7 max-w-[14ch] text-[clamp(3rem,6vw,5rem)]">
-            Build the payment flow your market needs.
+            Build the payment for your market needs.
           </h2>
           <p class="mt-6 max-w-[48ch] text-lg leading-[1.65] text-slate">
             Tell us where to reach you. We will share sandbox access and help map your first
