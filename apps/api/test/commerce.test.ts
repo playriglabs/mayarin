@@ -261,7 +261,7 @@ describe("hosted checkout", () => {
     expect(checkoutSuccessUrl("http://shop.example/checkout/success", "pi_1")).toBeUndefined();
   });
 
-  test("renders the link page with its amount, and no QR of its own URL", async () => {
+  test("boots the link page with its amount, and everything the SPA needs to mint", async () => {
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/v1/payment-links", {
       body: {
@@ -272,64 +272,38 @@ describe("hosted checkout", () => {
       },
     });
 
-    const response = await harness.app.request(`/checkout/${body.paymentLink.id}`);
-    const html = await response.text();
+    const page = await harness.requestBootstrap(`/checkout/${body.paymentLink.id}`);
 
-    expect(response.status).toBe(200);
-    expect(html).toContain("Rp 50.000,00");
-    expect(html).toContain("Paket");
-    // The QR that used to sit here encoded this page's own URL, on a page the
-    // buyer already had open. It belongs to the counter, not to the buyer.
-    expect(html).not.toContain("<svg");
-    // What the page owes the buyer instead: which asset they will send, and
-    // that the price is not locked until they act.
-    expect(html).toContain("Bayar pakai");
-    expect(html).toContain("Harga dikunci");
+    expect(page.status).toBe(200);
+    expect(page.bootstrap.page).toBe("link");
+    expect(page.bootstrap.title).toBe("Paket");
+    expect(page.bootstrap.total.display).toBe("Rp 50.000,00");
+    // The SPA mints against this id and offers these assets on this chain —
+    // the whole checkout flow hangs off the bootstrap, not a second fetch.
+    expect(page.bootstrap.linkId).toBe(body.paymentLink.id);
+    expect(page.bootstrap.payable).toBe(true);
+    expect(page.bootstrap.accepted).toEqual(["USDC"]);
+    expect(page.bootstrap.chain).toBe("base-sepolia");
+    // The lock note's figure: the price is not locked until the buyer acts.
+    expect(page.bootstrap.lockMinutes).toBe(15);
   });
 
-  test("the link page's button confirms the intent it mints", async () => {
-    // Minting alone locks no price and allocates no deposit address, so a page
-    // that only mints leaves the payer staring at "menyiapkan alamat" forever.
-    const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/v1/payment-links", {
-      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
-    });
-
-    const html = await (await harness.app.request(`/checkout/${body.paymentLink.id}`)).text();
-
-    expect(html).toContain(`/v1/payment-links/${body.paymentLink.id}/checkout`);
-    expect(html).toContain('"/v1/payment-intents/" + intentId + "/confirm"');
-  });
-
-  test("the link page asks for the deposit path, whatever the deployment default is", async () => {
-    // The page renders an address and a QR. The contract path needs the payer's
-    // own wallet to sign the router call, and there is no wallet to connect
-    // here, so a deployment defaulting to it would fail every hosted checkout.
-    const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/v1/payment-links", {
-      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
-    });
-
-    const html = await (await harness.app.request(`/checkout/${body.paymentLink.id}`)).text();
-
-    expect(html).toContain('executionPath: "deposit-match"');
-  });
-
-  test("escapes a merchant name rather than rendering it as markup", async () => {
+  test("injects the bootstrap as data, not as markup a merchant can escape", async () => {
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/v1/payment-links", {
       body: {
         kind: "open",
-        merchant: { ...merchant, name: "<script>alert(1)</script>" },
+        merchant: { ...merchant, name: "</script><script>alert(1)</script>" },
         currency: "IDR",
       },
     });
 
-    const response = await harness.app.request(`/checkout/${body.paymentLink.id}`);
-    const html = await response.text();
+    const page = await harness.requestBootstrap(`/checkout/${body.paymentLink.id}`);
 
-    expect(html).not.toContain("<script>alert(1)</script>");
-    expect(html).toContain("&lt;script&gt;");
+    // The raw sequence would close the bootstrap script element and open an
+    // attacker-controlled one. Escaped, it is a JSON string like any other.
+    expect(page.text).not.toContain("<script>alert(1)</script>");
+    expect(page.bootstrap.merchant.name).toBe("</script><script>alert(1)</script>");
   });
 
   test("renders the payment page for a minted intent", async () => {
@@ -345,12 +319,18 @@ describe("hosted checkout", () => {
       },
     );
 
-    const response = await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`);
-    const html = await response.text();
+    const page = await harness.requestBootstrap(`/checkout/pay/${paid.body.paymentIntent.id}`);
 
-    expect(response.status).toBe(200);
-    expect(html).toContain(paid.body.paymentIntent.id);
-    expect(html).toContain("Rp 50.000,00");
+    expect(page.status).toBe(200);
+    expect(page.bootstrap.page).toBe("pay");
+    expect(page.bootstrap.intentId).toBe(paid.body.paymentIntent.id);
+    expect(page.bootstrap.amount.display).toBe("Rp 50.000,00");
+    // Where the SPA reads status from, and how, are the page's to know.
+    expect(page.bootstrap.statusUrl).toBe(
+      `http://localhost:3000/v1/payments/${paid.body.paymentIntent.id}`,
+    );
+    expect(typeof page.bootstrap.streaming).toBe("boolean");
+    expect(page.bootstrap.pollMs).toBeGreaterThan(0);
   });
 
   test("prices a catalog link's lines on the page, without minting anything", async () => {
@@ -369,11 +349,13 @@ describe("hosted checkout", () => {
     });
 
     const before = await harness.intents.list({ merchantId: merchant.id });
-    const html = await (await harness.app.request(`/checkout/${body.paymentLink.id}`)).text();
+    const page = await harness.requestBootstrap(`/checkout/${body.paymentLink.id}`);
     const after = await harness.intents.list({ merchantId: merchant.id });
 
-    expect(html).toContain("Kopi Susu × 2");
-    expect(html).toContain("Rp 50.000,00");
+    expect(page.bootstrap.lines).toEqual([
+      expect.objectContaining({ name: "Kopi Susu", quantity: 2 }),
+    ]);
+    expect(page.bootstrap.total.display).toBe("Rp 50.000,00");
     expect(after.length).toBe(before.length);
   });
 
@@ -393,38 +375,9 @@ describe("hosted checkout", () => {
       },
     );
 
-    const html = await (
-      await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)
-    ).text();
+    const page = await harness.requestBootstrap(`/checkout/pay/${paid.body.paymentIntent.id}`);
 
-    expect(html).toContain(paid.body.paymentIntent.expiresAt);
-    expect(html).toContain("Berlaku sampai");
-  });
-
-  test("the payment page replaces the deposit card once the payment is decided", async () => {
-    // A finished payment must stop asking to be paid: a QR and an address left
-    // on screen invite a second transfer to an address that will not clear it.
-    const harness = createApiHarness();
-    const { body } = await harness.request("POST", "/v1/payment-links", {
-      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
-    });
-    const paid = await harness.request(
-      "POST",
-      `/v1/payment-links/${body.paymentLink.id}/checkout`,
-      {
-        body: {},
-      },
-    );
-
-    const html = await (
-      await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)
-    ).text();
-
-    expect(html).toContain("Pembayaran selesai");
-    expect(html).toContain("Terima kasih sudah membayar");
-    // The same replacement on the unhappy paths, for the same reason.
-    expect(html).toContain("Masa berlaku habis");
-    expect(html).toContain("Pembayaran gagal");
+    expect(page.bootstrap.expiresAt).toBe(paid.body.paymentIntent.expiresAt);
   });
 
   test("serves a QR for an arbitrary value", async () => {
@@ -525,7 +478,10 @@ describe("live payment status", () => {
     expect(response.status).toBe(404);
   });
 
-  test("the page asks for the stream and keeps polling as a fallback", async () => {
+  test("the page is told the stream exists, and how fast to poll without it", async () => {
+    // Whether to open an EventSource is the SPA's call, but only the server
+    // knows if this deployment runs one. The poll interval rides along because
+    // the fallback is the path a payer behind a buffering proxy actually takes.
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/v1/payment-links", {
       body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
@@ -538,12 +494,9 @@ describe("live payment status", () => {
       },
     );
 
-    const html = await (
-      await harness.app.request(`/checkout/pay/${paid.body.paymentIntent.id}`)
-    ).text();
+    const page = await harness.requestBootstrap(`/checkout/pay/${paid.body.paymentIntent.id}`);
 
-    expect(html).toContain("EventSource");
-    // The poll is the path a payer behind a buffering proxy actually takes.
-    expect(html).toContain("startPolling");
+    expect(page.bootstrap.streaming).toBe(true);
+    expect(page.bootstrap.pollMs).toBe(8000);
   });
 });

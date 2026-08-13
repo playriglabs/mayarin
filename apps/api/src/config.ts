@@ -5,6 +5,7 @@
  * should fail to boot, not fail on the first payment.
  */
 
+import { fileURLToPath } from "node:url";
 import { CHAIN_IDS, type ChainId } from "@mayarin/chain";
 import type { PythFeed } from "@mayarin/provider-pyth";
 import {
@@ -152,6 +153,16 @@ const configSchema = z.object({
     .url()
     .default("http://localhost:3000")
     .transform((value) => value.replace(/\/+$/, "")),
+  /**
+   * Where the built checkout UI (#151) sits on disk. The default is the
+   * workspace path `apps/checkout-ui/dist`, which is where `bun run --cwd
+   * apps/checkout-ui build` writes and where the Docker image carries it. Tests
+   * point this at a fixture so `bun test` never needs a Vite build.
+   */
+  checkoutUiDist: z
+    .string()
+    .min(1)
+    .default(fileURLToPath(new URL("../../checkout-ui/dist", import.meta.url))),
   mockWebhookSecret: z.string().min(1).optional(),
 
   // --- Outbound webhooks (RFC #13) ---------------------------------------
@@ -745,6 +756,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     realtimeEnabled: env.REALTIME_ENABLED,
     realtimeMaxWatched: env.REALTIME_MAX_WATCHED,
     publicBaseUrl: env.PUBLIC_BASE_URL,
+    checkoutUiDist: env.CHECKOUT_UI_DIST,
     mockWebhookSecret: env.MOCK_WEBHOOK_SECRET,
     webhooksEnabled: env.WEBHOOKS_ENABLED,
     webhookIntervalMs: env.WEBHOOK_INTERVAL_MS,

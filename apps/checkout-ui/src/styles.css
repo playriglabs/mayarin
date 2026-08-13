@@ -1,0 +1,440 @@
+/**
+ * The buyer-facing surface, one stylesheet.
+ *
+ * Same identity as the landing page and the dashboard: paper and ink, square
+ * corners, hairline rules, a four-step type scale, and one electric green kept
+ * for state rather than decoration. Light and dark are both full palettes and
+ * the page follows `prefers-color-scheme` (#151).
+ */
+
+:root {
+  color-scheme: light dark;
+  --paper: #ffffff;
+  --ink: #111111;
+  --muted: #666666;
+  --subtle: #9e9e9e;
+  --line: #eaeaea;
+  --field: #d4d4d4;
+  --surface: #fafafa;
+  --electric: #0eeb2e;
+  --brand: #1f6f54;
+  --warn: #8a6100;
+  --danger: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0a0a0a;
+    --ink: #fafafa;
+    --muted: #8a8a8a;
+    --subtle: #616161;
+    --line: #1e1e1e;
+    --field: #2e2e2e;
+    --surface: #111111;
+    --brand: #31b285;
+    --warn: #d9a514;
+    --danger: #e5484d;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    14px/1.5 "Inter Tight",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  letter-spacing: -0.15px;
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px 48px;
+  -webkit-font-smoothing: antialiased;
+}
+main {
+  width: 100%;
+  max-width: 26rem;
+}
+main.document {
+  max-width: 44rem;
+}
+
+/* The mark: the same square that is the favicon, at wordmark size. */
+.brand {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.brand::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--electric);
+}
+
+.card {
+  border: 1px solid var(--line);
+  padding: 20px;
+}
+.card + .card {
+  border-top: 0;
+}
+h1 {
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 500;
+  margin: 0;
+}
+h2 {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0 0 12px;
+}
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+.subtle {
+  color: var(--subtle);
+  font-size: 12px;
+}
+.figure {
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 20px 0 6px;
+}
+.field {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--field);
+}
+.field span {
+  padding: 0 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  border-right: 1px solid var(--line);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+input:focus {
+  outline: 0;
+}
+.field:focus-within {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+}
+.assets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.asset {
+  flex: 1 1 auto;
+  padding: 10px 14px;
+  border: 1px solid var(--field);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+.asset[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--surface);
+}
+.rows {
+  margin-top: 16px;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.row span {
+  color: var(--muted);
+}
+.row strong {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+button.primary {
+  width: 100%;
+  margin-top: 20px;
+  padding: 13px 16px;
+  border: 0;
+  cursor: pointer;
+  background: var(--ink);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 500;
+}
+button.primary[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.qr {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  background: #fff;
+  margin-top: 16px;
+}
+.qr svg,
+.qr img {
+  width: 100%;
+  height: auto;
+  max-width: 200px;
+  display: block;
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  word-break: break-all;
+  text-align: right;
+}
+.copy {
+  border: 1px solid var(--field);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  background: var(--muted);
+  flex: none;
+}
+.dot.live {
+  background: var(--electric);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.dot.done {
+  background: var(--brand);
+}
+.dot.bad {
+  background: var(--danger);
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 12px 0 0;
+}
+
+/*
+ * The countdown (#151). The one number a payer must not miss, so it reads at
+ * figure size, in tabular numerals, and turns warning-coloured for the last
+ * minute rather than expiring by surprise.
+ */
+.countdown {
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.countdown.low {
+  color: var(--danger);
+}
+
+/* The outcome, once there is nothing left for the payer to do. */
+.outcome {
+  text-align: center;
+  padding: 12px 0 4px;
+}
+.mark {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--paper);
+  background: var(--brand);
+}
+.mark.bad {
+  background: var(--danger);
+}
+.mark svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.outcome h2 {
+  font-size: 18px;
+  line-height: 24px;
+  margin: 0 0 6px;
+}
+.outcome p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot.live {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* The invoice document. Same paper, wider column, a table.            */
+/* ------------------------------------------------------------------ */
+
+.invoice-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+.badge {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.badge.ok {
+  color: var(--brand);
+}
+.badge.warn {
+  color: var(--warn);
+}
+.badge.muted {
+  color: var(--muted);
+}
+.parties {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.party {
+  min-width: 12rem;
+  margin: 0;
+}
+.party dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.party dd {
+  margin: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+th,
+td {
+  text-align: left;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+tfoot td {
+  border-bottom: none;
+  padding-top: 10px;
+}
+tfoot .total {
+  font-weight: 650;
+  font-size: 15px;
+}
+.notes {
+  margin-top: 20px;
+  white-space: pre-wrap;
+}
+
+/*
+ * Print is the document, so the interactive parts and the page chrome go.
+ * `@media print` on the same page rather than a second route: the printed page
+ * can never drift from the one the buyer looked at.
+ */
+@media print {
+  :root {
+    --paper: #fff;
+    --ink: #000;
+    --muted: #444;
+    --line: #bbb;
+  }
+  body {
+    padding: 0;
+    display: block;
+  }
+  main,
+  main.document {
+    max-width: none;
+  }
+  .primary,
+  .screen-only {
+    display: none !important;
+  }
+  a[href]::after {
+    content: "";
+  }
+}

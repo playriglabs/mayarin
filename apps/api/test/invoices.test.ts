@@ -235,39 +235,41 @@ describe("POST /invoices/:id/void", () => {
 });
 
 describe("GET /invoices/:id/view", () => {
-  test("renders the document, and escapes what a merchant typed", async () => {
+  test("boots the document with the derived figures, and injects data rather than markup", async () => {
     const harness = createApiHarness();
     const { body: created } = await harness.request("POST", "/v1/invoices", {
-      body: invoiceBody({ buyer: { name: "<script>alert(1)</script>" } }),
+      body: invoiceBody({ buyer: { name: "</script><script>alert(1)</script>" } }),
     });
     const { body } = await harness.request("POST", `/v1/invoices/${created.invoice.id}/issue`, {
       body: { dueAt: dueAt(), prefix: "INV" },
     });
 
-    const page = await harness.requestHtml(`/invoices/${body.invoice.id}/view`);
+    const page = await harness.requestBootstrap(`/invoices/${body.invoice.id}/view`);
     expect(page.status).toBe(200);
-    expect(page.text).toContain("Sisa tagihan");
-    expect(page.text).toContain("Rp 125.000,00");
-    expect(page.text).toContain(`/v1/invoices/${body.invoice.id}/checkout`);
+    expect(page.bootstrap.page).toBe("invoice");
+    expect(page.bootstrap.number).toBe(body.invoice.number);
+    // The derived figures ride along: a buyer's screen never re-derives what
+    // is owed from the payments itself.
+    expect(page.bootstrap.outstanding.display).toBe("Rp 125.000,00");
+    expect(page.bootstrap.payable).toBe(true);
+    expect(page.bootstrap.checkoutUrl).toContain(`/v1/invoices/${body.invoice.id}/checkout`);
+    // Line totals are computed server-side: money is bigint minor units, and
+    // the page renders display strings without doing arithmetic.
+    expect(page.bootstrap.lines[0].lineTotal.display).toBe("Rp 50.000,00");
+    // A buyer name that would close the script element is data, not markup.
     expect(page.text).not.toContain("<script>alert(1)</script>");
-    expect(page.text).toContain("&lt;script&gt;");
+    expect(page.bootstrap.buyer.name).toBe("</script><script>alert(1)</script>");
   });
 
-  test("a settled invoice offers no payment button", async () => {
+  test("a settled invoice is not payable", async () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
     const paid = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`);
     await harness.request("POST", `/v1/payment-intents/${paid.body.paymentIntent.id}/confirm`);
 
-    const page = await harness.requestHtml(`/invoices/${issued.id}/view`);
-    expect(page.text).toContain("disabled");
-    expect(page.text).toContain("Lunas");
-  });
-
-  test("the printable view is the same page, not a second renderer", async () => {
-    const harness = createApiHarness();
-    const issued = await createIssued(harness);
-    const page = await harness.requestHtml(`/invoices/${issued.id}/view`);
-    expect(page.text).toContain("@media print");
+    const page = await harness.requestBootstrap(`/invoices/${issued.id}/view`);
+    expect(page.bootstrap.status).toBe("paid");
+    expect(page.bootstrap.payable).toBe(false);
+    expect(page.bootstrap.outstanding.display).toBe("Rp 0,00");
   });
 });

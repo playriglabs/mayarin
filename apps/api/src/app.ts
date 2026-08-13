@@ -21,6 +21,7 @@ import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { quoteRoutes } from "./routes/quotes.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
+import { checkoutUiRoutes } from "./services/checkout-shell.ts";
 
 export function createApp(container: Container): Hono {
   const app = new Hono();
@@ -68,7 +69,10 @@ export function createApp(container: Container): Hono {
   app.route("/v1", v1);
 
   // Buyer-facing pages stay unversioned forever: a printed QR and a shared
-  // link encode these paths, so a `/v2` must never move them (#138).
+  // link encode these paths, so a `/v2` must never move them (#138). The pages
+  // are the checkout UI SPA (#151); its hashed assets mount here, matching the
+  // bundle's Vite `base`.
+  app.route("/checkout-ui", checkoutUiRoutes(container));
   app.route("/invoices", invoicePageRoutes(container));
   app.route("/checkout", checkoutPageRoutes(container));
 

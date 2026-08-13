@@ -7,6 +7,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import {
   type ApiKeyKind,
   createApiKey,
@@ -76,6 +77,9 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     // chain layer itself stays off (CHAIN_ENABLED unset).
     CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
     MOCK_WEBHOOK_SECRET: WEBHOOK_SECRET,
+    // A fixture shell, so page-route tests exercise the bootstrap injection
+    // (#151) without needing a Vite build of apps/checkout-ui.
+    CHECKOUT_UI_DIST: fileURLToPath(new URL("./fixtures/checkout-ui", import.meta.url)),
     ...(options.adminToken === undefined ? {} : { ADMIN_TOKEN: options.adminToken }),
   });
 
@@ -259,6 +263,22 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     return { status: response.status, text: await response.text() };
   }
 
+  /**
+   * The page a buyer sees is the checkout UI shell (#151) with one
+   * `window.__BOOTSTRAP__` payload injected. This parses it back out, which is
+   * how a page test asserts what the page was told rather than how the SPA
+   * chose to paint it.
+   */
+  async function requestBootstrap(path: string) {
+    const { status, text } = await requestHtml(path);
+    const match = text.match(/window\.__BOOTSTRAP__ = (.*?)<\/script>/s);
+    return {
+      status,
+      text,
+      bootstrap: match?.[1] === undefined ? undefined : (JSON.parse(match[1]) as any),
+    };
+  }
+
   return {
     app,
     clock,
@@ -266,6 +286,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     container,
     request,
     requestHtml,
+    requestBootstrap,
     ledger,
     engine,
     intents,
