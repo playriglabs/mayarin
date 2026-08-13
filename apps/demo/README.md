@@ -32,29 +32,29 @@ other integration shape. The embed (`packages/embed`) demonstrates that one.
 
 ## Run it
 
-1. Start the database and the API:
+1. Start the database:
 
    ```bash
    bun run db:up
-   bun run dev:all
    ```
 
-2. Seed the demo merchant and products:
+2. On the first run, seed the demo merchant and products. The seed creates
+   products through the API, so the API must run:
 
    ```bash
-   cd apps/demo
-   bun run seed
+   bun run dev                      # terminal 1: the API alone
+   cd apps/demo && bun run seed     # terminal 2
    ```
 
    If `.env` names no merchant, the seed creates one through
    `bun run seed:merchant` and writes the merchant id and the secret key back
    into `apps/demo/.env`. Products are upserted by SKU, so repeated runs
-   change nothing.
+   change nothing. Stop terminal 1 after the seed.
 
-3. Start the demo:
+3. Start the API and the demo together, from the repo root:
 
    ```bash
-   bun run dev
+   bun run dev:demo
    ```
 
    Open http://localhost:5173 and click **Checkout** on a product.
