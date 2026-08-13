@@ -18,7 +18,7 @@ export function ProductCard({
     <li className="card">
       <button type="button" className="card-open" onClick={onOpen} aria-label={product.name}>
         <div className="media">
-          <ProductImage kind={product.metadata.kind} />
+          <ProductImage kind={product.metadata.kind} tone={product.metadata.tone} />
           {category !== undefined && <span className="tag">{category}</span>}
         </div>
         <h3>{product.name}</h3>

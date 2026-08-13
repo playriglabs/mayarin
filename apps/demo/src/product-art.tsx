@@ -1,11 +1,10 @@
 /**
- * Product imagery: flat-lay illustrations, one colorway per garment.
+ * Product imagery: flat-lay illustrations, garment shape × colorway.
  *
- * A coherent illustrated catalog instead of stock photos: every product image
- * shares the same frame (4:5, backdrop, ground shadow, hang tag) and draws
- * the garment in its own palette. The card and the detail view both render
- * this through an `<img>`-like block. The seed writes `metadata.kind`; the
- * art is picked from that, so the mapping rides the API's product metadata.
+ * A coherent illustrated catalog instead of stock photos: every image shares
+ * one frame (4:5, backdrop, ground shadow, hang tag). `metadata.kind` picks
+ * the garment geometry and `metadata.tone` picks the palette, so two tees in
+ * different colors stay distinct. Both ride the API's product metadata.
  */
 
 interface Colorway {
@@ -15,22 +14,40 @@ interface Colorway {
   readonly detail: string;
 }
 
-const COLORWAYS = {
-  tee: { backdrop: "#efe7da", body: "#232326", shade: "#1a1a1d", detail: "#ec4899" },
-  hoodie: { backdrop: "#e3e7e2", body: "#33523f", shade: "#294235", detail: "#efe7da" },
-  flannel: { backdrop: "#ede4d6", body: "#a33b3b", shade: "#712c2c", detail: "#2b1a1a" },
-  cap: { backdrop: "#e9e2d3", body: "#a9825a", shade: "#916e4b", detail: "#6f5138" },
-  jacket: { backdrop: "#e1e5ec", body: "#2c3a5a", shade: "#24304b", detail: "#c7cede" },
-  cargo: { backdrop: "#ece9df", body: "#6b6c4b", shade: "#585940", detail: "#4a4b35" },
+const TONES = {
+  hitam: { backdrop: "#efe7da", body: "#232326", shade: "#161619", detail: "#ec4899" },
+  arang: { backdrop: "#e9e6df", body: "#3f3f46", shade: "#2d2d33", detail: "#d7d3c9" },
+  krem: { backdrop: "#33333a", body: "#e6dcc7", shade: "#cfc0a2", detail: "#232326" },
+  hijau: { backdrop: "#e3e7e2", body: "#33523f", shade: "#294235", detail: "#efe7da" },
+  bata: { backdrop: "#ece4d9", body: "#a34b3b", shade: "#7c382c", detail: "#efe1cf" },
+  navy: { backdrop: "#e1e5ec", body: "#2c3a5a", shade: "#24304b", detail: "#c7cede" },
+  olive: { backdrop: "#ece9df", body: "#6b6c4b", shade: "#585940", detail: "#4a4b35" },
+  cokelat: { backdrop: "#e9e2d3", body: "#a9825a", shade: "#916e4b", detail: "#6f5138" },
+  merah: { backdrop: "#ede4d6", body: "#a33b3b", shade: "#712c2c", detail: "#2b1a1a" },
 } as const;
 
-export type ProductKind = keyof typeof COLORWAYS;
+type Tone = keyof typeof TONES;
 
-export function isProductKind(value: string | undefined): value is ProductKind {
-  return value !== undefined && value in COLORWAYS;
+const KINDS = ["tee", "hoodie", "flannel", "cap", "jacket", "cargo"] as const;
+export type ProductKind = (typeof KINDS)[number];
+
+function isTone(value: string | undefined): value is Tone {
+  return value !== undefined && value in TONES;
 }
 
-function Garment({ kind, c }: { readonly kind: ProductKind; readonly c: Colorway }) {
+function isProductKind(value: string | undefined): value is ProductKind {
+  return value !== undefined && (KINDS as readonly string[]).includes(value);
+}
+
+function Garment({
+  kind,
+  c,
+  patternId,
+}: {
+  readonly kind: ProductKind;
+  readonly c: Colorway;
+  readonly patternId: string;
+}) {
   switch (kind) {
     case "tee":
       return (
@@ -69,7 +86,7 @@ function Garment({ kind, c }: { readonly kind: ProductKind; readonly c: Colorway
         <>
           <path
             d="M16 12 L26 8 L32 14 L38 8 L48 12 L54 22 L46 27 L46 54 L18 54 L18 27 L10 22 Z"
-            fill="url(#ps-check)"
+            fill={`url(#${patternId})`}
           />
           <path d="M10 22 L18 27 L18 33 L13 26 Z" fill={c.shade} />
           <path d="M54 22 L46 27 L46 33 L51 26 Z" fill={c.shade} />
@@ -126,23 +143,31 @@ function Garment({ kind, c }: { readonly kind: ProductKind; readonly c: Colorway
   }
 }
 
-export function ProductImage({ kind }: { readonly kind: string | undefined }) {
-  const resolved: ProductKind = isProductKind(kind) ? kind : "tee";
-  const c = COLORWAYS[resolved];
+export function ProductImage({
+  kind,
+  tone,
+}: {
+  readonly kind: string | undefined;
+  readonly tone: string | undefined;
+}) {
+  const resolvedKind: ProductKind = isProductKind(kind) ? kind : "tee";
+  const resolvedTone: Tone = isTone(tone) ? tone : "hitam";
+  const c = TONES[resolvedTone];
+  const patternId = `ps-check-${resolvedTone}`;
   return (
     <svg viewBox="0 0 400 500" role="img" aria-hidden="true" className="product-image">
       <defs>
-        <pattern id="ps-check" width="8" height="8" patternUnits="userSpaceOnUse">
-          <rect width="8" height="8" fill="#a33b3b" />
-          <rect width="4" height="8" fill="#712c2c" />
-          <rect y="4" width="8" height="4" fill="#712c2c" opacity="0.55" />
-          <rect width="4" height="4" y="4" fill="#43201f" />
+        <pattern id={patternId} width="8" height="8" patternUnits="userSpaceOnUse">
+          <rect width="8" height="8" fill={c.body} />
+          <rect width="4" height="8" fill={c.shade} />
+          <rect y="4" width="8" height="4" fill={c.shade} opacity="0.55" />
+          <rect width="4" height="4" y="4" fill={c.detail} opacity="0.85" />
         </pattern>
       </defs>
       <rect width="400" height="500" fill={c.backdrop} />
-      <ellipse cx="200" cy="420" rx="130" ry="16" fill="#000000" opacity="0.07" />
+      <ellipse cx="200" cy="420" rx="130" ry="16" fill="#000000" opacity="0.08" />
       <g transform="translate(40 90) scale(5)">
-        <Garment kind={resolved} c={c} />
+        <Garment kind={resolvedKind} c={c} patternId={patternId} />
       </g>
       {/* Hang tag */}
       <g transform="translate(316 52) rotate(12)">

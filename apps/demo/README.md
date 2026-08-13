@@ -17,11 +17,24 @@ Playfair Display and Inter, one accent color.
 
 1. The page loads and calls `GET /api/products` on the thin server. The server
    calls `commerce.products.list(merchantId)` with the secret key. Category
-   filters and product art come from `metadata` on each product.
+   filters, garment shape, and colorway come from `metadata` on each product.
 2. **Beli sekarang** posts `{ productId, quantity }` to `/api/checkout`. The
-   server calls `commerce.paymentLinks.create({ kind: "catalog", ... })`.
-3. The browser goes to the link's `url`. The hosted checkout owns the payer
-   flow from there. The storefront stops at the redirect.
+   server calls `commerce.paymentLinks.create({ kind: "catalog", ... })` and
+   returns the link's `id` and `url`.
+3. The storefront records the purchase in `localStorage`, then the browser
+   goes to the link's `url`. The hosted checkout owns the payer flow from
+   there.
+
+## Purchase history and receipts
+
+The "Riwayat" section lists what this device checked out, with a link back to
+each hosted payment page. The API has no per-payment receipt URL for catalog
+links yet: the payment intent is created on the hosted checkout after the
+redirect, so the storefront never sees its id. A production storefront learns
+payment outcomes through webhooks — the WooCommerce plugin
+(`plugins/woocommerce`) shows that pattern. Hosted invoice URLs exist in the
+separate invoice domain (#112) for real invoices with numbering and due
+dates.
 
 ## Why a thin server
 

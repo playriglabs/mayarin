@@ -128,7 +128,7 @@ export function demoApi(config: DemoConfig): NextHandleFunction {
                 currency: DEMO_CURRENCY,
                 lines: [{ productId: request.productId, quantity: request.quantity }],
               });
-              sendJson(res, 200, { url: link.url });
+              sendJson(res, 200, { id: link.id, url: link.url });
             }
           : undefined;
 

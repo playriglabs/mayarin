@@ -552,6 +552,70 @@ body {
   }
 }
 
+/* --- Purchase history --- */
+
+.history {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 var(--space-2) var(--space-5);
+  scroll-margin-top: 5rem;
+}
+
+.history h2 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.receipts {
+  list-style: none;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.receipts li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.receipt-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.receipt-name {
+  font-weight: 500;
+}
+
+.receipt-main time {
+  font-size: 0.8125rem;
+  color: var(--color-muted-text);
+}
+
+.receipt-side {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.receipt-side a {
+  color: var(--color-foreground);
+  font-size: 0.875rem;
+  text-underline-offset: 3px;
+}
+
+.receipt-side a:hover {
+  color: var(--color-accent);
+}
+
 /* --- About, notices, footer --- */
 
 .about {

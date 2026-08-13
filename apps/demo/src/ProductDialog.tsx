@@ -32,7 +32,7 @@ export function ProductDialog({
     <dialog ref={ref} className="product-dialog" onClose={onClose} aria-label={product.name}>
       <div className="dialog-body">
         <div className="dialog-media">
-          <ProductImage kind={product.metadata.kind} />
+          <ProductImage kind={product.metadata.kind} tone={product.metadata.tone} />
         </div>
         <div className="dialog-info">
           <button type="button" className="dialog-close" onClick={() => ref.current?.close()}>
@@ -74,6 +74,7 @@ export function ProductDialog({
                 productId={product.id}
                 productName={product.name}
                 quantity={quantity}
+                total={lineTotal(price.amount, quantity)}
               />
             </>
           )}
