@@ -5,7 +5,12 @@ Marketing site for Mayarin. Vite + Preact + Tailwind v4, no runtime dependency o
 ```bash
 bun run dev:landing      # http://localhost:4321
 bun run build:landing    # static output in apps/landing/dist
+bun run deploy:landing   # verify, build, and deploy to Cloudflare Pages
 ```
+
+The deployment target is the `mayarin-landing` Cloudflare Pages project, as
+recorded in `wrangler.jsonc`. Deployment is manual; the project is not connected
+to GitHub. Wrangler requires Node.js 22 or newer for deployment.
 
 ## Design system
 
