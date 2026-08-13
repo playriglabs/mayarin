@@ -299,18 +299,18 @@ export function createContainer({
 
   const depositAddresses =
     chain === undefined ? undefined : new DrizzleDepositAddressRepository(handle.db);
-  // With treasury execution on, a deposit address must be a forwarder the
-  // operator can deploy and sweep. An HD-derived EOA receives exactly the
-  // quoted amount and cannot pay the gas to move it — the whole reason the
-  // forwarder exists — so the deriver swaps rather than the port changing.
+  // A deposit the worker will execute must be a forwarder even in the API
+  // process, which intentionally has no operator key. Both processes derive
+  // the same CREATE2 address from public deployment facts; only the worker can
+  // deploy and sweep it. Falling back to an HD EOA here strands the deposit.
   const forwarderFactory = config.depositForwarders[firstRouterChain(config)];
   const depositDeriver =
     chain === undefined
       ? undefined
-      : config.treasuryExecutionEnabled && forwarderFactory !== undefined
+      : forwarderFactory !== undefined && config.depositForwarderInitCodeHash !== undefined
         ? new Create2DepositAddressDeriver({
             factory: forwarderFactory,
-            initCodeHash: config.depositForwarderInitCodeHash ?? "0x",
+            initCodeHash: config.depositForwarderInitCodeHash,
           })
         : new HdDepositAddressDeriver({ xpub: chain.xpub });
 
@@ -383,6 +383,7 @@ export function createContainer({
   ]);
 
   const fees = new BasisPointsFeePolicy(config.feeBasisPoints);
+  const relayerGasFees = new BasisPointsFeePolicy(config.relayerGasFeeBasisPoints);
 
   // `resolveContract` guarantees the quote layer is configured when the
   // contract block is, so the resolver below always yields one; the throw is
@@ -410,6 +411,7 @@ export function createContainer({
           contract: config.contract,
           quote: resolveQuote,
           fees,
+          relayerGasFees,
           stablecoins: registry,
           merchantPolicies,
           wallets: walletGuard,
@@ -498,12 +500,11 @@ export function createContainer({
           },
           blockRange: chain.blockRange,
           nativeBlockRange: chain.nativeBlockRange,
+          tokenBalanceCatchUp: chain.tokenBalanceCatchUp,
           retentionSeconds: chain.retentionSeconds,
           startBlocks: chain.startBlocks,
-          // Which asset on this chain is the chain's own. Only that one gets the
-          // balance reconciliation: an ERC-20 emits a Transfer log however it
-          // moves, so `eth_getLogs` already sees an internal call. Native value
-          // moved by a contract emits nothing at all.
+          // Which asset on this chain is the chain's own. Native balance
+          // reconciliation is always on; token catch-up is an explicit option.
           nativeAssets: config.chainNativeAssets,
         }),
       );

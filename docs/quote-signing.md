@@ -12,30 +12,35 @@ material, not as a service credential.
 RFC [#6](https://github.com/playriglabs/mayarin/issues/6), sub-issue
 [#41](https://github.com/playriglabs/mayarin/issues/41).
 
-## Decision: Turnkey
+## Decision: signer per deployment tier
 
-The key lives in a Turnkey enclave and is never exported. A policy engine gates
-each signature. `@mayarin/provider-turnkey` implements the `OrderSigner` port
-over `sign_raw_payload`.
+All implementations sit behind the same `OrderSigner` port:
 
-Considered and rejected:
+- Local and testnet use `LocalOrderSigner` with a dedicated disposable test key.
+  The composition root refuses it when any configured `PaymentRouter` is on a
+  mainnet chain.
+- Mainnet uses `AwsKmsOrderSigner` with an `ECC_SECG_P256K1` asymmetric signing
+  key. The private key never enters Railway; IAM grants only `kms:Sign`.
+- Turnkey remains available for managed-wallet operations and as an optional
+  order signer, but payment throughput no longer depends on its signature quota.
 
-| Option            | Why not                                                                                                                                                                               |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **AWS KMS**       | Works, cheap, IAM-gated. Buys an AWS dependency the repo does not otherwise have, and serves none of the Phase 4 wallet work — leaving two custody vendors and two rotation runbooks. |
-| **Dedicated HSM** | Strongest isolation, operationally heaviest. Provisioning plus PKCS#11, with no managed rotation or policy layer. The right answer at a scale we are not at.                          |
+Operational alternatives:
 
-Turnkey wins mostly on **one custody vendor for the whole roadmap** — RFC #11
-(Phase 4) and RFC #20 (Phase 5) already name it for wallet infrastructure — and
-on managed rotation pairing with the contract's timelocked `setSigner`.
+| Option               | Why not                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Google Cloud KMS** | Also supports secp256k1 and can implement the same port. AWS KMS ships first; do not configure two production signers for one router.                        |
+| **Dedicated HSM**    | Strongest isolation, operationally heaviest. Provisioning plus PKCS#11, with no managed rotation or policy layer. The right answer at a scale we are not at. |
 
-## What Turnkey sees
+AWS KMS is deliberately only the order-signing trust root. Merchant wallet
+custody may still use Turnkey; those workloads have different policies and
+should not force every payment confirmation through the same quota.
 
-The adapter computes the EIP-712 digest locally and sends 32 opaque bytes with
-`hashFunction: HASH_FUNCTION_NO_OP`. Turnkey never learns the order's contents,
-and the digest is not hashed a second time — doing so would sign the wrong thing
-and produce a signature that recovers to a different address, which on-chain is
-indistinguishable from a wrong signer.
+## What the signer sees
+
+The adapter computes the EIP-712 digest locally and sends 32 opaque bytes. AWS
+KMS receives it as `MessageType=DIGEST`; Turnkey uses
+`HASH_FUNCTION_NO_OP`. Neither provider learns the order's contents, and the
+digest is not hashed a second time.
 
 Two distinct keys are involved, and conflating them is the easy mistake:
 
@@ -50,7 +55,8 @@ Rotation is a two-sided operation: the backend must start signing with the new
 key at the same time the contract starts accepting it. The contract side is
 timelocked, so the order is fixed.
 
-1. Create the new signing key in Turnkey. Note its address.
+1. Create the new secp256k1 signing key in the selected provider. Note its
+   Ethereum address.
 2. Schedule `setSigner(newAddress)` on the `PaymentRouter` through the
    `TimelockController`, with multisig approval. **48h delay** — see the
    PaymentRouter README's admin model.
@@ -77,10 +83,10 @@ The multisig governs the timelock as proposer and executor. It does **not** hold
 the signing key. Two separate approvals therefore protect the fund-adjacent
 surface:
 
-- Turnkey's policy engine gates each individual signature.
+- IAM or the custody provider's policy engine gates each individual signature.
 - The multisig plus the 48h timelock gates _which key the contract trusts at all_.
 
-A compromise of either alone is recoverable. Turnkey compromise is caught by
+A compromise of either alone is recoverable. Signer compromise is caught by
 rotating through the timelock; multisig compromise cannot redirect funds
 (`test_config_changes_move_no_funds`) and gives the guardian a full day-plus to
 cancel a malicious `setSigner`.
@@ -88,10 +94,10 @@ cancel a malicious `setSigner`.
 ## Development
 
 `LocalOrderSigner` (`@mayarin/provider-evm`) holds a private key in process and
-signs with viem. It exists so the quote path runs end to end without Turnkey
-credentials. **It must never be wired outside development** — anything that can
-read the process can authorize settlement amounts. The composition root enforces
-that, because only it knows which environment it is building for.
+signs with viem. It exists so the quote path runs end to end without custody
+provider credentials. It is allowed for local development and testnet routers
+only. Anything that can read the process can authorize settlement amounts, so
+the composition root refuses it whenever a mainnet router is configured.
 
 ## Tests
 
@@ -103,3 +109,6 @@ that, because only it knows which environment it is building for.
   byte-for-byte the one pinned in `vectors/order-hash.json`, the same fixture
   `PaymentRouter.t.sol` re-derives from `OrderHash.sol`. A domain or field drift
   fails here, not on-chain.
+- `packages/providers/evm/test/aws-kms-order-signer.test.ts` — a DER signature
+  returned by KMS is normalized and converted to an Ethereum signature that
+  recovers to the configured signer address.

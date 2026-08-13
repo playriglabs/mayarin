@@ -24,11 +24,15 @@ import type { PriceQuote, PriceSource } from "@mayarin/clearing";
 import { TablePriceSource } from "@mayarin/clearing";
 import {
   type AssetCode,
+  assetDecimals,
   type Clock,
+  getAsset,
   type MarketConfigEntry,
   type MarketConfigStore,
   type Money,
   marketConfigVersion,
+  money,
+  scaledRateFrom,
   ValidationError,
 } from "@mayarin/shared";
 import {
@@ -320,13 +324,36 @@ export class RuntimeStablecoinRegistry implements StablecoinRegistry {
 
 /** A `PriceSource` over the current rate table, for the same reason. */
 export class RuntimePriceSource implements PriceSource {
-  readonly #market: RuntimeMarket;
+  readonly #market: Pick<RuntimeMarket, "quote" | "rates">;
 
-  constructor(market: RuntimeMarket) {
+  constructor(market: Pick<RuntimeMarket, "quote" | "rates">) {
     this.#market = market;
   }
 
   async price(from: AssetCode, to: AssetCode, amount: Money): Promise<PriceQuote> {
+    const quote = await this.#market.quote();
+    if (
+      quote !== undefined &&
+      getAsset(from).kind === "fiat" &&
+      getAsset(to).kind === "stablecoin"
+    ) {
+      const priced = await quote.engine.quoteFiatPrice({
+        price: amount,
+        settlementAsset: to,
+        payerAsset: to,
+        probe: money(10n ** BigInt(assetDecimals(to)), to),
+      });
+      const settlement = priced.settlement;
+      return {
+        from,
+        to,
+        scaledRate: scaledRateFrom(
+          settlement.settlementAmount.amount * 10n ** BigInt(assetDecimals(from)),
+          amount.amount,
+        ),
+        source: settlement.source,
+      };
+    }
     return (await this.#market.rates()).price(from, to, amount);
   }
 }

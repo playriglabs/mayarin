@@ -97,6 +97,19 @@ async function priceFor(
   const settlementAsset =
     getAsset(payerAsset).kind === "stablecoin" ? payerAsset : container.config.settlementAsset;
 
+  // A stablecoin payer has only the fiat leg. Route it through the injected
+  // RateProvider because that is exactly what a non-executed deposit locks
+  // against. RuntimePriceSource delegates this pair to the quote engine when
+  // one exists, so preview and confirmation share both source and rounding.
+  if (getAsset(amount.asset).kind === "fiat" && payerAsset === settlementAsset) {
+    const rate = await container.rates.quote(amount.asset, payerAsset, amount);
+    return {
+      priced: convert(amount, payerAsset, rate.scaledRate),
+      source: rate.source,
+      scaledRate: rate.scaledRate,
+    };
+  }
+
   const engineQuote = await quote.engine.quoteFiatPrice({
     price: amount,
     settlementAsset,

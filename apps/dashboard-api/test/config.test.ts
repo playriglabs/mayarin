@@ -14,6 +14,22 @@ import { loadConfig } from "../src/config.ts";
 const MINIMAL = { DATABASE_URL: "postgres://mayarin:mayarin@localhost:5433/mayarin" };
 
 describe("loadConfig", () => {
+  test("the dedicated dashboard port wins over the shared payment API port", () => {
+    const config = loadConfig({
+      ...MINIMAL,
+      PORT: "3000",
+      DASHBOARD_API_PORT: "3001",
+    });
+
+    expect(config.port).toBe(3001);
+  });
+
+  test("local development can explicitly issue cookies over HTTP", () => {
+    const config = loadConfig({ ...MINIMAL, COOKIE_SECURE: "false" });
+
+    expect(config.cookieSecure).toBe(false);
+  });
+
   test("a blank variable means unset, not set to nothing", async () => {
     const config = loadConfig({
       ...MINIMAL,

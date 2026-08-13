@@ -109,13 +109,16 @@ because a block body carries all three.
 
 The watcher nevertheless uses confirmed balances as a **downtime
 reconciliation**, not as the ordinary transaction scanner. It reads each
-fundable native address at `head - confirmationDepth`; any value not already
-represented by a transfer becomes an idempotent synthetic deposit carrying that
-settled block's number and hash. A successful reconciliation advances the native
-cursor to the same settled height, leaving the final confirmation window for the
-normal block-body scan. ETH therefore recovers immediately after an outage
-without issuing one RPC call for every historical block, while recent value is
-still never skipped ahead of finality.
+watched address at `head - confirmationDepth`; any value not already represented
+by a transfer becomes an idempotent synthetic deposit carrying that settled
+block's number and hash. Native assets use `eth_getBalance`; with
+`WATCHER_TOKEN_BALANCE_CATCH_UP=true`, ERC-20 assets use `balanceOf` at the same
+pinned block. A successful reconciliation advances that
+asset's cursor to the settled height, leaving the final confirmation window for
+the normal scanner. ETH and tokens therefore recover immediately after an outage
+without replaying every historical block or log window, while recent value is
+still never skipped ahead of finality. Local `dev:all` enables token balance
+catch-up; deployed workers remain log-only unless explicitly opted in.
 
 Two limits worth stating. The scan costs one `eth_getBlockByNumber` per block,
 where the ERC-20 path costs one `eth_getLogs` for the whole range — so

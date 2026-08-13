@@ -7,6 +7,7 @@
  * filled with dashes, because "not started" and "zero" are different facts.
  */
 
+import { getAsset, isAssetCode } from "@mayarin/shared/asset";
 import { ArrowLeftIcon, ArrowSquareOutIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { match, P } from "ts-pattern";
@@ -47,6 +48,11 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
       <dd className="min-w-0 text-right text-sm text-foreground">{children}</dd>
     </div>
   );
+}
+
+/** Human currency identity; the code disambiguates symbols shared by markets. */
+function assetName(code: string): string {
+  return isAssetCode(code) ? `${getAsset(code).name} (${code})` : code;
 }
 
 /** Statuses after which there is nothing left for a payer to send. */
@@ -155,6 +161,7 @@ function PaymentDetail({ id }: { id: string }) {
                   <Card className="flex-1">
                     <dl className="flex flex-col">
                       <Row label="Customer amount">{intent.amount.display}</Row>
+                      <Row label="Customer currency">{assetName(intent.amount.asset)}</Row>
                       <Row label="Settles in">
                         <AssetLabel symbol={intent.settlementAsset} size={18} />
                       </Row>

@@ -14,7 +14,13 @@
  * `@mayarin/shared`.
  */
 
-import { ASSET_CODES, type AssetCode, assetSymbol, getAsset } from "@mayarin/shared/asset";
+import {
+  ASSET_CODES,
+  type AssetCode,
+  assetDecimals,
+  assetSymbol,
+  getAsset,
+} from "@mayarin/shared/asset";
 
 export const PRICING_CURRENCIES: readonly AssetCode[] = ASSET_CODES.filter(
   (code) => getAsset(code).kind === "fiat",
@@ -41,6 +47,56 @@ export function isPricingCurrency(asset: string): asset is AssetCode {
  * parses it again and is the one that decides. Digits, optionally one dot and
  * more digits; no sign, because a negative price is not a discount.
  */
-export function isValidAmount(value: string): boolean {
-  return /^\d+(\.\d+)?$/.test(value.trim());
+export function isValidAmount(value: string, asset: string): boolean {
+  if (!isPricingCurrency(asset)) return false;
+  const decimals = assetDecimals(asset);
+  const pattern = new RegExp(`^\\d+(?:\\.\\d{1,${decimals}})?$`);
+  return pattern.test(value.trim());
+}
+
+/** Renders the canonical API decimal as an editable Indonesian amount. */
+export function formatAmountInput(value: string): string {
+  if (value === "") return "";
+  const [whole = "", fraction] = value.split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return fraction === undefined ? grouped : `${grouped},${fraction}`;
+}
+
+/**
+ * Turns localized input back into the API's dot-decimal form without ever
+ * passing money through a JavaScript number. `undefined` means the keystroke
+ * would create an invalid or over-precise value and should be ignored.
+ */
+export function normalizeAmountInput(value: string, asset: string): string | undefined {
+  if (!isPricingCurrency(asset)) return undefined;
+
+  const text = value.replace(/[\s\u00a0]/g, "");
+  if (text === "") return "";
+
+  const commaParts = text.split(",");
+  if (commaParts.length > 2) return undefined;
+
+  const [rawWhole = "", commaFraction] = commaParts;
+  let whole = rawWhole;
+  let fraction = commaFraction;
+
+  if (commaFraction === undefined) {
+    const decimals = assetDecimals(asset);
+    const canonicalDecimal = new RegExp(`^(\\d+)\\.(\\d{1,${decimals}})$`).exec(rawWhole);
+    if (canonicalDecimal !== null && !/^\d{1,3}(?:\.\d{3})+$/.test(rawWhole)) {
+      [, whole = "", fraction] = canonicalDecimal;
+    } else {
+      whole = rawWhole.replaceAll(".", "");
+    }
+  } else {
+    whole = rawWhole.replaceAll(".", "");
+  }
+
+  if (!/^\d*$/.test(whole) || (fraction !== undefined && !/^\d*$/.test(fraction))) {
+    return undefined;
+  }
+  if (fraction !== undefined && fraction.length > assetDecimals(asset)) return undefined;
+
+  const normalizedWhole = whole.replace(/^0+(?=\d)/, "") || "0";
+  return fraction === undefined ? normalizedWhole : `${normalizedWhole}.${fraction}`;
 }

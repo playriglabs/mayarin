@@ -15,7 +15,7 @@
 import type { PriceOracle, PriceSource } from "@mayarin/clearing";
 import { priceSourceOf, type SwapVenue } from "@mayarin/execution";
 import { ChainlinkPriceOracle } from "@mayarin/provider-chainlink";
-import { LocalOrderSigner } from "@mayarin/provider-evm";
+import { AwsKmsOrderSigner, LocalOrderSigner } from "@mayarin/provider-evm";
 import { PythPriceOracle } from "@mayarin/provider-pyth";
 import { ZeroExSwapVenue } from "@mayarin/provider-swap-0x";
 import { LifiSwapVenue } from "@mayarin/provider-swap-lifi";
@@ -120,8 +120,15 @@ function createOracle(config: Config): PriceOracle {
 
 function createSigner(config: Config): OrderSigner {
   if (config.quoteSigner === "local") {
-    // `resolveQuote` has already refused this outside development.
+    // `resolveQuote` has already refused this for every mainnet router.
     return new LocalOrderSigner((config.quoteSignerPrivateKey ?? "0x") as `0x${string}`);
+  }
+  if (config.quoteSigner === "aws-kms") {
+    return new AwsKmsOrderSigner({
+      keyId: config.awsKmsKeyId ?? "",
+      region: config.awsKmsRegion ?? "",
+      signerAddress: (config.awsKmsSignerAddress ?? "0x") as `0x${string}`,
+    });
   }
   return new TurnkeyOrderSigner({
     organizationId: config.turnkeyOrganizationId ?? "",

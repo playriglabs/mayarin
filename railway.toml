@@ -1,6 +1,6 @@
 [build]
-builder = "RAILPACK"
-buildCommand = "bun run typecheck"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "bun run start:railway"

@@ -11,6 +11,7 @@
     "build:router-calldata": "bun run scripts/generate-router-calldata.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "^3.1108.0",
     "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
     "@mayarin/contracts": "workspace:*",

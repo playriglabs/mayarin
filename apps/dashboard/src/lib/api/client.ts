@@ -31,6 +31,17 @@ type AnyContext = APIContext;
  * contract.
  */
 export function getApiOrigin(context?: AnyContext): string {
+  // The Cloudflare adapter exposes `wrangler.jsonc` bindings during local Astro
+  // dev too. That file names the deployed testnet API, but a local login issues
+  // a session in the local dashboard API. Verifying that cookie against testnet
+  // makes a successful login bounce straight back to `/login`. Development is
+  // one local stack; runtime bindings only outrank build config in production.
+  if (import.meta.env.DEV) {
+    return (
+      (import.meta.env.DASHBOARD_API_URL as string | undefined) ?? "http://localhost:3001"
+    ).replace(/\/+$/, "");
+  }
+
   const runtime = (context?.locals as { runtime?: { env?: { API_URL?: string } } } | undefined)
     ?.runtime;
   return (

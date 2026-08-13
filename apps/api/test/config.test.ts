@@ -64,6 +64,7 @@ describe("chain configuration", () => {
 
     expect(config.chain?.confirmations["base-sepolia"]).toBe(6);
     expect(config.chain?.catchUpIntervalMs).toBe(1_000);
+    expect(config.chain?.tokenBalanceCatchUp).toBe(false);
     // The watcher pairs now come from the stablecoin registry, not the chain block.
     expect(config.stablecoins).toEqual([
       { asset: "IDRX", onChain: [] },
@@ -86,6 +87,20 @@ describe("chain configuration", () => {
     });
 
     expect(config.chain?.catchUpIntervalMs).toBe(250);
+  });
+
+  test("token balance catch-up is explicit", () => {
+    const config = loadConfig({
+      ...BASE,
+      CHAIN_ENABLED: "true",
+      ASSET_RECEIPT_MODE: "manual",
+      CHAIN_RPC_URLS: '{"base-sepolia":"https://sepolia.base.org"}',
+      CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
+      DEPOSIT_XPUB: XPUB,
+      WATCHER_TOKEN_BALANCE_CATCH_UP: "true",
+    });
+
+    expect(config.chain?.tokenBalanceCatchUp).toBe(true);
   });
 
   test("refuses to boot with the watcher on and asset receipt on auto", () => {
@@ -407,7 +422,7 @@ describe("quote configuration", () => {
   // The promise docs/quote-signing.md makes. An in-process signing key can
   // authorize settlement amounts, so production must not be able to opt into it
   // by setting one environment variable.
-  test("refuses the local signer outside development", () => {
+  test("refuses the local signer for a mainnet router", () => {
     expect(() =>
       loadConfig({
         ...BASE,
@@ -418,8 +433,38 @@ describe("quote configuration", () => {
         QUOTE_SIGNER: "local",
         QUOTE_SIGNER_PRIVATE_KEY: `0x${"44".repeat(32)}`,
         NODE_ENV: "production",
+        PAYMENT_ROUTERS: '{"base":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0"}',
       }),
-    ).toThrow(/refused when NODE_ENV is "production"/);
+    ).toThrow(/refused for mainnet PaymentRouter chains: base/);
+  });
+
+  test("allows the local signer for a testnet router in a production runtime", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      PYTH_FEEDS,
+      QUOTE_SIGNER: "local",
+      QUOTE_SIGNER_PRIVATE_KEY: `0x${"44".repeat(32)}`,
+      NODE_ENV: "production",
+      PAYMENT_ROUTERS: '{"base-sepolia":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0"}',
+    });
+
+    expect(config.quote?.signer).toBe("local");
+  });
+
+  test("requires complete AWS KMS signer configuration", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_SIGNER: "aws-kms",
+      }),
+    ).toThrow(/AWS_KMS_KEY_ID/);
   });
 
   test("allows the local signer in development, with a key", () => {
@@ -491,6 +536,17 @@ describe("treasury execution configuration", () => {
     expect(config.treasuryExecutionEnabled).toBe(true);
     expect(config.treasuryAddress).toBe("0x616e2B9Bc83D60790E70CbaAc6c8612AFc6A7896");
     expect(config.treasuryMaxAttempts).toBe(3);
+  });
+
+  test("refuses relayed fees that consume the merchant payout", () => {
+    expect(() =>
+      loadConfig({
+        ...CONTRACT,
+        ...EXECUTOR,
+        FEE_BASIS_POINTS: "9999",
+        RELAYER_GAS_FEE_BASIS_POINTS: "1",
+      }),
+    ).toThrow(/must leave a positive merchant payout/);
   });
 
   test.each([

@@ -72,15 +72,12 @@ export interface WalletWatcherOptions {
   /**
    * The chain's own currency, per chain (#15).
    *
-   * Only a native asset gets the balance reconciliation: an ERC-20 emits a
-   * `Transfer` log however it moves, internal call or not, so `eth_getLogs`
-   * already sees everything and a balance would add nothing. Native value moved
-   * by a contract emits nothing at all, which is the gap this closes.
-   *
-   * Absent, the reconciliation never runs and the watcher behaves exactly as it
-   * did before.
+   * Native assets still need this discriminator for their block-body scanner;
+   * balance reconciliation itself applies to every watched asset.
    */
   readonly nativeAssets?: Readonly<Partial<Record<ChainId, AssetCode>>>;
+  /** Local/operator opt-in: close ERC-20 downtime gaps with a settled balance read. */
+  readonly tokenBalanceCatchUp?: boolean;
 }
 
 export interface TickResult {
@@ -121,6 +118,7 @@ export class WalletWatcher {
   readonly #startBlocks: Readonly<Partial<Record<ChainId, bigint>>>;
   readonly #probeLimit: number;
   readonly #nativeAssets: Readonly<Partial<Record<ChainId, AssetCode>>>;
+  readonly #tokenBalanceCatchUp: boolean;
 
   constructor(options: WalletWatcherOptions) {
     this.#client = options.client;
@@ -137,6 +135,7 @@ export class WalletWatcher {
     this.#startBlocks = options.startBlocks ?? {};
     this.#probeLimit = options.probeLimit ?? 500;
     this.#nativeAssets = options.nativeAssets ?? {};
+    this.#tokenBalanceCatchUp = options.tokenBalanceCatchUp ?? false;
   }
 
   async tick(chain: ChainId, asset: AssetCode): Promise<TickResult> {
@@ -161,18 +160,19 @@ export class WalletWatcher {
     // Balances are read every tick, not only when there are new blocks: value
     // that arrived internally leaves nothing in a block body to scan, so a pass
     // that skipped the scan is exactly a pass that must still look.
-    const reconciled = isNative
+    const reconcileBalance = isNative || this.#tokenBalanceCatchUp;
+    const reconciled = reconcileBalance
       ? await this.#reconcileBalances(chain, asset, head.number, watched, now)
       : 0;
     const { confirmed, orphaned } = await this.#reclassify(chain, head.number, watched, now);
     const funded = await this.#fund(chain, asset, watched);
 
-    // A confirmed native balance accounts for everything through its settled
-    // height, including transfers buried in a downtime gap. Advancing there
+    // A confirmed balance accounts for everything through its settled height,
+    // including transfers buried in a downtime gap. Advancing there
     // avoids replaying one block-body RPC per historical block. The final
     // confirmation window is deliberately left for the ordinary scanner, so a
     // recent payment is never skipped before it becomes visible in a balance.
-    const reconciledTo = isNative ? this.#settledBlock(head.number) : undefined;
+    const reconciledTo = reconcileBalance ? this.#settledBlock(head.number) : undefined;
     const cursorTo = max(hasNewBlocks ? to : start, reconciledTo ?? start);
 
     // Written last: a crash before this line repeats the scan and balance read,
@@ -224,7 +224,9 @@ export class WalletWatcher {
     now: Date,
   ): Promise<number> {
     const addresses = watched
-      .filter((entry) => entry.fundable && entry.asset === asset)
+      // Terminal addresses remain watched through the retention window so a
+      // late payment is still an auditable deposit, even though it cannot fund.
+      .filter((entry) => entry.asset === asset)
       .map((entry) => entry.address);
     if (addresses.length === 0) return 0;
 
@@ -233,7 +235,7 @@ export class WalletWatcher {
     const block = this.#settledBlock(headNumber);
     if (block === undefined) return 0;
 
-    const balances = await this.#client.nativeBalances({ chain, asset, addresses, block });
+    const balances = await this.#client.balances({ chain, asset, addresses, block });
 
     const logs: TransferLog[] = [];
     for (const balance of balances) {

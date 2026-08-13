@@ -38,6 +38,7 @@ import {
   signOrder,
 } from "@mayarin/quote";
 import {
+  add,
   assetDecimals,
   type Clock,
   ConfigurationError,
@@ -64,6 +65,8 @@ export interface ContractLayerOptions {
    */
   readonly quote: () => Promise<QuoteLayer>;
   readonly fees: FeePolicy;
+  /** Reimburses successful relayed submissions; payer-submitted calls skip it. */
+  readonly relayerGasFees: FeePolicy;
   readonly stablecoins: StablecoinRegistry;
   /**
    * Where each merchant is paid. Read per lock rather than configured once:
@@ -155,10 +158,18 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     });
 
     const settlementAmount = fiat.settlement.settlementAmount;
-    const fee = fees.feeFor(settlementAmount, {
+    const protocolFee = fees.feeFor(settlementAmount, {
       merchantId: request.merchantId,
       provider: "payment-router",
     });
+    const gasFee =
+      request.submission === "relayer"
+        ? this.#options.relayerGasFees.feeFor(settlementAmount, {
+            merchantId: request.merchantId,
+            provider: "payment-router-gas",
+          })
+        : money(0n, settlementAmount.asset);
+    const fee = add(protocolFee, gasFee);
 
     const now = clock.now();
     const domain: OrderDomain = {

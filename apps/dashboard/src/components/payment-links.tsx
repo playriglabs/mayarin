@@ -30,6 +30,7 @@ import {
   CheckIcon,
   CopyIcon,
   LinkIcon,
+  PackageIcon,
   PlusIcon,
   QrCodeIcon,
   ShareNetworkIcon,
@@ -51,7 +52,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { CursorPagination } from "@/components/ui/cursor-pagination";
 import {
   Dialog,
@@ -71,7 +73,6 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
 import {
@@ -106,7 +107,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
 import { PAGE_SIZE } from "@/lib/pagination";
-import { currencyLabel, isValidAmount, PRICING_CURRENCIES, symbolOf } from "@/lib/pricing";
+import { currencyLabel, isValidAmount, PRICING_CURRENCIES } from "@/lib/pricing";
 import { withQuery } from "@/lib/with-query";
 import type { PaymentLinkDto, PaymentLinkKind, QuoteResponse } from "@/types/catalog";
 
@@ -214,7 +215,7 @@ function PaymentLinks() {
   }));
 
   const canCreate = match(draft.kind)
-    .with("fixed", () => isValidAmount(draft.amount))
+    .with("fixed", () => isValidAmount(draft.amount, draft.currency))
     .with("open", () => true)
     .with("catalog", () => draft.productId !== "" && Number(draft.quantity) > 0)
     .exhaustive();
@@ -478,7 +479,7 @@ function PaymentLinks() {
         )}
 
       <Dialog open={creating} onOpenChange={(next) => !next && setCreating(false)}>
-        <DialogContent>
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New payment link</DialogTitle>
             <DialogDescription>
@@ -546,16 +547,13 @@ function PaymentLinks() {
             {draft.kind === "fixed" && (
               <Field>
                 <FieldLabel htmlFor="link-amount">Amount</FieldLabel>
-                <InputGroup>
-                  <InputGroupAddon aria-hidden={false}>{symbolOf(draft.currency)}</InputGroupAddon>
-                  <InputGroupInput
-                    id="link-amount"
-                    inputMode="decimal"
-                    value={draft.amount}
-                    onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
-                    placeholder="50000"
-                  />
-                </InputGroup>
+                <CurrencyInput
+                  id="link-amount"
+                  asset={draft.currency}
+                  value={draft.amount}
+                  onValueChange={(amount) => setDraft({ ...draft, amount })}
+                  placeholder="50.000,00"
+                />
               </Field>
             )}
 
@@ -563,38 +561,65 @@ function PaymentLinks() {
               <>
                 <Field>
                   <FieldLabel htmlFor="link-product">Product</FieldLabel>
-                  <Select
-                    items={productOptions}
-                    value={draft.productId}
-                    onValueChange={(next) => setDraft({ ...draft, productId: next })}
-                  >
-                    <SelectTrigger id="link-product">
-                      <SelectValue placeholder="Select a product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {activeProducts.length === 0 && (
-                    <FieldDescription>
-                      No active products yet — add one in the catalog first.
-                    </FieldDescription>
+                  {products.isPending ? (
+                    <PageLoader label="Loading products" className="min-h-24" size={24} />
+                  ) : products.isError ? (
+                    <QueryError
+                      message={
+                        products.error instanceof ApiError
+                          ? products.error.message
+                          : "Failed to load products"
+                      }
+                      retry={() => void products.refetch()}
+                      retrying={products.isFetching}
+                    />
+                  ) : productOptions.length === 0 ? (
+                    <Empty className="gap-1 px-4 py-6">
+                      <EmptyMedia>
+                        <PackageIcon size={ICON_CARD} aria-hidden="true" />
+                      </EmptyMedia>
+                      <EmptyTitle>No active products.</EmptyTitle>
+                      <EmptyDescription>
+                        Add or activate a product before creating a catalog payment link.
+                      </EmptyDescription>
+                      <EmptyAction className="mt-3">
+                        <a href="/catalog" className={buttonVariants({ size: "sm" })}>
+                          <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          Add a product
+                        </a>
+                      </EmptyAction>
+                    </Empty>
+                  ) : (
+                    <Select
+                      items={productOptions}
+                      value={draft.productId}
+                      onValueChange={(next) => setDraft({ ...draft, productId: next })}
+                    >
+                      <SelectTrigger id="link-product">
+                        <SelectValue placeholder="Select a product" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {productOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 </Field>
 
-                <Field>
-                  <FieldLabel htmlFor="link-quantity">Quantity</FieldLabel>
-                  <Input
-                    id="link-quantity"
-                    inputMode="numeric"
-                    value={draft.quantity}
-                    onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
-                  />
-                </Field>
+                {productOptions.length > 0 && (
+                  <Field>
+                    <FieldLabel htmlFor="link-quantity">Quantity</FieldLabel>
+                    <Input
+                      id="link-quantity"
+                      inputMode="numeric"
+                      value={draft.quantity}
+                      onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
+                    />
+                  </Field>
+                )}
               </>
             )}
 
@@ -687,27 +712,25 @@ function PaymentLinks() {
               {charging?.kind === "open" && (
                 <Field>
                   <FieldLabel htmlFor="charge-amount">Amount</FieldLabel>
-                  <InputGroup>
-                    <InputGroupAddon aria-hidden={false}>
-                      {symbolOf(charging.currency ?? "IDR")}
-                    </InputGroupAddon>
-                    <InputGroupInput
-                      id="charge-amount"
-                      inputMode="decimal"
-                      value={chargeAmount}
-                      // Priced when the field is left rather than on every
-                      // keystroke: each quote is a rate lookup, and pricing
-                      // "7", "75", "750" costs three of them to show two
-                      // numbers nobody read.
-                      onBlur={() => {
-                        if (charging !== null && isValidAmount(chargeAmount)) {
-                          void priceIt(charging, chargeAmount.trim());
-                        }
-                      }}
-                      onChange={(e) => setChargeAmount(e.target.value)}
-                      placeholder="75000"
-                    />
-                  </InputGroup>
+                  <CurrencyInput
+                    id="charge-amount"
+                    asset={charging.currency ?? "IDR"}
+                    value={chargeAmount}
+                    // Priced when the field is left rather than on every
+                    // keystroke: each quote is a rate lookup, and pricing
+                    // "7", "75", "750" costs three of them to show two
+                    // numbers nobody read.
+                    onBlur={() => {
+                      if (
+                        charging !== null &&
+                        isValidAmount(chargeAmount, charging.currency ?? "IDR")
+                      ) {
+                        void priceIt(charging, chargeAmount.trim());
+                      }
+                    }}
+                    onValueChange={setChargeAmount}
+                    placeholder="75.000,00"
+                  />
                   <FieldDescription>
                     What this customer owes, in your own currency.
                   </FieldDescription>
@@ -774,7 +797,8 @@ function PaymentLinks() {
                   chargeAsset === "" ||
                   charge.isPending ||
                   quote.isPending ||
-                  (charging?.kind === "open" && !isValidAmount(chargeAmount)) ||
+                  (charging?.kind === "open" &&
+                    !isValidAmount(chargeAmount, charging.currency ?? "IDR")) ||
                   selectedQuote?.available === false
                 }
               >

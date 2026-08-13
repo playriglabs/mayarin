@@ -43,18 +43,15 @@ export interface ChainClient {
   /**
    * Balances of watched addresses at a settled height (#15).
    *
-   * The complement to `transfers` for a native asset. A block body lists only
-   * top-level transactions, so ETH moved by a contract — a smart-contract
-   * wallet, an exchange sweeping through a router — arrives as an internal call
-   * and is invisible to that scan. Smart-contract wallets are not an edge case
-   * any more, and a payer whose transfer is never noticed is a payer who paid
-   * and was told they did not.
+   * The downtime complement to `transfers`. For native assets it also covers
+   * internal value movement that block bodies cannot see; for ERC-20 it avoids
+   * replaying thousands of historical log windows after the worker restarts.
    *
    * A balance sees value however it arrived, at the cost of saying nothing
    * about how: no sender, no transaction. Read at a height already past the
    * confirmation depth, so what it reports is settled by construction.
    */
-  nativeBalances(query: BalanceQuery): Promise<NativeBalance[]>;
+  balances(query: BalanceQuery): Promise<AssetBalance[]>;
   /** `PaymentCompleted` logs emitted by the router in the range. */
   settlements(query: SettlementQuery): Promise<SettlementLog[]>;
 }
@@ -74,7 +71,7 @@ export interface BalanceQuery {
 }
 
 /** What an address holds at one settled block. */
-export interface NativeBalance {
+export interface AssetBalance {
   readonly address: string;
   readonly amount: bigint;
   readonly blockNumber: bigint;

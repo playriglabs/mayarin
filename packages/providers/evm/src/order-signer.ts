@@ -3,8 +3,8 @@
  *
  * **Not for production.** The private key is held in this process, so anything
  * that can read the process can authorize settlement amounts. Production signing
- * goes through Turnkey (`@mayarin/provider-turnkey`), where the key stays in an
- * enclave and a policy engine gates each signature — see `docs/quote-signing.md`.
+ * goes through AWS KMS, where the key remains non-exportable and IAM gates each
+ * signature — see `docs/quote-signing.md`.
  *
  * This exists so a developer can run the quote path end to end without Turnkey
  * credentials. The composition root must refuse to wire it outside development;

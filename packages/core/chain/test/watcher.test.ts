@@ -58,15 +58,10 @@ function createHarness() {
     policy: { depth: 6, reorgWatchWindow: 2 },
     blockRange: 2000,
     retentionSeconds: 86_400,
+    tokenBalanceCatchUp: true,
   });
 
-  /**
-   * A second watcher over the chain's own currency, sharing every repository.
-   *
-   * Native is the only asset that gets the balance reconciliation, so it needs
-   * its own watcher to exercise: an ERC-20 emits a `Transfer` log however it
-   * moves and is already covered by the scan.
-   */
+  /** A second watcher exercises the native block-body scan. */
   const nativeWatcher = new WalletWatcher({
     client: chain,
     addresses,
@@ -381,16 +376,16 @@ describe("WalletWatcher", () => {
       expect(second.recorded).toBe(0);
     });
 
-    test("an ERC-20 payment gets no balance reconciliation", async () => {
+    test("an ERC-20 payment beyond the scan range is reconciled without replaying downtime", async () => {
       const address = await harness.awaitingPayment();
-      harness.chain.creditInternally(address, REQUIRED.amount);
+      harness.chain.mine(2_000);
+      harness.chain.transfer({ asset: ASSET, to: address, amount: REQUIRED.amount });
       harness.chain.mine(8);
 
-      // A token emits a Transfer log however it moves, so `eth_getLogs` already
-      // sees an internal call and a balance would add nothing.
       const result = await harness.watcher.tick(CHAIN, ASSET);
-      expect(result.recorded).toBe(0);
-      expect(harness.funded).toEqual([]);
+      expect(result.scannedTo).toBe(result.headNumber - 6n);
+      expect(result.recorded).toBe(1);
+      expect(harness.funded).toEqual(["clr_1"]);
     });
   });
 });
