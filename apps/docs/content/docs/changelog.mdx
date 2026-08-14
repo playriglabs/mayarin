@@ -1,0 +1,48 @@
+---
+title: Changelog
+description: How the Mayarin API version axes work and what each revision changes.
+---
+
+The public API has two version axes. They do not replace each other.
+
+## Path — the breaking boundary
+
+`/v1` is the breaking boundary. A future `/v2` is a new URL: a client opts in,
+and the old surface stays up beside it. Every route in the [API reference](/api-reference)
+is served under `/v1`.
+
+## `Mayarin-Version` — the date rev within v1
+
+The `Mayarin-Version` header is the date revision within `/v1`. It covers
+additive change: a new field, a new route, a new response shape that does not
+break an existing client. The SDK pins it (`packages/sdk/src/version.ts`) so an
+upgrade is a deliberate act, not a side effect of deploying the library.
+
+Send the header to pin a revision:
+
+```http
+Mayarin-Version: 2026-08-11
+```
+
+Omit it and you receive the current revision. A pinned revision keeps working
+after additive changes ship; an additive change never removes a field or alters
+a type an existing client reads.
+
+## Unversioned routes
+
+These stay at the root forever. A printed QR and a shared link encode them, so a
+version bump must never move them:
+
+- `GET /checkout/:id` and sub-routes — the hosted checkout page.
+- `GET /invoices/:id/view` — the hosted invoice page.
+- `GET /health` — the deployment probe.
+
+A buyer page has no version. It renders whatever the current API serves.
+
+## Revisions
+
+### 2026-08-11
+
+Initial public revision of the `/v1` merchant API. Covers payment intents,
+payments and refunds, quotes, catalog and carts, payment links, invoices,
+provider webhooks, and the intentionally unversioned buyer surfaces.

@@ -111,6 +111,25 @@ body {
   font-size: 0.86em;
 }
 
+/* Standalone fumadocs <Card> blocks stacked in prose get top spacing. The
+   <Cards> grid already gaps its children, so only target direct children. */
+.prose > [data-card] {
+  margin-top: calc(var(--spacing) * 2);
+}
+
+/* OpenAPI section headings (Path Parameters, Request Body, Responses, …) sit
+   flush against the card above because fumadocs-openapi stamps them with
+   `my-0!`. Restore top spacing inside the API reference content only. The
+   description paragraph right before such a heading gets the same top spacing
+   from the card above it. */
+.api-reference-content [class~="group/heading"] {
+  margin-top: calc(var(--spacing) * 2) !important;
+}
+
+.api-reference-content p:has(+ [class~="group/heading"]) {
+  margin-top: calc(var(--spacing) * 3);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

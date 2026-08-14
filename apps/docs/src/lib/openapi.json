@@ -1,0 +1,3516 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mayarin API",
+    "version": "2026-08-11",
+    "description": "Create fiat-denominated commerce requests, accept supported crypto assets, and settle merchants in stablecoins. Versioned operations live under `/v1`; buyer-facing checkout, invoice, and health routes are intentionally unversioned."
+  },
+  "servers": [
+    {
+      "url": "https://api.mayarin.xyz",
+      "description": "Mainnet"
+    },
+    {
+      "url": "https://api-testnet.mayarin.xyz",
+      "description": "Testnet"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Payment intents",
+      "description": "Immutable requests for payment."
+    },
+    {
+      "name": "Payments",
+      "description": "Clearing status, execution, and refunds."
+    },
+    {
+      "name": "Quotes",
+      "description": "Payer-asset previews and guarded pricing."
+    },
+    {
+      "name": "Catalog",
+      "description": "Merchant products and cart checkout."
+    },
+    {
+      "name": "Payment links",
+      "description": "Shareable hosted checkout links."
+    },
+    {
+      "name": "Invoices",
+      "description": "Numbered requests with buyers and due dates."
+    },
+    {
+      "name": "Webhooks",
+      "description": "Provider signals into Mayarin."
+    },
+    {
+      "name": "Unversioned",
+      "description": "Buyer-facing routes that stay at the root forever. A printed QR and a shared link encode them, so a version bump must never move them."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "secretKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Server-side `sk_` key. Grants a subset of the merchant's permissions."
+      },
+      "publishableOrSecretKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Browser-safe `pk_` key, or a stronger server-side `sk_` key. Identifies the merchant for catalog read and cart checkout; carries no permissions."
+      }
+    },
+    "schemas": {
+      "Merchant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "countryCode": {
+            "type": "string"
+          },
+          "categoryCode": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "city", "countryCode"]
+      },
+      "Money": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "Exact minor units. Calculate with this value."
+          },
+          "asset": {
+            "type": "string",
+            "description": "ISO asset code, e.g. IDR, IDRX, USDC."
+          },
+          "formatted": {
+            "type": "string",
+            "description": "Machine decimal; ungrouped and dot-separated."
+          },
+          "display": {
+            "type": "string",
+            "description": "Localized display text. Never parse this value."
+          }
+        },
+        "required": ["amount", "asset", "formatted", "display"]
+      },
+      "PaymentRail": {
+        "type": ["object", "null"],
+        "properties": {
+          "asset": {
+            "type": "string"
+          },
+          "chain": {
+            "type": "string"
+          },
+          "payerAddress": {
+            "type": "string"
+          }
+        },
+        "required": ["asset", "chain"]
+      },
+      "PaymentIntent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Payment intent lifecycle state."
+          },
+          "merchant": {
+            "$ref": "#/components/schemas/Merchant"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "settlementAsset": {
+            "type": "string"
+          },
+          "provider": {
+            "type": ["string", "null"]
+          },
+          "payment": {
+            "$ref": "#/components/schemas/PaymentRail"
+          },
+          "executionPath": {
+            "type": ["string", "null"]
+          },
+          "source": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "merchantReference": {
+            "type": ["string", "null"]
+          },
+          "clearingTransactionId": {
+            "type": ["string", "null"]
+          },
+          "failureReason": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "confirmedAt": {
+            "type": ["string", "null"]
+          },
+          "completedAt": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "merchant",
+          "amount",
+          "settlementAsset",
+          "provider",
+          "payment",
+          "executionPath",
+          "source",
+          "metadata",
+          "merchantReference",
+          "clearingTransactionId",
+          "failureReason",
+          "createdAt",
+          "updatedAt",
+          "expiresAt",
+          "confirmedAt",
+          "completedAt"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": ["code", "message", "retryable"]
+          }
+        },
+        "required": ["error"]
+      },
+      "Clearing": {
+        "type": ["object", "null"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "Clearing transaction state."
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerReference": {
+            "type": ["string", "null"]
+          },
+          "transactionHash": {
+            "type": ["string", "null"]
+          },
+          "sourceAmount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "settlementAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": ["object", "null"]
+              }
+            ]
+          },
+          "fee": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": ["object", "null"]
+              }
+            ]
+          },
+          "netAmount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": ["object", "null"]
+              }
+            ]
+          },
+          "rate": {
+            "type": ["object", "null"],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "scaledRate": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "lockedAt": {
+                "type": "string"
+              }
+            },
+            "required": ["from", "to", "scaledRate", "source", "lockedAt"]
+          },
+          "failure": {
+            "type": ["object", "null"],
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              }
+            },
+            "required": ["reason", "code", "at"]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "provider",
+          "providerReference",
+          "transactionHash",
+          "sourceAmount",
+          "settlementAmount",
+          "fee",
+          "netAmount",
+          "rate",
+          "failure",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "Deposit": {
+        "type": ["object", "null"],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "chain": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "uri": {
+            "type": ["string", "null"],
+            "description": "EIP-681 payment URI for a QR, or null when none can be built safely."
+          },
+          "received": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "required": {
+            "type": "integer"
+          },
+          "reviewRequired": {
+            "type": "boolean"
+          },
+          "deposits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "txHash": {
+                  "type": ["string", "null"]
+                },
+                "logIndex": {
+                  "type": "integer"
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/Money"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "confirmations": {
+                  "type": "integer"
+                },
+                "firstSeenAt": {
+                  "type": "string"
+                }
+              },
+              "required": ["txHash", "logIndex", "amount", "status", "confirmations", "firstSeenAt"]
+            }
+          }
+        },
+        "required": [
+          "address",
+          "chain",
+          "asset",
+          "amount",
+          "uri",
+          "received",
+          "required",
+          "reviewRequired",
+          "deposits"
+        ]
+      },
+      "Payment": {
+        "type": "object",
+        "properties": {
+          "paymentIntent": {
+            "$ref": "#/components/schemas/PaymentIntent"
+          },
+          "clearing": {
+            "$ref": "#/components/schemas/Clearing"
+          },
+          "deposit": {
+            "$ref": "#/components/schemas/Deposit"
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sequence": {
+                  "type": "integer"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "from": {
+                  "type": ["string", "null"]
+                },
+                "occurredAt": {
+                  "type": "string"
+                }
+              },
+              "required": ["sequence", "state", "from", "occurredAt"]
+            }
+          }
+        },
+        "required": ["paymentIntent", "clearing", "deposit", "timeline"]
+      },
+      "ContractCall": {
+        "type": "object",
+        "properties": {
+          "chain": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "string"
+          },
+          "paymentRouter": {
+            "type": "string"
+          },
+          "order": {
+            "type": "object",
+            "properties": {
+              "intentId": {
+                "type": "string"
+              },
+              "settlementToken": {
+                "type": "string"
+              },
+              "minOut": {
+                "type": "string"
+              },
+              "fee": {
+                "type": "string"
+              },
+              "merchantSafe": {
+                "type": "string"
+              },
+              "refundTo": {
+                "type": "string"
+              },
+              "deadline": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "intentId",
+              "settlementToken",
+              "minOut",
+              "fee",
+              "merchantSafe",
+              "refundTo",
+              "deadline"
+            ]
+          },
+          "signature": {
+            "type": "string"
+          },
+          "route": {
+            "type": ["object", "null"],
+            "properties": {
+              "router": {
+                "type": "string"
+              },
+              "callData": {
+                "type": "string"
+              },
+              "expectedIn": {
+                "type": "string"
+              },
+              "expiresAt": {
+                "type": "string"
+              }
+            },
+            "required": ["router", "callData", "expectedIn"]
+          },
+          "transaction": {
+            "type": ["object", "null"],
+            "properties": {
+              "to": {
+                "type": "string"
+              },
+              "data": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": ["to", "data", "value"],
+            "description": "Ready payEth call for a native payer; null for an ERC-20 payer."
+          },
+          "payerEstimate": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "chain",
+          "chainId",
+          "paymentRouter",
+          "order",
+          "signature",
+          "route",
+          "transaction",
+          "payerEstimate",
+          "expiresAt"
+        ]
+      },
+      "Refund": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "paymentIntentId": {
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "state": {
+            "type": "string"
+          },
+          "reason": {
+            "type": ["string", "null"]
+          },
+          "providerReference": {
+            "type": ["string", "null"]
+          },
+          "failureReason": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "paymentIntentId",
+          "amount",
+          "state",
+          "reason",
+          "providerReference",
+          "failureReason",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "quotes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "asset": {
+                  "type": "string"
+                },
+                "amount": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Money"
+                    },
+                    {
+                      "type": ["object", "null"]
+                    }
+                  ]
+                },
+                "rate": {
+                  "type": ["object", "null"],
+                  "properties": {
+                    "scaledRate": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["source"]
+                },
+                "available": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["asset", "amount", "rate", "available"]
+            }
+          }
+        },
+        "required": ["source", "quotes"]
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": ["string", "null"]
+          },
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Money"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "merchantId",
+          "sku",
+          "name",
+          "description",
+          "prices",
+          "active",
+          "metadata",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "PaymentLink": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "fixed, open, or catalog"
+          },
+          "merchant": {
+            "$ref": "#/components/schemas/Merchant"
+          },
+          "amount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": ["object", "null"]
+              }
+            ]
+          },
+          "currency": {
+            "type": ["string", "null"]
+          },
+          "lines": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer"
+                }
+              },
+              "required": ["productId", "quantity"]
+            }
+          },
+          "title": {
+            "type": ["string", "null"]
+          },
+          "merchantReference": {
+            "type": ["string", "null"]
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": "string"
+          },
+          "payable": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "type": ["string", "null"]
+          },
+          "disabledAt": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "merchant",
+          "amount",
+          "currency",
+          "lines",
+          "title",
+          "merchantReference",
+          "metadata",
+          "url",
+          "payable",
+          "expiresAt",
+          "disabledAt",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "Invoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "merchant": {
+            "$ref": "#/components/schemas/Merchant"
+          },
+          "number": {
+            "type": ["string", "null"]
+          },
+          "sequence": {
+            "type": ["integer", "null"]
+          },
+          "state": {
+            "type": "string",
+            "description": "DRAFT, ISSUED, PAID, or VOID."
+          },
+          "buyer": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": ["string", "null"]
+              },
+              "taxId": {
+                "type": ["string", "null"]
+              },
+              "address": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["name", "email", "taxId", "address"]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": ["string", "null"]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "unitPrice": {
+                  "$ref": "#/components/schemas/Money"
+                },
+                "quantity": {
+                  "type": "integer"
+                }
+              },
+              "required": ["productId", "name", "unitPrice", "quantity"]
+            }
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "notes": {
+            "type": ["string", "null"]
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": ["string", "null"]
+          },
+          "dueAt": {
+            "type": ["string", "null"]
+          },
+          "voidedAt": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "merchantId",
+          "merchant",
+          "number",
+          "sequence",
+          "state",
+          "buyer",
+          "currency",
+          "lines",
+          "total",
+          "notes",
+          "metadata",
+          "url",
+          "issuedAt",
+          "dueAt",
+          "voidedAt",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "InvoiceView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Invoice"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "description": "Derived payment status: DRAFT, ISSUED, PARTIALLY_PAID, PAID, or VOID."
+              },
+              "paid": {
+                "$ref": "#/components/schemas/Money"
+              },
+              "outstanding": {
+                "$ref": "#/components/schemas/Money"
+              }
+            },
+            "required": ["status", "paid", "outstanding"]
+          }
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/v1/payment-intents": {
+      "post": {
+        "tags": ["Payment intents"],
+        "operationId": "createPaymentIntent",
+        "summary": "Create a payment intent",
+        "description": "Creates an immutable fiat-denominated payment request. Reusing an idempotency key with the same body returns the original intent; the same key with different parameters is a 409.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "qr": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "merchant": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "city": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "countryCode": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 2
+                      },
+                      "categoryCode": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["id", "name", "city", "countryCode"]
+                  },
+                  "amount": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      }
+                    },
+                    "required": ["amount", "asset"]
+                  },
+                  "payment": {
+                    "type": "object",
+                    "properties": {
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      },
+                      "chain": {
+                        "type": "string",
+                        "enum": ["base", "base-sepolia"]
+                      },
+                      "payerAddress": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      }
+                    },
+                    "required": ["asset", "chain"]
+                  },
+                  "settlementAsset": {
+                    "type": "string",
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "IDRX",
+                      "USDC",
+                      "USDT",
+                      "ETH",
+                      "BTC"
+                    ]
+                  },
+                  "executionPath": {
+                    "type": "string",
+                    "enum": ["deposit-match", "on-chain-contract"]
+                  },
+                  "provider": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "merchantReference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment intent created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict or state conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment-intents/{id}": {
+      "get": {
+        "tags": ["Payment intents"],
+        "operationId": "getPaymentIntent",
+        "summary": "Get a payment intent",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current intent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No intent with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment-intents/{id}/confirm": {
+      "post": {
+        "tags": ["Payment intents"],
+        "operationId": "confirmPaymentIntent",
+        "summary": "Confirm a payment intent",
+        "description": "Confirms the intent and hands it to the clearing engine. Safe to retry: confirming an intent that is already clearing returns its current position rather than starting a second one.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current payment and clearing state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No intent with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}": {
+      "get": {
+        "tags": ["Payments"],
+        "operationId": "getPayment",
+        "summary": "Get payment status",
+        "description": "Accepts a payment intent id (`pi_…`) or clearing transaction id (`clr_…`).",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment, clearing state, deposit, and timeline.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payment"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No payment with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}/contract-call": {
+      "get": {
+        "tags": ["Payments"],
+        "operationId": "getPaymentContractCall",
+        "summary": "Get fresh contract call data",
+        "description": "Returns the signed EIP-712 order, the deployed PaymentRouter address and chain, and a fresh executable route for an on-chain-contract payment. A 404 means the contract path is not enabled; a 410 means the quote lock expired — request a new payment.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed order and submit payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractCall"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Contract path not enabled, or no such payment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Quote lock expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}/refunds": {
+      "get": {
+        "tags": ["Payments"],
+        "operationId": "listPaymentRefunds",
+        "summary": "List refunds for a payment",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refund records.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Refund"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No payment with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Payments"],
+        "operationId": "createPaymentRefund",
+        "summary": "Create a refund",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      }
+                    },
+                    "required": ["amount", "asset"]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Refund created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refund"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or non-refundable state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No payment with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/quotes": {
+      "post": {
+        "tags": ["Quotes"],
+        "operationId": "createQuote",
+        "summary": "Preview payer-asset quotes",
+        "description": "Indicative preview of what a payment would cost in each payer asset. An asset the rate provider cannot price is returned as an unavailable line rather than failing the request.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      }
+                    },
+                    "required": ["amount", "asset"]
+                  },
+                  "assets": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "IDR",
+                        "USD",
+                        "SGD",
+                        "THB",
+                        "MYR",
+                        "IDRX",
+                        "USDC",
+                        "USDT",
+                        "ETH",
+                        "BTC"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
+                  }
+                },
+                "required": ["amount", "assets"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Guarded quote preview.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/catalog/products": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "listProducts",
+        "summary": "List catalog products",
+        "security": [
+          {
+            "publishableOrSecretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "merchantId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Merchant products.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Product"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Catalog"],
+        "operationId": "createProduct",
+        "summary": "Create a product",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "merchantId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sku": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "prices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "type": "string"
+                        },
+                        "asset": {
+                          "type": "string",
+                          "enum": [
+                            "IDR",
+                            "USD",
+                            "SGD",
+                            "THB",
+                            "MYR",
+                            "IDRX",
+                            "USDC",
+                            "USDT",
+                            "ETH",
+                            "BTC"
+                          ]
+                        }
+                      },
+                      "required": ["amount", "asset"]
+                    },
+                    "minItems": 1
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["merchantId", "sku", "name", "prices"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/catalog/products/{id}": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "getProduct",
+        "summary": "Get a product",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No product with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Catalog"],
+        "operationId": "updateProduct",
+        "summary": "Update a product",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "description": {
+                    "type": ["string", "null"],
+                    "maxLength": 2000
+                  },
+                  "prices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "type": "string"
+                        },
+                        "asset": {
+                          "type": "string",
+                          "enum": [
+                            "IDR",
+                            "USD",
+                            "SGD",
+                            "THB",
+                            "MYR",
+                            "IDRX",
+                            "USDC",
+                            "USDT",
+                            "ETH",
+                            "BTC"
+                          ]
+                        }
+                      },
+                      "required": ["amount", "asset"]
+                    },
+                    "minItems": 1
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No product with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/carts/checkout": {
+      "post": {
+        "tags": ["Catalog"],
+        "operationId": "checkoutCart",
+        "summary": "Check out a cart",
+        "security": [
+          {
+            "publishableOrSecretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "settlementAsset": {
+                    "type": "string",
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "IDRX",
+                      "USDC",
+                      "USDT",
+                      "ETH",
+                      "BTC"
+                    ]
+                  },
+                  "provider": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "payment": {
+                    "type": "object",
+                    "properties": {
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      },
+                      "chain": {
+                        "type": "string",
+                        "enum": ["base", "base-sepolia"]
+                      },
+                      "payerAddress": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      }
+                    },
+                    "required": ["asset", "chain"]
+                  },
+                  "executionPath": {
+                    "type": "string",
+                    "enum": ["deposit-match", "on-chain-contract"]
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "merchantReference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "merchant": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "city": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "countryCode": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 2
+                      },
+                      "categoryCode": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["id", "name", "city", "countryCode"]
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "IDRX",
+                      "USDC",
+                      "USDT",
+                      "ETH",
+                      "BTC"
+                    ]
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "productId": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "quantity": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0
+                            }
+                          },
+                          "required": ["productId", "quantity"]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "unitPrice": {
+                              "type": "object",
+                              "properties": {
+                                "amount": {
+                                  "type": "string"
+                                },
+                                "asset": {
+                                  "type": "string",
+                                  "enum": [
+                                    "IDR",
+                                    "USD",
+                                    "SGD",
+                                    "THB",
+                                    "MYR",
+                                    "IDRX",
+                                    "USDC",
+                                    "USDT",
+                                    "ETH",
+                                    "BTC"
+                                  ]
+                                }
+                              },
+                              "required": ["amount", "asset"]
+                            },
+                            "quantity": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0
+                            }
+                          },
+                          "required": ["name", "unitPrice", "quantity"]
+                        }
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": ["merchant", "currency", "lines"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment intent created from the cart.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment-links": {
+      "get": {
+        "tags": ["Payment links"],
+        "operationId": "listPaymentLinks",
+        "summary": "List payment links",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "merchantId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentLink"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Payment links"],
+        "operationId": "createPaymentLink",
+        "summary": "Create a payment link",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["fixed", "open", "catalog"]
+                  },
+                  "merchant": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "city": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "countryCode": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 2
+                      },
+                      "categoryCode": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["id", "name", "city", "countryCode"]
+                  },
+                  "amount": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      }
+                    },
+                    "required": ["amount", "asset"]
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "IDRX",
+                      "USDC",
+                      "USDT",
+                      "ETH",
+                      "BTC"
+                    ]
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "productId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": ["productId", "quantity"]
+                    },
+                    "minItems": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "merchantReference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": ["kind", "merchant"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment link created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment-links/{id}": {
+      "get": {
+        "tags": ["Payment links"],
+        "operationId": "getPaymentLink",
+        "summary": "Get a payment link",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentLink"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No link with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment-links/{id}/disable": {
+      "post": {
+        "tags": ["Payment links"],
+        "operationId": "disablePaymentLink",
+        "summary": "Disable a payment link",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disabled payment link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentLink"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No link with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment-links/{id}/checkout": {
+      "post": {
+        "tags": ["Payment links"],
+        "operationId": "checkoutPaymentLink",
+        "summary": "Check out a payment link",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "settlementAsset": {
+                    "type": "string",
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "IDRX",
+                      "USDC",
+                      "USDT",
+                      "ETH",
+                      "BTC"
+                    ]
+                  },
+                  "provider": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "payment": {
+                    "type": "object",
+                    "properties": {
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      },
+                      "chain": {
+                        "type": "string",
+                        "enum": ["base", "base-sepolia"]
+                      },
+                      "payerAddress": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      }
+                    },
+                    "required": ["asset", "chain"]
+                  },
+                  "executionPath": {
+                    "type": "string",
+                    "enum": ["deposit-match", "on-chain-contract"]
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "merchantReference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "amount": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      }
+                    },
+                    "required": ["amount", "asset"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment intent created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No link with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invoices": {
+      "get": {
+        "tags": ["Invoices"],
+        "operationId": "listInvoices",
+        "summary": "List invoices",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "merchantId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Invoice"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Invoices"],
+        "operationId": "createInvoice",
+        "summary": "Create a draft invoice",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "merchantId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "merchant": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "city": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "countryCode": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 2
+                      },
+                      "categoryCode": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["id", "name", "city", "countryCode"]
+                  },
+                  "buyer": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "email": {
+                        "type": "string",
+                        "maxLength": 320,
+                        "format": "email"
+                      },
+                      "taxId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "address": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": ["name"]
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "IDRX",
+                      "USDC",
+                      "USDT",
+                      "ETH",
+                      "BTC"
+                    ]
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "productId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "unitPrice": {
+                          "type": "object",
+                          "properties": {
+                            "amount": {
+                              "type": "string"
+                            },
+                            "asset": {
+                              "type": "string",
+                              "enum": [
+                                "IDR",
+                                "USD",
+                                "SGD",
+                                "THB",
+                                "MYR",
+                                "IDRX",
+                                "USDC",
+                                "USDT",
+                                "ETH",
+                                "BTC"
+                              ]
+                            }
+                          },
+                          "required": ["amount", "asset"]
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": ["name", "unitPrice", "quantity"]
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["merchantId", "merchant", "buyer", "currency", "lines"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Draft invoice created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invoices/{id}": {
+      "get": {
+        "tags": ["Invoices"],
+        "operationId": "getInvoice",
+        "summary": "Get an invoice",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice with derived paid/outstanding figures.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invoice with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Invoices"],
+        "operationId": "updateInvoice",
+        "summary": "Update a draft invoice",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "buyer": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "email": {
+                        "type": "string",
+                        "maxLength": 320,
+                        "format": "email"
+                      },
+                      "taxId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "address": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                      }
+                    },
+                    "required": ["name"]
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "productId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        },
+                        "unitPrice": {
+                          "type": "object",
+                          "properties": {
+                            "amount": {
+                              "type": "string"
+                            },
+                            "asset": {
+                              "type": "string",
+                              "enum": [
+                                "IDR",
+                                "USD",
+                                "SGD",
+                                "THB",
+                                "MYR",
+                                "IDRX",
+                                "USDC",
+                                "USDT",
+                                "ETH",
+                                "BTC"
+                              ]
+                            }
+                          },
+                          "required": ["amount", "asset"]
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": ["name", "unitPrice", "quantity"]
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invoice with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invoices/{id}/issue": {
+      "post": {
+        "tags": ["Invoices"],
+        "operationId": "issueInvoice",
+        "summary": "Issue an invoice",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dueAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "prefix": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  },
+                  "includeYear": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["dueAt"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Issued invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invoice with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invoices/{id}/void": {
+      "post": {
+        "tags": ["Invoices"],
+        "operationId": "voidInvoice",
+        "summary": "Void an invoice",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voided invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invoice with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invoices/{id}/checkout": {
+      "post": {
+        "tags": ["Invoices"],
+        "operationId": "checkoutInvoice",
+        "summary": "Check out an issued invoice",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "IDRX",
+                          "USDC",
+                          "USDT",
+                          "ETH",
+                          "BTC"
+                        ]
+                      }
+                    },
+                    "required": ["amount", "asset"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment intent created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIntent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invoice with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/webhooks/{provider}": {
+      "post": {
+        "tags": ["Webhooks"],
+        "operationId": "receiveProviderWebhook",
+        "summary": "Receive a provider webhook",
+        "description": "Provider callback surface. Integrators normally configure outbound merchant webhooks in the dashboard instead of calling this operation. The raw body is passed to the adapter so signatures verify over exactly the signed bytes.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "provider",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signal accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["ok"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["Unversioned"],
+        "operationId": "getHealth",
+        "summary": "Deployment health probe",
+        "description": "Intentionally unversioned. Stays at the root forever.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Healthy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/checkout/{id}": {
+      "get": {
+        "tags": ["Unversioned"],
+        "operationId": "getCheckoutPage",
+        "summary": "Hosted checkout page",
+        "description": "Intentionally unversioned. Renders the hosted checkout for a payment link. A printed QR and a shared link encode this URL, so a version bump must never move it.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checkout HTML page.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No link with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/checkout/pay/{intentId}": {
+      "get": {
+        "tags": ["Unversioned"],
+        "operationId": "getCheckoutPayPage",
+        "summary": "Hosted pay page for one intent",
+        "description": "Intentionally unversioned. Renders the pay flow for a single payment intent.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "intentId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pay HTML page.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/checkout/qr": {
+      "get": {
+        "tags": ["Unversioned"],
+        "operationId": "getCheckoutQr",
+        "summary": "Render a QR as SVG",
+        "description": "Intentionally unversioned. Renders an SVG QR for a `value` query string.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "value",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QR SVG image.",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/checkout/events/{intentId}": {
+      "get": {
+        "tags": ["Unversioned"],
+        "operationId": "getCheckoutEvents",
+        "summary": "Live payment status stream",
+        "description": "Intentionally unversioned. Server-Sent Events: the first frame carries the current status; later frames are a nudge (`event: payment`) that tells the client to re-read the payment. The stream closes once the payment is terminal.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "intentId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of payment status nudges.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoices/{id}/view": {
+      "get": {
+        "tags": ["Unversioned"],
+        "operationId": "getInvoiceViewPage",
+        "summary": "Hosted invoice page",
+        "description": "Intentionally unversioned. Renders the hosted invoice a buyer sees.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice HTML page.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invoice with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

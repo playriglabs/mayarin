@@ -9,7 +9,8 @@
     "guides",
     "sdk",
     "---Reference---",
-    "---API reference---",
-    "errors"
+    "api-reference",
+    "errors",
+    "changelog"
   ]
 }

@@ -3,20 +3,30 @@
 Public API and TypeScript SDK documentation for `docs.mayarin.xyz`.
 
 The application uses Astro with Fumadocs React islands. Authored guides live in
-`content/docs`; API reference pages are generated at runtime from the canonical
-OpenAPI 3.1 document in `src/lib/openapi.ts`; SDK type tables are derived from
+`content/docs`; API reference pages are generated from the canonical OpenAPI 3.1
+document in `src/lib/openapi.json`; SDK type tables are derived from
 `packages/sdk/src` with `fumadocs-typescript`.
+
+The OpenAPI document is **generated**, not hand-maintained. Request bodies are
+single-sourced from the live API Zod schemas in `apps/api/src/dto`; response
+schemas are authored in `scripts/generate-openapi.ts`. Run the generator after a
+route or DTO change and commit the result — CI fails when the checked-in
+artifact is stale.
 
 ## Commands
 
 ```bash
-bun run dev:docs       # from the repository root
+bun run dev:docs              # from the repository root
 bun run build:docs
+bun run docs:generate-openapi # regenerate src/lib/openapi.json
+bun run docs:openapi:check    # fail if the checked-in artifact is stale
 
 # or from apps/docs
 bun run dev
 bun run typecheck
 bun run build
+bun run generate
+bun run openapi:check
 ```
 
 ## Content rules

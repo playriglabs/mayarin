@@ -1,0 +1,31 @@
+---
+title: API Reference
+description: The Mayarin v1 merchant REST API, generated from the route schemas. Browse operations in the sidebar and try each one in the playground.
+---
+
+The Mayarin merchant REST API lives under `/v1`. Every operation below is
+generated from the live route schemas in `apps/api` — request shapes come from
+the same Zod schemas the server validates, so the reference cannot drift from
+the code.
+
+Each operation page has a **playground**: pick a server, set the auth key and
+parameters, and send a live request. Use `http://localhost:3000` against a
+local API or `https://api.mayarin.xyz` against the hosted surface.
+
+## Authentication
+
+`/v1` takes a bearer token. Merchant-scoped routes use a secret key (`sk_…`);
+buyer-facing routes take a publishable key (`pk_…`) where noted. See
+[Authentication](/guides/authentication).
+
+## Versioning
+
+Two axes: the `/v1` path (breaking boundary) and the `Mayarin-Version` header
+(additive date rev). See [Versioning](/concepts/versioning) and the
+[Changelog](/changelog).
+
+## Unversioned routes
+
+`/checkout/*`, `/invoices/:id/view`, and `/health` stay at the root forever —
+a printed QR or shared link encodes them, so a version bump never moves them.
+They appear here under the **Unversioned** group.

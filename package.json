@@ -17,6 +17,8 @@
     "build:blog": "bun run --cwd apps/blog build",
     "build:contracts-abi": "bun run --cwd packages/contracts/payment-router build && bun run --cwd packages/contracts/abis build:abi",
     "build:docs": "bun run --cwd apps/docs build",
+    "docs:generate-openapi": "bun run --cwd apps/docs generate",
+    "docs:openapi:check": "bun run --cwd apps/docs openapi:check",
     "build:landing": "bun run --cwd apps/landing build",
     "build:studio": "bun run --cwd apps/studio build",
     "check": "bun run format:check && bun run typecheck && bun test",

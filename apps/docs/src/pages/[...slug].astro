@@ -2,10 +2,10 @@
 import { render } from "astro:content";
 import type { TOCItemType } from "fumadocs-core/toc";
 import defaultMdxComponents from "fumadocs-ui/mdx";
-import { APIReference } from "@/components/api-reference";
 import { Docs } from "@/components/docs";
 import Layout from "@/components/layout.astro";
 import TypeTable from "@/components/type-table.astro";
+import { commitHash } from "@/lib/version";
 import { getPageImageUrl, source } from "@/lib/source";
 import "@/styles/global.css";
 
@@ -16,6 +16,7 @@ if (page === undefined) return Astro.redirect("/404");
 const authoredPage = page.data.type === "docs" ? page.data : undefined;
 const apiPage = page.data.type === "api" ? page.data : undefined;
 const authored = authoredPage === undefined ? undefined : await render(authoredPage._raw);
+const apiProps = apiPage === undefined ? undefined : apiPage.getOpenAPIPageProps();
 const toc: TOCItemType[] = authoredPage !== undefined
   ? (authored?.headings ?? []).map((heading) => ({
       depth: heading.depth,
@@ -39,10 +40,12 @@ const description = page.data.description ?? "Build programmable crypto-commerce
     pathname={Astro.url.pathname}
     params={Astro.params}
     page={{ toc, tableOfContent: { style: "clerk" } }}
+    apiProps={apiProps}
+    commitHash={commitHash}
     client:load
   >
     {
-      authoredPage !== undefined ? (
+      authoredPage !== undefined && (
         <>
           <header class="mb-10 border-b border-fd-border pb-8">
             <h1 class="docs-title text-2xl md:text-3xl">{page.data.title}</h1>
@@ -56,8 +59,6 @@ const description = page.data.description ?? "Build programmable crypto-commerce
             {authored && <authored.Content components={{ ...defaultMdxComponents, TypeTable }} />}
           </div>
         </>
-      ) : (
-        apiPage !== undefined && <APIReference {...apiPage.getOpenAPIPageProps()} />
       )
     }
   </Docs>

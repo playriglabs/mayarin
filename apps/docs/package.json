@@ -7,9 +7,12 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "generate": "bun run scripts/generate-openapi.ts",
+    "openapi:check": "bun run scripts/generate-openapi.ts && git diff --exit-code -- src/lib/openapi.json"
   },
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7",
     "@astrojs/cloudflare": "^12.6.13",
     "@astrojs/markdown-remark": "^6.3.10",
     "@astrojs/mdx": "^4.3.13",
@@ -25,8 +28,9 @@
     "react-dom": "^19.0.0",
     "sharp": "^0.34.5",
     "shiki": "^4.0.2",
+    "tailwindcss": "^4.1.18",
     "takumi-js": "^2.7.3",
-    "tailwindcss": "^4.1.18"
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
