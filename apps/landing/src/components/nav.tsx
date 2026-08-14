@@ -10,6 +10,8 @@ const links = [
   { label: "Use cases", href: "#use-cases" },
 ];
 
+const DASHBOARD_URL = "https://dashboard-testnet.mayarin.xyz/login";
+
 export function Nav() {
   const [lifted, setLifted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -26,6 +28,16 @@ export function Nav() {
     return () => {
       document.body.style.overflow = "";
     };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open]);
 
   // The sheet closes on navigation itself, so the links stay plain anchors.
@@ -66,16 +78,16 @@ export function Nav() {
         <div class="hidden justify-end lg:flex">
           <div class="flex items-center gap-2.5">
             <a
-              href="#start"
+              href="#early-access"
               class="btn-fill [--btn-fill:var(--color-ink)] inline-flex h-10 cursor-pointer items-center border border-ink bg-transparent px-5 text-sm font-medium text-ink transition-colors duration-200 hover:text-white"
             >
               Request demo
             </a>
             <a
-              href="/login"
+              href={DASHBOARD_URL}
               class="btn-fill [--btn-fill:var(--color-forest)] inline-flex h-10 cursor-pointer items-center gap-2 bg-ink px-5 text-sm font-medium text-white"
             >
-              Sign in
+              Dashboard
               <ArrowRight />
             </a>
           </div>
@@ -91,39 +103,69 @@ export function Nav() {
         >
           <svg viewBox="0 0 20 20" width="20" height="20" fill="none" aria-hidden="true">
             <path
-              d={open ? "M5 5l10 10M15 5L5 15" : "M2 6h16M2 14h16"}
+              d="M2 6h16"
               stroke="currentColor"
               stroke-width="1.5"
               stroke-linecap="square"
+              class={clsx(
+                "origin-center transition-transform duration-300 ease-out motion-reduce:transition-none",
+                open && "translate-y-1 rotate-45",
+              )}
+            />
+            <path
+              d="M2 14h16"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="square"
+              class={clsx(
+                "origin-center transition-transform duration-300 ease-out motion-reduce:transition-none",
+                open && "-translate-y-1 -rotate-45",
+              )}
             />
           </svg>
         </button>
       </div>
 
-      {open ? (
-        <div id="mobile-nav" class="border-t border-line bg-paper lg:hidden">
-          <nav aria-label="Primary" class="shell flex flex-col py-4">
+      <div
+        id="mobile-nav"
+        aria-hidden={!open}
+        inert={!open}
+        class={clsx(
+          "grid bg-paper transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none lg:hidden",
+          open
+            ? "grid-rows-[1fr] border-t border-line opacity-100"
+            : "pointer-events-none grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div class="min-h-0 overflow-hidden">
+          <nav
+            aria-label="Primary"
+            class={clsx(
+              "shell flex flex-col py-4 transition-transform duration-300 ease-out motion-reduce:transition-none",
+              open ? "translate-y-0" : "-translate-y-3",
+            )}
+          >
             {links.map((link) => (
               <a key={link.href} href={link.href} class="border-b border-line py-4 text-lg">
                 {link.label}
               </a>
             ))}
             <a
-              href="#start"
+              href="#early-access"
               class="btn-fill [--btn-fill:var(--color-ink)] mt-6 inline-flex h-12 items-center justify-center border border-ink bg-transparent px-5 text-sm font-medium text-ink transition-colors duration-200 hover:text-white"
             >
               Request demo
             </a>
             <a
-              href="/login"
+              href={DASHBOARD_URL}
               class="btn-fill [--btn-fill:var(--color-forest)] mt-2 mb-2 inline-flex h-12 items-center justify-center gap-2 bg-ink text-sm font-medium text-white"
             >
-              Sign in
+              Dashboard
               <ArrowRight />
             </a>
           </nav>
         </div>
-      ) : null}
+      </div>
     </header>
   );
 }

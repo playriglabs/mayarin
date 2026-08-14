@@ -44,11 +44,11 @@ export function Developers() {
             One resource to create, one signal to handle, one state machine behind both.
           </Lede>
           <div class="mt-8 flex flex-wrap gap-3">
-            <Button href="#start" variant="primary-dark">
+            <Button href="https://docs.mayarin.xyz" variant="primary-dark">
               Start building
               <ArrowRight />
             </Button>
-            <Button href="#start" variant="secondary-dark">
+            <Button href="https://docs.mayarin.xyz" variant="secondary-dark">
               API reference
             </Button>
           </div>

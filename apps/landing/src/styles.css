@@ -254,6 +254,8 @@
 /* Logo strip runs at every width, full-bleed on phones. */
 .marquee {
   animation: marquee 42s linear infinite;
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 .marquee:hover {
@@ -262,10 +264,10 @@
 
 @keyframes marquee {
   from {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translateX(-50%);
+    transform: translate3d(-50%, 0, 0);
   }
 }
 

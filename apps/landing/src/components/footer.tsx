@@ -14,10 +14,10 @@ const COLUMNS = [
   {
     heading: "Developers",
     links: [
-      { label: "Documentation", href: "#developers" },
-      { label: "API reference", href: "#developers" },
+      { label: "Documentation", href: "https://docs.mayarin.xyz" },
+      { label: "API reference", href: "https://docs.mayarin.xyz" },
       { label: "Architecture", href: "#architecture" },
-      { label: "Status", href: "#top" },
+      // { label: "Status", href: "#top" },
     ],
   },
   {
@@ -25,8 +25,6 @@ const COLUMNS = [
     links: [
       { label: "Use cases", href: "#use-cases" },
       { label: "Principles", href: "#principles" },
-      { label: "Contact", href: "#start" },
-      { label: "Pitchdeck", href: "/pitch-deck" },
     ],
   },
 ];
@@ -106,7 +104,7 @@ export function Footer() {
           <p class="text-xs text-slate">
             © {new Date().getFullYear()} Mayarin. All rights reserved.
           </p>
-          <p class="label text-slate">Money moves · Infrastructure orchestrates</p>
+          <p class="label text-slate leading-5">Money moves · Infrastructure orchestrates</p>
         </div>
       </div>
     </footer>

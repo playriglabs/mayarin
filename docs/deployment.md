@@ -40,9 +40,9 @@ Each target owns an isolated copy of the backend:
 | `chain-worker`  | Continuous wallet watcher and settlement indexer              |
 | `Postgres`      | Target-specific application state, cursors, ledger, and audit |
 
-The dashboard UI is deployed separately to Cloudflare Pages. Its API URL must
-point to the matching Railway target; a testnet UI must never call the mainnet
-dashboard API, or the reverse.
+The dashboard UI and static landing site are deployed separately to Cloudflare
+Pages. The dashboard API URL must point to the matching Railway target; a
+testnet UI must never call the mainnet dashboard API, or the reverse.
 
 ---
 
@@ -205,6 +205,27 @@ token scoped to `Zone / DNS / Edit` for `mayarin.xyz`. Never commit that token.
 After adding the CNAME, wait until the Pages custom-domain status is `active`
 and Cloudflare has provisioned its certificate before running the smoke checks.
 
+### Deploy the landing site
+
+The landing site is a static Vite application deployed manually to the
+`mayarin-landing` Cloudflare Pages project. Its target is recorded in
+`apps/landing/wrangler.jsonc`; it has no runtime API or environment variables.
+
+```bash
+nvm use 22
+wrangler login
+bun run deploy:landing
+```
+
+`deploy:landing` typechecks and builds the landing app, applies pending
+`mayarin-landing-early-access` D1 migrations, then uploads its `dist` directory.
+Wrangler requires Node.js 22 or newer. The Pages project is not connected to
+GitHub. List early-access submissions without exposing an admin HTTP route:
+
+```bash
+bun run --cwd apps/landing early-access:list
+```
+
 ### 7. Smoke the deployment
 
 For the current testnet deployment:
@@ -241,7 +262,6 @@ helper instead:
 railway login
 bun run db:check:railway
 bun run db:studio:railway
-bun run dev:dashboard:railway
 bun run dev:railway
 bun run seed:merchant:railway
 ```
@@ -252,11 +272,6 @@ runtime, verifies the connection, and injects `DATABASE_URL` into the selected
 local process. Credentials are kept in process memory and are neither printed
 nor written to `.env`.
 
-Use `bun run dev:dashboard:railway` for the merchant-to-checkout workflow: it
-runs the local dashboard, dashboard API, and core API against testnet Railway
-Postgres, without starting a second chain worker. Open the dashboard at
-`http://localhost:4321`; checkout links remain on the local API origin at
-`http://localhost:3000/checkout/:linkId`.
 Use `bun run dev:railway` when the core API, chain worker, dashboard API, and
 dashboard UI all need to run locally. Use `bun run db:migrate:railway` only
 after reviewing pending migrations; it changes the shared testnet database.

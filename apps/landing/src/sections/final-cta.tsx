@@ -19,11 +19,11 @@ export function FinalCta() {
         </Reveal>
 
         <Reveal delay={160} class="pointer-events-auto mt-12 flex flex-wrap items-center gap-3">
-          <Button href="#start" variant="primary-dark">
+          <Button href="https://docs.mayarin.xyz" variant="primary-dark">
             Start building
             <ArrowRight />
           </Button>
-          <Button href="#developers" variant="secondary-dark">
+          <Button href="https://docs.mayarin.xyz" variant="secondary-dark">
             Read documentation
           </Button>
         </Reveal>

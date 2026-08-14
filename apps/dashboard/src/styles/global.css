@@ -160,6 +160,13 @@
   --loader-color: var(--electric);
 }
 
+/* The login CTA keeps the shared default hover in light mode. Only an
+   explicitly selected dark theme promotes its hover to electric. */
+:root[data-theme="dark"] .login-submit:hover:not(:disabled) {
+  background-color: var(--electric);
+  color: #050505;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mayarin-square-loader * {
     animation-duration: 3s !important;

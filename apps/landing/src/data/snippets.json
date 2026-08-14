@@ -4,20 +4,20 @@
     "tab": "Create an intent",
     "filename": "create-intent.ts",
     "lang": "typescript",
-    "code": "import { Mayarin } from \"@mayarin/sdk\";\n\nconst mayarin = new Mayarin({ apiKey: process.env.MAYARIN_API_KEY });\n\n// Amounts are minor units as strings. No float ever touches money.\nconst intent = await mayarin.paymentIntents.create(\n  {\n    merchant: { id: \"M-1\", name: \"Warung Kopi\", city: \"Jakarta\", country: \"ID\" },\n    amount: { amount: \"50000.00\", asset: \"IDR\" },\n    payer: { asset: \"USDC\", chain: \"base\" },\n  },\n  { idempotencyKey: \"order-4711\" },\n);\n\nintent.state; // \"PRICE_LOCKED\"\nintent.deposit.address; // per-intent, so the match is never ambiguous\nintent.amount.display; // \"Rp 50.432,00\"\n"
+    "code": "import { createMayarin } from \"@mayarin/sdk\";\n\nconst secretKey = process.env.MAYARIN_SECRET_KEY;\nif (!secretKey) throw new Error(\"MAYARIN_SECRET_KEY is required\");\n\nconst mayarin = createMayarin({\n  baseUrl: \"https://api.mayarin.xyz\",\n  secretKey,\n});\n\n// Request amounts use human-readable decimal strings.\nconst intent = await mayarin.payment.createIntent(\n  {\n    merchant: {\n      id: \"M-1\",\n      name: \"Warung Kopi\",\n      city: \"Jakarta\",\n      countryCode: \"ID\",\n    },\n    amount: { amount: \"50000.00\", asset: \"IDR\" },\n    payment: { asset: \"USDC\", chain: \"base\" },\n    merchantReference: \"order-4711\",\n  },\n  { idempotencyKey: \"order-4711\" },\n);\n\nintent.status; // \"CREATED\"\nintent.amount.display; // \"Rp 50.000,00\"\nintent.payment?.payerAddress; // \"Payment Intent Address for deposit\"\n"
   },
   {
     "id": "webhook",
     "tab": "Handle the signal",
     "filename": "webhook.ts",
     "lang": "typescript",
-    "code": "// A webhook is a signal, not truth. It wakes the clearing engine,\n// which then asks the adapter for the authoritative status.\nexport async function POST(request: Request) {\n  const event = mayarin.webhooks.verify(await request.text(), request.headers);\n\n  if (event.type === \"payment_intent.settled\") {\n    await fulfil(event.data.reference);\n  }\n\n  return new Response(null, { status: 204 });\n}\n"
+    "code": "import { constructWebhook, createMayarin } from \"@mayarin/sdk\";\n\nconst secretKey = process.env.MAYARIN_SECRET_KEY;\nconst webhookSecret = process.env.MAYARIN_WEBHOOK_SECRET;\nif (!secretKey || !webhookSecret) throw new Error(\"Mayarin secrets are required\");\n\nconst mayarin = createMayarin({\n  baseUrl: \"https://api.mayarin.xyz\",\n  secretKey,\n});\n\ntype PaymentEvent = {\n  readonly type: \"payment.created\" | \"payment.state_changed\" | \"payment.failed\";\n  readonly state: string;\n  readonly clearingTransactionId: string;\n};\n\nexport async function POST(request: Request) {\n  const payload = await request.text();\n  const signature = request.headers.get(\"Webhook-Signature\");\n  if (!signature) return new Response(\"Missing signature\", { status: 400 });\n\n  const event = await constructWebhook<PaymentEvent>({\n    payload,\n    signature,\n    secret: webhookSecret,\n  });\n\n  // Treat the webhook as a signal; fetch the payment before fulfilment.\n  if (event.type === \"payment.state_changed\" && event.state === \"SUCCESS\") {\n    const payment = await mayarin.payment.get(event.clearingTransactionId);\n    await fulfil(payment);\n  }\n\n  return new Response(null, { status: 204 });\n}\n"
   },
   {
     "id": "curl",
     "tab": "Over HTTP",
     "filename": "shell",
     "lang": "shellscript",
-    "code": "curl -X POST https://api.mayarin.xyz/payment-intents \\\n  -H \"Idempotency-Key: order-4711\" \\\n  -H \"Content-Type: application/json\" \\\n  -H \"Api-Key: myr-AbCdEfGhIjKl**\" \\\n -d '{\n    \"merchant\": { \"id\": \"M-1\", \"name\": \"Warung Kopi\", \"city\": \"Jakarta\" },\n    \"amount\":   { \"amount\": \"50000.00\", \"asset\": \"IDR\" },\n    \"payer\":    { \"asset\": \"USDC\", \"chain\": \"base\" }\n  }'\n"
+    "code": "curl -X POST https://api.mayarin.xyz/v1/payment-intents \\\n  -H \"Authorization: Bearer $MAYARIN_SECRET_KEY\" \\\n  -H \"Idempotency-Key: order-4711\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"merchant\": {\n      \"id\": \"M-1\",\n      \"name\": \"Warung Kopi\",\n      \"city\": \"Jakarta\",\n      \"countryCode\": \"ID\"\n    },\n    \"amount\": { \"amount\": \"50000.00\", \"asset\": \"IDR\" },\n    \"payment\": { \"asset\": \"USDC\", \"chain\": \"base\" },\n    \"merchantReference\": \"order-4711\"\n  }'\n"
   }
 ]
