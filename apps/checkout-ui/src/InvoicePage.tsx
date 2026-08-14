@@ -137,7 +137,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         {payable ? `Pay ${bootstrap.outstanding.display}` : STATUS_LABEL[status]}
       </button>
       <a
-        className="powered-by mx-auto mt-4"
+        className="powered-by mx-auto mt-6 block"
         href="https://mayarin.xyz"
         target="_blank"
         rel="noreferrer"
