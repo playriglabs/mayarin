@@ -77,6 +77,8 @@ describe("link page", () => {
     const html = renderToStaticMarkup(<LinkPage bootstrap={linkBootstrap} />);
     expect(html).toContain("Rp 50.000,00");
     expect(html).toContain("Paket");
+    expect(html).toContain("Warung Kopi — Jakarta");
+    expect(html).toContain('alt="Mayarin"');
     expect(html).toContain("Pay with");
     expect(html).toContain("USDC");
     expect(html).toContain("Prices are locked for 15 minutes");

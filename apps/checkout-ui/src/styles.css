@@ -43,8 +43,8 @@
 }
 
 @layer components {
-  .brand { @apply mb-5 flex items-center gap-2 font-mono text-xs font-medium tracking-[1.5px] text-muted uppercase; }
-  .brand::before { content: ""; @apply size-2 bg-electric; }
+  .brand { @apply mb-5 grid size-11 place-items-center; }
+  .brand img { @apply block size-10 object-contain; }
 
   .checkout-shell { @apply grid min-h-screen min-h-dvh w-full max-w-none grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(32rem,1fr)]; }
   body:has(.checkout-shell) { @apply block bg-paper p-0; }
@@ -92,7 +92,7 @@
   .payment-estimate span { @apply text-xs text-muted; }
   .payment-estimate strong { @apply text-xl font-semibold tabular-nums; }
   .payment-steps { @apply mt-5.5 mb-0 grid list-none gap-3 p-0; counter-reset: checkout-step; }
-  .payment-steps li { @apply grid grid-cols-[1.625rem_1fr] gap-2.5 text-xs text-muted; counter-increment: checkout-step; }
+  .payment-steps li { @apply grid grid-cols-[1.625rem_1fr] items-center gap-2.5 text-xs leading-5 text-muted; counter-increment: checkout-step; }
   .payment-steps li::before { content: counter(checkout-step); @apply grid size-6 place-items-center rounded-full border border-field text-[11px] font-semibold text-ink; }
   .estimate-note { @apply mt-5.5 mb-0 text-xs leading-relaxed text-muted; }
   button.primary { @apply mt-5 min-h-12 w-full rounded-lg border-0 bg-ink px-4 py-3 font-medium text-paper transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-45; }
