@@ -115,6 +115,15 @@ moves execution on-chain:
   `guardExecutablePrice`) ship in `packages/core/clearing/src/oracle.ts` (RFC
   #7); a stale or deviated price fails as a retryable `ProviderError`, and the
   Pyth/Chainlink adapters live in `packages/providers/*` behind the port.
+
+Multiple reference providers may be configured in priority order with
+`QUOTE_ORACLE` and `QUOTE_ORACLE_FALLBACKS`. They are read concurrently for
+every configured pair, including fiat pairs such as `IDR/USDC` and `SGD/USDC`
+and crypto pairs such as `ETH/USDC`. Failed and stale observations are removed;
+fresh observations must agree within `QUOTE_DEVIATION_BPS`, and the first
+configured fresh source is used. If none remain, or two fresh sources disagree,
+the quote fails closed.
+
 - The `LiquidityRouter`'s same-asset identity stays; its cross-asset delegation
   moves to the Execution Engine. Multi-hop paths (`A → bridge → C`) across the
   registry's admitted stablecoins are a later extension the `PriceSource`

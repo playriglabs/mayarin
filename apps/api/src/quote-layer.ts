@@ -21,8 +21,8 @@ import { ZeroExSwapVenue } from "@mayarin/provider-swap-0x";
 import { LifiSwapVenue } from "@mayarin/provider-swap-lifi";
 import { UniswapSwapVenue } from "@mayarin/provider-swap-uniswap";
 import { ApiKeyStamper, TurnkeyOrderSigner } from "@mayarin/provider-turnkey";
-import { type OrderSigner, QuoteEngine } from "@mayarin/quote";
-import { type Clock, ConfigurationError } from "@mayarin/shared";
+import { FallbackPriceOracle, isFxMarketOpen, type OrderSigner, QuoteEngine } from "@mayarin/quote";
+import { type AssetCode, type Clock, ConfigurationError, getAsset } from "@mayarin/shared";
 import type { Config } from "./config.ts";
 
 export interface QuoteLayer {
@@ -43,7 +43,7 @@ export function createQuoteLayer(config: Config, clock: Clock): QuoteLayer | und
   }
 
   const venues = quote.venues.map((name) => createVenue(name, config));
-  const oracle = createOracle(config);
+  const oracle = createOracle(config, clock);
 
   return {
     // The engine prices against the *first* venue rather than the selected one:
@@ -108,14 +108,44 @@ function createVenue(name: string, config: Config): SwapVenue {
   }
 }
 
-function createOracle(config: Config): PriceOracle {
-  if (config.quoteOracle === "chainlink") {
-    return new ChainlinkPriceOracle({
-      rpcUrls: config.chainRpcUrls,
-      feeds: config.chainlinkFeeds,
-    });
+function createOracle(config: Config, clock: Clock): PriceOracle {
+  const quote = config.quote;
+  if (quote === undefined) {
+    throw new ConfigurationError("The oracle requires an enabled quote layer", {});
   }
-  return new PythPriceOracle({ feeds: config.pythFeeds });
+
+  const names = [quote.oracle, ...quote.fallbackOracles];
+  const sources = names.map((name) => ({ name, oracle: createOracleSource(name, config) }));
+  const only = sources.length === 1 ? sources[0] : undefined;
+  if (only !== undefined) return only.oracle;
+
+  return new FallbackPriceOracle({
+    sources,
+    clock,
+    maxAgeMs: (from, _to, now) => referenceMaxAgeMs(from, now, quote),
+    maxDeviationBps: quote.deviationBps,
+  });
+}
+
+function createOracleSource(name: "pyth" | "chainlink", config: Config): PriceOracle {
+  switch (name) {
+    case "pyth":
+      return new PythPriceOracle({ feeds: config.pythFeeds });
+    case "chainlink":
+      return new ChainlinkPriceOracle({
+        rpcUrls: config.chainRpcUrls,
+        feeds: config.chainlinkFeeds,
+      });
+  }
+}
+
+function referenceMaxAgeMs(
+  from: AssetCode,
+  now: Date,
+  quote: NonNullable<Config["quote"]>,
+): number {
+  if (getAsset(from).kind !== "fiat") return quote.maxReferenceAgeSeconds * 1_000;
+  return (isFxMarketOpen(now) ? quote.fxMaxAgeSeconds : quote.fxClosedMaxAgeSeconds) * 1_000;
 }
 
 function createSigner(config: Config): OrderSigner {

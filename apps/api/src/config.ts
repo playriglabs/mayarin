@@ -188,6 +188,8 @@ const configSchema = z.object({
   quoteVenues: jsonObject<string[]>("QUOTE_VENUES", "[]"),
   /** Reference oracle for the deviation guard. */
   quoteOracle: z.enum(["pyth", "chainlink"]).default("pyth"),
+  /** Ordered secondary references used when the primary is unavailable or stale. */
+  quoteOracleFallbacks: jsonObject<string[]>("QUOTE_ORACLE_FALLBACKS", "[]"),
   /** How far the venue price may sit from the oracle before the quote fails. */
   quoteDeviationBps: z.coerce.number().int().min(1).max(10_000).default(100),
   /** How stale a reference may be and still vouch for a price. */
@@ -313,6 +315,7 @@ export interface ChainConfig {
 export interface QuoteConfig {
   readonly venues: readonly string[];
   readonly oracle: "pyth" | "chainlink";
+  readonly fallbackOracles: readonly ("pyth" | "chainlink")[];
   readonly deviationBps: number;
   readonly maxReferenceAgeSeconds: number;
   readonly peggedPairs: readonly string[];
@@ -394,11 +397,26 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     );
   }
 
-  if (data.quoteOracle === "pyth" && Object.keys(data.pythFeeds).length === 0) {
-    issues.push("PYTH_FEEDS must configure at least one feed when QUOTE_ORACLE is pyth");
+  const supportedOracles = ["pyth", "chainlink"] as const;
+  const unsupportedOracles = data.quoteOracleFallbacks.filter(
+    (oracle) => !(supportedOracles as readonly string[]).includes(oracle),
+  );
+  if (unsupportedOracles.length > 0) {
+    issues.push(
+      `QUOTE_ORACLE_FALLBACKS names unsupported sources: ${unsupportedOracles.join(", ")}`,
+    );
   }
-  if (data.quoteOracle === "chainlink" && Object.keys(data.chainlinkFeeds).length === 0) {
-    issues.push("CHAINLINK_FEEDS must configure at least one feed when QUOTE_ORACLE is chainlink");
+  const oracleNames = [data.quoteOracle, ...data.quoteOracleFallbacks];
+  if (new Set(oracleNames).size !== oracleNames.length) {
+    issues.push("QUOTE_ORACLE and QUOTE_ORACLE_FALLBACKS must not contain duplicates");
+  }
+  if (oracleNames.includes("pyth") && Object.keys(data.pythFeeds).length === 0) {
+    issues.push("PYTH_FEEDS must configure at least one feed when a Pyth oracle is enabled");
+  }
+  if (oracleNames.includes("chainlink") && Object.keys(data.chainlinkFeeds).length === 0) {
+    issues.push(
+      "CHAINLINK_FEEDS must configure at least one feed when a Chainlink oracle is enabled",
+    );
   }
 
   if (data.quoteSigner === "turnkey") {
@@ -435,6 +453,7 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
   return {
     venues: data.quoteVenues,
     oracle: data.quoteOracle,
+    fallbackOracles: data.quoteOracleFallbacks as readonly ("pyth" | "chainlink")[],
     deviationBps: data.quoteDeviationBps,
     maxReferenceAgeSeconds: data.quoteMaxReferenceAgeSeconds,
     peggedPairs: data.quotePeggedPairs,
@@ -763,6 +782,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     quoteEnabled: env.QUOTE_ENABLED,
     quoteVenues: env.QUOTE_VENUES,
     quoteOracle: env.QUOTE_ORACLE,
+    quoteOracleFallbacks: env.QUOTE_ORACLE_FALLBACKS,
     quoteDeviationBps: env.QUOTE_DEVIATION_BPS,
     quoteMaxReferenceAgeSeconds: env.QUOTE_MAX_REFERENCE_AGE_SECONDS,
     quotePeggedPairs: env.QUOTE_PEGGED_PAIRS,
