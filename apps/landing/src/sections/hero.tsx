@@ -23,7 +23,7 @@ export function Hero() {
         </Reveal>
 
         <Reveal delay={160}>
-          <p class="mt-8 max-w-[62ch] text-lg leading-[1.6] text-slate">
+          <p class="mt-8 max-w-[62ch] text-base md:text-lg leading-[1.6] text-slate">
             The fastest way for internet businesses in emerging markets to get paid globally and
             settle locally.
           </p>

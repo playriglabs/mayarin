@@ -95,34 +95,26 @@ export function Nav() {
 
         <button
           type="button"
-          class="col-start-3 -mr-2 flex size-10 cursor-pointer items-center justify-self-end lg:hidden"
+          class="col-start-3 -mr-2 flex size-10 cursor-pointer items-center justify-center justify-self-end lg:hidden"
           aria-expanded={open}
           aria-controls="mobile-nav"
           aria-label={open ? "Close menu" : "Open menu"}
           onClick={() => setOpen((value) => !value)}
         >
-          <svg viewBox="0 0 20 20" width="20" height="20" fill="none" aria-hidden="true">
-            <path
-              d="M2 6h16"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="square"
+          <span aria-hidden="true" class="relative block size-5">
+            <span
               class={clsx(
-                "origin-center transition-transform duration-300 ease-out motion-reduce:transition-none",
-                open && "translate-y-1 rotate-45",
+                "absolute top-1/2 left-1/2 block h-px w-5 -translate-x-1/2 bg-current transition-transform duration-300 ease-out motion-reduce:transition-none",
+                open ? "-translate-y-1/2 rotate-45" : "-translate-y-1",
               )}
             />
-            <path
-              d="M2 14h16"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="square"
+            <span
               class={clsx(
-                "origin-center transition-transform duration-300 ease-out motion-reduce:transition-none",
-                open && "-translate-y-1 -rotate-45",
+                "absolute top-1/2 left-1/2 block h-px w-5 -translate-x-1/2 bg-current transition-transform duration-300 ease-out motion-reduce:transition-none",
+                open ? "-translate-y-1/2 -rotate-45" : "translate-y-1",
               )}
             />
-          </svg>
+          </span>
         </button>
       </div>
 
@@ -152,7 +144,7 @@ export function Nav() {
             ))}
             <a
               href="#early-access"
-              class="btn-fill [--btn-fill:var(--color-ink)] mt-6 inline-flex h-12 items-center justify-center border border-ink bg-transparent px-5 text-sm font-medium text-ink transition-colors duration-200 hover:text-white"
+              class="mobile-nav-demo btn-fill [--btn-fill:var(--color-ink)] mt-6 inline-flex h-12 items-center justify-center border border-ink bg-transparent px-5 text-sm font-medium text-ink transition-colors duration-200"
             >
               Request demo
             </a>

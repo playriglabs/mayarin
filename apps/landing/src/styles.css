@@ -296,8 +296,18 @@
   transition: transform 420ms var(--ease-out-expo);
 }
 
-.btn-fill:hover::after {
+.btn-fill:hover::after,
+.btn-fill:active::after,
+.btn-fill:focus-visible::after {
   transform: scaleY(1);
+}
+
+/* Touch browsers can retain :hover after a tap. Keep the mobile demo label
+   legible whenever its dark fill is visible, including keyboard activation. */
+.mobile-nav-demo:hover,
+.mobile-nav-demo:active,
+.mobile-nav-demo:focus-visible {
+  color: var(--color-white);
 }
 
 /* Footer wordmark: letters rise from behind the top edge in sequence, then the

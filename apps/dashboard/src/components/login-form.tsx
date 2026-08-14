@@ -74,7 +74,7 @@ function LoginForm() {
         <p className="text-sm text-muted-foreground">Manage payments, customers and settlement.</p>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 mt-2">
         <Field>
           <FieldLabel htmlFor="login-email">Email</FieldLabel>
           <Input

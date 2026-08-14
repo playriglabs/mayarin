@@ -38,6 +38,8 @@ export function PixelField() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
+    if (!window.matchMedia("(min-width: 768px)").matches) return;
+
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
@@ -192,7 +194,7 @@ export function PixelField() {
   }, []);
 
   return (
-    <div aria-hidden="true" class="absolute inset-y-0 right-0 w-full md:w-[72%]">
+    <div aria-hidden="true" class="absolute inset-y-0 right-0 hidden w-[72%] md:block">
       <div class="pointer-events-none absolute inset-0 z-1 bg-[linear-gradient(90deg,var(--color-void)_0%,transparent_38%,transparent_100%)]" />
       <canvas ref={canvasRef} class="h-full w-full touch-pan-y" />
     </div>

@@ -22,6 +22,8 @@ export function WaveGrid() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
+    if (!window.matchMedia("(min-width: 768px)").matches) return;
+
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
@@ -139,7 +141,7 @@ export function WaveGrid() {
   }, []);
 
   return (
-    <div aria-hidden="true" class="pointer-events-none absolute inset-0">
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0 hidden md:block">
       <canvas ref={canvasRef} class="wave-canvas h-full w-full" />
     </div>
   );
