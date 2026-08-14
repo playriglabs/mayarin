@@ -42,7 +42,7 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-5">
       <section className="w-full max-w-xl border border-zinc-950 bg-white px-8 py-14 text-center shadow-xl sm:px-14">
         <div
-          className={`mx-auto mb-6 grid size-16 place-items-center rounded-full text-3xl text-white ${state === "success" ? "bg-emerald-700" : "bg-amber-700"}`}
+          className={`mx-auto mb-6 grid size-16 place-items-center rounded-full text-3xl leading-none text-white ${state === "success" ? "bg-emerald-700" : "bg-amber-700"}`}
           aria-hidden="true"
         >
           {state === "success" ? "✓" : state === "not-found" ? "×" : "…"}

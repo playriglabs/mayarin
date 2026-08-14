@@ -20,7 +20,11 @@ for (const name of files) {
   const file = Bun.file(path);
   if ((await file.exists()) === false || name.endsWith("/")) continue;
   const text = await file.text().catch(() => "");
-  if (text.includes("MAYARIN_SECRET_KEY")) {
+  // `_worker.js` is the server-side Cloudflare bundle. It must read the
+  // secret binding by name at runtime; the browser assets must never mention
+  // that binding. The value check below still scans every artifact.
+  const serverBundle = name === "_worker.js" || name.endsWith("/_worker.js");
+  if (!serverBundle && text.includes("MAYARIN_SECRET_KEY")) {
     leaks.push(`${name} references MAYARIN_SECRET_KEY`);
   }
   if (secretValue !== undefined && secretValue !== "" && text.includes(secretValue)) {
