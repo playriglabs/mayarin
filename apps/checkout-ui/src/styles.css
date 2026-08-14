@@ -174,7 +174,7 @@
     @apply outline-2 -outline-offset-1 outline-brand;
   }
   .field span {
-    @apply flex items-center border-r border-line px-3 font-mono text-xs text-muted;
+    @apply flex items-center border-r border-line px-5 font-mono text-sm text-muted;
   }
   .field input {
     @apply min-w-0 flex-1 border-0 bg-transparent p-3 text-2xl text-ink tabular-nums outline-0;

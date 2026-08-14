@@ -16,7 +16,7 @@ export function CheckoutSummary({
     <aside className="checkout-summary" aria-label="Order summary">
       <div className="summary-inner">
         <Brand />
-        <p className="merchant-name">
+        <p className="merchant-name mb-5">
           {merchant.name}
           {merchant.city.trim() === "" ? null : ` — ${merchant.city}`}
         </p>

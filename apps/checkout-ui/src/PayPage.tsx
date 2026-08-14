@@ -85,7 +85,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   }, [refresh, streaming, intentId, pollMs]);
 
   const remaining = remainingAt(expiresAt, now);
-  const [, tone] = statusWording(rawStatus);
+  const [_, tone] = statusWording(rawStatus);
 
   return (
     <main className="checkout-shell">
@@ -112,7 +112,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
             <i className={`dot ${tone}`} />
             <div>
               <span>Status</span>
-              <strong>{status}</strong>
+              <strong className="capitalize">{status}</strong>
             </div>
           </div>
 
