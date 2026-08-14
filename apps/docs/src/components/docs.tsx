@@ -14,8 +14,18 @@ import { ThemeSwitchWithHash } from "./theme-switch";
 function Brand() {
   return (
     <span className="flex items-center gap-2.5">
-      <img src="/images/mayarin-logo.png" alt="" width="32" height="32" />
-      <span className="font-brand text-[1.15rem] tracking-[-0.025em]">mayarin</span>
+      <img
+        src="/images/mayarin-full-black.png"
+        alt="mayarin"
+        height="32"
+        className="h-8 w-auto dark:hidden"
+      />
+      <img
+        src="/images/mayarin-full-white.png"
+        alt="mayarin"
+        height="32"
+        className="hidden h-8 w-auto dark:block"
+      />
       <span className="border-l border-fd-border pl-2.5 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-fd-muted-foreground">
         docs
       </span>
