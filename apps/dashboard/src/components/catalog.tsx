@@ -71,6 +71,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { useCreateProduct, useProducts, useUpdateProduct } from "@/hooks/catalog";
 import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { ApiError } from "@/lib/api/client";
@@ -438,7 +439,7 @@ function Catalog() {
 
             <Field>
               <FieldLabel htmlFor="product-description">Description</FieldLabel>
-              <Input
+              <Textarea
                 id="product-description"
                 value={draft.description}
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
