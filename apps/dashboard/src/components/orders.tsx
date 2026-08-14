@@ -78,11 +78,34 @@ function toneOf(status: string): "success" | "destructive" | "warning" | "defaul
   return "warning";
 }
 
-/** One line per unit, or a compact `name × n` for a multi-quantity line. */
-function lineSummary(order: OrderDto): string {
-  return order.lines
-    .map((line) => (line.quantity === 1 ? line.name : `${line.name} × ${line.quantity}`))
-    .join(", ");
+/** `name` or `name × n` for a multi-quantity line. */
+function lineLabel(line: OrderDto["lines"][number]): string {
+  return line.quantity === 1 ? line.name : `${line.name} × ${line.quantity}`;
+}
+
+/** How many lines a row shows before the rest collapse into a `+n` badge. */
+const LINES_SHOWN = 3;
+
+/**
+ * The items cell. A four-product order does not get four names crammed into
+ * one truncated cell — it gets the first three and a `+n` badge, with the full
+ * list on hover and on the payment detail the row links to.
+ */
+function LineItems({ order }: { readonly order: OrderDto }) {
+  const shown = order.lines.slice(0, LINES_SHOWN);
+  const hidden = order.lines.length - shown.length;
+  const full = order.lines.map(lineLabel).join(", ");
+
+  return (
+    <span className="flex items-center gap-1.5" title={full}>
+      <span className="truncate">{shown.map(lineLabel).join(", ")}</span>
+      {hidden > 0 && (
+        <Badge variant="default" aria-label={`${hidden} more item${hidden === 1 ? "" : "s"}`}>
+          +{hidden}
+        </Badge>
+      )}
+    </span>
+  );
 }
 
 function reasonOf(error: unknown): string {
@@ -241,8 +264,8 @@ function Orders() {
                           {order.merchantReference ?? order.paymentIntentId}
                         </a>
                       </TableCell>
-                      <TableCell className="max-w-[20rem] truncate text-sm text-muted-foreground">
-                        {lineSummary(order)}
+                      <TableCell className="max-w-[20rem] text-sm text-muted-foreground">
+                        <LineItems order={order} />
                       </TableCell>
                       <TableCell className="text-sm">
                         {order.customer === null ? (
