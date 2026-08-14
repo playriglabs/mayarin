@@ -149,6 +149,7 @@ describe("invoice page", () => {
     expect(html).toContain("Kopi arabika 1kg");
     expect(html).toContain("Amount due");
     expect(html).toContain("Rp 125.000,00");
+    expect(html).toContain("Powered by <strong>mayarin.xyz</strong>");
     expect(html).toContain("Pay Rp 125.000,00");
   });
 

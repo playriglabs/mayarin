@@ -136,6 +136,14 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       >
         {payable ? `Pay ${bootstrap.outstanding.display}` : STATUS_LABEL[status]}
       </button>
+      <a
+        className="powered-by mx-auto mt-4"
+        href="https://mayarin.xyz"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Powered by <strong>mayarin.xyz</strong>
+      </a>
     </main>
   );
 }
