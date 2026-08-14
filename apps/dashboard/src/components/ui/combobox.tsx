@@ -76,14 +76,14 @@ function Combobox({
     <ComboboxContext.Provider value={context}>
       <ComboboxPrimitive.Root
         items={items as ComboboxOption[]}
+        // The public Root is single-selection already (`multiple` defaults to
+        // false), so `value`/`onValueChange` here are the SELECTION, not the
+        // input's text. `onValueChange` also fires with `null` when the input
+        // is cleared or abandoned, which is why the handler tolerates it.
         value={selected}
+        onValueChange={(next) => onValueChange?.((next as ComboboxOption | null)?.value ?? "")}
         open={open}
         onOpenChange={handleOpenChange}
-        onValueChange={(next) => onValueChange?.((next as ComboboxOption | null)?.value ?? "")}
-        // What the input shows for a selection, and what the query is matched
-        // against. The label carries both the code and the name, so a merchant
-        // who knows `SG` need not remember how the list spells Singapore.
-        itemToStringLabel={(item) => (item as ComboboxOption).label}
         actionsRef={actionsRef as React.RefObject<ComboboxPrimitive.Root.Actions>}
         {...props}
       />

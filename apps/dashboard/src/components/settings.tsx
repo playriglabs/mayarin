@@ -57,6 +57,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useSettings, useSettingsHistory, useUpdateSettings } from "@/hooks/settings";
+import { useUrlTab } from "@/hooks/url-tab";
 import { ApiError } from "@/lib/api/client";
 import { COUNTRIES } from "@/lib/countries";
 import { formatDateTime, isoAttr } from "@/lib/date";
@@ -94,7 +95,8 @@ interface Draft {
   readonly countryCode: string;
 }
 
-type SettingsTab = "settlement" | "profile" | "history";
+const SETTINGS_TABS = ["settlement", "profile", "history"] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 function draftOf(settings: SettingsDto): Draft {
   return {
@@ -124,7 +126,9 @@ function Settings() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
-  const [activeTab, setActiveTab] = useState<SettingsTab>("settlement");
+  // In the URL, so a reload — or a link a merchant sends a colleague — opens
+  // the tab they were actually on.
+  const [activeTab, setActiveTab] = useUrlTab<SettingsTab>("tab", SETTINGS_TABS, "settlement");
 
   // The server's copy is the source of truth; the draft is only what is being
   // typed. Reset when the loaded settings change so a successful save leaves
