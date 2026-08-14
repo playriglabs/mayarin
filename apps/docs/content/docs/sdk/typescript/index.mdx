@@ -1,0 +1,15 @@
+---
+title: TypeScript SDK
+description: Typed access to payments, commerce, QR helpers, and webhook verification.
+---
+
+`@mayarin/sdk` is Mayarin's hand-written TypeScript client. It pins the API revision, adds `/v1`, generates idempotency keys for writes, maps failures into one typed error, and separates secret-key server usage from publishable-key browser usage.
+
+```bash
+bun add @mayarin/sdk
+```
+
+Choose the correct entry point:
+
+- `@mayarin/sdk` for trusted server environments;
+- `@mayarin/sdk/browser` for catalog and cart checkout with a publishable key.

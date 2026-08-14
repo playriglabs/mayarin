@@ -1,0 +1,62 @@
+---
+type TypeNode = {
+  readonly description?: unknown;
+  readonly type: unknown;
+  readonly typeDescription?: unknown;
+  readonly required?: boolean;
+  readonly deprecated?: boolean;
+};
+
+type Props = {
+  readonly id?: string;
+  readonly type: Readonly<Record<string, TypeNode>>;
+};
+
+const { id, type } = Astro.props;
+
+function jsxText(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(jsxText).join("");
+  if (typeof value !== "object" || value === null) return "";
+
+  const props = Reflect.get(value, "props");
+  if (typeof props !== "object" || props === null) return "";
+  return jsxText(Reflect.get(props, "children"));
+}
+
+const entries = Object.entries(type).map(([name, value]) => ({
+  name,
+  description: jsxText(value.description),
+  type: jsxText(value.type),
+  typeDescription: jsxText(value.typeDescription),
+  required: value.required ?? false,
+  deprecated: value.deprecated ?? false,
+}));
+---
+
+<div id={id} class="my-6 overflow-hidden rounded-xl border border-fd-border bg-fd-card text-sm">
+  <div class="grid grid-cols-[minmax(9rem,1fr)_minmax(12rem,2fr)] border-b border-fd-border px-4 py-2 font-medium text-fd-muted-foreground">
+    <span>Property</span>
+    <span>Type</span>
+  </div>
+  {
+    entries.map((entry) => (
+      <details class="group border-b border-fd-border last:border-b-0">
+        <summary class="grid cursor-pointer list-none grid-cols-[minmax(9rem,1fr)_minmax(12rem,2fr)] gap-4 px-4 py-3 hover:bg-fd-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fd-ring">
+          <code class:list={["font-mono font-medium text-fd-primary", { "line-through opacity-60": entry.deprecated }]}>
+            {entry.name}{entry.required ? "" : "?"}
+          </code>
+          <code class="overflow-x-auto font-mono text-fd-muted-foreground">{entry.type}</code>
+        </summary>
+        <div class="border-t border-fd-border bg-fd-background px-4 py-3">
+          {entry.description && <p class="m-0 mb-3 text-fd-foreground">{entry.description}</p>}
+          {entry.typeDescription && (
+            <pre class="m-0 overflow-x-auto whitespace-pre-wrap rounded-md bg-fd-muted p-3 font-mono text-xs text-fd-muted-foreground">
+              {entry.typeDescription}
+            </pre>
+          )}
+        </div>
+      </details>
+    ))
+  }
+</div>

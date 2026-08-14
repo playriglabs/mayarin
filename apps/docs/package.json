@@ -1,0 +1,40 @@
+{
+  "name": "@mayarin/docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check",
+    "generate": "bun run scripts/generate-openapi.ts",
+    "openapi:check": "bun run scripts/generate-openapi.ts && git diff --exit-code -- src/lib/openapi.json"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7",
+    "@astrojs/markdown-remark": "^6.3.10",
+    "@astrojs/mdx": "^4.3.13",
+    "@astrojs/node": "^9.5.5",
+    "@astrojs/react": "^4.4.1",
+    "@orama/orama": "^3.1.15",
+    "@tailwindcss/vite": "^4.1.18",
+    "astro": "^5.16.0",
+    "fumadocs-core": "16.14.3",
+    "fumadocs-openapi": "11.2.3",
+    "fumadocs-typescript": "^5.0.3",
+    "fumadocs-ui": "16.14.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.34.5",
+    "shiki": "^4.0.2",
+    "tailwindcss": "^4.1.18",
+    "takumi-js": "^2.7.3",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.3"
+  }
+}

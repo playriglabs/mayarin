@@ -1,0 +1,14 @@
+---
+title: API versioning
+description: Mayarin uses a URL major version and a date revision header.
+---
+
+The public merchant API lives under `/v1`. A future breaking API is a new URL such as `/v2`; clients opt in and `/v1` remains available during migration.
+
+The `Mayarin-Version` header pins additive behavior within `/v1`. The TypeScript SDK sends its supported revision automatically.
+
+Buyer-facing URLs are intentionally unversioned because shared links and printed QR codes must remain stable:
+
+- `/checkout/:id` and its buyer sub-routes;
+- `/invoices/:id/view`;
+- `/health`.

@@ -1,0 +1,17 @@
+---
+title: Browser client
+description: Read catalog data and check out a cart using a publishable key.
+---
+
+```ts
+import { createMayarinBrowser } from "@mayarin/sdk/browser";
+
+const mayarin = createMayarinBrowser({
+  baseUrl: "https://api.mayarin.xyz",
+  publishableKey: "pk_...",
+});
+
+const products = await mayarin.commerce.products.list("merchant_123");
+```
+
+The browser client exposes only catalog read and cart checkout. If a method requires a secret key, move it to your server.

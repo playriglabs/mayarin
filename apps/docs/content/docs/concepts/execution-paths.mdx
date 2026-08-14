@@ -1,0 +1,14 @@
+---
+title: Execution paths
+description: Choose between atomic contract execution and universally compatible deposit matching.
+---
+
+## On-chain contract
+
+Use `on-chain-contract` when the payer connects a wallet. Mayarin locks the merchant's settlement amount, signs an EIP-712 order, and returns fresh route calldata. `PaymentRouter` receives, swaps, and settles atomically.
+
+## Deposit match
+
+Use `deposit-match` when the payer sends a plain transfer, including from a custodial exchange. Mayarin derives a per-intent deposit address and returns an EIP-681 URI when the asset has a safe on-chain identity.
+
+Do not reuse an address between intents. An exchange withdrawal has no reliable memo or calldata; the address is the payment identifier.

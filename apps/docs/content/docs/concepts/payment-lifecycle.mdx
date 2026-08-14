@@ -1,0 +1,15 @@
+---
+title: Payment lifecycle
+description: Understand payment intent state, clearing progress, and terminal outcomes.
+---
+
+A payment intent is the immutable request. The clearing transaction records how that request moves through execution and settlement.
+
+```text
+CREATED → QR_PARSED → PRICE_LOCKED → PAYMENT_PENDING
+        → ASSET_RECEIVED → CLEARING → SETTLING → SETTLED → SUCCESS
+```
+
+Any non-terminal clearing state can move to `FAILED`. Steps are idempotent and resumable: a retry uses persisted state and cannot duplicate ledger postings or provider calls.
+
+Use `GET /v1/payments/:id` with either a payment intent ID (`pi_…`) or clearing transaction ID (`clr_…`) to render current status and the ordered timeline.

@@ -16,6 +16,9 @@
   "scripts": {
     "build:blog": "bun run --cwd apps/blog build",
     "build:contracts-abi": "bun run --cwd packages/contracts/payment-router build && bun run --cwd packages/contracts/abis build:abi",
+    "build:docs": "bun run --cwd apps/docs build",
+    "docs:generate-openapi": "bun run --cwd apps/docs generate",
+    "docs:openapi:check": "bun run --cwd apps/docs openapi:check",
     "build:landing": "bun run --cwd apps/landing build",
     "build:studio": "bun run --cwd apps/studio build",
     "check": "bun run format:check && bun run typecheck && bun test",
@@ -38,6 +41,7 @@
     "dev:dashboard:local": "bun run scripts/dev-dashboard-local.ts",
     "dev:railway": "bun run scripts/with-railway-db.ts -- bun run dev:all",
     "dev:demo": "turbo dev --filter=@mayarin/demo",
+    "dev:docs": "bun run --cwd apps/docs dev",
     "dev:blog": "bun run --cwd apps/blog dev",
     "dev:content": "turbo dev --filter=@mayarin/blog --filter=@mayarin/studio",
     "dev:landing": "bun run --cwd apps/landing dev",

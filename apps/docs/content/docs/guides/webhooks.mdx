@@ -1,0 +1,20 @@
+---
+title: Verify webhooks
+description: Verify the raw body and timestamp before trusting a Mayarin event.
+---
+
+Use the exact raw request body. Parsing and re-serializing JSON changes the signed bytes.
+
+```ts
+import { constructWebhook } from "@mayarin/sdk";
+
+const event = await constructWebhook({
+  payload: rawBody,
+  signature: request.headers.get("Mayarin-Signature") ?? "",
+  secret: process.env.MAYARIN_WEBHOOK_SECRET ?? "",
+});
+```
+
+The verifier checks an HMAC-SHA256 signature and rejects timestamps outside the default five-minute tolerance. Store event identifiers and process them idempotently.
+
+A webhook is a notification, not settlement truth. Mayarin itself re-queries authoritative provider state before advancing a payment.

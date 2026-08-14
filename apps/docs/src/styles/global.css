@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "fumadocs-openapi/css/preset.css";
+
+@theme {
+  --color-paper: #ffffff;
+  --color-ink: #111111;
+  --color-slate: #666666;
+  --color-line: #eaeaea;
+  --color-void: #050505;
+  --color-accent: #0eeb2e;
+  --color-forest: #1f6f54;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --fd-background: 0 0% 100%;
+  --fd-foreground: 0 0% 7%;
+  --fd-muted: 0 0% 97%;
+  --fd-muted-foreground: 0 0% 40%;
+  --fd-popover: 0 0% 100%;
+  --fd-popover-foreground: 0 0% 7%;
+  --fd-card: 0 0% 100%;
+  --fd-card-foreground: 0 0% 7%;
+  --fd-border: 0 0% 92%;
+  --fd-primary: 161 56% 28%;
+  --fd-primary-foreground: 0 0% 100%;
+  --fd-secondary: 0 0% 96%;
+  --fd-secondary-foreground: 0 0% 7%;
+  --fd-accent: 128 89% 49%;
+  --fd-accent-foreground: 0 0% 2%;
+  --fd-ring: 161 56% 28%;
+}
+
+.dark {
+  --fd-background: 0 0% 2%;
+  --fd-foreground: 0 0% 96%;
+  --fd-muted: 0 0% 7%;
+  --fd-muted-foreground: 0 0% 62%;
+  --fd-popover: 0 0% 3%;
+  --fd-popover-foreground: 0 0% 96%;
+  --fd-card: 0 0% 3%;
+  --fd-card-foreground: 0 0% 96%;
+  --fd-border: 0 0% 12%;
+  --fd-primary: 128 89% 49%;
+  --fd-primary-foreground: 0 0% 2%;
+  --fd-secondary: 0 0% 8%;
+  --fd-secondary-foreground: 0 0% 96%;
+  --fd-accent: 128 89% 49%;
+  --fd-accent-foreground: 0 0% 2%;
+  --fd-ring: 128 89% 49%;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  font-feature-settings:
+    "cv05" 1,
+    "ss03" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-void);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-forest);
+  outline-offset: 3px;
+}
+
+.docs-title,
+.prose h2,
+.prose h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
+.docs-label {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: capitalize;
+}
+
+.prose :where(code):not(:where(pre *)) {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+/* Standalone fumadocs <Card> blocks stacked in prose get top spacing. The
+   <Cards> grid already gaps its children, so only target direct children. */
+.prose > [data-card] {
+  margin-top: calc(var(--spacing) * 2);
+}
+
+/* OpenAPI section headings (Path Parameters, Request Body, Responses, …) sit
+   flush against the card above because fumadocs-openapi stamps them with
+   `my-0!`. Restore top spacing inside the API reference content only. The
+   description paragraph right before such a heading gets the same top spacing
+   from the card above it. */
+.api-reference-content [class~="group/heading"] {
+  margin-top: calc(var(--spacing) * 2) !important;
+}
+
+.api-reference-content p {
+  margin-top: calc(var(--spacing) * 3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

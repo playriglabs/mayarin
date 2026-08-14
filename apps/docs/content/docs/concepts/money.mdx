@@ -1,0 +1,23 @@
+---
+title: Money and IDR formatting
+description: Calculate with exact minor units, parse machine decimals, and display localized values safely.
+---
+
+Mayarin never represents money as a JavaScript floating-point number. Every amount is an integer count of an asset's minor units plus an asset code.
+
+## Money on the wire
+
+```json
+{
+  "amount": "5000000",
+  "asset": "IDR",
+  "formatted": "50000.00",
+  "display": "Rp 50.000,00"
+}
+```
+
+- `amount` is the exact minor-unit string. Use it for calculations.
+- `formatted` is a machine-readable decimal with `.` as the separator and no grouping.
+- `display` is localized for a person. Show it; never parse it.
+
+The same contract works for two-decimal fiat and eighteen-decimal ERC-20 assets without losing precision.
