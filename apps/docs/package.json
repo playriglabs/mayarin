@@ -13,9 +13,9 @@
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7",
-    "@astrojs/cloudflare": "^12.6.13",
     "@astrojs/markdown-remark": "^6.3.10",
     "@astrojs/mdx": "^4.3.13",
+    "@astrojs/node": "^9.5.5",
     "@astrojs/react": "^4.4.1",
     "@orama/orama": "^3.1.15",
     "@tailwindcss/vite": "^4.1.18",

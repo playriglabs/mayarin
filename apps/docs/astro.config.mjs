@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
-import cloudflare from "@astrojs/cloudflare";
 import mdx from "@astrojs/mdx";
+import node from "@astrojs/node";
 import react from "@astrojs/react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
@@ -73,7 +73,7 @@ const remarkPlugins = [
 export default defineConfig({
   site: "https://docs.mayarin.xyz",
   output: "server",
-  adapter: cloudflare({ imageService: "compile" }),
+  adapter: node({ mode: "standalone" }),
   publicDir: fileURLToPath(new URL("../landing/public", import.meta.url)),
   markdown: {
     syntaxHighlight: false,

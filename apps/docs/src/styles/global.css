@@ -3,13 +3,6 @@
 @import "fumadocs-ui/css/preset.css";
 @import "fumadocs-openapi/css/preset.css";
 
-@font-face {
-  font-family: "Clash Display";
-  src: url("/fonts/clash-display-regular.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
-
 @theme {
   --color-paper: #ffffff;
   --color-ink: #111111;
@@ -21,7 +14,6 @@
   --font-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-brand: "Clash Display", "Inter Tight", sans-serif;
 }
 
 :root {
@@ -126,7 +118,7 @@ body {
   margin-top: calc(var(--spacing) * 2) !important;
 }
 
-.api-reference-content p:has(+ [class~="group/heading"]) {
+.api-reference-content p {
   margin-top: calc(var(--spacing) * 3);
 }
 
