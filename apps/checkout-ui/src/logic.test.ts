@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { checkoutBody } from "./checkout-body.ts";
 import { remainingAt } from "./countdown.ts";
 import { currencySymbol } from "./currency-symbol.ts";
+import { usableDeposit } from "./payment-status.ts";
 import type { LinkBootstrap } from "./types.ts";
 import { isTerminal, statusWording } from "./wording.ts";
 
@@ -16,6 +17,17 @@ describe("currency symbols", () => {
   test("falls back to the currency code when no symbol is registered", () => {
     expect(currencySymbol("EUR")).toBe("EUR");
     expect(currencySymbol(null)).toBe("");
+  });
+});
+
+describe("payment status deposit", () => {
+  test("treats the API's pre-confirmation null deposit as still preparing", () => {
+    expect(
+      usableDeposit({
+        paymentIntent: { status: "REQUIRES_CONFIRMATION" },
+        deposit: null,
+      }),
+    ).toBeUndefined();
   });
 });
 

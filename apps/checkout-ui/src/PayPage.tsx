@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AssetLogo } from "./AssetLogo.tsx";
 import { CheckoutSummary } from "./CheckoutSummary.tsx";
 import { remainingAt } from "./countdown.ts";
+import { usableDeposit } from "./payment-status.ts";
 import type { PayBootstrap, PaymentStatusPayload } from "./types.ts";
 import { isTerminal, statusWording } from "./wording.ts";
 
@@ -36,7 +37,8 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
     const next = payload.paymentIntent.status;
     setRawStatus(next);
     setStatus(statusWording(next)[0]);
-    if (payload.deposit !== undefined) setDeposit(payload.deposit);
+    const nextDeposit = usableDeposit(payload);
+    if (nextDeposit !== undefined) setDeposit(nextDeposit);
 
     if (isTerminal(next)) {
       clearInterval(pollTimer.current);

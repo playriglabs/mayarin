@@ -114,7 +114,7 @@ export interface PaymentStatusPayload {
     readonly chain: string;
     readonly address: string;
     readonly received: MoneyDto;
-  };
+  } | null;
 }
 
 declare global {

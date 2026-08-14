@@ -51,6 +51,13 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         return;
       }
       const { paymentIntent } = await response.json();
+      const confirmation = await fetch(`/v1/payment-intents/${paymentIntent.id}/confirm`, {
+        method: "POST",
+      });
+      if (!confirmation.ok) {
+        setBusy(false);
+        return;
+      }
       location.href = `/checkout/pay/${paymentIntent.id}`;
     } catch {
       setBusy(false);
