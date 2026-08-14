@@ -115,46 +115,38 @@ Full setup, commands and tooling: [docs/development.md](./docs/development.md).
 
 ---
 
-# Status
+# New Roadmap
 
-**Phase 1 — Core Infrastructure ✅ Shipped.** QR parser, payment intents, clearing
-engine, double-entry ledger and a mock settlement adapter, behind a Hono API on
-Postgres.
+Mayarin can grow from its programmable clearing foundation into an open,
+multi-network commerce platform. The next possibilities are organized around
+five horizons:
 
-**Phase 2 — Chain Interface & Quoting Seams ✅ Shipped.** EVM chain client,
-finality + reorg policy, per-intent deposit addresses, wallet watcher, stablecoin
-registry (IDRX/USDC/USDT), RateProvider/PriceSource ports + LiquidityRouter, and
-stablecoin settlement adapter.
+- **Complete the commerce experience** — production-ready checkout, merchant
+  smart accounts, fee and refund splitting, gas-sponsored withdrawals,
+  notifications, SDKs, analytics, and compliance tooling.
+- **Expand how customers pay** — support more tokens, native assets, liquidity
+  venues, wallet providers, and execution strategies while keeping settlement
+  predictable for merchants.
+- **Reach more networks and markets** — add EVM networks, then explore Solana,
+  TRON, configurable settlement assets, and explicitly designed cross-chain
+  flows.
+- **Enable AI-native payments** — give assistants and autonomous agents a safe
+  way to discover payment options, request quotes, and complete approved
+  purchases through Agent Pay-style flows or an MCP server. Agent identities,
+  scoped API keys, per-transaction limits, human approval thresholds,
+  idempotency, and a complete audit trail should be required before any agent
+  can move funds.
+- **Open and scale the infrastructure** — strengthen observability,
+  reconciliation, high availability, and multi-region operation; introduce
+  provider and plugin SDKs; and explore a separately governed stablecoin-to-fiat
+  off-ramp.
 
-**Phase 3 — On-Chain Execution ✅ Shipped.** PaymentRouter contract deployed and
-verified on Base Sepolia, quote engine with Pyth/Chainlink oracle guard,
-settlement indexer, CREATE2 deposit forwarder and treasury executor. Both
-execution paths settle end to end: the payer connects a wallet, or makes a plain
-transfer to a per-intent address that the executor converts. Gas abstraction
-(#9) moved to Phase 4, scoped to sponsoring merchant withdrawals from a managed
-wallet — off-chain work that needs no contract change.
+These are directions Mayarin can pursue, not delivery commitments. Each should
+preserve the project's core principles: provider-agnostic adapters, auditable
+value movement, merchant-controlled funds, and a clear custody boundary.
 
-**Phase 4 — Commerce Platform.** Commerce layer, wallet infrastructure
-(Safe/Turnkey), on-chain settlement + fee/refund split, notifications, developer
-SDK, merchant dashboard, compliance.
-
-**Phase 5 — Multi-Asset, Multi-Chain.** More payer assets + venues + chains +
-wallet providers; configurable settlement assets.
-
-See the [roadmap](./docs/roadmap.md) for the detail.
-
----
-
-# RFCs & Issue Board
-
-Feature work is tracked as RFC issues — full specs with goals, non-goals,
-acceptance criteria, and dependencies, assigned by phase:
-
-- **Phase 3** — On-Chain Execution ✅ ([closed](https://github.com/playriglabs/mayarin/issues?q=is%3Aissue+label%3Aphase-3))
-- **Phase 4** — Commerce Platform ([#10–#16](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Aphase-4+label%3Arfc))
-- **Phase 5** — Multi-Asset, Multi-Chain ([#17–#21](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Aphase-5+label%3Arfc))
-
-[Open the board →](https://github.com/playriglabs/mayarin/issues?q=is%3Aopen+label%3Arfc)
+See the [detailed roadmap](./docs/roadmap.md) for current capabilities, design
+constraints, and phase-level plans.
 
 ---
 
