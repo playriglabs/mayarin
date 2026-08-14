@@ -14,6 +14,7 @@
 import type { Invoice, InvoiceView } from "@mayarin/invoicing";
 import { assetCodeSchema, decimalMoneySchema, timestampSchema } from "@mayarin/shared";
 import { z } from "zod";
+import { intentOptionsSchema } from "./catalog.ts";
 import { toMoneyDto } from "./money.ts";
 import { merchantSchema } from "./payment-intent.ts";
 
@@ -86,8 +87,9 @@ export const issueInvoiceBodySchema = z
   })
   .strict();
 
-export const checkoutInvoiceBodySchema = z
-  .object({
+export const checkoutInvoiceBodySchema = intentOptionsSchema
+  .pick({ payment: true, executionPath: true })
+  .extend({
     /** Defaults to the outstanding balance. Never more than it. */
     amount: decimalMoneySchema.optional(),
   })

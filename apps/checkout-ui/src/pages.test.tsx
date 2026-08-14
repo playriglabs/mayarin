@@ -69,6 +69,8 @@ const invoiceBootstrap: InvoiceBootstrap = {
   issuedAt: "2026-01-01T00:00:00.000Z",
   dueAt: "2026-02-01T00:00:00.000Z",
   payable: true,
+  accepted: ["USDC", "ETH"],
+  chain: "base-sepolia",
   checkoutUrl: "http://localhost:3000/v1/invoices/inv_1/checkout",
 };
 
@@ -150,6 +152,8 @@ describe("invoice page", () => {
     expect(html).toContain("Amount due");
     expect(html).toContain("Rp 125.000,00");
     expect(html).toContain("Powered by <strong>mayarin.xyz</strong>");
+    expect(html).toContain("Pay with");
+    expect(html).toContain("USDC");
     expect(html).toContain("Pay Rp 125.000,00");
   });
 

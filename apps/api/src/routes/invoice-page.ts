@@ -18,6 +18,7 @@ import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import { renderShell } from "../services/checkout-shell.ts";
+import { defaultPayerAssets, depositChain } from "./checkout-page.ts";
 
 export function invoicePageRoutes(container: Container): Hono {
   const app = new Hono();
@@ -26,10 +27,20 @@ export function invoicePageRoutes(container: Container): Hono {
 
   app.get("/:id/view", async (c) => {
     const view = await container.invoices.viewInvoice(c.req.param("id"));
+    const policy = await container.merchantPolicies.policyFor(view.invoice.merchantId);
+    const accepted =
+      policy?.acceptedAssets.length !== undefined && policy.acceptedAssets.length > 0
+        ? policy.acceptedAssets
+        : defaultPayerAssets(container);
     return c.html(
       await renderShell(
         distDir,
-        invoiceBootstrap(view, `${baseUrl}/v1/invoices/${view.invoice.id}/checkout`),
+        invoiceBootstrap(
+          view,
+          `${baseUrl}/v1/invoices/${view.invoice.id}/checkout`,
+          accepted,
+          depositChain(container),
+        ),
       ),
     );
   });
@@ -43,7 +54,12 @@ export function invoicePageRoutes(container: Container): Hono {
  * Line totals are computed here, not in the browser: money is bigint minor
  * units, and the SPA renders `display` strings without ever doing arithmetic.
  */
-function invoiceBootstrap(view: InvoiceView, checkoutUrl: string) {
+function invoiceBootstrap(
+  view: InvoiceView,
+  checkoutUrl: string,
+  accepted: readonly string[],
+  chain: string,
+) {
   const { invoice, status, paid, outstanding } = view;
   return {
     page: "invoice",
@@ -73,6 +89,8 @@ function invoiceBootstrap(view: InvoiceView, checkoutUrl: string) {
     issuedAt: invoice.issuedAt?.toISOString() ?? null,
     dueAt: invoice.dueAt?.toISOString() ?? null,
     payable: status !== "void" && status !== "draft" && outstanding.amount > 0n,
+    accepted,
+    chain,
     checkoutUrl,
   };
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AssetLogo } from "./AssetLogo.tsx";
 import { Brand } from "./Brand.tsx";
 import type { InvoiceBootstrap, InvoiceStatus } from "./types.ts";
 
@@ -37,14 +38,19 @@ function formatDate(iso: string | null): string {
 export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstrap }) {
   const { status, buyer, lines, payable } = bootstrap;
   const [busy, setBusy] = useState(false);
+  const [asset, setAsset] = useState<string | undefined>(bootstrap.accepted[0]);
 
   async function pay() {
+    if (asset === undefined) return;
     setBusy(true);
     try {
       const response = await fetch(bootstrap.checkoutUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: "{}",
+        body: JSON.stringify({
+          payment: { asset, chain: bootstrap.chain },
+          executionPath: "deposit-match",
+        }),
       });
       if (!response.ok) {
         setBusy(false);
@@ -135,10 +141,30 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
 
       {bootstrap.notes !== null && <p className="notes muted">{bootstrap.notes}</p>}
 
+      {payable && (
+        <div className="form-block screen-only">
+          <span className="label">Pay with</span>
+          <div className="assets">
+            {bootstrap.accepted.map((choice) => (
+              <button
+                type="button"
+                className="asset"
+                key={choice}
+                aria-pressed={choice === asset}
+                onClick={() => setAsset(choice)}
+              >
+                <AssetLogo symbol={choice} />
+                {choice}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         className="primary"
-        disabled={!payable || busy}
+        disabled={!payable || busy || asset === undefined}
         onClick={() => void pay()}
       >
         {payable ? `Pay ${bootstrap.outstanding.display}` : STATUS_LABEL[status]}

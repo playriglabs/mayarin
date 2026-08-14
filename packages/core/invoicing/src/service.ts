@@ -74,7 +74,8 @@ export interface IssueInvoiceCommand {
   readonly format?: InvoiceNumberFormat;
 }
 
-export interface CheckoutInvoiceCommand {
+export interface CheckoutInvoiceCommand
+  extends Pick<CheckoutCartCommand, "payment" | "executionPath"> {
   /** Defaults to the outstanding balance. Never more than it. */
   readonly amount?: Money;
 }
@@ -232,6 +233,8 @@ export class InvoiceService {
       merchant: invoice.merchant,
       currency: invoice.currency,
       lines,
+      ...(command.payment === undefined ? {} : { payment: command.payment }),
+      ...(command.executionPath === undefined ? {} : { executionPath: command.executionPath }),
       ...(invoice.number === undefined ? {} : { merchantReference: invoice.number }),
       metadata: { ...invoice.metadata, [INVOICE_METADATA_KEY]: invoice.id },
     });

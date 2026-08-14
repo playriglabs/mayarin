@@ -120,6 +120,8 @@ export function invoiceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
 
     const intent = await container.invoices.checkoutInvoice(c.req.param("id"), {
       ...(body.amount === undefined ? {} : { amount: body.amount }),
+      ...(body.payment === undefined ? {} : { payment: body.payment }),
+      ...(body.executionPath === undefined ? {} : { executionPath: body.executionPath }),
     });
 
     return c.json({ paymentIntent: toPaymentIntentDto(intent) }, 201);

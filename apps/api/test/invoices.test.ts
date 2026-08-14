@@ -133,6 +133,22 @@ describe("POST /invoices/:id/checkout", () => {
     expect(body.paymentIntent.amount.amount).toBe("12500000");
   });
 
+  test("carries the payer's selected deposit rail into the intent", async () => {
+    const harness = createApiHarness();
+    const issued = await createIssued(harness);
+
+    const { status, body } = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`, {
+      body: {
+        payment: { asset: "USDC", chain: "base-sepolia" },
+        executionPath: "deposit-match",
+      },
+    });
+
+    expect(status).toBe(201);
+    expect(body.paymentIntent.payment).toEqual({ asset: "USDC", chain: "base-sepolia" });
+    expect(body.paymentIntent.executionPath).toBe("deposit-match");
+  });
+
   test("a draft cannot be paid", async () => {
     const harness = createApiHarness();
     const draft = await createDraft(harness);

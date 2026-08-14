@@ -223,7 +223,7 @@ async function qrSvg(value: string): Promise<string> {
  * One chain, taken from what this deployment configured tokens for. A page that
  * guessed would hand the payer an address on a chain nothing watches.
  */
-function depositChain(container: Container): ChainId {
+export function depositChain(container: Container): ChainId {
   const [first] = Object.keys(container.config.chainAssets) as ChainId[];
   const [native] = Object.keys(container.config.chainNativeAssets) as ChainId[];
   const chain = first ?? native;
@@ -241,7 +241,7 @@ function depositChain(container: Container): ChainId {
  * An asset offered here that no watcher scans is a payer sending funds nothing
  * will ever notice.
  */
-function defaultPayerAssets(container: Container): readonly AssetCode[] {
+export function defaultPayerAssets(container: Container): readonly AssetCode[] {
   const assets = new Set<AssetCode>();
   for (const tokens of Object.values(container.config.chainAssets)) {
     for (const asset of Object.keys(tokens ?? {})) {

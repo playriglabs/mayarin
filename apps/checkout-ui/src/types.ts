@@ -97,6 +97,8 @@ export interface InvoiceBootstrap {
   readonly issuedAt: string | null;
   readonly dueAt: string | null;
   readonly payable: boolean;
+  readonly accepted: readonly string[];
+  readonly chain: string;
   readonly checkoutUrl: string;
 }
 
