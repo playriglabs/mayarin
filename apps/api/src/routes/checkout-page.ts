@@ -13,12 +13,20 @@
  * stream must still be able to pay.
  */
 
-import { isLinkPayable, type LinkPreview, type PaymentLink } from "@mayarin/catalog";
+import {
+  CART_METADATA_KEY,
+  isLinkPayable,
+  type LinkPreview,
+  type PaymentLink,
+  type Product,
+  parseCartSnapshot,
+} from "@mayarin/catalog";
 import type { ChainId } from "@mayarin/chain";
 import {
   type AssetCode,
   ConfigurationError,
   isAssetCode,
+  money,
   NotFoundError,
   ValidationError,
   zero,
@@ -140,6 +148,10 @@ export function checkoutPageRoutes(container: Container): Hono {
   app.get("/pay/:intentId", async (c) => {
     const intentId = c.req.param("intentId");
     const { intent } = await container.paymentApp.getPayment(intentId);
+    const paymentLink =
+      intent.metadata.paymentLinkId === undefined
+        ? undefined
+        : await container.catalog.getLink(intent.metadata.paymentLinkId).catch(() => undefined);
     const successUrl = checkoutSuccessUrl(intent.metadata.checkoutSuccessBaseUrl, intent.id);
     return c.html(
       await renderShell(distDir, {
@@ -147,6 +159,8 @@ export function checkoutPageRoutes(container: Container): Hono {
         intentId: intent.id,
         amount: toMoneyDto(intent.amount),
         merchant: { name: intent.merchant.name, city: intent.merchant.city },
+        title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
+        lines: await intentLines(container, intent.metadata[CART_METADATA_KEY]),
         expiresAt: intent.expiresAt.toISOString(),
         statusUrl: `${baseUrl}/v1/payments/${intent.id}`,
         streaming: container.stream !== undefined,
@@ -183,13 +197,14 @@ export function checkoutPageRoutes(container: Container): Hono {
     return c.html(
       await renderShell(
         distDir,
-        linkBootstrap({
+        await linkBootstrap({
           link,
           payable,
           preview,
           accepted,
           chain: depositChain(container),
           ttlSeconds: container.config.paymentIntentTtlSeconds,
+          products: container.catalog,
         }),
       ),
     );
@@ -258,6 +273,7 @@ interface LinkBootstrapOptions {
   /** Where the payer sends funds. Named here so the intent is minted on the rail it will be watched on. */
   readonly chain: ChainId;
   readonly ttlSeconds: number;
+  readonly products: Pick<Container["catalog"], "getProduct">;
 }
 
 /**
@@ -272,8 +288,8 @@ interface LinkBootstrapOptions {
  * - **No price it cannot honour.** The SPA prices estimates through
  *   `POST /v1/quotes` — the same rate provider the lock will read.
  */
-function linkBootstrap(options: LinkBootstrapOptions) {
-  const { link, payable, preview, accepted, chain, ttlSeconds } = options;
+async function linkBootstrap(options: LinkBootstrapOptions) {
+  const { link, payable, preview, accepted, chain, ttlSeconds, products } = options;
   const currency = link.currency ?? link.amount?.asset;
 
   // An open link has no total until the buyer types one; everything else shows
@@ -288,11 +304,23 @@ function linkBootstrap(options: LinkBootstrapOptions) {
   const lines =
     preview === undefined || link.kind !== "catalog"
       ? null
-      : preview.lines.map((line) => ({
-          name: line.name,
-          quantity: line.quantity,
-          unitPrice: toMoneyDto(line.unitPrice),
-        }));
+      : await Promise.all(
+          preview.lines.map(async (line) => {
+            const product =
+              line.productId === undefined ? undefined : await products.getProduct(line.productId);
+            return {
+              name: line.name,
+              description: product?.description ?? null,
+              imageUrl: product === undefined ? null : productImage(product),
+              quantity: line.quantity,
+              unitPrice: toMoneyDto(line.unitPrice),
+              lineTotal: toMoneyDto({
+                amount: line.unitPrice.amount * BigInt(line.quantity),
+                asset: line.unitPrice.asset,
+              }),
+            };
+          }),
+        );
 
   return {
     page: "link",
@@ -308,4 +336,55 @@ function linkBootstrap(options: LinkBootstrapOptions) {
     chain,
     lockMinutes: Math.max(1, Math.round(ttlSeconds / 60)),
   };
+}
+
+function productImage(product: Product): string | null {
+  const image = product.metadata.image;
+  if (image === undefined) return null;
+  try {
+    const url = new URL(image);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return image.startsWith("/") ? image : null;
+  }
+}
+
+async function intentLines(
+  container: Container,
+  rawSnapshot: string | undefined,
+): Promise<
+  | readonly {
+      readonly name: string;
+      readonly description: string | null;
+      readonly imageUrl: string | null;
+      readonly quantity: number;
+      readonly unitPrice: MoneyDto;
+      readonly lineTotal: MoneyDto;
+    }[]
+  | null
+> {
+  if (rawSnapshot === undefined) return null;
+  const snapshot = parseCartSnapshot(rawSnapshot);
+  if (snapshot === undefined) return null;
+
+  return Promise.all(
+    snapshot.lines.map(async (line) => {
+      const product =
+        line.productId === undefined
+          ? undefined
+          : await container.catalog.getProduct(line.productId).catch(() => undefined);
+      const unitPrice = money(BigInt(line.unitPrice), snapshot.currency);
+      return {
+        name: line.name,
+        description: product?.description ?? null,
+        imageUrl: product === undefined ? null : productImage(product),
+        quantity: line.quantity,
+        unitPrice: toMoneyDto(unitPrice),
+        lineTotal: toMoneyDto({
+          amount: unitPrice.amount * BigInt(line.quantity),
+          asset: unitPrice.asset,
+        }),
+      };
+    }),
+  );
 }

@@ -23,8 +23,11 @@ export interface MerchantRef {
 
 export interface LinkLine {
   readonly name: string;
+  readonly description: string | null;
+  readonly imageUrl: string | null;
   readonly quantity: number;
   readonly unitPrice: MoneyDto;
+  readonly lineTotal: MoneyDto;
 }
 
 /** The link page: what is being sold, in what asset, and one button. */
@@ -53,6 +56,8 @@ export interface PayBootstrap {
   readonly intentId: string;
   readonly amount: MoneyDto;
   readonly merchant: MerchantRef;
+  readonly title: string;
+  readonly lines: readonly LinkLine[] | null;
   readonly expiresAt: string;
   readonly statusUrl: string;
   readonly streaming: boolean;

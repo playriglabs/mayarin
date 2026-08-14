@@ -11,12 +11,12 @@ export type Tone = "live" | "done" | "bad" | "";
 export const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
 
 const WORDING: Readonly<Record<string, readonly [string, Tone]>> = {
-  PENDING: ["menunggu pembayaran", "live"],
-  CONFIRMED: ["dana terdeteksi", "live"],
-  PROCESSING: ["sedang diproses", "live"],
-  COMPLETED: ["pembayaran selesai", "done"],
-  FAILED: ["pembayaran gagal", "bad"],
-  EXPIRED: ["masa berlaku habis", "bad"],
+  PENDING: ["waiting for payment", "live"],
+  CONFIRMED: ["asset received", "live"],
+  PROCESSING: ["processing", "live"],
+  COMPLETED: ["payment completed", "done"],
+  FAILED: ["payment failed", "bad"],
+  EXPIRED: ["payment expired", "bad"],
 };
 
 export function statusWording(status: string): readonly [string, Tone] {

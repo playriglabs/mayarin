@@ -42,15 +42,15 @@ describe("countdown", () => {
 
   test("expires rather than counting negative", () => {
     const at = new Date("2026-01-01T00:15:00.001Z").getTime();
-    expect(remainingAt(expires, at)).toEqual({ text: "kedaluwarsa", low: false, expired: true });
+    expect(remainingAt(expires, at)).toEqual({ text: "expired", low: false, expired: true });
   });
 });
 
 describe("status wording", () => {
   test("speaks the payer's language, not the machine's", () => {
-    expect(statusWording("PENDING")).toEqual(["menunggu pembayaran", "live"]);
-    expect(statusWording("COMPLETED")).toEqual(["pembayaran selesai", "done"]);
-    expect(statusWording("EXPIRED")).toEqual(["masa berlaku habis", "bad"]);
+    expect(statusWording("PENDING")).toEqual(["waiting for payment", "live"]);
+    expect(statusWording("COMPLETED")).toEqual(["payment completed", "done"]);
+    expect(statusWording("EXPIRED")).toEqual(["payment expired", "bad"]);
   });
 
   test("an unknown status is shown lowercased rather than hidden", () => {

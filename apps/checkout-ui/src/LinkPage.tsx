@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Brand } from "./Brand.tsx";
+import { AssetLogo } from "./AssetLogo.tsx";
+import { CheckoutSummary } from "./CheckoutSummary.tsx";
 import { checkoutBody } from "./checkout-body.ts";
 import type { LinkBootstrap } from "./types.ts";
 
@@ -48,9 +49,9 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
         });
         const payload = await response.json();
         const line = payload?.quotes?.[0];
-        setEstimate(line?.available ? line.amount.display : "tidak tersedia");
+        setEstimate(line?.available ? line.amount.display : "Unavailable");
       } catch {
-        setEstimate("tidak tersedia");
+        setEstimate("Unavailable");
       }
     }, 400);
     return () => clearTimeout(debounce.current);
@@ -58,7 +59,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
 
   async function pay() {
     if (total === null && Number(amount) <= 0) {
-      setError("Masukkan jumlah lebih dulu.");
+      setError("Enter an amount first.");
       return;
     }
     setBusy(true);
@@ -72,7 +73,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       });
       const payload = await response.json();
       if (!response.ok) {
-        setError(payload?.error?.message ?? "Gagal membuat pembayaran");
+        setError(payload?.error?.message ?? "Unable to create the payment");
         setBusy(false);
         return;
       }
@@ -86,104 +87,112 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       });
       const confirmed = await confirmation.json();
       if (!confirmation.ok) {
-        setError(confirmed?.error?.message ?? "Gagal mengunci harga");
+        setError(confirmed?.error?.message ?? "Unable to lock the price");
         setBusy(false);
         return;
       }
       if (confirmed.paymentIntent.status === "FAILED") {
-        setError(confirmed.paymentIntent.failureReason ?? "Harga tidak bisa dikunci");
+        setError(confirmed.paymentIntent.failureReason ?? "The price could not be locked");
         setBusy(false);
         return;
       }
 
       location.href = `/checkout/pay/${intentId}`;
     } catch {
-      setError("Jaringan bermasalah. Coba lagi.");
+      setError("Network error. Please try again.");
       setBusy(false);
     }
   }
 
   return (
-    <main>
-      <Brand />
-      <div className="card">
-        <h1>{bootstrap.title}</h1>
-        <p className="muted">
-          {bootstrap.merchant.name} · {bootstrap.merchant.city}
-        </p>
-        {total === null ? (
-          <>
-            <label className="label" htmlFor="amount">
-              Jumlah
-            </label>
-            <div className="field">
-              <span>{currency ?? ""}</span>
-              <input
-                id="amount"
-                inputMode="decimal"
-                placeholder="0"
-                autoComplete="off"
-                // biome-ignore lint/a11y/noAutofocus: typing the amount is the page's only task
-                autoFocus
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-              />
-            </div>
-          </>
-        ) : (
-          <div className="figure" style={{ marginTop: 16 }}>
-            {total.display}
-          </div>
-        )}
-        {lines !== null && lines.length > 0 && (
-          <div className="rows">
-            {lines.map((line) => (
-              <div className="row" key={`${line.name}-${line.unitPrice.amount}`}>
-                <span>
-                  {line.name} × {line.quantity}
-                </span>
-                <strong>{line.unitPrice.display}</strong>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {payable ? (
-        <div className="card">
-          <h2>Bayar pakai</h2>
-          <div className="assets">
-            {accepted.map((choice) => (
-              <button
-                type="button"
-                className="asset"
-                key={choice}
-                aria-pressed={choice === asset}
-                onClick={() => setAsset(choice)}
-              >
-                {choice}
-              </button>
-            ))}
-          </div>
-          <div className="rows">
-            <div className="row">
-              <span>Perkiraan</span>
-              <strong>{estimate}</strong>
-            </div>
-          </div>
-          <p className="subtle">
-            Perkiraan, bukan harga final. Harga dikunci {lockMinutes} menit begitu kamu menekan
-            tombol di bawah.
+    <main className="checkout-shell">
+      <CheckoutSummary
+        merchant={bootstrap.merchant}
+        title={bootstrap.title}
+        totalDisplay={total?.display ?? `${currency ?? ""} ${amount || "0"}`}
+        lines={lines}
+      />
+      <section className="checkout-panel" aria-label="Detail pembayaran">
+        <div className="payment-form">
+          <p className="section-kicker">Secure checkout</p>
+          <h2>Choose how to pay</h2>
+          <p className="panel-intro">
+            Pay {bootstrap.merchant.name} on the {bootstrap.chain} network.
           </p>
-          <button type="button" className="primary" disabled={busy} onClick={() => void pay()}>
-            {busy ? "Menyiapkan pembayaran…" : "Lanjut bayar"}
-          </button>
-          {error !== "" && <p className="error">{error}</p>}
+
+          {total === null && (
+            <div className="form-block">
+              <label className="label" htmlFor="amount">
+                Amount
+              </label>
+              <div className="field">
+                <span>{currency ?? ""}</span>
+                <input
+                  id="amount"
+                  inputMode="decimal"
+                  placeholder="0"
+                  autoComplete="off"
+                  // biome-ignore lint/a11y/noAutofocus: typing the amount is the page's only task
+                  autoFocus
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {payable ? (
+            <>
+              <div className="form-block">
+                <span className="label">Pay with</span>
+                <div className="assets">
+                  {accepted.map((choice) => (
+                    <button
+                      type="button"
+                      className="asset"
+                      key={choice}
+                      aria-pressed={choice === asset}
+                      onClick={() => setAsset(choice)}
+                    >
+                      <AssetLogo symbol={choice} />
+                      {choice}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="payment-estimate" aria-live="polite">
+                <span>Estimated total in {asset ?? "selected asset"}</span>
+                <strong>{estimate}</strong>
+              </div>
+
+              <ol className="payment-steps">
+                <li>Choose the asset you want to send.</li>
+                <li>Continue to lock the price for {lockMinutes} minutes.</li>
+                <li>Scan the QR code or copy the address, then wait for confirmation.</li>
+              </ol>
+
+              <p className="estimate-note">
+                Estimated, final price may change. Prices are locked for {lockMinutes} minutes once
+                you press the button below.
+              </p>
+              <button type="button" className="primary" disabled={busy} onClick={() => void pay()}>
+                {busy ? "Preparing payment…" : `Continue with ${asset ?? "asset"}`}
+              </button>
+              {error !== "" && (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="unavailable">
+              <h3>This payment link is no longer available</h3>
+              <p>Contact the merchant for a new payment link.</p>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="card">
-          <p className="muted">Tautan ini sudah tidak berlaku.</p>
-        </div>
-      )}
+      </section>
     </main>
   );
 }

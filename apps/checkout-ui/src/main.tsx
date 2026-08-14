@@ -29,9 +29,9 @@ function titleFor(bootstrap: Bootstrap): string {
     case "link":
       return bootstrap.title;
     case "pay":
-      return `Pembayaran ${bootstrap.intentId}`;
+      return `Payment ${bootstrap.intentId}`;
     case "invoice":
-      return `Faktur ${bootstrap.number ?? bootstrap.invoiceId}`;
+      return `Invoice ${bootstrap.number ?? bootstrap.invoiceId}`;
   }
 }
 
@@ -44,5 +44,5 @@ if (root !== null && bootstrap !== undefined) {
 } else if (root !== null) {
   // Served without a bootstrap: someone opened the raw shell. Nothing secret
   // to show and nothing to render — say so instead of a blank page.
-  root.textContent = "Halaman ini dibuka lewat tautan pembayaran atau faktur.";
+  root.textContent = "Open this page from a payment link or invoice.";
 }

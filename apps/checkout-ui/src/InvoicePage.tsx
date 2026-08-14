@@ -3,12 +3,12 @@ import { Brand } from "./Brand.tsx";
 import type { InvoiceBootstrap, InvoiceStatus } from "./types.ts";
 
 const STATUS_LABEL: Readonly<Record<InvoiceStatus, string>> = {
-  draft: "Draf",
-  issued: "Belum dibayar",
-  partially_paid: "Dibayar sebagian",
-  paid: "Lunas",
-  overdue: "Jatuh tempo",
-  void: "Dibatalkan",
+  draft: "Draft",
+  issued: "Unpaid",
+  partially_paid: "Partially paid",
+  paid: "Paid",
+  overdue: "Overdue",
+  void: "Void",
 };
 
 /** Only these two carry a warning colour. The rest are ordinary states. */
@@ -21,7 +21,7 @@ const STATUS_TONE: Readonly<Record<InvoiceStatus, string>> = {
   void: "muted",
 };
 
-const DATE = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" });
+const DATE = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "Asia/Jakarta" });
 
 function formatDate(iso: string | null): string {
   return iso === null ? "—" : DATE.format(new Date(iso));
@@ -62,9 +62,9 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       <Brand />
       <header className="invoice-head">
         <div>
-          <h1>Faktur {bootstrap.number ?? "(draf)"}</h1>
+          <h1>Invoice {bootstrap.number ?? "(draft)"}</h1>
           <p className="muted">
-            Diterbitkan {formatDate(bootstrap.issuedAt)} · Jatuh tempo {formatDate(bootstrap.dueAt)}
+            Issued {formatDate(bootstrap.issuedAt)} · Due {formatDate(bootstrap.dueAt)}
           </p>
         </div>
         <div>
@@ -74,15 +74,15 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
 
       <div className="parties">
         <dl className="party">
-          <dt>Dari</dt>
+          <dt>From</dt>
           <dd>{bootstrap.merchant.name}</dd>
           <dd className="muted">{bootstrap.merchant.city}</dd>
         </dl>
         <dl className="party">
-          <dt>Untuk</dt>
+          <dt>Bill to</dt>
           <dd>{buyer.name}</dd>
           {buyer.address !== null && <dd className="muted">{buyer.address}</dd>}
-          {buyer.taxId !== null && <dd className="muted">NPWP {buyer.taxId}</dd>}
+          {buyer.taxId !== null && <dd className="muted">Tax ID {buyer.taxId}</dd>}
           {buyer.email !== null && <dd className="muted">{buyer.email}</dd>}
         </dl>
       </div>
@@ -90,9 +90,9 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       <table>
         <thead>
           <tr>
-            <th>Keterangan</th>
-            <th className="num">Jumlah</th>
-            <th className="num">Harga</th>
+            <th>Description</th>
+            <th className="num">Quantity</th>
+            <th className="num">Unit price</th>
             <th className="num">Total</th>
           </tr>
         </thead>
@@ -115,12 +115,12 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
           </tr>
           <tr>
             <td colSpan={3} className="muted">
-              Sudah dibayar
+              Amount paid
             </td>
             <td className="num muted">{bootstrap.paid.display}</td>
           </tr>
           <tr>
-            <td colSpan={3}>Sisa tagihan</td>
+            <td colSpan={3}>Amount due</td>
             <td className="num total">{bootstrap.outstanding.display}</td>
           </tr>
         </tfoot>
@@ -134,7 +134,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         disabled={!payable || busy}
         onClick={() => void pay()}
       >
-        {payable ? `Bayar ${bootstrap.outstanding.display}` : STATUS_LABEL[status]}
+        {payable ? `Pay ${bootstrap.outstanding.display}` : STATUS_LABEL[status]}
       </button>
     </main>
   );

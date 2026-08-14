@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Brand } from "./Brand.tsx";
+import { AssetLogo } from "./AssetLogo.tsx";
+import { CheckoutSummary } from "./CheckoutSummary.tsx";
 import { remainingAt } from "./countdown.ts";
 import type { PayBootstrap, PaymentStatusPayload } from "./types.ts";
 import { isTerminal, statusWording } from "./wording.ts";
@@ -17,7 +18,7 @@ type Deposit = NonNullable<PaymentStatusPayload["deposit"]>;
 export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const { intentId, expiresAt, statusUrl, streaming, successUrl, pollMs } = bootstrap;
 
-  const [status, setStatus] = useState("memuat…");
+  const [status, setStatus] = useState("Loading…");
   const [rawStatus, setRawStatus] = useState("");
   const [deposit, setDeposit] = useState<Deposit | undefined>(undefined);
   const [mode, setMode] = useState("");
@@ -66,13 +67,13 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
     if (streaming && "EventSource" in window) {
       const stream = new EventSource(`/checkout/events/${intentId}`);
       source.current = stream;
-      stream.addEventListener("open", () => setMode("Diperbarui otomatis."));
+      stream.addEventListener("open", () => setMode("Updates automatically."));
       stream.addEventListener("payment", () => void refresh());
       // Falls back rather than retrying forever: EventSource reconnects on its
       // own, but a proxy that buffers the stream would leave the page silent.
-      stream.addEventListener("error", () => startPolling("Memeriksa status berkala."));
+      stream.addEventListener("error", () => startPolling("Checking status periodically."));
     } else {
-      startPolling("Memeriksa status berkala.");
+      startPolling("Checking status periodically.");
     }
 
     return () => {
@@ -85,87 +86,146 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const [, tone] = statusWording(rawStatus);
 
   return (
-    <main>
-      <Brand />
-      <div className="card">
-        <h1>{bootstrap.amount.display}</h1>
-        <p className="muted">
-          {bootstrap.merchant.name} · {bootstrap.merchant.city}
-        </p>
-        <div className="rows">
-          <div className="row">
-            <span>Status</span>
-            <strong className="status">
-              <i className={`dot ${tone}`} />
-              <span style={{ color: "var(--ink)" }}>{status}</span>
-            </strong>
-          </div>
-          <div className="row">
-            <span>Berlaku sampai</span>
-            <strong className={`countdown${remaining.low ? " low" : ""}`}>
-              {terminal ? "—" : remaining.text}
-            </strong>
-          </div>
-        </div>
-      </div>
-      {terminal ? (
-        <Outcome status={rawStatus} />
-      ) : deposit === undefined ? (
-        <div className="card">
-          <h2>Menyiapkan alamat pembayaran…</h2>
-          <p className="subtle">Harga sedang dikunci. Jangan tutup halaman ini.</p>
-        </div>
-      ) : (
-        <div className="card">
-          <h2>Kirim tepat sejumlah ini</h2>
-          <div className="figure">{deposit.amount.display}</div>
-          {deposit.uri !== null && (
-            <div className="qr">
-              <img
-                alt="QR pembayaran"
-                src={`/checkout/qr?value=${encodeURIComponent(deposit.uri)}`}
-              />
+    <main className="checkout-shell">
+      <CheckoutSummary
+        merchant={bootstrap.merchant}
+        title={bootstrap.title}
+        totalDisplay={bootstrap.amount.display}
+        lines={bootstrap.lines}
+      />
+      <section className="checkout-panel" aria-label="Instruksi pembayaran">
+        <div className="payment-form pay-detail">
+          <div className="pay-heading">
+            <div>
+              <p className="section-kicker">Secure payment</p>
+              <h2>{terminal ? "Payment status" : "Complete your payment"}</h2>
             </div>
+            <div className={`timer${remaining.low ? " low" : ""}`}>
+              <span>Time left</span>
+              <strong>{terminal ? "—" : remaining.text}</strong>
+            </div>
+          </div>
+
+          <div className="live-status" aria-live="polite">
+            <i className={`dot ${tone}`} />
+            <div>
+              <span>Status</span>
+              <strong>{status}</strong>
+            </div>
+          </div>
+
+          <StatusTimeline status={rawStatus} />
+
+          {terminal ? (
+            <Outcome status={rawStatus} />
+          ) : deposit === undefined ? (
+            <div className="preparing">
+              <span className="spinner" aria-hidden="true" />
+              <div>
+                <h3>Preparing your payment address…</h3>
+                <p>Your price is being locked. Keep this page open.</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="send-amount">
+                <span>Send this exact amount</span>
+                <strong>
+                  <AssetLogo symbol={deposit.amount.asset} size={30} />
+                  {deposit.amount.display}
+                </strong>
+              </div>
+              {deposit.uri !== null && (
+                <div className="qr">
+                  <img
+                    alt={`QR pembayaran ${deposit.amount.asset} di ${deposit.chain}`}
+                    src={`/checkout/qr?value=${encodeURIComponent(deposit.uri)}`}
+                  />
+                </div>
+              )}
+              <dl className="payment-data">
+                <div>
+                  <dt>Local price</dt>
+                  <dd>{bootstrap.amount.display}</dd>
+                </div>
+                <div>
+                  <dt>Aset</dt>
+                  <dd className="asset-value">
+                    <AssetLogo symbol={deposit.amount.asset} size={18} />
+                    {deposit.amount.asset}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Network</dt>
+                  <dd>{deposit.chain}</dd>
+                </div>
+                <div className="address-row">
+                  <dt>Address</dt>
+                  <dd>
+                    <code>{deposit.address}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Amount received</dt>
+                  <dd>{deposit.received.display}</dd>
+                </div>
+                <div>
+                  <dt>Reference ID</dt>
+                  <dd>
+                    <code>{intentId}</code>
+                  </dd>
+                </div>
+              </dl>
+              <button
+                type="button"
+                className="copy"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(deposit.address);
+                  setCopied(true);
+                }}
+              >
+                {copied ? "Address copied" : "Copy payment address"}
+              </button>
+              <p className="estimate-note">
+                Send only {deposit.amount.asset} on {deposit.chain}. A smaller amount or an asset on
+                another network will not complete this payment.
+              </p>
+            </>
           )}
-          <div className="rows">
-            <div className="row">
-              <span>Jaringan</span>
-              <strong>{deposit.chain}</strong>
-            </div>
-            <div className="row">
-              <span>Alamat</span>
-              <code>{deposit.address}</code>
-            </div>
-            <div className="row">
-              <span>Sudah diterima</span>
-              <strong>{deposit.received.display}</strong>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="copy"
-            style={{ marginTop: 12 }}
-            onClick={async () => {
-              await navigator.clipboard.writeText(deposit.address);
-              setCopied(true);
-            }}
-          >
-            {copied ? "Tersalin" : "Salin alamat"}
-          </button>
-          <p className="subtle" style={{ marginTop: 12 }}>
-            Kurang dari jumlah di atas tidak akan menyelesaikan pembayaran.
-          </p>
+
+          {mode !== "" && <p className="connection-mode">{mode}</p>}
+          {deposit === undefined && (
+            <p className="reference">
+              Reference ID <code>{intentId}</code>
+            </p>
+          )}
         </div>
-      )}
-      {mode !== "" && (
-        <p className="subtle" style={{ marginTop: 12 }}>
-          {mode}
-        </p>
-      )}
-      <p className="subtle">
-        <code>{intentId}</code>
-      </p>
+      </section>
     </main>
+  );
+}
+
+function StatusTimeline({ status }: { readonly status: string }) {
+  const order = ["PENDING", "CONFIRMED", "PROCESSING", "COMPLETED"] as const;
+  const labels = ["Waiting for payment", "Asset received", "Processing", "Completed"] as const;
+  const current = order.indexOf(status as (typeof order)[number]);
+  const failed = status === "FAILED" || status === "EXPIRED";
+
+  return (
+    <ol className="status-timeline" aria-label="Progres pembayaran">
+      {labels.map((label, index) => (
+        <li
+          className={
+            failed ? "failed" : index < current ? "complete" : index === current ? "current" : ""
+          }
+          key={label}
+          aria-current={index === current ? "step" : undefined}
+        >
+          <i aria-hidden="true" />
+          <span>{label}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -180,19 +240,19 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
 function Outcome({ status }: { readonly status: string }) {
   const paid = status === "COMPLETED";
   const heading = paid
-    ? "Pembayaran selesai"
+    ? "Payment completed"
     : status === "EXPIRED"
-      ? "Masa berlaku habis"
-      : "Pembayaran gagal";
+      ? "Payment expired"
+      : "Payment failed";
   // Deliberately not the engine's own failure reason: that string names
   // clearing transactions and executor attempts — a sentence for an operator
   // reading the dashboard, not for the person holding the phone.
   const note = paid
-    ? "Terima kasih sudah membayar. Kamu boleh menutup halaman ini."
-    : "Mulai pembayaran baru untuk mencoba lagi.";
+    ? "Thank you. You can safely close this page."
+    : "Start a new payment to try again.";
 
   return (
-    <div className="card">
+    <div className="outcome-wrap">
       <div className="outcome">
         <div className={`mark${paid ? "" : " bad"}`}>
           <svg viewBox="0 0 16 16" aria-hidden="true">

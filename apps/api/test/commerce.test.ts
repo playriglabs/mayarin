@@ -10,6 +10,8 @@ async function createCoffee(harness: ReturnType<typeof createApiHarness>) {
       merchantId: merchant.id,
       sku: "KOPI-01",
       name: "Kopi Susu",
+      description: "Kopi susu gula aren",
+      metadata: { image: "https://cdn.example.com/kopi-susu.webp" },
       prices: [
         { amount: "25000.00", asset: "IDR" },
         { amount: "7.50", asset: "MYR" },
@@ -353,7 +355,13 @@ describe("hosted checkout", () => {
     const after = await harness.intents.list({ merchantId: merchant.id });
 
     expect(page.bootstrap.lines).toEqual([
-      expect.objectContaining({ name: "Kopi Susu", quantity: 2 }),
+      expect.objectContaining({
+        name: "Kopi Susu",
+        description: "Kopi susu gula aren",
+        imageUrl: "https://cdn.example.com/kopi-susu.webp",
+        quantity: 2,
+        lineTotal: expect.objectContaining({ display: "Rp 50.000,00" }),
+      }),
     ]);
     expect(page.bootstrap.total.display).toBe("Rp 50.000,00");
     expect(after.length).toBe(before.length);

@@ -16,7 +16,7 @@ export interface Remaining {
 export function remainingAt(expiresAtIso: string, nowMs: number): Remaining {
   const left = new Date(expiresAtIso).getTime() - nowMs;
   if (left <= 0) {
-    return { text: "kedaluwarsa", low: false, expired: true };
+    return { text: "expired", low: false, expired: true };
   }
   const total = Math.floor(left / 1000);
   const minutes = String(Math.floor(total / 60)).padStart(2, "0");

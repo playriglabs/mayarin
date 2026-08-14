@@ -38,6 +38,8 @@ const payBootstrap: PayBootstrap = {
   intentId: "pi_1",
   amount: idr("Rp 50.000,00"),
   merchant: { name: "Warung Kopi", city: "Jakarta" },
+  title: "Paket",
+  lines: null,
   expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
   statusUrl: "http://localhost:3000/v1/payments/pi_1",
   streaming: true,
@@ -75,9 +77,9 @@ describe("link page", () => {
     const html = renderToStaticMarkup(<LinkPage bootstrap={linkBootstrap} />);
     expect(html).toContain("Rp 50.000,00");
     expect(html).toContain("Paket");
-    expect(html).toContain("Bayar pakai");
+    expect(html).toContain("Pay with");
     expect(html).toContain("USDC");
-    expect(html).toContain("Harga dikunci 15 menit");
+    expect(html).toContain("Prices are locked for 15 minutes");
     // The QR that used to sit here encoded the page's own URL. It belongs to
     // the counter — the dashboard's "Take payment" — not to the buyer.
     expect(html).not.toContain("<svg");
@@ -88,7 +90,7 @@ describe("link page", () => {
     const html = renderToStaticMarkup(
       <LinkPage bootstrap={{ ...linkBootstrap, kind: "open", total: null }} />,
     );
-    expect(html).toContain("Jumlah");
+    expect(html).toContain("Amount");
     expect(html).toContain('inputMode="decimal"');
   });
 
@@ -96,7 +98,7 @@ describe("link page", () => {
     const html = renderToStaticMarkup(
       <LinkPage bootstrap={{ ...linkBootstrap, payable: false }} />,
     );
-    expect(html).toContain("Tautan ini sudah tidak berlaku");
+    expect(html).toContain("This payment link is no longer available");
     expect(html).not.toContain("Lanjut bayar");
   });
 });
@@ -105,9 +107,27 @@ describe("pay page", () => {
   test("first paint carries the amount, the countdown, and the lock-in-progress card", () => {
     const html = renderToStaticMarkup(<PayPage bootstrap={payBootstrap} />);
     expect(html).toContain("Rp 50.000,00");
-    expect(html).toContain("Berlaku sampai");
-    expect(html).toContain("Menyiapkan alamat pembayaran");
+    expect(html).toContain("Time left");
+    expect(html).toContain("Preparing your payment address");
     expect(html).toContain("pi_1");
+  });
+
+  test("shows product context and Mayarin attribution in the summary rail", () => {
+    const line = {
+      name: "Kopi Susu",
+      description: "Kopi susu gula aren",
+      imageUrl: "https://cdn.example.com/kopi.webp",
+      quantity: 2,
+      unitPrice: idr("Rp 25.000,00"),
+      lineTotal: idr("Rp 50.000,00"),
+    };
+    const html = renderToStaticMarkup(
+      <LinkPage bootstrap={{ ...linkBootstrap, kind: "catalog", lines: [line] }} />,
+    );
+    expect(html).toContain("Kopi susu gula aren");
+    expect(html).toContain("https://cdn.example.com/kopi.webp");
+    expect(html).toContain("Powered by");
+    expect(html).toContain("mayarin.xyz");
   });
 
   test("the countdown is already ticking at first paint, not waiting on a fetch", () => {
@@ -120,13 +140,13 @@ describe("pay page", () => {
 describe("invoice page", () => {
   test("renders the document: parties, lines, and the derived figures", () => {
     const html = renderToStaticMarkup(<InvoicePage bootstrap={invoiceBootstrap} />);
-    expect(html).toContain("Faktur INV-0001");
+    expect(html).toContain("Invoice INV-0001");
     expect(html).toContain("Budi");
-    expect(html).toContain("NPWP 12.345");
+    expect(html).toContain("Tax ID 12.345");
     expect(html).toContain("Kopi arabika 1kg");
-    expect(html).toContain("Sisa tagihan");
+    expect(html).toContain("Amount due");
     expect(html).toContain("Rp 125.000,00");
-    expect(html).toContain("Bayar Rp 125.000,00");
+    expect(html).toContain("Pay Rp 125.000,00");
   });
 
   test("a settled invoice offers no payment button", () => {
@@ -141,7 +161,7 @@ describe("invoice page", () => {
       />,
     );
     expect(html).toContain("disabled");
-    expect(html).toContain("Lunas");
+    expect(html).toContain("Paid");
   });
 });
 
