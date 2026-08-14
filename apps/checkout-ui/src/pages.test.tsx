@@ -90,9 +90,10 @@ describe("link page", () => {
 
   test("an open link asks for an amount instead of showing a total", () => {
     const html = renderToStaticMarkup(
-      <LinkPage bootstrap={{ ...linkBootstrap, kind: "open", total: null }} />,
+      <LinkPage bootstrap={{ ...linkBootstrap, kind: "open", currency: "SGD", total: null }} />,
     );
     expect(html).toContain("Amount");
+    expect(html).toContain("S$ 0");
     expect(html).toContain('inputMode="decimal"');
   });
 

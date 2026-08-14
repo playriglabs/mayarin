@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AssetLogo } from "./AssetLogo.tsx";
 import { CheckoutSummary } from "./CheckoutSummary.tsx";
 import { checkoutBody } from "./checkout-body.ts";
+import { currencySymbol } from "./currency-symbol.ts";
 import type { LinkBootstrap } from "./types.ts";
 
 /**
@@ -26,6 +27,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   const [busy, setBusy] = useState(false);
 
   const typedAmount = total === null ? amount : total.formatted;
+  const displayCurrency = currencySymbol(currency);
 
   // Debounced rather than fired per keystroke: the quote reads a live rate
   // source, and a request per character is a request per character.
@@ -109,7 +111,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       <CheckoutSummary
         merchant={bootstrap.merchant}
         title={bootstrap.title}
-        totalDisplay={total?.display ?? `${currency ?? ""} ${amount || "0"}`}
+        totalDisplay={total?.display ?? `${displayCurrency} ${amount || "0"}`}
         lines={lines}
       />
       <section className="checkout-panel" aria-label="Detail pembayaran">
@@ -126,7 +128,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                 Amount
               </label>
               <div className="field">
-                <span>{currency ?? ""}</span>
+                <span>{displayCurrency}</span>
                 <input
                   id="amount"
                   inputMode="decimal"

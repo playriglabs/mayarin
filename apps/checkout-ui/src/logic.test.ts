@@ -1,8 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import { checkoutBody } from "./checkout-body.ts";
 import { remainingAt } from "./countdown.ts";
+import { currencySymbol } from "./currency-symbol.ts";
 import type { LinkBootstrap } from "./types.ts";
 import { isTerminal, statusWording } from "./wording.ts";
+
+describe("currency symbols", () => {
+  test("uses the familiar symbol for counter checkout fiat currencies", () => {
+    expect(currencySymbol("SGD")).toBe("S$");
+    expect(currencySymbol("IDR")).toBe("Rp");
+    expect(currencySymbol("MYR")).toBe("RM");
+    expect(currencySymbol("USD")).toBe("$");
+  });
+
+  test("falls back to the currency code when no symbol is registered", () => {
+    expect(currencySymbol("EUR")).toBe("EUR");
+    expect(currencySymbol(null)).toBe("");
+  });
+});
 
 function linkBootstrap(overrides: Partial<LinkBootstrap> = {}): LinkBootstrap {
   return {
