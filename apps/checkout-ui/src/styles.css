@@ -1,0 +1,519 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #ffffff;
+  --color-ink: #111111;
+  --color-muted: #666666;
+  --color-subtle: #767676;
+  --color-line: #e5e5e5;
+  --color-field: #cfcfcf;
+  --color-surface: #f7f7f7;
+  --color-brand: #1f6f54;
+  --color-electric: #0eeb2e;
+  --color-warning: #8a6100;
+  --color-danger: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-paper: #0a0a0a;
+    --color-ink: #fafafa;
+    --color-muted: #a3a3a3;
+    --color-subtle: #8a8a8a;
+    --color-line: #262626;
+    --color-field: #404040;
+    --color-surface: #111111;
+    --color-brand: #31b285;
+    --color-warning: #d9a514;
+    --color-danger: #e5484d;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+  * {
+    @apply box-border;
+  }
+  body {
+    @apply m-0 flex justify-center bg-paper px-4 pt-6 pb-12 text-sm leading-6 text-ink antialiased;
+    font-family:
+      "Inter Tight",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    letter-spacing: -0.15px;
+  }
+  button,
+  input {
+    font: inherit;
+  }
+  button {
+    @apply cursor-pointer;
+  }
+  button:focus-visible,
+  a:focus-visible {
+    @apply outline-2 outline-offset-3 outline-brand;
+  }
+}
+
+@layer components {
+  .brand {
+    @apply mb-5 grid size-11 place-items-center;
+  }
+  .brand img {
+    @apply block size-10 object-contain;
+  }
+
+  .checkout-shell {
+    @apply grid min-h-screen min-h-dvh w-full max-w-none grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(32rem,1fr)];
+  }
+  body:has(.checkout-shell) {
+    @apply block bg-paper p-0;
+  }
+  .checkout-summary {
+    @apply flex justify-center border-b border-line bg-surface px-5 py-6 lg:justify-end lg:border-r lg:border-b-0 lg:px-[clamp(2rem,5vw,5rem)] lg:py-12;
+  }
+  .summary-inner {
+    @apply flex min-h-0 w-full max-w-lg flex-col lg:min-h-[calc(100dvh-6rem)];
+  }
+  .checkout-summary .brand {
+    @apply mb-7 lg:mb-14;
+  }
+  .merchant-name {
+    @apply m-0 mb-2 text-[15px] font-medium text-muted;
+  }
+  .checkout-summary h1 {
+    @apply m-0 text-lg leading-tight font-medium text-muted md:text-2xl;
+  }
+  .summary-total {
+    @apply mt-1 mb-6 text-4xl leading-none font-semibold tracking-[-0.04em] tabular-nums text-ink lg:mb-10 lg:text-5xl;
+  }
+  .product-list {
+    @apply grid gap-5;
+  }
+  .product {
+    @apply grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-4;
+  }
+  .product-image,
+  .product-placeholder {
+    @apply size-18 rounded-xs border border-line bg-paper;
+  }
+  .product-image {
+    @apply object-cover;
+  }
+  .product-placeholder {
+    @apply grid place-items-center text-xl font-semibold text-muted;
+  }
+  .product-copy {
+    @apply min-w-0;
+  }
+  .product-heading {
+    @apply flex justify-between gap-4;
+  }
+  .product-heading strong {
+    @apply text-sm font-semibold;
+  }
+  .product-heading strong:last-child {
+    @apply text-right whitespace-nowrap tabular-nums;
+  }
+  .product-copy p,
+  .product-copy span {
+    @apply mt-1 mb-0 text-xs text-muted;
+  }
+  .product-copy p {
+    @apply line-clamp-2;
+  }
+  .summary-spacer {
+    @apply min-h-7 flex-1 lg:min-h-12;
+  }
+  .powered-by {
+    @apply w-fit text-xs text-subtle no-underline;
+  }
+  .powered-by strong {
+    @apply text-muted;
+  }
+  .powered-by:hover strong {
+    @apply text-ink;
+  }
+
+  .checkout-panel {
+    @apply flex items-center px-5 py-9 lg:px-[clamp(2rem,6vw,6rem)] lg:py-12;
+  }
+  .payment-form {
+    @apply mx-auto w-full max-w-md;
+  }
+  .pay-detail {
+    @apply max-w-lg;
+  }
+  .section-kicker {
+    @apply m-0 mb-2 text-[11px] font-bold tracking-[0.1em] text-brand uppercase;
+  }
+  .checkout-panel h2 {
+    @apply m-0 text-2xl leading-tight font-semibold tracking-[-0.025em] sm:text-[28px];
+  }
+  .checkout-panel h3 {
+    @apply m-0 text-sm font-semibold;
+  }
+  .panel-intro {
+    @apply mt-2.5 mb-0 text-sm text-muted;
+  }
+  .form-block {
+    @apply mt-7;
+  }
+  .label {
+    @apply mb-2 block text-xs font-medium text-ink;
+  }
+  .field {
+    @apply flex items-stretch border border-field;
+  }
+  .field:focus-within {
+    @apply outline-2 -outline-offset-1 outline-brand;
+  }
+  .field span {
+    @apply flex items-center border-r border-line px-5 font-mono text-sm text-muted;
+  }
+  .field input {
+    @apply min-w-0 flex-1 border-0 bg-transparent p-3 text-2xl text-ink tabular-nums outline-0;
+  }
+  .assets {
+    @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2;
+  }
+  .asset {
+    @apply flex min-h-13 items-center justify-start gap-2.5 rounded-xs border border-field bg-transparent px-3.5 py-2.5 text-ink transition-[border-color,background-color,box-shadow] duration-200;
+  }
+  .asset:hover {
+    @apply border-muted;
+  }
+  .asset[aria-pressed="true"] {
+    @apply border-brand bg-brand/10 shadow-[0_0_0_1px_var(--color-brand)];
+  }
+  .asset-logo {
+    @apply shrink-0 rounded-full object-contain;
+  }
+  .payment-estimate {
+    @apply mt-6 flex items-baseline justify-between gap-4 border-y border-line py-4;
+  }
+  .payment-estimate span {
+    @apply text-xs text-muted;
+  }
+  .payment-estimate strong {
+    @apply text-xl font-semibold tabular-nums;
+  }
+  .payment-steps {
+    @apply mt-5.5 mb-0 grid list-none gap-3 p-0;
+    counter-reset: checkout-step;
+  }
+  .payment-steps li {
+    @apply grid grid-cols-[1.625rem_1fr] items-center gap-2.5 text-xs leading-5 text-muted;
+    counter-increment: checkout-step;
+  }
+  .payment-steps li::before {
+    content: counter(checkout-step);
+    @apply grid size-6 place-items-center rounded-full border border-field text-[11px] font-semibold text-ink;
+  }
+  .estimate-note {
+    @apply mt-5.5 mb-0 text-xs leading-relaxed text-muted;
+  }
+  button.primary {
+    @apply mt-5 min-h-12 w-full rounded-xs border-0 bg-ink px-4 py-3 font-medium text-paper transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  button.primary:not([disabled]):hover {
+    @apply opacity-85;
+  }
+  .error {
+    @apply mt-3 mb-0 text-xs text-danger;
+  }
+  .unavailable {
+    @apply mt-7 rounded-xs border border-line p-4.5;
+  }
+  .unavailable p {
+    @apply mt-1.5 mb-0 text-muted;
+  }
+
+  .pay-heading {
+    @apply flex items-start justify-between gap-3 sm:gap-6;
+  }
+  .timer {
+    @apply min-w-22 text-right;
+  }
+  .timer span {
+    @apply block text-[11px] text-muted;
+  }
+  .timer strong {
+    @apply block text-2xl font-semibold tabular-nums;
+  }
+  .timer.low strong {
+    @apply text-danger;
+  }
+  .live-status {
+    @apply mt-6 flex items-center gap-3 rounded-xs border border-line bg-surface px-4 py-3.5;
+  }
+  .live-status span,
+  .live-status strong {
+    @apply block;
+  }
+  .live-status span {
+    @apply text-[11px] text-muted;
+  }
+  .live-status strong {
+    @apply text-xs font-semibold;
+  }
+  .dot {
+    @apply size-2 shrink-0 bg-muted;
+  }
+  .dot.live {
+    @apply bg-electric motion-safe:animate-pulse;
+  }
+  .dot.done {
+    @apply bg-brand;
+  }
+  .dot.bad {
+    @apply bg-danger;
+  }
+  .status-timeline {
+    @apply mt-5.5 mb-6 grid list-none grid-cols-4 p-0;
+  }
+  .status-timeline li {
+    @apply relative pt-5 text-center text-[9px] text-subtle sm:text-[10px];
+  }
+  .status-timeline li::before {
+    content: "";
+    @apply absolute top-1.5 right-0 left-0 h-px bg-line;
+  }
+  .status-timeline li:first-child::before {
+    @apply left-1/2;
+  }
+  .status-timeline li:last-child::before {
+    @apply right-1/2;
+  }
+  .status-timeline i {
+    @apply absolute top-0.5 left-[calc(50%-5px)] z-10 size-2.5 rounded-full border-2 border-paper bg-field shadow-[0_0_0_1px_var(--color-field)];
+  }
+  .status-timeline .complete,
+  .status-timeline .current {
+    @apply text-ink;
+  }
+  .status-timeline .complete i,
+  .status-timeline .current i {
+    @apply bg-brand shadow-[0_0_0_1px_var(--color-brand)];
+  }
+  .status-timeline .current i {
+    @apply motion-safe:animate-pulse;
+  }
+  .status-timeline .failed i {
+    @apply bg-danger shadow-[0_0_0_1px_var(--color-danger)];
+  }
+  .preparing {
+    @apply flex min-h-40 items-center justify-center gap-3.5 rounded-xs border border-dashed border-field;
+  }
+  .preparing p {
+    @apply mt-1 mb-0 text-xs text-muted;
+  }
+  .spinner {
+    @apply size-5.5 animate-spin rounded-full border-2 border-line border-t-brand motion-reduce:animate-none;
+  }
+  .send-amount {
+    @apply rounded-xs border border-line p-4.5 text-center;
+  }
+  .send-amount > span {
+    @apply block text-xs text-muted;
+  }
+  .send-amount strong {
+    @apply mt-2 inline-flex items-center gap-2.5 text-2xl font-semibold tabular-nums;
+  }
+  .qr {
+    @apply mt-4 flex justify-center bg-white p-3;
+  }
+  .pay-detail .qr {
+    @apply mx-auto my-4.5 w-full max-w-60 rounded-xs border border-line;
+  }
+  .qr img,
+  .qr svg {
+    @apply block h-auto w-full max-w-50;
+  }
+  .payment-data {
+    @apply m-0 border-t border-line;
+  }
+  .payment-data > div {
+    @apply grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2.5 border-b border-line py-2.5 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4;
+  }
+  .payment-data dt {
+    @apply text-xs text-muted;
+  }
+  .payment-data dd {
+    @apply m-0 text-right text-xs font-medium tabular-nums;
+  }
+  code {
+    @apply break-all font-mono text-xs;
+  }
+  .asset-value {
+    @apply flex items-center justify-end gap-2;
+  }
+  .copy {
+    @apply mt-3.5 min-h-11 w-full rounded-xs border border-field bg-transparent px-3 py-2 text-xs font-medium text-ink;
+  }
+  .connection-mode,
+  .reference {
+    @apply mt-3.5 mb-0 text-center text-[11px] text-subtle;
+  }
+  .outcome-wrap {
+    @apply rounded-xs border border-line p-5.5;
+  }
+  .outcome {
+    @apply py-3 text-center;
+  }
+  .mark {
+    @apply mx-auto mb-4 flex size-11 items-center justify-center bg-brand text-paper;
+  }
+  .mark.bad {
+    @apply bg-danger;
+  }
+  .mark svg {
+    @apply block size-5.5;
+  }
+  .outcome h2 {
+    @apply mb-1.5 text-lg;
+  }
+  .outcome p {
+    @apply m-0 text-xs text-muted;
+  }
+
+  @media (min-width: 64rem) {
+    body:has(.pay-detail) {
+      @apply overflow-hidden;
+    }
+    .checkout-shell:has(.pay-detail) {
+      @apply h-dvh min-h-0 overflow-hidden;
+    }
+    .checkout-panel:has(.pay-detail) {
+      @apply py-5;
+    }
+    .pay-detail .live-status {
+      @apply mt-4 px-4 py-2.5;
+    }
+    .pay-detail .status-timeline {
+      @apply mt-4 mb-4;
+    }
+    .pay-detail .send-amount {
+      @apply p-3;
+    }
+    .pay-detail .send-amount strong {
+      @apply mt-1 text-xl;
+    }
+    .pay-detail .qr {
+      @apply my-3 max-w-48 p-2;
+    }
+    .pay-detail .qr img,
+    .pay-detail .qr svg {
+      @apply max-w-44;
+    }
+    .pay-detail .payment-data > div {
+      @apply py-1.5;
+    }
+    .pay-detail .copy {
+      @apply mt-2;
+    }
+    .pay-detail .estimate-note {
+      @apply mt-3 leading-5;
+    }
+    .pay-detail .connection-mode,
+    .pay-detail .reference {
+      @apply mt-2;
+    }
+  }
+
+  .document {
+    @apply w-full max-w-3xl;
+  }
+  .card {
+    @apply border border-line p-5;
+  }
+  .card + .card {
+    @apply border-t-0;
+  }
+  .muted {
+    @apply text-muted;
+  }
+  .subtle {
+    @apply text-xs text-subtle;
+  }
+  .invoice-head {
+    @apply flex flex-wrap justify-between gap-4 border-b border-line pb-4;
+  }
+  .invoice-head h1 {
+    @apply m-0 text-2xl font-medium;
+  }
+  .invoice-head p {
+    @apply mt-1 mb-0 text-xs;
+  }
+  .badge {
+    @apply text-xs font-semibold tracking-wide uppercase;
+  }
+  .badge.ok {
+    @apply text-brand;
+  }
+  .badge.warn {
+    @apply text-warning;
+  }
+  .badge.muted {
+    @apply text-muted;
+  }
+  .parties {
+    @apply my-5 flex flex-wrap gap-8;
+  }
+  .party {
+    @apply m-0 min-w-48;
+  }
+  .party dt {
+    @apply mb-1 text-[11px] tracking-wide text-muted uppercase;
+  }
+  .party dd {
+    @apply m-0;
+  }
+  table {
+    @apply mt-2 w-full border-collapse;
+  }
+  th,
+  td {
+    @apply border-b border-line py-2 text-left;
+  }
+  th {
+    @apply text-[11px] font-semibold tracking-wide text-muted uppercase;
+  }
+  .num {
+    @apply text-right whitespace-nowrap tabular-nums;
+  }
+  tfoot td {
+    @apply border-b-0 pt-2.5;
+  }
+  tfoot .total {
+    @apply text-[15px] font-semibold;
+  }
+  .notes {
+    @apply mt-5 whitespace-pre-wrap;
+  }
+}
+
+@media print {
+  body {
+    display: block;
+    padding: 0;
+    background: white;
+    color: black;
+  }
+  main,
+  .document {
+    max-width: none;
+  }
+  .primary,
+  .screen-only {
+    display: none !important;
+  }
+  a[href]::after {
+    content: "";
+  }
+}

@@ -29,6 +29,14 @@ shared link encode them, so a version bump must never move them:
 
 A buyer page has no version. It renders whatever the current API serves.
 
+**How a buyer page renders (#151).** The pages are one SPA
+(`apps/checkout-ui`). Each page route reads the built shell, injects a
+`window.__BOOTSTRAP__` payload, and answers with the result — the page paints
+from data it already has, with no fetch of its own. The API serves the hashed
+bundle at `GET /checkout-ui/assets/*`, from its own image. `CHECKOUT_UI_DIST`
+overrides where the built shell is read from; the default is the workspace
+path `apps/checkout-ui/dist`.
+
 ## Authentication
 
 The payment API has two kinds of caller, and the routes split along that line.

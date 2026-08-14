@@ -323,6 +323,7 @@ describe("quote configuration", () => {
     expect(config.quote).toEqual({
       venues: ["0x"],
       oracle: "pyth",
+      fallbackOracles: [],
       deviationBps: 100,
       maxReferenceAgeSeconds: 60,
       peggedPairs: [],
@@ -393,6 +394,36 @@ describe("quote configuration", () => {
         QUOTE_ORACLE: "chainlink",
       }),
     ).toThrow(/CHAINLINK_FEEDS/);
+  });
+
+  test("resolves an ordered fallback oracle", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      ...TURNKEY,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      PYTH_FEEDS,
+      QUOTE_ORACLE_FALLBACKS: '["chainlink"]',
+      CHAINLINK_FEEDS:
+        '{"ETH/USDC":{"chain":"base-sepolia","address":"0x0000000000000000000000000000000000000001"}}',
+    });
+
+    expect(config.quote?.fallbackOracles).toEqual(["chainlink"]);
+  });
+
+  test("refuses duplicate oracle sources", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        ...TURNKEY,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_ORACLE_FALLBACKS: '["pyth"]',
+      }),
+    ).toThrow(/must not contain duplicates/);
   });
 
   test("refuses an unsupported venue rather than ignoring it", () => {

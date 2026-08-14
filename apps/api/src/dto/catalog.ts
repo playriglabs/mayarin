@@ -40,7 +40,7 @@ export type CreateProductBody = z.input<typeof createProductBodySchema>;
 export type UpdateProductBody = z.input<typeof updateProductBodySchema>;
 
 /** The intent-shaping options every checkout accepts, whatever it is checking out. */
-const intentOptionsSchema = z.object({
+export const intentOptionsSchema = z.object({
   settlementAsset: assetCodeSchema.optional(),
   provider: z.string().min(1).optional(),
   payment: z
