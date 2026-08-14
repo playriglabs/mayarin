@@ -26,6 +26,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  type ComboboxOption,
+} from "@/components/ui/combobox";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
@@ -49,6 +58,7 @@ import {
 } from "@/components/ui/table";
 import { useSettings, useSettingsHistory, useUpdateSettings } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
+import { COUNTRIES } from "@/lib/countries";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
@@ -63,6 +73,18 @@ const SETTLEMENT_OPTIONS: readonly SelectOption[] = [
 
 /** What a payer may pay with. The settlement asset itself is the no-swap path. */
 const PAYABLE_ASSETS: readonly string[] = ["USDC", "USDT", "IDRX", "ETH"];
+
+/**
+ * Every country, with the unsupported ones disabled rather than hidden.
+ *
+ * `COUNTRIES` already sorts the selectable markets to the top, so the list a
+ * merchant sees before typing is the list they can actually choose from.
+ */
+const COUNTRY_OPTIONS: readonly ComboboxOption[] = COUNTRIES.map((country) => ({
+  value: country.code,
+  label: country.label,
+  ...(country.supported ? {} : { disabled: true }),
+}));
 
 interface Draft {
   readonly settlementAsset: string;
@@ -286,19 +308,33 @@ function Settings() {
 
                       <Field>
                         <FieldLabel htmlFor="merchant-country">Country</FieldLabel>
-                        <Input
-                          id="merchant-country"
+                        <Combobox
+                          items={COUNTRY_OPTIONS}
                           value={draft.countryCode}
-                          onChange={(e) => setDraft({ ...draft, countryCode: e.target.value })}
-                          placeholder="ID"
-                          maxLength={2}
-                          className="uppercase"
-                        />
+                          onValueChange={(next) => setDraft({ ...draft, countryCode: next })}
+                        >
+                          <ComboboxInput id="merchant-country" placeholder="Search a country" />
+                          <ComboboxContent>
+                            <ComboboxEmpty>No country matches that.</ComboboxEmpty>
+                            <ComboboxList>
+                              {(country: ComboboxOption) => (
+                                <ComboboxItem
+                                  key={country.value}
+                                  value={country}
+                                  {...(country.disabled === true ? { disabled: true } : {})}
+                                >
+                                  {country.label}
+                                </ComboboxItem>
+                              )}
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
                       </Field>
                     </div>
                     <FieldDescription>
-                      Country is two letters, e.g. ID. Both fields are frozen into every payment a
-                      link takes, and a payment link cannot be created without them.
+                      Mayarin takes payments in the United States and Southeast Asia today. Every
+                      other country is listed but cannot be picked yet. Both fields are frozen into
+                      every payment a link takes, and a payment link cannot be created without them.
                     </FieldDescription>
                   </Card>
                 </Tabs.Panel>
