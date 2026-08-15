@@ -22,10 +22,10 @@ function PageHeader({
       )}
       {...props}
     >
-      <div className="flex flex-col gap-1.5">
-        <h1 className="text-2xl font-medium text-foreground">{title}</h1>
+      <div className="flex flex-col gap-3">
+        <h1 className="text-[26px] font-medium text-foreground">{title}</h1>
         {description !== undefined && (
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-base text-muted-foreground">{description}</p>
         )}
       </div>
       {actions !== undefined && <div className="flex items-center gap-2">{actions}</div>}

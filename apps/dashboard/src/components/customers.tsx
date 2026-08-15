@@ -187,39 +187,43 @@ function Customers() {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem]">
-        <Field>
-          <FieldLabel htmlFor="customer-search">Search</FieldLabel>
-          <Input
-            id="customer-search"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Name, email, or customer id"
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="customer-sort">Sort</FieldLabel>
-          <Select
-            items={SORT_OPTIONS}
-            value={sort}
-            onValueChange={(value) => setSort(value as typeof sort)}
-          >
-            <SelectTrigger id="customer-sort">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-      <div className="grid max-w-sm grid-cols-2 gap-3">
-        <DateRangeFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-56 flex-1">
+          <Field>
+            <FieldLabel htmlFor="customer-search">Search</FieldLabel>
+            <Input
+              id="customer-search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Name, email, or customer id"
+            />
+          </Field>
+        </div>
+        <div className="grid w-full grid-cols-2 gap-3 sm:w-auto">
+          <DateRangeFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+        </div>
+        <div className="w-full sm:w-44">
+          <Field>
+            <FieldLabel htmlFor="customer-sort">Sort</FieldLabel>
+            <Select
+              items={SORT_OPTIONS}
+              value={sort}
+              onValueChange={(value) => setSort(value as typeof sort)}
+            >
+              <SelectTrigger id="customer-sort">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
       </div>
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-xs text-subtle-foreground">

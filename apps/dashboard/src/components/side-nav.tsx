@@ -88,7 +88,7 @@ const DEVELOPERS: readonly NavItem[] = [
  * every hour the same weight as one they open on setup day.
  */
 const CONFIGURATION: readonly NavItem[] = [
-  { href: "/wallets", label: "Merchant Wallets", icon: WalletIcon, permission: "settings:manage" },
+  { href: "/wallets", label: "Wallets", icon: WalletIcon, permission: "settings:manage" },
   { href: "/settings", label: "Settings", icon: GearSixIcon, permission: "settings:manage" },
 ];
 
@@ -158,7 +158,7 @@ export default function SideNav({
                       "relative flex min-h-10 shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-base transition-colors duration-200",
                       active
                         ? "bg-sidebar-accent font-medium text-sidebar-foreground"
-                        : "font-normal text-sidebar-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                        : "font-normal text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                     )}
                   >
                     {active && (

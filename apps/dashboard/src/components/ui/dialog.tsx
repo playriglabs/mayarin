@@ -82,7 +82,7 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      className={cn("fixed inset-0 z-40 bg-foreground/20", className)}
+      className={cn("fixed inset-0 z-60 bg-foreground/20", className)}
       render={
         <motion.div variants={overlayVariants} initial="initial" animate="animate" exit="exit" />
       }
@@ -109,7 +109,7 @@ function DialogContent({
             // centring offsets live in `dialogVariants` so a scale animation
             // cannot clobber them.
             className={cn(
-              "fixed top-1/2 left-1/2 z-50 flex w-[calc(100vw-2rem)] max-w-md flex-col gap-5 border border-border bg-popover p-4 text-popover-foreground",
+              "fixed top-1/2 left-1/2 z-70 flex w-[calc(100vw-2rem)] max-w-md flex-col gap-5 border border-border bg-popover p-4 text-popover-foreground",
               className,
             )}
             render={
@@ -164,7 +164,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-lg font-medium leading-tight text-foreground", className)}
+      className={cn("text-[16px] font-medium leading-tight text-foreground", className)}
       {...props}
     />
   );

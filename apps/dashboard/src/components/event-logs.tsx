@@ -134,78 +134,84 @@ function EventLogs() {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_11rem]">
-        <Field>
-          <FieldLabel htmlFor="event-search">Search</FieldLabel>
-          <Input
-            id="event-search"
-            type="search"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-56 flex-1">
+          <Field>
+            <FieldLabel htmlFor="event-search">Search</FieldLabel>
+            <Input
+              id="event-search"
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                pagination.reset();
+              }}
+              placeholder="Search summaries"
+            />
+          </Field>
+        </div>
+        <div className="w-full sm:w-44">
+          <Field>
+            <FieldLabel htmlFor="event-status">Severity</FieldLabel>
+            <Select
+              items={STATUS_OPTIONS}
+              value={status}
+              onValueChange={(value) => {
+                setStatus(value);
+                pagination.reset();
+              }}
+            >
+              <SelectTrigger id="event-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <div className="grid w-full grid-cols-2 gap-3 sm:w-auto">
+          <DateRangeFilter
+            from={from}
+            to={to}
+            onFromChange={(value) => {
+              setFrom(value);
               pagination.reset();
             }}
-            placeholder="Search summaries"
+            onToChange={(value) => {
+              setTo(value);
+              pagination.reset();
+            }}
           />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="event-status">Severity</FieldLabel>
-          <Select
-            items={STATUS_OPTIONS}
-            value={status}
-            onValueChange={(value) => {
-              setStatus(value);
-              pagination.reset();
-            }}
-          >
-            <SelectTrigger id="event-status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="event-sort">Sort</FieldLabel>
-          <Select
-            items={SORT_OPTIONS}
-            value={sort}
-            onValueChange={(value) => {
-              setSort(value as typeof sort);
-              pagination.reset();
-            }}
-          >
-            <SelectTrigger id="event-sort">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-      <div className="grid max-w-sm grid-cols-2 gap-3">
-        <DateRangeFilter
-          from={from}
-          to={to}
-          onFromChange={(value) => {
-            setFrom(value);
-            pagination.reset();
-          }}
-          onToChange={(value) => {
-            setTo(value);
-            pagination.reset();
-          }}
-        />
+        </div>
+        <div className="w-full sm:w-44">
+          <Field>
+            <FieldLabel htmlFor="event-sort">Sort</FieldLabel>
+            <Select
+              items={SORT_OPTIONS}
+              value={sort}
+              onValueChange={(value) => {
+                setSort(value as typeof sort);
+                pagination.reset();
+              }}
+            >
+              <SelectTrigger id="event-sort">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
       </div>
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-xs text-subtle-foreground">

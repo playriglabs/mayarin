@@ -69,7 +69,7 @@ export function Nav() {
             <a
               key={link.href}
               href={link.href}
-              class="text-sm text-slate transition-colors duration-200 hover:text-forest"
+              class="text-sm text-black/70 transition-colors duration-200 hover:text-forest"
             >
               {link.label}
             </a>

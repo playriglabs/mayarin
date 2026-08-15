@@ -321,78 +321,84 @@ function Webhooks() {
           schedule; replaying re-queues it now.
         </p>
 
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_11rem]">
-          <Field>
-            <FieldLabel htmlFor="delivery-search">Search</FieldLabel>
-            <Input
-              id="delivery-search"
-              type="search"
-              value={deliveryQuery}
-              onChange={(event) => {
-                setDeliveryQuery(event.target.value);
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-56 flex-1">
+            <Field>
+              <FieldLabel htmlFor="delivery-search">Search</FieldLabel>
+              <Input
+                id="delivery-search"
+                type="search"
+                value={deliveryQuery}
+                onChange={(event) => {
+                  setDeliveryQuery(event.target.value);
+                  deliveryPagination.reset();
+                }}
+                placeholder="Delivery, event, or endpoint id"
+              />
+            </Field>
+          </div>
+          <div className="w-full sm:w-44">
+            <Field>
+              <FieldLabel htmlFor="delivery-status">Status</FieldLabel>
+              <Select
+                items={DELIVERY_STATUS_OPTIONS}
+                value={deliveryStatus}
+                onValueChange={(value) => {
+                  setDeliveryStatus(value);
+                  deliveryPagination.reset();
+                }}
+              >
+                <SelectTrigger id="delivery-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DELIVERY_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+          <div className="grid w-full grid-cols-2 gap-3 sm:w-auto">
+            <DateRangeFilter
+              from={deliveryFrom}
+              to={deliveryTo}
+              onFromChange={(value) => {
+                setDeliveryFrom(value);
                 deliveryPagination.reset();
               }}
-              placeholder="Delivery, event, or endpoint id"
+              onToChange={(value) => {
+                setDeliveryTo(value);
+                deliveryPagination.reset();
+              }}
             />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="delivery-status">Status</FieldLabel>
-            <Select
-              items={DELIVERY_STATUS_OPTIONS}
-              value={deliveryStatus}
-              onValueChange={(value) => {
-                setDeliveryStatus(value);
-                deliveryPagination.reset();
-              }}
-            >
-              <SelectTrigger id="delivery-status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DELIVERY_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="delivery-sort">Sort</FieldLabel>
-            <Select
-              items={DELIVERY_SORT_OPTIONS}
-              value={deliverySort}
-              onValueChange={(value) => {
-                setDeliverySort(value as typeof deliverySort);
-                deliveryPagination.reset();
-              }}
-            >
-              <SelectTrigger id="delivery-sort">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DELIVERY_SORT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-        <div className="grid max-w-sm grid-cols-2 gap-3">
-          <DateRangeFilter
-            from={deliveryFrom}
-            to={deliveryTo}
-            onFromChange={(value) => {
-              setDeliveryFrom(value);
-              deliveryPagination.reset();
-            }}
-            onToChange={(value) => {
-              setDeliveryTo(value);
-              deliveryPagination.reset();
-            }}
-          />
+          </div>
+          <div className="w-full sm:w-44">
+            <Field>
+              <FieldLabel htmlFor="delivery-sort">Sort</FieldLabel>
+              <Select
+                items={DELIVERY_SORT_OPTIONS}
+                value={deliverySort}
+                onValueChange={(value) => {
+                  setDeliverySort(value as typeof deliverySort);
+                  deliveryPagination.reset();
+                }}
+              >
+                <SelectTrigger id="delivery-sort">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DELIVERY_SORT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
         </div>
 
         {match(deliveries)

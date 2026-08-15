@@ -145,7 +145,7 @@ function SelectValue({
       {(value: unknown) => {
         const match = items.find((item) => item.value === value);
         if (match !== undefined) return renderValue?.(match) ?? match.label;
-        return <span className="text-subtle-foreground">{placeholder ?? ""}</span>;
+        return <span className="text-subtle-foreground">{placeholder ?? "Select an option"}</span>;
       }}
     </SelectPrimitive.Value>
   );
@@ -165,7 +165,7 @@ function SelectContent({
           <SelectPrimitive.Positioner
             sideOffset={sideOffset}
             alignItemWithTrigger={false}
-            className="z-50"
+            className="z-80"
           >
             <SelectPrimitive.Popup
               data-slot="select-content"

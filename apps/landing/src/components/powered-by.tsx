@@ -60,7 +60,7 @@ function LogoItem({ logo, muted }: { logo: Logo; muted: boolean }) {
         class={clsx("w-auto", logo.class ?? "h-7 md:h-8")}
       />
       {logo.lockup ? null : (
-        <span class="mt-1 whitespace-nowrap font-brand text-sm uppercase font-bold text-ink md:text-base">
+        <span class="mt-1 whitespace-nowrap font-sans text-sm uppercase font-bold text-ink md:text-base">
           {logo.name}
         </span>
       )}

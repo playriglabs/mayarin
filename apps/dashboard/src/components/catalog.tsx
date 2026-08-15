@@ -17,6 +17,7 @@
  */
 
 import { PackageIcon, PencilSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { motion } from "motion/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { Alert } from "@/components/ui/alert";
@@ -77,6 +78,7 @@ import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
+import { drawerVariants } from "@/lib/motion";
 import { PAGE_SIZE } from "@/lib/pagination";
 import { currencyLabel, isValidAmount, PRICING_CURRENCIES } from "@/lib/pricing";
 import { withQuery } from "@/lib/with-query";
@@ -368,8 +370,13 @@ function Catalog() {
         )}
 
       <Dialog open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent
+          className="top-0 right-0 bottom-0 left-auto h-svh w-full max-w-xl gap-0 overflow-hidden border-y-0 border-r-0 p-0"
+          render={
+            <motion.div variants={drawerVariants} initial="initial" animate="animate" exit="exit" />
+          }
+        >
+          <DialogHeader className="shrink-0 border-b border-border px-6 py-5">
             <DialogTitle>{editing?.mode === "edit" ? "Edit product" : "New product"}</DialogTitle>
             <DialogDescription>
               Priced in the currency your customers think in. What you settle in is a separate
@@ -377,141 +384,146 @@ function Catalog() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-3">
-            {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex flex-col gap-3">
+              {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
 
-            <Field>
-              <FieldLabel htmlFor="product-name">Name</FieldLabel>
-              <Input
-                id="product-name"
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              />
-            </Field>
+              <Field>
+                <FieldLabel htmlFor="product-name">Name</FieldLabel>
+                <Input
+                  id="product-name"
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  placeholder="e.g. Premium coffee"
+                />
+              </Field>
 
-            <Field>
-              <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
-              <Input
-                id="product-sku"
-                value={draft.sku}
-                onChange={(e) => setDraft({ ...draft, sku: e.target.value })}
-                className="font-mono text-xs"
-                // The SKU is the merchant's own item code and is unique per
-                // merchant, so it identifies the row and cannot be re-pointed.
-                disabled={editing?.mode === "edit"}
-              />
-            </Field>
+              <Field>
+                <FieldLabel htmlFor="product-sku">SKU</FieldLabel>
+                <Input
+                  id="product-sku"
+                  value={draft.sku}
+                  onChange={(e) => setDraft({ ...draft, sku: e.target.value })}
+                  placeholder="e.g. COFFEE-001"
+                  className="font-mono text-xs"
+                  // The SKU is the merchant's own item code and is unique per
+                  // merchant, so it identifies the row and cannot be re-pointed.
+                  disabled={editing?.mode === "edit"}
+                />
+              </Field>
 
-            <Field>
-              <FieldLabel htmlFor="product-currency">Currency</FieldLabel>
-              <Select
-                items={CURRENCY_OPTIONS}
-                value={draft.currency}
-                onValueChange={(next) => setDraft({ ...draft, currency: next })}
-              >
-                <SelectTrigger id="product-currency">
-                  <SelectValue placeholder="Select a currency" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="product-price">Price</FieldLabel>
-              <CurrencyInput
-                id="product-price"
-                asset={draft.currency}
-                value={draft.amount}
-                onValueChange={(amount) => setDraft({ ...draft, amount })}
-                aria-describedby="product-price-hint"
-                placeholder="25.000,00"
-              />
-              <FieldDescription id="product-price-hint">
-                Use local currency format, e.g. 25.000,00.
-              </FieldDescription>
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="product-description">Description</FieldLabel>
-              <Textarea
-                id="product-description"
-                value={draft.description}
-                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-              />
-            </Field>
-
-            <Field>
-              <FieldLabel>Metadata</FieldLabel>
-              {draft.pairs.map((pair, index) => (
-                <div
-                  className="flex items-center gap-2"
-                  // biome-ignore lint/suspicious/noArrayIndexKey: rows only append and remove, and every input is controlled
-                  key={index}
+              <Field>
+                <FieldLabel htmlFor="product-currency">Currency</FieldLabel>
+                <Select
+                  items={CURRENCY_OPTIONS}
+                  value={draft.currency}
+                  onValueChange={(next) => setDraft({ ...draft, currency: next })}
                 >
-                  <Input
-                    value={pair.key}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        pairs: draft.pairs.map((p, i) =>
-                          i === index ? { ...p, key: e.target.value } : p,
-                        ),
-                      })
-                    }
-                    placeholder="key"
-                    aria-label={`Metadata key ${index + 1}`}
-                    className="font-mono text-xs"
-                  />
-                  <Input
-                    value={pair.value}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        pairs: draft.pairs.map((p, i) =>
-                          i === index ? { ...p, value: e.target.value } : p,
-                        ),
-                      })
-                    }
-                    placeholder="value"
-                    aria-label={`Metadata value ${index + 1}`}
-                    className="font-mono text-xs"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      setDraft({ ...draft, pairs: draft.pairs.filter((_, i) => i !== index) })
-                    }
-                    aria-label={`Remove metadata pair ${index + 1}`}
+                  <SelectTrigger id="product-currency">
+                    <SelectValue placeholder="Select a currency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="product-price">Price</FieldLabel>
+                <CurrencyInput
+                  id="product-price"
+                  asset={draft.currency}
+                  value={draft.amount}
+                  onValueChange={(amount) => setDraft({ ...draft, amount })}
+                  aria-describedby="product-price-hint"
+                  placeholder="25.000,00"
+                />
+                <FieldDescription id="product-price-hint">
+                  Use local currency format, e.g. 25.000,00.
+                </FieldDescription>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="product-description">Description</FieldLabel>
+                <Textarea
+                  id="product-description"
+                  value={draft.description}
+                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                  placeholder="Add a short description"
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel>Metadata</FieldLabel>
+                {draft.pairs.map((pair, index) => (
+                  <div
+                    className="flex items-center gap-2"
+                    // biome-ignore lint/suspicious/noArrayIndexKey: rows only append and remove, and every input is controlled
+                    key={index}
                   >
-                    <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                  </Button>
-                </div>
-              ))}
-              <Button
-                variant="secondary"
-                className="w-fit"
-                onClick={() =>
-                  setDraft({ ...draft, pairs: [...draft.pairs, { key: "", value: "" }] })
-                }
-              >
-                <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                Add metadata
-              </Button>
-              <FieldDescription>
-                Key-value pairs stored on the product and returned by the API — an internal
-                category, a warehouse bin, a supplier code. Buyers never see them.
-              </FieldDescription>
-            </Field>
+                    <Input
+                      value={pair.key}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          pairs: draft.pairs.map((p, i) =>
+                            i === index ? { ...p, key: e.target.value } : p,
+                          ),
+                        })
+                      }
+                      placeholder="key"
+                      aria-label={`Metadata key ${index + 1}`}
+                      className="font-mono text-xs"
+                    />
+                    <Input
+                      value={pair.value}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          pairs: draft.pairs.map((p, i) =>
+                            i === index ? { ...p, value: e.target.value } : p,
+                          ),
+                        })
+                      }
+                      placeholder="value"
+                      aria-label={`Metadata value ${index + 1}`}
+                      className="font-mono text-xs"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() =>
+                        setDraft({ ...draft, pairs: draft.pairs.filter((_, i) => i !== index) })
+                      }
+                      aria-label={`Remove metadata pair ${index + 1}`}
+                    >
+                      <XIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="secondary"
+                  className="w-fit"
+                  onClick={() =>
+                    setDraft({ ...draft, pairs: [...draft.pairs, { key: "", value: "" }] })
+                  }
+                >
+                  <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                  Add metadata
+                </Button>
+                <FieldDescription className="mt-2">
+                  Key-value pairs stored on the product and returned by the API — an internal
+                  category, a warehouse bin, a supplier code. Buyers never see them.
+                </FieldDescription>
+              </Field>
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-border bg-popover px-6 py-4">
             <DialogClose render={<Button variant="secondary">Cancel</Button>} />
             <Button onClick={save} disabled={!canSave || saving}>
               {editing?.mode === "edit" ? "Save changes" : "Create product"}

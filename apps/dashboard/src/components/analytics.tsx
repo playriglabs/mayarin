@@ -358,7 +358,7 @@ function Analytics() {
           <StatGrid>
             <Stat
               label={`Settled volume · ${asset}`}
-              value={compactMoney(totalVolume, decimals, symbol)}
+              value={formatMoneyLocale(money(totalVolume, asset), { trimZeroFraction: true })}
               hint={`Gross settlement across ${totalCount} completed payment${totalCount === 1 ? "" : "s"}.`}
             />
             <Stat label="Payments" value={String(all.length)} hint="Across all payments." />

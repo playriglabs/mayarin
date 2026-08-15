@@ -5,23 +5,7 @@
 @import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/instrument-serif/400-italic.css";
 
-/* The wordmark is the only place the brand face is used; everything else is the
-   editorial serif / grotesk / mono trio. */
-@font-face {
-  font-family: "Clash Display";
-  src: url("/fonts/clash-display-regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Clash Display";
-  src: url("/fonts/clash-display-medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
+/* The wordmark uses the same editorial serif system as the rest of the site. */
 
 @theme {
   --color-paper: #ffffff;
@@ -45,7 +29,7 @@
     "Helvetica Neue", Arial, sans-serif;
   --font-mono:
     "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-brand: "Clash Display", "Inter", sans-serif;
+  --font-brand: var(--font-display);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
