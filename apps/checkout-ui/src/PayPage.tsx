@@ -4,7 +4,7 @@ import { CheckoutSummary } from "./CheckoutSummary.tsx";
 import { remainingAt } from "./countdown.ts";
 import { usableDeposit } from "./payment-status.ts";
 import type { PayBootstrap, PaymentStatusPayload } from "./types.ts";
-import { isTerminal, statusWording } from "./wording.ts";
+import { isTerminal } from "./wording.ts";
 
 type Deposit = NonNullable<PaymentStatusPayload["deposit"]>;
 
@@ -19,7 +19,6 @@ type Deposit = NonNullable<PaymentStatusPayload["deposit"]>;
 export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const { intentId, expiresAt, statusUrl, streaming, successUrl, pollMs } = bootstrap;
 
-  const [status, setStatus] = useState("Loading…");
   const [rawStatus, setRawStatus] = useState("");
   const [deposit, setDeposit] = useState<Deposit | undefined>(undefined);
   const [mode, setMode] = useState("");
@@ -36,7 +35,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
     const payload: PaymentStatusPayload = await response.json();
     const next = payload.paymentIntent.status;
     setRawStatus(next);
-    setStatus(statusWording(next)[0]);
+
     const nextDeposit = usableDeposit(payload);
     if (nextDeposit !== undefined) setDeposit(nextDeposit);
 
@@ -85,7 +84,6 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   }, [refresh, streaming, intentId, pollMs]);
 
   const remaining = remainingAt(expiresAt, now);
-  const [_, tone] = statusWording(rawStatus);
 
   return (
     <main className="checkout-shell">
@@ -105,14 +103,6 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
             <div className={`timer${remaining.low ? " low" : ""}`}>
               <span>Time left</span>
               <strong>{terminal ? "—" : remaining.text}</strong>
-            </div>
-          </div>
-
-          <div className="live-status" aria-live="polite">
-            <i className={`dot ${tone}`} />
-            <div>
-              <span>Status</span>
-              <strong className="capitalize">{status}</strong>
             </div>
           </div>
 
@@ -140,7 +130,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
               {deposit.uri !== null && (
                 <div className="qr">
                   <img
-                    alt={`QR pembayaran ${deposit.amount.asset} di ${deposit.chain}`}
+                    alt={`QR payment ${deposit.amount.asset} at ${deposit.chain}`}
                     src={`/checkout/qr?value=${encodeURIComponent(deposit.uri)}`}
                   />
                 </div>

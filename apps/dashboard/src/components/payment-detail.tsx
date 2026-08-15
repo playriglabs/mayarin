@@ -46,7 +46,7 @@ function reasonOf(error: unknown): string {
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-border py-2 last:border-b-0">
-      <dt className="shrink-0 text-xs text-subtle-foreground">{label}</dt>
+      <dt className="shrink-0 text-sm text-foreground/50">{label}</dt>
       <dd className="min-w-0 text-right text-sm text-foreground">{children}</dd>
     </div>
   );

@@ -175,6 +175,7 @@ function Wallets() {
   }
 
   const rows = wallets.data?.wallets ?? [];
+  const hasConnectedWallet = rows.some((wallet) => wallet.provenance !== "provisioned");
   const balances = balance.data?.balances ?? [];
   /**
    * Where a withdrawal may go: the merchant's own verified wallets, and never
@@ -372,10 +373,12 @@ function Wallets() {
             <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
             Connect existing
           </Button>
-          <Button onClick={provisionManaged} disabled={provision.isPending}>
-            <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-            Create managed wallet
-          </Button>
+          {hasConnectedWallet && (
+            <Button onClick={provisionManaged} disabled={provision.isPending}>
+              <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+              Create managed wallet
+            </Button>
+          )}
         </span>
       </div>
 
@@ -420,7 +423,7 @@ function Wallets() {
             {balances.length === 0 ? (
               <p className="text-muted-foreground text-sm">
                 {data?.address == null
-                  ? "Create a managed wallet or set a settlement address to be paid."
+                  ? "Connect an address you control or set a settlement address to be paid."
                   : "Nothing here yet."}
               </p>
             ) : (
@@ -470,16 +473,16 @@ function Wallets() {
                 <WalletIcon size={ICON_CARD} aria-hidden="true" />
               </EmptyMedia>
               <EmptyTitle>No wallets yet.</EmptyTitle>
-              <EmptyDescription>
-                Create a managed wallet or connect an address you control.
-              </EmptyDescription>
+              <EmptyDescription>Connect an address you control to continue.</EmptyDescription>
               <EmptyAction className="flex flex-wrap justify-center gap-2">
                 <Button variant="secondary" onClick={() => setConnecting(true)}>
                   Connect existing
                 </Button>
-                <Button onClick={provisionManaged} disabled={provision.isPending}>
-                  Create managed wallet
-                </Button>
+                {hasConnectedWallet && (
+                  <Button onClick={provisionManaged} disabled={provision.isPending}>
+                    Create managed wallet
+                  </Button>
+                )}
               </EmptyAction>
             </Empty>
           ) : (
@@ -554,7 +557,7 @@ function Wallets() {
               <Button
                 key={wallet.name}
                 variant="secondary"
-                className="justify-start"
+                className="justify-start py-4"
                 onClick={() => pick(wallet)}
               >
                 {wallet.icon === undefined ? (
