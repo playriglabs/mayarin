@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist/wght-italic.css";
 
 @theme {
   --color-paper: #ffffff;
@@ -39,7 +41,7 @@
   body {
     @apply m-0 flex justify-center bg-paper px-4 pt-6 pb-12 text-sm leading-6 text-ink antialiased;
     font-family:
-      "Inter Tight",
+      "Geist Variable",
       -apple-system,
       BlinkMacSystemFont,
       "Segoe UI",
@@ -69,7 +71,7 @@
   }
 
   .checkout-shell {
-    @apply grid min-h-screen min-h-dvh w-full max-w-none grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(32rem,1fr)];
+    @apply grid min-h-dvh w-full max-w-none grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(32rem,1fr)];
   }
   body:has(.checkout-shell) {
     @apply block bg-paper p-0;
@@ -150,10 +152,10 @@
     @apply max-w-lg;
   }
   .section-kicker {
-    @apply m-0 mb-2 text-[11px] font-bold tracking-[0.1em] text-brand uppercase;
+    @apply m-0 mb-2 text-[11px] font-bold tracking-widest text-brand uppercase;
   }
   .checkout-panel h2 {
-    @apply m-0 text-2xl leading-tight font-semibold tracking-[-0.025em] sm:text-[28px];
+    @apply m-0 text-2xl leading-tight font-semibold tracking-tight sm:text-[28px];
   }
   .checkout-panel h3 {
     @apply m-0 text-sm font-semibold;
@@ -174,7 +176,7 @@
     @apply outline-2 -outline-offset-1 outline-brand;
   }
   .field span {
-    @apply flex items-center border-r border-line px-5 font-mono text-sm text-muted;
+    @apply flex items-center border-r border-line px-5 font-mono text-base text-muted;
   }
   .field input {
     @apply min-w-0 flex-1 border-0 bg-transparent p-3 text-2xl text-ink tabular-nums outline-0;
@@ -278,7 +280,7 @@
     @apply mt-5.5 mb-6 grid list-none grid-cols-4 p-0;
   }
   .status-timeline li {
-    @apply relative pt-5 text-center text-[9px] text-subtle sm:text-[10px];
+    @apply relative pt-5 text-center text-[9.5px] text-subtle sm:text-[12px];
   }
   .status-timeline li::before {
     content: "";
@@ -326,7 +328,7 @@
     @apply mt-2 inline-flex items-center gap-2.5 text-2xl font-semibold tabular-nums;
   }
   .qr {
-    @apply mt-4 flex justify-center bg-white p-3;
+    @apply mt-6 flex justify-center bg-white p-3;
   }
   .pay-detail .qr {
     @apply mx-auto my-4.5 w-full max-w-60 rounded-xs border border-line;

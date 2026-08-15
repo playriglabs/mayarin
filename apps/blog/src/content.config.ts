@@ -13,6 +13,10 @@ type SanityPost = {
   title: string;
   pubDate: string;
   description: string;
+  thumbnail: {
+    asset: { url: string } | null;
+  } | null;
+  author: string | null;
   tags: string[] | null;
   draft: boolean | null;
   body: string | null;
@@ -33,7 +37,9 @@ const blog = defineCollection({
       const posts = await sanity.fetch<SanityPost[]>(
         `*[_type == "post"] | order(pubDate desc) {
           "slug": slug.current,
-          title, pubDate, description, tags, draft, body
+          title, pubDate, description,
+          thumbnail { asset->{ url } },
+          author, tags, draft, body
         }`,
       );
 
@@ -47,6 +53,8 @@ const blog = defineCollection({
             title: post.title,
             pubDate: new Date(post.pubDate),
             description: post.description,
+            thumbnailUrl: post.thumbnail?.asset?.url ?? null,
+            author: post.author ?? "Mayarin",
             tags: post.tags ?? [],
             draft: post.draft ?? false,
           },
@@ -61,6 +69,8 @@ const blog = defineCollection({
     title: z.string(),
     pubDate: z.coerce.date(),
     description: z.string(),
+    thumbnailUrl: z.string().url().nullable().default(null),
+    author: z.string(),
     tags: z.array(z.string()).default([]),
     draft: z.boolean().default(false),
   }),

@@ -32,6 +32,20 @@ export default defineType({
       validation: (rule) => rule.required(),
     }),
     defineField({
+      name: "thumbnail",
+      type: "image",
+      title: "Thumbnail",
+      options: { hotspot: true },
+      description: "Thumbnail image shown on blog cards and post pages.",
+    }),
+    defineField({
+      name: "author",
+      type: "string",
+      title: "Author",
+      initialValue: "Mayarin",
+      validation: (rule) => rule.required(),
+    }),
+    defineField({
       name: "tags",
       type: "array",
       title: "Tags",

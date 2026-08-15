@@ -7,7 +7,7 @@ interface Props {
 }
 
 const { post } = Astro.props;
-const { title, pubDate, description, tags } = post.data;
+const { title, pubDate, description, author, thumbnailUrl, tags } = post.data;
 const dateLabel = pubDate.toLocaleDateString("en-US", {
   year: "numeric",
   month: "long",
@@ -23,10 +23,19 @@ const dateLabel = pubDate.toLocaleDateString("en-US", {
       >← All posts</a
     >
     <header class="mt-6 mb-10">
+      {
+        thumbnailUrl && (
+          <img
+            src={thumbnailUrl}
+            alt=""
+            class="mb-8 aspect-[2/1] w-full rounded-sm object-cover"
+          />
+        )
+      }
       <h1 class="font-[var(--font-display)] text-4xl font-normal tracking-tight">
         {title}
       </h1>
-      <p class="mt-3 text-[var(--color-slate)]">{dateLabel}</p>
+      <p class="mt-3 text-[var(--color-slate)]">{dateLabel} · By {author}</p>
       {
         tags.length > 0 && (
           <ul class="mt-4 flex flex-wrap gap-2">

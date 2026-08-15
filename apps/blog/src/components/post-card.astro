@@ -6,7 +6,7 @@ interface Props {
 }
 
 const { post } = Astro.props;
-const { title, description, pubDate, tags } = post.data;
+const { title, description, pubDate, author, thumbnailUrl, tags } = post.data;
 const dateLabel = pubDate.toLocaleDateString("en-US", {
   year: "numeric",
   month: "short",
@@ -17,12 +17,23 @@ const href = `/blog/${post.id}/`;
 
 <article class="border-b border-[var(--color-line)] py-8">
   <a href={href} class="group block">
+    {
+      thumbnailUrl && (
+        <img
+          src={thumbnailUrl}
+          alt=""
+          loading="lazy"
+          class="mb-5 aspect-[2/1] w-full rounded-sm object-cover"
+        />
+      )
+    }
     <p class="text-xs text-[var(--color-slate)]">{dateLabel}</p>
     <h2
       class="mt-2 font-[var(--font-display)] text-2xl font-normal tracking-tight group-hover:text-[var(--color-forest)]"
     >
       {title}
     </h2>
+    <p class="mt-2 text-xs text-[var(--color-slate)]">By {author}</p>
     <p class="mt-2 text-[var(--color-slate)]">{description}</p>
     {
       tags.length > 0 && (

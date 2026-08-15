@@ -139,7 +139,7 @@ export default function SideNav({
             <h2
               id={`nav-${group.label.toLowerCase()}`}
               data-sidebar-section-label
-              className="mb-2 block text-xs font-medium tracking-[0.08em] text-sidebar-muted-foreground/60 uppercase"
+              className="mb-2 block text-xs font-medium tracking-[0.08em] text-sidebar-muted-foreground/65 uppercase"
             >
               {group.label}
             </h2>

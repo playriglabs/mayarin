@@ -1,12 +1,12 @@
 /**
  * Date rendering.
  *
- * The dashboard defaults to `id-ID`, matching how the payment API renders
- * money. Timestamps cross the wire as ISO strings and are shown in the
+ * The dashboard uses `en-US` for readable English month names and US date/time
+ * punctuation. Timestamps cross the wire as ISO strings and are shown in the
  * viewer's own timezone — a merchant reconciles against their own clock.
  */
 
-const DATE_TIME = new Intl.DateTimeFormat("id-ID", {
+const DATE_TIME = new Intl.DateTimeFormat("en-US", {
   day: "2-digit",
   month: "short",
   year: "numeric",
@@ -14,7 +14,7 @@ const DATE_TIME = new Intl.DateTimeFormat("id-ID", {
   minute: "2-digit",
 });
 
-const TIME = new Intl.DateTimeFormat("id-ID", {
+const TIME = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",

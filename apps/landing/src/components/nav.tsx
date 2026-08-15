@@ -7,6 +7,7 @@ const links = [
   { label: "Platform", href: "#platform" },
   { label: "Architecture", href: "#architecture" },
   { label: "Developers", href: "#developers" },
+  { label: "Documentation", href: "https://docs.mayarin.xyz" },
   { label: "Use cases", href: "#use-cases" },
 ];
 

@@ -18,7 +18,7 @@ export const GET: APIRoute = async ({ params }) => {
   const description = page?.data.description ?? "Build programmable crypto-commerce with Mayarin.";
 
   const markup = `
-<div style="display:flex;flex-direction:column;justify-content:space-between;width:1200px;height:630px;padding:80px;background:#ffffff;color:#0a0a0a;font-family:Inter Tight,Helvetica,Arial,sans-serif;">
+<div style="display:flex;flex-direction:column;justify-content:space-between;width:1200px;height:630px;padding:80px;background:#ffffff;color:#0a0a0a;font-family:Geist Variable,Helvetica,Arial,sans-serif;">
   <img src="${logoDataUri}" alt="Mayarin" style="height:44px;width:auto;object-fit:contain;" />
   <div style="display:flex;flex-direction:column;gap:24px;">
     <div style="font-size:64px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;max-width:1000px;">${escapeHtml(title)}</div>

@@ -14,7 +14,10 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full border-collapse text-sm", className)}
+        className={cn(
+          "w-full min-w-max border-collapse text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap",
+          className,
+        )}
         {...props}
       />
     </section>
