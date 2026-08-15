@@ -36,6 +36,12 @@ const LOGOS: Logo[] = [
   { src: "/images/logos/alchemy.svg", name: "Alchemy" },
   { src: "/images/logos/viem.svg", name: "viem", lockup: true, class: "h-4 md:h-[1.25rem]" },
   { src: "/images/logos/turnkey.svg", name: "Turnkey", lockup: true, class: "h-5 md:h-[1.5rem]" },
+  {
+    src: "/images/logos/safe-wallet.svg",
+    name: "Safe{Wallet}",
+    lockup: true,
+    class: "h-8 md:h-[2.5rem]",
+  },
 ];
 
 /** Two logo copies make one sequence wider than the widest visible track. */
