@@ -3,13 +3,15 @@ import { render } from "takumi-js";
 import { fromHtml } from "takumi-js/helpers/html";
 // Inlined as a base64 data URI at build time (Vite `?inline`), so the renderer
 // needs no filesystem or network access — safe on the Cloudflare runtime.
-import logoDataUri from "@/assets/mayarin-full-black.png?inline";
+
 import { source } from "@/lib/source";
 
 // Renders an OpenGraph image per docs page. The URL is emitted by
 // `getPageImageUrl` in src/lib/source.ts: `/og/docs/{slugs}/image.webp`.
 // Stupid simple: white paper, the Mayarin full wordmark, page title +
 // description. White background → black wordmark.
+
+const BRAND_KIT_URL = "https://mayarin.xyz/brand-kit";
 
 export const GET: APIRoute = async ({ params }) => {
   const slugs = typeof params.slug === "string" ? params.slug.split("/") : [];
@@ -19,7 +21,7 @@ export const GET: APIRoute = async ({ params }) => {
 
   const markup = `
 <div style="display:flex;flex-direction:column;justify-content:space-between;width:1200px;height:630px;padding:80px;background:#ffffff;color:#0a0a0a;font-family:Geist Variable,Helvetica,Arial,sans-serif;">
-  <img src="${logoDataUri}" alt="Mayarin" style="height:44px;width:auto;object-fit:contain;" />
+  <img src="${BRAND_KIT_URL}/mayarin-full-black.png" alt="Mayarin" style="height:44px;width:auto;object-fit:contain;" />
   <div style="display:flex;flex-direction:column;gap:24px;">
     <div style="font-size:64px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;max-width:1000px;">${escapeHtml(title)}</div>
     <div style="font-size:30px;line-height:1.4;color:#525252;max-width:980px;">${escapeHtml(description)}</div>

@@ -25,6 +25,7 @@ const COLUMNS = [
     links: [
       { label: "Use cases", href: "#use-cases" },
       { label: "Principles", href: "#principles" },
+      { label: "Brand Kit", href: "/brand-kit" },
     ],
   },
 ];
@@ -39,7 +40,7 @@ function XIcon() {
 
 function LinkedInIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" class="size-4" fill="currentColor">
+    <svg viewBox="0 0 24 24" aria-hidden="true" class="size-5" fill="currentColor">
       <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V8.997h3.414v1.561h.047c.475-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.371 4.267 5.456v6.288ZM5.337 7.433a2.062 2.062 0 1 1 0-4.124 2.062 2.062 0 0 1 0 4.124ZM7.119 20.452H3.555V8.997h3.564v11.455Z" />
     </svg>
   );

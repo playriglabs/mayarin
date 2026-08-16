@@ -6,7 +6,7 @@ type UseCaseGlyph =
   | "route"
   | "wallet"
   | "coin"
-  | "split"
+  | "bag"
   | "globe"
   | "spark"
   | "invoice";
@@ -38,7 +38,7 @@ const USE_CASES = [
   },
   {
     index: "05",
-    icon: "split" as const,
+    icon: "bag" as const,
     title: "Marketplaces",
     body: "Split, hold and release funds against a ledger that reconciles itself by construction.",
   },
@@ -117,11 +117,11 @@ function UseCaseIcon({ name }: { name: UseCaseGlyph }) {
           <path {...common} d="M12 8.5v4M10.5 10h3" />
         </>
       );
-    case "split":
+    case "bag":
       return (
         <>
-          <path {...common} d="M5 5h14v14H5zM12 5v14M5 12h14" />
-          <path {...common} d="m8 8 1.5 1.5L8 11M16 13l-1.5 1.5L16 16" />
+          <path {...common} d="M6 8h12l1 13H5z" />
+          <path {...common} d="M9 8V5h6v3" />
         </>
       );
     case "globe":
@@ -165,12 +165,12 @@ export function UseCases() {
         <SectionHeading>Wherever value has to cross a boundary.</SectionHeading>
       </Reveal>
 
-      <div class="mt-12 grid grid-cols-1 border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4 md:mt-16">
+      <div class="mt-12 grid grid-cols-1 border-l border-t border-line sm:grid-cols-2 xl:grid-cols-4 md:mt-16">
         {USE_CASES.map((useCase, index) => (
           <Reveal
             key={useCase.index}
             delay={(index % 2) * 80}
-            class="group flex min-h-[18rem] flex-col border-b border-r border-line p-6 transition-colors duration-300 hover:bg-[#fafafa] md:p-7 lg:p-8"
+            class="group flex min-h-72 flex-col border-b border-r border-line p-6 transition-colors duration-300 hover:bg-[#fafafa] md:p-7 xl:p-8"
           >
             <div class="flex items-start justify-between">
               <span class="label text-slate">{useCase.index}</span>
