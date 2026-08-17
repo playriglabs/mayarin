@@ -16,6 +16,9 @@ import type { Container } from "../container.ts";
 /** What the shell's `<head>` carries in place of this exact comment. */
 const PLACEHOLDER = "<!--__BOOTSTRAP__-->";
 
+/** Where the per-document Open Graph meta tags are injected (#165). */
+const OG_PLACEHOLDER = "<!--__OG__-->";
+
 /**
  * The origin the bootstrap `statusUrl` and invoice `checkoutUrl` resolve to.
  *
@@ -57,13 +60,21 @@ export function bootstrapScript(bootstrap: object): string {
 }
 
 /**
- * Reads the shell and injects the bootstrap.
+ * Reads the shell and injects the bootstrap and the Open Graph meta tags.
  *
  * Read per request rather than cached: `vite build --watch` rewrites the file
  * (with new hashed asset names) during development, and one small file read is
  * nothing next to the database work every page here already does.
+ *
+ * `ogMeta` is the full `<meta>` block for the document (built by `og-image.ts`),
+ * so a shared link renders its own preview card (#165) instead of the generic
+ * landing image.
  */
-export async function renderShell(distDir: string, bootstrap: object): Promise<string> {
+export async function renderShell(
+  distDir: string,
+  bootstrap: object,
+  ogMeta: string,
+): Promise<string> {
   const shell = Bun.file(join(distDir, "index.html"));
   if (!(await shell.exists())) {
     throw new ConfigurationError(
@@ -78,7 +89,13 @@ export async function renderShell(distDir: string, bootstrap: object): Promise<s
       { distDir },
     );
   }
-  return html.replace(PLACEHOLDER, bootstrapScript(bootstrap));
+  if (!html.includes(OG_PLACEHOLDER)) {
+    throw new ConfigurationError(
+      `The checkout UI shell has no ${OG_PLACEHOLDER} placeholder to inject into`,
+      { distDir },
+    );
+  }
+  return html.replace(OG_PLACEHOLDER, ogMeta).replace(PLACEHOLDER, bootstrapScript(bootstrap));
 }
 
 /**

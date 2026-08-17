@@ -15,9 +15,11 @@ describe("allowlist", () => {
     expect(allowed("GET", "/checkout/pay/01INTENT")).toBe(true);
     expect(allowed("GET", "/checkout/qr?value=foo")).toBe(true);
     expect(allowed("GET", "/checkout/events/01INTENT")).toBe(true);
+    expect(allowed("GET", "/checkout/01LINK/og.png")).toBe(true);
     expect(allowed("GET", "/checkout-ui/assets/index-abc.js")).toBe(true);
     expect(allowed("GET", "/checkout-ui/favicon.svg")).toBe(true);
     expect(allowed("GET", "/invoices/01INV/view")).toBe(true);
+    expect(allowed("GET", "/invoices/01INV/og.png")).toBe(true);
   });
 
   test("forwards the SPA's API calls", () => {

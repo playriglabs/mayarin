@@ -10,9 +10,10 @@
  * `PayPage.tsx`, `InvoicePage.tsx`) plus the server-rendered buyer pages
  * (`apps/api/src/routes/checkout-page.ts`, `invoice-page.ts`):
  *
- *   GET    /checkout/*                       link, pay, qr, events (SSE)
+ *   GET    /checkout/*                       link, pay, qr, events (SSE), og.png
  *   GET    /checkout-ui/*                    hashed SPA assets + favicon
  *   GET    /invoices/:id/view                invoice buyer page
+ *   GET    /invoices/:id/og.png              invoice OG image (#165)
  *   POST   /v1/quotes                        price estimate
  *   POST   /v1/payment-links/:id/checkout    mint intent
  *   POST   /v1/payment-intents/:id/confirm   lock price
@@ -47,6 +48,7 @@ const RULES: readonly Rule[] = [
   { method: "GET", match: prefix("/checkout") },
   { method: "GET", match: prefix("/checkout-ui") },
   { method: "GET", match: prefixWithSuffix("/invoices", "/view") },
+  { method: "GET", match: prefixWithSuffix("/invoices", "/og.png") },
   // SPA API calls.
   { method: "POST", match: exact("/v1/quotes") },
   { method: "POST", match: prefixWithSuffix("/v1/payment-links", "/checkout") },
