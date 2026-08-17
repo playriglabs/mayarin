@@ -154,6 +154,21 @@ const configSchema = z.object({
     .default("http://localhost:3000")
     .transform((value) => value.replace(/\/+$/, "")),
   /**
+   * Where buyer-facing checkout/invoice URLs point — the host a payer opens.
+   *
+   * The payment-link `url` and invoice `url` returned by this API are absolute,
+   * and a link's whole value is that it can be sent to a buyer. When the
+   * checkout is fronted by a dedicated buyer host (`pay-testnet.mayarin.xyz`,
+   * RFC #163) that is not the API origin, set this so links point at the buyer
+   * host regardless of which client minted them. Defaults to `PUBLIC_BASE_URL`
+   * for a deployment where the two share an origin.
+   */
+  checkoutBaseUrl: z
+    .string()
+    .url()
+    .default("http://localhost:3000")
+    .transform((value) => value.replace(/\/+$/, "")),
+  /**
    * Where the built checkout UI (#151) sits on disk. The default is the
    * workspace path `apps/checkout-ui/dist`, which is where `bun run --cwd
    * apps/checkout-ui build` writes and where the Docker image carries it. Tests
@@ -775,6 +790,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     realtimeEnabled: env.REALTIME_ENABLED,
     realtimeMaxWatched: env.REALTIME_MAX_WATCHED,
     publicBaseUrl: env.PUBLIC_BASE_URL,
+    checkoutBaseUrl: env.CHECKOUT_BASE_URL ?? env.PUBLIC_BASE_URL,
     checkoutUiDist: env.CHECKOUT_UI_DIST,
     mockWebhookSecret: env.MOCK_WEBHOOK_SECRET,
     webhooksEnabled: env.WEBHOOKS_ENABLED,

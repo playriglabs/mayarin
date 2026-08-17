@@ -282,11 +282,12 @@ If the binding fails, attach `pay-testnet.mayarin.xyz` to the
 After the route is bound, wait until the certificate is active before running
 the smoke checks.
 
-Set `CHECKOUT_BASE_URL=https://pay-testnet.mayarin.xyz` on the `dashboard-api`
-Railway service so merchant-issued payment-link and invoice `url` fields point
-at the pay host. The value already flows into the link `url`
-(`apps/dashboard-api/src/dto/catalog.ts`) and the dashboard QR
-(`apps/dashboard-api/src/routes/payments.ts`); no code change is needed.
+Set `CHECKOUT_BASE_URL=https://pay-testnet.mayarin.xyz` on **both** the
+`core-api` and `dashboard-api` Railway services. `core-api` builds the
+payment-link and invoice `url` it returns to API clients (the SDK, the demo)
+from it; `dashboard-api` builds the link `url` + dashboard QR shown to
+merchants from it. Both default to `PUBLIC_BASE_URL`; the override points every
+buyer-facing URL at the pay host. No code change beyond the config field.
 
 ### Deploy the landing site
 

@@ -20,7 +20,7 @@ import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware
 
 export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
-  const baseUrl = container.config.publicBaseUrl;
+  const baseUrl = container.config.checkoutBaseUrl;
   const auth = requireApiKey(container.verifyApiKey);
   const manage = requireApiKey(container.verifyApiKey, "catalog:manage");
 
