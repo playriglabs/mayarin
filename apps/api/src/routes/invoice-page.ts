@@ -17,12 +17,11 @@ import type { InvoiceView } from "@mayarin/invoicing";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
-import { renderShell } from "../services/checkout-shell.ts";
+import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
 import { defaultPayerAssets, depositChain } from "./checkout-page.ts";
 
 export function invoicePageRoutes(container: Container): Hono {
   const app = new Hono();
-  const baseUrl = container.config.publicBaseUrl;
   const distDir = container.config.checkoutUiDist;
 
   app.get("/:id/view", async (c) => {
@@ -32,12 +31,13 @@ export function invoicePageRoutes(container: Container): Hono {
       policy?.acceptedAssets.length !== undefined && policy.acceptedAssets.length > 0
         ? policy.acceptedAssets
         : defaultPayerAssets(container);
+    const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
     return c.html(
       await renderShell(
         distDir,
         invoiceBootstrap(
           view,
-          `${baseUrl}/v1/invoices/${view.invoice.id}/checkout`,
+          `${origin}/v1/invoices/${view.invoice.id}/checkout`,
           accepted,
           depositChain(container),
         ),

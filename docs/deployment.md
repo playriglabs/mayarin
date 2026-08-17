@@ -54,11 +54,20 @@ and no version skew between them.
 
 The browser-facing surfaces deploy to Cloudflare separately:
 
-| Surface   | Cloudflare project          | Path                               |
-| --------- | --------------------------- | ---------------------------------- |
-| Dashboard | `mayarin-dashboard-testnet` | `bun run deploy:dashboard:testnet` |
-| Demo      | `mayarin-demo`              | `bun run --cwd apps/demo deploy`   |
-| Landing   | `mayarin-landing`           | `bun run deploy:landing`           |
+| Surface   | Cloudflare project          | Path                                          |
+| --------- | --------------------------- | --------------------------------------------- |
+| Dashboard | `mayarin-dashboard-testnet` | `bun run deploy:dashboard:testnet`            |
+| Pay proxy | `mayarin-pay-testnet`       | `bun run --cwd apps/pay-proxy deploy:testnet` |
+| Demo      | `mayarin-demo`              | `bun run --cwd apps/demo deploy`              |
+| Landing   | `mayarin-landing`           | `bun run deploy:landing`                      |
+
+The pay proxy (`pay-testnet.mayarin.xyz`, RFC #163) is a Cloudflare Worker that
+reverse-proxies a curated buyer path set to `core-api` on
+`api-testnet.mayarin.xyz` and 404s everything else, so the full `/v1/*` API
+surface is not exposed on the buyer origin. The SPA and its pages stay served
+by `core-api`; the proxy just forwards them same-origin. `core-api` builds the
+bootstrap `statusUrl` from `x-forwarded-host`, so a page loaded on the pay host
+polls the pay host.
 
 The dashboard's API URL must point to the matching Railway target; a testnet
 UI must never call the mainnet dashboard API, or the reverse.
@@ -234,6 +243,51 @@ token scoped to `Zone / DNS / Edit` for `mayarin.xyz`. Never commit that token.
 After adding the CNAME, wait until the Pages custom-domain status is `active`
 and Cloudflare has provisioned its certificate before running the smoke checks.
 
+### Deploy the pay proxy
+
+The pay proxy is a Cloudflare Worker (`apps/pay-proxy`) that fronts the hosted
+checkout on `pay-testnet.mayarin.xyz` (RFC #163). It forwards only the buyer
+path allowlist (`/checkout/*`, `/checkout-ui/*`, `/invoices/:id/view`, and the
+SPA's `/v1/*` calls) to `core-api` on `api-testnet.mayarin.xyz` and returns 404
+for everything else. The target is recorded in `apps/pay-proxy/wrangler.jsonc`:
+
+- Worker: `mayarin-pay-testnet`
+- Worker variable: `ORIGIN=https://api-testnet.mayarin.xyz`
+- Custom domain: `pay-testnet.mayarin.xyz`
+
+Confirm the `core-api` custom domain is healthy (the proxy forwards to it),
+authenticate Wrangler, and deploy:
+
+```bash
+curl --fail --silent --show-error \
+  https://api-testnet.mayarin.xyz/health
+
+bunx wrangler login
+bun run --cwd apps/pay-proxy deploy:testnet
+```
+
+`deploy:testnet` runs the worker typecheck before `wrangler deploy`. The Worker
+is not connected to GitHub; this command is the only deployment path.
+
+#### Pay proxy custom domain
+
+`wrangler.jsonc` declares `pay-testnet.mayarin.xyz` as a `custom_domain` route,
+so `wrangler deploy` attempts to bind it. The same scope limit as the dashboard
+CNAME applies: Wrangler's OAuth token has `zone:read`, not `Zone / DNS / Edit`.
+If the binding fails, attach `pay-testnet.mayarin.xyz` to the
+`mayarin-pay-testnet` Worker in the Cloudflare dashboard (Workers → the worker
+→ Settings → Domains & Routes), or use a separate API token scoped to
+`Zone / DNS / Edit` for `mayarin.xyz`. Never commit that token.
+
+After the route is bound, wait until the certificate is active before running
+the smoke checks.
+
+Set `CHECKOUT_BASE_URL=https://pay-testnet.mayarin.xyz` on the `dashboard-api`
+Railway service so merchant-issued payment-link and invoice `url` fields point
+at the pay host. The value already flows into the link `url`
+(`apps/dashboard-api/src/dto/catalog.ts`) and the dashboard QR
+(`apps/dashboard-api/src/routes/payments.ts`); no code change is needed.
+
 ### Deploy the landing site
 
 The landing site is a static Vite application deployed manually to the
@@ -269,10 +323,21 @@ curl --fail --silent --show-error \
 curl --fail --silent --show-error \
   https://dashboard-testnet.mayarin.xyz/login
 
-# The core-api image must carry the built checkout UI (#151): a payment link
-# that renders a blank page is a checkout that loses the sale.
+# The checkout routes are mounted and answering. The SPA bundle is proven by
+# the Dockerfile build + the local gate, not a runtime file: `apps/checkout-ui`
+# ships no favicon in its dist (the page loads favicons from mayarin.xyz), so
+# `/checkout/qr` — stable, no DB, 200 SVG — is the liveness probe.
 curl --fail --silent --show-error \
-  https://api-testnet.mayarin.xyz/checkout-ui/favicon.svg
+  "https://api-testnet.mayarin.xyz/checkout/qr?value=smoke"
+
+# The pay proxy (RFC #163): same probe through the proxy proves the Worker
+# route is bound, the allowlist forwards `/checkout/*`, and core-api is reached.
+curl --fail --silent --show-error \
+  "https://pay-testnet.mayarin.xyz/checkout/qr?value=smoke"
+
+# A non-buyer /v1 route must be hidden on the pay host (expect 404).
+curl --silent --output /dev/null --write-out "%{http_code}\n" \
+  https://pay-testnet.mayarin.xyz/v1/merchants
 
 railway logs \
   --project "$MAYARIN_RAILWAY_PROJECT" \

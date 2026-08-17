@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { bootstrapScript } from "../src/services/checkout-shell.ts";
+import { bootstrapScript, requestOrigin } from "../src/services/checkout-shell.ts";
 import { createApiHarness } from "./harness.ts";
 
 describe("bootstrap script", () => {
@@ -16,6 +16,37 @@ describe("bootstrap script", () => {
     // The escape is lossless: the parsed value is the original string.
     const json = script.replace("<script>window.__BOOTSTRAP__ = ", "").replace("</script>", "");
     expect(JSON.parse(json).name).toBe("</script><script>alert(1)</script>");
+  });
+});
+
+describe("requestOrigin", () => {
+  const fallback = "http://localhost:3000";
+  const headers =
+    (entries: Record<string, string>) =>
+    (name: string): string | undefined =>
+      entries[name.toLowerCase()];
+
+  test("uses the forwarded host so a proxied buyer origin is same-origin", () => {
+    expect(
+      requestOrigin(headers({ "x-forwarded-host": "pay-testnet.mayarin.xyz" }), fallback),
+    ).toBe("https://pay-testnet.mayarin.xyz");
+  });
+
+  test("respects the forwarded proto", () => {
+    expect(
+      requestOrigin(
+        headers({ "x-forwarded-host": "pay-testnet.mayarin.xyz", "x-forwarded-proto": "http" }),
+        fallback,
+      ),
+    ).toBe("http://pay-testnet.mayarin.xyz");
+  });
+
+  test("falls back to publicBaseUrl when no forwarded host is present", () => {
+    expect(requestOrigin(headers({}), fallback)).toBe(fallback);
+  });
+
+  test("ignores an empty forwarded host", () => {
+    expect(requestOrigin(headers({ "x-forwarded-host": "" }), fallback)).toBe(fallback);
   });
 });
 

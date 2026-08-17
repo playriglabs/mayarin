@@ -17,6 +17,30 @@ import type { Container } from "../container.ts";
 const PLACEHOLDER = "<!--__BOOTSTRAP__-->";
 
 /**
+ * The origin the bootstrap `statusUrl` and invoice `checkoutUrl` resolve to.
+ *
+ * A deployment serves checkout on more than one host: the API origin
+ * (`api-testnet.mayarin.xyz`) and a buyer-facing proxy (`pay-testnet.mayarin.xyz`,
+ * RFC #163). The SPA polls `statusUrl` same-origin, so it must be the host the
+ * page loaded from — not a single configured origin.
+ *
+ * The proxy stamps `x-forwarded-host` / `x-forwarded-proto` with the inbound
+ * values; a direct request to the API origin carries neither, and falls back to
+ * `publicBaseUrl` (the deployment's declared origin). Raw `host` is never read:
+ * it can be an internal Railway hostname, and `publicBaseUrl` is the truer
+ * answer for a non-proxied request.
+ */
+export function requestOrigin(
+  header: (name: string) => string | undefined,
+  fallbackPublicBaseUrl: string,
+): string {
+  const forwardedHost = header("x-forwarded-host");
+  if (forwardedHost === undefined || forwardedHost === "") return fallbackPublicBaseUrl;
+  const proto = header("x-forwarded-proto") ?? "https";
+  return `${proto}://${forwardedHost}`;
+}
+
+/**
  * Serializes a bootstrap for a `<script>` element.
  *
  * Merchant names, titles and buyer details are attacker-controlled as far as

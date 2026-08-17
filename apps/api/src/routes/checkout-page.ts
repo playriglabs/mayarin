@@ -36,7 +36,7 @@ import { streamSSE } from "hono/streaming";
 import { toString as qrToString } from "qrcode";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
-import { renderShell } from "../services/checkout-shell.ts";
+import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
 
 /**
  * The fallback poll interval, carried to the SPA in the pay bootstrap.
@@ -54,7 +54,6 @@ const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
 
 export function checkoutPageRoutes(container: Container): Hono {
   const app = new Hono();
-  const baseUrl = container.config.publicBaseUrl;
   const distDir = container.config.checkoutUiDist;
 
   /**
@@ -153,6 +152,7 @@ export function checkoutPageRoutes(container: Container): Hono {
         ? undefined
         : await container.catalog.getLink(intent.metadata.paymentLinkId).catch(() => undefined);
     const successUrl = checkoutSuccessUrl(intent.metadata.checkoutSuccessBaseUrl, intent.id);
+    const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
     return c.html(
       await renderShell(distDir, {
         page: "pay",
@@ -162,7 +162,7 @@ export function checkoutPageRoutes(container: Container): Hono {
         title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
         lines: await intentLines(container, intent.metadata[CART_METADATA_KEY]),
         expiresAt: intent.expiresAt.toISOString(),
-        statusUrl: `${baseUrl}/v1/payments/${intent.id}`,
+        statusUrl: `${origin}/v1/payments/${intent.id}`,
         streaming: container.stream !== undefined,
         successUrl: successUrl ?? null,
         pollMs: POLL_MS,
