@@ -6,6 +6,7 @@ export function Logo() {
         alt="Mayarin"
         width="52"
         height="52"
+        class="size-12"
         loading="lazy"
         decoding="async"
       />

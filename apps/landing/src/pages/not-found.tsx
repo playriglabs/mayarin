@@ -48,7 +48,7 @@ export function NotFound() {
           </div>
         </div>
 
-        <div class="mt-20 border-t border-line pt-6 md:mt-32">
+        <div class="mt-20 md:mt-32">
           <p class="label text-slate">Money moves · Infrastructure orchestrates</p>
         </div>
       </div>
