@@ -37,6 +37,14 @@ import { toString as qrToString } from "qrcode";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
+import {
+  defaultOgMeta,
+  genericCard,
+  linkCard,
+  ogDescription,
+  ogMetaTags,
+  renderOgPng,
+} from "../services/og-image.ts";
 
 /**
  * The fallback poll interval, carried to the SPA in the pay bootstrap.
@@ -51,6 +59,20 @@ const KEEPALIVE_MS = 25_000;
 
 /** Statuses after which nothing further will ever be sent. */
 const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
+
+/**
+ * The fallback OG image, rendered once and cached. A missing or disabled link,
+ * or any render failure, returns this so a shared link never loses its preview
+ * card and never answers 500 (#165).
+ */
+let genericPng: Promise<Uint8Array<ArrayBuffer>> | undefined;
+function genericPngBuffer(): Promise<Uint8Array<ArrayBuffer>> {
+  if (genericPng === undefined) genericPng = renderOgPng(genericCard());
+  return genericPng;
+}
+
+/** `Cache-Control` for a document OG image: link content is immutable after create. */
+const OG_CACHE = "public, max-age=86400";
 
 export function checkoutPageRoutes(container: Container): Hono {
   const app = new Hono();
@@ -154,20 +176,57 @@ export function checkoutPageRoutes(container: Container): Hono {
     const successUrl = checkoutSuccessUrl(intent.metadata.checkoutSuccessBaseUrl, intent.id);
     const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
     return c.html(
-      await renderShell(distDir, {
-        page: "pay",
-        intentId: intent.id,
-        amount: toMoneyDto(intent.amount),
-        merchant: { name: intent.merchant.name, city: intent.merchant.city },
-        title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
-        lines: await intentLines(container, intent.metadata[CART_METADATA_KEY]),
-        expiresAt: intent.expiresAt.toISOString(),
-        statusUrl: `${origin}/v1/payments/${intent.id}`,
-        streaming: container.stream !== undefined,
-        successUrl: successUrl ?? null,
-        pollMs: POLL_MS,
-      }),
+      await renderShell(
+        distDir,
+        {
+          page: "pay",
+          intentId: intent.id,
+          amount: toMoneyDto(intent.amount),
+          merchant: { name: intent.merchant.name, city: intent.merchant.city },
+          title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
+          lines: await intentLines(container, intent.metadata[CART_METADATA_KEY]),
+          expiresAt: intent.expiresAt.toISOString(),
+          statusUrl: `${origin}/v1/payments/${intent.id}`,
+          streaming: container.stream !== undefined,
+          successUrl: successUrl ?? null,
+          pollMs: POLL_MS,
+        },
+        // The pay page is reached by an unguessable intent id, not a shared link,
+        // so it carries no document-specific card: the generic landing image.
+        defaultOgMeta(),
+      ),
     );
+  });
+
+  /**
+   * The link's Open Graph image (#165). Renders the merchant name and the
+   * human-form total a crawler puts on a preview card. Registered before the
+   * `/:linkId` catch-all so Hono matches the two-segment path first.
+   */
+  app.get("/:linkId/og.png", async (c) => {
+    try {
+      const link = await container.catalog.getLink(c.req.param("linkId"));
+      const preview =
+        link.kind === "open"
+          ? undefined
+          : await container.commerce.previewLink(link.id).catch(() => undefined);
+      const card = linkCard({
+        merchantName: link.merchant.name,
+        title: link.title,
+        total: link.kind === "open" ? undefined : (preview?.total ?? link.amount),
+      });
+      return c.body(await renderOgPng(card), 200, {
+        "Content-Type": "image/png",
+        "Cache-Control": OG_CACHE,
+      });
+    } catch (error) {
+      // Missing link, disabled link, or a render failure: the generic card, 200.
+      console.error({ error }, "OG image render failed; returning generic card");
+      return c.body(await genericPngBuffer(), 200, {
+        "Content-Type": "image/png",
+        "Cache-Control": OG_CACHE,
+      });
+    }
   });
 
   /**
@@ -194,6 +253,19 @@ export function checkoutPageRoutes(container: Container): Hono {
         ? policy.acceptedAssets
         : defaultPayerAssets(container);
 
+    const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
+    const card = linkCard({
+      merchantName: link.merchant.name,
+      title: link.title,
+      total: link.kind === "open" ? undefined : (preview?.total ?? link.amount),
+    });
+    const og = ogMetaTags({
+      title: `Pay ${link.merchant.name}`,
+      description: ogDescription(card),
+      imageUrl: `${origin}/checkout/${link.id}/og.png`,
+      imageAlt: `Pay ${link.merchant.name}`,
+    });
+
     return c.html(
       await renderShell(
         distDir,
@@ -206,6 +278,7 @@ export function checkoutPageRoutes(container: Container): Hono {
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
         }),
+        og,
       ),
     );
   });

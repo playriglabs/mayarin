@@ -18,11 +18,49 @@ import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
+import {
+  genericCard,
+  invoiceCard,
+  ogDescription,
+  ogMetaTags,
+  renderOgPng,
+} from "../services/og-image.ts";
 import { defaultPayerAssets, depositChain } from "./checkout-page.ts";
+
+/** `Cache-Control` for an invoice OG image (#165). */
+const OG_CACHE = "public, max-age=86400";
 
 export function invoicePageRoutes(container: Container): Hono {
   const app = new Hono();
   const distDir = container.config.checkoutUiDist;
+
+  /**
+   * The invoice's Open Graph image (#165). Registered before `/:id/view` so the
+   * two-segment path matches first. Missing invoice or render failure → generic
+   * card, 200, never 500.
+   */
+  app.get("/:id/og.png", async (c) => {
+    try {
+      const view = await container.invoices.viewInvoice(c.req.param("id"));
+      const card = invoiceCard({
+        merchantName: view.invoice.merchant.name,
+        number: view.invoice.number,
+        status: view.status,
+        outstanding: view.outstanding,
+        total: view.invoice.total,
+      });
+      return c.body(await renderOgPng(card), 200, {
+        "Content-Type": "image/png",
+        "Cache-Control": OG_CACHE,
+      });
+    } catch (error) {
+      console.error({ error }, "Invoice OG image render failed; returning generic card");
+      return c.body(await renderOgPng(genericCard()), 200, {
+        "Content-Type": "image/png",
+        "Cache-Control": OG_CACHE,
+      });
+    }
+  });
 
   app.get("/:id/view", async (c) => {
     const view = await container.invoices.viewInvoice(c.req.param("id"));
@@ -32,6 +70,19 @@ export function invoicePageRoutes(container: Container): Hono {
         ? policy.acceptedAssets
         : defaultPayerAssets(container);
     const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
+    const card = invoiceCard({
+      merchantName: view.invoice.merchant.name,
+      number: view.invoice.number,
+      status: view.status,
+      outstanding: view.outstanding,
+      total: view.invoice.total,
+    });
+    const og = ogMetaTags({
+      title: `Pay ${view.invoice.merchant.name}`,
+      description: ogDescription(card),
+      imageUrl: `${origin}/invoices/${view.invoice.id}/og.png`,
+      imageAlt: `Pay ${view.invoice.merchant.name}`,
+    });
     return c.html(
       await renderShell(
         distDir,
@@ -41,6 +92,7 @@ export function invoicePageRoutes(container: Container): Hono {
           accepted,
           depositChain(container),
         ),
+        og,
       ),
     );
   });
