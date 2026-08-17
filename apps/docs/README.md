@@ -41,6 +41,6 @@ bun run openapi:check
 ## Visual system
 
 The docs inherit the landing site's design language: white paper, near-black
-ink, Mayarin green, Instrument Serif headings, Inter Tight body copy, JetBrains
+ink, Mayarin green, Instrument Serif headings, Geist body copy, JetBrains
 Mono code, and Clash Display only for the wordmark. Update the landing and docs
 tokens together when the brand changes.

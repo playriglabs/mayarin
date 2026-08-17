@@ -11,17 +11,19 @@ import { MethodItem } from "./method-badge";
 import SearchDialog from "./search.tsx";
 import { ThemeSwitchWithHash } from "./theme-switch";
 
+const BRAND_KIT_BASE_URL = "https://mayarin.xyz/brand-kit";
+
 function Brand() {
   return (
     <span className="flex items-center gap-2.5">
       <img
-        src="/images/mayarin-full-black.png"
+        src={`${BRAND_KIT_BASE_URL}/mayarin-full-black.png`}
         alt="mayarin"
         height="32"
         className="h-8 w-auto dark:hidden"
       />
       <img
-        src="/images/mayarin-full-white.png"
+        src={`${BRAND_KIT_BASE_URL}/mayarin-full-white.png`}
         alt="mayarin"
         height="32"
         className="hidden h-8 w-auto dark:block"

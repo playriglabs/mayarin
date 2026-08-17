@@ -1,11 +1,11 @@
 import { Reveal } from "../components/reveal.tsx";
 import { ArrowRight, Button, Label } from "../components/ui.tsx";
-import { PixelField } from "../graphics/pixel-field.tsx";
+import { GridField } from "../graphics/grid-field.tsx";
 
 export function FinalCta() {
   return (
     <section id="start" class="relative overflow-hidden bg-void text-white">
-      <PixelField />
+      <GridField />
 
       <div class="shell pointer-events-none relative z-2 py-28 md:py-40">
         <Reveal>
