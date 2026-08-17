@@ -35,8 +35,9 @@ const ENVIRONMENT = "production";
 const CORE_API_URL = "https://api-testnet.mayarin.xyz";
 const DASHBOARD_API_URL = "https://api-merchant-testnet.mayarin.xyz";
 const DASHBOARD_URL = "https://dashboard-testnet.mayarin.xyz";
+const PAY_URL = "https://pay-testnet.mayarin.xyz";
 
-const SURFACES = ["services", "dashboard", "demo"] as const;
+const SURFACES = ["services", "dashboard", "pay", "demo"] as const;
 type Surface = (typeof SURFACES)[number];
 
 interface Flags {
@@ -152,9 +153,16 @@ const smoke = async (): Promise<void> => {
   await waitForOk("core API health", `${CORE_API_URL}/health`, 120_000);
   await waitForOk("dashboard API health", `${DASHBOARD_API_URL}/health`, 120_000);
   await waitForOk("dashboard login page", `${DASHBOARD_URL}/login`, 60_000);
-  // The image must carry the built checkout UI (#151): a payment link that
-  // renders a blank page is a checkout that loses the sale.
-  await waitForOk("checkout UI bundle", `${CORE_API_URL}/checkout-ui/favicon.svg`, 60_000);
+  // The checkout routes are mounted and answering. The SPA bundle itself is
+  // proven by the Dockerfile build + the local gate, not by a runtime file:
+  // `apps/checkout-ui` ships no favicon in its dist (the page loads favicons
+  // from `mayarin.xyz`), so `/checkout/qr` — stable, no DB, 200 SVG — is the
+  // liveness probe instead of a dist asset.
+  await waitForOk("core API checkout route", `${CORE_API_URL}/checkout/qr?value=smoke`, 60_000);
+  // The pay host (RFC #163): same probe through the proxy proves the Worker
+  // route is bound, the allowlist forwards `/checkout/*`, and core-api is
+  // reached.
+  await waitForOk("pay proxy liveness", `${PAY_URL}/checkout/qr?value=smoke`, 60_000);
 };
 
 const flags = parseFlags(process.argv.slice(2));
@@ -198,6 +206,19 @@ if (wants("dashboard")) {
 
 if (wants("demo")) {
   await run("Deploy the demo to Cloudflare Pages", ["bun", "run", "--cwd", "apps/demo", "deploy"]);
+}
+
+if (wants("pay")) {
+  // The pay proxy forwards to core-api, so it deploys only after the API it
+  // fronts answers healthy on its custom domain (RFC #163).
+  await waitForOk("core API health", `${CORE_API_URL}/health`, 180_000);
+  await run("Deploy the pay proxy to Cloudflare", [
+    "bun",
+    "run",
+    "--cwd",
+    "apps/pay-proxy",
+    "deploy:testnet",
+  ]);
 }
 
 await smoke();

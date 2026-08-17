@@ -214,6 +214,15 @@
         "wrangler": "^4.120.1",
       },
     },
+    "apps/pay-proxy": {
+      "name": "@mayarin/pay-proxy",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20250101.0",
+        "typescript": "^5.6.0",
+        "wrangler": "^4.120.1",
+      },
+    },
     "apps/studio": {
       "name": "@mayarin/studio",
       "version": "0.1.0",
@@ -1195,6 +1204,8 @@
     "@mayarin/ledger": ["@mayarin/ledger@workspace:packages/core/ledger"],
 
     "@mayarin/notifications": ["@mayarin/notifications@workspace:packages/core/notifications"],
+
+    "@mayarin/pay-proxy": ["@mayarin/pay-proxy@workspace:apps/pay-proxy"],
 
     "@mayarin/payment-intent": ["@mayarin/payment-intent@workspace:packages/core/payment-intent"],
 
