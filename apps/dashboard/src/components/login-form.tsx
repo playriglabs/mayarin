@@ -68,7 +68,10 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full max-w-md flex-col gap-4 bg-card p-6 sm:p-8">
+    <form
+      onSubmit={onSubmit}
+      className="flex w-full max-w-md flex-col gap-4 p-6 max-md:bg-background"
+    >
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-medium text-foreground">Sign in to your dashboard</h1>
         <p className="text-sm text-muted-foreground">Manage payments, customers and settlement.</p>

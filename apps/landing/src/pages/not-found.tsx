@@ -1,4 +1,5 @@
 import { useEffect } from "preact/hooks";
+import { GridField } from "../graphics/grid-field.tsx";
 
 export function NotFound() {
   useEffect(() => {
@@ -9,9 +10,11 @@ export function NotFound() {
   }, []);
 
   return (
-    <main class="flex h-screen items-center overflow-hidden bg-paper text-ink">
-      <div class="shell relative w-full py-16 md:py-24">
-        <a href="/" aria-label="Mayarin home" class="inline-flex">
+    <main class="relative flex h-screen items-center overflow-hidden bg-paper text-ink">
+      <GridField tone="light" />
+
+      <div class="shell pointer-events-none relative z-2 w-full py-16 md:py-24">
+        <a href="/" aria-label="Mayarin home" class="pointer-events-auto inline-flex">
           <img
             src="/brand-kit/mayarin-logo-black.png"
             alt="Mayarin"
@@ -29,7 +32,7 @@ export function NotFound() {
           <p class="mt-8 max-w-[42ch] text-lg leading-[1.65] text-slate">
             The page you requested does not exist, or it has moved somewhere else in the network.
           </p>
-          <div class="mt-10 flex flex-wrap gap-3">
+          <div class="pointer-events-auto mt-10 flex flex-wrap gap-3">
             <a
               href="/"
               class="inline-flex h-12 items-center bg-ink px-7 text-sm font-medium text-white transition-colors hover:bg-forest"
