@@ -9,11 +9,52 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PaymentLinkDto } from "@mayarin/api/dto";
-import { verifyWebhook, WEBHOOK_SIGNATURE_HEADER } from "@mayarin/notifications";
 import { createMayarin, isMayarinApiError, type MayarinClient } from "@mayarin/sdk";
 
 /** The one currency the demo prices in. The point of #137 is the IDR-native flow. */
 export const DEMO_CURRENCY = "IDR";
+const WEBHOOK_SIGNATURE_HEADER = "webhook-signature";
+const WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 300;
+
+async function verifyWebhook(options: {
+  readonly header: string;
+  readonly body: string;
+  readonly secrets: readonly string[];
+  readonly now: Date;
+}): Promise<boolean> {
+  let timestamp: number | undefined;
+  const signatures: string[] = [];
+  for (const part of options.header.split(",")) {
+    const [key, value] = part.split("=", 2);
+    if (key === "t" && value !== undefined) timestamp = Number(value);
+    if (key === "v1" && value !== undefined) signatures.push(value);
+  }
+  if (
+    timestamp === undefined ||
+    !Number.isInteger(timestamp) ||
+    signatures.length === 0 ||
+    Math.abs(Math.floor(options.now.getTime() / 1_000) - timestamp) >
+      WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS
+  ) {
+    return false;
+  }
+
+  const message = new TextEncoder().encode(`${timestamp}.${options.body}`);
+  return Promise.all(
+    options.secrets.map(async (secret) => {
+      const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, message));
+      const expected = [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      return signatures.includes(expected);
+    }),
+  ).then((matches) => matches.some(Boolean));
+}
 
 export interface DemoConfig {
   readonly apiUrl: string;
@@ -126,6 +167,7 @@ export function findReusableCatalogLink(
   links: readonly PaymentLinkDto[],
   request: CheckoutRequest,
   successBaseUrl?: string,
+  merchant?: DemoConfig["merchant"],
 ): PaymentLinkDto | undefined {
   return links.find(
     (link) =>
@@ -133,16 +175,30 @@ export function findReusableCatalogLink(
       link.payable &&
       link.currency === DEMO_CURRENCY &&
       (successBaseUrl === undefined || link.metadata.checkoutSuccessBaseUrl === successBaseUrl) &&
+      (merchant === undefined ||
+        (link.merchant.id === merchant.id &&
+          link.merchant.name === merchant.name &&
+          link.merchant.city === merchant.city &&
+          link.merchant.countryCode === merchant.countryCode)) &&
       link.lines !== null &&
       sameLines(link.lines, request.lines),
   );
 }
 
-function catalogLinkIdempotencyKey(merchantId: string, request: CheckoutRequest): string {
+function catalogLinkIdempotencyKey(config: DemoConfig, request: CheckoutRequest): string {
   const cart = canonicalLines(request.lines)
     .map((line) => `${line.productId}:${line.quantity}`)
     .join(",");
-  return `demo-catalog-v2:${merchantId}:${cart}:${DEMO_CURRENCY}`;
+  return [
+    "demo-catalog-v3",
+    config.merchant.id,
+    config.merchant.name,
+    config.merchant.city,
+    config.merchant.countryCode,
+    config.publicUrl,
+    cart,
+    DEMO_CURRENCY,
+  ].join(":");
 }
 
 export async function reusableOrNewCatalogLink(
@@ -154,6 +210,7 @@ export async function reusableOrNewCatalogLink(
     await mayarin.commerce.paymentLinks.list(config.merchant.id),
     request,
     `${config.publicUrl}/checkout/success`,
+    config.merchant,
   );
   if (existing !== undefined) return existing;
 
@@ -165,7 +222,7 @@ export async function reusableOrNewCatalogLink(
       lines: [...request.lines],
       metadata: { checkoutSuccessBaseUrl: `${config.publicUrl}/checkout/success` },
     },
-    { idempotencyKey: catalogLinkIdempotencyKey(config.merchant.id, request) },
+    { idempotencyKey: catalogLinkIdempotencyKey(config, request) },
   );
 }
 
@@ -237,12 +294,12 @@ export function demoApi(config: DemoConfig): NextHandleFunction {
                 const signature = req.headers[WEBHOOK_SIGNATURE_HEADER];
                 if (
                   typeof signature !== "string" ||
-                  !verifyWebhook({
+                  !(await verifyWebhook({
                     header: signature,
                     body: rawBody,
                     secrets: [config.webhookSecret],
                     now: new Date(),
-                  })
+                  }))
                 ) {
                   sendJson(res, 401, { error: "Invalid webhook signature" });
                   return;
@@ -262,9 +319,17 @@ export function demoApi(config: DemoConfig): NextHandleFunction {
                   const success =
                     intent.merchant.id === config.merchant.id && intent.status === "COMPLETED";
                   if (success) successfulPayments.add(referencePaymentId);
+                  // The intent is fetched every poll anyway, so the success page
+                  // can show what was paid without a second round-trip: the
+                  // priced amount, the rail the payer used, and when it settled.
                   sendJson(res, 200, {
                     referencePaymentId,
                     success: success || successfulPayments.has(referencePaymentId),
+                    merchantName: intent.merchant.name,
+                    amount: intent.amount,
+                    payment: intent.payment,
+                    completedAt: intent.completedAt,
+                    merchantReference: intent.merchantReference,
                   });
                 }
               : undefined;

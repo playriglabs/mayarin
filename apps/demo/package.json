@@ -7,7 +7,7 @@
     "dev": "bun --bun run vite",
     "dev:demo": "bun --bun run vite",
     "build": "bun --bun run vite build && bun run verify-bundle.ts && bun --bun x wrangler deploy --config wrangler.worker.jsonc --dry-run --outdir .wrangler/demo-worker && cp .wrangler/demo-worker/worker.js dist/_worker.js",
-    "deploy": "bun run build && bun --bun x wrangler pages deploy dist --project-name mayarin-demo",
+    "deploy": "bun run build && CI=1 bunx wrangler pages deploy dist --project-name mayarin-demo --branch main --commit-dirty=true --skip-caching",
     "seed": "bun run seed.ts",
     "typecheck": "tsc --noEmit"
   },

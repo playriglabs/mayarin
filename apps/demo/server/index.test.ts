@@ -66,4 +66,17 @@ describe("findReusableCatalogLink", () => {
       }),
     ).toBe(reusable);
   });
+
+  test("does not reuse a link with a stale merchant snapshot", () => {
+    const stale = link({ id: "link_stale" });
+
+    expect(
+      findReusableCatalogLink(
+        [stale],
+        { lines: [{ productId: "prod_1", quantity: 1 }] },
+        undefined,
+        { id: "mrc_1", name: "Parahyangan Supply", city: "Bandung", countryCode: "ID" },
+      ),
+    ).toBeUndefined();
+  });
 });

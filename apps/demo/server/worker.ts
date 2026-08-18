@@ -1,4 +1,3 @@
-import { verifyWebhook, WEBHOOK_SIGNATURE_HEADER } from "@mayarin/notifications";
 import { createMayarin, isMayarinApiError } from "@mayarin/sdk";
 import {
   loadDemoConfig,
@@ -23,6 +22,49 @@ interface WorkerEnv {
   readonly DEMO_PUBLIC_URL?: string;
 }
 
+const WEBHOOK_SIGNATURE_HEADER = "webhook-signature";
+const WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 300;
+
+async function verifyWorkerWebhook(options: {
+  readonly header: string;
+  readonly body: string;
+  readonly secrets: readonly string[];
+  readonly now: Date;
+}): Promise<boolean> {
+  let timestamp: number | undefined;
+  const signatures: string[] = [];
+  for (const part of options.header.split(",")) {
+    const [key, value] = part.split("=", 2);
+    if (key === "t" && value !== undefined) timestamp = Number(value);
+    if (key === "v1" && value !== undefined) signatures.push(value);
+  }
+  if (
+    timestamp === undefined ||
+    !Number.isInteger(timestamp) ||
+    signatures.length === 0 ||
+    Math.abs(Math.floor(options.now.getTime() / 1_000) - timestamp) >
+      WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS
+  ) {
+    return false;
+  }
+
+  const message = new TextEncoder().encode(`${timestamp}.${options.body}`);
+  return Promise.all(
+    options.secrets.map(async (secret) => {
+      const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, message));
+      const expected = [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      return signatures.includes(expected);
+    }),
+  ).then((matches) => matches.some(Boolean));
+}
+
 const json = (body: unknown, status = 200): Response =>
   Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
@@ -33,19 +75,19 @@ async function apiResponse(request: Request, env: WorkerEnv): Promise<Response |
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/")) return undefined;
 
-  const config = loadDemoConfig({
-    MAYARIN_API_URL: env.MAYARIN_API_URL,
-    MAYARIN_SECRET_KEY: env.MAYARIN_SECRET_KEY,
-    MAYARIN_MERCHANT_ID: env.MAYARIN_MERCHANT_ID,
-    MAYARIN_MERCHANT_NAME: env.MAYARIN_MERCHANT_NAME,
-    MAYARIN_MERCHANT_CITY: env.MAYARIN_MERCHANT_CITY,
-    MAYARIN_MERCHANT_COUNTRY: env.MAYARIN_MERCHANT_COUNTRY,
-    MAYARIN_WEBHOOK_SECRET: env.MAYARIN_WEBHOOK_SECRET,
-    DEMO_PUBLIC_URL: env.DEMO_PUBLIC_URL,
-  });
-  const mayarin = createMayarin({ baseUrl: config.apiUrl, secretKey: config.secretKey });
-
   try {
+    const config = loadDemoConfig({
+      MAYARIN_API_URL: env.MAYARIN_API_URL,
+      MAYARIN_SECRET_KEY: env.MAYARIN_SECRET_KEY,
+      MAYARIN_MERCHANT_ID: env.MAYARIN_MERCHANT_ID,
+      MAYARIN_MERCHANT_NAME: env.MAYARIN_MERCHANT_NAME,
+      MAYARIN_MERCHANT_CITY: env.MAYARIN_MERCHANT_CITY,
+      MAYARIN_MERCHANT_COUNTRY: env.MAYARIN_MERCHANT_COUNTRY,
+      MAYARIN_WEBHOOK_SECRET: env.MAYARIN_WEBHOOK_SECRET,
+      DEMO_PUBLIC_URL: env.DEMO_PUBLIC_URL,
+    });
+    const mayarin = createMayarin({ baseUrl: config.apiUrl, secretKey: config.secretKey });
+
     if (request.method === "GET" && url.pathname === "/api/products") {
       const products = await mayarin.commerce.products.list(config.merchant.id);
       return json({ products });
@@ -71,12 +113,12 @@ async function apiResponse(request: Request, env: WorkerEnv): Promise<Response |
       const signature = request.headers.get(WEBHOOK_SIGNATURE_HEADER);
       if (
         signature === null ||
-        !verifyWebhook({
+        !(await verifyWorkerWebhook({
           header: signature,
           body: rawBody,
           secrets: [config.webhookSecret],
           now: new Date(),
-        })
+        }))
       ) {
         return json({ error: "Invalid webhook signature" }, 401);
       }
@@ -93,9 +135,17 @@ async function apiResponse(request: Request, env: WorkerEnv): Promise<Response |
     const paymentId = paymentIdFrom(url.pathname);
     if (request.method === "GET" && paymentId !== undefined) {
       const intent = await mayarin.payment.getIntent(paymentId);
+      // The intent is fetched every poll anyway, so the success page can show
+      // what was paid without a second round-trip: the priced amount, the rail
+      // the payer used, and when it settled.
       return json({
         referencePaymentId: paymentId,
         success: intent.merchant.id === config.merchant.id && intent.status === "COMPLETED",
+        merchantName: intent.merchant.name,
+        amount: intent.amount,
+        payment: intent.payment,
+        completedAt: intent.completedAt,
+        merchantReference: intent.merchantReference,
       });
     }
 

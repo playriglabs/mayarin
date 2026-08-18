@@ -3,8 +3,67 @@ import { recordSuccessfulPayment } from "./history.ts";
 
 type PaymentState = "waiting" | "success" | "not-found" | "error";
 
+interface PaymentStatusBody {
+  readonly success?: boolean;
+  readonly merchantName?: string;
+  readonly amount?: { readonly display?: string };
+  readonly payment?: { readonly asset?: string; readonly chain?: string } | null;
+  readonly completedAt?: string | null;
+  readonly merchantReference?: string | null;
+}
+
+interface PaymentDetails {
+  readonly merchantName: string;
+  readonly amountDisplay: string;
+  readonly paidWith: string | null;
+  readonly completedAt: string | null;
+  readonly merchantReference: string | null;
+}
+
+function titleCaseChain(chain: string): string {
+  return chain
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatCompleted(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : date.toLocaleString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+}
+
+function readDetails(body: PaymentStatusBody): PaymentDetails | null {
+  const merchantName = body.merchantName;
+  const amountDisplay = body.amount?.display;
+  if (merchantName === undefined || amountDisplay === undefined) return null;
+  const payment = body.payment;
+  const paidWith =
+    payment !== null &&
+    payment !== undefined &&
+    typeof payment.asset === "string" &&
+    typeof payment.chain === "string"
+      ? `${payment.asset} on ${titleCaseChain(payment.chain)}`
+      : null;
+  return {
+    merchantName,
+    amountDisplay,
+    paidWith,
+    completedAt: typeof body.completedAt === "string" ? body.completedAt : null,
+    merchantReference: typeof body.merchantReference === "string" ? body.merchantReference : null,
+  };
+}
+
 export function PaymentSuccess({ referencePaymentId }: { readonly referencePaymentId: string }) {
   const [state, setState] = useState<PaymentState>("waiting");
+  const [details, setDetails] = useState<PaymentDetails | null>(null);
 
   useEffect(() => {
     let stopped = false;
@@ -15,15 +74,16 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
         const response = await fetch(
           `/api/payment-status/${encodeURIComponent(referencePaymentId)}`,
         );
-        const body = (await response.json()) as { success?: boolean };
         if (response.status === 404) {
           setState("not-found");
           return;
         }
+        const body = (await response.json()) as PaymentStatusBody;
         if (!response.ok) throw new Error("Could not verify payment");
         if (stopped) return;
         if (body.success === true) {
           recordSuccessfulPayment(referencePaymentId);
+          setDetails(readDetails(body));
           setState("success");
         } else timer = setTimeout(() => void check(), 1_500);
       } catch {
@@ -41,14 +101,8 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-5">
       <section className="w-full max-w-xl border border-zinc-950 bg-white px-8 py-14 text-center shadow-xl sm:px-14">
-        <div
-          className={`mx-auto mb-6 grid size-16 place-items-center rounded-full text-3xl leading-none text-white ${state === "success" ? "bg-emerald-700" : "bg-amber-700"}`}
-          aria-hidden="true"
-        >
-          {state === "success" ? "✓" : state === "not-found" ? "×" : "…"}
-        </div>
         <p className="mb-3 text-xs font-bold tracking-[0.14em] text-zinc-950 uppercase">
-          Parahyangan Supply
+          {details?.merchantName ?? "Parahyangan Supply"}
         </p>
         <h1 className="m-0 font-display text-4xl">
           {state === "success"
@@ -68,7 +122,34 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
                 ? "Your payment page reported completion, but this store could not verify the webhook yet. Please keep this reference."
                 : "The payment completed. We are waiting for the signed merchant webhook to arrive."}
         </p>
-        <code className="block [overflow-wrap:anywhere] bg-[#eee7dc] px-4 py-3 text-sm">
+
+        {state === "success" && details !== null && (
+          <dl className="mx-auto my-6 max-w-md space-y-3 border-y border-zinc-200 py-5 text-left text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-[#625b52]">Amount</dt>
+              <dd className="font-bold text-zinc-950">{details.amountDisplay}</dd>
+            </div>
+            {details.paidWith !== null && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-[#625b52]">Paid with</dt>
+                <dd className="font-bold text-zinc-950">{details.paidWith}</dd>
+              </div>
+            )}
+            {details.completedAt !== null && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-[#625b52]">Completed</dt>
+                <dd className="text-zinc-950">{formatCompleted(details.completedAt)}</dd>
+              </div>
+            )}
+            {details.merchantReference !== null && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-[#625b52]">Order ref</dt>
+                <dd className="wrap-anywhere text-zinc-950">{details.merchantReference}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+        <code className="block wrap-anywhere bg-[#eee7dc] px-4 py-3 text-sm">
           {referencePaymentId}
         </code>
         <a
