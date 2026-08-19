@@ -58,6 +58,11 @@ display face for the wordmark.
   `prefers-reduced-motion`, where the browser's own scrolling is left alone.
 - `src/components/*` — `ui.tsx` holds `Section`/`Label`/`SectionHeading`/`Lede`/`Button`, which is
   what keeps the vertical rhythm consistent; `reveal.tsx` is the one motion primitive.
+- `src/pages/pitch-deck/*` — the pitch deck at `/pitch-deck`, `noindex`. `slides.tsx` mirrors
+  `docs/pitch-deck.md` slide for slide; change the copy there first. The document is the
+  scroll-snap container, Motion (`inView`, `animate`) staggers each slide once, and the keyboard
+  (arrows, paging keys, Home/End, `F` fullscreen, `N` notes) sits on top. Lenis does not mount
+  here — it would fight the snap.
 
 ## Logos
 

@@ -451,3 +451,49 @@
     opacity: 0.5;
   }
 }
+
+/* The pitch deck (`/pitch-deck`): the document itself is the scroll-snap
+   container, so `scrollIntoView` lands a slide and the browser pages on wheel,
+   trackpad, and touch. Below `md` it reads as a long page instead. */
+.deck {
+  scroll-snap-type: y mandatory;
+}
+
+.deck body {
+  background-color: var(--color-void);
+  color: #ffffff;
+}
+
+@media (width < 48rem) {
+  .deck {
+    scroll-snap-type: none;
+  }
+}
+
+/* Pieces stagger in once per slide; until then they wait invisible. Reduced
+   motion skips the animation and flips `data-shown` straight to true. */
+.deck-slide[data-shown="false"] [data-reveal] {
+  opacity: 0;
+}
+
+@media print {
+  .deck {
+    scroll-snap-type: none;
+  }
+
+  .deck-chrome {
+    display: none !important;
+  }
+
+  .deck-slide {
+    min-height: auto;
+    break-after: page;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .deck-slide [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
