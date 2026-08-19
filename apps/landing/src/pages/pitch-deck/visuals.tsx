@@ -45,9 +45,17 @@ export function TitleLockup() {
         class="w-full max-w-[22rem] md:max-w-[30rem]"
         decoding="async"
       />
-      <div data-reveal class="flex flex-col gap-2">
-        <span class="label text-slate-inverse">Pronounced</span>
-        <span class="font-mono text-lg text-white md:text-2xl">/maɪˈjɑːrɪn/</span>
+      <div data-reveal class="flex flex-wrap items-end gap-x-10 gap-y-4">
+        <div class="flex flex-col gap-2">
+          <span class="label text-slate-inverse">Pronounced</span>
+          <span class="font-mono text-lg text-white md:text-2xl">/maɪˈjɑːrɪn/</span>
+        </div>
+        <a
+          href="https://mayarin.xyz"
+          class="font-mono text-sm text-accent hover:text-white md:text-base"
+        >
+          mayarin.xyz
+        </a>
       </div>
     </div>
   );
@@ -162,6 +170,7 @@ export function AtomicTiles() {
 }
 
 const HOSTS = [
+  "mayarin.xyz",
   "api-testnet.mayarin.xyz",
   "dashboard-testnet.mayarin.xyz",
   "pay-testnet.mayarin.xyz",

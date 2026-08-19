@@ -188,7 +188,7 @@ authorization model — provider-backed (`docs/wallet.md`).
 - Developer surface: TypeScript SDK, REST API, signed webhooks, real-time
   status.
 
-**Visual:** the live hosts as a list — `api-testnet.mayarin.xyz`,
+**Visual:** the live hosts as a list — `mayarin.xyz`, `api-testnet.mayarin.xyz`,
 `dashboard-testnet.mayarin.xyz`, `pay-testnet.mayarin.xyz`,
 `docs.mayarin.xyz` — and the three contract addresses.
 
