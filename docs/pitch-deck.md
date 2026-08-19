@@ -38,6 +38,24 @@ in the speaker notes below.
 
 ---
 
+## Vocabulary for an international room
+
+The first audience is a hackathon jury in Singapore. Terms that are everyday in
+Indonesia get one plain phrase on first use, and amounts use the international
+format:
+
+| On the slide                                       | Not          | Why                                              |
+| -------------------------------------------------- | ------------ | ------------------------------------------------ |
+| `IDR 36,000` (about S$3)                           | `Rp 36.000`  | A dot reads as a decimal point outside Indonesia |
+| coffee shop                                        | warung       | Everyone knows a coffee shop                     |
+| Indonesian rupiah (IDR), first use                 | rupiah       | Names the currency and its code once             |
+| Safe smart-account wallet, first use               | Safe         | "Safe" alone reads as an adjective               |
+| a passkey (Face ID or Touch ID)                    | a passkey    | Says what the merchant actually does             |
+| Base Sepolia, Base's public testnet                | Base Sepolia | Says it is a testnet, once                       |
+| QRIS — Indonesia's national QR standard, like SGQR | QRIS         | Notes only; gives the Singapore counterpart      |
+
+---
+
 ## Slide format
 
 Each slide has four parts. **Headline** is the one sentence the audience keeps.
@@ -107,20 +125,22 @@ fiat rail, no fiat off-ramp in the MVP.
 **Notes:** the "not" strip is a credibility device, `docs/vision.md` →
 Non-Goals. Stablecoins are the settlement rail; wallet infrastructure, DEX
 liquidity, and oracles exist as primitives; the orchestration layer above them
-did not. Primitives are provider-backed (Turnkey, Safe, Uniswap, 0x, LiFi,
-Pyth, Chainlink).
+did not. Primitives are provider-backed: Turnkey (key management), Safe
+(smart-account wallets), Uniswap, 0x, LiFi (liquidity), Pyth, Chainlink (price
+oracles). QRIS is Indonesia's national QR payment standard — the counterpart of
+Singapore's SGQR; the QR parser reads EMVCo and QRIS payloads.
 
 ### 4 — How a payment works · 1:20
 
-**Headline:** Rp 10.000 in. ETH paid. USDC received. One transaction.
+**Headline:** IDR 36,000 in. ETH paid. USDC received. One transaction.
 
 **Copy:**
 
-- Merchant creates a payment for Rp 10.000.
+- A coffee shop in Jakarta creates a payment for IDR 36,000 — about S$3.
 - Mayarin quotes and locks the price with a time and slippage bound.
-- Customer pays 0.003551410 ETH from any wallet.
-- The contract swaps ETH to USDC and delivers 0.556149 USDC to the merchant's
-  wallet in one transaction.
+- The customer pays 0.01295 ETH from any wallet they already have.
+- The contract swaps ETH to USDC and delivers 2.007 USDC to the shop's own
+  wallet in the same transaction.
 - Ledger, dashboard, and webhooks update from the confirmed on-chain event.
 
 **Visual:** the five-step flow — payer → PaymentRouter → atomic swap → merchant
@@ -129,13 +149,17 @@ plane (money in motion). Ends on the Basescan link of the settlement
 transaction.
 
 **Notes:** the amounts are from a real Base Sepolia payment on 2026-08-19,
-intent `pi_01M0CJZCBM024BM35FP6H0NWW3`: payer transaction
-[`0x33359ee6…`](https://sepolia.basescan.org/tx/0x33359ee67587fad7225a8776dbd5c283970e34a79074a1d367c482ee2646dc19),
+intent `pi_01M0D8X65WSYV0T5FQRQVXV5M7`: payer transaction
+[`0xe031f84f…`](https://sepolia.basescan.org/tx/0xe031f84f710834cbbf1516f0dfad12c543933da7772799795235e93d21b7525e),
 settlement transaction
-[`0xa82acb6d…`](https://sepolia.basescan.org/tx/0xa82acb6d93800f88c87552727d74733837bc9023df09b7d707ed9d0d08f03604).
-Settlement 0.559507 USDC, fee 0.003358 USDC, merchant net 0.556149 USDC. The
-testnet Uniswap pool is the price truth, so the ETH amount does not track
-mainnet prices (`docs/liquidity-routing.md`). The twelve-step flow is in
+[`0x41a87c05…`](https://sepolia.basescan.org/tx/0x41a87c05e673ed17b80ef5009813b932db74e095d4cdfca2c5dfdda49bee83c1).
+Payer sent 0.012953540 ETH. Settlement 2.019586 USDC, fee 0.012118 USDC,
+merchant net 2.007468 USDC. IDR 36,000 is about S$3 at roughly 12,000 IDR per
+SGD (August 2026). Indonesia writes the amount `Rp 36.000` — dot for thousands —
+and the product renders it that way; the slide uses `IDR 36,000` for an
+international room. Base Sepolia is Base's public testnet (Base is Coinbase's
+Ethereum layer 2). The testnet Uniswap pool is the price truth, so the ETH
+amount does not track mainnet prices (`docs/liquidity-routing.md`). The twelve-step flow is in
 `PURPOSE.md §7`. Two execution paths are live: contract path (payer →
 `PaymentRouter` → atomic swap → merchant Safe) and deposit path (per-payment
 deposit address → watcher → executor → `PaymentRouter`), `docs/architecture.md`,
@@ -152,8 +176,8 @@ never holds keys to user assets. Live.
 - **One transaction, no custody.** Receive, swap, settle in a single call. Hard
   revert if the swap misses the locked minimum. The contract holds no balance
   between payments.
-- **Provisioned, not custodial.** The merchant is always a signer on their
-  Safe. Payouts can only reach a verified merchant wallet — enforced on-chain.
+- **Provisioned, not custodial.** The merchant is always a signer on their own
+  Safe smart-account wallet. Payouts can only reach a verified merchant wallet — enforced on-chain.
 - **Provider-agnostic by construction.** Wallets, liquidity venues, oracles,
   and chains sit behind ports. Swap the source, keep the product.
 - **Ledger derived from chain truth.** Balanced double-entry postings,
@@ -179,14 +203,14 @@ authorization model — provider-backed (`docs/wallet.md`).
 
 **Copy:**
 
-- Three contracts deployed and verified. Both execution paths settle end to
-  end.
+- Three contracts deployed and verified on Base Sepolia, Base's public testnet.
+  Both execution paths settle end to end.
 - Full commerce surface: catalog, carts, payment links, hosted checkout,
   embeddable checkout, WooCommerce plugin.
 - Merchant dashboard: products, orders, customers, payments, settlement,
   wallets, webhooks, API keys, event log.
-- Managed self-custody wallets: a Safe provisioned from a passkey. No MetaMask,
-  no seed phrase.
+- Managed self-custody wallets: a Safe smart-account wallet created from a
+  passkey (Face ID or Touch ID). No MetaMask, no seed phrase.
 - Developer surface: TypeScript SDK, REST API, signed webhooks, real-time
   status.
 
@@ -210,10 +234,10 @@ through the demo marketplace (`apps/demo`, Pages project `mayarin-demo`).
   are adapters around it — we add adapters, not rewrites.
 - Next: more payer assets, more liquidity venues, more EVM chains, then Solana
   and TRON.
-- Distribution: payment links and a static QR with zero code, then embeddable
-  checkout and WooCommerce, then the full dashboard.
-- Beachhead: Indonesia and Southeast Asia, where merchants think in rupiah and
-  customers hold crypto.
+- Distribution: payment links and a printable QR with zero code, then
+  embeddable checkout and the WooCommerce plugin, then the full dashboard.
+- Beachhead: Indonesia first, then Southeast Asia — merchants price in
+  Indonesian rupiah (IDR), customers hold crypto.
 - Revenue: a fee split from the merchant settlement inside the same
   transaction. The merchant never pays gas to receive.
 
@@ -246,8 +270,9 @@ control.
 - **The ask (judges):** shipped, not slideware — scrutinise the testnet.
 - **The ask (investors):** seed to finish Phase 4 and open Phase 5 multi-chain.
 
-**Visual:** one merchant story — a warung in Jakarta receiving USDC from a
-tourist paying in ETH — and the ask in one line.
+**Visual:** one merchant story — a coffee shop in Jakarta prices a flat white at
+IDR 36,000 (about S$3), a visitor pays in ETH, the shop holds USDC in a wallet
+only it controls — and the ask in one line.
 
 **Notes:** compliance is cheap, not absent — screening port with a disabled
 default (`NOT_SCREENED`, never `CLEAR`); reconciliation states `MATCHED` /

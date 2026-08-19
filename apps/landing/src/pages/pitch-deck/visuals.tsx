@@ -8,7 +8,7 @@ import type { ComponentChildren } from "preact";
  */
 
 const SETTLEMENT_TX =
-  "https://sepolia.basescan.org/tx/0xa82acb6d93800f88c87552727d74733837bc9023df09b7d707ed9d0d08f03604";
+  "https://sepolia.basescan.org/tx/0x41a87c05e673ed17b80ef5009813b932db74e095d4cdfca2c5dfdda49bee83c1";
 
 function Card({
   index,
@@ -84,7 +84,7 @@ export function ThreeColumns() {
   return (
     <div class="flex flex-col gap-px bg-line-inverse">
       <div class="grid grid-cols-3 gap-px">
-        <Card index="Merchant" title="Prices in rupiah" class="bg-void">
+        <Card index="Merchant" title="Prices in IDR" class="bg-void">
           Picks the stablecoin they settle in.
         </Card>
         <Card index="Mayarin" title="Quotes, locks, converts, settles, records" class="bg-void">
@@ -112,10 +112,10 @@ export function ThreeColumns() {
 }
 
 const FLOW = [
-  { label: "Payer", detail: "0.003551410 ETH" },
+  { label: "Customer", detail: "0.01295 ETH" },
   { label: "PaymentRouter", detail: "receives" },
   { label: "Swap", detail: "ETH → USDC, atomic" },
-  { label: "Merchant wallet", detail: "0.556149 USDC" },
+  { label: "Coffee shop wallet", detail: "2.007 USDC" },
   { label: "Ledger", detail: "indexed event" },
 ] as const;
 
@@ -143,7 +143,7 @@ export function FlowDiagram() {
         class="group inline-flex items-center gap-3 self-start border border-line-inverse px-4 py-3 text-sm text-white transition-colors hover:border-accent"
       >
         <span class="label text-slate-inverse group-hover:text-accent">Base Sepolia</span>
-        <span class="font-mono">0xa82acb6d…f03604</span>
+        <span class="font-mono">0x41a87c05…ee83c1</span>
         <span aria-hidden="true">↗</span>
       </a>
     </div>
@@ -157,7 +157,7 @@ export function AtomicTiles() {
         receive → swap → settle. Zero resting balance.
       </Card>
       <Card index="02" title="Merchant-held keys" class="bg-void">
-        Always a Safe signer. Payouts only to verified wallets.
+        Always a signer on their own Safe wallet. Payouts only to verified wallets.
       </Card>
       <Card index="03" title="Ports, not vendors" class="bg-void">
         Turnkey · Uniswap · 0x · LiFi · Pyth · Chainlink.
@@ -232,15 +232,15 @@ export function MerchantStory() {
       <div data-reveal class="flex flex-col gap-2">
         <span class="label text-slate-inverse">One story</span>
         <p class="font-display text-2xl leading-tight text-white md:text-4xl">
-          A warung in Jakarta prices in rupiah. A tourist pays in ETH. The warung holds USDC — in a
-          wallet only it controls.
+          A coffee shop in Jakarta prices a flat white at IDR 36,000 — about S$3. A visitor pays in
+          ETH. The shop holds USDC — in a wallet only it controls.
         </p>
       </div>
       <dl data-reveal class="grid grid-cols-3 gap-4">
         {[
-          ["Priced", "Rp 10.000"],
-          ["Paid", "0.00355 ETH"],
-          ["Received", "0.556 USDC"],
+          ["Priced", "IDR 36,000"],
+          ["Paid", "0.01295 ETH"],
+          ["Received", "2.007 USDC"],
         ].map(([term, value]) => (
           <div key={term} class="flex flex-col gap-1 border-t border-line-inverse pt-3">
             <dt class="label text-slate-inverse">{term}</dt>
