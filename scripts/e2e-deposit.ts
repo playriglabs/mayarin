@@ -49,8 +49,11 @@ import {
   DrizzleMerchantRepository,
   DrizzleWatcherCursorRepository,
 } from "@mayarin/db";
-import { merchants as merchantsTable } from "@mayarin/db/schema";
-import { isMayarinError } from "@mayarin/shared";
+import {
+  merchants as merchantsTable,
+  merchantWallets as merchantWalletsTable,
+} from "@mayarin/db/schema";
+import { generateId, isMayarinError } from "@mayarin/shared";
 import { eq } from "drizzle-orm";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -231,6 +234,19 @@ if (merchant === null) {
     settlementAsset: "USDC",
     acceptedAssets: ["ETH", "USDC"],
     settlementAddress: settlementAddress ?? MERCHANT_SAFE,
+    version: 1,
+  });
+  // The router signer pays only a verified wallet of the merchant (`WalletGuard`),
+  // so the fixture address is recorded as linked and verified — on testnet only.
+  await merchantDb.db.insert(merchantWalletsTable).values({
+    id: generateId("wlt", now.getTime()),
+    merchantId,
+    chain: CHAIN,
+    address: (settlementAddress ?? MERCHANT_SAFE).toLowerCase(),
+    provenance: "linked",
+    verifiedAt: now,
+    createdAt: now,
+    updatedAt: now,
   });
   merchant = await merchants.findById(merchantId);
   console.log("merchant  ", merchantId, "seeded ->", settlementAddress ?? MERCHANT_SAFE);
