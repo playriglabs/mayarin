@@ -1,6 +1,8 @@
 import type { ComponentChildren } from "preact";
+import { Globe } from "../../components/globe.tsx";
+import { GridField } from "../../graphics/grid-field.tsx";
+import { WaveGrid } from "../../graphics/wave-grid.tsx";
 import {
-  AdapterRings,
   AtomicTiles,
   ClaimLedger,
   FlowDiagram,
@@ -11,6 +13,21 @@ import {
   ThreeColumns,
   TitleLockup,
 } from "./visuals.tsx";
+
+/**
+ * How a slide enters. The headline and bullets are the reading material and
+ * stay put unless named here; the visual is what moves, and only in the way
+ * that fits it — a list of steps arrives one by one, a globe fades in, a
+ * table just appears.
+ */
+export type Reveal = {
+  /** Animate the headline in. Title and closing slides only. */
+  headline?: true;
+  /** `stagger` animates each `[data-reveal]` piece of the visual in turn; `fade` fades the visual as one. */
+  visual: "stagger" | "fade" | "none";
+  /** Seconds between staggered pieces. Default 0.08. */
+  stagger?: number;
+};
 
 /**
  * One slide of the deck. Text mirrors `docs/pitch-deck.md` slide for slide —
@@ -27,6 +44,9 @@ export type Slide = {
   /** Pitch-voice bullets. A leading bold phrase is written as `**phrase.** rest`. */
   bullets: readonly string[];
   visual: ComponentChildren;
+  /** A full-bleed graphic behind the slide, related to what the slide says. */
+  backdrop?: ComponentChildren;
+  reveal: Reveal;
   /** Speaker notes, shown with the `N` key. */
   notes: readonly string[];
   /** Seconds of the 7-minute box. Undefined on a backup slide. */
@@ -46,6 +66,8 @@ export const SLIDES: readonly Slide[] = [
       "Customers pay with any supported crypto asset.",
     ],
     visual: <TitleLockup />,
+    backdrop: <GridField />,
+    reveal: { headline: true, visual: "fade" },
     notes: [
       "One breath.",
       "Name origin if asked: Indonesian bayar (to pay) + Latin maior (greater). docs/vision.md.",
@@ -64,6 +86,7 @@ export const SLIDES: readonly Slide[] = [
       "Backends become custodians by accident, and ledgers drift from what the chain says.",
     ],
     visual: <FrictionCards />,
+    reveal: { visual: "stagger", stagger: 0.12 },
     notes: [
       "PURPOSE.md §2, docs/vision.md.",
       "Framing line: crypto adoption does not require merchants to become crypto operators.",
@@ -83,6 +106,7 @@ export const SLIDES: readonly Slide[] = [
       "One API and one SDK. Storefronts, POS, invoices, and embedded checkout build on top.",
     ],
     visual: <ThreeColumns />,
+    reveal: { visual: "stagger" },
     notes: [
       "The 'not' strip is a credibility device. docs/vision.md → Non-Goals.",
       "Stablecoins are the settlement rail. Wallet infra, DEX liquidity, and oracles exist as primitives; the orchestration layer above them did not.",
@@ -103,6 +127,16 @@ export const SLIDES: readonly Slide[] = [
       "Ledger, dashboard, and webhooks update from the confirmed on-chain event.",
     ],
     visual: <FlowDiagram />,
+    backdrop: (
+      <div aria-hidden="true" class="absolute inset-0 opacity-80">
+        <WaveGrid tone="dark" />
+        <div
+          class="absolute inset-0 hidden md:block"
+          style="background: linear-gradient(90deg, var(--color-void) 0%, var(--color-void) 26%, transparent 60%)"
+        />
+      </div>
+    ),
+    reveal: { visual: "stagger", stagger: 0.22 },
     notes: [
       "Real Base Sepolia payment, 2026-08-19, intent pi_01M0CJZCBM024BM35FP6H0NWW3. Settlement 0.559507 USDC, fee 0.003358 USDC, merchant net 0.556149 USDC.",
       "The testnet Uniswap pool is the price truth, so the ETH amount does not track mainnet prices.",
@@ -123,6 +157,7 @@ export const SLIDES: readonly Slide[] = [
       "**Ledger derived from chain truth.** Balanced double-entry postings, reconciled against on-chain events. Every step idempotent and resumable.",
     ],
     visual: <AtomicTiles />,
+    reveal: { visual: "stagger" },
     notes: [
       "All four are live on Base Sepolia.",
       "PaymentRouter reverts on a minOut miss and keeps a zero resting balance (docs/chain.md).",
@@ -146,6 +181,8 @@ export const SLIDES: readonly Slide[] = [
       "Developer surface: TypeScript SDK, REST API, signed webhooks, real-time status.",
     ],
     visual: <LiveSurfaces />,
+    backdrop: <GridField />,
+    reveal: { visual: "stagger", stagger: 0.05 },
     notes: [
       "docs/roadmap.md. Phases 1–3 complete; Phase 4 mostly complete. Everything on this slide is live.",
       "Not on this slide, by rule: passkey browser ceremony, on-chain fee and refund split (#12), gas-free withdrawal (#9), OG images (#166 in review), freeze handling and export.",
@@ -165,7 +202,8 @@ export const SLIDES: readonly Slide[] = [
       "Beachhead: Indonesia and Southeast Asia, where merchants think in rupiah and customers hold crypto.",
       "Revenue: a fee split from the merchant settlement inside the same transaction. The merchant never pays gas to receive.",
     ],
-    visual: <AdapterRings />,
+    visual: <Globe tone="dark" class="mx-auto max-w-[min(56dvh,32rem)]" />,
+    reveal: { visual: "fade" },
     notes: [
       "Phase 5 (RFCs #17–#21) and Phase 6, docs/roadmap.md. IDR and MYR pricing already proven in the catalog.",
       "Cross-chain settlement is a separate bridge trust model — later. Fiat off-ramp is a later phase with its own custody perimeter. Treasury stays a fee recipient and gas funder, never an FX book.",
@@ -187,6 +225,7 @@ export const SLIDES: readonly Slide[] = [
       "**The ask (investors):** seed to finish Phase 4 and open Phase 5 multi-chain.",
     ],
     visual: <MerchantStory />,
+    reveal: { headline: true, visual: "fade" },
     notes: [
       "Compliance is cheap, not absent: screening port with a disabled default (NOT_SCREENED, never CLEAR); reconciliation states MATCHED / MISMATCHED / NO_ON_CHAIN_RECORD. docs/compliance.md.",
       "Hackathon alignment: Track 1 (Payments and Financial Infrastructure), Track 2 (Web3 Applications and AI). docs/roadmap.md.",
@@ -206,6 +245,7 @@ export const SLIDES: readonly Slide[] = [
       "The deposit forwarder passed static analysis but has not had an adversarial review. Mainnet hardening is a defined programme.",
     ],
     visual: <RiskColumns />,
+    reveal: { visual: "fade" },
     notes: [
       "docs/threat-model.md, PURPOSE.md §19. Depeg guard is RFC #71.",
       "Key compromise reduced by KMS/Turnkey signing, timelocked rotation, multisig governance, router pause, Safe allowlists. Mainnet hardening is RFC #143.",
@@ -220,6 +260,7 @@ export const SLIDES: readonly Slide[] = [
     headline: "Every claim, its status, and where it is written down.",
     bullets: [],
     visual: <ClaimLedger />,
+    reveal: { visual: "none" },
     notes: [
       "Base Sepolia: PaymentRouter 0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9, TimelockController 0x0c006FC14063e3F78271312B975231e4BD6e8B00, DepositForwarderFactory 0x598F64551456BCa2536386ED54A24412E3e32fCe. docs/chain.md.",
     ],

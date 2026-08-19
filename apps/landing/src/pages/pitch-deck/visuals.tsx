@@ -226,76 +226,6 @@ export function LiveSurfaces() {
   );
 }
 
-const RINGS = [
-  { r: 52, label: "Payment intent", items: [] },
-  { r: 104, label: "Adapters", items: ["wallets", "venues", "oracles", "storage"] },
-  { r: 156, label: "Chains", items: ["Base", "EVM", "Solana", "TRON"] },
-  { r: 208, label: "Currencies", items: ["IDR", "MYR", "SGD", "USD"] },
-] as const;
-
-export function AdapterRings() {
-  // 24px of padding around the outer ring keeps its labels inside the viewBox.
-  const size = 480;
-  const c = size / 2;
-  return (
-    <svg
-      viewBox={`0 0 ${size} ${size}`}
-      role="img"
-      aria-label="The payment intent at the centre, with adapters, chains, and currencies as rings around it"
-      class="mx-auto h-auto w-full max-w-[28rem]"
-    >
-      {RINGS.map((ring, index) => (
-        <g key={ring.label} data-reveal>
-          <circle
-            cx={c}
-            cy={c}
-            r={ring.r}
-            fill={index === 0 ? "var(--color-accent)" : "none"}
-            stroke={index === 0 ? "none" : "var(--color-line-inverse)"}
-            stroke-width="1"
-          />
-          {index === 0 ? (
-            <text
-              x={c}
-              y={c}
-              text-anchor="middle"
-              dominant-baseline="central"
-              fill="var(--color-void)"
-              font-family="var(--font-mono)"
-              font-size="11"
-              letter-spacing="0.12em"
-            >
-              INTENT
-            </text>
-          ) : (
-            ring.items.map((item, i) => {
-              const angle = -Math.PI / 2 + (i / ring.items.length) * Math.PI * 2;
-              const x = c + Math.cos(angle) * ring.r;
-              const y = c + Math.sin(angle) * ring.r;
-              return (
-                <g key={item}>
-                  <circle cx={x} cy={y} r="3" fill="var(--color-accent)" />
-                  <text
-                    x={x}
-                    y={y - 10}
-                    text-anchor="middle"
-                    fill="var(--color-slate-inverse)"
-                    font-family="var(--font-mono)"
-                    font-size="10"
-                    letter-spacing="0.08em"
-                  >
-                    {item}
-                  </text>
-                </g>
-              );
-            })
-          )}
-        </g>
-      ))}
-    </svg>
-  );
-}
-
 export function MerchantStory() {
   return (
     <div class="flex h-full flex-col justify-between gap-8 border border-line-inverse p-6 md:p-8">
@@ -373,7 +303,7 @@ const CLAIMS = [
 
 export function ClaimLedger() {
   return (
-    <div data-reveal class="max-h-[calc(100dvh-24rem)] overflow-auto border border-line-inverse">
+    <div data-scroll class="max-h-[calc(100dvh-24rem)] overflow-auto border border-line-inverse">
       <table class="w-full border-collapse text-left text-sm">
         <thead class="sticky top-0 bg-void">
           <tr class="border-b border-line-inverse">

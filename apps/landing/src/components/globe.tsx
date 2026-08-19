@@ -142,7 +142,12 @@ function project(
  * Labels are positioned from the same maths cobe uses internally rather than
  * from its anchor-name hooks, which would tie them to CSS anchor positioning.
  */
-export function Globe({ class: className = "" }: { class?: string }) {
+type GlobeProps = {
+  class?: string /** "light" draws on paper, "dark" on the void. */;
+  tone?: "light" | "dark";
+};
+
+export function Globe({ class: className = "", tone = "light" }: GlobeProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -284,15 +289,27 @@ export function Globe({ class: className = "" }: { class?: string }) {
         height: size,
         phi: START_PHI,
         theta: THETA,
-        dark: 0,
-        /* On white, the land map only reads once the base is knocked off pure
-           white and the dots are dimmed well below cobe's default. */
-        diffuse: 0.6,
-        mapSamples: 18000,
-        mapBrightness: 1.4,
-        baseColor: [0.97, 0.97, 0.97],
-        markerColor: [0.055, 0.92, 0.18],
-        glowColor: [1, 1, 1],
+        ...(tone === "dark"
+          ? {
+              dark: 1,
+              diffuse: 1.2,
+              mapSamples: 18000,
+              mapBrightness: 6,
+              baseColor: [0.16, 0.16, 0.16],
+              markerColor: [0.055, 0.92, 0.18],
+              glowColor: [0.04, 0.04, 0.04],
+            }
+          : {
+              dark: 0,
+              /* On white, the land map only reads once the base is knocked off pure
+                 white and the dots are dimmed well below cobe's default. */
+              diffuse: 0.6,
+              mapSamples: 18000,
+              mapBrightness: 1.4,
+              baseColor: [0.97, 0.97, 0.97],
+              markerColor: [0.055, 0.92, 0.18],
+              glowColor: [1, 1, 1],
+            }),
         markers: MARKERS,
         arcs: [],
       });
@@ -347,7 +364,7 @@ export function Globe({ class: className = "" }: { class?: string }) {
       canvas.removeEventListener("pointercancel", onPointerUp);
       globe?.destroy();
     };
-  }, []);
+  }, [tone]);
 
   return (
     <div ref={frameRef} class={clsx("relative aspect-square w-full overflow-hidden", className)}>
@@ -365,7 +382,10 @@ export function Globe({ class: className = "" }: { class?: string }) {
           <span
             key={city.id}
             data-city={city.id}
-            class="label absolute top-0 left-0 whitespace-nowrap bg-ink px-1.5 py-1 text-white will-change-transform"
+            class={clsx(
+              "label absolute top-0 left-0 whitespace-nowrap px-1.5 py-1 will-change-transform",
+              tone === "dark" ? "bg-white text-ink" : "bg-ink text-white",
+            )}
             style="visibility:hidden"
           >
             {city.label}

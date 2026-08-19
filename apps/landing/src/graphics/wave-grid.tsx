@@ -18,8 +18,15 @@ type Projected = { x: number; y: number; lift: number };
  * hairline grid, given depth and motion. Rows and columns are drawn as
  * polylines, so it reads as one surface rather than a field of dots.
  */
-export function WaveGrid() {
+type WaveGridProps = Readonly<{
+  /** "light" draws ink lines on paper; "dark" draws white lines on the void. */ tone?:
+    | "light"
+    | "dark";
+}>;
+
+export function WaveGrid({ tone = "light" }: WaveGridProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const base = tone === "dark" ? "255,255,255" : "17,17,17";
 
   useEffect(() => {
     if (!window.matchMedia("(min-width: 768px)").matches) return;
@@ -88,7 +95,7 @@ export function WaveGrid() {
           if (row === 0) context.moveTo(point.x, point.y);
           else context.lineTo(point.x, point.y);
         }
-        context.strokeStyle = "rgba(17,17,17,0.085)";
+        context.strokeStyle = `rgba(${base},0.085)`;
         context.stroke();
       }
 
@@ -110,7 +117,7 @@ export function WaveGrid() {
         const onSweep = Math.abs(v - sweep) < 0.022;
         context.strokeStyle = onSweep
           ? `rgba(14,235,46,${(0.32 + depth * 0.5).toFixed(3)})`
-          : `rgba(17,17,17,${alpha.toFixed(3)})`;
+          : `rgba(${base},${alpha.toFixed(3)})`;
         context.lineWidth = onSweep ? 1.4 : 1;
         context.stroke();
       }
@@ -138,7 +145,7 @@ export function WaveGrid() {
       window.cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, []);
+  }, [base]);
 
   return (
     <div aria-hidden="true" class="pointer-events-none absolute inset-0 hidden md:block">

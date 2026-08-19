@@ -59,8 +59,9 @@ text. **Notes** carry the technical depth, the sources, and the claim status.
 - Merchants price in their currency and receive a stablecoin.
 - Customers pay with any supported crypto asset.
 
-**Visual:** reversed wordmark on the dark ground, the one-liner, pronunciation
-_/maɪˈjɑːrɪn/_, `mayarin.xyz` in the footer.
+**Visual:** reversed wordmark over the hairline grid field (beams travelling
+the grid lines), pronunciation _/maɪˈjɑːrɪn/_, `mayarin.xyz`. The headline and
+the wordmark fade in; nothing else moves.
 
 **Notes:** one breath. Name origin if asked: Indonesian _bayar_ (to pay) +
 Latin _maior_ (greater), `docs/vision.md`.
@@ -122,9 +123,10 @@ Pyth, Chainlink).
   wallet in one transaction.
 - Ledger, dashboard, and webhooks update from the confirmed on-chain event.
 
-**Visual:** animated five-step flow over the two-path architecture — payer →
-PaymentRouter → atomic swap → merchant wallet → indexed event → ledger. Ends on
-the Basescan link of the settlement transaction.
+**Visual:** the five-step flow — payer → PaymentRouter → atomic swap → merchant
+wallet → indexed event → ledger — arriving one step at a time over the wave
+plane (money in motion). Ends on the Basescan link of the settlement
+transaction.
 
 **Notes:** the amounts are from a real Base Sepolia payment on 2026-08-19,
 intent `pi_01M0CJZCBM024BM35FP6H0NWW3`: payer transaction
@@ -188,7 +190,7 @@ authorization model — provider-backed (`docs/wallet.md`).
 - Developer surface: TypeScript SDK, REST API, signed webhooks, real-time
   status.
 
-**Visual:** the live hosts as a list — `mayarin.xyz`, `api-testnet.mayarin.xyz`,
+**Visual:** over the grid field, the live hosts as a list — `mayarin.xyz`, `api-testnet.mayarin.xyz`,
 `dashboard-testnet.mayarin.xyz`, `pay-testnet.mayarin.xyz`,
 `docs.mayarin.xyz` — and the three contract addresses.
 
@@ -215,8 +217,9 @@ through the demo marketplace (`apps/demo`, Pages project `mayarin-demo`).
 - Revenue: a fee split from the merchant settlement inside the same
   transaction. The merchant never pays gas to receive.
 
-**Visual:** the payment intent at the centre, adapter rings around it, chains
-and currencies on the outer ring; a small SEA inset.
+**Visual:** the dark globe with the settlement corridor cities (Jakarta,
+Singapore, Bangkok, Tokyo, Dubai, Riyadh, Frankfurt, London, Sydney, São Paulo,
+Mexico City). It fades in and turns; nothing else animates.
 
 **Notes:** Phase 5 (RFCs #17–#21) and Phase 6, `docs/roadmap.md`. IDR and MYR
 pricing already proven in the catalog. Cross-chain settlement is a separate

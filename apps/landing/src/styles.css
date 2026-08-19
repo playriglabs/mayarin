@@ -452,33 +452,73 @@
   }
 }
 
-/* The pitch deck (`/pitch-deck`): the document itself is the scroll-snap
-   container, so `scrollIntoView` lands a slide and the browser pages on wheel,
-   trackpad, and touch. Below `md` it reads as a long page instead. */
-.deck {
-  scroll-snap-type: y mandatory;
-}
-
+/* The pitch deck (`/pitch-deck`). From `md` up the track is a horizontal
+   scroll-snap row: each slide is one viewport wide, `scrollIntoView` lands a
+   slide, and a trackpad swipe snaps natively. Below `md` it is a long page. */
+.deck,
 .deck body {
+  height: 100%;
+  overflow: hidden;
   background-color: var(--color-void);
   color: #ffffff;
 }
 
-@media (width < 48rem) {
-  .deck {
-    scroll-snap-type: none;
+.deck-track {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.deck-slide {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 100dvh;
+}
+
+@media (width >= 48rem) {
+  .deck-track {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .deck-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .deck-slide {
+    width: 100vw;
+    height: 100dvh;
+    min-height: 0;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 }
 
-/* Pieces stagger in once per slide; until then they wait invisible. Reduced
-   motion skips the animation and flips `data-shown` straight to true. */
-.deck-slide[data-shown="false"] [data-reveal] {
+/* Until a slide has played its reveal, the parts it animates wait invisible —
+   and only those parts. Reduced motion skips the animation and flips
+   `data-shown` straight to true. */
+.deck-slide[data-shown="false"][data-reveal-headline] [data-headline],
+.deck-slide[data-shown="false"][data-reveal-visual="fade"] [data-visual],
+.deck-slide[data-shown="false"][data-reveal-visual="stagger"] [data-visual] [data-reveal] {
   opacity: 0;
 }
 
 @media print {
-  .deck {
-    scroll-snap-type: none;
+  .deck,
+  .deck body {
+    height: auto;
+    overflow: visible;
+  }
+
+  .deck-track {
+    display: block;
+    height: auto;
+    overflow: visible;
   }
 
   .deck-chrome {
@@ -486,12 +526,16 @@
   }
 
   .deck-slide {
+    width: auto;
+    height: auto;
     min-height: auto;
     break-after: page;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
 
+  .deck-slide [data-headline],
+  .deck-slide [data-visual],
   .deck-slide [data-reveal] {
     opacity: 1 !important;
     transform: none !important;
