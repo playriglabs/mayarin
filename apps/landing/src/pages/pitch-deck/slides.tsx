@@ -224,8 +224,6 @@ export const SLIDES: readonly Slide[] = [
       "Merchants reach global crypto liquidity without giving up custody or learning blockchain.",
       "Every payment is auditable: a balanced ledger entry and an on-chain event, reconciled against each other.",
       "Built in Indonesia, architected for any local currency.",
-      "**The ask (judges):** shipped, not slideware — scrutinise the testnet.",
-      "**The ask (investors):** seed to finish Phase 4 and open Phase 5 multi-chain.",
     ],
     visual: <MerchantStory />,
     reveal: { headline: true, visual: "fade" },

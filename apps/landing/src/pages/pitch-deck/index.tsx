@@ -422,11 +422,11 @@ function DeckSlide({ slide, index, sectionRef }: DeckSlideProps) {
             {slide.label}
           </p>
           {index === 0 ? (
-            <h1 data-headline class="text-[clamp(2.25rem,5vw,4.75rem)]">
+            <h1 data-headline class="text-[clamp(2.25rem,5vw,4.75rem)] font-sans">
               {slide.headline}
             </h1>
           ) : (
-            <h2 data-headline class="text-[clamp(1.9rem,4.2vw,4rem)]">
+            <h2 data-headline class="text-[clamp(1.9rem,4.2vw,4rem)] font-sans">
               {slide.headline}
             </h2>
           )}

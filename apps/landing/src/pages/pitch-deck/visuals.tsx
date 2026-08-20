@@ -42,7 +42,7 @@ export function TitleLockup() {
         alt="Mayarin"
         width="640"
         height="160"
-        class="w-full max-w-[22rem] md:max-w-[30rem]"
+        class="w-full max-w-88 md:max-w-120"
         decoding="async"
       />
       <div data-reveal class="flex flex-wrap items-end gap-x-10 gap-y-4">
@@ -231,7 +231,7 @@ export function MerchantStory() {
     <div class="flex h-full flex-col justify-between gap-8 border border-line-inverse p-6 md:p-8">
       <div data-reveal class="flex flex-col gap-2">
         <span class="label text-slate-inverse">One story</span>
-        <p class="font-display text-2xl leading-tight text-white md:text-4xl">
+        <p class="font-sans text-2xl leading-tight text-white md:text-3xl">
           A coffee shop in Jakarta prices a flat white at IDR 36,000 — about S$3. A visitor pays in
           ETH. The shop holds USDC — in a wallet only it controls.
         </p>
