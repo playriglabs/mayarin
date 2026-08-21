@@ -12,7 +12,6 @@ import { SLIDES, type Slide } from "./slides.tsx";
  */
 
 const CORE = SLIDES.filter((slide) => !slide.backup);
-const TOTAL_SECONDS = CORE.reduce((sum, slide) => sum + (slide.seconds ?? 0), 0);
 /** Minimum wheel delta that counts as "turn the page". */
 const WHEEL_THRESHOLD = 24;
 /** One page per wheel gesture: ignore further deltas for this long. */
@@ -285,7 +284,11 @@ export function PitchDeck() {
         class="deck-chrome fixed inset-x-0 bottom-0 z-50 border-t border-line-inverse bg-void/90 text-white backdrop-blur"
       >
         <div class="shell flex items-center justify-between gap-4 py-3">
-          <a href="/" class="flex items-center gap-3" aria-label="Mayarin home">
+          <a
+            href="/pitch-deck"
+            class="flex min-h-11 items-center gap-3 outline-offset-4 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            aria-label="Mayarin pitch deck"
+          >
             <img
               src="/brand-kit/mayarin-logo-white.png"
               alt=""
@@ -294,9 +297,7 @@ export function PitchDeck() {
               class="size-7"
               decoding="async"
             />
-            <span class="label hidden text-slate-inverse sm:inline">
-              Pitch · {formatClock(TOTAL_SECONDS)} of 7:00
-            </span>
+            <span class="hidden text-slate-inverse sm:inline">mayarin.xyz/pitch-deck</span>
           </a>
 
           <ol class="hidden items-center gap-2 md:flex" aria-label="Slides">

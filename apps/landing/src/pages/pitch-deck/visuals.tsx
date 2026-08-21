@@ -61,6 +61,193 @@ export function TitleLockup() {
   );
 }
 
+const TEAM = [
+  {
+    name: "Rizky",
+    role: "R&D and Core Contributor",
+    experience: "Ex-Kite",
+    image: "/images/teams/rizky.png",
+    imageClass: "team-photo-rizky",
+    links: [
+      { kind: "linkedin", label: "/mrizkyy", href: "https://www.linkedin.com/in/mrizkyy/" },
+      { kind: "website", label: "rizzky.xyz", href: "https://rizzky.xyz" },
+    ],
+  },
+  {
+    name: "Rizki Citra",
+    role: "Core Contributor",
+    experience: "Software Engineer · Kolosal AI",
+    image: "/images/teams/citra.jpeg",
+    imageClass: "",
+    links: [
+      {
+        kind: "linkedin",
+        label: "/rimzzlabs",
+        href: "https://www.linkedin.com/in/rimzzlabs/",
+      },
+      { kind: "website", label: "rimzzlabs.com", href: "https://rimzzlabs.com" },
+    ],
+  },
+] as const;
+
+function LinkedInMark() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      class="size-4 shrink-0 text-accent"
+      fill="currentColor"
+    >
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V8.997h3.414v1.561h.047c.475-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.371 4.267 5.456v6.288ZM5.337 7.433a2.062 2.062 0 1 1 0-4.124 2.062 2.062 0 0 1 0 4.124ZM7.119 20.452H3.555V8.997h3.564v11.455Z" />
+    </svg>
+  );
+}
+
+function WebsiteMark() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      class="size-4 shrink-0 text-accent"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a15.3 15.3 0 0 1 0 18M12 3a15.3 15.3 0 0 0 0 18" />
+    </svg>
+  );
+}
+
+export function TeamPortraits() {
+  return (
+    <div class="grid grid-cols-1 gap-px bg-line-inverse sm:grid-cols-2">
+      {TEAM.map((member) => (
+        <article key={member.name} data-reveal class="min-w-0 bg-void">
+          <div class="aspect-square overflow-hidden bg-void">
+            <img
+              src={member.image}
+              alt={`${member.name}, ${member.role} at Mayarin`}
+              width="800"
+              height="800"
+              class={clsx("team-photo", member.imageClass)}
+              decoding="async"
+            />
+          </div>
+          <div class="flex flex-col gap-1 border-t border-line-inverse p-4 md:p-5">
+            <span class="font-sans text-lg text-white md:text-xl">{member.name}</span>
+            <span class="font-mono text-xs text-accent md:text-sm">{member.role}</span>
+            <span class="text-xs text-slate-inverse md:text-sm">{member.experience}</span>
+            <nav
+              aria-label={`${member.name} profiles`}
+              class="mt-3 grid grid-cols-2 gap-px bg-line-inverse"
+            >
+              {member.links.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${member.name} ${link.label}, opens in a new tab`}
+                  class="inline-flex min-h-11 min-w-0 items-center gap-2 bg-void px-3 font-mono text-[0.7rem] text-slate-inverse outline-offset-4 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-accent md:text-xs"
+                >
+                  {link.kind === "linkedin" ? <LinkedInMark /> : <WebsiteMark />}
+                  <span class="truncate">{link.label}</span>
+                </a>
+              ))}
+            </nav>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+const SETTLEMENT_PROPERTIES = [
+  ["01", "Stable unit", "Merchant chooses the fiat-denominated settlement asset."],
+  ["02", "Always on", "Settlement runs beyond banking cutoffs and weekends."],
+  ["03", "Programmable", "Routing, policy, and reconciliation become software."],
+] as const;
+
+const INSTITUTIONAL_SIGNALS = [
+  [
+    "Visa",
+    "USDC settlement · 2025",
+    "https://corporate.visa.com/en/sites/visa-perspectives/newsroom/visa-launches-stablecoin-settlement-in-the-united-states.html",
+  ],
+  [
+    "DBS",
+    "Token Services · 2024",
+    "https://www.dbs.com/newsroom/DBS_rolls_out_blockchain_powered_banking_for_institutions_with_DBS_Token_Services_marks_new_milestone_in_financial_services",
+  ],
+  [
+    "Singapore",
+    "SCS framework · 2023",
+    "https://www.sgpc.gov.sg/api/file/getfile/Media%20Release_MAS%20Finalises%20Stablecoin%20Regulatory%20Framework.pdf?path=%2Fsgpcmedia%2Fmedia_releases%2Fmas%2Fpress_release%2FP-20230815-2%2Fattachment%2FMedia+Release_MAS+Finalises+Stablecoin+Regulatory+Framework.pdf",
+  ],
+  [
+    "Open USD (OUSD)",
+    "140+ signed up · pre-launch",
+    "https://www.onepay.com/newsroom/introducing-open-usd",
+  ],
+] as const;
+
+export function ProblemBridge() {
+  return (
+    <div class="flex flex-col gap-px bg-line-inverse">
+      <div class="bg-void px-5 pt-5 md:px-6 md:pt-6">
+        <p class="label mb-2 text-slate-inverse">Settlement thesis</p>
+        <ol>
+          {SETTLEMENT_PROPERTIES.map(([index, title, detail]) => (
+            <li
+              key={index}
+              data-reveal
+              class="grid grid-cols-[2rem_1fr] gap-x-4 border-t border-line-inverse py-3 last:border-b"
+            >
+              <span class="label pt-1 text-accent">{index}</span>
+              <div class="flex flex-col gap-1">
+                <h3 class="font-sans text-base text-white md:text-lg">{title}</h3>
+                <p class="text-xs leading-relaxed text-slate-inverse md:text-sm">{detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div class="bg-void px-5 py-4 md:px-6 md:py-5">
+        <p class="label mb-2 text-slate-inverse">Institutional signal · official sources</p>
+        <ul class="grid grid-cols-2 gap-x-5">
+          {INSTITUTIONAL_SIGNALS.map(([name, signal, href]) => (
+            <li key={name} data-reveal class="min-w-0 border-t border-line-inverse">
+              <a
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Verify ${name}: ${signal}, opens primary source in a new tab`}
+                class="group flex min-h-11 items-center justify-between gap-3 py-2.5 outline-offset-4 transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                <span class="min-w-0">
+                  <span class="label block text-white group-hover:text-accent">{name}</span>
+                  <span class="mt-1 block font-mono text-[0.7rem] leading-relaxed text-accent md:text-xs">
+                    {signal}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  class="shrink-0 text-slate-inverse transition-colors group-hover:text-white"
+                >
+                  ↗
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export function FrictionCards() {
   return (
     <div class="grid grid-cols-2 gap-px bg-line-inverse">
@@ -83,7 +270,7 @@ export function FrictionCards() {
 export function ThreeColumns() {
   return (
     <div class="flex flex-col gap-px bg-line-inverse">
-      <div class="grid grid-cols-3 gap-px">
+      <div class="grid grid-cols-1 gap-px md:grid-cols-3">
         <Card index="Merchant" title="Prices in IDR" class="bg-void">
           Picks the stablecoin they settle in.
         </Card>
@@ -112,10 +299,10 @@ export function ThreeColumns() {
 }
 
 const FLOW = [
-  { label: "Customer", detail: "0.01295 ETH" },
+  { label: "Customer", detail: "ETH · live testnet quote" },
   { label: "PaymentRouter", detail: "receives" },
   { label: "Swap", detail: "ETH → USDC, atomic" },
-  { label: "Coffee shop wallet", detail: "2.007 USDC" },
+  { label: "Merchant wallet", detail: "USDC · net settlement" },
   { label: "Ledger", detail: "indexed event" },
 ] as const;
 
@@ -157,7 +344,7 @@ export function AtomicTiles() {
         receive → swap → settle. Zero resting balance.
       </Card>
       <Card index="02" title="Merchant-held keys" class="bg-void">
-        Always a signer on their own Safe wallet. Payouts only to verified wallets.
+        Always a Safe signer, with independent recovery. Payouts only to verified wallets.
       </Card>
       <Card index="03" title="Ports, not vendors" class="bg-void">
         Turnkey · Uniswap · 0x · LiFi · Pyth · Chainlink.
@@ -169,18 +356,86 @@ export function AtomicTiles() {
   );
 }
 
+const SURFACES = [
+  ["Buyer", "Payment links · QR · hosted and embedded checkout"],
+  ["Merchant", "Dashboard · wallet · settlement · signed webhooks"],
+  ["Developer", "TypeScript SDK · REST API · WooCommerce"],
+] as const;
+
+const BASE_SEPOLIA_ADDRESS_URL = "https://sepolia.basescan.org/address";
+
+const CONTRACTS = [
+  {
+    name: "PaymentRouter",
+    address: "0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9",
+  },
+  {
+    name: "TimelockController",
+    address: "0x0c006FC14063e3F78271312B975231e4BD6e8B00",
+  },
+  {
+    name: "DepositForwarderFactory",
+    address: "0x598F64551456BCa2536386ED54A24412E3e32fCe",
+  },
+] as const;
+
+function compactAddress(address: string): string {
+  return `${address.slice(0, 10)}…${address.slice(-8)}`;
+}
+
+export function ProofAndPilot() {
+  return (
+    <div class="flex flex-col gap-px bg-line-inverse">
+      <div class="grid grid-cols-1 gap-px md:grid-cols-3">
+        {SURFACES.map(([surface, detail]) => (
+          <div key={surface} data-reveal class="flex min-w-0 flex-col gap-3 bg-void p-5 md:p-6">
+            <span class="label text-slate-inverse">{surface}</span>
+            <span class="text-sm leading-relaxed text-white">{detail}</span>
+          </div>
+        ))}
+      </div>
+      <div data-reveal class="bg-void px-5 pt-4 md:px-6">
+        <p class="label mb-2 text-slate-inverse">Base Sepolia · verified on-chain</p>
+        <ul>
+          {CONTRACTS.map((contract) => (
+            <li
+              key={contract.name}
+              class="flex min-h-11 items-center justify-between gap-4 border-t border-line-inverse last:border-b"
+            >
+              <span class="text-xs text-white md:text-sm">{contract.name}</span>
+              <a
+                href={`${BASE_SEPOLIA_ADDRESS_URL}/${contract.address}`}
+                target="_blank"
+                rel="noreferrer"
+                title={contract.address}
+                aria-label={`Verify ${contract.name} at ${contract.address} on Base Sepolia Basescan`}
+                class="inline-flex min-h-11 items-center font-mono text-xs text-accent outline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-accent md:text-sm"
+              >
+                {compactAddress(contract.address)}
+                <span aria-hidden="true" class="ml-2">
+                  ↗
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div data-reveal class="flex flex-col gap-2 bg-void px-5 py-4 md:px-6">
+        <span class="font-mono text-xs text-accent md:text-sm">
+          Both execution paths settle end to end
+        </span>
+        <span class="label text-white">Next · controlled merchant pilot</span>
+      </div>
+    </div>
+  );
+}
+
 const HOSTS = [
   "mayarin.xyz",
   "api-testnet.mayarin.xyz",
   "dashboard-testnet.mayarin.xyz",
   "pay-testnet.mayarin.xyz",
   "docs.mayarin.xyz",
-] as const;
-
-const CONTRACTS = [
-  ["PaymentRouter", "0xEe7c…f7a9"],
-  ["TimelockController", "0x0c00…8B00"],
-  ["DepositForwarderFactory", "0x598F…2fCe"],
 ] as const;
 
 export function LiveSurfaces() {
@@ -210,14 +465,16 @@ export function LiveSurfaces() {
           Base Sepolia · verified
         </p>
         <ul class="flex flex-col">
-          {CONTRACTS.map(([name, address]) => (
+          {CONTRACTS.map((contract) => (
             <li
-              key={name}
+              key={contract.name}
               data-reveal
               class="flex items-baseline justify-between gap-4 border-t border-line-inverse py-2.5 last:border-b"
             >
-              <span class="text-sm text-white">{name}</span>
-              <span class="font-mono text-xs text-accent md:text-sm">{address}</span>
+              <span class="text-sm text-white">{contract.name}</span>
+              <span class="font-mono text-xs text-accent md:text-sm">
+                {compactAddress(contract.address)}
+              </span>
             </li>
           ))}
         </ul>
@@ -226,29 +483,60 @@ export function LiveSurfaces() {
   );
 }
 
-export function MerchantStory() {
+const CLOSING_OUTCOME = [
+  ["01 · Price", "SGD · MYR · IDR"],
+  ["02 · Pay", "Supported crypto"],
+  ["03 · Settle", "Stablecoin"],
+] as const;
+
+export function ClosingOutcome() {
   return (
     <div class="flex h-full flex-col justify-between gap-8 border border-line-inverse p-6 md:p-8">
-      <div data-reveal class="flex flex-col gap-2">
-        <span class="label text-slate-inverse">One story</span>
-        <p class="font-sans text-2xl leading-tight text-white md:text-3xl">
-          A coffee shop in Jakarta prices a flat white at IDR 36,000 — about S$3. A visitor pays in
-          ETH. The shop holds USDC — in a wallet only it controls.
+      <div data-reveal class="flex flex-col gap-4">
+        <span class="label text-slate-inverse">The outcome</span>
+        <p class="font-sans text-3xl leading-tight text-white md:text-4xl">
+          Price locally. Pay globally. Settle predictably.
+        </p>
+        <p class="max-w-lg text-base leading-relaxed text-slate-inverse md:text-lg">
+          One auditable payment into a merchant-controlled wallet.
         </p>
       </div>
-      <dl data-reveal class="grid grid-cols-3 gap-4">
-        {[
-          ["Priced", "IDR 36,000"],
-          ["Paid", "0.01295 ETH"],
-          ["Received", "2.007 USDC"],
-        ].map(([term, value]) => (
-          <div key={term} class="flex flex-col gap-1 border-t border-line-inverse pt-3">
-            <dt class="label text-slate-inverse">{term}</dt>
-            <dd class="font-mono text-sm text-accent md:text-base">{value}</dd>
-          </div>
+      <ol data-reveal class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {CLOSING_OUTCOME.map(([step, value]) => (
+          <li key={step} class="flex flex-col gap-2 border-t border-line-inverse pt-3">
+            <span class="label text-slate-inverse">{step}</span>
+            <span class="font-mono text-sm text-accent md:text-base">{value}</span>
+          </li>
         ))}
-      </dl>
+      </ol>
+      <div
+        data-reveal
+        class="flex items-center justify-between gap-4 border-t border-line-inverse pt-4"
+      >
+        <span class="label text-slate-inverse">Next</span>
+        <span class="font-mono text-sm text-accent">Controlled mainnet pilot</span>
+      </div>
     </div>
+  );
+}
+
+export function ArchitectureFlow() {
+  return (
+    <figure data-reveal class="flex h-full w-full items-center justify-center">
+      <img
+        src="/images/pitch-deck/mayarin-architecture-flow.png"
+        alt="Mayarin architecture: merchant intent and customer asset choice enter the Mayarin API, which coordinates quoting, on-chain payment routing or transfer watching, clearing, double-entry accounting, and stablecoin settlement to the merchant."
+        width="2898"
+        height="1406"
+        class="max-h-[calc(100dvh-26rem)] min-h-0 w-full object-contain"
+        loading="lazy"
+        decoding="async"
+      />
+      <figcaption class="sr-only">
+        One orchestration layer coordinates two execution paths that converge on one auditable
+        stablecoin settlement outcome.
+      </figcaption>
+    </figure>
   );
 }
 
