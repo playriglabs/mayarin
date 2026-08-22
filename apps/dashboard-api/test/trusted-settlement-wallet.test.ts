@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { WalletGuard } from "@mayarin/wallet";
 import { InMemoryMerchantWalletRepository } from "@mayarin/wallet/testing";
 import { trustedSettlementWallet } from "../scripts/trusted-settlement-wallet.ts";
 
@@ -8,7 +7,7 @@ const ADDRESS = "0xAAbbCCddEEff0011223344556677889900aAbBcC";
 const TRUSTED_AT = new Date("2026-08-22T07:25:00.000Z");
 
 describe("trustedSettlementWallet", () => {
-  test("creates the linked verified wallet that makes a seeded destination payable", async () => {
+  test("creates an explicitly trusted linked wallet for a disposable fixture", async () => {
     const wallets = new InMemoryMerchantWalletRepository();
     const wallet = trustedSettlementWallet({
       merchantId: MERCHANT_ID,
@@ -29,9 +28,6 @@ describe("trustedSettlementWallet", () => {
     });
 
     await wallets.insert(wallet);
-    const guard = new WalletGuard({ wallets, treasuryAddresses: [] });
-    await expect(
-      guard.assertPayable(MERCHANT_ID, "base-sepolia", ADDRESS),
-    ).resolves.toBeUndefined();
+    expect(await wallets.findByAddress("base-sepolia", ADDRESS)).toEqual(wallet);
   });
 });

@@ -50,7 +50,11 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import type { StablecoinRegistry } from "@mayarin/stablecoin";
-import type { SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
+import type {
+  SettlementAddressResolver,
+  SettlementDestination,
+  WalletGuard,
+} from "@mayarin/wallet";
 import type { Config, ContractConfig } from "./config.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 
@@ -76,7 +80,7 @@ export interface ContractLayerOptions {
    */
   readonly merchantPolicies: MerchantAssetPolicySource;
   /**
-   * Refuses a payout destination this deployment cannot vouch for (#11, RFC #6).
+   * Enforces the payout destination's source-specific rules (#11, RFC #6).
    *
    * `merchantSafe` goes inside the EIP-712 digest, so signing is the last
    * moment anything can object. Optional only so a deployment without the chain
@@ -110,27 +114,30 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
 
     const configured = (await merchantPolicies.policyFor(request.merchantId))?.settlementAddress;
     // What the merchant set wins; unset falls back to the wallet Mayarin
-    // provisioned for them on this chain. Both still face the guard below —
-    // the fallback passes by construction, the configured value has to earn it.
-    const merchantSafe =
+    // provisioned for them on this chain. Keep the source attached because a
+    // scoped settings choice and a managed fallback have different trust rules.
+    const destination: SettlementDestination | undefined =
       this.#options.settlementAddresses === undefined
-        ? configured
+        ? configured === undefined
+          ? undefined
+          : { source: "configured", address: configured }
         : await this.#options.settlementAddresses.resolve(
             request.merchantId,
             request.chain,
             configured,
           );
-    if (merchantSafe === undefined) {
+    if (destination === undefined) {
       throw new ConfigurationError(
         `Merchant ${request.merchantId} has no settlement address; the on-chain-contract path cannot sign an order without one`,
         { merchantId: request.merchantId },
       );
     }
 
-    // Checked before anything is signed. An address the merchant merely
-    // claimed is not a basis for signing a customer's payment into it, and
-    // since #95 that field is writable through an authenticated API.
-    await this.#options.wallets?.assertPayable(request.merchantId, request.chain, merchantSafe);
+    // Checked before anything is signed. Explicit external destinations are
+    // authorised by the merchant's scoped, audited settings write; managed
+    // fallbacks still have to be verified wallets belonging to that merchant.
+    await this.#options.wallets?.assertPayable(request.merchantId, request.chain, destination);
+    const merchantSafe = destination.address;
 
     const router = contract.paymentRouters[request.chain];
     if (router === undefined) {

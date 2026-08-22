@@ -268,79 +268,25 @@ describe("a merchant who never named their wallet is still paid at it (#11)", ()
   });
 });
 
-describe("the signer refuses a payout destination it cannot vouch for (#11)", () => {
-  const NOW_DATE = new Date(NOW);
-
+describe("the signer applies source-specific settlement rules (#11)", () => {
   function walletRepo() {
     return new InMemoryMerchantWalletRepository();
   }
 
-  function verifiedWallet(overrides: Partial<MerchantWallet> = {}): MerchantWallet {
-    return {
-      id: "wlt_1",
-      merchantId: "ID1020017611473",
-      chain: "base",
-      address: MERCHANT_SAFE.toLowerCase(),
-      provenance: "linked",
-      verifiedAt: NOW_DATE,
-      createdAt: NOW_DATE,
-      updatedAt: NOW_DATE,
-      ...overrides,
-    };
-  }
-
-  test("signs when the destination is a verified wallet of that merchant", async () => {
-    const wallets = walletRepo();
-    await wallets.insert(verifiedWallet());
+  test("signs for an explicitly configured external address", async () => {
     const { planner } = createPlanner(
       MERCHANT_SAFE,
-      new WalletGuard({ wallets, treasuryAddresses: [] }),
+      new WalletGuard({ wallets: walletRepo(), treasuryAddresses: [] }),
     );
 
     const lock = await planner.lock(lockRequest("ETH"));
     expect(lock.order.merchantSafe.toLowerCase()).toBe(MERCHANT_SAFE.toLowerCase());
   });
 
-  test("refuses an address the deployment has never seen", async () => {
-    // The gap as it stood: a merchant sets any address through the settings API
-    // (#95) and the signer signs a customer's payment into it.
+  test("refuses a treasury address even when the merchant configured it", async () => {
     const { planner } = createPlanner(
       MERCHANT_SAFE,
-      new WalletGuard({ wallets: walletRepo(), treasuryAddresses: [] }),
-    );
-
-    await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ValidationError);
-  });
-
-  test("refuses a wallet that is linked but unverified", async () => {
-    const wallets = walletRepo();
-    const { verifiedAt: _unverified, ...unverified } = verifiedWallet();
-    await wallets.insert(unverified);
-    const { planner } = createPlanner(
-      MERCHANT_SAFE,
-      new WalletGuard({ wallets, treasuryAddresses: [] }),
-    );
-
-    await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ValidationError);
-  });
-
-  test("refuses a wallet belonging to another merchant", async () => {
-    const wallets = walletRepo();
-    await wallets.insert(verifiedWallet({ merchantId: "mrc_someone_else" }));
-    const { planner } = createPlanner(
-      MERCHANT_SAFE,
-      new WalletGuard({ wallets, treasuryAddresses: [] }),
-    );
-
-    await expect(planner.lock(lockRequest("ETH"))).rejects.toBeInstanceOf(ValidationError);
-  });
-
-  test("refuses a treasury address even when it is a verified wallet", async () => {
-    const wallets = walletRepo();
-    await wallets.insert(verifiedWallet());
-    const { planner } = createPlanner(
-      MERCHANT_SAFE,
-      new WalletGuard({ wallets, treasuryAddresses: [MERCHANT_SAFE] }),
+      new WalletGuard({ wallets: walletRepo(), treasuryAddresses: [MERCHANT_SAFE] }),
     );
 
     // A fee recipient that is also a payout destination pays a merchant twice

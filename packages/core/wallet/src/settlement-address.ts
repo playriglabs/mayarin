@@ -28,14 +28,10 @@
  * Resolving on read keeps "unset" meaning unset, and keeps the fallback correct
  * for the chain being asked about.
  *
- * ## What this does not do
- *
- * It does not decide whether the address may be paid. `WalletGuard` does, on
- * every path, after this. The two are separate because the fallback is trusted
- * by construction — it *is* a verified wallet of that merchant — while the
- * configured value is a string somebody with `settings:manage` typed, and a
- * resolver that also validated would make it easy to write a caller that
- * resolves without checking.
+ * The source stays attached to the answer because the two paths have different
+ * trust rules. A configured address is an authenticated, audited payout choice;
+ * a managed fallback must still be a verified wallet belonging to the merchant.
+ * `WalletGuard` enforces that distinction immediately before signing.
  */
 
 import type { ChainId } from "@mayarin/chain";
@@ -45,6 +41,10 @@ import { isVerified, type MerchantWalletRepository } from "./types.ts";
 export interface SettlementAddressResolverOptions {
   readonly wallets: MerchantWalletRepository;
 }
+
+export type SettlementDestination =
+  | { readonly source: "configured"; readonly address: string }
+  | { readonly source: "managed"; readonly address: string };
 
 export class SettlementAddressResolver {
   readonly #wallets: MerchantWalletRepository;
@@ -65,9 +65,9 @@ export class SettlementAddressResolver {
     merchantId: string,
     chain: ChainId,
     configured: string | undefined,
-  ): Promise<string> {
-    const effective = await this.effective(merchantId, chain, configured);
-    if (effective !== undefined) return effective;
+  ): Promise<SettlementDestination> {
+    const destination = await this.#destination(merchantId, chain, configured);
+    if (destination !== undefined) return destination;
 
     throw new ConfigurationError(
       `Merchant ${merchantId} has no settlement address on ${chain} and no managed wallet to fall back to; set one or provision a wallet`,
@@ -88,9 +88,21 @@ export class SettlementAddressResolver {
     chain: ChainId,
     configured: string | undefined,
   ): Promise<string | undefined> {
-    if (configured !== undefined) return configured.toLowerCase();
+    return (await this.#destination(merchantId, chain, configured))?.address;
+  }
+
+  async #destination(
+    merchantId: string,
+    chain: ChainId,
+    configured: string | undefined,
+  ): Promise<SettlementDestination | undefined> {
+    if (configured !== undefined) {
+      return { source: "configured", address: configured.toLowerCase() };
+    }
 
     const managed = await this.#wallets.findManaged(merchantId, chain);
-    return managed !== null && isVerified(managed) ? managed.address : undefined;
+    return managed !== null && isVerified(managed)
+      ? { source: "managed", address: managed.address }
+      : undefined;
   }
 }

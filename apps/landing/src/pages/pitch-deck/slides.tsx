@@ -164,7 +164,7 @@ export const SLIDES: readonly Slide[] = [
     notes: [
       "All four are live on Base Sepolia.",
       "PaymentRouter reverts on a minOut miss and keeps a zero resting balance (docs/chain.md).",
-      "WalletGuard refuses a payout to an unverified wallet; a deployment whose TREASURY_ADDRESS is a merchant wallet does not boot (docs/wallet.md).",
+      "WalletGuard accepts audited external payout instructions, verifies managed-wallet fallbacks, and prevents a deployment whose TREASURY_ADDRESS is a merchant wallet from booting (docs/wallet.md).",
       "Money is bigint minor units + AssetCode, no floats (docs/money.md). LedgerImbalanceError rejects an unbalanced posting (docs/ledger.md). Steps keyed transactionId:state; ClearingEngine.resumeStuck recovers stalled payments.",
       "A webhook wakes the engine and never settles a payment by itself.",
       "The passkey custody boundary rests on Turnkey's authorization model — provider-backed.",

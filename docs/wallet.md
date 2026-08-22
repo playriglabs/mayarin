@@ -29,15 +29,23 @@ two properties, both checkable on-chain:
 | What Mayarin can sign for them | nothing                  | nothing                          | a transaction to that Safe, bounded by Turnkey policy |
 | `provenance`                   | `linked`                 | `passkey`                        | `provisioned`                                         |
 
-A merchant holds several at once if they like. Which one is actually paid is the
-settlement address — and either way the order signer refuses an address that is
-not a verified wallet belonging to that merchant.
+A merchant holds several verified wallets at once if they like. Those records
+prove control for managed-wallet ownership and withdrawals; they are not the
+only destinations the merchant may choose for settlement.
 
-The same rule applies to backend seed tooling. `--settlement-address` changes
-merchant configuration only and prints the dashboard steps required to link and
-verify it. Disposable development fixtures may also pass
-`--trust-settlement-address`; that explicit operator assertion creates a linked,
-verified row without signature proof and is never part of the HTTP wallet flow.
+An explicit `settlement_address` is instead an external payout instruction. The
+settings API scopes the write to the authenticated merchant, validates the
+address, protects it with CSRF, and appends an audit record. The signer accepts
+that configured address without requiring it in the wallet registry, while
+still refusing treasury destinations. When no address is configured, the
+managed-wallet fallback remains payable only if it is verified and belongs to
+that merchant.
+
+The same distinction applies to backend seed tooling. `--settlement-address`
+configures an immediately usable external destination. Disposable development
+fixtures may also pass `--trust-settlement-address` when they separately need a
+verified wallet record; that explicit operator assertion bypasses signature
+proof and is never part of the HTTP wallet flow.
 
 ## The merchant who has no wallet
 
