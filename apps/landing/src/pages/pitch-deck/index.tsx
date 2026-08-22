@@ -89,6 +89,7 @@ export function PitchDeck() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [timerOn, setTimerOn] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
   const track = useRef<HTMLElement | null>(null);
   const sections = useRef<(HTMLElement | null)[]>([]);
   const shown = useRef<Set<number>>(new Set());
@@ -121,6 +122,19 @@ export function PitchDeck() {
       root.classList.remove("deck");
       if (robots && previousRobots !== null) robots.setAttribute("content", previousRobots);
     };
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void document.documentElement.requestFullscreen();
+  }, []);
+
+  // The browser owns the fullscreen state — Esc leaves it without touching our
+  // code — so the button reads it from the change event, never from the toggle.
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement !== null);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
   // The presenter timer counts stage time against the plan. T starts and
@@ -212,8 +226,7 @@ export function PitchDeck() {
           break;
         case "f":
         case "F":
-          if (document.fullscreenElement) void document.exitFullscreen();
-          else void document.documentElement.requestFullscreen();
+          toggleFullscreen();
           break;
         case "n":
         case "N":
@@ -236,7 +249,7 @@ export function PitchDeck() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goTo]);
+  }, [goTo, toggleFullscreen]);
 
   // A vertical mouse wheel turns one page per gesture. A horizontal gesture
   // (trackpad swipe) is left to the browser, which snaps it natively. Anything
@@ -395,6 +408,15 @@ export function PitchDeck() {
               class="label hidden h-9 border border-line-inverse px-3 text-slate-inverse transition-colors hover:border-accent hover:text-white aria-pressed:border-accent aria-pressed:text-white md:inline-flex md:items-center"
             >
               Notes · N
+            </button>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-pressed={fullscreen}
+              aria-label={fullscreen ? "Leave full screen" : "Enter full screen"}
+              class="label hidden h-9 border border-line-inverse px-3 text-slate-inverse transition-colors hover:border-accent hover:text-white aria-pressed:border-accent aria-pressed:text-white md:inline-flex md:items-center"
+            >
+              Full · F
             </button>
           </div>
         </div>
