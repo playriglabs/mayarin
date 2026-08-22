@@ -17,9 +17,9 @@
  */
 
 import { isAssetCode } from "@mayarin/shared/asset";
-import { fromDecimalString } from "@mayarin/shared/money";
 import {
   ArrowLineUpRightIcon,
+  ArrowSquareOutIcon,
   CheckCircleIcon,
   PlusIcon,
   SealCheckIcon,
@@ -27,7 +27,7 @@ import {
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
-import { AssetLabel } from "@/components/asset-logo";
+import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { QueryError } from "@/components/ui/query-error";
+import { SectionHeader } from "@/components/ui/section-header";
 import {
   Select,
   SelectContent,
@@ -76,10 +77,13 @@ import {
   useWalletBalance,
   useWalletChallenge,
   useWallets,
+  useWalletWithdrawalHistory,
   useWithdraw,
 } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
+import { transactionExplorerUrl } from "@/lib/chain-explorer";
 import { formatDateTime, isoAttr } from "@/lib/date";
+import { fromEditableDecimalString } from "@/lib/decimal-input";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
 import {
   discoverWallets,
@@ -107,13 +111,40 @@ interface Ceremony {
   readonly message: string;
 }
 
+function WithdrawalAssetOption({
+  asset,
+  display,
+}: {
+  readonly asset: string;
+  readonly display: string;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <AssetLabel symbol={asset} size={18} />
+      <span aria-hidden="true" className="text-subtle-foreground">
+        —
+      </span>
+      <span className="truncate tabular-nums">{display}</span>
+    </span>
+  );
+}
+
 function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load wallets";
+}
+
+function withdrawalReasonOf(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Failed to load withdrawal history";
+}
+
+function shortHash(hash: string): string {
+  return hash.length <= 20 ? hash : `${hash.slice(0, 10)}…${hash.slice(-8)}`;
 }
 
 function Wallets() {
   const wallets = useWallets();
   const balance = useWalletBalance();
+  const withdrawalHistory = useWalletWithdrawalHistory();
   const withdraw = useWithdraw();
   const link = useLinkWallet();
   const provision = useProvisionWallet();
@@ -177,6 +208,7 @@ function Wallets() {
   const rows = wallets.data?.wallets ?? [];
   const hasConnectedWallet = rows.some((wallet) => wallet.provenance !== "provisioned");
   const balances = balance.data?.balances ?? [];
+  const withdrawalRows = withdrawalHistory.data?.withdrawals ?? [];
   /**
    * Where a withdrawal may go: the merchant's own verified wallets, and never
    * the managed one — moving money from a Safe to itself is not a withdrawal.
@@ -203,7 +235,7 @@ function Wallets() {
     // float: eighteen decimals of ETH do not survive a Number.
     let minorUnits: bigint;
     try {
-      minorUnits = fromDecimalString(withdrawAmount.trim(), withdrawAsset).amount;
+      minorUnits = fromEditableDecimalString(withdrawAmount, withdrawAsset).amount;
     } catch {
       setWithdrawFailure(`That is not a valid ${withdrawAsset} amount`);
       return;
@@ -540,6 +572,86 @@ function Wallets() {
           ),
         )}
 
+      <section className="flex flex-col gap-3">
+        <SectionHeader title="Withdrawal history" />
+        {match(withdrawalHistory)
+          .with({ isPending: true }, () => <TableSkeleton rows={3} />)
+          .with({ isError: true }, ({ error }) => (
+            <QueryError
+              message={withdrawalReasonOf(error)}
+              retry={() => void withdrawalHistory.refetch()}
+              retrying={withdrawalHistory.isFetching}
+            />
+          ))
+          .otherwise(() =>
+            withdrawalRows.length === 0 ? (
+              <Empty>
+                <EmptyMedia>
+                  <ArrowLineUpRightIcon size={ICON_CARD} aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>No withdrawals yet.</EmptyTitle>
+                <EmptyDescription>
+                  Successful withdrawals from your managed wallet will appear here.
+                </EmptyDescription>
+              </Empty>
+            ) : (
+              <Table>
+                <TableCaption>Recent successful managed-wallet withdrawals</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Completed</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>To</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Transaction</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {withdrawalRows.map((row) => {
+                    const explorer = transactionExplorerUrl(row.chain, row.transactionHash);
+                    return (
+                      <TableRow key={row.id}>
+                        <TableCell className="text-muted-foreground">
+                          <time dateTime={isoAttr(row.completedAt)}>
+                            {formatDateTime(row.completedAt)}
+                          </time>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <AssetAmount asset={row.amount.asset} display={row.amount.display} />
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {row.destinationAddress}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="success">Confirmed</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {explorer === undefined ? (
+                            <span className="font-mono text-muted-foreground text-xs">
+                              {shortHash(row.transactionHash)}
+                            </span>
+                          ) : (
+                            <a
+                              href={explorer}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={row.transactionHash}
+                              className="inline-flex items-center gap-1 font-mono text-foreground text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
+                            >
+                              {shortHash(row.transactionHash)}
+                              <ArrowSquareOutIcon size={12} aria-hidden="true" />
+                            </a>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            ),
+          )}
+      </section>
+
       {/* Which wallet, asked once. Brave and Phantom and MetaMask all announce,
           and the one that answers first is not the one the merchant uses. */}
       <Dialog open={picking !== null} onOpenChange={(next) => !next && setPicking(null)}>
@@ -636,13 +748,22 @@ function Wallets() {
                 onValueChange={setWithdrawAsset}
               >
                 <SelectTrigger id="withdraw-asset">
-                  <SelectValue placeholder="Select an asset" />
+                  <SelectValue
+                    placeholder="Select an asset"
+                    renderValue={(option) => {
+                      const amount = balances.find((balance) => balance.asset === option.value);
+                      return amount === undefined ? (
+                        option.label
+                      ) : (
+                        <WithdrawalAssetOption asset={amount.asset} display={amount.display} />
+                      );
+                    }}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {balances.map((amount) => (
                     <SelectItem key={amount.asset} value={amount.asset}>
-                      <AssetLabel symbol={amount.asset} size={18} />
-                      <span>— {amount.display}</span>
+                      <WithdrawalAssetOption asset={amount.asset} display={amount.display} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -656,11 +777,14 @@ function Wallets() {
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 placeholder="0.00"
+                inputMode="decimal"
+                autoComplete="off"
+                spellCheck={false}
                 className="font-mono text-xs"
               />
               <FieldDescription>
-                Gas is paid in the chain's own currency, so a withdrawal costs slightly more than it
-                moves.
+                Use a dot or comma as the decimal separator. Gas is paid in the chain's own
+                currency, so a withdrawal costs slightly more than it moves.
               </FieldDescription>
             </Field>
 

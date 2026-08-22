@@ -50,6 +50,8 @@ import {
   type WalletChallenge,
   type WalletChallengeRepository,
   type WalletProvider,
+  type WalletWithdrawal,
+  type WalletWithdrawalRepository,
 } from "@mayarin/wallet";
 import type { Scope } from "../dto/auth.ts";
 
@@ -93,6 +95,8 @@ export interface WalletServiceOptions {
   readonly settlementAddresses: SettlementAddressResolver;
   /** Moves funds out of a managed wallet. The provisioner's provider, when there is one. */
   readonly walletProvider?: WalletProvider;
+  /** Append-only record of successful managed-wallet withdrawals. */
+  readonly withdrawals: WalletWithdrawalRepository;
   /** The chain's own currency, reported alongside the settlement asset. */
   readonly nativeAsset?: AssetCode;
 }
@@ -131,6 +135,7 @@ export class WalletService {
   readonly #balances: WalletBalanceReader | undefined;
   readonly #settlementAddresses: SettlementAddressResolver;
   readonly #walletProvider: WalletProvider | undefined;
+  readonly #withdrawals: WalletWithdrawalRepository;
   readonly #nativeAsset: AssetCode | undefined;
 
   constructor(options: WalletServiceOptions) {
@@ -149,6 +154,7 @@ export class WalletService {
     this.#balances = options.balances;
     this.#settlementAddresses = options.settlementAddresses;
     this.#walletProvider = options.walletProvider;
+    this.#withdrawals = options.withdrawals;
     this.#nativeAsset = options.nativeAsset;
   }
 
@@ -207,7 +213,7 @@ export class WalletService {
    * destination is an address somebody proved they control — and proving it is
    * a step an attacker with a session cannot take.
    */
-  async withdraw(scope: Scope, request: WithdrawRequest): Promise<{ txHash: string }> {
+  async withdraw(scope: Scope, request: WithdrawRequest): Promise<WalletWithdrawal> {
     const provider = this.#walletProvider;
     if (provider === undefined) {
       throw new ConfigurationError(
@@ -244,11 +250,31 @@ export class WalletService {
       );
     }
 
-    return provider.propose(managed, {
+    const amount = money(request.amount, request.asset);
+    const { txHash } = await provider.propose(managed, {
       kind: "withdraw",
-      amount: money(request.amount, request.asset),
+      amount,
       to: destination.address,
     });
+
+    const completedAt = this.#clock.now();
+    const withdrawal: WalletWithdrawal = {
+      id: generateId("wdr", completedAt.getTime()),
+      merchantId: scope.merchantId,
+      chain: this.#chain,
+      walletAddress: managed.address,
+      destinationAddress: destination.address,
+      amount,
+      transactionHash: txHash,
+      completedAt,
+    };
+    await this.#withdrawals.insert(withdrawal);
+    return withdrawal;
+  }
+
+  /** The caller's most recent confirmed withdrawals, newest first. */
+  async withdrawalHistory(scope: Scope, limit = 20): Promise<readonly WalletWithdrawal[]> {
+    return this.#withdrawals.listRecent(scope.merchantId, limit);
   }
 
   async #merchant(scope: Scope) {

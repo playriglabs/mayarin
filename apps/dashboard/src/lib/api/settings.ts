@@ -18,6 +18,7 @@ import type {
   WalletBalanceResponse,
   WalletListResponse,
   WalletResponse,
+  WalletWithdrawalHistoryResponse,
   WebhookDeliveryListFilter,
   WebhookDeliveryListResponse,
   WebhookDeliveryResponse,
@@ -74,6 +75,10 @@ export const walletsApi = {
   /** What the settlement address holds, read from the chain rather than the ledger. */
   balance: (): Effect.Effect<WalletBalanceResponse, ApiError> =>
     request<WalletBalanceResponse>("/wallets/balance"),
+
+  /** Recent successful managed-wallet withdrawals, newest first. */
+  withdrawalHistory: (): Effect.Effect<WalletWithdrawalHistoryResponse, ApiError> =>
+    request<WalletWithdrawalHistoryResponse>("/wallets/withdrawals"),
 
   /** Moves settlement out of the managed wallet, to an address the merchant verified. */
   withdraw: (body: WithdrawRequest): Effect.Effect<WithdrawResponse, ApiError> =>

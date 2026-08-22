@@ -28,6 +28,7 @@ export const ID_PREFIXES = {
   session: "ses",
   merchant: "mrc",
   merchantWallet: "wlt",
+  walletWithdrawal: "wdr",
   walletChallenge: "wch",
   walletNonce: "wnc",
   product: "prd",

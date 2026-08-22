@@ -58,7 +58,10 @@ import {
   DrizzleWebhookOutbox,
 } from "../src/repositories/notifications.ts";
 import { DrizzlePaymentIntentRepository } from "../src/repositories/payment-intent.ts";
-import { DrizzleMerchantWalletRepository } from "../src/repositories/wallet.ts";
+import {
+  DrizzleMerchantWalletRepository,
+  DrizzleWalletWithdrawalRepository,
+} from "../src/repositories/wallet.ts";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
@@ -115,7 +118,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -1081,6 +1084,31 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
           updatedAt: now,
         }),
       ).rejects.toThrow();
+    });
+
+    test("lists only one merchant's withdrawals, newest first", async () => {
+      const withdrawals = new DrizzleWalletWithdrawalRepository(handle.db);
+      const first = await seedMerchant();
+      const second = await seedMerchant();
+      const now = clock.now();
+      const record = (merchantId: string, offset: number) => ({
+        id: generateId("wdr", now.getTime() + offset),
+        merchantId,
+        chain: "base-sepolia" as const,
+        walletAddress: "0x1111111111111111111111111111111111111111",
+        destinationAddress: "0x2222222222222222222222222222222222222222",
+        amount: money(BigInt(offset + 1), "USDC"),
+        transactionHash: `0x${(offset + 1).toString(16).padStart(64, "0")}`,
+        completedAt: new Date(now.getTime() + offset),
+      });
+      const older = record(first, 1);
+      const newer = record(first, 2);
+      await withdrawals.insert(older);
+      await withdrawals.insert(record(second, 3));
+      await withdrawals.insert(newer);
+
+      expect(await withdrawals.listRecent(first, 10)).toEqual([newer, older]);
+      expect(await withdrawals.listRecent(first, 1)).toEqual([newer]);
     });
   });
 });

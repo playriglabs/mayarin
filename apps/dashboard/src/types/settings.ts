@@ -102,6 +102,20 @@ export interface WithdrawResponse {
   readonly txHash: string;
 }
 
+export interface WalletWithdrawalDto {
+  readonly id: string;
+  readonly chain: string;
+  readonly walletAddress: string;
+  readonly destinationAddress: string;
+  readonly amount: MoneyDto;
+  readonly transactionHash: string;
+  readonly completedAt: string;
+}
+
+export interface WalletWithdrawalHistoryResponse {
+  readonly withdrawals: readonly WalletWithdrawalDto[];
+}
+
 export interface ChallengeResponse {
   readonly challengeId: string;
   /** The exact text to sign. Signing it moves no funds. */

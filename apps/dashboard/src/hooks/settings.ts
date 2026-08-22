@@ -24,6 +24,7 @@ import type {
   WalletBalanceResponse,
   WalletListResponse,
   WalletResponse,
+  WalletWithdrawalHistoryResponse,
   WebhookDeliveryListFilter,
   WebhookDeliveryListResponse,
   WebhookDeliveryResponse,
@@ -37,6 +38,7 @@ const SETTINGS_KEY = ["settings"];
 const SETTINGS_HISTORY_KEY = ["settings", "history"];
 const WALLETS_KEY = ["wallets"];
 const WALLET_BALANCE_KEY = ["wallets", "balance"];
+const WALLET_WITHDRAWALS_KEY = ["wallets", "withdrawals"];
 const ENDPOINTS_KEY = ["webhooks", "endpoints"];
 const DELIVERIES_KEY = ["webhooks", "deliveries"];
 
@@ -110,6 +112,13 @@ export function useWalletBalance() {
   });
 }
 
+export function useWalletWithdrawalHistory() {
+  return useEffectQuery<WalletWithdrawalHistoryResponse, ApiError>({
+    queryKey: WALLET_WITHDRAWALS_KEY,
+    query: () => walletsApi.withdrawalHistory(),
+  });
+}
+
 /**
  * Moves settlement out of the managed wallet.
  *
@@ -121,7 +130,7 @@ export function useWithdraw() {
   return useEffectMutation<WithdrawResponse, WithdrawRequest, ApiError>({
     mutation: (body) => walletsApi.withdraw(body),
     toast: { loading: "Submitting withdrawal…", success: "Withdrawal submitted" },
-    invalidate: [WALLET_BALANCE_KEY],
+    invalidate: [WALLET_BALANCE_KEY, WALLET_WITHDRAWALS_KEY],
   });
 }
 

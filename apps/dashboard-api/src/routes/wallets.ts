@@ -7,7 +7,7 @@
 
 import { CHAIN_IDS } from "@mayarin/chain";
 import { isAssetCode, UnauthorizedError } from "@mayarin/shared";
-import { type MerchantWallet, PASSKEY_TRANSPORTS } from "@mayarin/wallet";
+import { type MerchantWallet, PASSKEY_TRANSPORTS, type WalletWithdrawal } from "@mayarin/wallet";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
@@ -93,6 +93,18 @@ function toWalletDto(wallet: MerchantWallet) {
   };
 }
 
+function toWithdrawalDto(withdrawal: WalletWithdrawal) {
+  return {
+    id: withdrawal.id,
+    chain: withdrawal.chain,
+    walletAddress: withdrawal.walletAddress,
+    destinationAddress: withdrawal.destinationAddress,
+    amount: toMoneyDto(withdrawal.amount),
+    transactionHash: withdrawal.transactionHash,
+    completedAt: withdrawal.completedAt.toISOString(),
+  };
+}
+
 export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
 
@@ -124,6 +136,12 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
     });
   });
 
+  /** Successful managed-wallet withdrawals, newest first. */
+  app.get("/withdrawals", async (c) => {
+    const withdrawals = await container.wallets.withdrawalHistory(scopeOf(c));
+    return c.json({ withdrawals: withdrawals.map(toWithdrawalDto) });
+  });
+
   /**
    * Moves settlement out of the merchant's managed wallet.
    *
@@ -137,7 +155,7 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
       amount: BigInt(body.amount),
       to: body.to,
     });
-    return c.json({ txHash: result.txHash });
+    return c.json({ txHash: result.transactionHash });
   });
 
   app.post("/", csrfMiddleware(), async (c) => {

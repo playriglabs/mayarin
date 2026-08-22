@@ -53,6 +53,7 @@ import {
   InMemoryMerchantWalletRepository,
   InMemoryWalletBalanceReader,
   InMemoryWalletChallengeRepository,
+  InMemoryWalletWithdrawalRepository,
 } from "@mayarin/wallet/testing";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
@@ -183,6 +184,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
 
   const merchantWallets = new InMemoryMerchantWalletRepository();
   const walletChallenges = new InMemoryWalletChallengeRepository();
+  const walletWithdrawals = new InMemoryWalletWithdrawalRepository();
   // Managed provisioning against the reference fake provider. Deploying a real
   // Safe is proven on testnet; what the route tests are for is the surface
   // around it — scoping, idempotence, and that the two wallet paths coexist.
@@ -192,6 +194,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   const walletBalances = new InMemoryWalletBalanceReader();
   const wallets = new WalletService({
     wallets: merchantWallets,
+    withdrawals: walletWithdrawals,
     challenges: walletChallenges,
     // Real recovery: the point of verification is that it agrees with what a
     // wallet actually produces, which a stub cannot demonstrate.
@@ -423,6 +426,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     webhookDeliveries,
     merchantWallets,
     walletChallenges,
+    walletWithdrawals,
     walletProvider,
     walletBalances,
     merchantKeyProvider,
