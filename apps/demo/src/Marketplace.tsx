@@ -81,18 +81,27 @@ export function Marketplace() {
 
   return (
     <>
+      <p className="announce">
+        Demo store — orders do not ship. Payments run on the Mayarin testnet.
+      </p>
+
       <header className="masthead">
         <a href="#atas" className="brand-link" aria-label="Parahyangan Supply">
           <LogoLockup />
         </a>
-        <nav aria-label="Utama">
+        <nav aria-label="Primary" className="site-nav">
           <a href="#koleksi">Collection</a>
           <a href="#riwayat">History</a>
           <a href="#tentang">About</a>
-          <button type="button" className="cart-trigger" onClick={() => setCartOpen(true)}>
-            Cart <span>{cartCount}</span>
-          </button>
         </nav>
+        <button
+          type="button"
+          className="cart-trigger"
+          aria-label={`Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}
+          onClick={() => setCartOpen(true)}
+        >
+          Cart <span aria-hidden="true">{cartCount}</span>
+        </button>
       </header>
 
       <section className="hero" id="atas">
