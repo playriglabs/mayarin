@@ -9,6 +9,8 @@ import type { ComponentChildren } from "preact";
 
 const SETTLEMENT_TX =
   "https://sepolia.basescan.org/tx/0x41a87c05e673ed17b80ef5009813b932db74e095d4cdfca2c5dfdda49bee83c1";
+const PAYER_TX =
+  "https://sepolia.basescan.org/tx/0xe031f84f710834cbbf1516f0dfad12c543933da7772799795235e93d21b7525e";
 
 function Card({
   index,
@@ -165,6 +167,48 @@ export function TeamPortraits() {
   );
 }
 
+export function TeamAndAsk() {
+  return (
+    <div class="flex flex-col gap-px bg-line-inverse">
+      <div class="grid grid-cols-1 gap-px sm:grid-cols-2">
+        {TEAM.map((member) => (
+          <article
+            key={member.name}
+            data-reveal
+            class="grid min-w-0 grid-cols-[5rem_1fr] items-center gap-4 bg-void p-4 md:grid-cols-[6rem_1fr] md:p-5"
+          >
+            <img
+              src={member.image}
+              alt={`${member.name}, ${member.role} at Mayarin`}
+              width="160"
+              height="160"
+              class={clsx("team-photo aspect-square", member.imageClass)}
+              decoding="async"
+            />
+            <div class="flex min-w-0 flex-col gap-1">
+              <span class="font-sans text-lg text-white md:text-xl">{member.name}</span>
+              <span class="font-mono text-xs text-accent md:text-sm">{member.role}</span>
+              <span class="text-xs text-slate-inverse md:text-sm">{member.experience}</span>
+            </div>
+          </article>
+        ))}
+      </div>
+      <div data-reveal class="flex flex-col gap-5 bg-void p-5 md:p-6">
+        <div class="flex flex-col gap-2">
+          <span class="label text-slate-inverse">The outcome</span>
+          <p class="font-sans text-2xl leading-tight text-white md:text-3xl">
+            Price locally. Pay globally. Settle predictably.
+          </p>
+        </div>
+        <div class="flex items-center justify-between gap-4 border-t border-line-inverse pt-4">
+          <span class="label text-slate-inverse">Next</span>
+          <span class="font-mono text-sm text-accent">Controlled mainnet pilot</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SETTLEMENT_PROPERTIES = [
   ["01", "Stable unit", "Merchant chooses the fiat-denominated settlement asset."],
   ["02", "Always on", "Settlement runs beyond banking cutoffs and weekends."],
@@ -272,13 +316,13 @@ export function ThreeColumns() {
     <div class="flex flex-col gap-px bg-line-inverse">
       <div class="grid grid-cols-1 gap-px md:grid-cols-3">
         <Card index="Merchant" title="Prices in IDR" class="bg-void">
-          Picks the stablecoin they settle in.
+          Chooses the stablecoin they settle in.
         </Card>
         <Card index="Mayarin" title="Quotes, locks, converts, settles, records" class="bg-void">
-          One atomic on-chain step when assets differ.
+          One clearing layer behind every checkout.
         </Card>
-        <Card index="Customer" title="Pays in any asset" class="bg-void">
-          From any wallet. ETH, USDC, USDT, IDRX.
+        <Card index="Customer" title="Pays supported crypto" class="bg-void">
+          Through a wallet call or a plain transfer.
         </Card>
       </div>
       <div
@@ -299,11 +343,11 @@ export function ThreeColumns() {
 }
 
 const FLOW = [
-  { label: "Customer", detail: "ETH · live testnet quote" },
-  { label: "PaymentRouter", detail: "receives" },
-  { label: "Swap", detail: "ETH → USDC, atomic" },
-  { label: "Merchant wallet", detail: "USDC · net settlement" },
-  { label: "Ledger", detail: "indexed event" },
+  { label: "Customer transfer", detail: "testnet ETH" },
+  { label: "Deposit match", detail: "watcher confirms" },
+  { label: "PaymentRouter", detail: "Uniswap · ETH → USDC" },
+  { label: "Merchant wallet", detail: "net USDC" },
+  { label: "Proof surfaces", detail: "chain · ledger · webhook" },
 ] as const;
 
 export function FlowDiagram() {
@@ -322,35 +366,40 @@ export function FlowDiagram() {
           </li>
         ))}
       </ol>
-      <a
-        data-reveal
-        href={SETTLEMENT_TX}
-        target="_blank"
-        rel="noreferrer"
-        class="group inline-flex items-center gap-3 self-start border border-line-inverse px-4 py-3 text-sm text-white transition-colors hover:border-accent"
-      >
-        <span class="label text-slate-inverse group-hover:text-accent">Base Sepolia</span>
-        <span class="font-mono">0x41a87c05…ee83c1</span>
-        <span aria-hidden="true">↗</span>
-      </a>
+      <div data-reveal class="grid grid-cols-1 gap-px bg-line-inverse sm:grid-cols-2">
+        {[
+          ["Payer transfer", "0xe031f84f…b7525e", PAYER_TX],
+          ["Settlement", "0x41a87c05…ee83c1", SETTLEMENT_TX],
+        ].map(([label, hash, href]) => (
+          <a
+            key={label}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            class="group flex min-h-12 items-center gap-3 bg-void px-4 py-3 text-sm text-white outline-offset-4 transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <span class="label text-slate-inverse group-hover:text-accent">{label}</span>
+            <span class="ml-auto font-mono text-xs md:text-sm">{hash}</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
 
 export function AtomicTiles() {
   return (
-    <div class="grid grid-cols-2 gap-px bg-line-inverse">
-      <Card index="01" title="One transaction" class="bg-void">
-        receive → swap → settle. Zero resting balance.
+    <div class="grid grid-cols-1 gap-px bg-line-inverse sm:grid-cols-3">
+      <Card index="01" title="Correct amount" class="bg-void">
+        Signed minimum and deadline. <span class="font-mono text-accent">hard revert</span> below
+        the lock.
       </Card>
-      <Card index="02" title="Merchant-held keys" class="bg-void">
-        Always a Safe signer, with independent recovery. Payouts only to verified wallets.
+      <Card index="02" title="Merchant control" class="bg-void">
+        Settlement only reaches an admitted <span class="text-accent">merchant wallet</span>.
       </Card>
-      <Card index="03" title="Ports, not vendors" class="bg-void">
-        Turnkey · Uniswap · 0x · LiFi · Pyth · Chainlink.
-      </Card>
-      <Card index="04" title="Ledger from chain truth" class="bg-void">
-        Balanced postings, reconciled. Idempotent, resumable.
+      <Card index="03" title="Provable outcome" class="bg-void">
+        Chain event → balanced ledger → <span class="font-mono text-accent">MATCHED</span>.
       </Card>
     </div>
   );
@@ -361,8 +410,6 @@ const SURFACES = [
   ["Merchant", "Dashboard · wallet · settlement · signed webhooks"],
   ["Developer", "TypeScript SDK · REST API · WooCommerce"],
 ] as const;
-
-const BASE_SEPOLIA_ADDRESS_URL = "https://sepolia.basescan.org/address";
 
 const CONTRACTS = [
   {
@@ -394,36 +441,21 @@ export function ProofAndPilot() {
           </div>
         ))}
       </div>
-      <div data-reveal class="bg-void px-5 pt-4 md:px-6">
-        <p class="label mb-2 text-slate-inverse">Base Sepolia · verified on-chain</p>
-        <ul>
-          {CONTRACTS.map((contract) => (
-            <li
-              key={contract.name}
-              class="flex min-h-11 items-center justify-between gap-4 border-t border-line-inverse last:border-b"
-            >
-              <span class="text-xs text-white md:text-sm">{contract.name}</span>
-              <a
-                href={`${BASE_SEPOLIA_ADDRESS_URL}/${contract.address}`}
-                target="_blank"
-                rel="noreferrer"
-                title={contract.address}
-                aria-label={`Verify ${contract.name} at ${contract.address} on Base Sepolia Basescan`}
-                class="inline-flex min-h-11 items-center font-mono text-xs text-accent outline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-accent md:text-sm"
-              >
-                {compactAddress(contract.address)}
-                <span aria-hidden="true" class="ml-2">
-                  ↗
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
+      <div data-reveal class="bg-void px-5 py-5 md:px-6">
+        <p class="label mb-3 text-slate-inverse">One operational outcome</p>
+        <ol class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {["Payment completed", "Settlement matched", "Webhook delivered"].map(
+            (outcome, index) => (
+              <li key={outcome} class="flex items-center gap-3 border-t border-line-inverse pt-3">
+                <span class="font-mono text-xs text-accent">0{index + 1}</span>
+                <span class="text-sm text-white">{outcome}</span>
+              </li>
+            ),
+          )}
+        </ol>
       </div>
       <div data-reveal class="flex flex-col gap-2 bg-void px-5 py-4 md:px-6">
-        <span class="font-mono text-xs text-accent md:text-sm">
-          Both execution paths settle end to end
-        </span>
+        <span class="font-mono text-xs text-accent md:text-sm">Southeast Asia beachhead</span>
         <span class="label text-white">Next · controlled merchant pilot</span>
       </div>
     </div>
@@ -560,44 +592,6 @@ export function RiskColumns() {
           <li>Oracle, DEX, RPC, and issuer dependence</li>
           <li>Forwarder without adversarial review — RFC #143</li>
         </ul>
-      </div>
-    </div>
-  );
-}
-
-const COMPARE_PATHS = [
-  [
-    "Custodial gateway",
-    "Triple-A · BitPay",
-    "payer → processor custody → scheduled payout → merchant",
-  ],
-  ["Ecosystem gateway", "Coinbase Commerce", "payer → one vendor's stack → merchant wallet"],
-  ["Build it in-house", "Wallet + DEX + scripts", "payer → your keys, swaps, gas → your ledger"],
-] as const;
-
-export function ComparePaths() {
-  return (
-    <div class="flex flex-col">
-      {COMPARE_PATHS.map(([model, who, path]) => (
-        <div
-          key={model}
-          data-reveal
-          class="flex flex-col gap-1.5 border-t border-line-inverse py-4"
-        >
-          <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span class="font-sans text-base text-white md:text-lg">{model}</span>
-            <span class="label text-slate-inverse">{who}</span>
-          </div>
-          <span class="font-mono text-xs leading-relaxed text-slate-inverse md:text-sm">
-            {path}
-          </span>
-        </div>
-      ))}
-      <div data-reveal class="flex flex-col gap-1.5 border-y border-accent py-4">
-        <span class="font-sans text-base text-white md:text-lg">Mayarin</span>
-        <span class="font-mono text-xs leading-relaxed text-accent md:text-sm">
-          payer → contract → merchant wallet · one atomic transaction
-        </span>
       </div>
     </div>
   );

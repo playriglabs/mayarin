@@ -14,19 +14,20 @@ remains the repository's architecture and design record.
 
 ## Orientation
 
-| Document                               | Read it when                                                                 |
-| -------------------------------------- | ---------------------------------------------------------------------------- |
-| [Vision & Rationale](./vision.md)      | You want the problem, the goals, and what Mayarin refuses to be              |
-| [Architecture](./architecture.md)      | You need the layers, the payment flow, and where code lives                  |
-| [Development](./development.md)        | You are running it locally or touching the tooling                           |
-| [Deployment Targets](./deployment.md)  | You are manually deploying testnet or preparing the mainnet perimeter        |
-| [REST API](./api.md)                   | Contributor pointer to the public reference, plus the internal dashboard API |
-| [Embeddable Checkout](./embed.md)      | You are putting the checkout on a merchant's own page                        |
-| [WooCommerce Plugin](./woocommerce.md) | You are taking payments in a WooCommerce store                               |
-| [Roadmap](./roadmap.md)                | You want to know what is shipped and what is next                            |
-| [Threat Model](./threat-model.md)      | You want the risks the design carries, and the ones it does not yet answer   |
-| [Quote Signing](./quote-signing.md)    | You are touching the EIP-712 order or the signing key                        |
-| [Pitch Deck](./pitch-deck.md)          | You are presenting Mayarin — the slide spec behind `mayarin.xyz/pitch-deck`  |
+| Document                                         | Read it when                                                                 |
+| ------------------------------------------------ | ---------------------------------------------------------------------------- |
+| [Vision & Rationale](./vision.md)                | You want the problem, the goals, and what Mayarin refuses to be              |
+| [Architecture](./architecture.md)                | You need the layers, the payment flow, and where code lives                  |
+| [Development](./development.md)                  | You are running it locally or touching the tooling                           |
+| [Deployment Targets](./deployment.md)            | You are manually deploying testnet or preparing the mainnet perimeter        |
+| [REST API](./api.md)                             | Contributor pointer to the public reference, plus the internal dashboard API |
+| [Embeddable Checkout](./embed.md)                | You are putting the checkout on a merchant's own page                        |
+| [WooCommerce Plugin](./woocommerce.md)           | You are taking payments in a WooCommerce store                               |
+| [Roadmap](./roadmap.md)                          | You want to know what is shipped and what is next                            |
+| [Threat Model](./threat-model.md)                | You want the risks the design carries, and the ones it does not yet answer   |
+| [Quote Signing](./quote-signing.md)              | You are touching the EIP-712 order or the signing key                        |
+| [Pitch Deck](./pitch-deck.md)                    | You are presenting Mayarin — the slide spec behind `mayarin.xyz/pitch-deck`  |
+| [Live Demo Runbook](./hackathon-demo-runbook.md) | You are rehearsing the timed deck-to-payment-to-proof stage demo             |
 
 ---
 
