@@ -188,7 +188,7 @@ describe("catalog routes", () => {
     expect(cleared.body?.product.description).toBeNull();
   });
 
-  test("archiving a product leaves it readable and not sellable", async () => {
+  test("archiving a product leaves it readable but hides it from the product list", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
     const created = await post(harness, auth, "/v1/catalog/products", PRODUCT);
@@ -201,6 +201,14 @@ describe("catalog routes", () => {
     });
     expect(patched.status).toBe(200);
     expect(patched.body?.product.active).toBe(false);
+
+    const read = await get(harness, auth, `/v1/catalog/products/${productId}`);
+    expect(read.status).toBe(200);
+    expect(read.body?.product.active).toBe(false);
+
+    const listed = await get(harness, auth, "/v1/catalog/products");
+    expect(listed.status).toBe(200);
+    expect(listed.body?.products).toEqual([]);
   });
 });
 

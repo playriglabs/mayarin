@@ -91,7 +91,7 @@ export class MerchantCatalogService {
     const products = await this.#catalog.listProducts({
       merchantId: scope.merchantId,
       limit: limit + 1,
-      ...(filter.active === undefined ? {} : { active: filter.active }),
+      active: filter.active ?? true,
       ...(cursor === undefined ? {} : { cursor }),
     });
     return cursorPage(products, limit, (last) => ({ id: last.id, createdAt: last.createdAt }));
