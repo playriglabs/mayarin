@@ -33,6 +33,12 @@ A merchant holds several at once if they like. Which one is actually paid is the
 settlement address — and either way the order signer refuses an address that is
 not a verified wallet belonging to that merchant.
 
+The same rule applies to backend seed tooling. `--settlement-address` changes
+merchant configuration only and prints the dashboard steps required to link and
+verify it. Disposable development fixtures may also pass
+`--trust-settlement-address`; that explicit operator assertion creates a linked,
+verified row without signature proof and is never part of the HTTP wallet flow.
+
 ## The merchant who has no wallet
 
 Provisioning needs a merchant-controlled signer, and connect-existing was the

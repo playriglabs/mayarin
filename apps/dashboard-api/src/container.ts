@@ -139,6 +139,13 @@ export interface Container {
   /** Merchant wallets and proof of control (#11). */
   readonly wallets: WalletService;
   /**
+   * The wallet port itself, exposed for backend-only operator tooling.
+   *
+   * HTTP handlers use WalletService so claims still require signature proof.
+   * The seed CLI alone needs the port for its explicit development trust flag.
+   */
+  readonly merchantWallets: MerchantWalletRepository;
+  /**
    * Where a merchant is paid when they have named no address (#11). Held on the
    * container because the settings surface has to show it: "blank" is not
    * "nowhere", and a merchant should be able to read the answer.
@@ -400,6 +407,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     paymentApi: options.paymentApi ?? new PaymentApiClient({ baseUrl: config.paymentApiUrl }),
     webhooks,
     wallets,
+    merchantWallets: walletRepository,
     settlementAddresses,
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };

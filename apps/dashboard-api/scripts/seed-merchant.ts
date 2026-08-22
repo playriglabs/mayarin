@@ -19,6 +19,11 @@
  *   bun run seed:merchant -- --email a@b.com --merchant-name "Acme" \
  *     [--password ...] [--permissions payments:read,users:manage,admin:access]
  *
+ * A settlement address is configuration, not proof of control. For a
+ * disposable development fixture only, pair it with
+ * `--trust-settlement-address` to record the seed operator's assertion as a
+ * verified linked wallet without a signature challenge.
+ *
  * Flags override prompts field-by-field, so `--merchant-name Acme` still prompts
  * for the rest. A strong random password is generated + printed once when no
  * password is given (flag or prompt). `--permissions` defaults to the full
@@ -31,6 +36,7 @@ import { type AssetCode, isAssetCode } from "@mayarin/shared";
 import { loadConfig } from "../src/config.ts";
 import { createContainer } from "../src/container.ts";
 import { parsePermissions } from "../src/dto/auth.ts";
+import { trustedSettlementWallet } from "./trusted-settlement-wallet.ts";
 
 interface Args {
   email: string | undefined;
@@ -40,6 +46,7 @@ interface Args {
   settlementAsset: string | undefined;
   acceptedAssets: string | undefined;
   settlementAddress: string | undefined;
+  trustSettlementAddress: boolean;
   city: string | undefined;
   countryCode: string | undefined;
 }
@@ -53,6 +60,7 @@ function parseArgs(argv: readonly string[]): Args {
     settlementAsset: undefined,
     acceptedAssets: undefined,
     settlementAddress: undefined,
+    trustSettlementAddress: false,
     city: undefined,
     countryCode: undefined,
   };
@@ -88,6 +96,9 @@ function parseArgs(argv: readonly string[]): Args {
         args.settlementAddress = value;
         i++;
         break;
+      case "--trust-settlement-address":
+        args.trustSettlementAddress = true;
+        break;
       case "--city":
         args.city = value;
         i++;
@@ -113,7 +124,8 @@ function parseArgs(argv: readonly string[]): Args {
 const USAGE = `Usage: bun run seed:merchant                       # interactive prompts
        bun run seed:merchant -- --email <email> --merchant-name <name> [--password <pw>] [--permissions ...]
                              [--settlement-asset USDC] [--accepted-assets ETH,USDC]
-                             [--settlement-address 0x...] [--city Jakarta] [--country ID]`;
+                             [--settlement-address 0x...] [--trust-settlement-address]
+                             [--city Jakarta] [--country ID]`;
 
 /**
  * The full merchant-admin set, taken from `@mayarin/auth` rather than restated.
@@ -208,6 +220,10 @@ if (settlementAddress !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(settlementAdd
   console.error(`Not a valid address: ${settlementAddress}`);
   process.exit(1);
 }
+if (args.trustSettlementAddress && settlementAddress === undefined) {
+  console.error("--trust-settlement-address requires --settlement-address 0x…");
+  process.exit(1);
+}
 
 // Merchant profile. A buyer is shown both, and the payment link surface refuses
 // to mint without them — asked here so a freshly seeded merchant can sell
@@ -226,6 +242,13 @@ if (countryCode !== undefined && !/^[A-Z]{2}$/.test(countryCode)) {
 }
 
 const config = loadConfig();
+if (
+  args.trustSettlementAddress &&
+  settlementAddress?.toLowerCase() === config.treasuryAddress?.toLowerCase()
+) {
+  console.error("The settlement address is this deployment's treasury address and cannot be paid");
+  process.exit(1);
+}
 const container = createContainer({ config });
 
 try {
@@ -240,6 +263,21 @@ try {
     ...(countryCode === undefined ? {} : { countryCode }),
     permissions,
   });
+
+  const trustedAt = new Date();
+  const trustedWallet =
+    settlementAddress === undefined || !args.trustSettlementAddress
+      ? undefined
+      : trustedSettlementWallet({
+          merchantId: result.user.merchantId,
+          chain: config.walletProvisionChain,
+          address: settlementAddress,
+          trustedAt,
+        });
+  if (trustedWallet !== undefined) {
+    await container.merchantWallets.insert(trustedWallet);
+  }
+
   console.log(`merchantId: ${result.user.merchantId}`);
   console.log(`userId:    ${result.user.id}`);
   console.log(`email:     ${result.user.email}`);
@@ -267,13 +305,31 @@ try {
   // signer — an address a signature recovered to — and no script can produce
   // that on the merchant's behalf without holding their key, which is the one
   // thing the whole wallet design refuses to do.
-  if (settlementAddress === undefined) {
+  if (trustedWallet !== undefined) {
+    console.log("");
+    console.log(`Trusted settlement wallet on ${trustedWallet.chain}: ${trustedWallet.address}`);
+    console.log("WARNING: the seed operator asserted control; no signature proof was performed.");
+    console.log("Use this bypass only for disposable development or test fixtures.");
+  } else if (settlementAddress !== undefined) {
+    console.log("");
+    console.log(
+      `Settlement address recorded but not verified on ${config.walletProvisionChain}: ${settlementAddress.toLowerCase()}`,
+    );
+    console.log("Contract-path payments will be refused until the merchant proves control:");
+    console.log("  1. Sign in to the dashboard → Wallets → Connect existing");
+    console.log("  2. Link this address and sign its verification challenge");
+    console.log(
+      "For a disposable fixture, create it with both --settlement-address and --trust-settlement-address.",
+    );
+  } else {
     console.log("");
     console.log("No settlement address. Nothing can be paid out until there is one:");
     console.log("  1. Sign in to the dashboard → Wallets → Connect existing (or Passkey)");
     console.log("  2. Prove control of it by signing the challenge");
     console.log("  3. Create managed wallet — the Safe becomes the settlement address");
-    console.log("Or set one directly with --settlement-address 0x… (an address you control).");
+    console.log(
+      "Or seed a disposable fixture with --settlement-address 0x… --trust-settlement-address.",
+    );
   }
 } catch (error) {
   console.error(

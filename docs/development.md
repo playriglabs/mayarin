@@ -35,6 +35,29 @@ curl -X POST localhost:3000/v1/payment-intents/<id>/confirm
 curl localhost:3000/v1/payments/<id>
 ```
 
+### Seeded settlement addresses
+
+`--settlement-address` configures where a merchant wants to be paid; it does
+not prove that the merchant controls that address. The seed tool therefore
+prints a warning, and contract-path payments remain blocked until the merchant
+links the address in **Dashboard → Wallets → Connect existing** and signs the
+verification challenge.
+
+For a disposable local or test fixture, an operator may make that trust
+decision explicitly:
+
+```bash
+bun run seed:merchant -- \
+  --email demo@example.test \
+  --merchant-name "Demo Merchant" \
+  --settlement-address 0x1111111111111111111111111111111111111111 \
+  --trust-settlement-address
+```
+
+The trust flag creates a linked, verified wallet record on
+`WALLET_PROVISION_CHAIN` without signature proof and says so in its output. Do
+not use it for a real merchant; use the dashboard verification flow instead.
+
 ### Commands
 
 | Command                       | Does                                                                             |
