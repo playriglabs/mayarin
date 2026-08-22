@@ -187,6 +187,10 @@ export function Marketplace() {
 
       <section className="history" id="riwayat">
         <h2>Purchase history</h2>
+        <p className="notice mt-2">
+          Recent checkouts made in this browser. This is not a customer account — the history lives
+          only on this device.
+        </p>
         {history.length === 0 ? (
           <p className="notice mt-4">No purchases have been made on this device yet.</p>
         ) : (
@@ -221,7 +225,7 @@ export function Marketplace() {
               ))}
             </ol>
             <p className="notice">
-              History is stored on this device and finalized after verification.
+              An entry is marked completed after the signed payment webhook is verified.
             </p>
           </>
         )}
