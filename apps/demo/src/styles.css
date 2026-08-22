@@ -70,6 +70,9 @@
     @apply m-0 font-semibold tabular-nums;
   }
 
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:bg-ink focus:px-4 focus:text-sm focus:font-semibold focus:text-white;
+  }
   .announce {
     @apply m-0 bg-ink px-4 py-2 text-center text-xs font-medium tracking-wide text-ground;
   }
@@ -328,7 +331,7 @@
     @apply sm:items-end;
   }
   .receipt-side a {
-    @apply text-sm text-ink-soft underline underline-offset-4;
+    @apply inline-flex min-h-11 items-center text-sm text-ink-soft underline underline-offset-4;
   }
   .receipt-side .payment-reference {
     @apply font-medium text-ink;
