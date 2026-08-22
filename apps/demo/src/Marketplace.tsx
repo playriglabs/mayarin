@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { HeroArt, LogoLockup, LogoMark } from "./brand.tsx";
+import { LogoLockup, LogoMark } from "./brand.tsx";
 import { CartDrawer, type CartLine } from "./CartDrawer.tsx";
+import { loadCart, type StoredCartLine, saveCart } from "./cart-storage.ts";
+import { Hero } from "./Hero.tsx";
 import { formatTime, loadHistory, type PurchaseEntry } from "./history.ts";
 import { ProductCard } from "./ProductCard.tsx";
 import { ProductDialog } from "./ProductDialog.tsx";
@@ -14,13 +16,21 @@ type CatalogState =
 const SKELETON_SLOTS = ["s1", "s2", "s3", "s4", "s5", "s6"] as const;
 const ALL = "All";
 
+/** Hand-dyed cloth from the catalog photography — reused for the workshop story. */
+const WORKSHOP_IMAGE =
+  "https://images.unsplash.com/photo-1561578428-c59823044e25?auto=format&fit=crop&w=1200&q=82";
+
 export function Marketplace() {
   const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" });
   const [category, setCategory] = useState<string>(ALL);
   const [selected, setSelected] = useState<DemoProduct | undefined>(undefined);
   const [history, setHistory] = useState<readonly PurchaseEntry[]>([]);
-  const [cart, setCart] = useState<readonly CartLine[]>([]);
+  const [cart, setCart] = useState<readonly StoredCartLine[]>(loadCart);
   const [cartOpen, setCartOpen] = useState(false);
+
+  useEffect(() => {
+    saveCart(cart);
+  }, [cart]);
 
   useEffect(() => {
     setHistory(loadHistory());
@@ -61,17 +71,37 @@ export function Marketplace() {
     return [ALL, ...found] as readonly string[];
   }, [products]);
 
+  const tiles = useMemo(
+    () =>
+      categories
+        .filter((entry) => entry !== ALL)
+        .map((entry) => ({
+          category: entry,
+          image: products.find((p) => p.metadata.category === entry)?.metadata.image,
+        })),
+    [categories, products],
+  );
+
   const visible =
     category === ALL ? products : products.filter((p) => p.metadata.category === category);
-  const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0);
+  /** The stored ids joined against the catalog; a product that is gone drops out. */
+  const cartLines: readonly CartLine[] = useMemo(
+    () =>
+      cart.flatMap((line) => {
+        const product = products.find((p) => p.id === line.productId);
+        return product === undefined ? [] : [{ product, quantity: line.quantity }];
+      }),
+    [cart, products],
+  );
+  const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
 
   const addToCart = (product: DemoProduct, quantity: number) => {
     setCart((current) => {
-      const existing = current.find((line) => line.product.id === product.id);
+      const existing = current.find((line) => line.productId === product.id);
       return existing === undefined
-        ? [...current, { product, quantity }]
+        ? [...current, { productId: product.id, quantity }]
         : current.map((line) =>
-            line.product.id === product.id
+            line.productId === product.id
               ? { ...line, quantity: Math.min(9, line.quantity + quantity) }
               : line,
           );
@@ -107,23 +137,70 @@ export function Marketplace() {
         </button>
       </header>
 
-      <section className="hero" id="atas">
-        <div className="hero-copy">
-          <p className="kicker">Independent label · Bandung</p>
-          <h1>
-            Small releases,
-            <br />
-            <em>made in Bandung.</em>
-          </h1>
-          <p className="lede">
-            Indonesian textiles meet everyday streetwear. Every piece is cut, sewn, and finished
-            locally in small batches that are never reproduced.
-          </p>
-          <a className="cta" href="#koleksi">
-            Shop the collection
+      <Hero products={products} onView={setSelected} />
+
+      <section className="featured">
+        <div className="section-head">
+          <div>
+            <p className="kicker">This month</p>
+            <h2>New drop</h2>
+          </div>
+          <a className="see-all" href="#koleksi">
+            See all products
           </a>
         </div>
-        <HeroArt />
+        {catalog.status === "ready" ? (
+          <ul className="featured-row">
+            {products.slice(0, 4).map((product) => (
+              <ProductCard key={product.id} product={product} onOpen={() => setSelected(product)} />
+            ))}
+          </ul>
+        ) : (
+          <ul className="featured-row" aria-hidden="true">
+            {SKELETON_SLOTS.slice(0, 4).map((slot) => (
+              <li key={slot} className="card skeleton">
+                <div className="media" />
+                <div className="line title" />
+                <div className="line price" />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="categories" id="kategori">
+        <div className="section-head">
+          <div>
+            <p className="kicker">Browse</p>
+            <h2>Shop by category</h2>
+          </div>
+        </div>
+        {catalog.status === "ready" ? (
+          <ul className="tile-grid">
+            {tiles.map((tile) => (
+              <li key={tile.category}>
+                <button
+                  type="button"
+                  className="tile group"
+                  onClick={() => {
+                    setCategory(tile.category);
+                    document.getElementById("koleksi")?.scrollIntoView();
+                  }}
+                >
+                  <img src={tile.image} alt="" loading="lazy" decoding="async" />
+                  <span className="tile-scrim" aria-hidden="true" />
+                  <span className="tile-label">{tile.category}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="tile-grid" aria-hidden="true">
+            {SKELETON_SLOTS.map((slot) => (
+              <li key={slot} className="tile skeleton-tile" />
+            ))}
+          </ul>
+        )}
       </section>
 
       <main className="shop" id="koleksi">
@@ -235,27 +312,36 @@ export function Marketplace() {
       </section>
 
       <section className="about" id="tentang">
-        <div className="gap-y-2 flex-col flex">
-          <h2>About</h2>
+        <figure className="about-media">
+          <img
+            src={WORKSHOP_IMAGE}
+            alt="Folded hand-dyed cloth from the workshop"
+            loading="lazy"
+            decoding="async"
+          />
+        </figure>
+        <div className="about-body">
+          <p className="kicker">The workshop</p>
+          <h2>Made by Bandung hands</h2>
           <p>
             Parahyangan Supply began at a single printing table in Buah Batu. Every piece is still
             cut, sewn, printed, and packed by neighboring Bandung workshops.
           </p>
+          <dl className="facts">
+            <div>
+              <dt>Store</dt>
+              <dd>Jl. Braga No. 2, Bandung</dd>
+            </div>
+            <div>
+              <dt>Opening hours</dt>
+              <dd>Monday–Saturday, 10:00–21:00 WIB</dd>
+            </div>
+            <div>
+              <dt>Contact</dt>
+              <dd>halo@parahyangansupply.id</dd>
+            </div>
+          </dl>
         </div>
-        <dl className="facts">
-          <div>
-            <dt>Store</dt>
-            <dd>Jl. Braga No. 2, Bandung</dd>
-          </div>
-          <div>
-            <dt>Opening hours</dt>
-            <dd>Monday–Saturday, 10:00–21:00 WIB</dd>
-          </div>
-          <div>
-            <dt>Contact</dt>
-            <dd>halo@parahyangansupply.id</dd>
-          </div>
-        </dl>
       </section>
 
       <footer className="colophon">
@@ -273,20 +359,20 @@ export function Marketplace() {
         />
       )}
       <CartDrawer
-        lines={cart}
+        lines={cartLines}
         open={cartOpen}
         onClose={() => setCartOpen(false)}
         onQuantity={(productId, quantity) =>
           setCart((current) =>
             quantity <= 0
-              ? current.filter((line) => line.product.id !== productId)
+              ? current.filter((line) => line.productId !== productId)
               : current.map((line) =>
-                  line.product.id === productId ? { ...line, quantity } : line,
+                  line.productId === productId ? { ...line, quantity } : line,
                 ),
           )
         }
         onRemove={(productId) =>
-          setCart((current) => current.filter((line) => line.product.id !== productId))
+          setCart((current) => current.filter((line) => line.productId !== productId))
         }
       />
     </>

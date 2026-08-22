@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { CheckoutButton } from "./CheckoutButton.tsx";
+import { markCartCheckout } from "./cart-storage.ts";
 import { formatIdrMinorUnits } from "./money.ts";
 import { CURRENCY } from "./ProductCard.tsx";
 import type { DemoProduct } from "./types.ts";
@@ -143,6 +144,7 @@ export function CartDrawer({
             purchaseName={`${lines.length} products`}
             purchaseQuantity={itemCount}
             total={formatIdrMinorUnits(total)}
+            onRedirect={markCartCheckout}
           />
         </>
       )}
