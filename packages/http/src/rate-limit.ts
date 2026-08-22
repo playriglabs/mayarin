@@ -16,6 +16,7 @@ interface Bucket {
   readonly tokens: number;
   readonly lastRefillMs: number;
   readonly lastSeenMs: number;
+  readonly blockedUntilMs: number;
 }
 
 interface Consumption {
@@ -33,16 +34,20 @@ export interface RateLimitOptions {
   readonly windowMs: number;
   /** Source of the client identity, selected for the deployment's trusted proxy. */
   readonly clientIpSource: ClientIpSource;
+  /** Fixed penalty after the bucket is exhausted. Retries do not extend it. */
+  readonly blockDurationMs?: number;
   /** Bounds per-process memory when many distinct clients arrive. */
   readonly maxClients?: number;
   /** Injectable monotonic-enough wall clock for deterministic tests. */
   readonly now?: () => number;
 }
 
-export type ClientIpSource = "socket" | "x-forwarded-for" | "x-real-ip";
+export type ClientIpSource = "cf-connecting-ip" | "socket" | "x-forwarded-for" | "x-real-ip";
 
 export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
   const maxClients = options.maxClients ?? DEFAULT_MAX_CLIENTS;
+  const blockDurationMs = options.blockDurationMs ?? 0;
+  const bucketRetentionMs = Math.max(options.windowMs * 2, blockDurationMs);
   const now = options.now ?? Date.now;
   const buckets = new Map<string, Bucket>();
   let nextCleanupMs = 0;
@@ -55,13 +60,19 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
 
     const currentMs = now();
     if (currentMs >= nextCleanupMs) {
-      pruneIdleBuckets(buckets, currentMs - options.windowMs * 2);
+      pruneIdleBuckets(buckets, currentMs - bucketRetentionMs);
       nextCleanupMs = currentMs + options.windowMs;
     }
 
     const client = clientId(c, options.clientIpSource);
     const key = buckets.has(client) || buckets.size < maxClients ? client : OVERFLOW_CLIENT;
-    const consumed = consume(buckets.get(key), currentMs, options.limit, options.windowMs);
+    const consumed = consume(
+      buckets.get(key),
+      currentMs,
+      options.limit,
+      options.windowMs,
+      blockDurationMs,
+    );
     buckets.set(key, consumed.bucket);
 
     c.header("RateLimit-Limit", String(options.limit));
@@ -92,7 +103,19 @@ function consume(
   nowMs: number,
   limit: number,
   windowMs: number,
+  blockDurationMs: number,
 ): Consumption {
+  if (previous !== undefined && previous.blockedUntilMs > nowMs) {
+    const retryAfterSeconds = Math.ceil((previous.blockedUntilMs - nowMs) / 1_000);
+    return {
+      allowed: false,
+      bucket: { ...previous, lastSeenMs: nowMs },
+      remaining: 0,
+      retryAfterSeconds,
+      resetAfterSeconds: retryAfterSeconds,
+    };
+  }
+
   const elapsedMs = previous === undefined ? 0 : Math.max(0, nowMs - previous.lastRefillMs);
   const available =
     previous === undefined
@@ -101,13 +124,18 @@ function consume(
   const allowed = available >= 1;
   const tokens = allowed ? available - 1 : available;
   const refillPerMs = limit / windowMs;
+  const blockedUntilMs = !allowed && blockDurationMs > 0 ? nowMs + blockDurationMs : 0;
+  const tokenRetryAfterSeconds = Math.max(1, Math.ceil((1 - tokens) / refillPerMs / 1_000));
+  const retryAfterSeconds =
+    blockedUntilMs > nowMs ? Math.ceil(blockDurationMs / 1_000) : tokenRetryAfterSeconds;
+  const tokenResetAfterSeconds = Math.ceil((limit - tokens) / refillPerMs / 1_000);
 
   return {
     allowed,
-    bucket: { tokens, lastRefillMs: nowMs, lastSeenMs: nowMs },
+    bucket: { tokens, lastRefillMs: nowMs, lastSeenMs: nowMs, blockedUntilMs },
     remaining: Math.floor(tokens),
-    retryAfterSeconds: allowed ? 0 : Math.max(1, Math.ceil((1 - tokens) / refillPerMs / 1_000)),
-    resetAfterSeconds: Math.ceil((limit - tokens) / refillPerMs / 1_000),
+    retryAfterSeconds: allowed ? 0 : retryAfterSeconds,
+    resetAfterSeconds: blockedUntilMs > nowMs ? retryAfterSeconds : tokenResetAfterSeconds,
   };
 }
 

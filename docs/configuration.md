@@ -37,18 +37,27 @@ payment API defaults to `API_RATE_LIMIT_REQUESTS=120`; the dashboard API default
 to `DASHBOARD_RATE_LIMIT_REQUESTS=120`. An empty bucket refills completely over
 `RATE_LIMIT_WINDOW_SECONDS=60`. Rejected requests return `429`, a stable
 `RATE_LIMIT_EXCEEDED` error body, and `Retry-After` plus `RateLimit-*` headers.
-Health checks and CORS preflight requests do not consume the budget.
+Exhausting any bucket starts a fixed `RATE_LIMIT_BLOCK_SECONDS=300` lockout.
+Every request covered by that bucket remains rejected during the penalty;
+retries neither bypass nor extend it. Health checks and CORS preflight requests
+do not consume the budget.
 
 Dashboard login attempts also pass through a tighter, independent bucket. It
 defaults to `DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS=5` attempts over
-`DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS=60`. This prevents password guessing
-at a pace that the broader dashboard traffic budget intentionally permits.
+`DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS=60` and uses the same five-minute
+lockout. This prevents password guessing at a pace that the broader dashboard
+traffic budget intentionally permits.
 
 `RATE_LIMIT_CLIENT_IP_SOURCE=socket` identifies direct callers from the socket.
-Behind a reverse proxy, select `x-real-ip` or `x-forwarded-for` only when that
-proxy overwrites the selected header with the real client address. Railway uses
-`x-real-ip`. Trusting a caller-controlled header lets an abusive client rotate
-fake addresses and evade the limit. `RATE_LIMIT_MAX_CLIENTS=10000` bounds the
+Behind a reverse proxy, select `cf-connecting-ip`, `x-real-ip`, or
+`x-forwarded-for` only when that proxy overwrites the selected header with the
+real client address. Mayarin's Cloudflare-fronted Railway deployments use
+`cf-connecting-ip`. The dashboard Pages proxy copies the original visitor into
+`x-real-ip` so Cloudflare preserves that identity on its same-zone subrequest to
+the API. Trusting a caller-controlled header lets an abusive client rotate fake
+addresses and evade the limit. The Railway-generated origin hostname therefore
+must not be treated as a protected public entry point; production must block
+direct-origin bypass at the edge. `RATE_LIMIT_MAX_CLIENTS=10000` bounds the
 number of buckets held by one process; excess identities share a protective
 overflow bucket.
 

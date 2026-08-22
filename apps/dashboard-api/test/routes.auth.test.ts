@@ -146,7 +146,10 @@ describe("dashboard API rate limiting", () => {
     expect(rejected.body?.error).toMatchObject({
       code: "RATE_LIMIT_EXCEEDED",
       retryable: true,
+      details: { retryAfterSeconds: 300 },
     });
+
+    expect((await harness.request("GET", "/v1/auth/me")).status).toBe(429);
   });
 
   test("applies a tighter request budget to repeated login attempts", async () => {
@@ -168,7 +171,11 @@ describe("dashboard API rate limiting", () => {
     expect(rejected.body?.error).toMatchObject({
       code: "RATE_LIMIT_EXCEEDED",
       retryable: true,
+      details: { retryAfterSeconds: 300 },
     });
+
+    const stillRejected = await harness.request("POST", "/v1/auth/login", { body: credentials });
+    expect(stillRejected.status).toBe(429);
 
     expect((await harness.request("GET", "/v1/auth/me")).status).toBe(200);
   });

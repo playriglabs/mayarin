@@ -59,6 +59,7 @@ export function getApiBase(context?: AnyContext): string {
 export class ApiError extends Data.TaggedError("ApiError")<{
   readonly status: number;
   readonly message: string;
+  readonly retryAfterSeconds?: number;
 }> {}
 
 /** Browser base path: same-origin, proxied to the dashboard API in dev. */
@@ -118,7 +119,12 @@ export function request<A>(path: string, opts: RequestOptions = {}): Effect.Effe
 
     if (!res.ok) {
       const message = extractMessage(data, res.status);
-      return yield* new ApiError({ status: res.status, message });
+      const retryAfterSeconds = extractRetryAfterSeconds(data, res.headers.get("retry-after"));
+      return yield* new ApiError({
+        status: res.status,
+        message,
+        ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+      });
     }
 
     return data as A;
@@ -134,4 +140,25 @@ function extractMessage(data: unknown, status: number): string {
     }
   }
   return `Request failed (${status})`;
+}
+
+/** Reads the API's numeric retry guidance, preferring its structured body. */
+function extractRetryAfterSeconds(
+  data: unknown,
+  retryAfterHeader: string | null,
+): number | undefined {
+  if (data !== null && typeof data === "object" && "error" in data) {
+    const error = (data as { error: unknown }).error;
+    if (error !== null && typeof error === "object" && "details" in error) {
+      const details = (error as { details: unknown }).details;
+      if (details !== null && typeof details === "object" && "retryAfterSeconds" in details) {
+        const seconds = (details as { retryAfterSeconds: unknown }).retryAfterSeconds;
+        if (typeof seconds === "number" && Number.isInteger(seconds) && seconds > 0) return seconds;
+      }
+    }
+  }
+
+  if (retryAfterHeader === null) return undefined;
+  const seconds = Number(retryAfterHeader);
+  return Number.isInteger(seconds) && seconds > 0 ? seconds : undefined;
 }

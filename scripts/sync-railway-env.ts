@@ -19,7 +19,7 @@ const policies: readonly ServicePolicy[] = [
       LEFTHOOK: "0",
       NODE_ENV: "production",
       PORT: "3000",
-      RATE_LIMIT_CLIENT_IP_SOURCE: "x-real-ip",
+      RATE_LIMIT_CLIENT_IP_SOURCE: "cf-connecting-ip",
       TREASURY_EXECUTION_ENABLED: "false",
     },
   },
@@ -33,7 +33,7 @@ const policies: readonly ServicePolicy[] = [
       LEFTHOOK: "0",
       NODE_ENV: "production",
       PAYMENT_API_URL: "http://core-api.railway.internal:3000",
-      RATE_LIMIT_CLIENT_IP_SOURCE: "x-real-ip",
+      RATE_LIMIT_CLIENT_IP_SOURCE: "cf-connecting-ip",
     },
   },
   {

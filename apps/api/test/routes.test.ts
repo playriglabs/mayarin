@@ -23,7 +23,10 @@ describe("API rate limiting", () => {
     expect(rejected.body.error).toMatchObject({
       code: "RATE_LIMIT_EXCEEDED",
       retryable: true,
+      details: { retryAfterSeconds: 300 },
     });
+
+    expect((await harness.request("GET", "/v1/payments/missing")).status).toBe(429);
   });
 });
 

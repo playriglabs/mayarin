@@ -46,6 +46,8 @@ const configSchema = z.object({
   rateLimitRequests: z.coerce.number().int().positive().default(120),
   /** Seconds required to refill a fully exhausted request budget. */
   rateLimitWindowSeconds: z.coerce.number().int().positive().default(60),
+  /** Fixed lockout after a client exhausts a request budget. */
+  rateLimitBlockSeconds: z.coerce.number().int().positive().default(300),
   /** Per-client request budget for the dashboard login endpoint. */
   loginRateLimitRequests: z.coerce.number().int().positive().default(5),
   /** Seconds required to refill a fully exhausted login request budget. */
@@ -53,7 +55,9 @@ const configSchema = z.object({
   /** Maximum client buckets retained by one process. */
   rateLimitMaxClients: z.coerce.number().int().positive().default(10_000),
   /** Trusted source of the caller IP for rate-limit buckets. */
-  rateLimitClientIpSource: z.enum(["socket", "x-forwarded-for", "x-real-ip"]).default("socket"),
+  rateLimitClientIpSource: z
+    .enum(["cf-connecting-ip", "socket", "x-forwarded-for", "x-real-ip"])
+    .default("socket"),
   /** Page size cap for payment listings. */
   paymentsPageSize: z.coerce.number().int().positive().max(200).default(7),
   /**
@@ -179,6 +183,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     cookieSecure: env.COOKIE_SECURE,
     rateLimitRequests: env.DASHBOARD_RATE_LIMIT_REQUESTS,
     rateLimitWindowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
+    rateLimitBlockSeconds: env.RATE_LIMIT_BLOCK_SECONDS,
     loginRateLimitRequests: env.DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS,
     loginRateLimitWindowSeconds: env.DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
     rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,

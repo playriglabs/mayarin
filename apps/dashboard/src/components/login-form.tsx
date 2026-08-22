@@ -13,46 +13,54 @@
  */
 
 import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { match, P } from "ts-pattern";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { useLogin } from "@/hooks/auth";
-import { ApiError } from "@/lib/api/client";
 import { ICON_NAV } from "@/lib/icons";
+import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
 import { withQuery } from "@/lib/with-query";
 
 type FormState =
   | { readonly status: "idle" }
   | { readonly status: "submitting" }
-  | { readonly status: "error"; readonly reason: string };
-
-function reasonOf(error: unknown): string {
-  return match(error)
-    .when(
-      (e): e is ApiError => e instanceof ApiError && e.status === 401,
-      () => "Invalid email or password",
-    )
-    .when(
-      (e): e is ApiError => e instanceof ApiError,
-      (e) => e.message,
-    )
-    .otherwise(() => "Login failed");
-}
+  | { readonly status: "error"; readonly reason: string }
+  | { readonly status: "blocked"; readonly reason: string; readonly untilMs: number };
 
 function LoginForm() {
   const [state, setState] = useState<FormState>({ status: "idle" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [revealed, setRevealed] = useState(false);
+  const [currentMs, setCurrentMs] = useState(0);
   const login = useLogin();
   const submitting = login.isPending || state.status === "submitting";
-  const errorId = state.status === "error" ? "login-error" : undefined;
+  const blocked = state.status === "blocked";
+  const remainingSeconds = blocked
+    ? Math.max(0, Math.ceil((state.untilMs - currentMs) / 1_000))
+    : 0;
+  const remainingLabel = formatRetryAfter(remainingSeconds);
+  const errorId = state.status === "error" || blocked ? "login-error" : undefined;
+
+  useEffect(() => {
+    if (state.status !== "blocked") return;
+
+    const update = () => {
+      const nowMs = Date.now();
+      setCurrentMs(nowMs);
+      if (nowMs >= state.untilMs) setState({ status: "idle" });
+    };
+    update();
+    const interval = window.setInterval(update, 1_000);
+    return () => window.clearInterval(interval);
+  }, [state]);
 
   function onSubmit(event: { preventDefault(): void }) {
     event.preventDefault();
+    if (blocked) return;
     setState({ status: "submitting" });
     login.mutate(
       { email, password },
@@ -61,7 +69,19 @@ function LoginForm() {
           window.location.href = "/";
         },
         onError: (error) => {
-          setState({ status: "error", reason: reasonOf(error) });
+          const failure = loginFailureOf(error);
+          match(failure)
+            .with({ type: "error" }, ({ reason }) => setState({ status: "error", reason }))
+            .with({ type: "blocked" }, ({ reason, retryAfterSeconds }) => {
+              const nowMs = Date.now();
+              setCurrentMs(nowMs);
+              setState({
+                status: "blocked",
+                reason,
+                untilMs: nowMs + retryAfterSeconds * 1_000,
+              });
+            })
+            .exhaustive();
         },
       },
     );
@@ -141,11 +161,21 @@ function LoginForm() {
               {s.reason}
             </p>
           ))
+          .with({ status: "blocked" }, (s) => (
+            <div id="login-error" role="alert" className="text-xs text-destructive">
+              <p>{s.reason}</p>
+              <p>Try again in {remainingLabel}.</p>
+            </div>
+          ))
           .exhaustive()}
       </div>
 
-      <Button type="submit" disabled={submitting} className="login-submit h-12 w-full px-6 text-xl">
-        {submitting ? "Processing.." : "Continue"}
+      <Button
+        type="submit"
+        disabled={submitting || blocked}
+        className="login-submit h-12 w-full px-6 text-xl"
+      >
+        {submitting ? "Processing.." : blocked ? `Try again in ${remainingLabel}` : "Continue"}
       </Button>
     </form>
   );

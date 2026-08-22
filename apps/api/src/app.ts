@@ -56,6 +56,7 @@ export function createApp(container: Container): Hono {
       limit: container.config.rateLimitRequests,
       windowMs: container.config.rateLimitWindowSeconds * 1_000,
       clientIpSource: container.config.rateLimitClientIpSource,
+      blockDurationMs: container.config.rateLimitBlockSeconds * 1_000,
       maxClients: container.config.rateLimitMaxClients,
     }),
   );

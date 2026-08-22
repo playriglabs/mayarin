@@ -59,6 +59,7 @@ export interface ApiHarnessOptions {
   readonly assetReceiptMode?: Config["assetReceiptMode"];
   readonly adminToken?: string;
   readonly rateLimitRequests?: number;
+  readonly rateLimitBlockSeconds?: number;
 }
 
 export function createApiHarness(options: ApiHarnessOptions = {}) {
@@ -79,6 +80,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
     MOCK_WEBHOOK_SECRET: WEBHOOK_SECRET,
     API_RATE_LIMIT_REQUESTS: String(options.rateLimitRequests ?? 120),
+    RATE_LIMIT_BLOCK_SECONDS: String(options.rateLimitBlockSeconds ?? 300),
     // A fixture shell, so page-route tests exercise the bootstrap injection
     // (#151) without needing a Vite build of apps/checkout-ui.
     CHECKOUT_UI_DIST: fileURLToPath(new URL("./fixtures/checkout-ui", import.meta.url)),

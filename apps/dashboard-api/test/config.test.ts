@@ -36,16 +36,18 @@ describe("loadConfig", () => {
       API_RATE_LIMIT_REQUESTS: "999",
       DASHBOARD_RATE_LIMIT_REQUESTS: "80",
       RATE_LIMIT_WINDOW_SECONDS: "30",
+      RATE_LIMIT_BLOCK_SECONDS: "240",
       DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS: "4",
       DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS: "90",
-      RATE_LIMIT_CLIENT_IP_SOURCE: "x-real-ip",
+      RATE_LIMIT_CLIENT_IP_SOURCE: "cf-connecting-ip",
     });
 
     expect(config.rateLimitRequests).toBe(80);
     expect(config.rateLimitWindowSeconds).toBe(30);
+    expect(config.rateLimitBlockSeconds).toBe(240);
     expect(config.loginRateLimitRequests).toBe(4);
     expect(config.loginRateLimitWindowSeconds).toBe(90);
-    expect(config.rateLimitClientIpSource).toBe("x-real-ip");
+    expect(config.rateLimitClientIpSource).toBe("cf-connecting-ip");
   });
 
   test("a blank variable means unset, not set to nothing", async () => {

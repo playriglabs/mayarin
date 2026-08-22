@@ -91,6 +91,7 @@ class PlainPasswordHasher implements PasswordHasher {
 export interface DashboardHarnessOptions {
   readonly cookieSecure?: boolean;
   readonly rateLimitRequests?: number;
+  readonly rateLimitBlockSeconds?: number;
   readonly loginRateLimitRequests?: number;
   /** Email for the seeded merchant-admin account. */
   readonly adminEmail?: string;
@@ -110,6 +111,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     COOKIE_SECURE:
       options.cookieSecure === undefined ? "false" : options.cookieSecure ? "true" : "false",
     DASHBOARD_RATE_LIMIT_REQUESTS: String(options.rateLimitRequests ?? 120),
+    RATE_LIMIT_BLOCK_SECONDS: String(options.rateLimitBlockSeconds ?? 300),
     DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS: String(options.loginRateLimitRequests ?? 5),
     PAYMENTS_PAGE_SIZE: "7",
   });

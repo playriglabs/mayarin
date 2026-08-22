@@ -132,10 +132,14 @@ const configSchema = z.object({
   rateLimitRequests: z.coerce.number().int().positive().default(120),
   /** Seconds required to refill a fully exhausted request budget. */
   rateLimitWindowSeconds: z.coerce.number().int().positive().default(60),
+  /** Fixed lockout after a client exhausts a request budget. */
+  rateLimitBlockSeconds: z.coerce.number().int().positive().default(300),
   /** Maximum client buckets retained by one process. */
   rateLimitMaxClients: z.coerce.number().int().positive().default(10_000),
   /** Trusted source of the caller IP for rate-limit buckets. */
-  rateLimitClientIpSource: z.enum(["socket", "x-forwarded-for", "x-real-ip"]).default("socket"),
+  rateLimitClientIpSource: z
+    .enum(["cf-connecting-ip", "socket", "x-forwarded-for", "x-real-ip"])
+    .default("socket"),
   /**
    * Live payment status on the hosted checkout, over Server-Sent Events.
    *
@@ -797,6 +801,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     adminToken: env.ADMIN_TOKEN,
     rateLimitRequests: env.API_RATE_LIMIT_REQUESTS,
     rateLimitWindowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
+    rateLimitBlockSeconds: env.RATE_LIMIT_BLOCK_SECONDS,
     rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
     rateLimitClientIpSource: env.RATE_LIMIT_CLIENT_IP_SOURCE,
     realtimeEnabled: env.REALTIME_ENABLED,
