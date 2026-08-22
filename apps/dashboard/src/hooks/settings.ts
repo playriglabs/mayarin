@@ -41,6 +41,7 @@ const WALLET_BALANCE_KEY = ["wallets", "balance"];
 const WALLET_WITHDRAWALS_KEY = ["wallets", "withdrawals"];
 const ENDPOINTS_KEY = ["webhooks", "endpoints"];
 const DELIVERIES_KEY = ["webhooks", "deliveries"];
+const WALLET_BALANCE_POLL_MS = 5_000;
 
 export function useSettings() {
   return useEffectQuery<SettingsResponse, ApiError>({
@@ -104,11 +105,19 @@ export function useVerifyWallet() {
   });
 }
 
-/** The on-chain balance of the settlement address. */
+/**
+ * The on-chain balance of the settlement address.
+ *
+ * A successful withdrawal invalidates this query immediately. Keep polling
+ * while the wallet page is open as well: an RPC node can briefly return its
+ * previous `latest` block after the withdrawal receipt has been observed, and
+ * the balance can also change outside this dashboard.
+ */
 export function useWalletBalance() {
   return useEffectQuery<WalletBalanceResponse, ApiError>({
     queryKey: WALLET_BALANCE_KEY,
     query: () => walletsApi.balance(),
+    refetchInterval: WALLET_BALANCE_POLL_MS,
   });
 }
 

@@ -57,7 +57,7 @@ export function catalogRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     const active = c.req.query("active");
     const products = await container.catalog.listProducts({
       merchantId,
-      ...(active === undefined ? {} : { active: active === "true" }),
+      active: active === undefined ? true : active === "true",
     });
     return c.json({ products: products.map(toProductDto) });
   });

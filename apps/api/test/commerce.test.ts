@@ -80,6 +80,18 @@ describe("POST /catalog/products", () => {
     const { body } = await harness.request("GET", `/v1/catalog/products?merchantId=${merchant.id}`);
     expect(body.products).toHaveLength(1);
   });
+
+  test("does not list an inactive product by default", async () => {
+    const harness = createApiHarness();
+    const product = await createCoffee(harness);
+    const archived = await harness.request("PATCH", `/v1/catalog/products/${product.id}`, {
+      body: { active: false },
+    });
+    expect(archived.status).toBe(200);
+
+    const { body } = await harness.request("GET", `/v1/catalog/products?merchantId=${merchant.id}`);
+    expect(body.products).toEqual([]);
+  });
 });
 
 describe("POST /carts/checkout", () => {
