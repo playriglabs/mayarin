@@ -26,6 +26,7 @@ remains the repository's architecture and design record.
 | [Roadmap](./roadmap.md)                | You want to know what is shipped and what is next                            |
 | [Threat Model](./threat-model.md)      | You want the risks the design carries, and the ones it does not yet answer   |
 | [Quote Signing](./quote-signing.md)    | You are touching the EIP-712 order or the signing key                        |
+| [Pitch Deck](./pitch-deck.md)          | You are presenting Mayarin — the slide spec behind `mayarin.xyz/pitch-deck`  |
 
 ---
 

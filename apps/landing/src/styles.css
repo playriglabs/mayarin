@@ -451,3 +451,107 @@
     opacity: 0.5;
   }
 }
+
+/* The pitch deck (`/pitch-deck`). From `md` up the track is a horizontal
+   scroll-snap row: each slide is one viewport wide, `scrollIntoView` lands a
+   slide, and a trackpad swipe snaps natively. Below `md` it is a long page. */
+.deck,
+.deck body {
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--color-void);
+  color: #ffffff;
+}
+
+.deck-track {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.deck-slide {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 100dvh;
+}
+
+/* Team portraits use the original assets. Rizky's brighter source receives a
+   stronger grayscale grade so both photos read as one editorial pair. */
+.team-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.12) brightness(0.88);
+}
+
+.team-photo-rizky {
+  filter: grayscale(1) contrast(1.24) brightness(0.7);
+}
+
+@media (width >= 48rem) {
+  .deck-track {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .deck-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .deck-slide {
+    width: 100vw;
+    height: 100dvh;
+    min-height: 0;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+}
+
+/* Until a slide has played its reveal, the parts it animates wait invisible —
+   and only those parts. Reduced motion skips the animation and flips
+   `data-shown` straight to true. */
+.deck-slide[data-shown="false"][data-reveal-headline] [data-headline],
+.deck-slide[data-shown="false"][data-reveal-visual="fade"] [data-visual],
+.deck-slide[data-shown="false"][data-reveal-visual="stagger"] [data-visual] [data-reveal] {
+  opacity: 0;
+}
+
+@media print {
+  .deck,
+  .deck body {
+    height: auto;
+    overflow: visible;
+  }
+
+  .deck-track {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  .deck-chrome {
+    display: none !important;
+  }
+
+  .deck-slide {
+    width: auto;
+    height: auto;
+    min-height: auto;
+    break-after: page;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .deck-slide [data-headline],
+  .deck-slide [data-visual],
+  .deck-slide [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
