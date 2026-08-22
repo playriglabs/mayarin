@@ -40,18 +40,24 @@ describe("resolve", () => {
     const { wallets, resolver } = setup();
     await wallets.insert(managed());
 
-    expect(await resolver.resolve(MERCHANT, CHAIN, undefined)).toBe(MANAGED);
+    expect(await resolver.resolve(MERCHANT, CHAIN, undefined)).toEqual({
+      source: "managed",
+      address: MANAGED,
+    });
   });
 
   test("what the merchant set wins over what they were given", async () => {
     // An explicit choice is a choice. A merchant may hold a managed Safe and
-    // still want paying somewhere else — the guard decides whether that address
-    // is allowed, not this.
+    // still want paying somewhere else; the source is retained so the guard can
+    // apply the configured-destination rules.
     const { wallets, resolver } = setup();
     await wallets.insert(managed());
     const chosen = "0x3333333333333333333333333333333333333333";
 
-    expect(await resolver.resolve(MERCHANT, CHAIN, chosen)).toBe(chosen);
+    expect(await resolver.resolve(MERCHANT, CHAIN, chosen)).toEqual({
+      source: "configured",
+      address: chosen,
+    });
   });
 
   test("lowercases what the merchant set", async () => {
@@ -61,7 +67,10 @@ describe("resolve", () => {
 
     expect(
       await resolver.resolve(MERCHANT, CHAIN, "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
-    ).toBe("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    ).toEqual({
+      source: "configured",
+      address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
   });
 
   test("does not fall back to a half-provisioned wallet", async () => {
@@ -104,7 +113,7 @@ describe("resolve", () => {
     await wallets.insert(managed());
 
     expect(await resolver.effective(MERCHANT, CHAIN, undefined)).toBe(
-      await resolver.resolve(MERCHANT, CHAIN, undefined),
+      (await resolver.resolve(MERCHANT, CHAIN, undefined)).address,
     );
   });
 
