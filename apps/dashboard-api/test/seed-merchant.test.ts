@@ -38,6 +38,44 @@ function makeService() {
 }
 
 describe("UserService.createMerchantAccount", () => {
+  test("documents the explicit settlement-address trust flag", () => {
+    const result = Bun.spawnSync(["bun", "apps/dashboard-api/scripts/seed-merchant.ts", "--help"], {
+      cwd: new URL("../../..", import.meta.url).pathname,
+      env: { ...process.env, DATABASE_URL: "postgres://help-only.invalid/mayarin" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.toString()).toContain("--trust-settlement-address");
+  });
+
+  test("refuses the trust flag without a settlement address", () => {
+    const result = Bun.spawnSync(
+      [
+        "bun",
+        "apps/dashboard-api/scripts/seed-merchant.ts",
+        "--email",
+        "admin@acme.test",
+        "--merchant-name",
+        "Acme",
+        "--trust-settlement-address",
+      ],
+      {
+        cwd: new URL("../../..", import.meta.url).pathname,
+        env: { ...process.env, DATABASE_URL: "postgres://argument-check.invalid/mayarin" },
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr.toString()).toContain(
+      "--trust-settlement-address requires --settlement-address",
+    );
+  });
+
   test("creates a merchant + its first account, scoped to that merchant", async () => {
     const { userService, users, merchants } = makeService();
     const result = await userService.createMerchantAccount({

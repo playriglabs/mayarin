@@ -349,6 +349,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     paymentApi,
     webhooks,
     wallets,
+    merchantWallets,
     settlementAddresses: new SettlementAddressResolver({ wallets: merchantWallets }),
     close: async () => {},
   };
