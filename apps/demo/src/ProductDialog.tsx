@@ -32,6 +32,14 @@ export function ProductDialog({
 
   return (
     <dialog ref={ref} className="product-dialog" onClose={onClose} aria-label={product.name}>
+      <button
+        type="button"
+        className="dialog-close"
+        onClick={() => ref.current?.close()}
+        aria-label="Close"
+      >
+        ×
+      </button>
       <div className="dialog-body">
         <div className="dialog-media">
           <ProductImage
@@ -42,9 +50,6 @@ export function ProductDialog({
           />
         </div>
         <div className="dialog-info">
-          <button type="button" className="dialog-close" onClick={() => ref.current?.close()}>
-            Close
-          </button>
           {product.metadata.category !== undefined && (
             <p className="kicker">{product.metadata.category}</p>
           )}
@@ -54,6 +59,7 @@ export function ProductDialog({
             <p className="notice">Price unavailable.</p>
           ) : (
             <>
+              <p className="price unit-price">{price.display}</p>
               <div className="quantity">
                 <span>Quantity</span>
                 <div className="stepper">
@@ -76,24 +82,29 @@ export function ProductDialog({
                   </button>
                 </div>
               </div>
-              <p className="price total">{lineTotal(price.amount, quantity)}</p>
-              <div className="dialog-actions">
-                <CheckoutButton
-                  lines={[{ productId: product.id, quantity }]}
-                  purchaseName={product.name}
-                  purchaseQuantity={quantity}
-                  total={lineTotal(price.amount, quantity)}
-                />
-                <button
-                  type="button"
-                  className="add-to-cart"
-                  onClick={() => {
-                    onAddToCart(product, quantity);
-                    ref.current?.close();
-                  }}
-                >
-                  Add to cart
-                </button>
+              <div className="dialog-buy">
+                <p className="total-row">
+                  <span className="total-label">Total</span>
+                  <span className="price total">{lineTotal(price.amount, quantity)}</span>
+                </p>
+                <div className="dialog-actions">
+                  <CheckoutButton
+                    lines={[{ productId: product.id, quantity }]}
+                    purchaseName={product.name}
+                    purchaseQuantity={quantity}
+                    total={lineTotal(price.amount, quantity)}
+                  />
+                  <button
+                    type="button"
+                    className="add-to-cart"
+                    onClick={() => {
+                      onAddToCart(product, quantity);
+                      ref.current?.close();
+                    }}
+                  >
+                    Add to cart
+                  </button>
+                </div>
               </div>
             </>
           )}

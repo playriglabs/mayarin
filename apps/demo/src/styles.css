@@ -136,19 +136,31 @@
     @apply flex flex-wrap gap-2 border-0 p-0;
   }
   .chip {
-    @apply min-h-11 rounded-full border border-line bg-panel px-5 text-sm font-medium transition hover:border-ink active:bg-mist;
+    @apply inline-flex min-h-11 items-center gap-2 rounded-ui border border-line bg-panel px-5 text-sm font-medium transition hover:border-ink active:bg-mist;
   }
   .chip.active {
     @apply border-ink bg-ink text-white;
+  }
+  .chip-dot {
+    @apply inline-block size-1.5 bg-accent;
+  }
+  .result-count {
+    @apply m-0 text-sm text-ink-soft tabular-nums;
+  }
+  .state-panel {
+    @apply border border-line bg-panel px-6 py-12 text-center;
   }
   .grid {
     @apply m-0 grid list-none gap-x-6 gap-y-12 p-0 sm:grid-cols-2 lg:grid-cols-3;
   }
   .card {
-    @apply min-w-0;
+    @apply flex min-w-0;
   }
   .card-open {
-    @apply block w-full cursor-pointer border-0 bg-transparent p-0 text-left;
+    @apply flex w-full cursor-pointer flex-col border-0 bg-transparent p-0 text-left;
+  }
+  .card .price {
+    @apply mt-auto pt-2;
   }
   .media {
     @apply relative mb-4 aspect-[4/5] overflow-hidden bg-mist;
@@ -189,16 +201,19 @@
     @apply grid md:grid-cols-2;
   }
   .dialog-media {
-    @apply aspect-[4/5] min-h-0 overflow-hidden bg-mist;
+    @apply aspect-[4/3] min-h-0 overflow-hidden bg-mist md:aspect-[4/5];
   }
   .dialog-info {
-    @apply flex flex-col items-start gap-5 p-6 md:p-10;
+    @apply flex flex-col items-start gap-4 p-6 md:p-10;
   }
   .dialog-info h2 {
     @apply m-0 font-display text-4xl leading-tight font-semibold;
   }
   .dialog-close {
-    @apply self-end border-0 bg-transparent text-sm text-ink-soft underline underline-offset-4 hover:text-ink;
+    @apply absolute top-3 right-3 z-10 grid size-11 place-items-center border border-line bg-panel/95 text-xl leading-none text-ink transition hover:bg-mist;
+  }
+  .unit-price {
+    @apply text-lg;
   }
   .quantity {
     @apply flex items-center gap-4 text-sm text-ink-soft;
@@ -215,11 +230,23 @@
   .price.total {
     @apply text-2xl;
   }
+  .dialog-buy {
+    @apply mt-2 flex w-full flex-col gap-4 border-t border-line pt-5;
+  }
+  .dialog-buy .total-row {
+    @apply flex items-baseline justify-between gap-4;
+  }
+  .dialog-buy .total-label {
+    @apply text-sm text-ink-soft;
+  }
   .dialog-actions {
-    @apply flex flex-wrap gap-3;
+    @apply grid w-full gap-3 sm:flex sm:flex-wrap;
+  }
+  .dialog-actions .checkout button {
+    @apply w-full sm:w-auto;
   }
   .add-to-cart {
-    @apply min-h-12 border border-ink bg-panel px-5 font-semibold text-ink transition hover:bg-mist;
+    @apply inline-flex min-h-12 items-center justify-center border border-ink bg-panel px-5 font-semibold text-ink transition hover:bg-mist;
   }
 
   .checkout button {
