@@ -12,6 +12,21 @@ describe("the /v1 boundary (#138)", () => {
   });
 });
 
+describe("API rate limiting", () => {
+  test("rejects a client that exhausts the configured request budget", async () => {
+    const harness = createApiHarness({ rateLimitRequests: 1 });
+
+    expect((await harness.request("GET", "/v1/payments/missing")).status).toBe(404);
+    const rejected = await harness.request("GET", "/v1/payments/missing");
+
+    expect(rejected.status).toBe(429);
+    expect(rejected.body.error).toMatchObject({
+      code: "RATE_LIMIT_EXCEEDED",
+      retryable: true,
+    });
+  });
+});
+
 describe("POST /payment-intents", () => {
   test("creates an intent from a QRIS payload", async () => {
     const harness = createApiHarness();

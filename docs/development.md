@@ -8,7 +8,7 @@ Running Mayarin locally, and the tooling that keeps the codebase consistent.
 
 ## Getting Started
 
-Requires [Bun](https://bun.sh) 1.2+ and Docker.
+Requires [Bun](https://bun.sh) 1.4+ and Docker.
 
 ```bash
 bun install

@@ -30,6 +30,24 @@ describe("loadConfig", () => {
     expect(config.cookieSecure).toBe(false);
   });
 
+  test("parses dashboard rate limits independently from the payment API", () => {
+    const config = loadConfig({
+      ...MINIMAL,
+      API_RATE_LIMIT_REQUESTS: "999",
+      DASHBOARD_RATE_LIMIT_REQUESTS: "80",
+      RATE_LIMIT_WINDOW_SECONDS: "30",
+      DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS: "4",
+      DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS: "90",
+      RATE_LIMIT_CLIENT_IP_SOURCE: "x-real-ip",
+    });
+
+    expect(config.rateLimitRequests).toBe(80);
+    expect(config.rateLimitWindowSeconds).toBe(30);
+    expect(config.loginRateLimitRequests).toBe(4);
+    expect(config.loginRateLimitWindowSeconds).toBe(90);
+    expect(config.rateLimitClientIpSource).toBe("x-real-ip");
+  });
+
   test("a blank variable means unset, not set to nothing", async () => {
     const config = loadConfig({
       ...MINIMAL,

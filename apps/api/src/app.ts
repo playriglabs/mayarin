@@ -5,6 +5,7 @@
  * a response. No payment logic lives here.
  */
 
+import { rateLimit } from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -46,6 +47,16 @@ export function createApp(container: Container): Hono {
       origin: "*",
       allowHeaders: ["Authorization", "Content-Type", "Idempotency-Key", "Mayarin-Version"],
       allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
+      exposeHeaders: ["RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset", "Retry-After"],
+    }),
+  );
+  v1.use(
+    "*",
+    rateLimit({
+      limit: container.config.rateLimitRequests,
+      windowMs: container.config.rateLimitWindowSeconds * 1_000,
+      clientIpSource: container.config.rateLimitClientIpSource,
+      maxClients: container.config.rateLimitMaxClients,
     }),
   );
   v1.route("/payment-intents", paymentIntentRoutes(container));

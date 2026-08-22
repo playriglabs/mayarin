@@ -16,7 +16,8 @@ The rule is one question — **when does this value change?**
 ## Deployment identity — environment
 
 `PAYMENT_ROUTERS`, `DEPOSIT_FORWARDERS`, `DEPOSIT_FORWARDER_INIT_CODE_HASH`,
-`TREASURY_ADDRESS`, `OPERATOR_PRIVATE_KEY`, `DATABASE_URL`, `PUBLIC_BASE_URL`.
+`TREASURY_ADDRESS`, `OPERATOR_PRIVATE_KEY`, `DATABASE_URL`, `PUBLIC_BASE_URL`,
+and the `*_RATE_LIMIT_*` controls.
 
 These change only on a redeploy, and two of them argue actively **against** ever
 being runtime-editable:
@@ -28,6 +29,33 @@ being runtime-editable:
 
 Boot-time and validated is the right shape: a deployment with a bad value should
 fail to start, not fail on its first payment.
+
+### API rate limiting
+
+Both versioned HTTP surfaces use a per-process, per-client token bucket. The
+payment API defaults to `API_RATE_LIMIT_REQUESTS=120`; the dashboard API defaults
+to `DASHBOARD_RATE_LIMIT_REQUESTS=120`. An empty bucket refills completely over
+`RATE_LIMIT_WINDOW_SECONDS=60`. Rejected requests return `429`, a stable
+`RATE_LIMIT_EXCEEDED` error body, and `Retry-After` plus `RateLimit-*` headers.
+Health checks and CORS preflight requests do not consume the budget.
+
+Dashboard login attempts also pass through a tighter, independent bucket. It
+defaults to `DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS=5` attempts over
+`DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS=60`. This prevents password guessing
+at a pace that the broader dashboard traffic budget intentionally permits.
+
+`RATE_LIMIT_CLIENT_IP_SOURCE=socket` identifies direct callers from the socket.
+Behind a reverse proxy, select `x-real-ip` or `x-forwarded-for` only when that
+proxy overwrites the selected header with the real client address. Railway uses
+`x-real-ip`. Trusting a caller-controlled header lets an abusive client rotate
+fake addresses and evade the limit. `RATE_LIMIT_MAX_CLIENTS=10000` bounds the
+number of buckets held by one process; excess identities share a protective
+overflow bucket.
+
+The counters are intentionally process-local. A deployment with multiple API
+replicas therefore applies the configured budget independently in each replica;
+use a load-balancer or shared rate-limit store when a strict fleet-wide quota is
+required.
 
 ## Merchant configuration — database, written through an authenticated API
 

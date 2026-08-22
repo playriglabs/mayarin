@@ -7,6 +7,7 @@
  * point that maps the domain error taxonomy onto HTTP.
  */
 
+import { rateLimit } from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "./container.ts";
@@ -43,6 +44,26 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   app.route("/", healthRoutes());
 
   const v1 = new Hono<{ Variables: AuthVars }>();
+
+  v1.use(
+    "/auth/login",
+    rateLimit({
+      limit: container.config.loginRateLimitRequests,
+      windowMs: container.config.loginRateLimitWindowSeconds * 1_000,
+      clientIpSource: container.config.rateLimitClientIpSource,
+      maxClients: container.config.rateLimitMaxClients,
+    }),
+  );
+
+  v1.use(
+    "*",
+    rateLimit({
+      limit: container.config.rateLimitRequests,
+      windowMs: container.config.rateLimitWindowSeconds * 1_000,
+      clientIpSource: container.config.rateLimitClientIpSource,
+      maxClients: container.config.rateLimitMaxClients,
+    }),
+  );
 
   // Stamps `session`/`scope` on the context when a valid session cookie is
   // present; a no-op for anonymous requests.

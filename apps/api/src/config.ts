@@ -128,6 +128,14 @@ const configSchema = z.object({
   watcherRetentionSeconds: z.coerce.number().int().positive().default(86_400),
   watcherReorgWatchWindow: z.coerce.number().int().positive().default(2),
   adminToken: z.string().min(16).optional(),
+  /** Per-client request budget for the versioned HTTP API. */
+  rateLimitRequests: z.coerce.number().int().positive().default(120),
+  /** Seconds required to refill a fully exhausted request budget. */
+  rateLimitWindowSeconds: z.coerce.number().int().positive().default(60),
+  /** Maximum client buckets retained by one process. */
+  rateLimitMaxClients: z.coerce.number().int().positive().default(10_000),
+  /** Trusted source of the caller IP for rate-limit buckets. */
+  rateLimitClientIpSource: z.enum(["socket", "x-forwarded-for", "x-real-ip"]).default("socket"),
   /**
    * Live payment status on the hosted checkout, over Server-Sent Events.
    *
@@ -787,6 +795,10 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     watcherRetentionSeconds: env.WATCHER_RETENTION_SECONDS,
     watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,
     adminToken: env.ADMIN_TOKEN,
+    rateLimitRequests: env.API_RATE_LIMIT_REQUESTS,
+    rateLimitWindowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
+    rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
+    rateLimitClientIpSource: env.RATE_LIMIT_CLIENT_IP_SOURCE,
     realtimeEnabled: env.REALTIME_ENABLED,
     realtimeMaxWatched: env.REALTIME_MAX_WATCHED,
     publicBaseUrl: env.PUBLIC_BASE_URL,
