@@ -1,10 +1,9 @@
 /**
  * Wallet guard tests (#11, RFC #6).
  *
- * The gap these close is live today: `merchantSafe` is read from
- * `merchants.settlement_address` and signed with no claim about who controls
- * it — and since #95 that field is writable through an authenticated API.
- * Everything here is a refusal.
+ * Explicit external addresses are authorised by the merchant's scoped,
+ * audited settings write. Managed fallbacks are chosen by Mayarin and remain
+ * payable only while the registry proves they belong to that merchant.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -41,17 +40,32 @@ describe("assertPayable", () => {
     await wallets.insert(wallet());
 
     await expect(
-      guard(wallets).assertPayable(MERCHANT, "base-sepolia", ADDRESS),
+      guard(wallets).assertPayable(MERCHANT, "base-sepolia", {
+        source: "managed",
+        address: ADDRESS,
+      }),
     ).resolves.toBeUndefined();
   });
 
-  test("an address the deployment has never seen is refused", async () => {
+  test("a configured external address need not exist in the wallet registry", async () => {
     const wallets = new InMemoryMerchantWalletRepository();
 
-    // The gap as it stands: a merchant sets any address through the settings
-    // API and the order signer signs a payment to it.
     await expect(
-      guard(wallets).assertPayable(MERCHANT, "base-sepolia", ADDRESS),
+      guard(wallets).assertPayable(MERCHANT, "base-sepolia", {
+        source: "configured",
+        address: ADDRESS,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  test("an unknown managed fallback is refused", async () => {
+    const wallets = new InMemoryMerchantWalletRepository();
+
+    await expect(
+      guard(wallets).assertPayable(MERCHANT, "base-sepolia", {
+        source: "managed",
+        address: ADDRESS,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -61,7 +75,10 @@ describe("assertPayable", () => {
     await wallets.insert(unverified);
 
     await expect(
-      guard(wallets).assertPayable(MERCHANT, "base-sepolia", ADDRESS),
+      guard(wallets).assertPayable(MERCHANT, "base-sepolia", {
+        source: "managed",
+        address: ADDRESS,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -71,24 +88,28 @@ describe("assertPayable", () => {
 
     let message = "";
     try {
-      await guard(wallets).assertPayable(MERCHANT, "base-sepolia", ADDRESS);
+      await guard(wallets).assertPayable(MERCHANT, "base-sepolia", {
+        source: "managed",
+        address: ADDRESS,
+      });
     } catch (error) {
       message = error instanceof Error ? error.message : "";
     }
 
     // Same message as the unknown case: distinguishing them would confirm
     // another merchant's payout address to whoever guessed it.
-    expect(message).toContain("not a wallet this deployment knows");
+    expect(message).toContain("managed settlement wallet is missing");
   });
 
   test("a treasury address is refused as a payout destination", async () => {
     const wallets = new InMemoryMerchantWalletRepository();
-    await wallets.insert(wallet({ address: TREASURY }));
-
     // A fee recipient that is also a payout destination pays a merchant twice
     // and is invisible in the ledger.
     await expect(
-      guard(wallets).assertPayable(MERCHANT, "base-sepolia", TREASURY),
+      guard(wallets).assertPayable(MERCHANT, "base-sepolia", {
+        source: "configured",
+        address: TREASURY,
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
@@ -97,7 +118,10 @@ describe("assertPayable", () => {
     await wallets.insert(wallet());
 
     await expect(
-      guard(wallets).assertPayable(MERCHANT, "base-sepolia", ADDRESS.toUpperCase()),
+      guard(wallets).assertPayable(MERCHANT, "base-sepolia", {
+        source: "managed",
+        address: ADDRESS.toUpperCase(),
+      }),
     ).resolves.toBeUndefined();
 
     expect(guard(wallets).isTreasury(TREASURY.toUpperCase())).toBe(true);

@@ -24,8 +24,13 @@ const STATUS_TONE: Readonly<Record<InvoiceStatus, string>> = {
 
 const DATE = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "Asia/Jakarta" });
 
-function formatDate(iso: string | null): string {
-  return iso === null ? "—" : DATE.format(new Date(iso));
+/** The issued/due line. An absent date is said in words, never as a dash. */
+function dateLine(issuedAt: string | null, dueAt: string | null): string {
+  const parts = [
+    issuedAt === null ? undefined : `Issued ${DATE.format(new Date(issuedAt))}`,
+    dueAt === null ? undefined : `Due ${DATE.format(new Date(dueAt))}`,
+  ].filter((part) => part !== undefined);
+  return parts.length === 0 ? "Not yet issued" : parts.join(" · ");
 }
 
 /**
@@ -76,9 +81,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       <header className="invoice-head">
         <div>
           <h1>Invoice {bootstrap.number ?? "(draft)"}</h1>
-          <p className="muted">
-            Issued {formatDate(bootstrap.issuedAt)} · Due {formatDate(bootstrap.dueAt)}
-          </p>
+          <p className="muted">{dateLine(bootstrap.issuedAt, bootstrap.dueAt)}</p>
         </div>
         <div>
           <p className={`badge ${STATUS_TONE[status]}`}>{STATUS_LABEL[status]}</p>

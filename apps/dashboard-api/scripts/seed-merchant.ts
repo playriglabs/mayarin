@@ -19,10 +19,11 @@
  *   bun run seed:merchant -- --email a@b.com --merchant-name "Acme" \
  *     [--password ...] [--permissions payments:read,users:manage,admin:access]
  *
- * A settlement address is configuration, not proof of control. For a
- * disposable development fixture only, pair it with
- * `--trust-settlement-address` to record the seed operator's assertion as a
- * verified linked wallet without a signature challenge.
+ * A settlement address is the merchant's external payout instruction and is
+ * immediately used by contract-path payments. It is not proof of wallet
+ * control. For a disposable development fixture that also needs a verified
+ * wallet record, pair it with `--trust-settlement-address` to record the seed
+ * operator's assertion without a signature challenge.
  *
  * Flags override prompts field-by-field, so `--merchant-name Acme` still prompts
  * for the rest. A strong random password is generated + printed once when no
@@ -307,29 +308,24 @@ try {
   // thing the whole wallet design refuses to do.
   if (trustedWallet !== undefined) {
     console.log("");
-    console.log(`Trusted settlement wallet on ${trustedWallet.chain}: ${trustedWallet.address}`);
+    console.log(`External settlement address: ${trustedWallet.address}`);
+    console.log(`Also registered as a trusted wallet on ${trustedWallet.chain}.`);
     console.log("WARNING: the seed operator asserted control; no signature proof was performed.");
     console.log("Use this bypass only for disposable development or test fixtures.");
   } else if (settlementAddress !== undefined) {
     console.log("");
-    console.log(
-      `Settlement address recorded but not verified on ${config.walletProvisionChain}: ${settlementAddress.toLowerCase()}`,
-    );
-    console.log("Contract-path payments will be refused until the merchant proves control:");
+    console.log(`External settlement address: ${settlementAddress.toLowerCase()}`);
+    console.log("Contract-path payments will settle directly to this address.");
+    console.log("It is not a verified wallet record. For wallet operations that require proof:");
     console.log("  1. Sign in to the dashboard → Wallets → Connect existing");
     console.log("  2. Link this address and sign its verification challenge");
-    console.log(
-      "For a disposable fixture, create it with both --settlement-address and --trust-settlement-address.",
-    );
   } else {
     console.log("");
     console.log("No settlement address. Nothing can be paid out until there is one:");
     console.log("  1. Sign in to the dashboard → Wallets → Connect existing (or Passkey)");
     console.log("  2. Prove control of it by signing the challenge");
     console.log("  3. Create managed wallet — the Safe becomes the settlement address");
-    console.log(
-      "Or seed a disposable fixture with --settlement-address 0x… --trust-settlement-address.",
-    );
+    console.log("Or set --settlement-address 0x… to settle directly to an external address.");
   }
 } catch (error) {
   console.error(

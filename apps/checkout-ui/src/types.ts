@@ -110,6 +110,10 @@ export interface PaymentStatusPayload {
     readonly status: string;
     readonly failureReason?: string | null;
   };
+  /** The clearing engine's own state — the only field that knows whether money arrived. */
+  readonly clearing?: {
+    readonly state: string;
+  } | null;
   readonly deposit?: {
     readonly uri: string | null;
     readonly amount: MoneyDto;

@@ -1,10 +1,24 @@
 import { describe, expect, test } from "bun:test";
+import { walletAmount } from "./amount.ts";
 import { checkoutBody } from "./checkout-body.ts";
 import { remainingAt } from "./countdown.ts";
 import { currencySymbol } from "./currency-symbol.ts";
 import { usableDeposit } from "./payment-status.ts";
 import type { LinkBootstrap } from "./types.ts";
-import { isTerminal, statusWording } from "./wording.ts";
+import { isTerminal, paymentStage, statusWording } from "./wording.ts";
+
+describe("wallet amount", () => {
+  test("trims trailing zeros from the machine decimal and nothing else", () => {
+    expect(walletAmount("3.500000")).toBe("3.5");
+    expect(walletAmount("50000.00")).toBe("50000");
+    expect(walletAmount("0.000001")).toBe("0.000001");
+    expect(walletAmount("0.000000")).toBe("0");
+  });
+
+  test("leaves a whole number untouched", () => {
+    expect(walletAmount("3500000")).toBe("3500000");
+  });
+});
 
 describe("currency symbols", () => {
   test("uses the familiar symbol for counter checkout fiat currencies", () => {
@@ -89,6 +103,22 @@ describe("status wording", () => {
     expect(isTerminal("FAILED")).toBe(true);
     expect(isTerminal("EXPIRED")).toBe(true);
     expect(isTerminal("PROCESSING")).toBe(false);
+  });
+});
+
+describe("payment stage", () => {
+  test("only a clearing state that saw money counts as confirming", () => {
+    expect(paymentStage("ASSET_RECEIVED")).toBe("confirming");
+    expect(paymentStage("CLEARING")).toBe("confirming");
+    expect(paymentStage("SETTLING")).toBe("confirming");
+    expect(paymentStage("SETTLED")).toBe("confirming");
+  });
+
+  test("a confirmed intent is still waiting — pressing Continue moves no money", () => {
+    expect(paymentStage("")).toBe("waiting");
+    expect(paymentStage("PRICE_LOCKED")).toBe("waiting");
+    expect(paymentStage("PAYMENT_PENDING")).toBe("waiting");
+    expect(paymentStage("CONFIRMED")).toBe("waiting");
   });
 });
 

@@ -22,7 +22,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   const { payable, currency, total, lines, accepted, lockMinutes } = bootstrap;
   const [asset, setAsset] = useState<string | undefined>(accepted[0]);
   const [amount, setAmount] = useState("");
-  const [estimate, setEstimate] = useState("—");
+  const [estimate, setEstimate] = useState("Calculating…");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -34,11 +34,11 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (currency === null || asset === undefined || Number(typedAmount) <= 0) {
-      setEstimate("—");
+      setEstimate("Enter an amount");
       return;
     }
     clearTimeout(debounce.current);
-    setEstimate("…");
+    setEstimate("Calculating…");
     debounce.current = setTimeout(async () => {
       try {
         const response = await fetch("/v1/quotes", {
@@ -114,7 +114,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
         totalDisplay={total?.display ?? `${displayCurrency} ${amount || "0"}`}
         lines={lines}
       />
-      <section className="checkout-panel" aria-label="Detail pembayaran">
+      <section className="checkout-panel" aria-label="Payment details">
         <div className="payment-form">
           <p className="section-kicker">Secure checkout</p>
           <h2>Choose how to pay</h2>

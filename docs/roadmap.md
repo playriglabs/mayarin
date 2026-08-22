@@ -330,13 +330,13 @@ the same port.
 set always includes a merchant-controlled key (Turnkey is a co-signer/policy
 engine, never the sole signer), and a merchant-controlled recovery path lets
 the merchant rotate to self-custody on exit — _provisioned, not custodial._
-The PaymentRouter signer (#6, HSM-held) only signs Orders whose `merchantSafe`
-is a known merchant-owned Safe, and `feeRecipient` is a separate treasury Safe,
-not a merchant Safe. Both are enforced rather than intended: `WalletGuard`
-refuses a payout destination that is not a verified wallet of the merchant being
-paid, and a deployment whose `TREASURY_ADDRESS` is already somebody's merchant
-wallet does not boot. The contract treated `merchantSafe` as opaque throughout,
-so #11 made managed onboarding production-grade without a contract change.
+The PaymentRouter signer (#6, HSM-held) signs either an authenticated, audited
+external payout instruction or a verified managed-wallet fallback, and
+`feeRecipient` is a separate treasury Safe. `WalletGuard` enforces those
+source-specific rules, refuses treasury payout destinations, and prevents a
+deployment from booting when `TREASURY_ADDRESS` is already somebody's merchant
+wallet. The contract treated `merchantSafe` as opaque throughout, so #11 made
+managed onboarding production-grade without a contract change.
 
 Where the boundary honestly still rests on a vendor: the passkey key lives in a
 Turnkey sub-organization Mayarin is not a user of, so "Mayarin cannot sign with
