@@ -63,8 +63,8 @@ display face for the wordmark.
   scroll-snap row from `md` up (a long page below), each slide declares its own reveal — the
   headline and bullets stay put, the visual moves in the way that fits it — and some slides carry
   a backdrop from `graphics/` (grid field, wave plane) or the dark `Globe`. Keyboard: arrows,
-  paging keys, Home/End, `F` fullscreen, `N` notes; a vertical wheel turns one page. Lenis does
-  not mount here — it would fight the snap.
+  paging keys, Home/End, `F` fullscreen, `N` notes, `T` presenter timer, `R` timer reset; a
+  vertical wheel turns one page. Lenis does not mount here — it would fight the snap.
 
 ## Logos
 

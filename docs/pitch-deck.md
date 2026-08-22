@@ -9,8 +9,12 @@ changes, change it here first. RFC #168 is the design record.
 
 **Time box: 7 minutes.** Seven core slides, timed below to 6:20, leave 40
 seconds of slack for the live wallet and chain. The 2:10 demo is part of slide
-4, not an optional extra. Three backup slides sit after the core deck for
+4, not an optional extra. Four backup slides sit after the core deck for
 questions and are not presented.
+
+The rendered deck carries a presenter timer for rehearsal and the stage: `T`
+starts or pauses it, `R` resets it. It shows elapsed time against the plan
+through the current slide and turns red when the pitch runs behind.
 
 ---
 
@@ -368,6 +372,39 @@ Base Sepolia (`docs/chain.md`): `PaymentRouter`
 `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9`, `TimelockController`
 `0x0c006FC14063e3F78271312B975231e4BD6e8B00`, `DepositForwarderFactory`
 `0x598F64551456BCa2536386ED54A24412E3e32fCe`.
+
+### D — How Mayarin compares
+
+**Headline:** Gateway simplicity, with a different custody answer.
+
+**Copy:**
+
+- **Custodial gateways — Triple-A, BitPay.** The processor receives the crypto
+  and pays the merchant out afterwards. Simple, but the merchant trusts the
+  processor's balance sheet.
+- **Ecosystem gateways — Coinbase Commerce.** Self-custody settlement, inside
+  one vendor's stack and asset list.
+- **Build it in-house.** Back to the slide-3 problem: keys, swaps, gas,
+  reconciliation.
+- **Mayarin.** Settlement lands in a merchant-controlled wallet in the payment
+  transaction itself, on provider-agnostic ports, priced in local fiat.
+
+**Visual:** four settlement paths in mono, one per approach; the Mayarin row
+closes in accent: `payer → contract → merchant wallet · one atomic
+transaction`.
+
+**Notes:** use this slide only when a comparison question comes; never present
+it unprompted. The likely form is "how is this different from Triple-A?" —
+Triple-A holds a Singapore payment-institution licence, and the jury may know
+it. The one-line answer: a custodial processor shields the merchant from
+crypto by holding it; Mayarin shields the merchant from crypto without holding
+it. If the follow-up is "but merchants want fiat": the fiat off-ramp is a
+later phase with its own custody perimeter, and today's target merchant wants
+stablecoin settlement (backup B carries the depeg boundary). These are
+licensed, shipping products — the difference is architectural, not a quality
+ranking; say nothing about them that their own sites do not. Check the
+competitor wording against their public sites (triple-a.io,
+coinbase.com/commerce, bitpay.com) before presenting.
 
 ---
 

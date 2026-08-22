@@ -12,6 +12,7 @@ import { SLIDES, type Slide } from "./slides.tsx";
  */
 
 const CORE = SLIDES.filter((slide) => !slide.backup);
+const TOTAL_SECONDS = CORE.reduce((sum, slide) => sum + (slide.seconds ?? 0), 0);
 /** Minimum wheel delta that counts as "turn the page". */
 const WHEEL_THRESHOLD = 24;
 /** One page per wheel gesture: ignore further deltas for this long. */
@@ -86,6 +87,8 @@ function reveal(section: HTMLElement, slide: Slide) {
 export function PitchDeck() {
   const [active, setActive] = useState(0);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [timerOn, setTimerOn] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const track = useRef<HTMLElement | null>(null);
   const sections = useRef<(HTMLElement | null)[]>([]);
   const shown = useRef<Set<number>>(new Set());
@@ -119,6 +122,14 @@ export function PitchDeck() {
       if (robots && previousRobots !== null) robots.setAttribute("content", previousRobots);
     };
   }, []);
+
+  // The presenter timer counts stage time against the plan. T starts and
+  // pauses it, R resets it.
+  useEffect(() => {
+    if (!timerOn) return;
+    const id = window.setInterval(() => setElapsed((seconds) => seconds + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [timerOn]);
 
   // Land on the slide the URL names, without animation.
   useEffect(() => {
@@ -208,6 +219,15 @@ export function PitchDeck() {
         case "N":
           setNotesOpen((open) => !open);
           break;
+        case "t":
+        case "T":
+          setTimerOn((on) => !on);
+          break;
+        case "r":
+        case "R":
+          setTimerOn(false);
+          setElapsed(0);
+          break;
         case "Escape":
           setNotesOpen(false);
           break;
@@ -240,6 +260,12 @@ export function PitchDeck() {
   }, [goTo]);
 
   const current = SLIDES[active] ?? SLIDES[0];
+  /** The plan through the current slide: where the clock is allowed to stand. */
+  const planned = useMemo(() => {
+    if (!current || current.backup) return TOTAL_SECONDS;
+    const position = CORE.indexOf(current);
+    return CORE.slice(0, position + 1).reduce((sum, slide) => sum + (slide.seconds ?? 0), 0);
+  }, [current]);
   const counter = useMemo(() => {
     if (!current) return "";
     if (current.backup) return current.label.split(" — ")[0] ?? "Backup";
@@ -324,6 +350,22 @@ export function PitchDeck() {
           </ol>
 
           <div class="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setTimerOn((on) => !on)}
+              aria-pressed={timerOn}
+              aria-label={timerOn ? "Pause the presenter timer" : "Start the presenter timer"}
+              class={clsx(
+                "hidden h-9 items-center border border-line-inverse px-3 font-mono text-xs transition-colors hover:border-accent md:inline-flex",
+                timerOn
+                  ? elapsed > planned
+                    ? "text-red-400"
+                    : "text-accent"
+                  : "text-slate-inverse",
+              )}
+            >
+              {formatClock(elapsed)} / {formatClock(planned)}
+            </button>
             <span class="font-mono text-xs text-slate-inverse" aria-hidden="true">
               {counter}
             </span>
@@ -378,7 +420,7 @@ export function PitchDeck() {
               ))}
             </ul>
             <p class="label mt-8 leading-relaxed text-slate-inverse">
-              Keys · ← → ↑ ↓ · Home End · F fullscreen · N notes · Esc
+              Keys · ← → ↑ ↓ · Home End · F fullscreen · N notes · T timer · R reset · Esc
             </p>
           </>
         ) : null}

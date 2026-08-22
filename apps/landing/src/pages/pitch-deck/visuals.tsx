@@ -565,6 +565,44 @@ export function RiskColumns() {
   );
 }
 
+const COMPARE_PATHS = [
+  [
+    "Custodial gateway",
+    "Triple-A · BitPay",
+    "payer → processor custody → scheduled payout → merchant",
+  ],
+  ["Ecosystem gateway", "Coinbase Commerce", "payer → one vendor's stack → merchant wallet"],
+  ["Build it in-house", "Wallet + DEX + scripts", "payer → your keys, swaps, gas → your ledger"],
+] as const;
+
+export function ComparePaths() {
+  return (
+    <div class="flex flex-col">
+      {COMPARE_PATHS.map(([model, who, path]) => (
+        <div
+          key={model}
+          data-reveal
+          class="flex flex-col gap-1.5 border-t border-line-inverse py-4"
+        >
+          <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <span class="font-sans text-base text-white md:text-lg">{model}</span>
+            <span class="label text-slate-inverse">{who}</span>
+          </div>
+          <span class="font-mono text-xs leading-relaxed text-slate-inverse md:text-sm">
+            {path}
+          </span>
+        </div>
+      ))}
+      <div data-reveal class="flex flex-col gap-1.5 border-y border-accent py-4">
+        <span class="font-sans text-base text-white md:text-lg">Mayarin</span>
+        <span class="font-mono text-xs leading-relaxed text-accent md:text-sm">
+          payer → contract → merchant wallet · one atomic transaction
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const CLAIMS = [
   ["Atomic receive → swap → settle in one transaction", "Live", "chain.md"],
   ["Contract holds no balance between payments", "Live", "chain.md"],
