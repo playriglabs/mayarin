@@ -28,7 +28,7 @@ export function ProductImage({
     <img
       src={src}
       alt={name}
-      className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
       loading="lazy"
       decoding="async"
     />

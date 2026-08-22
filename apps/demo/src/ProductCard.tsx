@@ -16,7 +16,7 @@ export function ProductCard({
 
   return (
     <li className="card">
-      <button type="button" className="card-open group" onClick={onOpen} aria-label={product.name}>
+      <button type="button" className="card-open group" onClick={onOpen}>
         <div className="media">
           <ProductImage
             image={product.metadata.image}

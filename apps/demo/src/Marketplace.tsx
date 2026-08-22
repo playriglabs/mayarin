@@ -125,7 +125,15 @@ export function Marketplace() {
 
       <main className="shop" id="koleksi">
         <div className="shop-head">
-          <h2>Collection</h2>
+          <div className="flex flex-col gap-2">
+            <h2>Collection</h2>
+            {catalog.status === "ready" && (
+              <p className="result-count" aria-live="polite">
+                {visible.length} {visible.length === 1 ? "product" : "products"}
+                {category === ALL ? "" : ` · ${category}`}
+              </p>
+            )}
+          </div>
           {catalog.status === "ready" && (
             <fieldset className="filters">
               {categories.map((entry) => (
@@ -136,6 +144,7 @@ export function Marketplace() {
                   aria-pressed={entry === category}
                   onClick={() => setCategory(entry)}
                 >
+                  {entry === category && <span className="chip-dot" aria-hidden="true" />}
                   {entry}
                 </button>
               ))}
@@ -156,12 +165,16 @@ export function Marketplace() {
           </ul>
         )}
         {catalog.status === "error" && (
-          <p className="notice error" role="alert">
-            {catalog.message}
-          </p>
+          <div className="state-panel">
+            <p className="notice error" role="alert">
+              {catalog.message}
+            </p>
+          </div>
         )}
         {catalog.status === "ready" && visible.length === 0 && (
-          <p className="notice">There are no products in this category yet.</p>
+          <div className="state-panel">
+            <p className="notice">There are no products in this category yet.</p>
+          </div>
         )}
         {catalog.status === "ready" && visible.length > 0 && (
           <ul className="grid">
