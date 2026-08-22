@@ -11,11 +11,15 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { InvoicePage } from "./InvoicePage.tsx";
 import { LinkPage } from "./LinkPage.tsx";
-import { PayPage } from "./PayPage.tsx";
+import { DepositCard, Outcome, PayPage } from "./PayPage.tsx";
 import type { InvoiceBootstrap, LinkBootstrap, MoneyDto, PayBootstrap } from "./types.ts";
 
 function idr(display: string): MoneyDto {
   return { amount: "0", asset: "IDR", formatted: "0.00", display };
+}
+
+function usdc(amount: string, formatted: string, display: string): MoneyDto {
+  return { amount, asset: "USDC", formatted, display };
 }
 
 const linkBootstrap: LinkBootstrap = {
@@ -142,6 +146,58 @@ describe("pay page", () => {
   });
 });
 
+describe("deposit card", () => {
+  const deposit = {
+    uri: "ethereum:0xDeposit",
+    amount: usdc("3500000", "3.500000", "3,50 USDC"),
+    chain: "base-sepolia",
+    address: "0xDeposit",
+    received: usdc("0", "0.000000", "0,00 USDC"),
+  };
+
+  function render(copied: "amount" | "address" | undefined) {
+    return renderToStaticMarkup(
+      <DepositCard
+        deposit={deposit}
+        localPrice="Rp 50.000,00"
+        intentId="pi_1"
+        copied={copied}
+        onCopy={() => {}}
+      />,
+    );
+  }
+
+  test("the send amount is the machine form; the fiat row keeps the locale form", () => {
+    const html = render(undefined);
+    // Wallet input: dot decimal, trailing zeros trimmed, asset code beside it.
+    expect(html).toContain("3.5 USDC");
+    // The localized comma form never appears near a wallet.
+    expect(html).not.toContain("3,50");
+    expect(html).toContain("Rp 50.000,00");
+    expect(html).toContain("0 USDC");
+  });
+
+  test("both values a wallet needs carry a copy button", () => {
+    const html = render(undefined);
+    expect(html).toContain("Copy amount");
+    expect(html).toContain("Copy payment address");
+  });
+
+  test("the copied confirmation names what was copied", () => {
+    expect(render("amount")).toContain("Amount copied");
+    expect(render("address")).toContain("Address copied");
+  });
+});
+
+describe("outcome", () => {
+  test("each terminal state has words, not placeholders", () => {
+    expect(renderToStaticMarkup(<Outcome status="COMPLETED" />)).toContain("Payment completed");
+    expect(renderToStaticMarkup(<Outcome status="EXPIRED" />)).toContain("Payment expired");
+    expect(renderToStaticMarkup(<Outcome status="FAILED" />)).toContain("Payment failed");
+    expect(renderToStaticMarkup(<Outcome status="FAILED" />)).not.toContain("—");
+  });
+});
+
 describe("invoice page", () => {
   test("renders the document: parties, lines, and the derived figures", () => {
     const html = renderToStaticMarkup(<InvoicePage bootstrap={invoiceBootstrap} />);
@@ -155,6 +211,22 @@ describe("invoice page", () => {
     expect(html).toContain("Pay with");
     expect(html).toContain("USDC");
     expect(html).toContain("Pay Rp 125.000,00");
+  });
+
+  test("a draft without dates says so in words, not with a dash", () => {
+    const html = renderToStaticMarkup(
+      <InvoicePage
+        bootstrap={{
+          ...invoiceBootstrap,
+          number: null,
+          status: "draft",
+          issuedAt: null,
+          dueAt: null,
+        }}
+      />,
+    );
+    expect(html).toContain("Not yet issued");
+    expect(html).not.toContain("—");
   });
 
   test("a settled invoice offers no payment button", () => {

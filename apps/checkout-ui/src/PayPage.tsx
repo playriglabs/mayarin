@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssetLogo } from "./AssetLogo.tsx";
+import { walletAmount } from "./amount.ts";
 import { CheckoutSummary } from "./CheckoutSummary.tsx";
 import { remainingAt } from "./countdown.ts";
 import { usableDeposit } from "./payment-status.ts";
@@ -8,6 +9,8 @@ import { isTerminal } from "./wording.ts";
 
 type Deposit = NonNullable<PaymentStatusPayload["deposit"]>;
 
+type CopyTarget = "amount" | "address";
+
 /**
  * The payment page: exactly what to send, where, and how long is left.
  *
@@ -15,14 +18,17 @@ type Deposit = NonNullable<PaymentStatusPayload["deposit"]>;
  * not dead code kept out of caution — it is the path a payer behind a proxy
  * that buffers streaming responses actually takes, and a payer who cannot
  * stream must still be able to pay.
+ *
+ * A terminal payment replaces the whole live surface: the countdown, the
+ * timeline, and the update note all leave with the deposit card, because a
+ * decided payment must stop looking like one that is still waiting.
  */
 export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const { intentId, expiresAt, statusUrl, streaming, successUrl, pollMs } = bootstrap;
 
   const [rawStatus, setRawStatus] = useState("");
   const [deposit, setDeposit] = useState<Deposit | undefined>(undefined);
-  const [mode, setMode] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<CopyTarget | undefined>(undefined);
   const [now, setNow] = useState(() => Date.now());
 
   const pollTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
@@ -59,22 +65,20 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   useEffect(() => {
     void refresh();
 
-    const startPolling = (reason: string) => {
+    const startPolling = () => {
       if (pollTimer.current !== undefined) return;
-      setMode(reason);
       pollTimer.current = setInterval(() => void refresh(), pollMs);
     };
 
     if (streaming && "EventSource" in window) {
       const stream = new EventSource(`/checkout/events/${intentId}`);
       source.current = stream;
-      stream.addEventListener("open", () => setMode("Updates automatically."));
       stream.addEventListener("payment", () => void refresh());
       // Falls back rather than retrying forever: EventSource reconnects on its
       // own, but a proxy that buffers the stream would leave the page silent.
-      stream.addEventListener("error", () => startPolling("Checking status periodically."));
+      stream.addEventListener("error", startPolling);
     } else {
-      startPolling("Checking status periodically.");
+      startPolling();
     }
 
     return () => {
@@ -82,6 +86,19 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
       source.current?.close();
     };
   }, [refresh, streaming, intentId, pollMs]);
+
+  // The copied confirmation reverts on its own, so the button reads as an
+  // action again rather than as a permanent state.
+  useEffect(() => {
+    if (copied === undefined) return;
+    const timer = setTimeout(() => setCopied(undefined), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const copy = (target: CopyTarget, text: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopied(target);
+  };
 
   const remaining = remainingAt(expiresAt, now);
 
@@ -93,20 +110,22 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
         totalDisplay={bootstrap.amount.display}
         lines={bootstrap.lines}
       />
-      <section className="checkout-panel" aria-label="Instruksi pembayaran">
+      <section className="checkout-panel" aria-label="Payment instructions">
         <div className="payment-form pay-detail">
           <div className="pay-heading">
             <div>
               <p className="section-kicker">Secure payment</p>
               <h2>{terminal ? "Payment status" : "Complete your payment"}</h2>
             </div>
-            <div className={`timer${remaining.low ? " low" : ""}`}>
-              <span>Time left</span>
-              <strong>{terminal ? "—" : remaining.text}</strong>
-            </div>
+            {!terminal && (
+              <div className={`timer${remaining.low ? " low" : ""}`}>
+                <span>Time left</span>
+                <strong>{remaining.text}</strong>
+              </div>
+            )}
           </div>
 
-          <StatusTimeline status={rawStatus} />
+          {!terminal && <StatusTimeline status={rawStatus} />}
 
           {terminal ? (
             <Outcome status={rawStatus} />
@@ -119,74 +138,17 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
               </div>
             </div>
           ) : (
-            <>
-              <div className="send-amount">
-                <span>Send this exact amount</span>
-                <strong>
-                  <AssetLogo symbol={deposit.amount.asset} size={30} />
-                  {deposit.amount.display}
-                </strong>
-              </div>
-              {deposit.uri !== null && (
-                <div className="qr">
-                  <img
-                    alt={`QR payment ${deposit.amount.asset} at ${deposit.chain}`}
-                    src={`/checkout/qr?value=${encodeURIComponent(deposit.uri)}`}
-                  />
-                </div>
-              )}
-              <dl className="payment-data">
-                <div>
-                  <dt>Local price</dt>
-                  <dd>{bootstrap.amount.display}</dd>
-                </div>
-                <div>
-                  <dt>Aset</dt>
-                  <dd className="asset-value">
-                    <AssetLogo symbol={deposit.amount.asset} size={18} />
-                    {deposit.amount.asset}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Network</dt>
-                  <dd>{deposit.chain}</dd>
-                </div>
-                <div className="address-row">
-                  <dt>Address</dt>
-                  <dd>
-                    <code>{deposit.address}</code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Amount received</dt>
-                  <dd>{deposit.received.display}</dd>
-                </div>
-                <div>
-                  <dt>Reference ID</dt>
-                  <dd>
-                    <code>{intentId}</code>
-                  </dd>
-                </div>
-              </dl>
-              <button
-                type="button"
-                className="copy"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(deposit.address);
-                  setCopied(true);
-                }}
-              >
-                {copied ? "Address copied" : "Copy payment address"}
-              </button>
-              <p className="estimate-note">
-                Send only {deposit.amount.asset} on {deposit.chain}. A smaller amount or an asset on
-                another network will not complete this payment.
-              </p>
-            </>
+            <DepositCard
+              deposit={deposit}
+              localPrice={bootstrap.amount.display}
+              intentId={intentId}
+              copied={copied}
+              onCopy={copy}
+            />
           )}
 
-          {mode !== "" && <p className="connection-mode">{mode}</p>}
-          {deposit === undefined && (
+          {!terminal && <p className="connection-mode">This page updates automatically.</p>}
+          {deposit === undefined && !terminal && (
             <p className="reference">
               Reference ID <code>{intentId}</code>
             </p>
@@ -197,19 +159,116 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   );
 }
 
-function StatusTimeline({ status }: { readonly status: string }) {
-  const order = ["PENDING", "CONFIRMED", "PROCESSING", "COMPLETED"] as const;
-  const labels = ["Waiting for payment", "Asset received", "Processing", "Completed"] as const;
-  const current = order.indexOf(status as (typeof order)[number]);
-  const failed = status === "FAILED" || status === "EXPIRED";
+/**
+ * What to send and where. Both values a payer must reproduce in a wallet — the
+ * amount and the address — render in machine form and carry a copy button.
+ * The localized `display` form appears only on the fiat "Local price" row.
+ */
+export function DepositCard({
+  deposit,
+  localPrice,
+  intentId,
+  copied,
+  onCopy,
+}: {
+  readonly deposit: Deposit;
+  readonly localPrice: string;
+  readonly intentId: string;
+  readonly copied: CopyTarget | undefined;
+  readonly onCopy: (target: CopyTarget, text: string) => void;
+}) {
+  const amount = walletAmount(deposit.amount.formatted);
 
   return (
-    <ol className="status-timeline" aria-label="Progres pembayaran">
+    <>
+      <div className="send-amount">
+        <span>Send this exact amount</span>
+        <strong>
+          <AssetLogo symbol={deposit.amount.asset} size={30} />
+          {amount} {deposit.amount.asset}
+        </strong>
+        <button
+          type="button"
+          className="copy"
+          aria-label={`Copy the amount ${amount}`}
+          onClick={() => onCopy("amount", amount)}
+        >
+          {copied === "amount" ? "Amount copied" : "Copy amount"}
+        </button>
+      </div>
+      {deposit.uri !== null && (
+        <div className="qr">
+          <img
+            alt={`QR payment ${deposit.amount.asset} at ${deposit.chain}`}
+            src={`/checkout/qr?value=${encodeURIComponent(deposit.uri)}`}
+          />
+        </div>
+      )}
+      <dl className="payment-data">
+        <div>
+          <dt>Local price</dt>
+          <dd>{localPrice}</dd>
+        </div>
+        <div>
+          <dt>Asset</dt>
+          <dd className="asset-value">
+            <AssetLogo symbol={deposit.amount.asset} size={18} />
+            {deposit.amount.asset}
+          </dd>
+        </div>
+        <div>
+          <dt>Network</dt>
+          <dd>{deposit.chain}</dd>
+        </div>
+        <div className="address-row">
+          <dt>Address</dt>
+          <dd>
+            <code>{deposit.address}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Amount received</dt>
+          <dd>
+            {walletAmount(deposit.received.formatted)} {deposit.received.asset}
+          </dd>
+        </div>
+        <div>
+          <dt>Reference ID</dt>
+          <dd>
+            <code>{intentId}</code>
+          </dd>
+        </div>
+      </dl>
+      <button
+        type="button"
+        className="copy"
+        aria-label="Copy the payment address"
+        onClick={() => onCopy("address", deposit.address)}
+      >
+        {copied === "address" ? "Address copied" : "Copy payment address"}
+      </button>
+      <p className="estimate-note">
+        Send only {deposit.amount.asset} on {deposit.chain}. A smaller amount or an asset on another
+        network will not complete this payment.
+      </p>
+    </>
+  );
+}
+
+/**
+ * The payer's model of the payment, not the machine's. Three steps cover the
+ * whole pending phase; the terminal phase never reaches this component — the
+ * outcome card replaces the entire live surface.
+ */
+function StatusTimeline({ status }: { readonly status: string }) {
+  const labels = ["Waiting for payment", "Confirming", "Done"] as const;
+  const current = status === "CONFIRMED" || status === "PROCESSING" ? 1 : 0;
+
+  return (
+    <ol className="status-timeline" aria-label="Payment progress">
       {labels.map((label, index) => (
         <li
-          className={
-            failed ? "failed" : index < current ? "complete" : index === current ? "current" : ""
-          }
+          className={index < current ? "complete" : index === current ? "current" : ""}
           key={label}
           aria-current={index === current ? "step" : undefined}
         >
@@ -229,7 +288,7 @@ function StatusTimeline({ status }: { readonly status: string }) {
  * same mistake in the failed and expired case as in the paid one, so all three
  * replace the card rather than only the happy path.
  */
-function Outcome({ status }: { readonly status: string }) {
+export function Outcome({ status }: { readonly status: string }) {
   const paid = status === "COMPLETED";
   const heading = paid
     ? "Payment completed"

@@ -277,7 +277,7 @@
     @apply bg-danger;
   }
   .status-timeline {
-    @apply mt-5.5 mb-6 grid list-none grid-cols-4 p-0;
+    @apply mt-5.5 mb-6 grid list-none grid-cols-3 p-0;
   }
   .status-timeline li {
     @apply relative pt-5 text-center text-[9.5px] text-subtle sm:text-[12px];
@@ -305,9 +305,6 @@
   }
   .status-timeline .current i {
     @apply motion-safe:animate-pulse;
-  }
-  .status-timeline .failed i {
-    @apply bg-danger shadow-[0_0_0_1px_var(--color-danger)];
   }
   .preparing {
     @apply flex min-h-40 items-center justify-center gap-3.5 rounded-xs border border-dashed border-field;
