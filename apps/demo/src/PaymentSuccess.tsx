@@ -99,61 +99,68 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
   }, [referencePaymentId]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 p-5">
-      <section className="w-full max-w-xl border border-zinc-950 bg-white px-8 py-14 text-center shadow-xl sm:px-14">
-        <p className="mb-3 text-xs font-bold tracking-[0.14em] text-zinc-950 uppercase">
+    <main className="flex min-h-screen items-center justify-center bg-ground p-5">
+      <section className="w-full max-w-xl border border-ink bg-panel px-8 py-14 text-center sm:px-14">
+        <p className="mb-3 text-xs font-bold tracking-[0.14em] text-ink uppercase">
           {details?.merchantName ?? "Parahyangan Supply"}
         </p>
-        <h1 className="m-0 font-display text-4xl">
-          {state === "success"
-            ? "Payment successful"
-            : state === "not-found"
-              ? "Payment not found"
-              : state === "error"
-                ? "Verification delayed"
-                : "Confirming your payment"}
-        </h1>
-        <p className="mx-auto my-5 max-w-md leading-7 text-[#625b52]">
-          {state === "success"
-            ? "Thank you. Mayarin confirmed your payment and the merchant can now prepare your order."
-            : state === "not-found"
-              ? "This payment reference does not exist or is not available to this merchant. Check the link and try again."
-              : state === "error"
-                ? "Your payment page reported completion, but this store could not verify the webhook yet. Please keep this reference."
-                : "The payment completed. We are waiting for the signed merchant webhook to arrive."}
-        </p>
+        <div aria-live="polite">
+          <h1 className="m-0 font-display text-4xl">
+            {state === "success"
+              ? "Payment successful"
+              : state === "not-found"
+                ? "Payment not found"
+                : state === "error"
+                  ? "Verification delayed"
+                  : "Confirming your payment"}
+          </h1>
+          <p className="mx-auto my-5 max-w-md leading-7 text-ink-soft">
+            {state === "success"
+              ? "Thank you. Mayarin confirmed your payment and the merchant can now prepare your order."
+              : state === "not-found"
+                ? "This payment reference does not exist or is not available to this merchant. Check the link and try again."
+                : state === "error"
+                  ? "Your payment page reported completion, but this store could not verify the webhook yet. Please keep this reference."
+                  : "The payment completed. We are waiting for the signed merchant webhook to arrive."}
+          </p>
+        </div>
+
+        {state === "waiting" && (
+          <p className="mb-5 inline-flex items-center gap-2 text-sm text-ink-soft">
+            <span className="spinner" aria-hidden="true" />
+            Verifying with the merchant…
+          </p>
+        )}
 
         {state === "success" && details !== null && (
-          <dl className="mx-auto my-6 max-w-md space-y-3 border-y border-zinc-200 py-5 text-left text-sm">
+          <dl className="mx-auto my-6 max-w-md space-y-3 border-y border-line py-5 text-left text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-[#625b52]">Amount</dt>
-              <dd className="font-bold text-zinc-950">{details.amountDisplay}</dd>
+              <dt className="text-ink-soft">Amount</dt>
+              <dd className="font-bold text-ink">{details.amountDisplay}</dd>
             </div>
             {details.paidWith !== null && (
               <div className="flex justify-between gap-4">
-                <dt className="text-[#625b52]">Paid with</dt>
-                <dd className="font-bold text-zinc-950">{details.paidWith}</dd>
+                <dt className="text-ink-soft">Paid with</dt>
+                <dd className="font-bold text-ink">{details.paidWith}</dd>
               </div>
             )}
             {details.completedAt !== null && (
               <div className="flex justify-between gap-4">
-                <dt className="text-[#625b52]">Completed</dt>
-                <dd className="text-zinc-950">{formatCompleted(details.completedAt)}</dd>
+                <dt className="text-ink-soft">Completed</dt>
+                <dd className="text-ink">{formatCompleted(details.completedAt)}</dd>
               </div>
             )}
             {details.merchantReference !== null && (
               <div className="flex justify-between gap-4">
-                <dt className="text-[#625b52]">Order ref</dt>
-                <dd className="wrap-anywhere text-zinc-950">{details.merchantReference}</dd>
+                <dt className="text-ink-soft">Order ref</dt>
+                <dd className="wrap-anywhere text-ink">{details.merchantReference}</dd>
               </div>
             )}
           </dl>
         )}
-        <code className="block wrap-anywhere bg-[#eee7dc] px-4 py-3 text-sm">
-          {referencePaymentId}
-        </code>
+        <code className="block wrap-anywhere bg-mist px-4 py-3 text-sm">{referencePaymentId}</code>
         <a
-          className="mt-8 inline-flex min-h-12 items-center justify-center border border-zinc-950 bg-zinc-950 px-6 font-bold text-white no-underline transition-colors hover:bg-pink-500 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950"
+          className="mt-8 inline-flex min-h-12 items-center justify-center border border-ink bg-ink px-6 font-bold text-white no-underline transition-colors hover:border-accent hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           href="/"
         >
           Back to the marketplace

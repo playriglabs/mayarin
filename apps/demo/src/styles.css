@@ -256,14 +256,15 @@
     @apply size-4 animate-spin rounded-full border-2 border-current border-t-transparent;
   }
 
-  .cart-layer {
-    @apply fixed inset-0 z-40;
+  /* A closed dialog must keep the UA's display:none, so flex lives on [open]. */
+  .cart-dialog {
+    @apply fixed top-0 right-0 bottom-0 left-auto m-0 h-dvh max-h-none w-[min(440px,100vw)] max-w-none flex-col gap-5 overflow-hidden border-0 bg-panel p-6 shadow-raised;
   }
-  .cart-backdrop {
-    @apply absolute inset-0 h-full w-full border-0 bg-ink/60 backdrop-blur-sm;
+  .cart-dialog[open] {
+    @apply flex;
   }
-  .cart-drawer {
-    @apply absolute top-0 right-0 flex h-dvh w-[min(440px,100vw)] flex-col gap-5 overflow-y-auto bg-panel p-6 shadow-raised;
+  .cart-dialog::backdrop {
+    @apply bg-ink/60 backdrop-blur-sm;
   }
   .cart-head,
   .cart-line-actions,
@@ -274,13 +275,16 @@
     @apply m-0 font-display text-3xl font-semibold;
   }
   .cart-close {
-    @apply grid size-11 place-items-center border border-line bg-panel text-3xl hover:bg-mist;
+    @apply grid size-11 shrink-0 place-items-center border border-line bg-panel text-3xl hover:bg-mist;
   }
   .cart-empty {
-    @apply my-auto text-ink-soft;
+    @apply my-auto flex flex-col items-center gap-5 text-center text-ink-soft;
+  }
+  .cart-continue {
+    @apply inline-flex min-h-12 items-center justify-center border border-ink bg-panel px-5 font-semibold text-ink transition hover:bg-mist;
   }
   .cart-lines {
-    @apply m-0 grid list-none p-0;
+    @apply m-0 grid min-h-0 grow list-none content-start overflow-y-auto p-0;
   }
   .cart-lines li {
     @apply grid gap-4 border-t border-line py-5 last:border-b;
@@ -297,7 +301,7 @@
   .cart-summary {
     @apply mt-auto border-t border-ink pt-5 text-lg;
   }
-  .cart-drawer .checkout button {
+  .cart-dialog .checkout button {
     @apply w-full;
   }
 
