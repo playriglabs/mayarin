@@ -5,9 +5,39 @@
 @import "@fontsource/playfair-display/600.css";
 @import "@fontsource/playfair-display/500-italic.css";
 
+/*
+ * The Parahyangan Supply design tokens (RFC #170, slice 1). Every component
+ * color, radius, shadow, and duration comes from this set; components do not
+ * introduce arbitrary values when a token covers the need.
+ */
+
 @theme {
+  /* Warm near-white ground; white panels sit on it sparingly. */
+  --color-ground: #faf7f2;
+  --color-panel: #ffffff;
+  /* Media placeholders and skeletons. */
+  --color-mist: #efeae1;
+  /* Hairlines and structural borders. */
+  --color-line: #e4ded3;
+  /* Near-black primary text and primary actions. */
+  --color-ink: #1c1917;
+  /* Secondary text — warm dark grey, AA on the ground. */
+  --color-ink-soft: #57534e;
+  /* Disabled glyphs only, never body text. */
+  --color-faint: #cbc4b8;
+  /* The one merchant accent: ochre. AA as text on the ground. */
+  --color-accent: #a16207;
+
   --font-display: "Playfair Display", Georgia, serif;
   --font-sans: "Geist Variable", system-ui, sans-serif;
+
+  /* Mostly square; this is the only radius besides full. */
+  --radius-ui: 2px;
+
+  /* Reserved for the elevated dialog and drawer layers. */
+  --shadow-raised: 0 24px 48px -12px rgb(28 25 23 / 0.25);
+
+  --default-transition-duration: 200ms;
 }
 
 @layer base {
@@ -18,20 +48,20 @@
     @apply scroll-smooth;
   }
   body {
-    @apply m-0 bg-zinc-50 font-sans text-base leading-relaxed text-zinc-950 antialiased;
+    @apply m-0 bg-ground font-sans text-base leading-relaxed text-ink antialiased;
   }
   button,
   a {
-    @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950;
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink;
   }
 }
 
 @layer components {
   .kicker {
-    @apply m-0 text-xs font-semibold tracking-[0.14em] text-zinc-500 uppercase;
+    @apply m-0 text-xs font-semibold tracking-[0.14em] text-ink-soft uppercase;
   }
   .notice {
-    @apply m-0 text-sm text-zinc-500;
+    @apply m-0 text-sm text-ink-soft;
   }
   .notice.error {
     @apply text-red-600;
@@ -40,26 +70,30 @@
     @apply m-0 font-semibold tabular-nums;
   }
 
+  .announce {
+    @apply m-0 bg-ink px-4 py-2 text-center text-xs font-medium tracking-wide text-ground;
+  }
+
   .masthead {
-    @apply sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-zinc-200 bg-zinc-50/90 px-4 py-3 backdrop-blur-md md:px-8;
+    @apply sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-4 border-b border-line bg-ground/90 px-4 py-3 backdrop-blur-md md:px-8;
   }
   .brand-link {
-    @apply shrink-0 text-zinc-950 no-underline;
+    @apply shrink-0 text-ink no-underline;
   }
   .brand-link svg {
     @apply size-9;
   }
-  .masthead nav {
-    @apply flex items-center gap-2 md:gap-6;
+  .site-nav {
+    @apply order-3 flex w-full items-center gap-x-6 md:order-none md:w-auto;
   }
-  .masthead nav a {
-    @apply hidden min-h-11 items-center border-b-2 border-transparent text-sm font-medium text-zinc-950 no-underline transition hover:border-pink-500 md:inline-flex;
+  .site-nav a {
+    @apply inline-flex min-h-11 items-center border-b-2 border-transparent text-sm font-medium text-ink no-underline transition hover:border-accent active:text-ink-soft;
   }
   .cart-trigger {
-    @apply min-h-11 border border-zinc-950 bg-zinc-950 px-3 text-sm font-semibold text-white transition hover:bg-white hover:text-zinc-950;
+    @apply min-h-11 border border-ink bg-ink px-3 text-sm font-semibold text-white transition hover:bg-panel hover:text-ink active:bg-mist active:text-ink;
   }
   .cart-trigger span {
-    @apply ml-1 inline-grid size-6 place-items-center rounded-full bg-pink-500 text-xs text-zinc-950;
+    @apply ml-1 inline-grid size-6 place-items-center rounded-ui bg-accent text-xs font-semibold text-white;
   }
 
   .hero {
@@ -69,16 +103,16 @@
     @apply max-w-2xl;
   }
   .hero h1 {
-    @apply my-4 font-display text-5xl leading-[0.98] font-medium tracking-tight sm:text-6xl;
+    @apply my-4 font-display text-4xl leading-[1.02] font-medium tracking-tight sm:text-6xl sm:leading-[0.98];
   }
   .hero h1 em {
-    @apply text-pink-500;
+    @apply text-accent;
   }
   .lede {
-    @apply mb-8 max-w-xl text-lg leading-8 text-zinc-600;
+    @apply mb-8 max-w-xl text-lg leading-8 text-ink-soft;
   }
   .cta {
-    @apply inline-flex min-h-12 items-center border border-zinc-950 bg-zinc-950 px-6 font-semibold text-white no-underline transition hover:bg-pink-500 hover:text-zinc-950;
+    @apply inline-flex min-h-12 items-center border border-ink bg-ink px-6 font-semibold text-white no-underline transition hover:bg-accent hover:border-accent active:bg-accent/90;
   }
 
   .shop,
@@ -91,7 +125,7 @@
     @apply scroll-mt-24 py-12 md:py-20;
   }
   .shop-head {
-    @apply mb-8 flex flex-col justify-between gap-5 border-b border-zinc-200 pb-6 md:flex-row md:items-end;
+    @apply mb-8 flex flex-col justify-between gap-5 border-b border-line pb-6 md:flex-row md:items-end;
   }
   .shop h2,
   .history h2,
@@ -102,10 +136,10 @@
     @apply flex flex-wrap gap-2 border-0 p-0;
   }
   .chip {
-    @apply min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-medium transition hover:border-zinc-950;
+    @apply min-h-11 rounded-full border border-line bg-panel px-5 text-sm font-medium transition hover:border-ink active:bg-mist;
   }
   .chip.active {
-    @apply border-zinc-950 bg-zinc-950 text-white;
+    @apply border-ink bg-ink text-white;
   }
   .grid {
     @apply m-0 grid list-none gap-x-6 gap-y-12 p-0 sm:grid-cols-2 lg:grid-cols-3;
@@ -117,23 +151,23 @@
     @apply block w-full cursor-pointer border-0 bg-transparent p-0 text-left;
   }
   .media {
-    @apply relative mb-4 aspect-[4/5] overflow-hidden bg-zinc-200;
+    @apply relative mb-4 aspect-[4/5] overflow-hidden bg-mist;
   }
   .tag {
-    @apply absolute top-3 left-3 bg-white/90 px-3 py-1 text-xs font-semibold tracking-wide uppercase backdrop-blur;
+    @apply absolute top-3 left-3 bg-panel/90 px-3 py-1 text-xs font-semibold tracking-wide uppercase backdrop-blur;
   }
   .card h3 {
     @apply m-0 font-display text-2xl font-semibold;
   }
   .description {
-    @apply my-2 text-sm leading-6 text-zinc-600;
+    @apply my-2 text-sm leading-6 text-ink-soft;
   }
   .skeleton {
     @apply grid gap-3;
   }
   .skeleton .media,
   .skeleton .line {
-    @apply animate-pulse bg-zinc-200;
+    @apply animate-pulse bg-mist;
   }
   .skeleton .line {
     @apply h-4 w-full;
@@ -146,16 +180,16 @@
   }
 
   .product-dialog {
-    @apply fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[min(960px,calc(100vw-2rem))] overflow-auto border border-zinc-200 bg-white p-0 shadow-2xl;
+    @apply fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[min(960px,calc(100vw-2rem))] overflow-auto border border-line bg-panel p-0 shadow-raised;
   }
   .product-dialog::backdrop {
-    @apply bg-zinc-950/60 backdrop-blur-sm;
+    @apply bg-ink/60 backdrop-blur-sm;
   }
   .dialog-body {
     @apply grid md:grid-cols-2;
   }
   .dialog-media {
-    @apply aspect-[4/5] min-h-0 overflow-hidden bg-zinc-100;
+    @apply aspect-[4/5] min-h-0 overflow-hidden bg-mist;
   }
   .dialog-info {
     @apply flex flex-col items-start gap-5 p-6 md:p-10;
@@ -164,19 +198,19 @@
     @apply m-0 font-display text-4xl leading-tight font-semibold;
   }
   .dialog-close {
-    @apply self-end border-0 bg-transparent text-sm text-zinc-500 underline underline-offset-4 hover:text-zinc-950;
+    @apply self-end border-0 bg-transparent text-sm text-ink-soft underline underline-offset-4 hover:text-ink;
   }
   .quantity {
-    @apply flex items-center gap-4 text-sm text-zinc-600;
+    @apply flex items-center gap-4 text-sm text-ink-soft;
   }
   .stepper {
-    @apply inline-flex items-center border border-zinc-300;
+    @apply inline-flex items-center border border-line;
   }
   .stepper button {
-    @apply grid size-11 place-items-center border-0 bg-white text-xl transition hover:bg-zinc-100 disabled:text-zinc-300;
+    @apply grid size-11 place-items-center border-0 bg-panel text-xl transition hover:bg-mist disabled:text-faint;
   }
   .stepper output {
-    @apply min-w-10 text-center font-semibold text-zinc-950;
+    @apply min-w-10 text-center font-semibold text-ink;
   }
   .price.total {
     @apply text-2xl;
@@ -185,11 +219,11 @@
     @apply flex flex-wrap gap-3;
   }
   .add-to-cart {
-    @apply min-h-12 border border-zinc-950 bg-white px-5 font-semibold text-zinc-950 transition hover:bg-zinc-100;
+    @apply min-h-12 border border-ink bg-panel px-5 font-semibold text-ink transition hover:bg-mist;
   }
 
   .checkout button {
-    @apply inline-flex min-h-12 items-center justify-center gap-2 border border-zinc-950 bg-zinc-950 px-6 font-semibold text-white transition hover:bg-pink-500 hover:text-zinc-950 disabled:cursor-wait disabled:opacity-70;
+    @apply inline-flex min-h-12 items-center justify-center gap-2 border border-ink bg-ink px-6 font-semibold text-white transition hover:bg-accent hover:border-accent disabled:cursor-wait disabled:opacity-70;
   }
   .spinner {
     @apply size-4 animate-spin rounded-full border-2 border-current border-t-transparent;
@@ -199,10 +233,10 @@
     @apply fixed inset-0 z-40;
   }
   .cart-backdrop {
-    @apply absolute inset-0 h-full w-full border-0 bg-zinc-950/60 backdrop-blur-sm;
+    @apply absolute inset-0 h-full w-full border-0 bg-ink/60 backdrop-blur-sm;
   }
   .cart-drawer {
-    @apply absolute top-0 right-0 flex h-dvh w-[min(440px,100vw)] flex-col gap-5 overflow-y-auto bg-white p-6 shadow-2xl;
+    @apply absolute top-0 right-0 flex h-dvh w-[min(440px,100vw)] flex-col gap-5 overflow-y-auto bg-panel p-6 shadow-raised;
   }
   .cart-head,
   .cart-line-actions,
@@ -213,16 +247,16 @@
     @apply m-0 font-display text-3xl font-semibold;
   }
   .cart-close {
-    @apply grid size-11 place-items-center border border-zinc-200 bg-white text-3xl hover:bg-zinc-100;
+    @apply grid size-11 place-items-center border border-line bg-panel text-3xl hover:bg-mist;
   }
   .cart-empty {
-    @apply my-auto text-zinc-500;
+    @apply my-auto text-ink-soft;
   }
   .cart-lines {
     @apply m-0 grid list-none p-0;
   }
   .cart-lines li {
-    @apply grid gap-4 border-t border-zinc-200 py-5 last:border-b;
+    @apply grid gap-4 border-t border-line py-5 last:border-b;
   }
   .cart-line-copy {
     @apply flex justify-between gap-4;
@@ -234,20 +268,20 @@
     @apply min-h-11 border-0 bg-transparent text-sm text-red-600 underline underline-offset-4;
   }
   .cart-summary {
-    @apply mt-auto border-t border-zinc-950 pt-5 text-lg;
+    @apply mt-auto border-t border-ink pt-5 text-lg;
   }
   .cart-drawer .checkout button {
     @apply w-full;
   }
 
   .history {
-    @apply scroll-mt-24 border-t border-zinc-200 py-10 md:py-12;
+    @apply scroll-mt-24 border-t border-line py-10 md:py-12;
   }
   .receipts {
     @apply my-8 grid list-none p-0;
   }
   .receipts li {
-    @apply flex flex-col justify-between gap-4 border-t border-zinc-200 py-5 sm:flex-row sm:items-center;
+    @apply flex flex-col justify-between gap-4 border-t border-line py-5 sm:flex-row sm:items-center;
   }
   .receipt-main,
   .receipt-side {
@@ -257,19 +291,19 @@
     @apply font-semibold;
   }
   .receipt-main time {
-    @apply text-sm text-zinc-500;
+    @apply text-sm text-ink-soft;
   }
   .receipt-side {
     @apply sm:items-end;
   }
   .receipt-side a {
-    @apply text-sm text-zinc-600 underline underline-offset-4;
+    @apply text-sm text-ink-soft underline underline-offset-4;
   }
   .receipt-side .payment-reference {
-    @apply font-medium text-zinc-950;
+    @apply font-medium text-ink;
   }
   .receipt-side code {
-    @apply max-w-64 overflow-hidden text-ellipsis text-xs text-zinc-500;
+    @apply max-w-64 overflow-hidden text-ellipsis text-xs text-ink-soft;
   }
   .payment-status {
     @apply text-xs font-semibold tracking-wider uppercase;
@@ -281,25 +315,25 @@
     @apply text-emerald-700;
   }
   .about {
-    @apply grid gap-8 border-t border-zinc-200 py-10 md:grid-cols-2 md:py-12;
+    @apply grid gap-8 border-t border-line py-10 md:grid-cols-2 md:py-12;
   }
   .about p {
-    @apply max-w-xl text-zinc-600;
+    @apply max-w-xl text-ink-soft;
   }
   .facts {
     @apply m-0 grid content-start;
   }
   .facts div {
-    @apply flex justify-between gap-5 border-t border-zinc-200 py-4;
+    @apply flex justify-between gap-5 border-t border-line py-4;
   }
   .facts dt {
-    @apply text-xs font-semibold tracking-wider text-zinc-500 uppercase;
+    @apply text-xs font-semibold tracking-wider text-ink-soft uppercase;
   }
   .facts dd {
     @apply m-0 text-right text-sm;
   }
   .colophon {
-    @apply flex items-center gap-3 border-t border-zinc-200 py-6 text-sm text-zinc-500;
+    @apply flex items-center gap-3 border-t border-line py-6 text-sm text-ink-soft;
   }
 }
 

@@ -31,7 +31,7 @@ export function LogoLockup() {
       <LogoMark />
       <span className="flex flex-col font-display text-lg leading-none font-semibold tracking-wide">
         Parahyangan
-        <small className="font-sans mt-1 text-[0.6875rem] font-semibold tracking-[0.32em] text-zinc-500 uppercase">
+        <small className="font-sans mt-1 text-[0.6875rem] font-semibold tracking-[0.32em] text-ink-soft uppercase">
           Supply
         </small>
       </span>
@@ -49,22 +49,25 @@ export function HeroArt() {
       viewBox="0 0 480 400"
       fill="none"
       aria-hidden="true"
-      className="h-auto w-full border border-zinc-200"
+      className="h-auto w-full border border-line"
     >
-      <rect width="480" height="400" fill="#eef0f2" />
+      <rect width="480" height="400" fill="var(--color-mist)" />
       {/* Sun */}
-      <circle cx="330" cy="120" r="58" fill="#ec4899" />
+      <circle cx="330" cy="120" r="58" fill="var(--color-accent)" />
       {/* Far ridge */}
       <path
         d="M0 258 L96 196 L176 244 L268 178 L364 238 L480 190 L480 400 L0 400 Z"
-        fill="#3f3f46"
+        fill="var(--color-ink-soft)"
       />
       {/* The upturned hull, resting on the near ridge */}
-      <path d="M148 210 L332 210 L296 252 L184 252 Z" fill="#09090b" />
+      <path d="M148 210 L332 210 L296 252 L184 252 Z" fill="var(--color-ink)" />
       {/* Near ridge */}
-      <path d="M0 316 L120 268 L240 308 L368 262 L480 310 L480 400 L0 400 Z" fill="#09090b" />
+      <path
+        d="M0 316 L120 268 L240 308 L368 262 L480 310 L480 400 L0 400 Z"
+        fill="var(--color-ink)"
+      />
       {/* City grid lights */}
-      <g fill="#fafafa" opacity="0.75">
+      <g fill="var(--color-ground)" opacity="0.75">
         <rect x="60" y="336" width="8" height="8" />
         <rect x="120" y="352" width="8" height="8" />
         <rect x="182" y="334" width="8" height="8" />
