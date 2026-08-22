@@ -134,3 +134,49 @@ describe("auth routes", () => {
     expect(res.body?.user).toBeNull();
   });
 });
+
+describe("dashboard API rate limiting", () => {
+  test("rejects a client that exhausts the configured request budget", async () => {
+    const harness = await createDashboardHarness({ rateLimitRequests: 1 });
+
+    expect((await harness.request("GET", "/v1/auth/me")).status).toBe(200);
+    const rejected = await harness.request("GET", "/v1/auth/me");
+
+    expect(rejected.status).toBe(429);
+    expect(rejected.body?.error).toMatchObject({
+      code: "RATE_LIMIT_EXCEEDED",
+      retryable: true,
+      details: { retryAfterSeconds: 300 },
+    });
+
+    expect((await harness.request("GET", "/v1/auth/me")).status).toBe(429);
+  });
+
+  test("applies a tighter request budget to repeated login attempts", async () => {
+    const harness = await createDashboardHarness({
+      rateLimitRequests: 100,
+      loginRateLimitRequests: 2,
+    });
+    const credentials = { email: "staff@acme.co", password: "wrong-password" };
+
+    expect((await harness.request("POST", "/v1/auth/login", { body: credentials })).status).toBe(
+      401,
+    );
+    expect((await harness.request("POST", "/v1/auth/login", { body: credentials })).status).toBe(
+      401,
+    );
+
+    const rejected = await harness.request("POST", "/v1/auth/login", { body: credentials });
+    expect(rejected.status).toBe(429);
+    expect(rejected.body?.error).toMatchObject({
+      code: "RATE_LIMIT_EXCEEDED",
+      retryable: true,
+      details: { retryAfterSeconds: 300 },
+    });
+
+    const stillRejected = await harness.request("POST", "/v1/auth/login", { body: credentials });
+    expect(stillRejected.status).toBe(429);
+
+    expect((await harness.request("GET", "/v1/auth/me")).status).toBe(200);
+  });
+});

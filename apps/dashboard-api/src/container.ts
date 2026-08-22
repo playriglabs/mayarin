@@ -51,6 +51,7 @@ import {
   DrizzleSettlementEventRepository,
   DrizzleUserRepository,
   DrizzleWalletChallengeRepository,
+  DrizzleWalletWithdrawalRepository,
   DrizzleWebhookDeliveryRepository,
   DrizzleWebhookEndpointRepository,
 } from "@mayarin/db";
@@ -75,6 +76,7 @@ import {
   type WalletBalanceReader,
   type WalletChallengeRepository,
   type WalletProvider,
+  type WalletWithdrawalRepository,
 } from "@mayarin/wallet";
 import type { Config } from "./config.ts";
 import {
@@ -184,6 +186,7 @@ export interface CreateContainerOptions {
   readonly webhookDeliveries?: WebhookDeliveryRepository;
   readonly merchantWallets?: MerchantWalletRepository;
   readonly walletChallenges?: WalletChallengeRepository;
+  readonly walletWithdrawals?: WalletWithdrawalRepository;
   readonly signatureVerifier?: SignatureVerifier;
   /**
    * Managed wallet provisioning (#11). A test supplies a fake; a deployment
@@ -352,6 +355,9 @@ export function createContainer(options: CreateContainerOptions): Container {
   const nativeAsset = config.chainNativeAssets[config.walletProvisionChain];
   const wallets = new WalletService({
     wallets: walletRepository,
+    withdrawals:
+      options.walletWithdrawals ??
+      new DrizzleWalletWithdrawalRepository(handle?.db ?? throwIfNoHandle()),
     challenges:
       options.walletChallenges ??
       new DrizzleWalletChallengeRepository(handle?.db ?? throwIfNoHandle()),

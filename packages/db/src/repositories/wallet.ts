@@ -14,14 +14,17 @@ import type {
   WalletChallenge,
   WalletChallengeRepository,
   WalletProvenance,
+  WalletWithdrawal,
+  WalletWithdrawalRepository,
 } from "@mayarin/wallet";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present } from "../mapping.ts";
-import { merchantWallets, walletChallenges } from "../schema.ts";
+import { merchantWallets, walletChallenges, walletWithdrawals } from "../schema.ts";
 
 type WalletRow = typeof merchantWallets.$inferSelect;
 type ChallengeRow = typeof walletChallenges.$inferSelect;
+type WithdrawalRow = typeof walletWithdrawals.$inferSelect;
 
 export class DrizzleMerchantWalletRepository implements MerchantWalletRepository {
   readonly #db: Executor;
@@ -131,6 +134,38 @@ export class DrizzleWalletChallengeRepository implements WalletChallengeReposito
   }
 }
 
+export class DrizzleWalletWithdrawalRepository implements WalletWithdrawalRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async insert(withdrawal: WalletWithdrawal): Promise<void> {
+    await this.#db.insert(walletWithdrawals).values({
+      id: withdrawal.id,
+      merchantId: withdrawal.merchantId,
+      chain: withdrawal.chain,
+      walletAddress: withdrawal.walletAddress.toLowerCase(),
+      destinationAddress: withdrawal.destinationAddress.toLowerCase(),
+      amount: withdrawal.amount.amount.toString(),
+      asset: withdrawal.amount.asset,
+      transactionHash: withdrawal.transactionHash.toLowerCase(),
+      completedAt: withdrawal.completedAt,
+    });
+  }
+
+  async listRecent(merchantId: string, limit: number): Promise<readonly WalletWithdrawal[]> {
+    const rows = await this.#db
+      .select()
+      .from(walletWithdrawals)
+      .where(eq(walletWithdrawals.merchantId, merchantId))
+      .orderBy(desc(walletWithdrawals.completedAt), desc(walletWithdrawals.id))
+      .limit(limit);
+    return rows.map(toWithdrawal);
+  }
+}
+
 function toWalletRow(wallet: MerchantWallet): typeof merchantWallets.$inferInsert {
   return {
     id: wallet.id,
@@ -185,5 +220,18 @@ function toChallenge(row: ChallengeRow): WalletChallenge {
     nonce: row.nonce,
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
+  };
+}
+
+function toWithdrawal(row: WithdrawalRow): WalletWithdrawal {
+  return {
+    id: row.id,
+    merchantId: row.merchantId,
+    chain: row.chain as ChainId,
+    walletAddress: row.walletAddress,
+    destinationAddress: row.destinationAddress,
+    amount: { amount: BigInt(row.amount), asset: row.asset as WalletWithdrawal["amount"]["asset"] },
+    transactionHash: row.transactionHash,
+    completedAt: row.completedAt,
   };
 }

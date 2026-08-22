@@ -24,7 +24,24 @@ import type {
   WalletChallengeRepository,
   WalletIntent,
   WalletProvider,
+  WalletWithdrawal,
+  WalletWithdrawalRepository,
 } from "../src/index.ts";
+
+export class InMemoryWalletWithdrawalRepository implements WalletWithdrawalRepository {
+  readonly #withdrawals: WalletWithdrawal[] = [];
+
+  async insert(withdrawal: WalletWithdrawal): Promise<void> {
+    this.#withdrawals.push(withdrawal);
+  }
+
+  async listRecent(merchantId: string, limit: number): Promise<readonly WalletWithdrawal[]> {
+    return this.#withdrawals
+      .filter((withdrawal) => withdrawal.merchantId === merchantId)
+      .sort((left, right) => right.completedAt.getTime() - left.completedAt.getTime())
+      .slice(0, limit);
+  }
+}
 
 /**
  * Balances a test sets rather than a chain reports.

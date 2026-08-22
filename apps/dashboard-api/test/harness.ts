@@ -53,6 +53,7 @@ import {
   InMemoryMerchantWalletRepository,
   InMemoryWalletBalanceReader,
   InMemoryWalletChallengeRepository,
+  InMemoryWalletWithdrawalRepository,
 } from "@mayarin/wallet/testing";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
@@ -89,6 +90,9 @@ class PlainPasswordHasher implements PasswordHasher {
 
 export interface DashboardHarnessOptions {
   readonly cookieSecure?: boolean;
+  readonly rateLimitRequests?: number;
+  readonly rateLimitBlockSeconds?: number;
+  readonly loginRateLimitRequests?: number;
   /** Email for the seeded merchant-admin account. */
   readonly adminEmail?: string;
   /** Password for the seeded merchant-admin account. */
@@ -106,6 +110,9 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     SESSION_TTL_SECONDS: "3600",
     COOKIE_SECURE:
       options.cookieSecure === undefined ? "false" : options.cookieSecure ? "true" : "false",
+    DASHBOARD_RATE_LIMIT_REQUESTS: String(options.rateLimitRequests ?? 120),
+    RATE_LIMIT_BLOCK_SECONDS: String(options.rateLimitBlockSeconds ?? 300),
+    DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS: String(options.loginRateLimitRequests ?? 5),
     PAYMENTS_PAGE_SIZE: "7",
   });
 
@@ -179,6 +186,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
 
   const merchantWallets = new InMemoryMerchantWalletRepository();
   const walletChallenges = new InMemoryWalletChallengeRepository();
+  const walletWithdrawals = new InMemoryWalletWithdrawalRepository();
   // Managed provisioning against the reference fake provider. Deploying a real
   // Safe is proven on testnet; what the route tests are for is the surface
   // around it — scoping, idempotence, and that the two wallet paths coexist.
@@ -188,6 +196,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   const walletBalances = new InMemoryWalletBalanceReader();
   const wallets = new WalletService({
     wallets: merchantWallets,
+    withdrawals: walletWithdrawals,
     challenges: walletChallenges,
     // Real recovery: the point of verification is that it agrees with what a
     // wallet actually produces, which a stub cannot demonstrate.
@@ -419,6 +428,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     webhookDeliveries,
     merchantWallets,
     walletChallenges,
+    walletWithdrawals,
     walletProvider,
     walletBalances,
     merchantKeyProvider,

@@ -19,6 +19,7 @@
     "@mayarin/clearing": "workspace:*",
     "@mayarin/db": "workspace:*",
     "@mayarin/execution": "workspace:*",
+    "@mayarin/http": "workspace:*",
     "@mayarin/invoicing": "workspace:*",
     "@mayarin/ledger": "workspace:*",
     "@mayarin/notifications": "workspace:*",

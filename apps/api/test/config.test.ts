@@ -46,6 +46,27 @@ describe("empty environment variables", () => {
   });
 });
 
+describe("rate limit configuration", () => {
+  test("has safe defaults and accepts deployment overrides", () => {
+    expect(loadConfig({ ...BASE }).rateLimitRequests).toBe(120);
+
+    const config = loadConfig({
+      ...BASE,
+      API_RATE_LIMIT_REQUESTS: "240",
+      RATE_LIMIT_WINDOW_SECONDS: "30",
+      RATE_LIMIT_BLOCK_SECONDS: "240",
+      RATE_LIMIT_MAX_CLIENTS: "5000",
+      RATE_LIMIT_CLIENT_IP_SOURCE: "cf-connecting-ip",
+    });
+
+    expect(config.rateLimitRequests).toBe(240);
+    expect(config.rateLimitWindowSeconds).toBe(30);
+    expect(config.rateLimitBlockSeconds).toBe(240);
+    expect(config.rateLimitMaxClients).toBe(5_000);
+    expect(config.rateLimitClientIpSource).toBe("cf-connecting-ip");
+  });
+});
+
 describe("chain configuration", () => {
   test("is absent unless enabled", () => {
     expect(loadConfig({ ...BASE }).chain).toBeUndefined();

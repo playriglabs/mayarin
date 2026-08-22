@@ -15,6 +15,7 @@ import { SettlementAddressResolver } from "@mayarin/wallet";
 import {
   InMemoryMerchantWalletRepository,
   InMemoryWalletChallengeRepository,
+  InMemoryWalletWithdrawalRepository,
 } from "@mayarin/wallet/testing";
 import type { Scope } from "../src/dto/auth.ts";
 import { WalletService } from "../src/services/wallet-service.ts";
@@ -35,6 +36,7 @@ function service() {
   const wallets = new InMemoryMerchantWalletRepository();
   return new WalletService({
     wallets,
+    withdrawals: new InMemoryWalletWithdrawalRepository(),
     challenges: new InMemoryWalletChallengeRepository(),
     verifier: new ViemSignatureVerifier(),
     clock: new FixedClock(NOW),

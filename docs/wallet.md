@@ -218,6 +218,12 @@ bounded by `maxGasTopUpWei`. A top-up that would exceed the bound is refused
 rather than sent short — a partial one submits a transaction that runs out of
 gas, which spends the fee and moves nothing.
 
+Every successfully confirmed withdrawal is appended to `wallet_withdrawals`.
+`GET /wallets/withdrawals` returns the caller's twenty most recent records,
+newest first: exact minor-unit amount, asset, source Safe, verified destination,
+chain, transaction hash and completion time. Failed signing, gas and reverted
+attempts never enter the history.
+
 ## Fees and payouts never overlap
 
 A fee recipient that is also a payout destination pays a merchant twice and

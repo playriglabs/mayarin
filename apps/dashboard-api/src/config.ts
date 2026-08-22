@@ -42,6 +42,22 @@ const configSchema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((value) => value === "true"),
+  /** Per-client request budget for the versioned dashboard API. */
+  rateLimitRequests: z.coerce.number().int().positive().default(120),
+  /** Seconds required to refill a fully exhausted request budget. */
+  rateLimitWindowSeconds: z.coerce.number().int().positive().default(60),
+  /** Fixed lockout after a client exhausts a request budget. */
+  rateLimitBlockSeconds: z.coerce.number().int().positive().default(300),
+  /** Per-client request budget for the dashboard login endpoint. */
+  loginRateLimitRequests: z.coerce.number().int().positive().default(5),
+  /** Seconds required to refill a fully exhausted login request budget. */
+  loginRateLimitWindowSeconds: z.coerce.number().int().positive().default(60),
+  /** Maximum client buckets retained by one process. */
+  rateLimitMaxClients: z.coerce.number().int().positive().default(10_000),
+  /** Trusted source of the caller IP for rate-limit buckets. */
+  rateLimitClientIpSource: z
+    .enum(["cf-connecting-ip", "socket", "x-forwarded-for", "x-real-ip"])
+    .default("socket"),
   /** Page size cap for payment listings. */
   paymentsPageSize: z.coerce.number().int().positive().max(200).default(7),
   /**
@@ -165,6 +181,13 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     databaseUrl: env.DATABASE_URL,
     sessionTtlSeconds: env.SESSION_TTL_SECONDS,
     cookieSecure: env.COOKIE_SECURE,
+    rateLimitRequests: env.DASHBOARD_RATE_LIMIT_REQUESTS,
+    rateLimitWindowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
+    rateLimitBlockSeconds: env.RATE_LIMIT_BLOCK_SECONDS,
+    loginRateLimitRequests: env.DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS,
+    loginRateLimitWindowSeconds: env.DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+    rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
+    rateLimitClientIpSource: env.RATE_LIMIT_CLIENT_IP_SOURCE,
     paymentsPageSize: env.PAYMENTS_PAGE_SIZE,
     checkoutBaseUrl: env.CHECKOUT_BASE_URL ?? env.PUBLIC_BASE_URL,
     paymentApiUrl: env.PAYMENT_API_URL ?? env.PUBLIC_BASE_URL,

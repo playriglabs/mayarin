@@ -537,6 +537,27 @@ describe("withdrawing", () => {
       amount: { amount: 2_500_000n, asset: "USDC" },
       to: destination,
     });
+
+    const history = await harness.request("GET", "/v1/wallets/withdrawals", {
+      cookies: auth.jar,
+    });
+    expect(history.status).toBe(200);
+    expect(history.body?.withdrawals).toEqual([
+      {
+        id: expect.stringMatching(/^wdr_/),
+        chain: "base-sepolia",
+        walletAddress: safe,
+        destinationAddress: destination,
+        amount: {
+          amount: "2500000",
+          asset: "USDC",
+          formatted: "2.500000",
+          display: "2,50 USDC",
+        },
+        transactionHash: res.body?.txHash,
+        completedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
   });
 
   test("refuses a destination the merchant never proved they control", async () => {

@@ -47,7 +47,7 @@ A provider-agnostic clearing layer orchestrates value across wallets, blockchain
 
 # Quick Start
 
-Requires [Bun](https://bun.sh) 1.2+ and Docker.
+Requires [Bun](https://bun.sh) 1.4+ and Docker.
 
 ```bash
 bun run setup          # install, .env, Postgres, migrations, config check

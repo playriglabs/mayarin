@@ -176,6 +176,13 @@
       "when": 1787043600000,
       "tag": "0024_api_key_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787379531000,
+      "tag": "0025_wallet_withdrawals",
+      "breakpoints": true
     }
   ]
 }

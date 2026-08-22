@@ -882,6 +882,34 @@ export const walletChallenges = pgTable("wallet_challenges", {
 });
 
 /**
+ * Successful managed-wallet withdrawals.
+ *
+ * Append-only and merchant-scoped. The provider waits for a successful receipt
+ * before a row is written, so every transaction hash here represents funds
+ * that actually left the managed Safe rather than an attempt that may fail.
+ */
+export const walletWithdrawals = pgTable(
+  "wallet_withdrawals",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    chain: text("chain").notNull(),
+    walletAddress: text("wallet_address").notNull(),
+    destinationAddress: text("destination_address").notNull(),
+    amount: minorUnits("amount").notNull(),
+    asset: text("asset").notNull(),
+    transactionHash: text("transaction_hash").notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("wallet_withdrawals_merchant_idx").on(table.merchantId, table.completedAt),
+    uniqueIndex("wallet_withdrawals_transaction_idx").on(table.chain, table.transactionHash),
+  ],
+);
+
+/**
  * Merchant API keys — bearer-token access to the dashboard API.
  *
  * The secret is stored as a sha-256 hash, not argon2: the threat is an online
@@ -941,6 +969,7 @@ export const schema = {
   refunds,
   merchantWallets,
   walletChallenges,
+  walletWithdrawals,
   webhookEndpoints,
   webhookDeliveries,
   webhookCursors,
