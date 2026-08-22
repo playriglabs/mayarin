@@ -42,7 +42,7 @@ export function TitleLockup() {
         alt="Mayarin"
         width="640"
         height="160"
-        class="w-full max-w-88 md:max-w-120"
+        class="w-full max-w-88 md:max-w-120 md:-ml-11.5"
         decoding="async"
       />
       <div data-reveal class="flex flex-wrap items-end gap-x-10 gap-y-4">
