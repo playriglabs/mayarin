@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { clearCartAfterCheckout } from "./cart-storage.ts";
 import { recordSuccessfulPayment } from "./history.ts";
 
 type PaymentState = "waiting" | "success" | "not-found" | "error";
@@ -83,6 +84,7 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
         if (stopped) return;
         if (body.success === true) {
           recordSuccessfulPayment(referencePaymentId);
+          clearCartAfterCheckout();
           setDetails(readDetails(body));
           setState("success");
         } else timer = setTimeout(() => void check(), 1_500);

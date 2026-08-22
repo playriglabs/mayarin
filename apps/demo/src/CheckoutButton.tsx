@@ -17,12 +17,15 @@ export function CheckoutButton({
   purchaseName,
   purchaseQuantity,
   total,
+  onRedirect,
 }: {
   readonly lines: readonly { readonly productId: string; readonly quantity: number }[];
   readonly label?: string;
   readonly purchaseName: string;
   readonly purchaseQuantity: number;
   readonly total: string;
+  /** Runs after the link is minted, just before the browser leaves the page. */
+  readonly onRedirect?: () => void;
 }) {
   const [state, setState] = useState<CheckoutState>({ status: "idle" });
 
@@ -46,6 +49,7 @@ export function CheckoutButton({
         url: body.url,
         at: new Date().toISOString(),
       });
+      onRedirect?.();
       window.location.assign(body.url);
     } catch (error) {
       setState({

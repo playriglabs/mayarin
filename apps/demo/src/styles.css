@@ -99,23 +99,103 @@
     @apply ml-1 inline-grid size-6 place-items-center rounded-ui bg-accent text-xs font-semibold text-white;
   }
 
+  /* The full-bleed hero: rotating product photography under a static headline. */
   .hero {
-    @apply mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 md:grid-cols-[1.1fr_0.9fr] md:px-8 md:py-24;
+    @apply relative isolate flex overflow-hidden bg-ink text-ground;
+    min-height: min(78svh, 46rem);
+  }
+  .hero-slide {
+    @apply absolute inset-0 opacity-0 transition-opacity duration-700;
+  }
+  .hero-slide.current {
+    @apply opacity-100;
+  }
+  .hero-slide img {
+    @apply size-full object-cover;
+  }
+  .hero-scrim {
+    @apply absolute inset-0 bg-gradient-to-t from-ink/90 via-ink/45 to-ink/15;
+  }
+  .hero-inner {
+    @apply relative mx-auto mt-auto flex w-full max-w-6xl flex-col justify-between gap-10 px-4 pt-32 pb-10 md:flex-row md:items-end md:px-8 md:pt-48 md:pb-14;
   }
   .hero-copy {
     @apply max-w-2xl;
   }
+  .hero-copy .kicker {
+    @apply text-ground/75;
+  }
   .hero h1 {
-    @apply my-4 font-display text-4xl leading-[1.02] font-medium tracking-tight sm:text-6xl sm:leading-[0.98];
+    @apply my-4 font-display text-4xl leading-[1.02] font-medium tracking-tight text-white sm:text-6xl sm:leading-[0.98];
   }
   .hero h1 em {
-    @apply text-accent;
+    @apply text-amber-400;
   }
   .lede {
-    @apply mb-8 max-w-xl text-lg leading-8 text-ink-soft;
+    @apply mb-8 max-w-xl text-lg leading-8 text-ground/85;
   }
   .cta {
-    @apply inline-flex min-h-12 items-center border border-ink bg-ink px-6 font-semibold text-white no-underline transition hover:bg-accent hover:border-accent active:bg-accent/90;
+    @apply inline-flex min-h-12 items-center border border-white bg-white px-6 font-semibold text-ink no-underline transition hover:bg-accent hover:border-accent hover:text-white active:bg-accent/90;
+  }
+  .hero-caption {
+    @apply w-full max-w-xs border border-line bg-panel p-5 text-ink shadow-raised;
+  }
+  .hero-caption-name {
+    @apply m-0 mt-1 font-display text-2xl leading-tight font-semibold;
+  }
+  .hero-caption .price {
+    @apply mt-1;
+  }
+  .hero-view {
+    @apply mt-4 inline-flex min-h-11 w-full cursor-pointer items-center justify-center border border-ink bg-ink px-4 text-sm font-semibold text-white transition hover:bg-accent hover:border-accent;
+  }
+  .hero-controls {
+    @apply mt-4 flex items-center justify-between border-t border-line pt-3;
+  }
+  .hero-arrow {
+    @apply grid size-11 cursor-pointer place-items-center border border-line bg-panel text-ink transition hover:bg-mist;
+  }
+  .hero-count {
+    @apply text-sm text-ink-soft tabular-nums;
+  }
+
+  .featured,
+  .categories {
+    @apply mx-auto max-w-6xl px-4 py-12 md:px-8 md:py-16;
+  }
+  .section-head {
+    @apply mb-8 flex flex-wrap items-end justify-between gap-4;
+  }
+  .section-head h2 {
+    @apply m-0 mt-2 font-display text-4xl font-semibold;
+  }
+  .see-all {
+    @apply inline-flex min-h-11 items-center text-sm font-medium text-ink underline underline-offset-4 transition hover:text-accent;
+  }
+  .featured-row {
+    @apply m-0 flex snap-x list-none gap-6 overflow-x-auto p-0 pb-4;
+  }
+  .featured-row .card {
+    @apply w-72 shrink-0 snap-start;
+  }
+
+  .tile-grid {
+    @apply m-0 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3;
+  }
+  .tile {
+    @apply relative block aspect-[4/3] w-full cursor-pointer overflow-hidden border-0 bg-mist p-0 text-left;
+  }
+  .tile img {
+    @apply size-full object-cover transition duration-300 group-hover:scale-[1.03];
+  }
+  .tile-scrim {
+    @apply absolute inset-0 bg-gradient-to-t from-ink/75 via-ink/10 to-transparent;
+  }
+  .tile-label {
+    @apply absolute bottom-4 left-4 font-display text-2xl font-semibold text-white;
+  }
+  .skeleton-tile {
+    @apply animate-pulse;
   }
 
   .shop,
@@ -349,13 +429,25 @@
     @apply text-emerald-700;
   }
   .about {
-    @apply grid gap-8 border-t border-line py-10 md:grid-cols-2 md:py-12;
+    @apply grid gap-8 border-t border-line py-10 md:grid-cols-2 md:gap-12 md:py-16;
+  }
+  .about-media {
+    @apply m-0 overflow-hidden border border-line bg-mist;
+  }
+  .about-media img {
+    @apply aspect-[4/3] size-full object-cover md:aspect-auto md:h-full;
+  }
+  .about-body {
+    @apply flex flex-col;
+  }
+  .about-body h2 {
+    @apply mt-2 mb-4;
   }
   .about p {
-    @apply max-w-xl text-ink-soft;
+    @apply m-0 max-w-xl text-ink-soft;
   }
   .facts {
-    @apply m-0 grid content-start;
+    @apply m-0 mt-8 grid content-start;
   }
   .facts div {
     @apply flex justify-between gap-5 border-t border-line py-4;
