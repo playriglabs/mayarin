@@ -5,7 +5,7 @@ import { CheckoutSummary } from "./CheckoutSummary.tsx";
 import { remainingAt } from "./countdown.ts";
 import { usableDeposit } from "./payment-status.ts";
 import type { PayBootstrap, PaymentStatusPayload } from "./types.ts";
-import { isTerminal } from "./wording.ts";
+import { isTerminal, type PaymentStage, paymentStage } from "./wording.ts";
 
 type Deposit = NonNullable<PaymentStatusPayload["deposit"]>;
 
@@ -27,6 +27,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const { intentId, expiresAt, statusUrl, streaming, successUrl, pollMs } = bootstrap;
 
   const [rawStatus, setRawStatus] = useState("");
+  const [clearingState, setClearingState] = useState("");
   const [deposit, setDeposit] = useState<Deposit | undefined>(undefined);
   const [copied, setCopied] = useState<CopyTarget | undefined>(undefined);
   const [now, setNow] = useState(() => Date.now());
@@ -34,6 +35,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const pollTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const source = useRef<EventSource | undefined>(undefined);
   const terminal = isTerminal(rawStatus);
+  const stage = paymentStage(clearingState);
 
   const refresh = useCallback(async () => {
     const response = await fetch(statusUrl);
@@ -41,6 +43,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
     const payload: PaymentStatusPayload = await response.json();
     const next = payload.paymentIntent.status;
     setRawStatus(next);
+    setClearingState(payload.clearing?.state ?? "");
 
     const nextDeposit = usableDeposit(payload);
     if (nextDeposit !== undefined) setDeposit(nextDeposit);
@@ -87,6 +90,22 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
     };
   }, [refresh, streaming, intentId, pollMs]);
 
+  // A payer who pays in a wallet extension takes focus away from this page.
+  // Refetching the moment they come back beats waiting out the poll interval:
+  // the first thing they look for is whether their payment was noticed.
+  useEffect(() => {
+    if (terminal) return;
+    const wake = () => {
+      if (!document.hidden) void refresh();
+    };
+    window.addEventListener("focus", wake);
+    document.addEventListener("visibilitychange", wake);
+    return () => {
+      window.removeEventListener("focus", wake);
+      document.removeEventListener("visibilitychange", wake);
+    };
+  }, [terminal, refresh]);
+
   // The copied confirmation reverts on its own, so the button reads as an
   // action again rather than as a permanent state.
   useEffect(() => {
@@ -112,23 +131,25 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
       />
       <section className="checkout-panel" aria-label="Payment instructions">
         <div className="payment-form pay-detail">
-          <div className="pay-heading">
-            <div>
-              <p className="section-kicker">Secure payment</p>
-              <h2>{terminal ? "Payment status" : "Complete your payment"}</h2>
-            </div>
-            {!terminal && (
-              <div className={`timer${remaining.low ? " low" : ""}`}>
-                <span>Time left</span>
-                <strong>{remaining.text}</strong>
+          {!terminal && (
+            <div className="pay-heading">
+              <div>
+                <p className="section-kicker">Secure payment</p>
+                <h2>Complete your payment</h2>
               </div>
-            )}
-          </div>
+              {stage === "waiting" && (
+                <div className={`timer${remaining.low ? " low" : ""}`}>
+                  <span>Time left</span>
+                  <strong>{remaining.text}</strong>
+                </div>
+              )}
+            </div>
+          )}
 
-          {!terminal && <StatusTimeline status={rawStatus} />}
+          {!terminal && <StatusTimeline stage={stage} />}
 
           {terminal ? (
-            <Outcome status={rawStatus} />
+            <Outcome status={rawStatus} intentId={intentId} />
           ) : deposit === undefined ? (
             <div className="preparing">
               <span className="spinner" aria-hidden="true" />
@@ -137,6 +158,8 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
                 <p>Your price is being locked. Keep this page open.</p>
               </div>
             </div>
+          ) : stage === "confirming" ? (
+            <ConfirmingCard deposit={deposit} />
           ) : (
             <DepositCard
               deposit={deposit}
@@ -148,7 +171,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
           )}
 
           {!terminal && <p className="connection-mode">This page updates automatically.</p>}
-          {deposit === undefined && !terminal && (
+          {!terminal && (deposit === undefined || stage === "confirming") && (
             <p className="reference">
               Reference ID <code>{intentId}</code>
             </p>
@@ -256,13 +279,46 @@ export function DepositCard({
 }
 
 /**
+ * The moment the money arrives, the page must stop asking to be paid.
+ *
+ * This card replaces the deposit card — amount, QR, address, copy buttons all
+ * leave — because every one of them invites a second transfer. `role="status"`
+ * makes the transition audible to a screen reader without stealing focus.
+ */
+export function ConfirmingCard({ deposit }: { readonly deposit: Deposit }) {
+  const received = walletAmount(deposit.received.formatted);
+
+  return (
+    <div className="preparing" role="status">
+      <span className="spinner" aria-hidden="true" />
+      <div>
+        <h3>Payment detected</h3>
+        <p>
+          Your {deposit.amount.asset} arrived on {deposit.chain} and is being confirmed. This takes
+          a moment.
+        </p>
+        {deposit.received.amount !== "0" && (
+          <p className="received-note">
+            {received} {deposit.received.asset} received
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The payer's model of the payment, not the machine's. Three steps cover the
  * whole pending phase; the terminal phase never reaches this component — the
  * outcome card replaces the entire live surface.
+ *
+ * The current step is driven by the clearing stage, never by the intent
+ * status: an intent is `CONFIRMED` the moment the payer presses Continue,
+ * long before any money moves.
  */
-function StatusTimeline({ status }: { readonly status: string }) {
+function StatusTimeline({ stage }: { readonly stage: PaymentStage }) {
   const labels = ["Waiting for payment", "Confirming", "Done"] as const;
-  const current = status === "CONFIRMED" || status === "PROCESSING" ? 1 : 0;
+  const current = stage === "confirming" ? 1 : 0;
 
   return (
     <ol className="status-timeline" aria-label="Payment progress">
@@ -288,7 +344,13 @@ function StatusTimeline({ status }: { readonly status: string }) {
  * same mistake in the failed and expired case as in the paid one, so all three
  * replace the card rather than only the happy path.
  */
-export function Outcome({ status }: { readonly status: string }) {
+export function Outcome({
+  status,
+  intentId,
+}: {
+  readonly status: string;
+  readonly intentId: string;
+}) {
   const paid = status === "COMPLETED";
   const heading = paid
     ? "Payment completed"
@@ -328,6 +390,9 @@ export function Outcome({ status }: { readonly status: string }) {
         </div>
         <h2>{heading}</h2>
         <p>{note}</p>
+        <p className="reference">
+          Reference ID <code>{intentId}</code>
+        </p>
       </div>
     </div>
   );

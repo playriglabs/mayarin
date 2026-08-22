@@ -26,3 +26,17 @@ export function statusWording(status: string): readonly [string, Tone] {
 export function isTerminal(status: string): boolean {
   return TERMINAL_STATUSES.includes(status);
 }
+
+/**
+ * Clearing states in which the payer's asset has arrived and the engine is
+ * working. The intent's own `CONFIRMED` status is not on this list on
+ * purpose: an intent is confirmed the moment the payer presses Continue,
+ * before any money moves. Only the clearing state knows about the money.
+ */
+const CONFIRMING_STATES: readonly string[] = ["ASSET_RECEIVED", "CLEARING", "SETTLING", "SETTLED"];
+
+export type PaymentStage = "waiting" | "confirming";
+
+export function paymentStage(clearingState: string): PaymentStage {
+  return CONFIRMING_STATES.includes(clearingState) ? "confirming" : "waiting";
+}

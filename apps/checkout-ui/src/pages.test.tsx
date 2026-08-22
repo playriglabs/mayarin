@@ -11,7 +11,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { InvoicePage } from "./InvoicePage.tsx";
 import { LinkPage } from "./LinkPage.tsx";
-import { DepositCard, Outcome, PayPage } from "./PayPage.tsx";
+import { ConfirmingCard, DepositCard, Outcome, PayPage } from "./PayPage.tsx";
 import type { InvoiceBootstrap, LinkBootstrap, MoneyDto, PayBootstrap } from "./types.ts";
 
 function idr(display: string): MoneyDto {
@@ -189,12 +189,40 @@ describe("deposit card", () => {
   });
 });
 
+describe("confirming card", () => {
+  test("stops asking to be paid and names what arrived", () => {
+    const html = renderToStaticMarkup(
+      <ConfirmingCard
+        deposit={{
+          uri: "ethereum:0xDeposit",
+          amount: usdc("3500000", "3.500000", "3,50 USDC"),
+          chain: "base-sepolia",
+          address: "0xDeposit",
+          received: usdc("3500000", "3.500000", "3,50 USDC"),
+        }}
+      />,
+    );
+    expect(html).toContain("Payment detected");
+    expect(html).toContain("3.5 USDC received");
+    expect(html).toContain('role="status"');
+    // The deposit instructions must be gone: each one invites a second transfer.
+    expect(html).not.toContain("Send this exact amount");
+    expect(html).not.toContain("Copy");
+    expect(html).not.toContain("0xDeposit");
+  });
+});
+
 describe("outcome", () => {
-  test("each terminal state has words, not placeholders", () => {
-    expect(renderToStaticMarkup(<Outcome status="COMPLETED" />)).toContain("Payment completed");
-    expect(renderToStaticMarkup(<Outcome status="EXPIRED" />)).toContain("Payment expired");
-    expect(renderToStaticMarkup(<Outcome status="FAILED" />)).toContain("Payment failed");
-    expect(renderToStaticMarkup(<Outcome status="FAILED" />)).not.toContain("—");
+  test("each terminal state has words, not placeholders, and keeps the reference", () => {
+    const done = renderToStaticMarkup(<Outcome status="COMPLETED" intentId="pi_1" />);
+    expect(done).toContain("Payment completed");
+    expect(done).toContain("pi_1");
+    expect(renderToStaticMarkup(<Outcome status="EXPIRED" intentId="pi_1" />)).toContain(
+      "Payment expired",
+    );
+    const failed = renderToStaticMarkup(<Outcome status="FAILED" intentId="pi_1" />);
+    expect(failed).toContain("Payment failed");
+    expect(failed).not.toContain("—");
   });
 });
 

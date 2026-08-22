@@ -312,6 +312,9 @@
   .preparing p {
     @apply mt-1 mb-0 text-xs text-muted;
   }
+  .preparing .received-note {
+    @apply mt-2 font-semibold text-brand tabular-nums;
+  }
   .spinner {
     @apply size-5.5 animate-spin rounded-full border-2 border-line border-t-brand motion-reduce:animate-none;
   }

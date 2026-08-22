@@ -5,7 +5,7 @@ import { remainingAt } from "./countdown.ts";
 import { currencySymbol } from "./currency-symbol.ts";
 import { usableDeposit } from "./payment-status.ts";
 import type { LinkBootstrap } from "./types.ts";
-import { isTerminal, statusWording } from "./wording.ts";
+import { isTerminal, paymentStage, statusWording } from "./wording.ts";
 
 describe("wallet amount", () => {
   test("trims trailing zeros from the machine decimal and nothing else", () => {
@@ -103,6 +103,22 @@ describe("status wording", () => {
     expect(isTerminal("FAILED")).toBe(true);
     expect(isTerminal("EXPIRED")).toBe(true);
     expect(isTerminal("PROCESSING")).toBe(false);
+  });
+});
+
+describe("payment stage", () => {
+  test("only a clearing state that saw money counts as confirming", () => {
+    expect(paymentStage("ASSET_RECEIVED")).toBe("confirming");
+    expect(paymentStage("CLEARING")).toBe("confirming");
+    expect(paymentStage("SETTLING")).toBe("confirming");
+    expect(paymentStage("SETTLED")).toBe("confirming");
+  });
+
+  test("a confirmed intent is still waiting — pressing Continue moves no money", () => {
+    expect(paymentStage("")).toBe("waiting");
+    expect(paymentStage("PRICE_LOCKED")).toBe("waiting");
+    expect(paymentStage("PAYMENT_PENDING")).toBe("waiting");
+    expect(paymentStage("CONFIRMED")).toBe("waiting");
   });
 });
 
