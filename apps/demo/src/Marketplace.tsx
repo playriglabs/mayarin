@@ -81,6 +81,9 @@ export function Marketplace() {
 
   return (
     <>
+      <a className="skip-link" href="#koleksi">
+        Skip to the collection
+      </a>
       <p className="announce">
         Demo store — orders do not ship. Payments run on the Mayarin testnet.
       </p>
