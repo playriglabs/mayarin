@@ -52,8 +52,8 @@ use, and amounts use the international format:
 
 | On the slide                                       | Not          | Why                                              |
 | -------------------------------------------------- | ------------ | ------------------------------------------------ |
-| `IDR 299,000` (about S$25)                         | `Rp 299.000` | A dot reads as a decimal point outside Indonesia |
-| Parahyangan Supply, an apparel brand in Bandung    | the merchant | Names the real demo store once                   |
+| `IDR 36,000` (about S$3)                           | `Rp 36.000`  | A dot reads as a decimal point outside Indonesia |
+| coffee shop                                        | warung       | Everyone knows a coffee shop                     |
 | Indonesian rupiah (IDR), first use                 | rupiah       | Names the currency and its code once             |
 | Safe smart-account wallet, first use               | Safe         | "Safe" alone reads as an adjective               |
 | a passkey (Face ID or Touch ID)                    | a passkey    | Says what the merchant actually does             |
@@ -154,13 +154,12 @@ demo on slide 4 validates Mayarin. `PURPOSE.md §2`, `docs/vision.md`.
 
 ### 4 — Live payment demo · 2:10
 
-**Headline:** IDR 299,000 priced. Testnet ETH paid. USDC settled. Chain and
+**Headline:** IDR 36,000 priced. Testnet ETH paid. USDC settled. Chain and
 ledger agree.
 
 **Copy:**
 
-- Parahyangan Supply, an apparel brand in Bandung, sells the Rinjani Cargo
-  Pants for IDR 299,000 — about S$25.
+- A coffee shop in Jakarta creates a payment for IDR 36,000 — about S$3.
 - Mayarin locks the quote and issues a per-payment address for testnet ETH.
 - The payer transfers the exact amount; the watcher confirms and matches it.
 - The executor calls `PaymentRouter`, swaps through Uniswap, and settles net
@@ -172,25 +171,21 @@ ledger agree.
 balanced ledger, and webhook. It ends on two clearly labelled Basescan links:
 `Payer transfer` and `Settlement`.
 
-**Demo choreography:** begin on this slide, then switch to the prepared live
-Rinjani Cargo Pants checkout at IDR 299,000 on the Parahyangan Supply
-storefront. Choose ETH, then scan the per-payment address into a pre-funded
+**Demo choreography:** begin on this slide, then switch to a prepared live IDR
+36,000 checkout. Choose ETH, then scan the per-payment address into a pre-funded
 phone wallet. While the chain confirms, keep the checkout's visible status
 timeline on screen. Move to the merchant dashboard after it reaches paid; show
 the clearing amounts, USDC settlement, webhook delivery, and the two proof
 links. Return directly to slide 5. Keep a completed intent and a 45–60 second
 recording ready; never wait silently.
 
-**Notes:** **[DEMO MOMENT — HAND OVER TO CITRA]** Rizky introduces the Rinjani
-Cargo Pants example in one sentence, then Citra follows
+**Notes:** **[DEMO MOMENT — HAND OVER TO CITRA]** Rizky introduces the IDR
+36,000 example in one sentence, then Citra follows
 `docs/hackathon-demo-runbook.md` and switches to the prepared checkout. This
 proof is the **deposit path**, not the single-call contract path.
 It consists of a payer transfer and a separate executor settlement, and the
 executor holds the payer asset briefly between them. Say that plainly if asked.
-The product is real demo catalog data: Rinjani Cargo Pants, olive ripstop with
-six pockets and an adjustable waist, IDR 299,000.
-The recorded Base Sepolia proof is from 2026-08-19, an earlier IDR 36,000 run,
-intent
+The real Base Sepolia payment is from 2026-08-19, intent
 `pi_01M0D8X65WSYV0T5FQRQVXV5M7`: payer transfer
 [`0xe031f84f…`](https://sepolia.basescan.org/tx/0xe031f84f710834cbbf1516f0dfad12c543933da7772799795235e93d21b7525e),
 settlement transaction
@@ -198,8 +193,7 @@ settlement transaction
 Payer sent 0.012953540 testnet ETH. Settlement output was 2.019586 testnet USDC;
 fee was 0.012118 USDC and merchant net was 2.007468 USDC. Do not feature the ETH
 amount: the Base Sepolia pool is execution proof, not a mainnet price market.
-Record a rehearsal payment at IDR 299,000 before stage.
-IDR 299,000 is about S$25 at roughly 12,000 IDR per SGD (August 2026). Base
+IDR 36,000 is about S$3 at roughly 12,000 IDR per SGD (August 2026). Base
 Sepolia is Base's public testnet. `docs/liquidity-routing.md`,
 `docs/architecture.md`, `docs/chain.md`. **[DEMO MOMENT — RETURN TO DECK, SLIDE
 5]** Close with: "Correct amount, merchant control, and a provable outcome."
