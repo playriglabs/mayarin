@@ -1,167 +1,538 @@
-# mayarin
+# Mayarin
 
-**/maɪˈjɑːrɪn/** — _"My-ar-in"_
+**/maɪˈjɑːrɪn/** — _“My-ar-in”_
 
-> **Programmable Crypto-Commerce Infrastructure**
+> **Programmable crypto-commerce infrastructure**
 >
-> _Price in fiat. Settle in stablecoins. Pay with anything._
+> Price in fiat. Settle in stablecoins. Pay with anything.
 
-Mayarin is programmable crypto-commerce infrastructure: merchants price in their local currency and settle in a stablecoin; customers pay with any supported crypto asset. Mayarin bridges the two without requiring merchants to understand blockchain.
+Mayarin lets merchants price in their local currency, receive a configured
+stablecoin, and accept supported crypto assets from customers. A
+provider-agnostic clearing layer coordinates quoting, execution, settlement,
+accounting, wallets, and merchant-facing commerce without making those concerns
+part of the merchant's application.
 
-A provider-agnostic clearing layer orchestrates value across wallets, blockchains, and stablecoins through one modular architecture. Fiat payment rails (QRIS, bank transfer) and a stablecoin → fiat off-ramp are intentionally out of the MVP — later, explicit phases with their own custody perimeter.
+The project currently runs on **testnet**. Its Base Sepolia execution contracts
+are deployed and verified; the mainnet environment remains deliberately
+unprovisioned until the documented security and deployment gates are satisfied.
 
----
+## Contents
 
-# Vision
+- [Why Mayarin](#why-mayarin)
+- [Project status](#project-status)
+- [Features](#features)
+- [Architecture](#architecture)
+- [How a payment moves](#how-a-payment-moves)
+- [Design principles](#design-principles)
+- [Quick start](#quick-start)
+- [SDK example](#sdk-example)
+- [Repository map](#repository-map)
+- [Technology stack](#technology-stack)
+- [Development](#development)
+- [Testing and quality](#testing-and-quality)
+- [Deployment](#deployment)
+- [Documentation](#documentation)
+- [Roadmap and current boundaries](#roadmap-and-current-boundaries)
+- [Community and support](#community-and-support)
+- [Contributing](#contributing)
+- [Security](#security)
+- [Licensing](#licensing)
 
+## Why Mayarin
+
+Merchants think in local prices. Customers hold crypto. Settlement happens in
+stablecoins. Without an orchestration layer, merchants are forced to manage
+wallets, rates, swaps, gas, finality, and reconciliation themselves.
+
+Mayarin turns those responsibilities into infrastructure:
+
+```text
+Merchant prices       IDR 50,000
+Customer chooses      ETH, USDC, or another configured payer asset
+Mayarin locks         the merchant's stablecoin settlement minimum
+Execution converts    on-chain when the payer and settlement assets differ
+Merchant receives     the configured settlement stablecoin
+Records show          chain evidence, clearing events, and balanced postings
 ```
-              Any Payer Asset
 
-   ETH • USDC • USDT • IDRX • …
+Mayarin is not an exchange, a general-purpose custodial wallet, or a fiat
+payment rail. The Payment Intent is the stable boundary: platforms may use the
+first-party catalog and checkout, or build their own commerce experience on the
+same payment primitives.
 
-                   │
-                   ▼
+## Project status
 
-     ┌─────────────┴─────────────┐
+| Area                      | Status                         | Notes                                                                                                               |
+| ------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Core payment and clearing | Shipped                        | Immutable intents, resumable state machine, exact money, idempotency                                                |
+| Double-entry accounting   | Shipped                        | Balanced postings and merchant-scoped reconciliation                                                                |
+| Contract execution        | Testnet                        | `PaymentRouter`, timelock, and deposit-forwarder contracts on Base Sepolia                                          |
+| Deposit matching          | Shipped                        | Per-intent addresses, confirmation policy, reorg handling, treasury executor                                        |
+| Quotes and routing        | Shipped                        | Oracle guards and pluggable execution venues                                                                        |
+| Commerce                  | Shipped                        | Products, carts, links, invoices, hosted checkout, orders, and customers                                            |
+| Merchant dashboard        | Shipped                        | Real API-backed operational and developer surfaces                                                                  |
+| Wallet infrastructure     | Shipped with browser follow-up | Verified addresses, managed Safe, balances, and withdrawals; complete passkey browser ceremony remains roadmap work |
+| TypeScript SDK            | Shipped in the monorepo        | Server and publishable browser clients; publication is a release decision                                           |
+| Webhooks and live status  | Shipped                        | Signed retries, delivery inspection, replay, SSE buyer status                                                       |
+| Mainnet                   | Planned                        | No mainnet Railway project is provisioned                                                                           |
 
-     ▼                           ▼
+The detailed and continuously updated status lives in
+[docs/roadmap.md](./docs/roadmap.md).
 
- Off-chain orchestration     On-chain execution
- deposit address → watcher    PaymentRouter → atomic swap
- (fallback path)             (primary path)
+## Features
 
-     └─────────────┬─────────────┘
-                   ▼
+### Payment and execution
 
-       Settlement Asset (stablecoin)
+- Immutable Payment Intents with merchant references and idempotency keys.
+- Fiat-denominated pricing with stablecoin settlement.
+- Exact integer minor-unit arithmetic; no floating-point money paths.
+- Atomic receive → swap → settle through `PaymentRouter` when supported.
+- Deposit-address fallback for direct transfers and unsupported contract paths.
+- Native ETH and ERC-20 chain handling behind shared chain ports.
+- Confirmation-depth policy, reorg detection, cursor persistence, and backfill.
+- Pyth and Chainlink reference-price adapters.
+- Uniswap and 0x exact-output route adapters, plus LiFi quote support.
+- Signed quote locks with settlement minimums, deadlines, and slippage bounds.
 
-                   │
-                   ▼
+### Commerce and checkout
 
-       Merchant Smart Account
+- Optional product catalog with one explicit price per currency.
+- Stateless carts that produce immutable Payment Intent snapshots.
+- Fixed, open-amount, and catalog-backed payment links.
+- Numbered invoices with lifecycle, due dates, hosted views, and checkout.
+- Hosted buyer checkout bundled with the core API.
+- Embeddable browser checkout and a reference storefront.
+- Static merchant QR and per-payment EIP-681 deposit codes.
+- Merchant-reference lookup and idempotent creation flows.
+- Payment refund API and refund summaries.
+- WooCommerce plugin with signed webhook verification.
 
-     ├── USDC   ├── USDT   └── IDRX
+### Merchant operations
+
+- Overview and merchant analytics.
+- Product catalog, payment links, counter checkout, orders, and customers.
+- Payment explorer with clearing and chain-event timelines.
+- Settlement views combining booked amounts with chain evidence.
+- Managed and connected wallets, proof-of-control challenges, balances, and
+  withdrawal history.
+- Merchant profile, accepted assets, settlement configuration, and change
+  history.
+- Scoped users, permissions, secret API keys, and publishable keys.
+- Signed webhook endpoints, secret rotation, delivery inspection, and replay.
+- Unified event logs and merchant-scoped audit/reconciliation records.
+
+### Developer platform
+
+- Versioned Hono REST API under `/v1`.
+- Separate session-based dashboard API with tenant isolation and CSRF defense.
+- Generated OpenAPI 3.1 reference and interactive playground.
+- `@mayarin/sdk` TypeScript client for commerce, payments, QR helpers, invoices,
+  and webhook verification.
+- Browser-safe SDK surface using publishable keys for catalog reads and cart
+  checkout.
+- Provider ports for storage, chains, settlement, liquidity, prices, wallets,
+  execution, and screening.
+
+## Architecture
+
+![Mayarin architecture flow: merchants and customers enter through the Mayarin API, which coordinates quoting, contract execution or transfer watching, clearing, the ledger, and stablecoin settlement](./apps/landing/public/images/pitch-deck/mayarin-architecture-flow.png)
+
+Mayarin follows ports and adapters. Pure domain packages define the contracts;
+Postgres, EVM, oracle, liquidity, settlement, and wallet packages implement
+them. Composition roots in the applications select the concrete deployment.
+
+Every payment enters the same orchestration and accounting model, but value can
+move through one of two paths:
+
+1. **On-chain contract path — primary where supported.** Mayarin locks the
+   merchant's settlement minimum and builds a signed order. The customer calls
+   `PaymentRouter`, which receives, optionally swaps, and settles atomically. A
+   confirmed `PaymentCompleted` event is indexed into clearing and the ledger.
+2. **Deposit-matching path — fallback.** The customer transfers to a unique
+   per-intent address. The chain worker confirms the transfer and a treasury
+   executor converts and settles it. This path briefly holds the payer asset;
+   that custody boundary is explicit and audited.
+
+Read [Architecture](./docs/architecture.md), [Chain Layer](./docs/chain.md), and
+[Threat Model](./docs/threat-model.md) before changing an execution or custody
+boundary.
+
+## How a payment moves
+
+### Contract execution path
+
+```text
+Merchant creates intent
+        ↓
+Quote engine locks the stablecoin settlement minimum
+        ↓
+Customer selects a payer asset
+        ↓
+Execution engine builds fresh route calldata
+        ↓
+Customer submits PaymentRouter transaction
+        ↓
+Receive → optional swap → merchant settlement (atomic)
+        ↓
+PaymentCompleted event reaches the settlement indexer
+        ↓
+Clearing state → double-entry ledger → dashboard and webhooks
 ```
 
----
+### Deposit-matching path
 
-# Quick Start
+```text
+Payment Intent locks asset, chain, and amount
+        ↓
+Mayarin allocates a unique deposit address
+        ↓
+Customer transfers from a wallet or exchange
+        ↓
+Wallet watcher observes and confirms the transfer
+        ↓
+Treasury executor converts and settles
+        ↓
+Clearing state → double-entry ledger → dashboard and webhooks
+```
 
-Requires [Bun](https://bun.sh) 1.4+ and Docker.
+## Design principles
+
+- **Money is never a float.** Amounts are integer minor units and rates are
+  integer ratios or basis points.
+- **Execution is bounded.** A signed settlement minimum, deadline, and
+  slippage policy prevent a silent underfill.
+- **State changes are replay-safe.** Clearing steps, chain observations,
+  ledger postings, creation requests, and webhook deliveries are idempotent.
+- **Value movement is auditable.** Nothing mutates a balance directly; every
+  recorded movement goes through balanced ledger postings.
+- **Effects stay at the edge.** Core packages define ports. Infrastructure
+  adapters own I/O and vendor dependencies.
+- **On-chain truth wins.** The ledger is an auditable derived view, not a
+  substitute for confirmed chain evidence.
+- **Custody boundaries are explicit.** The atomic path and fallback deposit
+  path make different trust assumptions and are documented separately.
+- **Commerce is optional.** A developer can use raw payment primitives without
+  adopting Mayarin's catalog, links, or dashboard.
+
+## Quick start
+
+### Requirements
+
+- [Bun](https://bun.sh) 1.4 or newer
+- Docker with Docker Compose
+- Foundry only when working on Solidity contracts
+
+### One-command setup
 
 ```bash
-bun run setup          # install, .env, Postgres, migrations, config check
-bun run dev            # API on http://localhost:3000
-bun run dev:docs       # developer docs on http://localhost:4321
+git clone https://github.com/playriglabs/mayarin.git
+cd mayarin
+
+# Install dependencies, create .env, start Postgres, and apply migrations.
+bun run setup
+
+# Optionally create the first merchant account and API key.
+bun run setup -- --seed
+
+# Run the core API, chain worker, dashboard API, dashboard, and checkout UI.
+bun run dev:all
 ```
 
-`setup` is also the way back to a working tree when something has drifted — it
-reports which keys your `.env` is missing against `.env.example`, and which it
-declares that nobody else has. Run it with `--seed` to create the first merchant
-account, `--reset-db` to migrate from an empty database, or `--check` to report
-without changing anything.
-
-Doing it by hand is four steps rather than one, and the third has a trap:
+`setup` is also the recovery path for a drifted environment:
 
 ```bash
-bun install
-cp .env.example .env
-bun run db:up
-
-# `db:migrate` runs in packages/db, which has no .env of its own — the root file
-# is not inherited, so DATABASE_URL must be passed in explicitly.
-export $(grep -E '^DATABASE_URL' .env) && bun run --cwd packages/db migrate
+bun run setup -- --check     # report configuration drift; change nothing
+bun run setup -- --reset-db  # rebuild only the guarded local Docker database
 ```
 
-Pay something. Creating an intent is a merchant act, so it needs an API key —
-`bun run seed:merchant` prints one (`apiKey:`) when it creates the merchant:
+### Focused development servers
 
 ```bash
-curl -X POST localhost:3000/v1/payment-intents \
-  -H 'content-type: application/json' \
-  -H 'Authorization: Bearer <apiKey from seed:merchant>' \
-  -H 'Idempotency-Key: order-4711' \
-  -d '{"merchant":{"id":"M-1","name":"Warung Kopi","city":"Jakarta","countryCode":"ID"},
-       "amount":{"amount":"50000.00","asset":"IDR"}}'
-
-curl -X POST localhost:3000/v1/payment-intents/<id>/confirm
-curl localhost:3000/v1/payments/<id>
+bun run dev                  # core payment API on http://localhost:3000
+bun run dev:dashboard:local  # reset and run the complete local dashboard flow
+bun run dev:demo             # Parahyangan Supply reference storefront
+bun run dev:docs             # interactive API documentation
+bun run dev:landing          # marketing site and pitch deck
+bun run dev:studio           # content studio
 ```
 
-Full setup, commands and tooling: [docs/development.md](./docs/development.md).
+See [Development](./docs/development.md) for manual database setup, environment
+configuration, chain-worker options, and local fixture guidance.
+
+## SDK example
+
+Create a fixed IDR payment link from a server-side integration:
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const secretKey = process.env.MAYARIN_SECRET_KEY;
+if (secretKey === undefined) throw new Error("MAYARIN_SECRET_KEY is required");
+
+const mayarin = createMayarin({
+  baseUrl: "https://api-testnet.mayarin.xyz",
+  secretKey,
+});
+
+const link = await mayarin.commerce.paymentLinks.create(
+  {
+    kind: "fixed",
+    merchant: {
+      id: "merchant_123",
+      name: "Toko Melati",
+      city: "Jakarta",
+      countryCode: "ID",
+    },
+    amount: { amount: "50000.00", asset: "IDR" },
+  },
+  { idempotencyKey: "order-4711" },
+);
+
+console.log(link.url);
+```
+
+Secret keys stay on the server. Browser integrations use
+`createMayarinBrowser` with a publishable key and receive only the deliberately
+restricted commerce surface. See [packages/sdk/README.md](./packages/sdk/README.md)
+and the [reference storefront](./apps/demo/README.md).
+
+## Repository map
+
+Mayarin is a Bun workspace monorepo.
+
+| Path                                | Responsibility                                                     |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| `apps/api`                          | Public payment and commerce API; hosted checkout and invoice pages |
+| `apps/chain-worker`                 | Wallet watcher, settlement indexer, and deposit-path executor      |
+| `apps/checkout-ui`                  | Buyer-facing checkout bundled with the core API                    |
+| `apps/dashboard-api`                | Authenticated, tenant-scoped merchant API                          |
+| `apps/dashboard`                    | Merchant operations dashboard                                      |
+| `apps/demo`                         | Parahyangan Supply reference storefront                            |
+| `apps/docs`                         | Interactive API and SDK documentation                              |
+| `apps/landing`                      | Marketing site and pitch deck                                      |
+| `apps/pay-proxy`                    | Restricted buyer-origin proxy for hosted payment surfaces          |
+| `apps/blog` / `apps/studio`         | Editorial site and content studio                                  |
+| `packages/core/*`                   | Pure domain modules and provider/repository ports                  |
+| `packages/providers/*`              | EVM, oracle, swap, settlement, password, and wallet adapters       |
+| `packages/contracts/payment-router` | Solidity contracts and Foundry tests                               |
+| `packages/db`                       | Drizzle schema, migrations, and Postgres repositories              |
+| `packages/sdk`                      | TypeScript client SDK                                              |
+| `packages/embed`                    | Embeddable checkout package                                        |
+| `plugins/woocommerce`               | WooCommerce integration                                            |
+
+The central dependency rule is one-way: domain packages may depend on other
+domain contracts, but never on Postgres, Hono, viem, Turnkey, or another concrete
+adapter. See [AGENT.md](./AGENT.md) for the complete repository conventions.
+
+## Technology stack
+
+| Layer                 | Technology                                              |
+| --------------------- | ------------------------------------------------------- |
+| Runtime and language  | Bun, TypeScript                                         |
+| APIs                  | Hono, Zod, Effect at the dashboard application boundary |
+| Web applications      | Astro, React, Preact, Vite, Tailwind CSS                |
+| Data                  | PostgreSQL, Drizzle ORM                                 |
+| Smart contracts       | Solidity, Foundry, OpenZeppelin                         |
+| EVM integration       | viem                                                    |
+| Wallet infrastructure | Safe smart accounts, Turnkey adapter                    |
+| Quotes and execution  | Pyth, Chainlink, Uniswap, 0x, LiFi adapters             |
+| Monorepo and quality  | Bun workspaces, Turbo, Biome, Prettier, Lefthook        |
+| Deployment            | Railway services and Cloudflare Workers/Pages           |
+
+## Development
+
+### Common commands
+
+| Command                             | Purpose                                                      |
+| ----------------------------------- | ------------------------------------------------------------ |
+| `bun run setup`                     | Install, validate configuration, start Postgres, and migrate |
+| `bun run dev:all`                   | Run the main local application graph through Turbo           |
+| `bun run db:up` / `bun run db:down` | Start or stop local Postgres                                 |
+| `bun run db:migrate`                | Apply checked-in Drizzle migrations                          |
+| `bun run db:generate`               | Generate a migration after changing the schema               |
+| `bun run db:studio`                 | Open Drizzle Studio for the local database                   |
+| `bun run docs:generate-openapi`     | Regenerate the OpenAPI artifact from route schemas           |
+| `bun run build:contracts-abi`       | Build contracts and regenerate the shared ABI package        |
+| `bun run e2e`                       | Run the deposit-path end-to-end script                       |
+
+### Code conventions
+
+- TypeScript is strict, including `noUncheckedIndexedAccess` and
+  `exactOptionalPropertyTypes`.
+- Domain aggregates are immutable and time is injected through a `Clock`.
+- Expected domain failures use the shared typed error taxonomy.
+- Biome owns TypeScript, JavaScript, and JSON; Prettier owns Markdown and YAML.
+- Cross-package imports use the `@mayarin/*` workspace names.
+- Migrations are generated after schema changes and never rewritten casually.
+
+## Testing and quality
+
+```bash
+bun run format:check     # Biome + Prettier
+bun run typecheck        # every workspace package
+bun test                 # unit and integration suites
+bun run check            # complete local gate
+bun run test:contracts   # Foundry contract suite
+bun run test:woocommerce # PHP lint and plugin tests through Docker
+```
+
+Postgres integration tests are opt-in because they truncate every table they
+touch. Point them only at the dedicated test database:
+
+```bash
+TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin \
+  bun test packages/db
+```
+
+Git hooks are installed by `bun install`:
+
+- **pre-commit** — Biome and Prettier over staged files, with fixes re-staged;
+- **pre-push** — workspace typecheck followed by the complete Bun test suite.
+
+## Deployment
+
+Deployments are manual and target-explicit. Git pushes do not automatically
+deploy production infrastructure.
+
+The testnet backend is split into four isolated Railway services:
+
+| Service         | Responsibility                                             |
+| --------------- | ---------------------------------------------------------- |
+| `core-api`      | Public API plus hosted checkout and invoice pages          |
+| `dashboard-api` | Merchant session and operations API                        |
+| `chain-worker`  | Continuous chain observation and execution workers         |
+| `Postgres`      | Application state, cursors, ledger, events, and audit data |
+
+Browser-facing dashboard, payment proxy, demo, documentation, and landing
+surfaces deploy separately to Cloudflare. The testnet wrapper verifies the
+local gate, target identity, optional migrations, dependency order, and smoke
+checks:
+
+```bash
+bun run deploy:testnet
+```
+
+Do not run deployment commands from this README alone. Read
+[docs/deployment.md](./docs/deployment.md), verify the target registry, and
+follow its environment-isolation and key-handling rules.
+
+## Documentation
+
+| Document                                             | Covers                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------- |
+| [Documentation index](./docs/README.md)              | Orientation and the complete design record              |
+| [Vision and rationale](./docs/vision.md)             | Problem, goals, and explicit non-goals                  |
+| [Architecture](./docs/architecture.md)               | System layers, execution paths, and code boundaries     |
+| [REST API](./docs/api.md)                            | Public reference, versioning, and dashboard API         |
+| [Payment Intent](./docs/payment-intent.md)           | Immutable payment request and lifecycle                 |
+| [Money](./docs/money.md)                             | Assets, precision, parsing, and formatting              |
+| [Liquidity and routing](./docs/liquidity-routing.md) | Quotes, oracles, venues, locks, and execution           |
+| [Chain Layer](./docs/chain.md)                       | Contract events, deposit matching, finality, and reorgs |
+| [Clearing Engine](./docs/clearing-engine.md)         | State machine, idempotency, and recovery                |
+| [Double-entry ledger](./docs/ledger.md)              | Accounts, postings, and reconciliation                  |
+| [Merchant wallets](./docs/wallet.md)                 | Safe provisioning, proof of control, and custody        |
+| [Compliance](./docs/compliance.md)                   | Audit records and ledger-to-chain reconciliation        |
+| [Threat Model](./docs/threat-model.md)               | Security assumptions, mitigations, and accepted risks   |
+| [Embeddable checkout](./docs/embed.md)               | Checkout integration on merchant sites                  |
+| [WooCommerce](./docs/woocommerce.md)                 | Plugin setup and payment lifecycle                      |
+| [Deployment](./docs/deployment.md)                   | Testnet topology and guarded deployment process         |
+| [Roadmap](./docs/roadmap.md)                         | Shipped status, limitations, and future phases          |
+
+The canonical interactive API reference is published at
+[docs.mayarin.xyz](https://docs.mayarin.xyz).
+
+## Roadmap and current boundaries
+
+Current boundaries are part of the design, not hidden footnotes:
+
+- Fiat rails such as QRIS and bank transfer are outside the MVP.
+- Stablecoin-to-fiat off-ramping is a later phase with its own custody and
+  regulatory perimeter.
+- Testnet is provisioned; mainnet is planned and must not reuse testnet state,
+  contracts, or credentials.
+- The deposit path briefly holds the payer asset between receipt and execution;
+  the contract path does not.
+- Broader gas abstraction, multi-recipient settlement splitting, multi-chain
+  expansion, and the complete browser passkey ceremony remain roadmap work.
+- Screening has a provider port and honest disabled default; KYC, freeze
+  handling, exports, and retention policy are not complete compliance products.
+
+Future work is organized around completing the commerce experience, expanding
+payer assets and execution venues, reaching more chains and markets, scaling
+operations, and opening provider/plugin extension points. See the
+[roadmap](./docs/roadmap.md) for item-level status.
+
+## Community and support
+
+- Use [GitHub Issues](https://github.com/playriglabs/mayarin/issues) for
+  reproducible bugs and scoped feature proposals.
+- Search existing issues before opening a new one and link the relevant design
+  document or roadmap item when possible.
+- Include the affected app/package, expected behavior, actual behavior,
+  reproduction steps, and a minimal sanitized log.
+- Never include secrets, private keys, wallet credentials, customer data, or
+  production connection strings.
+- Keep vulnerability reports private as described in [Security](#security).
+
+## Contributing
+
+Contributions should preserve the system's financial and architectural
+invariants.
+
+1. Read [AGENT.md](./AGENT.md), [Architecture](./docs/architecture.md), and the
+   domain document for the area you plan to change.
+2. Create a focused branch and keep unrelated working-tree changes out of it.
+3. Add tests at the narrowest layer that owns the behavior.
+4. Update the relevant design documentation when an invariant, API contract,
+   custody boundary, or deployment assumption changes.
+5. Run `bun run check` before opening a pull request. Run the contract or
+   WooCommerce suites as well when those areas change.
+6. Keep commits free of generated attribution trailers and follow the existing
+   commit style.
+
+Good first contributions improve tests, documentation, provider adapters,
+developer experience, and narrowly scoped roadmap items without weakening
+tenant isolation, exact-money handling, idempotency, or custody controls.
+
+A standalone `CONTRIBUTING.md` and code of conduct are not yet present. Until
+they are added, [AGENT.md](./AGENT.md) and [docs/development.md](./docs/development.md)
+are the contributor guides.
+
+## Security
+
+Payment and wallet code is security-sensitive. Do not put private keys, API
+secrets, wallet credentials, RPC credentials, or production database URLs in an
+issue, pull request, fixture, log, or screenshot.
+
+Before reporting a vulnerability publicly, contact the maintainers privately.
+The repository does not yet publish a dedicated `SECURITY.md` or disclosure
+address, so coordinate a private channel with the repository owners first.
+
+Security-relevant changes must account for:
+
+- merchant and tenant isolation;
+- authorization, CSRF, and API-key permissions;
+- exact money and quote-lock behavior;
+- replay and idempotency boundaries;
+- finality, reorgs, and chain/RPC failure;
+- signer, treasury, and merchant-wallet separation;
+- contract upgrade, timelock, and deployment-target controls;
+- the different custody assumptions of contract and deposit execution.
+
+See [Threat Model](./docs/threat-model.md), [Quote Signing](./docs/quote-signing.md),
+and [Merchant Wallets](./docs/wallet.md).
+
+## Licensing
+
+This repository does not currently contain a root-level license file. Public
+source availability does not by itself grant permission to copy, modify, or
+redistribute the project. Repository owners should add an explicit open-source
+license before presenting Mayarin as licensed open-source software.
 
 ---
-
-# Documentation
-
-| Document                                           | Covers                                                             |
-| -------------------------------------------------- | ------------------------------------------------------------------ |
-| [Vision & Rationale](./docs/vision.md)             | Why Mayarin exists, the problem, goals and non-goals               |
-| [Architecture](./docs/architecture.md)             | Design principles, system layers, payment flow, monorepo, stack    |
-| [Money](./docs/money.md)                           | Exact minor-unit amounts and the asset registry                    |
-| [QR Parser](./docs/qr-parser.md)                   | EMVCo decoding and the QRIS profile                                |
-| [Payment Intent](./docs/payment-intent.md)         | Immutable payment requests and their lifecycle                     |
-| [Chain Layer](./docs/chain.md)                     | Per-intent deposit addresses, wallet watcher, reorg policy         |
-| [Stablecoin Registry](./docs/stablecoin.md)        | Admissible stablecoins and their on-chain identities               |
-| [Liquidity & Routing](./docs/liquidity-routing.md) | Turning any asset into the settlement asset via a pluggable source |
-| [Clearing Engine](./docs/clearing-engine.md)       | The nine-state machine, idempotency, resumability                  |
-| [Double Entry Ledger](./docs/ledger.md)            | Chart of accounts and the postings behind every payment            |
-| [Settlement](./docs/settlement.md)                 | The provider abstraction and the adapters behind it                |
-| [REST API](./docs/api.md)                          | Endpoints, request and response shapes, error codes                |
-| [Configuration](./docs/configuration.md)           | Deployment identity vs merchant settings vs market data            |
-| [Development](./docs/development.md)               | Running locally, commands, formatting, git hooks                   |
-| [Deployment Targets](./docs/deployment.md)         | Manual Railway testnet/mainnet selection and safety gates          |
-| [Roadmap](./docs/roadmap.md)                       | What is shipped and what comes next                                |
-
----
-
-# New Roadmap
-
-Mayarin can grow from its programmable clearing foundation into an open,
-multi-network commerce platform. The next possibilities are organized around
-five horizons:
-
-- **Complete the commerce experience** — production-ready checkout, merchant
-  smart accounts, fee and refund splitting, gas-sponsored withdrawals,
-  notifications, SDKs, analytics, and compliance tooling.
-- **Expand how customers pay** — support more tokens, native assets, liquidity
-  venues, wallet providers, and execution strategies while keeping settlement
-  predictable for merchants.
-- **Reach more networks and markets** — add EVM networks, then explore Solana,
-  TRON, configurable settlement assets, and explicitly designed cross-chain
-  flows.
-- **Enable AI-native payments** — give assistants and autonomous agents a safe
-  way to discover payment options, request quotes, and complete approved
-  purchases through Agent Pay-style flows or an MCP server. Agent identities,
-  scoped API keys, per-transaction limits, human approval thresholds,
-  idempotency, and a complete audit trail should be required before any agent
-  can move funds.
-- **Open and scale the infrastructure** — strengthen observability,
-  reconciliation, high availability, and multi-region operation; introduce
-  provider and plugin SDKs; and explore a separately governed stablecoin-to-fiat
-  off-ramp.
-
-These are directions Mayarin can pursue, not delivery commitments. Each should
-preserve the project's core principles: provider-agnostic adapters, auditable
-value movement, merchant-controlled funds, and a clear custody boundary.
-
-See the [detailed roadmap](./docs/roadmap.md) for current capabilities, design
-constraints, and phase-level plans.
-
----
-
-# Tagline
 
 > **Build once. Settle anywhere.**
 
----
-
-# Closing Statement
-
-> We believe digital assets should not replace existing payment systems.
-> They should make them programmable.
-
-Mayarin turns fragmented crypto-payment infrastructure into a unified clearing
-layer that orchestrates quoting, execution, settlement, accounting, and wallet
-provisioning behind one API — so the merchant prices in their local currency and
-receives their chosen stablecoin while the customer pays with whatever asset they hold.
+Mayarin turns fragmented crypto-payment infrastructure into one programmable
+clearing layer, so merchants can think in local prices and stablecoin settlement
+while customers pay with the supported asset they already hold.

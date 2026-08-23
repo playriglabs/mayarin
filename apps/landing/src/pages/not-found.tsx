@@ -40,7 +40,7 @@ export function NotFound() {
               Back to Mayarin
             </a>
             <a
-              href="/brand-kit"
+              href="/brand-kit/"
               class="inline-flex h-12 items-center border border-line px-7 text-sm font-medium transition-colors hover:border-ink"
             >
               Visit brand kit
