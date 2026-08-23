@@ -459,8 +459,8 @@
 .deck body {
   height: 100%;
   overflow: hidden;
-  background-color: var(--color-void);
-  color: #ffffff;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
 }
 
 .deck-track {

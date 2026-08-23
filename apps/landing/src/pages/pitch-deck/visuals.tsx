@@ -24,13 +24,10 @@ function Card({
   class?: string;
 }) {
   return (
-    <div
-      data-reveal
-      class={clsx("flex flex-col gap-3 border border-line-inverse p-5 md:p-6", className)}
-    >
-      {index ? <span class="label text-slate-inverse">{index}</span> : null}
-      <h3 class="font-sans text-base font-medium tracking-normal text-white md:text-lg">{title}</h3>
-      {children ? <p class="text-sm leading-relaxed text-slate-inverse">{children}</p> : null}
+    <div data-reveal class={clsx("flex flex-col gap-3 border border-line p-5 md:p-6", className)}>
+      {index ? <span class="label text-ink">{index}</span> : null}
+      <h3 class="font-sans text-base font-medium tracking-normal text-ink md:text-lg">{title}</h3>
+      {children ? <p class="text-sm leading-relaxed text-ink">{children}</p> : null}
     </div>
   );
 }
@@ -40,7 +37,7 @@ export function TitleLockup() {
     <div class="flex h-full flex-col items-start justify-between gap-10">
       <img
         data-reveal
-        src="/brand-kit/mayarin-full-white.png"
+        src="/brand-kit/mayarin-full-black.png"
         alt="Mayarin"
         width="640"
         height="160"
@@ -49,12 +46,12 @@ export function TitleLockup() {
       />
       <div data-reveal class="flex flex-wrap items-end gap-x-10 gap-y-4">
         <div class="flex flex-col gap-2">
-          <span class="label text-slate-inverse">Pronounced</span>
-          <span class="font-mono text-lg text-white md:text-2xl">/maɪˈjɑːrɪn/</span>
+          <span class="label text-ink">Pronounced</span>
+          <span class="font-mono text-lg text-ink md:text-2xl">/maɪˈjɑːrɪn/ · “My-ar-in”</span>
         </div>
         <a
           href="https://mayarin.xyz"
-          class="font-mono text-sm text-accent hover:text-white md:text-base"
+          class="font-mono text-sm text-forest hover:text-ink md:text-base"
         >
           mayarin.xyz
         </a>
@@ -97,7 +94,7 @@ function LinkedInMark() {
     <svg
       viewBox="0 0 24 24"
       aria-hidden="true"
-      class="size-4 shrink-0 text-accent"
+      class="size-4 shrink-0 text-forest"
       fill="currentColor"
     >
       <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V8.997h3.414v1.561h.047c.475-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.371 4.267 5.456v6.288ZM5.337 7.433a2.062 2.062 0 1 1 0-4.124 2.062 2.062 0 0 1 0 4.124ZM7.119 20.452H3.555V8.997h3.564v11.455Z" />
@@ -110,7 +107,7 @@ function WebsiteMark() {
     <svg
       viewBox="0 0 24 24"
       aria-hidden="true"
-      class="size-4 shrink-0 text-accent"
+      class="size-4 shrink-0 text-forest"
       fill="none"
       stroke="currentColor"
       stroke-width="1.8"
@@ -125,10 +122,10 @@ function WebsiteMark() {
 
 export function TeamPortraits() {
   return (
-    <div class="grid grid-cols-1 gap-px bg-line-inverse sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-px bg-line sm:grid-cols-2">
       {TEAM.map((member) => (
-        <article key={member.name} data-reveal class="min-w-0 bg-void">
-          <div class="aspect-square overflow-hidden bg-void">
+        <article key={member.name} data-reveal class="min-w-0 bg-paper">
+          <div class="aspect-square overflow-hidden bg-paper">
             <img
               src={member.image}
               alt={`${member.name}, ${member.role} at Mayarin`}
@@ -138,13 +135,13 @@ export function TeamPortraits() {
               decoding="async"
             />
           </div>
-          <div class="flex flex-col gap-1 border-t border-line-inverse p-4 md:p-5">
-            <span class="font-sans text-lg text-white md:text-xl">{member.name}</span>
-            <span class="font-mono text-xs text-accent md:text-sm">{member.role}</span>
-            <span class="text-xs text-slate-inverse md:text-sm">{member.experience}</span>
+          <div class="flex flex-col gap-1 border-t border-line p-4 md:p-5">
+            <span class="font-sans text-lg text-ink md:text-xl">{member.name}</span>
+            <span class="font-mono text-xs text-forest md:text-sm">{member.role}</span>
+            <span class="text-xs text-ink md:text-sm">{member.experience}</span>
             <nav
               aria-label={`${member.name} profiles`}
-              class="mt-3 grid grid-cols-2 gap-px bg-line-inverse"
+              class="mt-3 grid grid-cols-2 gap-px bg-line"
             >
               {member.links.map((link) => (
                 <a
@@ -153,7 +150,7 @@ export function TeamPortraits() {
                   target="_blank"
                   rel="noreferrer"
                   aria-label={`${member.name} ${link.label}, opens in a new tab`}
-                  class="inline-flex min-h-11 min-w-0 items-center gap-2 bg-void px-3 font-mono text-[0.7rem] text-slate-inverse outline-offset-4 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-accent md:text-xs"
+                  class="inline-flex min-h-11 min-w-0 items-center gap-2 bg-paper px-3 font-mono text-[0.7rem] text-ink outline-offset-4 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-accent md:text-xs"
                 >
                   {link.kind === "linkedin" ? <LinkedInMark /> : <WebsiteMark />}
                   <span class="truncate">{link.label}</span>
@@ -169,13 +166,13 @@ export function TeamPortraits() {
 
 export function TeamAndAsk() {
   return (
-    <div class="flex flex-col gap-px bg-line-inverse">
+    <div class="flex flex-col gap-px bg-line">
       <div class="grid grid-cols-1 gap-px sm:grid-cols-2">
         {TEAM.map((member) => (
           <article
             key={member.name}
             data-reveal
-            class="grid min-w-0 grid-cols-[5rem_1fr] items-center gap-4 bg-void p-4 md:grid-cols-[6rem_1fr] md:p-5"
+            class="grid min-w-0 grid-cols-[5rem_1fr] items-center gap-4 bg-paper p-4 md:grid-cols-[6rem_1fr] md:p-5"
           >
             <img
               src={member.image}
@@ -186,23 +183,23 @@ export function TeamAndAsk() {
               decoding="async"
             />
             <div class="flex min-w-0 flex-col gap-1">
-              <span class="font-sans text-lg text-white md:text-xl">{member.name}</span>
-              <span class="font-mono text-xs text-accent md:text-sm">{member.role}</span>
-              <span class="text-xs text-slate-inverse md:text-sm">{member.experience}</span>
+              <span class="font-sans text-lg text-ink md:text-xl">{member.name}</span>
+              <span class="font-mono text-xs text-forest md:text-sm">{member.role}</span>
+              <span class="text-xs text-ink md:text-sm">{member.experience}</span>
             </div>
           </article>
         ))}
       </div>
-      <div data-reveal class="flex flex-col gap-5 bg-void p-5 md:p-6">
+      <div data-reveal class="flex flex-col gap-5 bg-paper p-5 md:p-6">
         <div class="flex flex-col gap-2">
-          <span class="label text-slate-inverse">The outcome</span>
-          <p class="font-sans text-2xl leading-tight text-white md:text-3xl">
+          <span class="label text-ink">The outcome</span>
+          <p class="font-sans text-2xl leading-tight text-ink md:text-3xl">
             Price locally. Pay globally. Settle predictably.
           </p>
         </div>
-        <div class="flex items-center justify-between gap-4 border-t border-line-inverse pt-4">
-          <span class="label text-slate-inverse">Next</span>
-          <span class="font-mono text-sm text-accent">Controlled mainnet pilot</span>
+        <div class="flex items-center justify-between gap-4 border-t border-line pt-4">
+          <span class="label text-ink">Next</span>
+          <span class="font-mono text-sm text-forest">Controlled mainnet pilot</span>
         </div>
       </div>
     </div>
@@ -240,30 +237,30 @@ const INSTITUTIONAL_SIGNALS = [
 
 export function ProblemBridge() {
   return (
-    <div class="flex flex-col gap-px bg-line-inverse">
-      <div class="bg-void px-5 pt-5 md:px-6 md:pt-6">
-        <p class="label mb-2 text-slate-inverse">Settlement thesis</p>
+    <div class="flex flex-col gap-px bg-line">
+      <div class="bg-paper px-5 pt-5 md:px-6 md:pt-6">
+        <p class="label mb-2 text-ink">Settlement thesis</p>
         <ol>
           {SETTLEMENT_PROPERTIES.map(([index, title, detail]) => (
             <li
               key={index}
               data-reveal
-              class="grid grid-cols-[2rem_1fr] gap-x-4 border-t border-line-inverse py-3 last:border-b"
+              class="grid grid-cols-[2rem_1fr] gap-x-4 border-t border-line py-3 last:border-b"
             >
-              <span class="label pt-1 text-accent">{index}</span>
+              <span class="label pt-1 text-forest">{index}</span>
               <div class="flex flex-col gap-1">
-                <h3 class="font-sans text-base text-white md:text-lg">{title}</h3>
-                <p class="text-xs leading-relaxed text-slate-inverse md:text-sm">{detail}</p>
+                <h3 class="font-sans text-base text-ink md:text-lg">{title}</h3>
+                <p class="text-xs leading-relaxed text-ink md:text-sm">{detail}</p>
               </div>
             </li>
           ))}
         </ol>
       </div>
-      <div class="bg-void px-5 py-4 md:px-6 md:py-5">
-        <p class="label mb-2 text-slate-inverse">Institutional signal · official sources</p>
+      <div class="bg-paper px-5 py-4 md:px-6 md:py-5">
+        <p class="label mb-2 text-ink">Institutional signal · official sources</p>
         <ul class="grid grid-cols-2 gap-x-5">
           {INSTITUTIONAL_SIGNALS.map(([name, signal, href]) => (
-            <li key={name} data-reveal class="min-w-0 border-t border-line-inverse">
+            <li key={name} data-reveal class="min-w-0 border-t border-line">
               <a
                 href={href}
                 target="_blank"
@@ -272,14 +269,14 @@ export function ProblemBridge() {
                 class="group flex min-h-11 items-center justify-between gap-3 py-2.5 outline-offset-4 transition-colors focus-visible:outline-2 focus-visible:outline-accent"
               >
                 <span class="min-w-0">
-                  <span class="label block text-white group-hover:text-accent">{name}</span>
-                  <span class="mt-1 block font-mono text-[0.7rem] leading-relaxed text-accent md:text-xs">
+                  <span class="label block text-ink group-hover:text-forest">{name}</span>
+                  <span class="mt-1 block font-mono text-[0.7rem] leading-relaxed text-forest md:text-xs">
                     {signal}
                   </span>
                 </span>
                 <span
                   aria-hidden="true"
-                  class="shrink-0 text-slate-inverse transition-colors group-hover:text-white"
+                  class="shrink-0 text-ink transition-colors group-hover:text-ink"
                 >
                   ↗
                 </span>
@@ -294,17 +291,17 @@ export function ProblemBridge() {
 
 export function FrictionCards() {
   return (
-    <div class="grid grid-cols-2 gap-px bg-line-inverse">
-      <Card index="Merchant" title="Becomes a treasury desk" class="bg-void">
+    <div class="grid grid-cols-2 gap-px bg-line">
+      <Card index="Merchant" title="Becomes a treasury desk" class="bg-paper">
         Keys, wallets, swaps, gas, reconciliation.
       </Card>
-      <Card index="Customer" title="Holds the wrong token" class="bg-void">
+      <Card index="Customer" title="Holds the wrong token" class="bg-paper">
         Wallets are not built for invoices.
       </Card>
-      <Card index="Developer" title="Rebuilds the state machine" class="bg-void">
+      <Card index="Developer" title="Rebuilds the state machine" class="bg-paper">
         APIs, wallets, DEXs, chains — all fragmented.
       </Card>
-      <Card index="Infrastructure" title="Drifts from the chain" class="bg-void">
+      <Card index="Infrastructure" title="Drifts from the chain" class="bg-paper">
         Reorgs, replayed webhooks, accidental custody.
       </Card>
     </div>
@@ -313,26 +310,26 @@ export function FrictionCards() {
 
 export function ThreeColumns() {
   return (
-    <div class="flex flex-col gap-px bg-line-inverse">
+    <div class="flex flex-col gap-px bg-line">
       <div class="grid grid-cols-1 gap-px md:grid-cols-3">
-        <Card index="Merchant" title="Prices in any local fiat currency" class="bg-void">
+        <Card index="Merchant" title="Prices in any local fiat currency" class="bg-paper">
           Chooses the stablecoin they settle in.
         </Card>
-        <Card index="Mayarin" title="Quotes, locks, converts, settles, records" class="bg-void">
+        <Card index="Mayarin" title="Quotes, locks, converts, settles, records" class="bg-paper">
           One clearing layer behind every checkout.
         </Card>
-        <Card index="Customer" title="Pays supported crypto" class="bg-void">
+        <Card index="Customer" title="Pays supported crypto" class="bg-paper">
           Through a wallet call or a plain transfer.
         </Card>
       </div>
       <div
         data-reveal
-        class="flex flex-wrap items-center gap-x-6 gap-y-2 bg-void px-5 py-4 md:px-6"
+        class="flex flex-wrap items-center gap-x-6 gap-y-2 bg-paper px-5 py-4 md:px-6"
       >
-        <span class="label text-slate-inverse">Not</span>
+        <span class="label text-ink">Not</span>
         {["an exchange", "a custodial wallet", "a bank or fiat rail", "a fiat off-ramp"].map(
           (item) => (
-            <span key={item} class="text-sm text-white">
+            <span key={item} class="text-sm text-ink">
               {item}
             </span>
           ),
@@ -358,15 +355,15 @@ export function FlowDiagram() {
           <li
             key={step.label}
             data-reveal
-            class="flex items-baseline gap-4 border-t border-line-inverse py-3 last:border-b md:gap-6"
+            class="flex items-baseline gap-4 border-t border-line py-3 last:border-b md:gap-6"
           >
-            <span class="label w-8 shrink-0 text-slate-inverse">0{index + 1}</span>
-            <span class="font-sans text-base text-white md:text-lg">{step.label}</span>
-            <span class="ml-auto font-mono text-xs text-accent md:text-sm">{step.detail}</span>
+            <span class="label w-8 shrink-0 text-ink">0{index + 1}</span>
+            <span class="font-sans text-base text-ink md:text-lg">{step.label}</span>
+            <span class="ml-auto font-mono text-xs text-forest md:text-sm">{step.detail}</span>
           </li>
         ))}
       </ol>
-      <div data-reveal class="grid grid-cols-1 gap-px bg-line-inverse sm:grid-cols-[1.08fr_0.92fr]">
+      <div data-reveal class="grid grid-cols-1 gap-px bg-line sm:grid-cols-[1.08fr_0.92fr]">
         {[
           ["Payer\u00a0transfer", "0xe031f8…b7525e", PAYER_TX],
           ["Settlement", "0x41a87c…ee83c1", SETTLEMENT_TX],
@@ -376,11 +373,9 @@ export function FlowDiagram() {
             href={href}
             target="_blank"
             rel="noreferrer"
-            class="group grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-void px-3 py-3 text-sm text-white outline-offset-4 transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent md:gap-3 md:px-4"
+            class="group grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-paper px-3 py-3 text-sm text-ink outline-offset-4 transition-colors hover:text-forest focus-visible:outline-2 focus-visible:outline-accent md:gap-3 md:px-4"
           >
-            <span class="label whitespace-nowrap text-slate-inverse group-hover:text-accent">
-              {label}
-            </span>
+            <span class="label whitespace-nowrap text-ink group-hover:text-forest">{label}</span>
             <span class="min-w-0 truncate whitespace-nowrap text-right font-mono text-xs md:text-sm">
               {hash}
             </span>
@@ -394,16 +389,16 @@ export function FlowDiagram() {
 
 export function AtomicTiles() {
   return (
-    <div class="grid grid-cols-1 gap-px bg-line-inverse sm:grid-cols-3">
-      <Card index="01" title="Correct amount" class="bg-void">
-        Signed minimum and deadline. <span class="font-mono text-accent">hard revert</span> below
+    <div class="grid grid-cols-1 gap-px bg-line sm:grid-cols-3">
+      <Card index="01" title="Correct amount" class="bg-paper">
+        Signed minimum and deadline. <span class="font-mono text-forest">hard revert</span> below
         the lock.
       </Card>
-      <Card index="02" title="Merchant control" class="bg-void">
-        Settlement only reaches an admitted <span class="text-accent">merchant wallet</span>.
+      <Card index="02" title="Merchant control" class="bg-paper">
+        Settlement only reaches an admitted <span class="text-forest">merchant wallet</span>.
       </Card>
-      <Card index="03" title="Provable outcome" class="bg-void">
-        Chain event → balanced ledger → <span class="font-mono text-accent">MATCHED</span>.
+      <Card index="03" title="Provable outcome" class="bg-paper">
+        Chain event → balanced ledger → <span class="font-mono text-forest">MATCHED</span>.
       </Card>
     </div>
   );
@@ -425,7 +420,7 @@ function AudienceIcon({ name }: { readonly name: AudienceGlyph }) {
     <svg
       viewBox="0 0 24 24"
       aria-hidden="true"
-      class="size-8 shrink-0 text-accent"
+      class="size-8 shrink-0 text-forest"
       fill="none"
       stroke="currentColor"
       stroke-width="1.25"
@@ -486,36 +481,36 @@ function compactAddress(address: string): string {
 
 export function AudienceAndGoal() {
   return (
-    <div class="flex flex-col gap-px bg-line-inverse">
+    <div class="flex flex-col gap-px bg-line">
       <div class="grid grid-cols-1 gap-px md:grid-cols-3">
         {AUDIENCE_PATH.map(({ stage, icon, audience, examples, value }) => (
-          <div key={stage} data-reveal class="flex min-w-0 flex-col gap-3 bg-void p-5 md:min-h-48">
+          <div key={stage} data-reveal class="flex min-w-0 flex-col gap-3 bg-paper p-5 md:min-h-48">
             <div class="flex items-center justify-between gap-4">
-              <span class="label text-accent">{stage}</span>
+              <span class="label text-forest">{stage}</span>
               <AudienceIcon name={icon} />
             </div>
-            <span class="font-sans text-xl font-medium leading-tight tracking-tight text-white md:text-2xl">
+            <span class="font-sans text-xl font-medium leading-tight tracking-tight text-ink md:text-2xl">
               {audience}
             </span>
-            <span class="text-sm leading-relaxed text-slate-inverse">{examples}</span>
-            <span class="mt-auto border-t border-line-inverse pt-3 font-mono text-xs text-white">
+            <span class="text-sm leading-relaxed text-ink">{examples}</span>
+            <span class="mt-auto border-t border-line pt-3 font-mono text-xs text-ink">
               {value}
             </span>
           </div>
         ))}
       </div>
-      <div data-reveal class="flex flex-col gap-5 bg-void p-5">
+      <div data-reveal class="flex flex-col gap-5 bg-paper p-5">
         <div class="flex flex-col gap-1.5 border-l border-accent pl-4">
-          <span class="font-mono text-xs text-accent md:text-sm">Southeast Asia beachhead</span>
-          <span class="font-sans text-xl font-medium leading-tight tracking-tight text-white md:text-2xl">
+          <span class="font-mono text-xs text-forest md:text-sm">Southeast Asia beachhead</span>
+          <span class="font-sans text-xl font-medium leading-tight tracking-tight text-ink md:text-2xl">
             Goal · controlled merchant pilot
           </span>
         </div>
         <ul class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {PILOT_MEASURES.map((measure, index) => (
-            <li key={measure} class="flex items-center gap-3 border-t border-line-inverse pt-3">
-              <span class="font-mono text-xs text-accent">0{index + 1}</span>
-              <span class="text-sm text-white">{measure}</span>
+            <li key={measure} class="flex items-center gap-3 border-t border-line pt-3">
+              <span class="font-mono text-xs text-forest">0{index + 1}</span>
+              <span class="text-sm text-ink">{measure}</span>
             </li>
           ))}
         </ul>
@@ -536,17 +531,17 @@ export function LiveSurfaces() {
   return (
     <div class="flex flex-col gap-8">
       <div>
-        <p data-reveal class="label mb-3 text-slate-inverse">
+        <p data-reveal class="label mb-3 text-ink">
           Live hosts
         </p>
         <ul class="flex flex-col">
           {HOSTS.map((host) => (
-            <li key={host} data-reveal class="border-t border-line-inverse py-2.5 last:border-b">
+            <li key={host} data-reveal class="border-t border-line py-2.5 last:border-b">
               <a
                 href={`https://${host}`}
                 target="_blank"
                 rel="noreferrer"
-                class="font-mono text-sm text-white hover:text-accent md:text-base"
+                class="font-mono text-sm text-ink hover:text-forest md:text-base"
               >
                 {host}
               </a>
@@ -555,7 +550,7 @@ export function LiveSurfaces() {
         </ul>
       </div>
       <div>
-        <p data-reveal class="label mb-3 text-slate-inverse">
+        <p data-reveal class="label mb-3 text-ink">
           Base Sepolia · verified
         </p>
         <ul class="flex flex-col">
@@ -563,10 +558,10 @@ export function LiveSurfaces() {
             <li
               key={contract.name}
               data-reveal
-              class="flex items-baseline justify-between gap-4 border-t border-line-inverse py-2.5 last:border-b"
+              class="flex items-baseline justify-between gap-4 border-t border-line py-2.5 last:border-b"
             >
-              <span class="text-sm text-white">{contract.name}</span>
-              <span class="font-mono text-xs text-accent md:text-sm">
+              <span class="text-sm text-ink">{contract.name}</span>
+              <span class="font-mono text-xs text-forest md:text-sm">
                 {compactAddress(contract.address)}
               </span>
             </li>
@@ -585,30 +580,27 @@ const CLOSING_OUTCOME = [
 
 export function ClosingOutcome() {
   return (
-    <div class="flex h-full flex-col justify-between gap-8 border border-line-inverse p-6 md:p-8">
+    <div class="flex h-full flex-col justify-between gap-8 border border-line p-6 md:p-8">
       <div data-reveal class="flex flex-col gap-4">
-        <span class="label text-slate-inverse">The outcome</span>
-        <p class="font-sans text-3xl leading-tight text-white md:text-4xl">
+        <span class="label text-ink">The outcome</span>
+        <p class="font-sans text-3xl leading-tight text-ink md:text-4xl">
           Price locally. Pay globally. Settle predictably.
         </p>
-        <p class="max-w-lg text-base leading-relaxed text-slate-inverse md:text-lg">
+        <p class="max-w-lg text-base leading-relaxed text-ink md:text-lg">
           One auditable payment into a merchant-controlled wallet.
         </p>
       </div>
       <ol data-reveal class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {CLOSING_OUTCOME.map(([step, value]) => (
-          <li key={step} class="flex flex-col gap-2 border-t border-line-inverse pt-3">
-            <span class="label text-slate-inverse">{step}</span>
-            <span class="font-mono text-sm text-accent md:text-base">{value}</span>
+          <li key={step} class="flex flex-col gap-2 border-t border-line pt-3">
+            <span class="label text-ink">{step}</span>
+            <span class="font-mono text-sm text-forest md:text-base">{value}</span>
           </li>
         ))}
       </ol>
-      <div
-        data-reveal
-        class="flex items-center justify-between gap-4 border-t border-line-inverse pt-4"
-      >
-        <span class="label text-slate-inverse">Next</span>
-        <span class="font-mono text-sm text-accent">Controlled mainnet pilot</span>
+      <div data-reveal class="flex items-center justify-between gap-4 border-t border-line pt-4">
+        <span class="label text-ink">Next</span>
+        <span class="font-mono text-sm text-forest">Controlled mainnet pilot</span>
       </div>
     </div>
   );
@@ -636,19 +628,19 @@ export function ArchitectureFlow() {
 
 export function RiskColumns() {
   return (
-    <div class="grid grid-cols-2 gap-px bg-line-inverse">
-      <div data-reveal class="flex flex-col gap-4 bg-void p-5 md:p-6">
-        <span class="label text-slate-inverse">Bounded by design</span>
-        <ul class="flex flex-col gap-2 text-sm text-white">
+    <div class="grid grid-cols-2 gap-px bg-line">
+      <div data-reveal class="flex flex-col gap-4 bg-paper p-5 md:p-6">
+        <span class="label text-ink">Bounded by design</span>
+        <ul class="flex flex-col gap-2 text-sm text-ink">
           <li>Signing keys in KMS or Turnkey, timelocked rotation</li>
           <li>Multisig governance, router pause</li>
           <li>Payouts allowlisted to merchant Safes</li>
           <li>Hard revert below the locked minimum</li>
         </ul>
       </div>
-      <div data-reveal class="flex flex-col gap-4 bg-void p-5 md:p-6">
-        <span class="label text-slate-inverse">Accepted for now</span>
-        <ul class="flex flex-col gap-2 text-sm text-white">
+      <div data-reveal class="flex flex-col gap-4 bg-paper p-5 md:p-6">
+        <span class="label text-ink">Accepted for now</span>
+        <ul class="flex flex-col gap-2 text-sm text-ink">
           <li>Stablecoin depeg — guard is RFC #71</li>
           <li>Deposit-path operator custody while sweeping</li>
           <li>Oracle, DEX, RPC, and issuer dependence</li>
@@ -685,34 +677,34 @@ const CLAIMS = [
 
 export function ClaimLedger() {
   return (
-    <div data-scroll class="max-h-[calc(100dvh-24rem)] overflow-auto border border-line-inverse">
+    <div data-scroll class="max-h-[calc(100dvh-24rem)] overflow-auto border border-line">
       <table class="w-full border-collapse text-left text-sm">
-        <thead class="sticky top-0 bg-void">
-          <tr class="border-b border-line-inverse">
-            <th scope="col" class="label px-4 py-3 font-medium text-slate-inverse">
+        <thead class="sticky top-0 bg-paper">
+          <tr class="border-b border-line">
+            <th scope="col" class="label px-4 py-3 font-medium text-ink">
               Claim
             </th>
-            <th scope="col" class="label px-4 py-3 font-medium text-slate-inverse">
+            <th scope="col" class="label px-4 py-3 font-medium text-ink">
               Status
             </th>
-            <th scope="col" class="label px-4 py-3 font-medium text-slate-inverse">
+            <th scope="col" class="label px-4 py-3 font-medium text-ink">
               Source
             </th>
           </tr>
         </thead>
         <tbody>
           {CLAIMS.map(([claim, status, source]) => (
-            <tr key={claim} class="border-b border-line-inverse last:border-b-0">
-              <td class="px-4 py-2.5 text-white">{claim}</td>
+            <tr key={claim} class="border-b border-line last:border-b-0">
+              <td class="px-4 py-2.5 text-ink">{claim}</td>
               <td
                 class={clsx(
                   "px-4 py-2.5 font-mono text-xs",
-                  status.startsWith("Live") ? "text-accent" : "text-slate-inverse",
+                  status.startsWith("Live") ? "text-forest" : "text-ink",
                 )}
               >
                 {status}
               </td>
-              <td class="px-4 py-2.5 font-mono text-xs text-slate-inverse">{source}</td>
+              <td class="px-4 py-2.5 font-mono text-xs text-ink">{source}</td>
             </tr>
           ))}
         </tbody>

@@ -40,7 +40,7 @@ function Bullet({ text }: { text: string }) {
   if (end === -1) return <>{text}</>;
   return (
     <>
-      <strong class="font-medium text-white">{text.slice(2, end)}</strong>
+      <strong class="font-medium text-ink">{text.slice(2, end)}</strong>
       {text.slice(end + 2)}
     </>
   );
@@ -326,23 +326,23 @@ export function PitchDeck() {
 
       <nav
         aria-label="Deck controls"
-        class="deck-chrome fixed inset-x-0 bottom-0 z-50 border-t border-line-inverse bg-void/90 text-white backdrop-blur"
+        class="deck-chrome fixed inset-x-0 bottom-0 z-50 border-t border-line bg-paper/90 text-ink backdrop-blur"
       >
         <div class="shell flex items-center justify-between gap-4 py-3">
           <a
             href="/pitch-deck"
-            class="flex min-h-11 items-center gap-3 outline-offset-4 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            class="flex min-h-11 items-center gap-3 outline-offset-4 hover:text-forest focus-visible:outline-2 focus-visible:outline-accent"
             aria-label="Mayarin pitch deck"
           >
             <img
-              src="/brand-kit/mayarin-logo-white.png"
+              src="/brand-kit/mayarin-logo-black.png"
               alt=""
               width="28"
               height="28"
               class="size-7"
               decoding="async"
             />
-            <span class="hidden text-slate-inverse sm:inline">mayarin.xyz/pitch-deck</span>
+            <span class="hidden text-ink sm:inline">mayarin.xyz/pitch-deck</span>
           </a>
 
           <ol class="hidden items-center gap-2 md:flex" aria-label="Slides">
@@ -358,9 +358,7 @@ export function PitchDeck() {
                   aria-current={index === active ? "true" : undefined}
                   class={clsx(
                     "block h-2 transition-[width,background-color] duration-300",
-                    index === active
-                      ? "w-6 bg-accent"
-                      : "w-2 bg-line-inverse hover:bg-slate-inverse",
+                    index === active ? "w-6 bg-accent" : "w-2 bg-line hover:bg-slate",
                     slide.backup && "rounded-full",
                   )}
                 />
@@ -375,17 +373,13 @@ export function PitchDeck() {
               aria-pressed={timerOn}
               aria-label={timerOn ? "Pause the presenter timer" : "Start the presenter timer"}
               class={clsx(
-                "hidden h-9 items-center border border-line-inverse px-3 font-mono text-xs transition-colors hover:border-accent md:inline-flex",
-                timerOn
-                  ? elapsed > planned
-                    ? "text-red-400"
-                    : "text-accent"
-                  : "text-slate-inverse",
+                "hidden h-9 items-center border border-line px-3 font-mono text-xs transition-colors hover:border-accent md:inline-flex",
+                timerOn ? (elapsed > planned ? "text-red-600" : "text-forest") : "text-ink",
               )}
             >
               {formatClock(elapsed)} / {formatClock(planned)}
             </button>
-            <span class="font-mono text-xs text-slate-inverse" aria-hidden="true">
+            <span class="font-mono text-xs text-ink" aria-hidden="true">
               {counter}
             </span>
             <button
@@ -393,7 +387,7 @@ export function PitchDeck() {
               onClick={() => goTo(active - 1)}
               disabled={active === 0}
               aria-label="Previous slide"
-              class="size-9 border border-line-inverse text-sm transition-colors hover:border-accent disabled:opacity-30 disabled:hover:border-line-inverse"
+              class="size-9 border border-line text-sm transition-colors hover:border-accent disabled:opacity-30 disabled:hover:border-line"
             >
               ←
             </button>
@@ -402,7 +396,7 @@ export function PitchDeck() {
               onClick={() => goTo(active + 1)}
               disabled={active === SLIDES.length - 1}
               aria-label="Next slide"
-              class="size-9 border border-line-inverse text-sm transition-colors hover:border-accent disabled:opacity-30 disabled:hover:border-line-inverse"
+              class="size-9 border border-line text-sm transition-colors hover:border-accent disabled:opacity-30 disabled:hover:border-line"
             >
               →
             </button>
@@ -411,7 +405,7 @@ export function PitchDeck() {
               onClick={() => setNotesOpen((open) => !open)}
               aria-pressed={notesOpen}
               aria-controls="deck-notes"
-              class="label hidden h-9 border border-line-inverse px-3 text-slate-inverse transition-colors hover:border-accent hover:text-white aria-pressed:border-accent aria-pressed:text-white md:inline-flex md:items-center"
+              class="label hidden h-9 border border-line px-3 text-ink transition-colors hover:border-accent hover:text-ink aria-pressed:border-accent aria-pressed:text-ink md:inline-flex md:items-center"
             >
               Notes · N
             </button>
@@ -420,7 +414,7 @@ export function PitchDeck() {
               onClick={toggleFullscreen}
               aria-pressed={fullscreen}
               aria-label={fullscreen ? "Leave full screen" : "Enter full screen"}
-              class="label hidden h-9 border border-line-inverse px-3 text-slate-inverse transition-colors hover:border-accent hover:text-white aria-pressed:border-accent aria-pressed:text-white md:inline-flex md:items-center"
+              class="label hidden h-9 border border-line px-3 text-ink transition-colors hover:border-accent hover:text-ink aria-pressed:border-accent aria-pressed:text-ink md:inline-flex md:items-center"
             >
               Full · F
             </button>
@@ -432,22 +426,22 @@ export function PitchDeck() {
         id="deck-notes"
         aria-label="Speaker notes"
         hidden={!notesOpen}
-        class="deck-chrome fixed top-0 right-0 bottom-16 z-40 w-full max-w-md overflow-y-auto border-l border-line-inverse bg-void/95 p-6 text-white backdrop-blur md:p-8"
+        class="deck-chrome fixed top-0 right-0 bottom-16 z-40 w-full max-w-md overflow-y-auto border-l border-line bg-paper/95 p-6 text-ink backdrop-blur md:p-8"
       >
         {current ? (
           <>
-            <p class="label text-slate-inverse">{current.label}</p>
+            <p class="label text-ink">{current.label}</p>
             {current.seconds ? (
-              <p class="mt-1 font-mono text-xs text-accent">{formatClock(current.seconds)}</p>
+              <p class="mt-1 font-mono text-xs text-forest">{formatClock(current.seconds)}</p>
             ) : null}
-            <ul class="mt-5 flex flex-col gap-3 text-sm leading-relaxed text-slate-inverse">
+            <ul class="mt-5 flex flex-col gap-3 text-sm leading-relaxed text-ink">
               {current.notes.map((note) => (
-                <li key={note} class="border-t border-line-inverse pt-3">
+                <li key={note} class="border-t border-line pt-3">
                   {note}
                 </li>
               ))}
             </ul>
-            <p class="label mt-8 leading-relaxed text-slate-inverse">
+            <p class="label mt-8 leading-relaxed text-ink">
               Keys · ← → ↑ ↓ · 1–9 slide · Home End · F fullscreen · N notes · T timer · R reset ·
               Esc
             </p>
@@ -479,7 +473,7 @@ function DeckSlide({ slide, index, sectionRef }: DeckSlideProps) {
       data-shown="false"
       data-reveal-visual={slide.reveal.visual}
       data-reveal-headline={slide.reveal.headline ? "true" : undefined}
-      class="deck-slide relative grid content-center overflow-hidden bg-void text-white outline-none"
+      class="deck-slide relative grid content-center overflow-hidden bg-paper text-ink outline-none"
     >
       {slide.backdrop}
       <div
@@ -489,7 +483,7 @@ function DeckSlide({ slide, index, sectionRef }: DeckSlideProps) {
         )}
       >
         <div class="flex flex-col gap-6 md:gap-8">
-          <p class="label flex items-center gap-2.5 text-slate-inverse">
+          <p class="label flex items-center gap-2.5 text-ink">
             <span aria-hidden="true" class="inline-block size-1.5 bg-accent" />
             {slide.label}
           </p>
@@ -503,7 +497,7 @@ function DeckSlide({ slide, index, sectionRef }: DeckSlideProps) {
             </h2>
           )}
           {slide.bullets.length > 0 ? (
-            <ul class="flex max-w-2xl flex-col gap-3 text-[clamp(0.95rem,1.3vw,1.2rem)] leading-relaxed text-slate-inverse">
+            <ul class="flex max-w-2xl flex-col gap-3 text-[clamp(0.95rem,1.3vw,1.2rem)] leading-relaxed text-ink">
               {slide.bullets.map((bullet) => (
                 <li key={bullet} class="flex gap-3">
                   <span
