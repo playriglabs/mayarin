@@ -190,7 +190,8 @@ export function PitchDeck() {
     };
   }, []);
 
-  // Keyboard: right and down next, left and up previous, Home/End jump, F and N toggle.
+  // Keyboard: right and down next, left and up previous, Home/End jump,
+  // 1–9 go to that slide number, F and N toggle.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -202,6 +203,11 @@ export function PitchDeck() {
         return;
       }
       const current = activeRef.current;
+      if (/^[1-9]$/.test(event.key)) {
+        event.preventDefault();
+        goTo(Number(event.key) - 1);
+        return;
+      }
       switch (event.key) {
         case "ArrowRight":
         case "ArrowDown":
@@ -442,7 +448,8 @@ export function PitchDeck() {
               ))}
             </ul>
             <p class="label mt-8 leading-relaxed text-slate-inverse">
-              Keys · ← → ↑ ↓ · Home End · F fullscreen · N notes · T timer · R reset · Esc
+              Keys · ← → ↑ ↓ · 1–9 slide · Home End · F fullscreen · N notes · T timer · R reset ·
+              Esc
             </p>
           </>
         ) : null}

@@ -55,9 +55,10 @@ is not read aloud.
 
 ## Slide 4 — Live payment demo and handoff · 0:15
 
-> Let us make that real. A coffee shop in Jakarta charges IDR 36,000, about
-> three Singapore dollars. The customer will pay with testnet ETH, while the
-> merchant settles in USDC—and we will verify that the chain and ledger agree.
+> Let us make that real. Parahyangan Supply, an apparel brand in Bandung, sells
+> the Rinjani Cargo Pants for IDR 299,000, about twenty-five Singapore dollars.
+> The customer will pay with testnet ETH, while the merchant settles in
+> USDC—and we will verify that the chain and ledger agree.
 >
 > Citra, please take us through the real payment showcase.
 
