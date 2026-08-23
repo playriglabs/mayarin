@@ -307,7 +307,7 @@
     @apply motion-safe:animate-pulse;
   }
   .preparing {
-    @apply flex min-h-40 items-center justify-center gap-3.5 rounded-xs border border-dashed border-field;
+    @apply flex min-h-40 items-center justify-center gap-3.5 rounded-xs border border-dashed border-field px-4.5;
   }
   .preparing p {
     @apply mt-1 mb-0 text-xs text-muted;
