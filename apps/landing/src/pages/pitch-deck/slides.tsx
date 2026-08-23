@@ -64,7 +64,7 @@ export const SLIDES: readonly Slide[] = [
       "Price in local currency. Let customers pay with a supported crypto asset. Settle in the merchant's chosen stablecoin.",
     ],
     visual: <TitleLockup />,
-    backdrop: <GridField />,
+    backdrop: <GridField tone="light" />,
     reveal: { headline: true, visual: "fade" },
     notes: [
       "Opening line: Accepting crypto is easy. Settling it correctly is hard.",
@@ -125,10 +125,10 @@ export const SLIDES: readonly Slide[] = [
     visual: <FlowDiagram />,
     backdrop: (
       <div aria-hidden="true" class="absolute inset-0 opacity-80">
-        <WaveGrid tone="dark" />
+        <WaveGrid tone="light" />
         <div
           class="absolute inset-0 hidden md:block"
-          style="background: linear-gradient(90deg, var(--color-void) 0%, var(--color-void) 26%, transparent 60%)"
+          style="background: linear-gradient(90deg, var(--color-paper) 0%, var(--color-paper) 26%, transparent 60%)"
         />
       </div>
     ),
@@ -179,7 +179,7 @@ export const SLIDES: readonly Slide[] = [
       "**Our goal.** A controlled Southeast Asian merchant pilot measured by settlement reliability, reconciliation, and integration speed.",
     ],
     visual: <AudienceAndGoal />,
-    backdrop: <GridField />,
+    backdrop: <GridField tone="light" />,
     reveal: { visual: "stagger", stagger: 0.05 },
     notes: [
       "This narrows the landing page's eight use cases into one beachhead and two expansion groups; it does not claim every use case is already integrated.",
