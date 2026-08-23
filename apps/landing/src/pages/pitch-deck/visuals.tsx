@@ -315,7 +315,7 @@ export function ThreeColumns() {
   return (
     <div class="flex flex-col gap-px bg-line-inverse">
       <div class="grid grid-cols-1 gap-px md:grid-cols-3">
-        <Card index="Merchant" title="Prices in IDR" class="bg-void">
+        <Card index="Merchant" title="Prices in any local fiat currency" class="bg-void">
           Chooses the stablecoin they settle in.
         </Card>
         <Card index="Mayarin" title="Quotes, locks, converts, settles, records" class="bg-void">
@@ -366,20 +366,24 @@ export function FlowDiagram() {
           </li>
         ))}
       </ol>
-      <div data-reveal class="grid grid-cols-1 gap-px bg-line-inverse sm:grid-cols-2">
+      <div data-reveal class="grid grid-cols-1 gap-px bg-line-inverse sm:grid-cols-[1.08fr_0.92fr]">
         {[
-          ["Payer transfer", "0xe031f84f…b7525e", PAYER_TX],
-          ["Settlement", "0x41a87c05…ee83c1", SETTLEMENT_TX],
+          ["Payer\u00a0transfer", "0xe031f8…b7525e", PAYER_TX],
+          ["Settlement", "0x41a87c…ee83c1", SETTLEMENT_TX],
         ].map(([label, hash, href]) => (
           <a
             key={label}
             href={href}
             target="_blank"
             rel="noreferrer"
-            class="group flex min-h-12 items-center gap-3 bg-void px-4 py-3 text-sm text-white outline-offset-4 transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            class="group grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-void px-3 py-3 text-sm text-white outline-offset-4 transition-colors hover:text-accent focus-visible:outline-2 focus-visible:outline-accent md:gap-3 md:px-4"
           >
-            <span class="label text-slate-inverse group-hover:text-accent">{label}</span>
-            <span class="ml-auto font-mono text-xs md:text-sm">{hash}</span>
+            <span class="label whitespace-nowrap text-slate-inverse group-hover:text-accent">
+              {label}
+            </span>
+            <span class="min-w-0 truncate whitespace-nowrap text-right font-mono text-xs md:text-sm">
+              {hash}
+            </span>
             <span aria-hidden="true">↗</span>
           </a>
         ))}
@@ -405,11 +409,61 @@ export function AtomicTiles() {
   );
 }
 
-const SURFACES = [
-  ["Buyer", "Payment links · QR · hosted and embedded checkout"],
-  ["Merchant", "Dashboard · wallet · settlement · signed webhooks"],
-  ["Developer", "TypeScript SDK · REST API · WooCommerce"],
+type AudienceGlyph = "storefront" | "route" | "cross-border";
+
+const AUDIENCE_ICON_PATHS: Readonly<Record<AudienceGlyph, readonly string[]>> = {
+  storefront: [
+    "M4 10.5h16M5.5 10.5V20h13v-9.5M3 10.5l1.8-6h14.4l1.8 6M8 14h3v6H8z",
+    "M3 10.5c.5 1.3 1.5 2 3 2s2.5-.7 3-2c.5 1.3 1.5 2 3 2s2.5-.7 3-2c.5 1.3 1.5 2 3 2s2.5-.7 3-2",
+  ],
+  route: ["M5 5h5a4 4 0 0 1 4 4v6a4 4 0 0 0 4 4h1", "M16 16l3 3-3 3M8 2 5 5l3 3"],
+  "cross-border": ["M5 3h10l4 4v14H5zM15 3v5h4M8 12h8M8 16h5", "M14 19h7M18 16l3 3-3 3"],
+};
+
+function AudienceIcon({ name }: { readonly name: AudienceGlyph }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      class="size-8 shrink-0 text-accent"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.25"
+      stroke-linecap="square"
+      stroke-linejoin="miter"
+    >
+      {AUDIENCE_ICON_PATHS[name].map((path) => (
+        <path key={path} d={path} />
+      ))}
+    </svg>
+  );
+}
+
+const AUDIENCE_PATH = [
+  {
+    stage: "Start here",
+    icon: "storefront" as const,
+    audience: "Merchant platforms",
+    examples: "Marketplaces · commerce platforms",
+    value: "Price locally · settle predictably",
+  },
+  {
+    stage: "Expand",
+    icon: "route" as const,
+    audience: "Payment infrastructure",
+    examples: "Processors · wallets · stablecoin platforms",
+    value: "Add acceptance · keep the existing stack",
+  },
+  {
+    stage: "Serve next",
+    icon: "cross-border" as const,
+    audience: "Cross-border sellers",
+    examples: "Creators · freelancers · agencies",
+    value: "Collect by link or invoice",
+  },
 ] as const;
+
+const PILOT_MEASURES = ["Settlement reliability", "Reconciliation", "Integration speed"] as const;
 
 const CONTRACTS = [
   {
@@ -430,33 +484,41 @@ function compactAddress(address: string): string {
   return `${address.slice(0, 10)}…${address.slice(-8)}`;
 }
 
-export function ProofAndPilot() {
+export function AudienceAndGoal() {
   return (
     <div class="flex flex-col gap-px bg-line-inverse">
       <div class="grid grid-cols-1 gap-px md:grid-cols-3">
-        {SURFACES.map(([surface, detail]) => (
-          <div key={surface} data-reveal class="flex min-w-0 flex-col gap-3 bg-void p-5 md:p-6">
-            <span class="label text-slate-inverse">{surface}</span>
-            <span class="text-sm leading-relaxed text-white">{detail}</span>
+        {AUDIENCE_PATH.map(({ stage, icon, audience, examples, value }) => (
+          <div key={stage} data-reveal class="flex min-w-0 flex-col gap-3 bg-void p-5 md:min-h-48">
+            <div class="flex items-center justify-between gap-4">
+              <span class="label text-accent">{stage}</span>
+              <AudienceIcon name={icon} />
+            </div>
+            <span class="font-sans text-xl font-medium leading-tight tracking-tight text-white md:text-2xl">
+              {audience}
+            </span>
+            <span class="text-sm leading-relaxed text-slate-inverse">{examples}</span>
+            <span class="mt-auto border-t border-line-inverse pt-3 font-mono text-xs text-white">
+              {value}
+            </span>
           </div>
         ))}
       </div>
-      <div data-reveal class="bg-void px-5 py-5 md:px-6">
-        <p class="label mb-3 text-slate-inverse">One operational outcome</p>
-        <ol class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {["Payment completed", "Settlement matched", "Webhook delivered"].map(
-            (outcome, index) => (
-              <li key={outcome} class="flex items-center gap-3 border-t border-line-inverse pt-3">
-                <span class="font-mono text-xs text-accent">0{index + 1}</span>
-                <span class="text-sm text-white">{outcome}</span>
-              </li>
-            ),
-          )}
-        </ol>
-      </div>
-      <div data-reveal class="flex flex-col gap-2 bg-void px-5 py-4 md:px-6">
-        <span class="font-mono text-xs text-accent md:text-sm">Southeast Asia beachhead</span>
-        <span class="label text-white">Next · controlled merchant pilot</span>
+      <div data-reveal class="flex flex-col gap-5 bg-void p-5">
+        <div class="flex flex-col gap-1.5 border-l border-accent pl-4">
+          <span class="font-mono text-xs text-accent md:text-sm">Southeast Asia beachhead</span>
+          <span class="font-sans text-xl font-medium leading-tight tracking-tight text-white md:text-2xl">
+            Goal · controlled merchant pilot
+          </span>
+        </div>
+        <ul class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {PILOT_MEASURES.map((measure, index) => (
+            <li key={measure} class="flex items-center gap-3 border-t border-line-inverse pt-3">
+              <span class="font-mono text-xs text-accent">0{index + 1}</span>
+              <span class="text-sm text-white">{measure}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
@@ -613,9 +675,9 @@ const CLAIMS = [
   ["Gas-free merchant withdrawal", "Next · #9", "roadmap.md"],
   ["Passkey browser ceremony in the dashboard", "Next", "roadmap.md"],
   ["More assets, venues, EVM chains, Solana, TRON", "Next · Phase 5", "roadmap.md"],
-  ["Cross-chain settlement", "Later", "roadmap.md"],
-  ["Fiat off-ramp", "Later", "roadmap.md"],
-  ["Agent Pay", "Later", "PURPOSE.md §21"],
+  ["Cross-chain settlement", "On Roadmap", "roadmap.md"],
+  ["Fiat off-ramp", "On Roadmap", "roadmap.md"],
+  ["Agent Pay", "On Roadmap", "PURPOSE.md §21"],
   ["Stablecoin depeg", "Accepted risk", "threat-model.md"],
   ["Deposit-path operator custody", "Accepted risk", "threat-model.md"],
   ["Deposit forwarder without adversarial review", "Accepted risk", "RFC #143"],

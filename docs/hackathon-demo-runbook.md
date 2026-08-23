@@ -3,6 +3,8 @@
 # Hackathon Live Demo Runbook
 
 **Demo date:** 23 August 2026  
+**Demo presenter:** Citra
+
 **Core-demo time box:** 2:10, inside pitch-deck slide 4  
 **Proof sentence:** IDR 36,000 priced. Testnet ETH paid. USDC settled. Chain and
 ledger agree.
@@ -31,7 +33,7 @@ Do not turn the demo into a feature tour. Show only four proof moments:
 
 ## Roles
 
-- **Presenter:** speaks, advances the deck, and controls the projected browser.
+- **Citra:** speaks through the live demo and controls the projected browser.
 - **Payer/operator:** scans the QR and approves the Base Sepolia ETH transfer
   from a pre-funded phone wallet.
 - If one person performs both roles, keep the phone unlocked and the wallet

@@ -25,13 +25,13 @@ Every claim in this file carries one status: **Live**, **Provider-backed**,
 slide. It never appears on the slide as a badge, an emoji, or the word
 "shipped".
 
-| Status          | How it reads on a slide                 |
-| --------------- | --------------------------------------- |
-| Live            | Present tense, with the proof point     |
-| Provider-backed | Present tense, names the provider       |
-| Next            | "Next" or a phase name, never a promise |
-| Accepted risk   | Stated plainly on the risk slide        |
-| Later           | "Later"; never on the traction slide    |
+| Status          | How it reads on a slide                   |
+| --------------- | ----------------------------------------- |
+| Live            | Present tense, with the proof point       |
+| Provider-backed | Present tense, names the provider         |
+| Next            | "Next" or a phase name, never a promise   |
+| Accepted risk   | Stated plainly on the risk slide          |
+| On Roadmap      | "On Roadmap"; never on the traction slide |
 
 Two hard rules:
 
@@ -75,7 +75,7 @@ text. **Notes** carry the technical depth, the sources, and the claim status.
 
 ### 1 — Title · 0:20
 
-**Headline:** Merchants should accept crypto without becoming crypto companies.
+**Headline:** Merchants can accept crypto without becoming crypto companies.
 
 **Copy:**
 
@@ -92,7 +92,7 @@ hard." Name origin only if asked: Indonesian _bayar_ (to pay) + Latin _maior_
 
 ### 2 — The settlement gap · 0:40
 
-**Headline:** The customer holds ETH. The price is in IDR. The merchant only
+**Headline:** The customer holds any crypto assets. The price is in any local fiat currency. The merchant only
 wants USDC.
 
 **Copy:**
@@ -179,9 +179,10 @@ the clearing amounts, USDC settlement, webhook delivery, and the two proof
 links. Return directly to slide 5. Keep a completed intent and a 45–60 second
 recording ready; never wait silently.
 
-**Notes:** **[DEMO MOMENT — START LIVE DEMO]** Follow
-`docs/hackathon-demo-runbook.md`; switch from slide 4 to the prepared checkout.
-This proof is the **deposit path**, not the single-call contract path.
+**Notes:** **[DEMO MOMENT — HAND OVER TO CITRA]** Rizky introduces the IDR
+36,000 example in one sentence, then Citra follows
+`docs/hackathon-demo-runbook.md` and switches to the prepared checkout. This
+proof is the **deposit path**, not the single-call contract path.
 It consists of a payer transfer and a separate executor settlement, and the
 executor holds the payer asset briefly between them. Say that plainly if asked.
 The real Base Sepolia payment is from 2026-08-19, intent
@@ -223,29 +224,34 @@ and refuses unsafe treasury overlap. Money is exact integer minor units; an
 unbalanced posting throws. Every clearing step is idempotent and resumable.
 `docs/chain.md`, `docs/wallet.md`, `docs/money.md`, `docs/ledger.md`.
 
-### 6 — Merchant-ready product · 1:00
+### 6 — Who Mayarin is for · 1:00
 
-**Headline:** Not just a checkout. The merchant operation is already built.
+**Headline:** Merchant platforms first. Payment infrastructure next.
 
 **Copy:**
 
-- **Buyer.** Payment links, printable QR, hosted checkout, and embeddable checkout.
-- **Merchant.** Catalog, orders, payment timeline, settlement, wallet, analytics,
-  and audit views over real endpoints.
-- **Developer.** REST API, TypeScript SDK, WooCommerce, signed webhooks, and
-  delivery inspection.
-- **Next evidence.** A controlled design-partner pilot across Southeast Asia.
+- **Primary users.** Merchant platforms and marketplaces that price locally and
+  settle in stablecoins.
+- **Expansion path.** Payment processors, wallets, and stablecoin platforms
+  first; creators, freelancers, and agencies next.
+- **Our goal.** A controlled Southeast Asian merchant pilot measured by
+  settlement reliability, reconciliation, and integration speed.
 
-**Visual:** three product surfaces — buyer, merchant, developer — above the
-operational outcome `payment completed → settlement matched → webhook delivered`,
-closing on `Next · controlled merchant pilot`.
+**Visual:** three progressive audience columns: `Start here · merchant
+platforms`, `Expand through · payment infrastructure`, and `Serve next ·
+cross-border sellers`. Each carries one matching outline glyph — storefront,
+routing network, and cross-border invoice — in the deck's accent green. All
+audience and goal headings use the sans family. A full-width, vertically stacked
+goal strip closes on `Controlled merchant pilot` and the three measures:
+reliability, reconciliation, integration speed.
 
-**Notes:** `docs/roadmap.md`. IDR and MYR pricing are proven in the catalog; SGD
-exists in the core asset registry. Do not imply a live SGD catalog payment until
-one exists. Three contracts are deployed and verified on Base Sepolia; keep
-their addresses in backup C rather than asking the room to read hex. Passkey
-browser ceremony, general gas abstraction, and mainnet hardening remain next.
-Multi-chain expansion belongs in Q&A.
+**Notes:** this slide narrows the landing page's eight use cases into a focused
+beachhead and expansion path; it does not claim every use case is already
+integrated. Merchant platforms and marketplaces are the primary design-partner
+target. Payment processors, wallets, and stablecoin platforms are distribution
+partners; creators, freelancers, and agencies are the next self-serve audience.
+The controlled pilot is the next evidence, not a live traction claim.
+`apps/landing/src/sections/use-cases.tsx`, `docs/roadmap.md`.
 
 ### 7 — Team and the ask · 0:40
 
