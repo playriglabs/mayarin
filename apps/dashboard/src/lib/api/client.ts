@@ -15,6 +15,7 @@
 
 import type { APIContext } from "astro";
 import { Data, Effect } from "effect";
+import { dashboardErrorMessage } from "./error-message";
 
 type AnyContext = APIContext;
 
@@ -133,13 +134,7 @@ export function request<A>(path: string, opts: RequestOptions = {}): Effect.Effe
 
 /** Pulls the human message out of the dashboard API's `{ error: { message } }` body. */
 function extractMessage(data: unknown, status: number): string {
-  if (data !== null && typeof data === "object" && "error" in data) {
-    const err = (data as { error: unknown }).error;
-    if (err !== null && typeof err === "object" && "message" in err) {
-      return String((err as { message: unknown }).message);
-    }
-  }
-  return `Request failed (${status})`;
+  return dashboardErrorMessage(data, status);
 }
 
 /** Reads the API's numeric retry guidance, preferring its structured body. */

@@ -58,12 +58,26 @@ describe("loadConfig", () => {
       WALLET_DEPLOYER_PRIVATE_KEY: "",
       TURNKEY_ORGANIZATION_ID: "",
       TREASURY_ADDRESS: "",
+      RESEND_API_KEY: "",
     });
 
     expect(config.walletProvisionRpcUrl).toBeUndefined();
     expect(config.walletDeployerPrivateKey).toBeUndefined();
     expect(config.turnkeyOrganizationId).toBeUndefined();
     expect(config.treasuryAddress).toBeUndefined();
+    expect(config.resendApiKey).toBeUndefined();
+    expect(config.invoiceEmailFrom).toBe("Mayarin <onboarding@resend.dev>");
+  });
+
+  test("configures Resend without putting its secret in browser configuration", () => {
+    const config = loadConfig({
+      ...MINIMAL,
+      RESEND_API_KEY: "re_test_server_only",
+      RESEND_FROM_EMAIL: "Mayarin <invoices@example.com>",
+    });
+
+    expect(config.resendApiKey).toBe("re_test_server_only");
+    expect(config.invoiceEmailFrom).toBe("Mayarin <invoices@example.com>");
   });
 
   test("a genuinely missing key is still refused", async () => {

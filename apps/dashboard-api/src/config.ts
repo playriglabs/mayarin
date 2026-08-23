@@ -94,6 +94,14 @@ const configSchema = z.object({
     // A trailing slash would produce `…//checkout/lnk_…`, which some proxies
     // normalise and others 404.
     .transform((value) => value.replace(/\/+$/, "")),
+  /** Resend stays optional so read-only/local deployments still boot. */
+  resendApiKey: z.string().min(1).optional(),
+  /**
+   * `onboarding@resend.dev` is intentionally the demo default. Resend limits it
+   * to the account owner's address; production sets a sender on a verified
+   * domain without requiring a code change.
+   */
+  invoiceEmailFrom: z.string().min(1).default("Mayarin <onboarding@resend.dev>"),
   /**
    * Where fees are paid (#11, RFC #6).
    *
@@ -191,6 +199,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     paymentsPageSize: env.PAYMENTS_PAGE_SIZE,
     checkoutBaseUrl: env.CHECKOUT_BASE_URL ?? env.PUBLIC_BASE_URL,
     paymentApiUrl: env.PAYMENT_API_URL ?? env.PUBLIC_BASE_URL,
+    resendApiKey: env.RESEND_API_KEY,
+    invoiceEmailFrom: env.RESEND_FROM_EMAIL,
     depositChain: env.DEPOSIT_CHAIN,
     treasuryAddress: env.TREASURY_ADDRESS,
     walletProvisioningEnabled: env.WALLET_PROVISIONING_ENABLED,

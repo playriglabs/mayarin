@@ -14,6 +14,12 @@ const DATE_TIME = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
+/** Calendar dates that have no viewer-timezone meaning, such as invoice due dates. */
+const DATE = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeZone: "UTC",
+});
+
 const TIME = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
@@ -22,6 +28,10 @@ const TIME = new Intl.DateTimeFormat("en-US", {
 
 export function formatDateTime(iso: string): string {
   return DATE_TIME.format(new Date(iso));
+}
+
+export function formatDate(iso: string): string {
+  return DATE.format(new Date(iso));
 }
 
 export function formatTime(iso: string): string {

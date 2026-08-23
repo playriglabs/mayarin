@@ -38,6 +38,7 @@ import {
   DrizzleClearingRepository,
   DrizzleCustomerRepository,
   DrizzleDepositRepository,
+  DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
   DrizzleMerchantAccountRepository,
   DrizzleMerchantEventRepository,
@@ -55,6 +56,7 @@ import {
   DrizzleWebhookDeliveryRepository,
   DrizzleWebhookEndpointRepository,
 } from "@mayarin/db";
+import { type InvoiceRepository, InvoiceService } from "@mayarin/invoicing";
 import type { LedgerRepository } from "@mayarin/ledger";
 import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
 import type { PaymentIntentRepository } from "@mayarin/payment-intent";
@@ -87,6 +89,11 @@ import {
 import { AuthService } from "./services/auth-service.ts";
 import { CustomerService } from "./services/customer-service.ts";
 import { EventLogService } from "./services/event-log-service.ts";
+import {
+  type InvoiceEmailSender,
+  ResendInvoiceEmailSender,
+  UnavailableInvoiceEmailSender,
+} from "./services/invoice-email-service.ts";
 import { MerchantCatalogService } from "./services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
 import { OrderReadService } from "./services/order-read-service.ts";
@@ -116,6 +123,10 @@ export interface Container {
   readonly settings: MerchantSettingsService;
   /** Products and payment links (#15), scoped the same way. */
   readonly catalog: MerchantCatalogService;
+  /** Numbered invoice lifecycle. Buyer checkout remains in the payment API. */
+  readonly invoices: InvoiceService;
+  /** Transactional delivery of an issued invoice to its snapshotted buyer. */
+  readonly invoiceEmails: InvoiceEmailSender;
   /** The merchant's customer directory, scoped the same way. */
   readonly customers: CustomerService;
   /** The commerce view of the merchant's payments — line items + customer. Read-only. */
@@ -176,6 +187,10 @@ export interface CreateContainerOptions {
   readonly merchantSettingChanges?: MerchantSettingChangeRepository;
   readonly products?: ProductRepository;
   readonly paymentLinks?: PaymentLinkRepository;
+  /** Invoice repo. A test supplies the reference in-memory adapter. */
+  readonly invoiceRepository?: InvoiceRepository;
+  /** Overridable for tests: a recorder rather than the Resend network adapter. */
+  readonly invoiceEmails?: InvoiceEmailSender;
   /** Customer directory repo. A test supplies an in-memory fake. */
   readonly customers?: CustomerRepository;
   /** API key repo. A test supplies an in-memory fake. */
@@ -285,6 +300,28 @@ export function createContainer(options: CreateContainerOptions): Container {
     settings,
     products: catalogProducts,
   });
+
+  // Invoice documents share Postgres with the payment API. The dashboard owns
+  // create/issue/void only; checkout is deliberately unavailable here because
+  // minting a payment belongs to the payment API's clearing composition.
+  const invoices = new InvoiceService({
+    invoices:
+      options.invoiceRepository ?? new DrizzleInvoiceRepository(handle?.db ?? throwIfNoHandle()),
+    checkout: {
+      checkoutCart: () =>
+        Promise.reject(new ConfigurationError("Invoice checkout is served by the payment API", {})),
+    },
+    payments: intents,
+    clock,
+  });
+  const invoiceEmails =
+    options.invoiceEmails ??
+    (config.resendApiKey === undefined
+      ? new UnavailableInvoiceEmailSender()
+      : new ResendInvoiceEmailSender({
+          apiKey: config.resendApiKey,
+          from: config.invoiceEmailFrom,
+        }));
 
   // The merchant's customer directory, and the commerce view of their payments.
   // `orders` reads the customer repo to resolve `metadata.customerId`; `customers`
@@ -399,6 +436,8 @@ export function createContainer(options: CreateContainerOptions): Container {
     compliance,
     settings,
     catalog,
+    invoices,
+    invoiceEmails,
     customers,
     orders,
     apiKeys,

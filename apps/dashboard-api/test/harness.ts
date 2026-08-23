@@ -36,6 +36,8 @@ import {
   InMemoryAuditQueryRepository,
   InMemoryMerchantEventRepository,
 } from "@mayarin/compliance/testing";
+import { InvoiceService } from "@mayarin/invoicing";
+import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
 import { LedgerService } from "@mayarin/ledger";
 import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
 import {
@@ -62,6 +64,10 @@ import { ApiKeyService } from "../src/services/api-key-service.ts";
 import { AuthService } from "../src/services/auth-service.ts";
 import { CustomerService } from "../src/services/customer-service.ts";
 import { EventLogService } from "../src/services/event-log-service.ts";
+import type {
+  InvoiceEmailSender,
+  SendInvoiceEmailRequest,
+} from "../src/services/invoice-email-service.ts";
 import { MerchantCatalogService } from "../src/services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "../src/services/merchant-settings-service.ts";
 import { OrderReadService } from "../src/services/order-read-service.ts";
@@ -99,6 +105,8 @@ export interface DashboardHarnessOptions {
   readonly adminPassword?: string;
   /** Display name for the seeded merchant. */
   readonly merchantName?: string;
+  /** Invoice delivery fake for failure-path tests. */
+  readonly invoiceEmailSender?: InvoiceEmailSender;
 }
 
 export async function createDashboardHarness(options: DashboardHarnessOptions = {}) {
@@ -228,6 +236,24 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     settings,
     products,
   });
+  const invoiceRepository = new InMemoryInvoiceRepository();
+  const invoices = new InvoiceService({
+    invoices: invoiceRepository,
+    checkout: {
+      checkoutCart: async () => {
+        throw new Error("Invoice checkout belongs to the payment API");
+      },
+    },
+    payments: intents,
+    clock,
+  });
+  const invoiceEmailCalls: SendInvoiceEmailRequest[] = [];
+  const invoiceEmails: InvoiceEmailSender = options.invoiceEmailSender ?? {
+    sendInvoice: async (request) => {
+      invoiceEmailCalls.push(request);
+      return { id: "eml_test_invoice", recipient: request.buyerEmail };
+    },
+  };
 
   // The merchant's customer directory + the commerce view of their payments.
   // Same shape as the production composition root: orders reads the customer
@@ -341,6 +367,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     compliance,
     settings,
     catalog,
+    invoices,
+    invoiceEmails,
     customers,
     orders,
     apiKeys,
@@ -411,6 +439,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     merchants,
     products,
     paymentLinks,
+    invoiceRepository,
+    invoiceEmailCalls,
     customerRepository,
     apiKeyRepository,
     eventLogRepository,

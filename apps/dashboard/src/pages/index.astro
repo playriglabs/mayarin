@@ -5,6 +5,11 @@ import Protected from "../layouts/dashboard.astro";
 ---
 
 <Protected title="Overview">
-  <PageHeader title="Overview" description="Payments and settlement at a glance." />
+  <PageHeader
+    title="Overview"
+    description="Payments and settlement at a glance."
+    actionHref="/invoices"
+    actionLabel="Generate invoice"
+  />
   <Overview client:load />
 </Protected>

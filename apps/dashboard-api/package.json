@@ -19,6 +19,7 @@
     "@mayarin/compliance": "workspace:*",
     "@mayarin/db": "workspace:*",
     "@mayarin/http": "workspace:*",
+    "@mayarin/invoicing": "workspace:*",
     "@mayarin/ledger": "workspace:*",
     "@mayarin/notifications": "workspace:*",
     "@mayarin/payment-intent": "workspace:*",
@@ -29,6 +30,7 @@
     "@mayarin/wallet": "workspace:*",
     "effect": "^3.0.0",
     "hono": "^4.6.16",
+    "resend": "^6.22.0",
     "ts-pattern": "^5.0.0",
     "zod": "^3.24.1"
   }

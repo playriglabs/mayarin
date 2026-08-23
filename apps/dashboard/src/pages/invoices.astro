@@ -1,0 +1,13 @@
+---
+import Invoices from "../components/invoices.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Invoices">
+  <PageHeader
+    title="Invoices"
+    description="Generate a numbered invoice, send its payment link, and track what the client owes."
+  />
+  <Invoices client:load />
+</Protected>

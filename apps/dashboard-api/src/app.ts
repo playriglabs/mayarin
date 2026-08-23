@@ -26,6 +26,7 @@ import { catalogRoutes } from "./routes/catalog.ts";
 import { customerRoutes } from "./routes/customers.ts";
 import { eventLogRoutes } from "./routes/event-logs.ts";
 import { healthRoutes } from "./routes/health.ts";
+import { invoiceRoutes } from "./routes/invoices.ts";
 import { orderRoutes } from "./routes/orders.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
@@ -119,6 +120,12 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   v1.use("/payment-links", requireAuth(), requirePermission("catalog:manage"));
   v1.use("/payment-links/*", requireAuth(), requirePermission("catalog:manage"));
   v1.route("/payment-links", paymentLinkRoutes(container));
+
+  // Numbered, buyer-facing invoices. Creating and issuing decides what a buyer
+  // is charged, so it shares the catalog management permission.
+  v1.use("/invoices", requireAuth(), requirePermission("catalog:manage"));
+  v1.use("/invoices/*", requireAuth(), requirePermission("catalog:manage"));
+  v1.route("/invoices", invoiceRoutes(container));
 
   // The merchant's customer directory. Same permission as the catalog: a
   // customer is a commerce record the merchant manages, like a product, and

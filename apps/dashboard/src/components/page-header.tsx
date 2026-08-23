@@ -1,16 +1,22 @@
 import type * as React from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 function PageHeader({
   title,
   description,
   actions,
+  actionHref,
+  actionLabel,
   className,
   ...props
 }: {
   title: string;
   description?: string;
   actions?: React.ReactNode;
+  /** Static-page shortcut without requiring Astro to construct a React node. */
+  actionHref?: string;
+  actionLabel?: string;
 } & React.ComponentProps<"header">) {
   return (
     // The bottom hairline is the page's first rule — every surface below
@@ -28,7 +34,16 @@ function PageHeader({
           <p className="text-base text-muted-foreground">{description}</p>
         )}
       </div>
-      {actions !== undefined && <div className="flex items-center gap-2">{actions}</div>}
+      {(actions !== undefined || (actionHref !== undefined && actionLabel !== undefined)) && (
+        <div className="flex items-center gap-2">
+          {actions}
+          {actionHref !== undefined && actionLabel !== undefined && (
+            <a href={actionHref} className={buttonVariants()}>
+              {actionLabel}
+            </a>
+          )}
+        </div>
+      )}
     </header>
   );
 }

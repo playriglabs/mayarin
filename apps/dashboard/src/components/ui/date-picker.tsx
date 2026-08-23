@@ -104,7 +104,10 @@ function DatePicker({
       </Popover.Trigger>
 
       <Popover.Portal>
-        <Popover.Positioner sideOffset={4} align="start" className="z-50">
+        {/* Dialogs sit at z-70. The calendar is portalled outside the dialog,
+            so it must occupy the popup layer above them rather than inheriting
+            the dialog's stacking context. This matches the shared Select. */}
+        <Popover.Positioner sideOffset={4} align="start" className="z-80">
           <Popover.Popup className="w-72 border border-input bg-popover p-3 text-popover-foreground shadow-sm focus-visible:outline-none">
             <div className="mb-2 flex items-center justify-between">
               <Button
