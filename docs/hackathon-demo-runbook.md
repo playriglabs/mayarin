@@ -6,8 +6,8 @@
 **Demo presenter:** Citra
 
 **Core-demo time box:** 2:10, inside pitch-deck slide 4  
-**Proof sentence:** IDR 299,000 priced. Testnet ETH paid. USDC settled. Chain
-and ledger agree.
+**Proof sentence:** IDR 36,000 priced. Testnet ETH paid. USDC settled. Chain and
+ledger agree.
 
 This is the stage script for the Mayarin end-to-end demo. Spoken lines are in
 English for the Singapore jury. Text in brackets is an operator cue and is not
@@ -26,8 +26,7 @@ but it is not the path shown in this demo.
 
 Do not turn the demo into a feature tour. Show only four proof moments:
 
-1. The store price is IDR 299,000 (Rinjani Cargo Pants) and the payer selects
-   ETH.
+1. The store price is IDR 36,000 and the payer selects ETH.
 2. Mayarin locks an exact amount and issues a per-payment address.
 3. The checkout moves from waiting to payment completed.
 4. The merchant view shows net USDC, settlement proof, and webhook delivery.
@@ -44,32 +43,29 @@ Do not turn the demo into a feature tour. Show only four proof moments:
 
 Keep secrets and login credentials in a password manager, never in this file.
 
-| Item                              | Stage value                                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Prepared IDR 299,000 checkout URL | `[PASTE INTO PRIVATE SHOW NOTES]`                                                                                   |
-| Dashboard login                   | `[PASSWORD MANAGER ENTRY]`                                                                                          |
-| Merchant payment-list URL         | `https://dashboard-testnet.mayarin.xyz/payments`                                                                    |
-| Settlement URL                    | `https://dashboard-testnet.mayarin.xyz/settlement`                                                                  |
-| Webhook deliveries URL            | `https://dashboard-testnet.mayarin.xyz/webhooks`                                                                    |
-| Backup completed intent ID        | `pi_01M0D8X65WSYV0T5FQRQVXV5M7`                                                                                     |
-| Backup payer transaction          | [`0xe031f84f…`](https://sepolia.basescan.org/tx/0xe031f84f710834cbbf1516f0dfad12c543933da7772799795235e93d21b7525e) |
-| Backup settlement transaction     | [`0x41a87c05…`](https://sepolia.basescan.org/tx/0x41a87c05e673ed17b80ef5009813b932db74e095d4cdfca2c5dfdda49bee83c1) |
-| Backup recording                  | `[LOCAL FILE, 45–60 SECONDS]`                                                                                       |
+| Item                                 | Stage value                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Prepared IDR 36,000 payment-link URL | `[PASTE INTO PRIVATE SHOW NOTES]`                                                                                   |
+| Dashboard login                      | `[PASSWORD MANAGER ENTRY]`                                                                                          |
+| Merchant payment-list URL            | `https://dashboard-testnet.mayarin.xyz/payments`                                                                    |
+| Settlement URL                       | `https://dashboard-testnet.mayarin.xyz/settlement`                                                                  |
+| Webhook deliveries URL               | `https://dashboard-testnet.mayarin.xyz/webhooks`                                                                    |
+| Backup completed intent ID           | `pi_01M0D8X65WSYV0T5FQRQVXV5M7`                                                                                     |
+| Backup payer transaction             | [`0xe031f84f…`](https://sepolia.basescan.org/tx/0xe031f84f710834cbbf1516f0dfad12c543933da7772799795235e93d21b7525e) |
+| Backup settlement transaction        | [`0x41a87c05…`](https://sepolia.basescan.org/tx/0x41a87c05e673ed17b80ef5009813b932db74e095d4cdfca2c5dfdda49bee83c1) |
+| Backup recording                     | `[LOCAL FILE, 45–60 SECONDS]`                                                                                       |
 
-The prepared checkout is the **Rinjani Cargo Pants** at **IDR 299,000** on the
-Parahyangan Supply storefront. It must accept ETH on Base Sepolia and settle in
-USDC. Slide 4 tells the same story, so the storefront and the deck now match.
-
-The backup intent and transactions above are from an earlier IDR 36,000 run.
-Replace them with a rehearsal payment at IDR 299,000 before the stage.
+The prepared link should be a fixed **IDR 36,000** link for a Jakarta coffee
+shop merchant, accept ETH on Base Sepolia, and settle in USDC. Do not use the
+Parahyangan Supply storefront in the core demo unless the deck is also changed:
+its apparel story and price do not match the coffee-shop claim on slide 4.
 
 ## Stage setup
 
 Use one browser window with tabs in this exact order:
 
 1. `mayarin.xyz/pitch-deck#4` — slide 4, speaker notes available.
-2. Prepared live IDR 299,000 Rinjani Cargo Pants checkout — not yet continued,
-   ETH selected.
+2. Prepared live IDR 36,000 hosted checkout — not yet continued, ETH selected.
 3. Dashboard payments — logged in and sorted newest first.
 4. Settlement — logged in and sorted newest first.
 5. Webhooks — Deliveries visible and sorted newest first.
@@ -83,7 +79,7 @@ Before the room opens:
 - Close notifications, chat apps, password-manager popovers, and unrelated tabs.
 - Use a clean browser profile at 100% zoom and a readable projected resolution.
 - Log in to the dashboard and verify the session survives a refresh.
-- Open the prepared checkout once; verify `IDR 299,000`, `ETH`, and
+- Open the prepared payment link once; verify `IDR 36,000`, `ETH`, and
   `base-sepolia`, but do not press **Continue with ETH** yet.
 - Confirm the phone wallet is on Base Sepolia and has enough ETH for the exact
   payment plus gas. Disable biometric surprises by unlocking it once.
@@ -101,15 +97,15 @@ Before the room opens:
 
 **Say:**
 
-> Now let us make that concrete. Parahyangan Supply sells these cargo pants for
-> IDR 299,000. The customer holds ETH, while the merchant only wants USDC.
+> Now let us make that concrete. This checkout is priced at IDR 36,000. The
+> customer holds ETH, while the merchant only wants USDC.
 
 **Do:** `[DEMO MOMENT — START LIVE DEMO]` Switch from the deck to the prepared
 checkout tab. Keep the deck open at slide 4.
 
 ### 0:12–0:30 — Show the payer choice
 
-**Screen:** Hosted checkout, with IDR 299,000 and ETH visible.
+**Screen:** Hosted checkout, with IDR 36,000 and ETH visible.
 
 **Say:**
 
@@ -161,7 +157,7 @@ approval, use the amber fallback below.
 
 **Say:**
 
-> This is the same payment intent. The customer amount remains IDR 299,000, the
+> This is the same payment intent. The customer amount remains IDR 36,000, the
 > payer rail is ETH, and clearing records the settlement, fee, and net USDC to
 > the merchant.
 
