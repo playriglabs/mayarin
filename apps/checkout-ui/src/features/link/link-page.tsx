@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { AssetLogo } from "./AssetLogo.tsx";
-import { CheckoutSummary } from "./CheckoutSummary.tsx";
+import { useState } from "react";
+import { AssetPicker } from "../../shared/asset-picker.tsx";
+import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
+import { currencySymbol } from "../../shared/currency.ts";
 import { checkoutBody } from "./checkout-body.ts";
-import { currencySymbol } from "./currency-symbol.ts";
 import type { LinkBootstrap } from "./types.ts";
+import { useQuoteEstimate } from "./use-quote-estimate.ts";
 
 /**
  * The link page: what is being bought, in what asset, and one button.
@@ -22,42 +23,12 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   const { payable, currency, total, lines, accepted, lockMinutes } = bootstrap;
   const [asset, setAsset] = useState<string | undefined>(accepted[0]);
   const [amount, setAmount] = useState("");
-  const [estimate, setEstimate] = useState("Calculating…");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const typedAmount = total === null ? amount : total.formatted;
   const displayCurrency = currencySymbol(currency);
-
-  // Debounced rather than fired per keystroke: the quote reads a live rate
-  // source, and a request per character is a request per character.
-  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => {
-    if (currency === null || asset === undefined || Number(typedAmount) <= 0) {
-      setEstimate("Enter an amount");
-      return;
-    }
-    clearTimeout(debounce.current);
-    setEstimate("Calculating…");
-    debounce.current = setTimeout(async () => {
-      try {
-        const response = await fetch("/v1/quotes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount: { amount: typedAmount, asset: currency },
-            assets: [asset],
-          }),
-        });
-        const payload = await response.json();
-        const line = payload?.quotes?.[0];
-        setEstimate(line?.available ? line.amount.display : "Unavailable");
-      } catch {
-        setEstimate("Unavailable");
-      }
-    }, 400);
-    return () => clearTimeout(debounce.current);
-  }, [typedAmount, currency, asset]);
+  const estimate = useQuoteEstimate(typedAmount, currency, asset);
 
   async function pay() {
     if (total === null && Number(amount) <= 0) {
@@ -145,23 +116,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
 
           {payable ? (
             <>
-              <div className="form-block">
-                <span className="label">Pay with</span>
-                <div className="assets">
-                  {accepted.map((choice) => (
-                    <button
-                      type="button"
-                      className="asset"
-                      key={choice}
-                      aria-pressed={choice === asset}
-                      onClick={() => setAsset(choice)}
-                    >
-                      <AssetLogo symbol={choice} />
-                      {choice}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <AssetPicker accepted={accepted} selected={asset} onSelect={setAsset} />
 
               <div className="payment-estimate" aria-live="polite">
                 <span>Estimated total in {asset ?? "selected asset"}</span>

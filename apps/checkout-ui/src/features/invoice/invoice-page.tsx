@@ -1,37 +1,9 @@
 import { useState } from "react";
-import { AssetLogo } from "./AssetLogo.tsx";
-import { Brand } from "./Brand.tsx";
-import type { InvoiceBootstrap, InvoiceStatus } from "./types.ts";
-
-const STATUS_LABEL: Readonly<Record<InvoiceStatus, string>> = {
-  draft: "Draft",
-  issued: "Unpaid",
-  partially_paid: "Partially paid",
-  paid: "Paid",
-  overdue: "Overdue",
-  void: "Void",
-};
-
-/** Only these two carry a warning colour. The rest are ordinary states. */
-const STATUS_TONE: Readonly<Record<InvoiceStatus, string>> = {
-  draft: "muted",
-  issued: "muted",
-  partially_paid: "warn",
-  paid: "ok",
-  overdue: "warn",
-  void: "muted",
-};
-
-const DATE = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "Asia/Jakarta" });
-
-/** The issued/due line. An absent date is said in words, never as a dash. */
-function dateLine(issuedAt: string | null, dueAt: string | null): string {
-  const parts = [
-    issuedAt === null ? undefined : `Issued ${DATE.format(new Date(issuedAt))}`,
-    dueAt === null ? undefined : `Due ${DATE.format(new Date(dueAt))}`,
-  ].filter((part) => part !== undefined);
-  return parts.length === 0 ? "Not yet issued" : parts.join(" · ");
-}
+import { AssetPicker } from "../../shared/asset-picker.tsx";
+import { Brand } from "../../shared/brand.tsx";
+import { PoweredBy } from "../../shared/powered-by.tsx";
+import { dateLine, STATUS_LABEL, STATUS_TONE } from "./invoice-status.ts";
+import type { InvoiceBootstrap } from "./types.ts";
 
 /**
  * One page that serves two readers. On screen a buyer sees what is owed and a
@@ -145,23 +117,12 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       {bootstrap.notes !== null && <p className="notes muted">{bootstrap.notes}</p>}
 
       {payable && (
-        <div className="form-block screen-only">
-          <span className="label">Pay with</span>
-          <div className="assets">
-            {bootstrap.accepted.map((choice) => (
-              <button
-                type="button"
-                className="asset"
-                key={choice}
-                aria-pressed={choice === asset}
-                onClick={() => setAsset(choice)}
-              >
-                <AssetLogo symbol={choice} />
-                {choice}
-              </button>
-            ))}
-          </div>
-        </div>
+        <AssetPicker
+          accepted={bootstrap.accepted}
+          selected={asset}
+          onSelect={setAsset}
+          className="screen-only"
+        />
       )}
 
       <button
@@ -172,14 +133,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       >
         {payable ? `Pay ${bootstrap.outstanding.display}` : STATUS_LABEL[status]}
       </button>
-      <a
-        className="powered-by mx-auto mt-6 block"
-        href="https://mayarin.xyz"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Powered by <strong>mayarin.xyz</strong>
-      </a>
+      <PoweredBy className="powered-by mx-auto mt-6 block" />
     </main>
   );
 }

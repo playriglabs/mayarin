@@ -49,7 +49,7 @@ export function invoicePageRoutes(container: Container): Hono {
 }
 
 /**
- * The invoice page's bootstrap, mirrored by `apps/checkout-ui/src/types.ts`.
+ * The invoice page's bootstrap, mirrored by `apps/checkout-ui/src/features/invoice/types.ts`.
  *
  * Line totals are computed here, not in the browser: money is bigint minor
  * units, and the SPA renders `display` strings without ever doing arithmetic.

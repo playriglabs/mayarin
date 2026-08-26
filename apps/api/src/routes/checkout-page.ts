@@ -277,7 +277,7 @@ interface LinkBootstrapOptions {
 }
 
 /**
- * The link page's bootstrap, mirrored by `apps/checkout-ui/src/types.ts`.
+ * The link page's bootstrap, mirrored by `apps/checkout-ui/src/features/link/types.ts`.
  *
  * Three things the page deliberately does *not* get:
  *

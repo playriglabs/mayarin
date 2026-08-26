@@ -13,9 +13,33 @@ hands the next URL back to the API.
 
 The contract lives in two places, mirrored by hand:
 
-- `src/types.ts` — what each page consumes.
+- `src/features/<domain>/types.ts` — what that page consumes. `src/bootstrap.ts`
+  is only the union the entry point switches on.
 - `apps/api/src/routes/checkout-page.ts` and `invoice-page.ts` — what the API
   builds. The API's endpoint tests pin the shape.
+
+## Layout
+
+One folder per buyer-facing domain. A domain owns its bootstrap type, its
+pure logic, its hooks and its components; nothing reaches sideways into another
+domain's folder.
+
+```
+src/
+  main.tsx          entry — renders the page the bootstrap names
+  bootstrap.ts      the Bootstrap union + the window declaration
+  styles.css        one stylesheet, screen and @media print
+  shared/           what more than one domain uses
+  features/link/    the payment-link page
+  features/pay/     the payment page
+  features/invoice/ the invoice page
+  test/             logic tests + render tests
+```
+
+Within a domain: `types.ts` (the bootstrap it consumes), `<name>-page.tsx` (the
+page), `<name>.tsx` (its components), `use-<name>.ts` (its hooks), and plain
+modules for pure logic. Anything a second domain needs moves up to `shared/`,
+never across.
 
 ## Build shape
 

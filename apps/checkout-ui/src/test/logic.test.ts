@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { walletAmount } from "./amount.ts";
-import { checkoutBody } from "./checkout-body.ts";
-import { remainingAt } from "./countdown.ts";
-import { currencySymbol } from "./currency-symbol.ts";
-import { usableDeposit } from "./payment-status.ts";
-import type { LinkBootstrap } from "./types.ts";
-import { isTerminal, paymentStage, statusWording } from "./wording.ts";
+import { checkoutBody } from "../features/link/checkout-body.ts";
+import type { LinkBootstrap } from "../features/link/types.ts";
+import { remainingAt } from "../features/pay/countdown.ts";
+import { usableDeposit } from "../features/pay/payment-status.ts";
+import { isTerminal, paymentStage, statusWording } from "../features/pay/status-wording.ts";
+import { currencySymbol } from "../shared/currency.ts";
+import { walletAmount } from "../shared/money.ts";
 
 describe("wallet amount", () => {
   test("trims trailing zeros from the machine decimal and nothing else", () => {
