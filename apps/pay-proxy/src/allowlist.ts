@@ -6,8 +6,8 @@
  * and nothing else. The full `/v1/*` API surface (admin, operator, merchant,
  * webhooks) stays reachable only on `api-testnet.mayarin.xyz`.
  *
- * Derived from the SPA's actual fetches (`apps/checkout-ui/src/LinkPage.tsx`,
- * `PayPage.tsx`, `InvoicePage.tsx`) plus the server-rendered buyer pages
+ * Derived from the SPA's actual fetches (`apps/checkout-ui/src/features/link`,
+ * `features/pay`, `features/invoice`) plus the server-rendered buyer pages
  * (`apps/api/src/routes/checkout-page.ts`, `invoice-page.ts`):
  *
  *   GET    /checkout/*                       link, pay, qr, events (SSE)

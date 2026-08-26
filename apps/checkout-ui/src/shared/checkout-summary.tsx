@@ -1,6 +1,12 @@
-import { Brand } from "./Brand.tsx";
-import type { LinkLine, MerchantRef } from "./types.ts";
+import { Brand } from "./brand.tsx";
+import { PoweredBy } from "./powered-by.tsx";
+import type { LineItem, MerchantRef } from "./types.ts";
 
+/**
+ * What is being bought, on the left of both checkout pages. The link page and
+ * the payment page show the same summary so the buyer sees one order across the
+ * two steps, not two descriptions of it.
+ */
 export function CheckoutSummary({
   merchant,
   title,
@@ -10,7 +16,7 @@ export function CheckoutSummary({
   readonly merchant: MerchantRef;
   readonly title: string;
   readonly totalDisplay: string;
-  readonly lines: readonly LinkLine[] | null;
+  readonly lines: readonly LineItem[] | null;
 }) {
   return (
     <aside className="checkout-summary" aria-label="Order summary">
@@ -58,9 +64,7 @@ export function CheckoutSummary({
         )}
 
         <div className="summary-spacer" />
-        <a className="powered-by" href="https://mayarin.xyz" target="_blank" rel="noreferrer">
-          Powered by <strong>mayarin.xyz</strong>
-        </a>
+        <PoweredBy />
       </div>
     </aside>
   );

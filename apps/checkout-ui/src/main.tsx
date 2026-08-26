@@ -1,8 +1,8 @@
 import { createRoot } from "react-dom/client";
-import { InvoicePage } from "./InvoicePage.tsx";
-import { LinkPage } from "./LinkPage.tsx";
-import { PayPage } from "./PayPage.tsx";
-import type { Bootstrap } from "./types.ts";
+import type { Bootstrap } from "./bootstrap.ts";
+import { InvoicePage } from "./features/invoice/invoice-page.tsx";
+import { LinkPage } from "./features/link/link-page.tsx";
+import { PayPage } from "./features/pay/pay-page.tsx";
 import "./styles.css";
 
 /**

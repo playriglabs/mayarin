@@ -9,10 +9,16 @@
 
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { InvoicePage } from "./InvoicePage.tsx";
-import { LinkPage } from "./LinkPage.tsx";
-import { ConfirmingCard, DepositCard, Outcome, PayPage } from "./PayPage.tsx";
-import type { InvoiceBootstrap, LinkBootstrap, MoneyDto, PayBootstrap } from "./types.ts";
+import { InvoicePage } from "../features/invoice/invoice-page.tsx";
+import type { InvoiceBootstrap } from "../features/invoice/types.ts";
+import { LinkPage } from "../features/link/link-page.tsx";
+import type { LinkBootstrap } from "../features/link/types.ts";
+import { ConfirmingCard } from "../features/pay/confirming-card.tsx";
+import { DepositCard } from "../features/pay/deposit-card.tsx";
+import { Outcome } from "../features/pay/outcome.tsx";
+import { PayPage } from "../features/pay/pay-page.tsx";
+import type { PayBootstrap } from "../features/pay/types.ts";
+import type { MoneyDto } from "../shared/types.ts";
 
 function idr(display: string): MoneyDto {
   return { amount: "0", asset: "IDR", formatted: "0.00", display };
@@ -278,7 +284,7 @@ describe("print view", () => {
   test("is the same page, not a second renderer", async () => {
     // The printable invoice is `@media print` in the shared stylesheet: a
     // separate `/print` endpoint would be two renderers, one going stale.
-    const css = await Bun.file(new URL("./styles.css", import.meta.url)).text();
+    const css = await Bun.file(new URL("../styles.css", import.meta.url)).text();
     expect(css).toContain("@media print");
   });
 });
@@ -288,7 +294,7 @@ describe("the shell", () => {
     // The API replaces this exact comment per request
     // (apps/api/src/services/checkout-shell.ts). Removing it from index.html
     // would 500 every buyer page while every other test stayed green.
-    const html = await Bun.file(new URL("../index.html", import.meta.url)).text();
+    const html = await Bun.file(new URL("../../index.html", import.meta.url)).text();
     expect(html).toContain("<!--__BOOTSTRAP__-->");
   });
 });
