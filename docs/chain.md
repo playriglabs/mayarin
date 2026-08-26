@@ -236,6 +236,59 @@ the finality assumption made explicit and bounded, rather than left implicit.
 
 ---
 
+## Supported chains
+
+`CHAIN_IDS` in `packages/core/chain/src/types.ts` is the list, and it is the only
+place a network is added. Everything downstream is already keyed by `ChainId` —
+RPC URLs, token addresses, confirmation depths, router addresses, quoters — so
+widening the union is what makes the compiler enumerate the sites that must grow
+with it.
+
+| `ChainId`           | EIP-155 id | Explorer                                       |
+| ------------------- | ---------- | ---------------------------------------------- |
+| `base`              | 8453       | `https://basescan.org`                         |
+| `base-sepolia`      | 84532      | `https://sepolia.basescan.org`                 |
+| `arbitrum`          | 42161      | `https://arbiscan.io`                          |
+| `arbitrum-sepolia`  | 421614     | `https://sepolia.arbiscan.io`                  |
+| `robinhood-testnet` | 46630      | `https://explorer.testnet.chain.robinhood.com` |
+
+Which of them a deployment actually watches is configuration: a chain with no
+`CHAIN_RPC_URLS` entry is not scanned, and `CHAIN_ASSETS` naming a chain without
+an RPC URL is a boot failure rather than a silent skip.
+
+`isMainnetChain` is a chain fact beside the ids, not a comparison against a chain
+name. The guard that reads it refuses an in-process quote-signing key on a chain
+carrying real value, and a guard written as `chain === "base"` would have called
+Arbitrum One a testnet the day it was added.
+
+### Robinhood Chain and the Orbit chains
+
+Robinhood Chain is an Arbitrum Orbit L2 with ETH as its gas token. viem ships no
+definition for it, so `@mayarin/provider-viem-chains` defines it — that package
+exists to hold one copy of the `ChainId → viem Chain` map, so a price adapter can
+import a chain fact without pulling a signer's dependency tree behind it, and so
+a chain cannot be defined two slightly different ways in two adapters. The test
+beside it asserts each viem `id` equals the `EVM_CHAIN_IDS` entry: viem
+broadcasts with its own id, so a typo there would send a transaction to the wrong
+network while every check against the domain table still passed.
+
+### Block numbers on an Arbitrum chain
+
+`block.number` read **inside a contract** on an Arbitrum chain returns an
+approximate _L1_ block number, not the L2 height. Nothing in the chain layer
+depends on that: the watcher and the settlement indexer count confirmations from
+block numbers carried by `eth_getBlockByNumber` and the log envelope, both of
+which are L2 heights and consistent with each other.
+
+What does change is what a confirmation is worth. Depth is per-chain
+(`CHAIN_CONFIRMATIONS`), so an Arbitrum block time is a configuration value
+rather than a code change — but `WATCHER_REORG_WATCH_WINDOW` is global, and it
+multiplies depth, so one window across chains with different depths is a
+different absolute window on each. Sized against the deepest chain it is
+conservative everywhere, which is the safe direction.
+
+---
+
 ## Configuration
 
 Every variable is optional. The chain layer is off unless `CHAIN_ENABLED=true`,

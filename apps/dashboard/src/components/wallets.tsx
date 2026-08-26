@@ -95,9 +95,6 @@ import {
 import { withQuery } from "@/lib/with-query";
 import type { WalletDto, WalletProvenance } from "@/types/settings";
 
-/** One chain, deployed and proven, before address derivation multiplies. */
-const CHAIN = "base-sepolia";
-
 const PROVENANCE_LABEL: Readonly<Record<WalletProvenance, string>> = {
   linked: "Connected",
   provisioned: "Managed",
@@ -206,6 +203,13 @@ function Wallets() {
   }
 
   const rows = wallets.data?.wallets ?? [];
+  /**
+   * The chain this deployment links and provisions on, named by the API rather
+   * than assumed here — the browser has no business deciding which network a
+   * merchant's money is settled on. Undefined only before the list has loaded,
+   * which is also before any of these actions can be reached.
+   */
+  const chain = wallets.data?.chain;
   const hasConnectedWallet = rows.some((wallet) => wallet.provenance !== "provisioned");
   const balances = balance.data?.balances ?? [];
   const withdrawalRows = withdrawalHistory.data?.withdrawals ?? [];
@@ -268,6 +272,7 @@ function Wallets() {
    * refusing with "already claimed".
    */
   async function connectInjected(wallet: InjectedWallet) {
+    if (chain === undefined) return;
     setFailure("");
     setSigning(true);
     try {
@@ -278,7 +283,7 @@ function Wallets() {
         return;
       }
 
-      const row = existing ?? (await link.mutateAsync({ chain: CHAIN, address: account })).wallet;
+      const row = existing ?? (await link.mutateAsync({ chain, address: account })).wallet;
       const issued = await challenge.mutateAsync(row.id);
       const signature = await personalSign(wallet.provider, account, issued.message);
       await verify.mutateAsync({
@@ -333,9 +338,10 @@ function Wallets() {
   }
 
   async function connect() {
+    if (chain === undefined) return;
     setFailure("");
     try {
-      const { wallet } = await link.mutateAsync({ chain: CHAIN, address: address.trim() });
+      const { wallet } = await link.mutateAsync({ chain, address: address.trim() });
       setConnecting(false);
       setAddress("");
       setNotice("Wallet connected. Prove control of it to be paid there.");
@@ -348,9 +354,10 @@ function Wallets() {
   }
 
   async function provisionManaged() {
+    if (chain === undefined) return;
     setFailure("");
     try {
-      await provision.mutateAsync(CHAIN);
+      await provision.mutateAsync(chain);
       setNotice("Managed wallet ready.");
     } catch (error) {
       setFailure(error instanceof ApiError ? error.message : "Could not provision a wallet");
@@ -711,7 +718,7 @@ function Wallets() {
                 placeholder="0x…"
                 className="font-mono text-xs"
               />
-              <FieldDescription>On {CHAIN}.</FieldDescription>
+              <FieldDescription>On {chain}.</FieldDescription>
             </Field>
           </div>
 

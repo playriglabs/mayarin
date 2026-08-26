@@ -8,8 +8,14 @@
 
 import type { AssetCode, Money } from "@mayarin/shared";
 
-/** EVM chains Phase 2A watches. Phase 2B widens this. */
-export const CHAIN_IDS = ["base", "base-sepolia"] as const;
+/** EVM chains Mayarin runs on. Widening this is what adds a network. */
+export const CHAIN_IDS = [
+  "base",
+  "base-sepolia",
+  "arbitrum",
+  "arbitrum-sepolia",
+  "robinhood-testnet",
+] as const;
 
 export type ChainId = (typeof CHAIN_IDS)[number];
 
@@ -25,7 +31,24 @@ export function isChainId(value: unknown): value is ChainId {
 export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
   base: 8_453n,
   "base-sepolia": 84_532n,
+  arbitrum: 42_161n,
+  "arbitrum-sepolia": 421_614n,
+  "robinhood-testnet": 46_630n,
 };
+
+/**
+ * Which chains carry real value. Also a chain fact rather than configuration:
+ * a deployment can choose which chains it enables, but not whether Arbitrum One
+ * is a mainnet.
+ *
+ * Guards read this instead of comparing against a chain name, so adding a
+ * mainnet cannot silently slip past a check written when Base was the only one.
+ */
+export const MAINNET_CHAIN_IDS: ReadonlySet<ChainId> = new Set<ChainId>(["base", "arbitrum"]);
+
+export function isMainnetChain(chain: ChainId): boolean {
+  return MAINNET_CHAIN_IDS.has(chain);
+}
 
 /** A block identified by both height and hash — the hash is what detects a reorg. */
 export interface BlockRef {

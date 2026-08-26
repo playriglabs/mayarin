@@ -116,7 +116,14 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
 
   app.get("/", async (c) => {
     const wallets = await container.wallets.list(scopeOf(c));
-    return c.json({ wallets: wallets.map(toWalletDto) });
+    // The chain the deployment provisions on travels with the list so the
+    // browser never has to name a chain of its own: linking, provisioning and
+    // the passkey ceremony all have to target the chain this deployment's
+    // wallet provider and settlement resolution actually use.
+    return c.json({
+      wallets: wallets.map(toWalletDto),
+      chain: container.config.walletProvisionChain,
+    });
   });
 
   /**
