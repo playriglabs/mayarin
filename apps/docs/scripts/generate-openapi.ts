@@ -100,7 +100,7 @@ const errorResponse = (description: string) => ({
 const moneySchema = z
   .object({
     amount: z.string().describe("Exact minor units. Calculate with this value."),
-    asset: z.string().describe("ISO asset code, e.g. IDR, IDRX, USDC."),
+    asset: z.string().describe("ISO asset code, e.g. IDR, USD, USDC."),
     formatted: z.string().describe("Machine decimal; ungrouped and dot-separated."),
     display: z.string().describe("Localized display text. Never parse this value."),
   })

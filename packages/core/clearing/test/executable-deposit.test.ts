@@ -21,18 +21,18 @@ import { createHarness, NOW } from "./harness.ts";
 
 const TREASURY = "0x0000000000000000000000000000000000007a5b";
 const GAS = money(594_366_000_000n, "ETH");
-/** Grossed above what 50,000.00 IDRX needs, so a normal fill leaves change. */
+/** Grossed above what 50,000.00 USDC needs, so a normal fill leaves change. */
 const PAYER_ESTIMATE = money(8_400_000_000_000_000n, "ETH");
 
 function depositLock(): ContractLock {
   const lockedAt = new Date(NOW);
   const expiresAt = new Date(lockedAt.getTime() + 120_000);
   return {
-    settlementAmount: money(5_000_000n, "IDRX"),
-    fee: money(25_000n, "IDRX"),
+    settlementAmount: money(5_000_000n, "USDC"),
+    fee: money(25_000n, "USDC"),
     rate: {
       from: "ETH",
-      to: "IDRX",
+      to: "USDC",
       scaledRate: 60_000_000_00n,
       source: "uniswap",
       lockedAt,
@@ -55,7 +55,7 @@ function depositLock(): ContractLock {
   };
 }
 
-function executingPort(output = money(5_000_000n, "IDRX")): TreasuryExecutionPort & {
+function executingPort(output = money(5_000_000n, "USDC")): TreasuryExecutionPort & {
   results: ExecutionResult[];
 } {
   const results: ExecutionResult[] = [];
@@ -110,7 +110,7 @@ describe("locking a deposit that will be executed", () => {
     // One pricing pass. The RateProvider is not consulted for this payment, so
     // there is no second price that could disagree with the signed order.
     expect(transaction.contract?.order.minOut).toBe(5_000_000n);
-    expect(transaction.settlementAmount).toEqual(money(5_000_000n, "IDRX"));
+    expect(transaction.settlementAmount).toEqual(money(5_000_000n, "USDC"));
     expect(planner.calls[0]?.orderExpiresAt).toEqual(new Date(intent.expiresAt.getTime() + 60_000));
   });
 
@@ -161,13 +161,13 @@ describe("locking a deposit that will be executed", () => {
   });
 
   test("a swap above minOut books the excess as Mayarin's, not the merchant's", async () => {
-    const port = executingPort(money(5_080_000n, "IDRX"));
+    const port = executingPort(money(5_080_000n, "USDC"));
     const { harness, depositIntent } = executableHarness(port);
 
     await harness.engine.start(await depositIntent());
 
-    expect(await harness.balance("FX_RESULT")).toEqual(money(80_000n, "IDRX"));
-    expect(await harness.balance("FEE_REVENUE")).toEqual(money(25_000n, "IDRX"));
+    expect(await harness.balance("FX_RESULT")).toEqual(money(80_000n, "USDC"));
+    expect(await harness.balance("FEE_REVENUE")).toEqual(money(25_000n, "USDC"));
     assertEveryPostingBalances(harness);
   });
 
@@ -257,7 +257,7 @@ describe("a signed order reaching a process without an executor", () => {
       intents: harness.intents,
       ledger: harness.ledger,
       adapters: new SettlementAdapterRegistry([harness.adapter]),
-      rates: new StaticRateProvider({ "IDR/IDRX": 100n }),
+      rates: new StaticRateProvider({ "IDR/USDC": 100n }),
       fees: new BasisPointsFeePolicy(50),
       clock: harness.clock,
     });
@@ -306,7 +306,7 @@ describe("without an executor the deposit path is untouched", () => {
     const planner = new FakeContractPlanner(depositLock());
     const harness = createHarness({
       contractPlanner: planner,
-      rates: { "IDR/IDRX": 100n, "IDR/ETH": 320n },
+      rates: { "IDR/USDC": 100n, "IDR/ETH": 320n },
     });
 
     const transaction = await harness.engine.start(

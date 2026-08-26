@@ -97,7 +97,7 @@
           },
           "asset": {
             "type": "string",
-            "description": "ISO asset code, e.g. IDR, IDRX, USDC."
+            "description": "ISO asset code, e.g. IDR, USD, USDC."
           },
           "formatted": {
             "type": "string",
@@ -1007,18 +1007,7 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -1028,18 +1017,7 @@
                     "properties": {
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       },
                       "chain": {
                         "type": "string",
@@ -1054,18 +1032,7 @@
                   },
                   "settlementAsset": {
                     "type": "string",
-                    "enum": [
-                      "IDR",
-                      "USD",
-                      "SGD",
-                      "THB",
-                      "MYR",
-                      "IDRX",
-                      "USDC",
-                      "USDT",
-                      "ETH",
-                      "BTC"
-                    ]
+                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                   },
                   "executionPath": {
                     "type": "string",
@@ -1411,18 +1378,7 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -1507,18 +1463,7 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -1527,18 +1472,7 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "enum": [
-                        "IDR",
-                        "USD",
-                        "SGD",
-                        "THB",
-                        "MYR",
-                        "IDRX",
-                        "USDC",
-                        "USDT",
-                        "ETH",
-                        "BTC"
-                      ]
+                      "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                     },
                     "minItems": 1,
                     "maxItems": 16
@@ -1677,18 +1611,7 @@
                         },
                         "asset": {
                           "type": "string",
-                          "enum": [
-                            "IDR",
-                            "USD",
-                            "SGD",
-                            "THB",
-                            "MYR",
-                            "IDRX",
-                            "USDC",
-                            "USDT",
-                            "ETH",
-                            "BTC"
-                          ]
+                          "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                         }
                       },
                       "required": ["amount", "asset"]
@@ -1836,18 +1759,7 @@
                         },
                         "asset": {
                           "type": "string",
-                          "enum": [
-                            "IDR",
-                            "USD",
-                            "SGD",
-                            "THB",
-                            "MYR",
-                            "IDRX",
-                            "USDC",
-                            "USDT",
-                            "ETH",
-                            "BTC"
-                          ]
+                          "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                         }
                       },
                       "required": ["amount", "asset"]
@@ -1924,18 +1836,7 @@
                 "properties": {
                   "settlementAsset": {
                     "type": "string",
-                    "enum": [
-                      "IDR",
-                      "USD",
-                      "SGD",
-                      "THB",
-                      "MYR",
-                      "IDRX",
-                      "USDC",
-                      "USDT",
-                      "ETH",
-                      "BTC"
-                    ]
+                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                   },
                   "provider": {
                     "type": "string",
@@ -1946,18 +1847,7 @@
                     "properties": {
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       },
                       "chain": {
                         "type": "string",
@@ -2017,18 +1907,7 @@
                   },
                   "currency": {
                     "type": "string",
-                    "enum": [
-                      "IDR",
-                      "USD",
-                      "SGD",
-                      "THB",
-                      "MYR",
-                      "IDRX",
-                      "USDC",
-                      "USDT",
-                      "ETH",
-                      "BTC"
-                    ]
+                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                   },
                   "lines": {
                     "type": "array",
@@ -2070,7 +1949,6 @@
                                     "SGD",
                                     "THB",
                                     "MYR",
-                                    "IDRX",
                                     "USDC",
                                     "USDT",
                                     "ETH",
@@ -2244,36 +2122,14 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       }
                     },
                     "required": ["amount", "asset"]
                   },
                   "currency": {
                     "type": "string",
-                    "enum": [
-                      "IDR",
-                      "USD",
-                      "SGD",
-                      "THB",
-                      "MYR",
-                      "IDRX",
-                      "USDC",
-                      "USDT",
-                      "ETH",
-                      "BTC"
-                    ]
+                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                   },
                   "lines": {
                     "type": "array",
@@ -2486,18 +2342,7 @@
                 "properties": {
                   "settlementAsset": {
                     "type": "string",
-                    "enum": [
-                      "IDR",
-                      "USD",
-                      "SGD",
-                      "THB",
-                      "MYR",
-                      "IDRX",
-                      "USDC",
-                      "USDT",
-                      "ETH",
-                      "BTC"
-                    ]
+                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                   },
                   "provider": {
                     "type": "string",
@@ -2508,18 +2353,7 @@
                     "properties": {
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       },
                       "chain": {
                         "type": "string",
@@ -2559,18 +2393,7 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -2737,18 +2560,7 @@
                   },
                   "currency": {
                     "type": "string",
-                    "enum": [
-                      "IDR",
-                      "USD",
-                      "SGD",
-                      "THB",
-                      "MYR",
-                      "IDRX",
-                      "USDC",
-                      "USDT",
-                      "ETH",
-                      "BTC"
-                    ]
+                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                   },
                   "lines": {
                     "type": "array",
@@ -2778,7 +2590,6 @@
                                 "SGD",
                                 "THB",
                                 "MYR",
-                                "IDRX",
                                 "USDC",
                                 "USDT",
                                 "ETH",
@@ -2978,7 +2789,6 @@
                                 "SGD",
                                 "THB",
                                 "MYR",
-                                "IDRX",
                                 "USDC",
                                 "USDT",
                                 "ETH",
@@ -3208,6 +3018,28 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "payment": {
+                    "type": "object",
+                    "properties": {
+                      "asset": {
+                        "type": "string",
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                      },
+                      "chain": {
+                        "type": "string",
+                        "enum": ["base", "base-sepolia"]
+                      },
+                      "payerAddress": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      }
+                    },
+                    "required": ["asset", "chain"]
+                  },
+                  "executionPath": {
+                    "type": "string",
+                    "enum": ["deposit-match", "on-chain-contract"]
+                  },
                   "amount": {
                     "type": "object",
                     "properties": {
@@ -3216,18 +3048,7 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": [
-                          "IDR",
-                          "USD",
-                          "SGD",
-                          "THB",
-                          "MYR",
-                          "IDRX",
-                          "USDC",
-                          "USDT",
-                          "ETH",
-                          "BTC"
-                        ]
+                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
                       }
                     },
                     "required": ["amount", "asset"]

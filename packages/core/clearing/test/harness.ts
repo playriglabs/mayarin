@@ -36,7 +36,7 @@ export interface HarnessOptions {
   readonly webhookSecret?: string;
   /** Settlement mode for the mock adapter. Defaults to `"external"`. */
   readonly mode?: SettlementMode;
-  /** IDR -> IDRX at 1:1 by default; both are 2-decimal. */
+  /** IDR -> USDC at 100 minor units of USDC per rupiah by default. */
   readonly rates?: Readonly<Record<string, bigint>>;
   /** Contract-path planner (#61). Absent by default, like a chainless deployment. */
   readonly contractPlanner?: ContractPaymentPlanner;
@@ -76,7 +76,7 @@ export function createHarness(options: HarnessOptions = {}) {
     clock,
     events,
     defaults: {
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       provider: "mock",
       executionPath: "deposit-match",
       ttlSeconds: 900,
@@ -93,7 +93,7 @@ export function createHarness(options: HarnessOptions = {}) {
     intents,
     ledger,
     adapters: new SettlementAdapterRegistry([adapter]),
-    rates: new StaticRateProvider(options.rates ?? { "IDR/IDRX": 100n }),
+    rates: new StaticRateProvider(options.rates ?? { "IDR/USDC": 100n }),
     fees: new BasisPointsFeePolicy(options.feeBasisPoints ?? 50),
     depositAddresses,
     depositDeriver,
@@ -141,7 +141,7 @@ export function createHarness(options: HarnessOptions = {}) {
   }
 
   async function balance(kind: AccountKind) {
-    return (await ledger.balance(kind, "IDRX")).balance;
+    return (await ledger.balance(kind, "USDC")).balance;
   }
 
   return {

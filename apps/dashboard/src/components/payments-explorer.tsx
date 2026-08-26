@@ -100,6 +100,8 @@ function PaymentsExplorer() {
   const payments = usePaymentPage(filter, pagination.cursor);
 
   const all = payments.data?.payments ?? [];
+  // See orders.tsx: `isPending`, so a background poll never greys the filters.
+  const filtersBusy = payments.isPending;
   const rows = all;
 
   return (
@@ -140,7 +142,7 @@ function PaymentsExplorer() {
                 pagination.reset();
               }}
             >
-              <SelectTrigger id="payment-status">
+              <SelectTrigger id="payment-status" disabled={filtersBusy}>
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -157,6 +159,7 @@ function PaymentsExplorer() {
           <DateRangeFilter
             from={from}
             to={to}
+            disabled={filtersBusy}
             onFromChange={(value) => {
               setFrom(value);
               pagination.reset();
@@ -178,7 +181,7 @@ function PaymentsExplorer() {
                 pagination.reset();
               }}
             >
-              <SelectTrigger id="payment-sort">
+              <SelectTrigger id="payment-sort" disabled={filtersBusy}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

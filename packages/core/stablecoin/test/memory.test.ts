@@ -3,7 +3,9 @@ import type { AssetCode } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "../src/memory.ts";
 import type { Stablecoin } from "../src/types.ts";
 
-const idrx: Stablecoin = { asset: "IDRX" as AssetCode, onChain: [] };
+/** A stablecoin Mayarin books but never takes a deposit in. */
+const LEDGER_ONLY = "XSTBL" as AssetCode;
+const ledgerOnly: Stablecoin = { asset: LEDGER_ONLY, onChain: [] };
 const usdc: Stablecoin = {
   asset: "USDC",
   onChain: [{ chain: "base-sepolia", address: "0xUsdc" }], // mixed case on input
@@ -22,12 +24,12 @@ const usdt: Stablecoin = {
 };
 
 function registry() {
-  return new InMemoryStablecoinRegistry([idrx, usdc, usdt]);
+  return new InMemoryStablecoinRegistry([ledgerOnly, usdc, usdt]);
 }
 
 describe("InMemoryStablecoinRegistry", () => {
   test("lists every admitted stablecoin with addresses lowercased", async () => {
-    expect(await registry().list()).toEqual([idrx, usdcLower, usdt]);
+    expect(await registry().list()).toEqual([ledgerOnly, usdcLower, usdt]);
   });
 
   test("finds an admitted asset and returns undefined for an unknown one", async () => {
@@ -38,7 +40,7 @@ describe("InMemoryStablecoinRegistry", () => {
 
   test("isSettlementAsset is true for every registered stablecoin", async () => {
     const r = registry();
-    expect(await r.isSettlementAsset("IDRX")).toBe(true);
+    expect(await r.isSettlementAsset(LEDGER_ONLY)).toBe(true);
     expect(await r.isSettlementAsset("USDC")).toBe(true);
     expect(await r.isSettlementAsset("ETH")).toBe(false);
   });
@@ -47,8 +49,8 @@ describe("InMemoryStablecoinRegistry", () => {
     const r = registry();
     expect(await r.isDepositAsset("USDC", "base-sepolia")).toBe(true);
     expect(await r.isDepositAsset("USDT", "base")).toBe(true);
-    // IDRX is ledger-only — never a deposit asset.
-    expect(await r.isDepositAsset("IDRX", "base-sepolia")).toBe(false);
+    // A ledger-only stablecoin is never a deposit asset.
+    expect(await r.isDepositAsset(LEDGER_ONLY, "base-sepolia")).toBe(false);
     // USDC is not deployed on base.
     expect(await r.isDepositAsset("USDC", "base")).toBe(false);
     // Unknown asset.
@@ -60,7 +62,7 @@ describe("InMemoryStablecoinRegistry", () => {
     expect(await r.address("USDC", "base-sepolia")).toBe("0xusdc");
     expect(await r.address("USDT", "base")).toBe("0xusdt-base");
     // Ledger-only assets have no address.
-    expect(await r.address("IDRX", "base-sepolia")).toBeUndefined();
+    expect(await r.address(LEDGER_ONLY, "base-sepolia")).toBeUndefined();
     // Not deployed on this chain.
     expect(await r.address("USDC", "base")).toBeUndefined();
     // Unknown asset.

@@ -175,6 +175,8 @@ function ApiKeys() {
   }
 
   const rows = keys.data?.apiKeys ?? [];
+  // See orders.tsx: `isPending`, so a background poll never greys the filters.
+  const filtersBusy = keys.isPending;
 
   return (
     <section className="flex flex-col gap-4">
@@ -195,7 +197,7 @@ function ApiKeys() {
           <Field>
             <FieldLabel htmlFor="key-status">Status</FieldLabel>
             <Select items={STATUS_OPTIONS} value={status} onValueChange={setStatus}>
-              <SelectTrigger id="key-status">
+              <SelectTrigger id="key-status" disabled={filtersBusy}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -209,7 +211,13 @@ function ApiKeys() {
           </Field>
         </div>
         <div className="grid w-full grid-cols-2 gap-3 sm:w-auto">
-          <DateRangeFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+          <DateRangeFilter
+            from={from}
+            to={to}
+            disabled={filtersBusy}
+            onFromChange={setFrom}
+            onToChange={setTo}
+          />
         </div>
         <div className="w-full sm:w-44">
           <Field>
@@ -219,7 +227,7 @@ function ApiKeys() {
               value={sort}
               onValueChange={(value) => setSort(value as typeof sort)}
             >
-              <SelectTrigger id="key-sort">
+              <SelectTrigger id="key-sort" disabled={filtersBusy}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

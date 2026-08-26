@@ -47,7 +47,6 @@ describe("formatMoneyLocale", () => {
   });
 
   test("suffixes the code for assets with no conventional symbol", () => {
-    expect(formatMoneyLocale(money(5_043_200n, "IDRX"))).toBe("50.432,00 IDRX");
     expect(formatMoneyLocale(money(1_250_000n, "USDC"))).toBe("1,250000 USDC");
   });
 
@@ -90,7 +89,7 @@ describe("parseMoneyLocale", () => {
   });
 
   test("strips a trailing asset code", () => {
-    expect(parseMoneyLocale("50.432,00 IDRX", "IDRX")).toEqual(money(5_043_200n, "IDRX"));
+    expect(parseMoneyLocale("50.432,000000 USDC", "USDC")).toEqual(money(50_432_000_000n, "USDC"));
   });
 
   test("rejects groups that do not group", () => {

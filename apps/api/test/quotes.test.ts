@@ -13,27 +13,27 @@ import { quoteRoutes } from "../src/routes/quotes.ts";
 /** Thursday noon — the FX market is trading, so no closed spread intervenes. */
 const NOW = new Date("2026-08-06T12:00:00.000Z");
 
-/** 60,000,000,000 minor IDRX per whole ETH — a stand-in rate, value irrelevant. */
-const ETH_IDRX_RATE = 60_000_000_000n;
+/** 60,000,000,000 minor USDC per whole ETH — a stand-in rate, value irrelevant. */
+const ETH_USDC_RATE = 60_000_000_000n;
 
 /**
  * A quote layer over fakes, mirroring `contract-layer.test.ts`. The venue and
- * oracle agree on ETH -> IDRX, IDR -> IDRX is a declared peg, and the deviation
+ * oracle agree on ETH -> USDC, IDR -> USDC is a declared peg, and the deviation
  * guard is loose enough that the identical rates pass it.
  */
 function quoteLayer(): QuoteLayer {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
-    { from: "ETH", to: "IDRX", scaledRate: ETH_IDRX_RATE, source: "0x" },
+    { from: "ETH", to: "USDC", scaledRate: ETH_USDC_RATE, source: "0x" },
   ]);
   const oracle = new FixedPriceOracle([
-    { from: "ETH", to: "IDRX", scaledRate: ETH_IDRX_RATE, source: "pyth", observedAt: NOW },
+    { from: "ETH", to: "USDC", scaledRate: ETH_USDC_RATE, source: "pyth", observedAt: NOW },
   ]);
   const engine = new QuoteEngine({
     venue: priceSourceOf(venue),
     oracle,
     policy: { maxDeviationBps: 100, maxAgeMs: 60_000 },
-    fiat: { pegged: ["IDR/IDRX"], maxAgeMs: 300_000, closedMaxAgeMs: 300_000, closedSpreadBps: 0 },
+    fiat: { pegged: ["IDR/USDC"], maxAgeMs: 300_000, closedMaxAgeMs: 300_000, closedSpreadBps: 0 },
     clock,
   });
   return {
@@ -50,8 +50,8 @@ function quoteLayer(): QuoteLayer {
 function stubContainer(quote: QuoteLayer | undefined): Container {
   return {
     market: { quote: async () => quote },
-    rates: new LiquidityRouter({ source: new TablePriceSource({ "ETH/IDRX": ETH_IDRX_RATE }) }),
-    config: { settlementAsset: "IDRX" },
+    rates: new LiquidityRouter({ source: new TablePriceSource({ "ETH/USDC": ETH_USDC_RATE }) }),
+    config: { settlementAsset: "USDC" },
   } as unknown as Container;
 }
 
@@ -92,7 +92,7 @@ describe("quotes route — which source prices the swap leg", () => {
     // Falling back to the static table would show a number the lock can never
     // produce, so the preview refuses it too.
     const app = quoteRoutes(stubContainer(quoteLayer()));
-    const { quotes } = await post(app, "1.00000000", "ETH", ["IDRX"]);
+    const { quotes } = await post(app, "1.00000000", "ETH", ["USDC"]);
 
     expect(quotes[0]?.available).toBe(false);
     expect(quotes[0]?.reason).toMatch(/fiat/i);
@@ -103,7 +103,7 @@ describe("quotes route — which source prices the swap leg", () => {
     // including for a crypto-priced merchant, exactly as the non-executed
     // deposit path prices one. The fallback is the dev stand-in, not a lie.
     const app = quoteRoutes(stubContainer(undefined));
-    const { quotes } = await post(app, "1.00000000", "ETH", ["IDRX"]);
+    const { quotes } = await post(app, "1.00000000", "ETH", ["USDC"]);
 
     expect(quotes[0]?.available).toBe(true);
     expect(quotes[0]?.rate?.source).toBe("table");

@@ -86,7 +86,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     repository: intentRepository,
     clock,
     defaults: {
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       provider: "mock",
       executionPath: "deposit-match",
       ttlSeconds: 900,
@@ -100,7 +100,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     intents,
     ledger,
     adapters: new SettlementAdapterRegistry([adapter]),
-    rates: new StaticRateProvider({ "IDR/IDRX": 100n }),
+    rates: new StaticRateProvider({ "IDR/USDC": 100n }),
     fees: new BasisPointsFeePolicy(50),
     clock,
     autoConfirmAssetReceipt: true,
@@ -329,9 +329,9 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     const transaction = await engine.start(intent);
 
     expect(transaction.state).toBe("SUCCESS");
-    expect(transaction.settlementAmount).toEqual(money(5_000_000n, "IDRX"));
-    expect(transaction.fee).toEqual(money(25_000n, "IDRX"));
-    expect(transaction.netAmount).toEqual(money(4_975_000n, "IDRX"));
+    expect(transaction.settlementAmount).toEqual(money(5_000_000n, "USDC"));
+    expect(transaction.fee).toEqual(money(25_000n, "USDC"));
+    expect(transaction.netAmount).toEqual(money(4_975_000n, "USDC"));
     expect((await intents.getById(intent.id)).status).toBe("COMPLETED");
   });
 
@@ -341,7 +341,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     const reloaded = await engine.getById(transaction.id);
     expect(reloaded.rate?.scaledRate).toBe(100n * RATE_SCALE);
     expect(reloaded.rate?.from).toBe("IDR");
-    expect(reloaded.rate?.to).toBe("IDRX");
+    expect(reloaded.rate?.to).toBe("USDC");
 
     const history = await engine.history(transaction.id);
     expect(history.map((event) => event.toState)).toEqual([
@@ -360,11 +360,11 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
   test("leaves balanced, correct ledger balances", async () => {
     await engine.start(await confirmedIntent());
 
-    expect((await ledger.balance("TREASURY", "IDRX")).balance).toEqual(money(25_000n, "IDRX"));
-    expect((await ledger.balance("FEE_REVENUE", "IDRX")).balance).toEqual(money(25_000n, "IDRX"));
-    expect((await ledger.balance("MERCHANT_PAYABLE", "IDRX")).balance).toEqual(money(0n, "IDRX"));
-    expect((await ledger.balance("SETTLEMENT_IN_FLIGHT", "IDRX")).balance).toEqual(
-      money(0n, "IDRX"),
+    expect((await ledger.balance("TREASURY", "USDC")).balance).toEqual(money(25_000n, "USDC"));
+    expect((await ledger.balance("FEE_REVENUE", "USDC")).balance).toEqual(money(25_000n, "USDC"));
+    expect((await ledger.balance("MERCHANT_PAYABLE", "USDC")).balance).toEqual(money(0n, "USDC"));
+    expect((await ledger.balance("SETTLEMENT_IN_FLIGHT", "USDC")).balance).toEqual(
+      money(0n, "USDC"),
     );
   });
 
@@ -387,7 +387,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       intents,
       ledger,
       adapters: new SettlementAdapterRegistry([pendingAdapter]),
-      rates: new StaticRateProvider({ "IDR/IDRX": 100n }),
+      rates: new StaticRateProvider({ "IDR/USDC": 100n }),
       fees: new BasisPointsFeePolicy(50),
       clock,
       autoConfirmAssetReceipt: true,
@@ -554,7 +554,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       await new DrizzleMerchantRepository(handle.db).insert({
         id,
         name: "Warung Kopi Mayarin",
-        settlementAsset: "IDRX",
+        settlementAsset: "USDC",
         acceptedAssets: [],
         createdAt: now,
         updatedAt: now,

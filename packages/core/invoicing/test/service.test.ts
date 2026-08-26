@@ -31,7 +31,7 @@ function harness() {
     repository: intentRepository,
     clock,
     defaults: {
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       provider: "mock",
       executionPath: "deposit-match",
       ttlSeconds: 900,

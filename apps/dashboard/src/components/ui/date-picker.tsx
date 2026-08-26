@@ -12,6 +12,7 @@ interface DatePickerProps {
   readonly value: string;
   readonly min?: string;
   readonly placeholder?: string;
+  readonly disabled?: boolean;
   readonly onValueChange: (value: string) => void;
 }
 
@@ -71,6 +72,7 @@ function DatePicker({
   value,
   min,
   placeholder = "dd/mm/yyyy",
+  disabled = false,
   onValueChange,
 }: DatePickerProps) {
   const selected = parseIso(value);
@@ -87,15 +89,22 @@ function DatePicker({
 
   return (
     <Popover.Root
-      open={open}
+      open={disabled ? false : open}
       onOpenChange={(next) => {
+        if (disabled) return;
         if (next && selected !== undefined) setVisibleMonth(startOfMonth(selected));
         setOpen(next);
       }}
     >
       <Popover.Trigger
         id={id}
-        className="flex h-8 w-full cursor-pointer items-center justify-between gap-2 border border-input bg-card px-2.5 text-left text-sm text-foreground transition-colors duration-150"
+        disabled={disabled}
+        className={cn(
+          "flex h-8 w-full cursor-pointer items-center justify-between gap-2 border border-input bg-card px-2.5 text-left text-sm text-foreground transition-colors duration-150",
+          // Matches the shared Select's disabled treatment, so a filter row
+          // reads as one control group whichever field is looked at.
+          "disabled:cursor-not-allowed disabled:bg-muted disabled:text-subtle-foreground",
+        )}
       >
         <span className={cn(value === "" && "text-subtle-foreground")}>
           {selected === undefined ? placeholder : dateLabel.format(selected)}

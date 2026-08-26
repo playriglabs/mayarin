@@ -179,7 +179,8 @@ describe("deposit card", () => {
 
   test("both values a wallet needs carry a copy button", () => {
     const html = render(undefined);
-    expect(html).toContain("Copy amount");
+    // The amount's button is icon-only, so its label is the only text of it.
+    expect(html).toContain("Copy the amount");
     expect(html).toContain("Copy payment address");
   });
 

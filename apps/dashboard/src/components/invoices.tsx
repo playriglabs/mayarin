@@ -417,6 +417,9 @@ function Invoices() {
                           <Button
                             variant="secondary"
                             size="sm"
+                            // Matches the 40px icon actions the other rows use,
+                            // so the draft row's action group lines up with them.
+                            className="h-10 px-5"
                             onClick={() => {
                               setIssuing(invoice);
                               setIssueDueDate("");

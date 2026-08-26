@@ -12,10 +12,10 @@
  * What guards it instead is staleness plus, where the pair allows it, not
  * needing a rate at all:
  *
- * - **Pegged pairs** convert by construction. IDR into IDRX is the same currency
+ * - **Pegged pairs** convert by construction. USD into USDC is the same currency
  *   in two representations, so it is a decimal rescale, not an exchange rate —
- *   routing it through USD would introduce two rounding steps and two sources of
- *   error to answer a question that has an exact answer.
+ *   reading a rate for it would introduce a rounding step and a source of error
+ *   to answer a question that has an exact answer.
  * - **Everything else** reads an oracle reference and refuses a stale one.
  *
  * Rounding is always *up*, so the settlement amount never lands below the price
@@ -63,7 +63,7 @@ export interface SettlementPrice {
 export interface FiatPricePolicy {
   /**
    * Pairs that are the same currency in two representations, as
-   * `"IDR/IDRX"`. Declared by the deployment, never inferred: whether a
+   * `"USD/USDC"`. Declared by the deployment, never inferred: whether a
    * stablecoin actually holds its peg is a judgement about an issuer, not
    * something this package can decide from an asset code.
    */
@@ -92,7 +92,7 @@ export interface FiatPricePolicy {
   readonly closedSpreadBps: number;
 }
 
-/** `"IDR/IDRX"` — the same key shape the rate table and oracle feeds use. */
+/** `"USD/USDC"` — the same key shape the rate table and oracle feeds use. */
 export function fiatPairKey(from: AssetCode, to: AssetCode): string {
   return `${from}/${to}`;
 }
@@ -179,9 +179,9 @@ function widen(scaledRate: bigint, spreadBps: number): bigint {
 
 /**
  * Rescales between two representations of the same currency. Purely a decimal
- * shift: IDR 35.000,00 (2 dp) is 35.000,00 IDRX (2 dp) — the same number of
- * minor units. Scaling up is exact; scaling down rounds up, so the merchant is
- * never short.
+ * shift: USD 35,000.00 (2 dp) is 35,000.000000 USDC (6 dp) — the same amount,
+ * four decimal places wider. Scaling up is exact; scaling down rounds up, so the
+ * merchant is never short.
  */
 function rescale(value: Money, target: AssetCode): Money {
   const from = assetDecimals(value.asset);

@@ -32,9 +32,9 @@ class StubSource implements PriceSource {
 describe("PriceSource port", () => {
   test("price returns a PriceQuote shaped from/to/scaledRate/source", async () => {
     const source = new StubSource();
-    const quote = await source.price("IDRX", "USDC", money(1_000n, "IDRX"));
+    const quote = await source.price("USDT", "USDC", money(1_000n, "USDT"));
 
-    expect(quote.from).toBe("IDRX");
+    expect(quote.from).toBe("USDT");
     expect(quote.to).toBe("USDC");
     // Whatever a source returns is already scaled; the port does not rescale.
     expect(quote.scaledRate).toBe(100n);
@@ -44,87 +44,87 @@ describe("PriceSource port", () => {
 
   test("price receives the amount being priced", async () => {
     const source = new StubSource();
-    await source.price("IDRX", "USDC", money(5_000n, "IDRX"));
+    await source.price("USDT", "USDC", money(5_000n, "USDT"));
     expect(source.calls[0]?.amount).toBe(5_000n);
   });
 });
 
 describe("TablePriceSource", () => {
-  const source = new TablePriceSource({ "IDRX/USDC": 100_0000n });
+  const source = new TablePriceSource({ "USDT/USDC": 100_0000n });
 
   test("returns the configured rate for a cross-asset pair", async () => {
-    const quote = await source.price("IDRX", "USDC", money(10_000n, "IDRX"));
+    const quote = await source.price("USDT", "USDC", money(10_000n, "USDT"));
     expect(quote.scaledRate).toBe(100_0000n * RATE_SCALE);
     expect(quote.source).toBe("table");
-    expect(quote.from).toBe("IDRX");
+    expect(quote.from).toBe("USDT");
     expect(quote.to).toBe("USDC");
   });
 
   test("throws on a missing cross-asset pair", async () => {
-    await expect(source.price("USDC", "IDRX", money(1_000_000n, "USDC"))).rejects.toBeInstanceOf(
+    await expect(source.price("USDC", "USDT", money(1_000_000n, "USDC"))).rejects.toBeInstanceOf(
       ConfigurationError,
     );
   });
 
   test("throws on a same-asset pair — identity is the router's job", async () => {
-    await expect(source.price("IDRX", "IDRX", money(10_000n, "IDRX"))).rejects.toBeInstanceOf(
+    await expect(source.price("USDT", "USDT", money(10_000n, "USDT"))).rejects.toBeInstanceOf(
       ConfigurationError,
     );
   });
 
   test("carries a custom source label", async () => {
-    const labelled = new TablePriceSource({ "IDRX/USDC": 100_0000n }, "exchange-rates");
-    const quote = await labelled.price("IDRX", "USDC", money(10_000n, "IDRX"));
+    const labelled = new TablePriceSource({ "USDT/USDC": 100_0000n }, "exchange-rates");
+    const quote = await labelled.price("USDT", "USDC", money(10_000n, "USDT"));
     expect(quote.source).toBe("exchange-rates");
   });
 });
 
 describe("ConstantProductPriceSource", () => {
-  // Pool: 10,000.00 IDRX (1_000_000 minor) <-> 0.64 USDC (640_000 minor).
-  // Marginal rate IDRX->USDC = 64 minor USDC per whole IDRX.
+  // Pool: 1.000000 USDT (1_000_000 minor) <-> 0.640000 USDC (640_000 minor).
+  // Marginal rate USDT->USDC = 640_000 minor USDC per whole USDT.
   const pools = {
-    "IDRX/USDC": { reserveFrom: 1_000_000n, reserveTo: 640_000n },
+    "USDT/USDC": { reserveFrom: 1_000_000n, reserveTo: 640_000n },
   };
   const source = new ConstantProductPriceSource(pools);
 
   test("a small swap prices near the marginal rate", async () => {
-    // 1.00 whole IDRX (100 minor): out = 100*640_000/(1_000_000+100) = 63n
-    // rate = 63*100/100 = 63 minor USDC per whole IDRX
-    const quote = await source.price("IDRX", "USDC", money(100n, "IDRX"));
-    expect(quote.scaledRate).toBe(63n * RATE_SCALE);
+    // 0.000100 whole USDT (100 minor): out = 100*640_000/(1_000_000+100) = 63n
+    // rate = 63*1_000_000/100 = 630_000 minor USDC per whole USDT
+    const quote = await source.price("USDT", "USDC", money(100n, "USDT"));
+    expect(quote.scaledRate).toBe(630_000n * RATE_SCALE);
     expect(quote.source).toBe("constant-product");
   });
 
   test("a larger swap moves the price more — size-aware slippage", async () => {
-    // 10,000.00 whole IDRX (1_000_000 minor): out = 1_000_000*640_000/2_000_000 = 320_000n
-    // rate = 320_000*100/1_000_000 = 32 minor USDC per whole IDRX
-    const quote = await source.price("IDRX", "USDC", money(1_000_000n, "IDRX"));
-    expect(quote.scaledRate).toBe(32n * RATE_SCALE);
+    // 1.000000 whole USDT (1_000_000 minor): out = 1_000_000*640_000/2_000_000 = 320_000n
+    // rate = 320_000*1_000_000/1_000_000 = 320_000 minor USDC per whole USDT
+    const quote = await source.price("USDT", "USDC", money(1_000_000n, "USDT"));
+    expect(quote.scaledRate).toBe(320_000n * RATE_SCALE);
   });
 
   test("a fee reduces the output", async () => {
-    // 0.64 USDC (640_000 minor) <-> 10,000.00 IDRX (1_000_000 minor). The fee
+    // 0.640000 USDC (640_000 minor) <-> 1.000000 USDT (1_000_000 minor). The fee
     // no longer has to move a whole minor unit to be visible — RATE_DECIMALS
     // resolves it directly.
-    const feePools = { "USDC/IDRX": { reserveFrom: 640_000n, reserveTo: 1_000_000n } };
+    const feePools = { "USDC/USDT": { reserveFrom: 640_000n, reserveTo: 1_000_000n } };
     const free = new ConstantProductPriceSource(feePools);
     const taxed = new ConstantProductPriceSource(feePools, { feeBps: 30 });
     // 0.10 whole USDC (100_000 minor).
-    const freeQuote = await free.price("USDC", "IDRX", money(100_000n, "USDC"));
-    const taxedQuote = await taxed.price("USDC", "IDRX", money(100_000n, "USDC"));
+    const freeQuote = await free.price("USDC", "USDT", money(100_000n, "USDC"));
+    const taxedQuote = await taxed.price("USDC", "USDT", money(100_000n, "USDC"));
     expect(freeQuote.scaledRate).toBe(1_351_350_000_000_000n);
     expect(taxedQuote.scaledRate).toBe(1_347_840_000_000_000n);
     expect(taxedQuote.scaledRate).toBeLessThan(freeQuote.scaledRate);
   });
 
   test("a missing reverse pool throws — no symmetry inference", async () => {
-    await expect(source.price("USDC", "IDRX", money(640_000n, "USDC"))).rejects.toBeInstanceOf(
+    await expect(source.price("USDC", "USDT", money(640_000n, "USDC"))).rejects.toBeInstanceOf(
       ConfigurationError,
     );
   });
 
   test("throws on a same-asset pair — identity is the router's job", async () => {
-    await expect(source.price("IDRX", "IDRX", money(100n, "IDRX"))).rejects.toBeInstanceOf(
+    await expect(source.price("USDT", "USDT", money(100n, "USDT"))).rejects.toBeInstanceOf(
       ConfigurationError,
     );
   });
@@ -151,15 +151,15 @@ describe("LiquidityRouter", () => {
 
   test("cross-asset quote delegates to the source and passes amount through", async () => {
     const router = new LiquidityRouter({ source: new StubSource() });
-    const quote = await router.quote("IDRX", "USDC", money(5_000n, "IDRX"));
+    const quote = await router.quote("USDT", "USDC", money(5_000n, "USDT"));
     // Whatever a source returns is already scaled; the port does not rescale.
     expect(quote.scaledRate).toBe(100n);
     expect(quote.source).toBe("stub");
   });
 
   test("surfaces the source's ConfigurationError for an unsupported pair", async () => {
-    const router = new LiquidityRouter({ source: new TablePriceSource({ "IDRX/USDC": 100n }) });
-    await expect(router.quote("USDC", "IDRX", money(1_000_000n, "USDC"))).rejects.toBeInstanceOf(
+    const router = new LiquidityRouter({ source: new TablePriceSource({ "USDT/USDC": 100n }) });
+    await expect(router.quote("USDC", "USDT", money(1_000_000n, "USDC"))).rejects.toBeInstanceOf(
       ConfigurationError,
     );
   });

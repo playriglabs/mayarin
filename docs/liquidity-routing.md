@@ -66,7 +66,7 @@ math stays exact. No `number`, no `Math`, no rounding error reaches a balance.
 
 A quote is a `scaledRate`: minor units of `to` per whole unit of `from`, carrying
 `RATE_DECIMALS` fractional digits. The minor-units part already encodes the
-decimal difference (USDC at 6 dp vs IDRX at 2 dp), so the router and sources
+decimal difference (USDC at 6 dp vs IDR at 2 dp), so the router and sources
 never assume two assets share a unit.
 
 **The fraction is not decoration.** A rate is exact as a plain integer only when

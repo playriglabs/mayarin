@@ -57,7 +57,7 @@ address is re-derivable from the xpub alone after a restore.
 ## The third asset leg and the two rate locks
 
 Phase 1 models two assets: `sourceAmount` (what the merchant quoted, IDR) and
-`settlementAsset` (what the merchant is paid, IDRX). The payer's asset was not
+`settlementAsset` (what the merchant is paid, USDC). The payer's asset was not
 modelled at all — `PRICE_LOCKED` converted the quote straight into the payout.
 
 A deposit address needs an expected amount in the payer's asset on a specific

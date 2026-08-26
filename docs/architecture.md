@@ -370,7 +370,6 @@ abstraction is required for the "no wallet, no seed phrase" experience.
 
 #### Settlement Assets
 
-- IDRX
 - USDC
 - USDT
 

@@ -52,7 +52,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle invoicing", () => {
         repository: intentRepository,
         clock,
         defaults: {
-          settlementAsset: "IDRX",
+          settlementAsset: "USDC",
           provider: "mock",
           executionPath: "deposit-match",
           ttlSeconds: 900,

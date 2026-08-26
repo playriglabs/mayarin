@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type { AssetCode } from "@mayarin/shared";
 import { isLedgerOnly, pairsOf, type Stablecoin } from "../src/types.ts";
 
-const idrx: Stablecoin = { asset: "IDRX" as AssetCode, onChain: [] };
+/** A stablecoin Mayarin books but never takes a deposit in. */
+const LEDGER_ONLY = "XSTBL" as AssetCode;
+const ledgerOnly: Stablecoin = { asset: LEDGER_ONLY, onChain: [] };
 const usdc: Stablecoin = {
   asset: "USDC",
   onChain: [{ chain: "base-sepolia", address: "0xusdc" }],
@@ -17,7 +19,7 @@ const usdt: Stablecoin = {
 
 describe("isLedgerOnly", () => {
   test("true when a stablecoin has no on-chain identity", () => {
-    expect(isLedgerOnly(idrx)).toBe(true);
+    expect(isLedgerOnly(ledgerOnly)).toBe(true);
   });
 
   test("false when a stablecoin is deployed on at least one chain", () => {
@@ -28,7 +30,7 @@ describe("isLedgerOnly", () => {
 
 describe("pairsOf", () => {
   test("flattens every on-chain identity into a (chain, asset) pair", () => {
-    expect(pairsOf([idrx, usdc, usdt])).toEqual([
+    expect(pairsOf([ledgerOnly, usdc, usdt])).toEqual([
       { chain: "base-sepolia", asset: "USDC" },
       { chain: "base-sepolia", asset: "USDT" },
       { chain: "base", asset: "USDT" },
@@ -36,7 +38,7 @@ describe("pairsOf", () => {
   });
 
   test("ledger-only stablecoins contribute no pairs", () => {
-    expect(pairsOf([idrx])).toEqual([]);
+    expect(pairsOf([ledgerOnly])).toEqual([]);
   });
 
   test("is empty for no stablecoins", () => {

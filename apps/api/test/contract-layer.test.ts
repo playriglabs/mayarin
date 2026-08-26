@@ -16,10 +16,10 @@ const NOW = new Date("2026-08-06T12:00:00.000Z");
 const ROUTER = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";
 const MERCHANT_SAFE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const PAYER = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
-const IDRX_TOKEN = "0x00000000000000000000000000000000000001d1";
+const USDC_TOKEN = "0x00000000000000000000000000000000000001d1";
 
-/** 60,000,000.00 IDRX per whole ETH. */
-const ETH_IDRX_RATE = 6_000_000_000n;
+/** 60,000,000.00 USDC per whole ETH. */
+const ETH_USDC_RATE = 6_000_000_000n;
 
 // `null` means the merchant has no settlement address; `undefined` would be
 // swallowed by the default parameter and silently pass the address through.
@@ -31,13 +31,13 @@ function createPlanner(
 ) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
-    { from: "ETH", to: "IDRX", scaledRate: ETH_IDRX_RATE, source: "0x" },
+    { from: "ETH", to: "USDC", scaledRate: ETH_USDC_RATE, source: "0x" },
   ]);
   const oracle = new FixedPriceOracle([
     {
       from: "ETH",
-      to: "IDRX",
-      scaledRate: ETH_IDRX_RATE,
+      to: "USDC",
+      scaledRate: ETH_USDC_RATE,
       source: "pyth",
       observedAt: NOW,
     },
@@ -48,7 +48,7 @@ function createPlanner(
     oracle,
     policy: { maxDeviationBps: 100, maxAgeMs: 60_000 },
     fiat: {
-      pegged: ["IDR/IDRX"],
+      pegged: ["USD/USDC"],
       maxAgeMs: 300_000,
       closedMaxAgeMs: 300_000,
       closedSpreadBps: 0,
@@ -69,11 +69,11 @@ function createPlanner(
     fees: new BasisPointsFeePolicy(50),
     relayerGasFees: new BasisPointsFeePolicy(relayerGasFeeBasisPoints),
     stablecoins: new InMemoryStablecoinRegistry([
-      { asset: "IDRX", onChain: [{ chain: "base", address: IDRX_TOKEN }] },
+      { asset: "USDC", onChain: [{ chain: "base", address: USDC_TOKEN }] },
     ]),
     merchantPolicies: {
       policyFor: async () => ({
-        settlementAsset: "IDRX" as const,
+        settlementAsset: "USDC" as const,
         acceptedAssets: [],
         ...(settlementAddress === null ? {} : { settlementAddress }),
       }),
@@ -85,13 +85,13 @@ function createPlanner(
   return { planner, venue, signer, clock };
 }
 
-function lockRequest(payerAsset: "ETH" | "IDRX") {
+function lockRequest(payerAsset: "ETH" | "USDC") {
   return {
     clearingTransactionId: "clr_test_1",
     paymentIntentId: "pi_test_1",
     merchantId: "ID1020017611473",
-    sourceAmount: money(5_000_000n, "IDR"),
-    settlementAsset: "IDRX",
+    sourceAmount: money(500n, "USD"), // $5.00, pegged 1:1 into 5.000000 USDC
+    settlementAsset: "USDC",
     payerAsset,
     chain: "base",
     payerAddress: PAYER,
@@ -105,11 +105,11 @@ describe("ApiContractPlanner", () => {
 
     const lock = await planner.lock(lockRequest("ETH"));
 
-    expect(lock.settlementAmount).toEqual(money(5_000_000n, "IDRX"));
-    expect(lock.fee).toEqual(money(25_000n, "IDRX"));
+    expect(lock.settlementAmount).toEqual(money(5_000_000n, "USDC"));
+    expect(lock.fee).toEqual(money(25_000n, "USDC"));
     expect(lock.order.minOut).toBe(5_000_000n);
     expect(lock.order.fee).toBe(25_000n);
-    expect(lock.order.settlementToken.toLowerCase()).toBe(IDRX_TOKEN);
+    expect(lock.order.settlementToken.toLowerCase()).toBe(USDC_TOKEN);
     expect(lock.order.merchantSafe).toBe(MERCHANT_SAFE);
     expect(lock.order.refundTo).toBe(PAYER);
     expect(lock.order.signer).toBe(await signer.address());
@@ -117,7 +117,7 @@ describe("ApiContractPlanner", () => {
     expect(lock.order.deadline).toBe(BigInt(Math.floor(lock.expiresAt.getTime() / 1_000)));
 
     // The payer estimate is grossed up: never below the raw conversion.
-    const raw = (5_000_000n * 10n ** 18n) / ETH_IDRX_RATE;
+    const raw = (5_000_000n * 10n ** 18n) / ETH_USDC_RATE;
     expect(lock.payerEstimate.asset).toBe("ETH");
     expect(lock.payerEstimate.amount >= raw).toBe(true);
 
@@ -139,8 +139,8 @@ describe("ApiContractPlanner", () => {
       submission: "relayer",
     });
 
-    expect(payer.fee).toEqual(money(25_000n, "IDRX"));
-    expect(relayed.fee).toEqual(money(30_000n, "IDRX"));
+    expect(payer.fee).toEqual(money(25_000n, "USDC"));
+    expect(relayed.fee).toEqual(money(30_000n, "USDC"));
     expect(relayed.order.fee).toBe(30_000n);
   });
 
@@ -166,10 +166,10 @@ describe("ApiContractPlanner", () => {
   test("a same-asset payment skips the swap leg entirely", async () => {
     const { planner, venue } = createPlanner();
 
-    const lock = await planner.lock(lockRequest("IDRX"));
+    const lock = await planner.lock(lockRequest("USDC"));
 
     expect(venue.calls).toHaveLength(0);
-    expect(lock.payerEstimate).toEqual(money(5_000_000n, "IDRX"));
+    expect(lock.payerEstimate).toEqual(money(5_000_000n, "USDC"));
     expect(lock.rate.source).toBe("peg");
     expect(lock.order.minOut).toBe(5_000_000n);
   });

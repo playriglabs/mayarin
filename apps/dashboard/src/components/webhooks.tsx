@@ -140,6 +140,8 @@ function Webhooks() {
 
   const endpointRows = endpoints.data?.endpoints ?? [];
   const deliveryRows = deliveries.data?.deliveries ?? [];
+  // See orders.tsx: `isPending`, so a background poll never greys the filters.
+  const filtersBusy = deliveries.isPending;
 
   async function add() {
     setFailure("");
@@ -348,7 +350,7 @@ function Webhooks() {
                   deliveryPagination.reset();
                 }}
               >
-                <SelectTrigger id="delivery-status">
+                <SelectTrigger id="delivery-status" disabled={filtersBusy}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -365,6 +367,7 @@ function Webhooks() {
             <DateRangeFilter
               from={deliveryFrom}
               to={deliveryTo}
+              disabled={filtersBusy}
               onFromChange={(value) => {
                 setDeliveryFrom(value);
                 deliveryPagination.reset();
@@ -386,7 +389,7 @@ function Webhooks() {
                   deliveryPagination.reset();
                 }}
               >
-                <SelectTrigger id="delivery-sort">
+                <SelectTrigger id="delivery-sort" disabled={filtersBusy}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

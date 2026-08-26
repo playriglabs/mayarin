@@ -121,14 +121,14 @@ describe("multiplyByBasisPoints", () => {
 
 describe("convert", () => {
   test("uses target minor units per whole source unit", () => {
-    // 1 USDC = 16,000.00 IDRX -> 2.50 USDC = 40,000.00 IDRX
-    expect(convert(money(2_500_000n, "USDC"), "IDRX", 1_600_000n * RATE_SCALE)).toEqual(
-      money(4_000_000n, "IDRX"),
+    // 1 USDC = 16,000.00 IDR -> 2.50 USDC = 40,000.00 IDR
+    expect(convert(money(2_500_000n, "USDC"), "IDR", 1_600_000n * RATE_SCALE)).toEqual(
+      money(4_000_000n, "IDR"),
     );
   });
 
   test("rejects non-positive rates", () => {
-    expect(() => convert(money(1n, "USDC"), "IDRX", 0n)).toThrow(ValidationError);
+    expect(() => convert(money(1n, "USDC"), "IDR", 0n)).toThrow(ValidationError);
   });
 });
 

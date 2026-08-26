@@ -68,7 +68,6 @@ const DEFINITIONS = {
   },
 
   // Settlement assets
-  IDRX: { kind: "stablecoin", decimals: 2, name: "IDRX" },
   USDC: { kind: "stablecoin", decimals: 6, name: "USD Coin" },
   USDT: { kind: "stablecoin", decimals: 6, name: "Tether USD" },
 

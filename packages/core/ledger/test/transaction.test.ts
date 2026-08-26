@@ -19,9 +19,9 @@ function account(code: string, type: LedgerAccount["type"], id: string): LedgerA
   return { id, code, name: code, type, asset, createdAt: NOW };
 }
 
-const TREASURY = account("TREASURY:IDRX", "ASSET", "lacc_treasury");
-const PAYABLE = account("MERCHANT_PAYABLE:IDRX", "LIABILITY", "lacc_payable");
-const FEES = account("FEE_REVENUE:IDRX", "REVENUE", "lacc_fees");
+const TREASURY = account("TREASURY:USDC", "ASSET", "lacc_treasury");
+const PAYABLE = account("MERCHANT_PAYABLE:USDC", "LIABILITY", "lacc_payable");
+const FEES = account("FEE_REVENUE:USDC", "REVENUE", "lacc_fees");
 
 const ACCOUNTS = new Map([
   [TREASURY.code, TREASURY],
@@ -34,10 +34,10 @@ function draftEntry(
   direction: DraftEntry["direction"],
   minorUnits: bigint,
 ): DraftEntry {
-  return { accountCode: code, direction, amount: money(minorUnits, "IDRX") };
+  return { accountCode: code, direction, amount: money(minorUnits, "USDC") };
 }
 
-/** 50,000.00 IDRX received, split into a 250.00 fee and 49,750.00 payable. */
+/** 5.000000 USDC received, split into a 0.025000 fee and 4.975000 payable. */
 const RECEIPT_ENTRIES: DraftEntry[] = [
   draftEntry(TREASURY.code, "DEBIT", 5_000_000n),
   draftEntry(PAYABLE.code, "CREDIT", 4_975_000n),
@@ -46,13 +46,13 @@ const RECEIPT_ENTRIES: DraftEntry[] = [
 
 describe("accountCode", () => {
   test("round-trips through parseAccountCode", () => {
-    const code = accountCode("TREASURY", "IDRX");
-    expect(code).toBe("TREASURY:IDRX");
-    expect(parseAccountCode(code)).toMatchObject({ kind: "TREASURY", asset: "IDRX" });
+    const code = accountCode("TREASURY", "USDC");
+    expect(code).toBe("TREASURY:USDC");
+    expect(parseAccountCode(code)).toMatchObject({ kind: "TREASURY", asset: "USDC" });
   });
 
   test("rejects unknown kinds and assets", () => {
-    expect(() => parseAccountCode("NOPE:IDRX")).toThrow(/account kind/);
+    expect(() => parseAccountCode("NOPE:USDC")).toThrow(/account kind/);
     expect(() => parseAccountCode("TREASURY:XYZ")).toThrow(/asset/);
   });
 });
@@ -104,19 +104,19 @@ describe("assertBalanced", () => {
 
   test("requires every asset to balance on its own", () => {
     const crossAsset: DraftEntry[] = [
-      { accountCode: "TREASURY:IDRX", direction: "DEBIT", amount: money(100n, "IDRX") },
-      { accountCode: "MERCHANT_PAYABLE:IDRX", direction: "CREDIT", amount: money(100n, "IDRX") },
-      { accountCode: "TREASURY:USDC", direction: "DEBIT", amount: money(50n, "USDC") },
+      { accountCode: "TREASURY:USDC", direction: "DEBIT", amount: money(100n, "USDC") },
+      { accountCode: "MERCHANT_PAYABLE:USDC", direction: "CREDIT", amount: money(100n, "USDC") },
+      { accountCode: "TREASURY:USDT", direction: "DEBIT", amount: money(50n, "USDT") },
     ];
-    expect(() => assertBalanced(crossAsset)).toThrow(/does not balance in USDC/);
+    expect(() => assertBalanced(crossAsset)).toThrow(/does not balance in USDT/);
   });
 
   test("accepts a cross-asset posting where each asset balances", () => {
     const crossAsset: DraftEntry[] = [
-      { accountCode: "TREASURY:IDRX", direction: "DEBIT", amount: money(100n, "IDRX") },
-      { accountCode: "MERCHANT_PAYABLE:IDRX", direction: "CREDIT", amount: money(100n, "IDRX") },
-      { accountCode: "TREASURY:USDC", direction: "DEBIT", amount: money(50n, "USDC") },
-      { accountCode: "MERCHANT_PAYABLE:USDC", direction: "CREDIT", amount: money(50n, "USDC") },
+      { accountCode: "TREASURY:USDC", direction: "DEBIT", amount: money(100n, "USDC") },
+      { accountCode: "MERCHANT_PAYABLE:USDC", direction: "CREDIT", amount: money(100n, "USDC") },
+      { accountCode: "TREASURY:USDT", direction: "DEBIT", amount: money(50n, "USDT") },
+      { accountCode: "MERCHANT_PAYABLE:USDT", direction: "CREDIT", amount: money(50n, "USDT") },
     ];
     expect(() => assertBalanced(crossAsset)).not.toThrow();
   });
@@ -125,7 +125,7 @@ describe("assertBalanced", () => {
 describe("totalsByAsset", () => {
   test("sums each side per asset", () => {
     expect(totalsByAsset(RECEIPT_ENTRIES)).toEqual([
-      { asset: "IDRX", debits: money(5_000_000n, "IDRX"), credits: money(5_000_000n, "IDRX") },
+      { asset: "USDC", debits: money(5_000_000n, "USDC"), credits: money(5_000_000n, "USDC") },
     ]);
   });
 });
@@ -163,8 +163,8 @@ describe("buildTransaction", () => {
         {
           description: "Unknown account",
           entries: [
-            draftEntry("TREASURY:IDRX", "DEBIT", 1n),
-            draftEntry("SETTLEMENT_IN_FLIGHT:IDRX", "CREDIT", 1n),
+            draftEntry("TREASURY:USDC", "DEBIT", 1n),
+            draftEntry("SETTLEMENT_IN_FLIGHT:USDC", "CREDIT", 1n),
           ],
         },
         ACCOUNTS,
@@ -175,7 +175,7 @@ describe("buildTransaction", () => {
 
   test("rejects an entry whose asset does not match its account", () => {
     const mismatched = new Map(ACCOUNTS);
-    mismatched.set("TREASURY:IDRX", { ...TREASURY, asset: "USDC" });
+    mismatched.set("TREASURY:USDC", { ...TREASURY, asset: "USDT" });
     expect(() =>
       buildTransaction({ description: "Mismatch", entries: RECEIPT_ENTRIES }, mismatched, NOW),
     ).toThrow(/does not match account/);
@@ -192,22 +192,22 @@ describe("computeBalance", () => {
   test("signs a debit-normal account by debits minus credits", () => {
     expect(normalBalanceOf("ASSET")).toBe("DEBIT");
     const balance = computeBalance(TREASURY, transaction.entries);
-    expect(balance.debits).toEqual(money(5_000_000n, "IDRX"));
-    expect(balance.credits).toEqual(money(0n, "IDRX"));
-    expect(balance.balance).toEqual(money(5_000_000n, "IDRX"));
+    expect(balance.debits).toEqual(money(5_000_000n, "USDC"));
+    expect(balance.credits).toEqual(money(0n, "USDC"));
+    expect(balance.balance).toEqual(money(5_000_000n, "USDC"));
   });
 
   test("signs a credit-normal account by credits minus debits", () => {
     expect(normalBalanceOf("LIABILITY")).toBe("CREDIT");
-    expect(computeBalance(PAYABLE, transaction.entries).balance).toEqual(money(4_975_000n, "IDRX"));
-    expect(computeBalance(FEES, transaction.entries).balance).toEqual(money(25_000n, "IDRX"));
+    expect(computeBalance(PAYABLE, transaction.entries).balance).toEqual(money(4_975_000n, "USDC"));
+    expect(computeBalance(FEES, transaction.entries).balance).toEqual(money(25_000n, "USDC"));
   });
 
   test("ignores entries belonging to other accounts", () => {
     const balance = computeBalance(
-      account("SETTLEMENT_IN_FLIGHT:IDRX", "LIABILITY", "lacc_inflight"),
+      account("SETTLEMENT_IN_FLIGHT:USDC", "LIABILITY", "lacc_inflight"),
       transaction.entries,
     );
-    expect(balance.balance).toEqual(money(0n, "IDRX"));
+    expect(balance.balance).toEqual(money(0n, "USDC"));
   });
 });

@@ -15,11 +15,11 @@ function contractLock(overrides: Partial<ContractLock> = {}): ContractLock {
   const lockedAt = new Date(NOW);
   const expiresAt = new Date(lockedAt.getTime() + LOCK_TTL_MS);
   return {
-    settlementAmount: money(5_000_000n, "IDRX"),
-    fee: money(25_000n, "IDRX"),
+    settlementAmount: money(5_000_000n, "USDC"),
+    fee: money(25_000n, "USDC"),
     rate: {
       from: "ETH",
-      to: "IDRX",
+      to: "USDC",
       scaledRate: 60_000_000_00n,
       source: "0x",
       lockedAt,
@@ -55,7 +55,7 @@ function contractHarness(options: Parameters<typeof createHarness>[0] = {}) {
   return { ...harness, planner, contractIntent };
 }
 
-const IDRX = (amount: bigint) => money(amount, "IDRX");
+const USDC = (amount: bigint) => money(amount, "USDC");
 
 /**
  * A completion reporting exactly what was locked.
@@ -84,10 +84,10 @@ describe("contract path: lock", () => {
     const transaction = await harness.engine.start(intent);
 
     expect(transaction.state).toBe("PAYMENT_PENDING");
-    expect(transaction.settlementAmount).toEqual(IDRX(5_000_000n));
-    expect(transaction.fee).toEqual(IDRX(25_000n));
+    expect(transaction.settlementAmount).toEqual(USDC(5_000_000n));
+    expect(transaction.fee).toEqual(USDC(25_000n));
     expect(harness.planner.calls[0]?.submission).toBe("payer");
-    expect(transaction.netAmount).toEqual(IDRX(4_975_000n));
+    expect(transaction.netAmount).toEqual(USDC(4_975_000n));
     expect(transaction.rate?.source).toBe("0x");
     expect(transaction.deposit).toBeUndefined();
     expect(transaction.contract?.order.intentId).toBe(`0x${"11".repeat(32)}`);
@@ -98,7 +98,7 @@ describe("contract path: lock", () => {
       paymentIntentId: intent.id,
       payerAsset: "ETH",
       chain: "base",
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
     });
   });
 
@@ -165,8 +165,8 @@ describe("contract path: completion", () => {
     // Treasury is credited only what actually left, and the difference is named
     // rather than absorbed into the settlement leg. Paying less than was owed
     // is a gain here — value is leaving, so the sign runs opposite to a swap.
-    const treasury = await harness.ledger.balance("TREASURY", "IDRX");
-    const fx = await harness.ledger.balance("FX_RESULT", "IDRX");
+    const treasury = await harness.ledger.balance("TREASURY", "USDC");
+    const fx = await harness.ledger.balance("FX_RESULT", "USDC");
     expect(treasury.credits.amount).toBe(net - 1n);
     expect(fx.credits.amount).toBe(1n);
   });
@@ -182,7 +182,7 @@ describe("contract path: completion", () => {
       completion(started, { settledAmount: net + 5n }),
     );
 
-    const fx = await harness.ledger.balance("FX_RESULT", "IDRX");
+    const fx = await harness.ledger.balance("FX_RESULT", "USDC");
     expect(fx.debits.amount).toBe(5n);
   });
 
@@ -195,7 +195,7 @@ describe("contract path: completion", () => {
 
     // The router pays `minOut - fee` exactly, so this is the normal case; a
     // non-zero balance here would mean the comparison is measuring noise.
-    const fx = await harness.ledger.balance("FX_RESULT", "IDRX");
+    const fx = await harness.ledger.balance("FX_RESULT", "USDC");
     expect(fx.balance.amount).toBe(0n);
   });
 
@@ -232,10 +232,10 @@ describe("contract path: completion", () => {
     expect(transaction.contract?.txHash).toBe(TX_HASH);
 
     // Value flowed in, cleared, and left to the merchant Safe on-chain.
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(25_000n));
-    expect(await harness.balance("FEE_REVENUE")).toEqual(IDRX(25_000n));
-    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(IDRX(0n));
-    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(IDRX(0n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
+    expect(await harness.balance("FEE_REVENUE")).toEqual(USDC(25_000n));
+    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(USDC(0n));
+    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(USDC(0n));
 
     const settled = await harness.intents.getById(intent.id);
     expect(settled.status).toBe("COMPLETED");
@@ -250,7 +250,7 @@ describe("contract path: completion", () => {
     const second = await harness.engine.recordPaymentCompleted(started.id, completion(started));
 
     expect(second.transaction.version).toBe(first.transaction.version);
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(25_000n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
   });
 
   test("a completion for a deposit-match payment is refused", async () => {

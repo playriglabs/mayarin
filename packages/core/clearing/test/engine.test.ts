@@ -4,7 +4,7 @@ import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
 import { money, RATE_SCALE } from "@mayarin/shared";
 import { createHarness } from "./harness.ts";
 
-const IDRX = (minorUnits: bigint) => money(minorUnits, "IDRX");
+const USDC = (minorUnits: bigint) => money(minorUnits, "USDC");
 
 describe("clearing engine — happy path", () => {
   test("walks every state from CREATED to SUCCESS", async () => {
@@ -22,9 +22,9 @@ describe("clearing engine — happy path", () => {
     const harness = createHarness({ feeBasisPoints: 50 });
     const transaction = await harness.engine.start(await harness.confirmedIntent());
 
-    expect(transaction.settlementAmount).toEqual(IDRX(5_000_000n));
-    expect(transaction.fee).toEqual(IDRX(25_000n));
-    expect(transaction.netAmount).toEqual(IDRX(4_975_000n));
+    expect(transaction.settlementAmount).toEqual(USDC(5_000_000n));
+    expect(transaction.fee).toEqual(USDC(25_000n));
+    expect(transaction.netAmount).toEqual(USDC(4_975_000n));
     expect(transaction.rate?.scaledRate).toBe(100n * RATE_SCALE);
   });
 
@@ -51,11 +51,11 @@ describe("clearing engine — happy path", () => {
     const harness = createHarness({ feeBasisPoints: 50 });
     await harness.engine.start(await harness.confirmedIntent());
 
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(25_000n));
-    expect(await harness.balance("FEE_REVENUE")).toEqual(IDRX(25_000n));
-    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(IDRX(0n));
-    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(IDRX(0n));
-    expect(await harness.balance("MERCHANT_HOLDING")).toEqual(IDRX(0n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
+    expect(await harness.balance("FEE_REVENUE")).toEqual(USDC(25_000n));
+    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(USDC(0n));
+    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(USDC(0n));
+    expect(await harness.balance("MERCHANT_HOLDING")).toEqual(USDC(0n));
   });
 
   test("an internal settlement credits the merchant holding, not treasury", async () => {
@@ -64,11 +64,11 @@ describe("clearing engine — happy path", () => {
 
     // Treasury keeps the full settlement amount; the net is owed to the merchant
     // as a withdrawable holding, and the in-flight claim is extinguished.
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(5_000_000n));
-    expect(await harness.balance("MERCHANT_HOLDING")).toEqual(IDRX(4_975_000n));
-    expect(await harness.balance("FEE_REVENUE")).toEqual(IDRX(25_000n));
-    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(IDRX(0n));
-    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(IDRX(0n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(5_000_000n));
+    expect(await harness.balance("MERCHANT_HOLDING")).toEqual(USDC(4_975_000n));
+    expect(await harness.balance("FEE_REVENUE")).toEqual(USDC(25_000n));
+    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(USDC(0n));
+    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(USDC(0n));
   });
 
   test("keeps every posting balanced", async () => {
@@ -115,7 +115,7 @@ describe("clearing engine — idempotency", () => {
 
     expect(resumed.transaction.version).toBe(transaction.version);
     expect(resumed.waiting).toBe(false);
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(25_000n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
   });
 
   test("replaying a step does not post twice", async () => {
@@ -129,7 +129,7 @@ describe("clearing engine — idempotency", () => {
     await harness.engine.resume(pending.id);
 
     expect(await harness.ledger.transactionsFor(pending.id)).toHaveLength(3);
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(25_000n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
   });
 });
 
@@ -139,7 +139,7 @@ describe("clearing engine — waiting for the outside world", () => {
     const transaction = await harness.engine.start(await harness.confirmedIntent());
 
     expect(transaction.state).toBe("PAYMENT_PENDING");
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(0n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(0n));
 
     const progressed = await harness.engine.recordAssetReceived(transaction.id);
     expect(progressed.transaction.state).toBe("SUCCESS");
@@ -152,8 +152,8 @@ describe("clearing engine — waiting for the outside world", () => {
     expect(transaction.state).toBe("SETTLING");
     expect(transaction.providerReference).toBeDefined();
     // The merchant's claim has left payable and is visibly in flight.
-    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(IDRX(0n));
-    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(IDRX(4_975_000n));
+    expect(await harness.balance("MERCHANT_PAYABLE")).toEqual(USDC(0n));
+    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(USDC(4_975_000n));
   });
 
   test("resumes once the provider settles", async () => {
@@ -164,8 +164,8 @@ describe("clearing engine — waiting for the outside world", () => {
     const resumed = await harness.engine.resume(settling.id);
 
     expect(resumed.transaction.state).toBe("SUCCESS");
-    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(IDRX(0n));
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(25_000n));
+    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(USDC(0n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
   });
 
   test("resumeStuck picks up everything left mid-flight", async () => {
@@ -245,8 +245,8 @@ describe("clearing engine — failure", () => {
     await harness.engine.start(await harness.confirmedIntent());
 
     // Value received and cleared is still on the books; only the payout failed.
-    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(IDRX(4_975_000n));
-    expect(await harness.balance("TREASURY")).toEqual(IDRX(5_000_000n));
+    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(USDC(4_975_000n));
+    expect(await harness.balance("TREASURY")).toEqual(USDC(5_000_000n));
   });
 
   test("failing is terminal and repeatable", async () => {

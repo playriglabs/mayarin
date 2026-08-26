@@ -31,7 +31,7 @@ function engine(overrides: Partial<ConstructorParameters<typeof QuoteEngine>[0]>
     venue: new TablePriceSource({ "ETH/USDC": 3_700_000_000n }, "dex"),
     oracle: new FixedPriceOracle([reference()]),
     policy: POLICY,
-    fiat: { pegged: ["IDR/IDRX"], maxAgeMs: 60_000, closedMaxAgeMs: 60_000, closedSpreadBps: 0 },
+    fiat: { pegged: ["USD/USDC"], maxAgeMs: 60_000, closedMaxAgeMs: 60_000, closedSpreadBps: 0 },
     clock: new FixedClock(NOW),
     ...overrides,
   });
@@ -165,16 +165,16 @@ describe("quoteFiatPrice — both legs", () => {
     expect("composed" in quote).toBe(false);
   });
 
-  test("an IDR price settling into IDRX takes the peg and never touches USD", async () => {
+  test("a USD price settling into USDC takes the peg and never reads a rate", async () => {
     const quote = await twoLegEngine().quoteFiatPrice({
-      price: PRICE,
-      settlementAsset: "IDRX",
-      payerAsset: "IDRX",
-      probe: money(35_000_00n, "IDRX"),
+      price: money(100_00n, "USD"),
+      settlementAsset: "USDC",
+      payerAsset: "USDC",
+      probe: money(100_000_000n, "USDC"),
     });
 
     expect(quote.settlement.kind).toBe("pegged");
-    expect(quote.settlement.settlementAmount).toEqual(money(35_000_00n, "IDRX"));
+    expect(quote.settlement.settlementAmount).toEqual(money(100_000_000n, "USDC"));
   });
 
   test("a stale FX reference fails the whole quote, before any lock exists", async () => {

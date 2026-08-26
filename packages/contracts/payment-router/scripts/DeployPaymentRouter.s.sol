@@ -77,7 +77,7 @@ contract DeployPaymentRouter is Script {
         address guardian = vm.envAddress("GUARDIAN");
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
         address signer = vm.envAddress("SIGNER");
-        // Comma-separated, e.g. SETTLEMENT_TOKENS=0xUSDC,0xIDRX. At least one is
+        // Comma-separated, e.g. SETTLEMENT_TOKENS=0xUSDC,0xUSDT. At least one is
         // required: a router with no admitted settlement asset can serve no
         // payment, and adding one later costs the full timelock delay.
         address[] memory settlementTokens = vm.envAddress("SETTLEMENT_TOKENS", ",");

@@ -29,8 +29,8 @@ function harness() {
   const config: Config = loadConfig({
     PORT: "3000",
     DATABASE_URL: "memory://",
-    SETTLEMENT_ASSET: "IDRX",
-    EXCHANGE_RATES: '{"IDR/IDRX":"100"}',
+    SETTLEMENT_ASSET: "USDC",
+    EXCHANGE_RATES: '{"IDR/USDC":"100"}',
     CHAIN_ASSETS: `{"base-sepolia":{"USDC":"${USDC}"}}`,
   });
   const store = new InMemoryMarketConfigStore();
@@ -49,13 +49,13 @@ describe("seeding from the environment", () => {
   test("a second boot overwrites nothing", async () => {
     const { market } = harness();
     await market.seedFromEnvironment();
-    await market.put("exchangeRates", { "IDR/IDRX": "999" });
+    await market.put("exchangeRates", { "IDR/USDC": "999" });
 
     expect(await market.seedFromEnvironment()).toEqual([]);
 
     const entries = await market.entries();
     const rates = entries.find((entry) => entry.key === "exchangeRates");
-    expect(rates?.value).toEqual({ "IDR/IDRX": "999" });
+    expect(rates?.value).toEqual({ "IDR/USDC": "999" });
   });
 });
 
@@ -72,7 +72,7 @@ describe("admitting a stablecoin without a restart", () => {
     await market.seedFromEnvironment();
 
     await market.put("stablecoins", [
-      { asset: "IDRX", onChain: [] },
+      { asset: "USDC", onChain: [{ chain: "base-sepolia", address: USDC }] },
       { asset: "USDT", onChain: [{ chain: "base-sepolia", address: USDT }] },
     ]);
 
@@ -86,7 +86,7 @@ describe("rates", () => {
   test("a rate added at runtime prices the next payment", async () => {
     const { market } = harness();
     await market.seedFromEnvironment();
-    await market.put("exchangeRates", { "IDR/IDRX": "100", "IDR/USDC": "6" });
+    await market.put("exchangeRates", { "IDR/USDC": "6" });
 
     const source = await market.rates();
     const quote = await source.price("IDR", "USDC", { amount: 100n, asset: "IDR" });
@@ -147,18 +147,17 @@ describe("a bad write reaches nothing", () => {
       ValidationError,
     );
 
-    // Still what the environment seeded — IDRX as a settlement asset plus the
-    // USDC named by CHAIN_ASSETS — rather than the rejected value.
+    // Still what the environment seeded — USDC as the settlement asset, on the
+    // chain CHAIN_ASSETS named — rather than the rejected value.
     const stored = await store.get("stablecoins");
     expect(stored?.value).toEqual([
-      { asset: "IDRX", onChain: [] },
       { asset: "USDC", onChain: [{ chain: "base-sepolia", address: USDC.toLowerCase() }] },
     ]);
   });
 
   test("a rate that is not an integer string is refused", async () => {
     const { market } = harness();
-    await expect(market.put("exchangeRates", { "IDR/IDRX": "1.5" })).rejects.toBeInstanceOf(
+    await expect(market.put("exchangeRates", { "IDR/USDC": "1.5" })).rejects.toBeInstanceOf(
       ValidationError,
     );
   });
@@ -170,9 +169,9 @@ describe("a bad write reaches nothing", () => {
     await store.put({ key: "exchangeRates", value: "nonsense", updatedAt: clock.now() });
 
     const source = await market.rates();
-    const quote = await source.price("IDR", "IDRX", { amount: 100n, asset: "IDR" });
+    const quote = await source.price("IDR", "USDC", { amount: 100n, asset: "IDR" });
 
-    // The environment's `IDR/IDRX` rate of 100, scaled by RATE_DECIMALS.
+    // The environment's `IDR/USDC` rate of 100, scaled by RATE_DECIMALS.
     expect(quote.scaledRate).toBe(100_000_000_000n);
   });
 });

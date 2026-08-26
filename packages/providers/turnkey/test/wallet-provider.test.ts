@@ -291,7 +291,7 @@ describe("propose", () => {
     await expect(
       provider().propose(wallet(), {
         kind: "withdraw",
-        amount: { amount: 1n, asset: "IDRX" },
+        amount: { amount: 1n, asset: "USDT" },
         to: DESTINATION,
       }),
     ).rejects.toBeInstanceOf(ConfigurationError);

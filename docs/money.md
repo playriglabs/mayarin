@@ -10,7 +10,7 @@ never touches a balance.
 ```ts
 type Money = {
   amount: bigint; // minor units
-  asset: AssetCode; // IDR, IDRX, USDC, ETH, ...
+  asset: AssetCode; // IDR, USD, USDC, ETH, ...
 };
 
 // Rp 50.000,00
@@ -59,7 +59,7 @@ with its code:
 
 ```ts
 formatMoneyLocale(money(5_043_200n, "IDR")); // "Rp 50.432,00"
-formatMoneyLocale(money(5_043_200n, "IDRX")); // "50.432,00 IDRX"
+formatMoneyLocale(money(50_432_000_000n, "USDC")); // "50.432,000000 USDC"
 ```
 
 ## Payer precision

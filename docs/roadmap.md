@@ -74,7 +74,6 @@ off-chain. **Superseded as the primary path by Phase 3's on-chain execution**
 
 ### Stablecoin Registry
 
-- ✓ IDRX
 - ✓ USDC
 - ✓ USDT
 
@@ -508,7 +507,7 @@ Expand the execution surface across assets, venues, and chains.
 
 ### Payer Assets
 
-- ☐ ERC-20 payer assets via Permit2 (USDT, IDRX, other stablecoins)
+- ☐ ERC-20 payer assets via Permit2 (USDT, other stablecoins)
 - ☐ Native assets beyond ETH
 - ☐ Asset whitelist governance
 

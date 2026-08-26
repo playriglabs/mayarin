@@ -131,6 +131,8 @@ function EventLogs() {
   } as const;
   const events = useEventLogs(filter, pagination.cursor);
   const rows = events.data?.events ?? [];
+  // See orders.tsx: `isPending`, so a background poll never greys the filters.
+  const filtersBusy = events.isPending;
 
   return (
     <section className="flex flex-col gap-4">
@@ -161,7 +163,7 @@ function EventLogs() {
                 pagination.reset();
               }}
             >
-              <SelectTrigger id="event-status">
+              <SelectTrigger id="event-status" disabled={filtersBusy}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -178,6 +180,7 @@ function EventLogs() {
           <DateRangeFilter
             from={from}
             to={to}
+            disabled={filtersBusy}
             onFromChange={(value) => {
               setFrom(value);
               pagination.reset();
@@ -199,7 +202,7 @@ function EventLogs() {
                 pagination.reset();
               }}
             >
-              <SelectTrigger id="event-sort">
+              <SelectTrigger id="event-sort" disabled={filtersBusy}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

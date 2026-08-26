@@ -8,7 +8,7 @@ answers _what is admissible_, so the watcher, the intent service, and (later) th
 liquidity router and settlement engine all read from one catalog instead of
 re-deriving what the deployment supports.
 
-Phase 1 settled every payment in a single asset (`IDRX`). Phase 2A added the
+Phase 1 settled every payment in a single asset (`USDC`). Phase 2A added the
 on-chain identities the watcher needs, in free-form `CHAIN_ASSETS` env JSON, but
 with no notion of an admissible set: a merchant could not ask to be paid in USDC,
 and nothing validated that a requested settlement asset was actually supported.
@@ -25,9 +25,9 @@ can be empty:
   _deposit asset_: a payer can send it to a per-intent deposit address, so it can
   be the payer's leg. It is also an admissible settlement asset.
 - **Ledger-only** — the stablecoin has no on-chain identity. A deployment credits
-  it internally (for example, `IDRX` held as an accounting balance rather than an
-  ERC-20). It can settle a payment — the merchant is paid in it — but it cannot be
-  the payer's leg, because nothing on-chain can send it.
+  it internally, as an accounting balance rather than an ERC-20. It can settle a
+  payment — the merchant is paid in it — but it cannot be the payer's leg,
+  because nothing on-chain can send it.
 
 The distinction is data, not code: a ledger-only stablecoin simply has an empty
 `onChain` list, and `isDepositAsset` returns false for it on every chain.

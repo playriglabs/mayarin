@@ -177,11 +177,11 @@ describe("PythPriceOracle", () => {
 
   test("a price that rounds to zero even at full scale is a ProviderError", async () => {
     // The scale absorbs what used to round away, so this now needs a price far
-    // smaller than before: 10^-30 into 2-dp minor units is still zero.
+    // smaller than before: 10^-30 into 6-dp minor units is still zero.
     const { fn } = stubFetch(() => json(hermesBody({ price: "1", expo: -30 })));
-    const tiny = oracle(fn, { "ETH/IDRX": ETH_USD_FEED });
+    const tiny = oracle(fn, { "ETH/USDT": ETH_USD_FEED });
 
-    expect(tiny.reference("ETH", "IDRX")).rejects.toThrow(ProviderError);
+    expect(tiny.reference("ETH", "USDT")).rejects.toThrow(ProviderError);
   });
 });
 

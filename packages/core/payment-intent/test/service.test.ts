@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { FixedClock, money, ValidationError } from "@mayarin/shared";
+import { type AssetCode, FixedClock, money, ValidationError } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
 import {
   isSameAsset,
@@ -17,7 +17,7 @@ function service(admitted: ReturnType<typeof registry>) {
     repository: new InMemoryPaymentIntentRepository(),
     clock: new FixedClock(NOW),
     defaults: {
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       provider: "mock",
       executionPath: "deposit-match",
       ttlSeconds: 900,
@@ -28,13 +28,17 @@ function service(admitted: ReturnType<typeof registry>) {
 
 function registry() {
   return [
-    { asset: "IDRX" as const, onChain: [] },
     {
       asset: "USDC",
       onChain: [{ chain: "base-sepolia", address: "0xusdc" }],
     },
+    /** Booked on the ledger, deployed on no chain — never a payer leg. */
+    { asset: "USDT" as const, onChain: [] },
   ] as const;
 }
+
+/** A stablecoin this deployment's registry does not carry. */
+const UNADMITTED = "XSTBL" as AssetCode;
 
 const merchant = { id: "M-1", name: "Warung Kopi", city: "Jakarta", countryCode: "ID" };
 
@@ -44,9 +48,9 @@ describe("PaymentIntentService admissibility", () => {
       merchant,
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" },
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
     });
-    expect(intent.settlementAsset).toBe("IDRX");
+    expect(intent.settlementAsset).toBe("USDC");
   });
 
   test("rejects a settlement asset the registry does not admit", async () => {
@@ -55,7 +59,7 @@ describe("PaymentIntentService admissibility", () => {
         merchant,
         amount: money(5_000_000n, "IDR"),
         source: { type: "manual" },
-        settlementAsset: "USDT",
+        settlementAsset: UNADMITTED,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
@@ -88,7 +92,7 @@ describe("PaymentIntentService admissibility", () => {
         merchant,
         amount: money(5_000_000n, "IDR"),
         source: { type: "manual" },
-        payment: { asset: "IDRX", chain: "base-sepolia" },
+        payment: { asset: "USDT", chain: "base-sepolia" },
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
@@ -98,7 +102,7 @@ describe("PaymentIntentService admissibility", () => {
       repository: new InMemoryPaymentIntentRepository(),
       clock: new FixedClock(NOW),
       defaults: {
-        settlementAsset: "IDRX",
+        settlementAsset: "USDC",
         provider: "mock",
         executionPath: "deposit-match",
         ttlSeconds: 900,
@@ -108,9 +112,9 @@ describe("PaymentIntentService admissibility", () => {
       merchant,
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" },
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
     });
-    expect(intent.settlementAsset).toBe("IDRX");
+    expect(intent.settlementAsset).toBe("USDC");
   });
 });
 
@@ -137,7 +141,7 @@ describe("PaymentIntentService execution path", () => {
       merchant,
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" },
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
     });
     expect(intent.executionPath).toBeUndefined();
   });
@@ -175,7 +179,7 @@ describe("PaymentIntentService execution path", () => {
       repository: new InMemoryPaymentIntentRepository(),
       clock: new FixedClock(NOW),
       defaults: {
-        settlementAsset: "IDRX",
+        settlementAsset: "USDC",
         provider: "mock",
         ttlSeconds: 900,
         executionPath: "on-chain-contract",
@@ -231,7 +235,7 @@ describe("per-merchant asset policy", () => {
       repository: new InMemoryPaymentIntentRepository(),
       clock: new FixedClock(NOW),
       defaults: {
-        settlementAsset: "IDRX",
+        settlementAsset: "USDC",
         provider: "mock",
         executionPath: "deposit-match",
         ttlSeconds: 900,
@@ -242,26 +246,26 @@ describe("per-merchant asset policy", () => {
   }
 
   test("the merchant's settlement asset outranks the deployment default", async () => {
-    const intent = await withPolicy({ settlementAsset: "USDC", acceptedAssets: [] }).create({
+    const intent = await withPolicy({ settlementAsset: "USDT", acceptedAssets: [] }).create({
       merchant,
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" },
     });
 
-    expect(intent.settlementAsset).toBe("USDC");
+    expect(intent.settlementAsset).toBe("USDT");
   });
 
   test("an explicit request still outranks the merchant", async () => {
     // The caller asked for something specific; the merchant's preference is a
     // default, not a veto.
-    const intent = await withPolicy({ settlementAsset: "USDC", acceptedAssets: [] }).create({
+    const intent = await withPolicy({ settlementAsset: "USDT", acceptedAssets: [] }).create({
       merchant,
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" },
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
     });
 
-    expect(intent.settlementAsset).toBe("IDRX");
+    expect(intent.settlementAsset).toBe("USDC");
   });
 
   test("falls back to the deployment default when the merchant has no policy", async () => {
@@ -271,7 +275,7 @@ describe("per-merchant asset policy", () => {
       source: { type: "manual" },
     });
 
-    expect(intent.settlementAsset).toBe("IDRX");
+    expect(intent.settlementAsset).toBe("USDC");
   });
 
   test("accepts a payer asset the merchant listed", async () => {
@@ -293,7 +297,7 @@ describe("per-merchant asset policy", () => {
 
   test("rejects a payer asset the merchant does not accept", async () => {
     await expect(
-      withPolicy({ settlementAsset: "USDC", acceptedAssets: ["IDRX"] }).create({
+      withPolicy({ settlementAsset: "USDC", acceptedAssets: ["USDT"] }).create({
         merchant,
         amount: money(5_000_000n, "IDR"),
         source: { type: "manual" },

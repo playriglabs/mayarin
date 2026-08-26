@@ -88,7 +88,6 @@ describe("chain configuration", () => {
     expect(config.chain?.tokenBalanceCatchUp).toBe(false);
     // The watcher pairs now come from the stablecoin registry, not the chain block.
     expect(config.stablecoins).toEqual([
-      { asset: "IDRX", onChain: [] },
       {
         asset: "USDC",
         onChain: [{ chain: "base-sepolia", address: "0x036cbd53842c5426634e7929541ec2318f3dcf7e" }],
@@ -167,19 +166,19 @@ describe("stablecoin registry configuration", () => {
   test("builds the registry from SETTLEMENT_ASSETS unioned with CHAIN_ASSETS", () => {
     const config = loadConfig({
       ...BASE,
-      SETTLEMENT_ASSETS: '["IDRX","USDC"]',
+      SETTLEMENT_ASSETS: '["USDT","USDC"]',
       CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0xAbc"}}',
     });
 
     expect(config.stablecoins).toEqual([
-      { asset: "IDRX", onChain: [] },
       { asset: "USDC", onChain: [{ chain: "base-sepolia", address: "0xabc" }] },
+      { asset: "USDT", onChain: [] },
     ]);
   });
 
-  test("defaults to IDRX when nothing is configured", () => {
+  test("defaults to USDC when nothing is configured", () => {
     const config = loadConfig({ ...BASE });
-    expect(config.stablecoins).toEqual([{ asset: "IDRX", onChain: [] }]);
+    expect(config.stablecoins).toEqual([{ asset: "USDC", onChain: [] }]);
   });
 
   test("refuses a non-stablecoin in SETTLEMENT_ASSETS", () => {
@@ -198,7 +197,7 @@ describe("stablecoin registry configuration", () => {
 
   test("refuses a default settlement asset outside the admitted set", () => {
     expect(() =>
-      loadConfig({ ...BASE, SETTLEMENT_ASSETS: '["USDC"]', SETTLEMENT_ASSET: "IDRX" }),
+      loadConfig({ ...BASE, SETTLEMENT_ASSETS: '["USDC"]', SETTLEMENT_ASSET: "USDT" }),
     ).toThrow(/SETTLEMENT_ASSET/);
   });
 });
@@ -234,7 +233,7 @@ describe("contract path configuration", () => {
     PAYMENT_ROUTERS: '{"base":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0"}',
     // The settlement asset must be deployed on a router chain, or no order
     // could ever name it.
-    CHAIN_ASSETS: '{"base":{"IDRX":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
+    CHAIN_ASSETS: '{"base":{"USDC":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
   } as const;
 
   test("is absent unless enabled", () => {
@@ -264,7 +263,7 @@ describe("contract path configuration", () => {
         ...BASE,
         ...QUOTE,
         ...CONTRACT,
-        CHAIN_ASSETS: '{"base-sepolia":{"IDRX":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
+        CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
       }),
     ).toThrow(/has no CHAIN_ASSETS address on any chain in PAYMENT_ROUTERS/);
   });
@@ -276,7 +275,7 @@ describe("contract path configuration", () => {
       ...CONTRACT,
       PAYMENT_ROUTERS:
         '{"base":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0","base-sepolia":"0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0"}',
-      CHAIN_ASSETS: '{"base-sepolia":{"IDRX":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
+      CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
     });
 
     expect(config.contract?.paymentRouters["base-sepolia"]).toBeDefined();

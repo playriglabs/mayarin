@@ -35,7 +35,7 @@ export class DrizzleLedgerRepository implements LedgerRepository {
    * Creates the account if needed.
    *
    * `onConflictDoNothing` plus a re-read makes this safe under concurrency: two
-   * requests clearing the first ever IDRX payment cannot create two treasuries.
+   * requests clearing the first ever USDC payment cannot create two treasuries.
    */
   async ensureAccount(spec: EnsureAccountSpec): Promise<LedgerAccount> {
     const code = accountCode(spec.kind, spec.asset);

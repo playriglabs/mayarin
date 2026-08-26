@@ -26,7 +26,7 @@ function harness() {
     repository: new InMemoryPaymentIntentRepository(),
     clock,
     defaults: {
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       provider: "mock",
       executionPath: "deposit-match",
       ttlSeconds: 900,

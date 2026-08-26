@@ -21,7 +21,7 @@ class Mayarin_Gateway extends WC_Payment_Gateway {
     private const SUPPORTED_CURRENCIES = ['IDR', 'USD', 'SGD', 'THB', 'MYR'];
 
     /** Crypto rails the buyer can pay on. */
-    private const PAYMENT_ASSETS = ['USDC', 'USDT', 'ETH', 'IDRX'];
+    private const PAYMENT_ASSETS = ['USDC', 'USDT', 'ETH'];
     private const PAYMENT_CHAINS = ['base', 'base-sepolia'];
 
     public function __construct() {

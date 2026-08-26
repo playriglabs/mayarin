@@ -184,6 +184,8 @@ function Customers() {
   }
 
   const rows = customers.data?.customers ?? [];
+  // See orders.tsx: `isPending`, so a background poll never greys the filters.
+  const filtersBusy = customers.isPending;
 
   return (
     <section className="flex flex-col gap-4">
@@ -201,7 +203,13 @@ function Customers() {
           </Field>
         </div>
         <div className="grid w-full grid-cols-2 gap-3 sm:w-auto">
-          <DateRangeFilter from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+          <DateRangeFilter
+            from={from}
+            to={to}
+            disabled={filtersBusy}
+            onFromChange={setFrom}
+            onToChange={setTo}
+          />
         </div>
         <div className="w-full sm:w-44">
           <Field>
@@ -211,7 +219,7 @@ function Customers() {
               value={sort}
               onValueChange={(value) => setSort(value as typeof sort)}
             >
-              <SelectTrigger id="customer-sort">
+              <SelectTrigger id="customer-sort" disabled={filtersBusy}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

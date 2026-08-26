@@ -16,7 +16,7 @@ const NOW = new Date("2026-08-06T12:00:00.000Z");
 const WEEKEND = new Date("2026-08-08T12:00:00.000Z");
 
 const POLICY = {
-  pegged: ["IDR/IDRX"],
+  pegged: ["USD/USDC"],
   maxAgeMs: 60_000,
   closedMaxAgeMs: 60_000,
   closedSpreadBps: 0,
@@ -46,26 +46,27 @@ function oracle(price: OraclePrice = idrUsdc()): PriceOracle {
 }
 
 describe("priceInSettlement — pegged pairs", () => {
-  test("IDR into IDRX is a decimal rescale, not an exchange rate", async () => {
-    // Both are 2-decimal, so the minor units carry across unchanged. Routing
-    // this through USD would add two rounding steps to an exact answer.
+  test("USD into USDC is a decimal rescale, not an exchange rate", async () => {
+    // The same currency in two representations: 2-decimal fiat into 6-decimal
+    // stablecoin is an exact 10^4 shift, and reading a rate for it would add a
+    // rounding step to an exact answer.
     const result = await priceInSettlement(
       oracle(),
-      money(35_000_00n, "IDR"), // Rp 35.000,00
-      "IDRX",
+      money(100_00n, "USD"), // $100.00
+      "USDC",
       POLICY,
       NOW,
     );
 
     expect(result.kind).toBe("pegged");
     expect(result.source).toBe("peg");
-    expect(result.settlementAmount).toEqual(money(35_000_00n, "IDRX"));
+    expect(result.settlementAmount).toEqual(money(100_000_000n, "USDC"));
     expect(result.observedAt).toBeUndefined();
   });
 
   test("a pegged pair never consults the oracle — nothing to go stale", async () => {
     const stale = oracle(idrUsdc({ observedAt: new Date(NOW.getTime() - 3_600_000) }));
-    const result = await priceInSettlement(stale, money(35_000_00n, "IDR"), "IDRX", POLICY, NOW);
+    const result = await priceInSettlement(stale, money(100_00n, "USD"), "USDC", POLICY, NOW);
     expect(result.kind).toBe("pegged");
   });
 
@@ -175,31 +176,17 @@ describe("priceInSettlement — a closed FX market", () => {
     expect(result.kind).toBe("oracle-closed");
   });
 
-  test("a pegged pair is unaffected — it reads no rate to be closed about", async () => {
-    const result = await priceInSettlement(
-      oracle(fridayClose()),
-      money(35_000_00n, "IDR"),
-      "IDRX",
-      WEEKEND_POLICY,
-      WEEKEND,
-    );
-
-    expect(result.kind).toBe("pegged");
-    expect(result.settlementAmount).toEqual(money(35_000_00n, "IDRX"));
-  });
-
   test("USD/USDC is a 1:1 peg, so a USD price rescales into USDC — not widened", async () => {
     // A USDC-settling deployment that prices in USD declares the pair pegged:
     // it is the same currency in two representations (2-decimal fiat into
     // 6-decimal stablecoin), not an FX rate. The weekend spread below is for a
     // floating pair with a gap risk; a peg has none, and widening it would
     // charge a USD-priced merchant 75 bps of phantom FX over a weekend.
-    const policy = { ...WEEKEND_POLICY, pegged: ["USD/USDC"] };
     const result = await priceInSettlement(
       oracle(),
       money(100_00n, "USD"), // $100.00
       "USDC",
-      policy,
+      WEEKEND_POLICY,
       WEEKEND,
     );
 
@@ -225,7 +212,7 @@ describe("priceInSettlement — a closed FX market", () => {
 describe("priceInSettlement — boundaries", () => {
   test("refuses a non-fiat price — this leg is the fiat crossing", async () => {
     await expect(
-      priceInSettlement(oracle(), money(1_000_000n, "USDC"), "IDRX", POLICY, NOW),
+      priceInSettlement(oracle(), money(1_000_000n, "USDC"), "USDT", POLICY, NOW),
     ).rejects.toThrow(ConfigurationError);
   });
 
@@ -244,6 +231,6 @@ describe("priceInSettlement — boundaries", () => {
 
 describe("fiatPairKey", () => {
   test("matches the key shape the rate table and oracle feeds use", () => {
-    expect(fiatPairKey("IDR", "IDRX")).toBe("IDR/IDRX");
+    expect(fiatPairKey("USD", "USDC")).toBe("USD/USDC");
   });
 });

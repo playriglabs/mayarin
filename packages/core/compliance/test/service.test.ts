@@ -158,11 +158,11 @@ describe("ComplianceService.listPayments", () => {
     const { service, audits } = harness();
     audits.add(
       settledTransaction({ id: "clr_usdc", settlementAsset: "USDC" }),
-      settledTransaction({ id: "clr_idrx", settlementAsset: "IDRX" }),
+      settledTransaction({ id: "clr_usdt", settlementAsset: "USDT" }),
     );
 
-    const rows = await service.listPayments({ merchantId: MERCHANT_ID, asset: "IDRX" });
+    const rows = await service.listPayments({ merchantId: MERCHANT_ID, asset: "USDT" });
 
-    expect(rows.map((row) => row.clearingTransactionId)).toEqual(["clr_idrx"]);
+    expect(rows.map((row) => row.clearingTransactionId)).toEqual(["clr_usdt"]);
   });
 });

@@ -23,7 +23,7 @@ export function normalBalanceOf(type: AccountType): EntryDirection {
  */
 export interface LedgerAccount {
   readonly id: string;
-  /** Stable business key, `KIND:ASSET` — e.g. `TREASURY:IDRX`. */
+  /** Stable business key, `KIND:ASSET` — e.g. `TREASURY:USDC`. */
   readonly code: string;
   readonly name: string;
   readonly type: AccountType;

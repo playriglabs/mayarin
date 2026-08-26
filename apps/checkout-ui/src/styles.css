@@ -325,7 +325,10 @@
     @apply block text-xs text-muted;
   }
   .send-amount strong {
-    @apply mt-2 inline-flex items-center gap-2.5 text-2xl font-semibold tabular-nums;
+    @apply inline-flex items-center gap-2.5 text-2xl font-semibold tabular-nums;
+  }
+  .send-amount .amount-row {
+    @apply mt-2 flex flex-wrap items-center justify-center gap-x-3.5 gap-y-2;
   }
   .qr {
     @apply mt-6 flex justify-center bg-white p-3;
@@ -357,6 +360,14 @@
   }
   .copy {
     @apply mt-3.5 min-h-11 w-full rounded-xs border border-field bg-transparent px-3 py-2 text-xs font-medium text-ink;
+  }
+  /* The amount's copy sits beside the figure as an icon, so it drops the block
+     layout the address button below the details still uses. */
+  .copy-inline {
+    @apply mt-0 grid size-9 min-h-0 shrink-0 place-items-center p-0 text-muted;
+  }
+  .copy-inline svg {
+    @apply block size-4;
   }
   .connection-mode,
   .reference {
@@ -404,7 +415,10 @@
       @apply p-3;
     }
     .pay-detail .send-amount strong {
-      @apply mt-1 text-xl;
+      @apply text-xl;
+    }
+    .pay-detail .send-amount .amount-row {
+      @apply mt-1;
     }
     .pay-detail .qr {
       @apply my-3 max-w-48 p-2;
@@ -418,6 +432,9 @@
     }
     .pay-detail .copy {
       @apply mt-2;
+    }
+    .pay-detail .copy-inline {
+      @apply mt-0;
     }
     .pay-detail .estimate-note {
       @apply mt-3 leading-5;

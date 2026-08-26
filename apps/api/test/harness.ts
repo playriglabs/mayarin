@@ -69,12 +69,12 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   const config: Config = loadConfig({
     PORT: "3000",
     DATABASE_URL: "memory://",
-    SETTLEMENT_ASSET: "IDRX",
+    SETTLEMENT_ASSET: "USDC",
     FEE_BASIS_POINTS: "50",
     DEFAULT_SETTLEMENT_PROVIDER: "mock",
     PAYMENT_INTENT_TTL_SECONDS: "900",
     ASSET_RECEIPT_MODE: options.assetReceiptMode ?? "auto",
-    EXCHANGE_RATES: '{"IDR/IDRX":"100"}',
+    EXCHANGE_RATES: '{"IDR/USDC":"100"}',
     // Admit USDC on base-sepolia so payment-rail route tests can use it; the
     // chain layer itself stays off (CHAIN_ENABLED unset).
     CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',

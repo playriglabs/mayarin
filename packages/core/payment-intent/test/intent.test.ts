@@ -19,7 +19,7 @@ function input(overrides: Partial<CreatePaymentIntentInput> = {}): CreatePayment
   return {
     merchant: { id: "ID1020017611473", name: "Warung Kopi", city: "Jakarta", countryCode: "ID" },
     amount: money(5_000_000n, "IDR"),
-    settlementAsset: "IDRX",
+    settlementAsset: "USDC",
     provider: "mock",
     source: { type: "manual" },
     ttlSeconds: 900,
@@ -138,7 +138,7 @@ describe("payment rail", () => {
     const intent = createPaymentIntent({
       merchant: { id: "M1", name: "Warung", city: "Jakarta", countryCode: "ID" },
       amount: money(5_000_000n, "IDR"),
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       provider: "mock",
       source: { type: "manual" },
       ttlSeconds: 900,
@@ -152,7 +152,7 @@ describe("payment rail", () => {
     const intent = createPaymentIntent({
       merchant: { id: "M1", name: "Warung", city: "Jakarta", countryCode: "ID" },
       amount: money(5_000_000n, "IDR"),
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       provider: "mock",
       source: { type: "manual" },
       payment: { asset: "USDC", chain: "base-sepolia" },

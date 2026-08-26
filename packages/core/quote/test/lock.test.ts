@@ -115,7 +115,7 @@ describe("lockQuote", () => {
     expect(() =>
       lockQuote(
         composed(),
-        terms({ settlementAmount: money(3_700_00n, "IDRX"), fee: money(0n, "IDRX") }),
+        terms({ settlementAmount: money(3_700_00n, "USDT"), fee: money(0n, "USDT") }),
         NOW,
       ),
     ).toThrow(ConfigurationError);

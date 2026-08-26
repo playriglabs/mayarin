@@ -22,7 +22,7 @@ Two distinct windows, and they are not the same problem.
 
 **Between lock and fill** (seconds to minutes, bounded by the order
 `deadline`). The fiat leg turns IDR into the settlement asset before the swap
-leg is priced. For a pair the deployment declares `pegged` — `IDR/IDRX` — that
+leg is priced. For a pair the deployment declares `pegged` — `USD/USDC` — that
 conversion is a decimal rescale, by construction, with **no price read at
 all**: see `packages/core/quote/src/fx.ts`. This is correct arithmetic for a
 peg that holds, and it is precisely why a broken peg is invisible here. There

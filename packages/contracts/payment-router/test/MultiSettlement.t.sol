@@ -19,16 +19,16 @@ import {Harness} from "./helpers/Harness.sol";
 ///        governance admitted but can never introduce one. A compromised signer
 ///        must not be able to settle a merchant into a worthless token.
 contract MultiSettlementTest is Harness {
-    MockERC20 internal idrx; // a second settlement asset, 2 decimals
+    MockERC20 internal alt; // a second settlement asset, 2 decimals
 
     function setUp() public override {
         super.setUp();
-        idrx = new MockERC20("IDRX", "IDRX", 2);
+        alt = new MockERC20("Alt Stable", "ALT", 2);
         usdc.mint(address(dex), 1_000_000e6);
-        idrx.mint(address(dex), 1_000_000_00);
+        alt.mint(address(dex), 1_000_000_00);
         vm.startPrank(admin);
-        router.addSettlementAsset(address(idrx));
-        router.addInputAsset(address(idrx));
+        router.addSettlementAsset(address(alt));
+        router.addInputAsset(address(alt));
         vm.stopPrank();
     }
 
@@ -52,7 +52,7 @@ contract MultiSettlementTest is Harness {
     // Two merchants, two stablecoins, one router
     // ------------------------------------------------------------------
 
-    function test_settles_usdc_and_idrx_from_the_same_router() public {
+    function test_settles_usdc_and_a_second_asset_from_the_same_router() public {
         // Merchant settling in USDC.
         IPaymentRouter.Order memory usdcOrder = _order(address(usdc), 100e6, 1e6);
         vm.deal(customer, 10 ether);
@@ -62,34 +62,34 @@ contract MultiSettlementTest is Harness {
 
         assertEq(usdc.balanceOf(merchant), 99e6, "merchant settled in USDC");
 
-        // Merchant settling in IDRX, same router, same block.
-        IPaymentRouter.Order memory idrxOrder = _order(address(idrx), 100_00, 1_00);
-        bytes memory idrxSwap = abi.encodeWithSelector(
-            dex.swapFromETH.selector, address(idrx), uint256(120_00), address(router)
+        // Merchant settling in ALT, same router, same block.
+        IPaymentRouter.Order memory altOrder = _order(address(alt), 100_00, 1_00);
+        bytes memory altSwap = abi.encodeWithSelector(
+            dex.swapFromETH.selector, address(alt), uint256(120_00), address(router)
         );
-        bytes memory idrxSig = sign(idrxOrder);
+        bytes memory altSig = sign(altOrder);
         vm.prank(customer);
-        router.payEth{value: 1 ether}(idrxOrder, idrxSig, address(dex), idrxSwap);
+        router.payEth{value: 1 ether}(altOrder, altSig, address(dex), altSwap);
 
-        assertEq(idrx.balanceOf(merchant), 99_00, "merchant settled in IDRX");
+        assertEq(alt.balanceOf(merchant), 99_00, "merchant settled in ALT");
         assertEq(usdc.balanceOf(address(router)), 0, "no USDC rests");
-        assertEq(idrx.balanceOf(address(router)), 0, "no IDRX rests");
+        assertEq(alt.balanceOf(address(router)), 0, "no ALT rests");
     }
 
     /// @dev Decimals differ per settlement asset (6 vs 2) and the contract never
     ///      converts — `minOut` and `fee` are already in the asset's minor units.
     function test_each_settlement_asset_keeps_its_own_minor_units() public {
-        IPaymentRouter.Order memory o = _order(address(idrx), 35_000_00, 350_00);
+        IPaymentRouter.Order memory o = _order(address(alt), 35_000_00, 350_00);
         bytes memory swap = abi.encodeWithSelector(
-            dex.swapFromETH.selector, address(idrx), uint256(35_000_00), address(router)
+            dex.swapFromETH.selector, address(alt), uint256(35_000_00), address(router)
         );
         bytes memory sig = sign(o);
         vm.deal(customer, 10 ether);
         vm.prank(customer);
         router.payEth{value: 1 ether}(o, sig, address(dex), swap);
 
-        assertEq(idrx.balanceOf(merchant), 34_650_00, "35_000.00 IDRX less a 350.00 fee");
-        assertEq(idrx.balanceOf(treasury), 350_00, "treasury");
+        assertEq(alt.balanceOf(merchant), 34_650_00, "35_000.00 ALT less a 350.00 fee");
+        assertEq(alt.balanceOf(treasury), 350_00, "treasury");
     }
 
     // ------------------------------------------------------------------
@@ -118,16 +118,16 @@ contract MultiSettlementTest is Harness {
     ///      governance removes it — the whitelist is checked at execution, not at
     ///      signing.
     function test_removing_a_settlement_asset_rejects_orders_already_signed() public {
-        IPaymentRouter.Order memory o = _order(address(idrx), 100_00, 1_00);
+        IPaymentRouter.Order memory o = _order(address(alt), 100_00, 1_00);
         bytes memory sig = sign(o);
 
         vm.prank(admin);
-        router.removeSettlementAsset(address(idrx));
+        router.removeSettlementAsset(address(alt));
 
         vm.deal(customer, 1 ether);
         vm.expectRevert(
             abi.encodeWithSelector(
-                PaymentRouter.SettlementAssetNotWhitelisted.selector, address(idrx)
+                PaymentRouter.SettlementAssetNotWhitelisted.selector, address(alt)
             )
         );
         vm.prank(customer);
@@ -140,7 +140,7 @@ contract MultiSettlementTest is Harness {
         IPaymentRouter.Order memory o = _order(address(usdc), 100e6, 1e6);
         bytes memory sig = sign(o);
 
-        o.settlementToken = address(idrx); // payer tampers after signing
+        o.settlementToken = address(alt); // payer tampers after signing
 
         vm.deal(customer, 1 ether);
         vm.expectRevert(PaymentRouter.InvalidSigner.selector);
@@ -153,19 +153,19 @@ contract MultiSettlementTest is Harness {
     // ------------------------------------------------------------------
 
     function test_sameAsset_noop_resolves_against_the_order_not_a_global_token() public {
-        // Paying IDRX into an IDRX order is the no-op path even though the
+        // Paying ALT into an ALT order is the no-op path even though the
         // harness's default settlement asset is USDC.
         uint256 inputAmount = 150_00;
-        fund(address(idrx), customer, inputAmount);
-        IPermit2.PermitSingle memory p = buildPermit(address(idrx), inputAmount, 1);
-        IPaymentRouter.Order memory o = _order(address(idrx), 100_00, 1_00);
+        fund(address(alt), customer, inputAmount);
+        IPermit2.PermitSingle memory p = buildPermit(address(alt), inputAmount, 1);
+        IPaymentRouter.Order memory o = _order(address(alt), 100_00, 1_00);
         bytes memory sig = sign(o);
 
         vm.prank(customer);
         router.payERC20(o, encodePermit(p), sig, address(0), "");
 
-        assertEq(idrx.balanceOf(merchant), 99_00, "merchant settled");
-        assertEq(idrx.balanceOf(customer), 50_00, "excess refunded in IDRX");
+        assertEq(alt.balanceOf(merchant), 99_00, "merchant settled");
+        assertEq(alt.balanceOf(customer), 50_00, "excess refunded in ALT");
     }
 
     // ------------------------------------------------------------------

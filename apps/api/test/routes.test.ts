@@ -40,7 +40,7 @@ describe("POST /payment-intents", () => {
     expect(status).toBe(201);
     expect(body.paymentIntent).toMatchObject({
       status: "CREATED",
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       provider: "mock",
       merchant: { id: "ID1020017611473", name: "Warung Kopi Mayarin", city: "Jakarta" },
       amount: { amount: "5000000", asset: "IDR", formatted: "50000.00" },
@@ -137,9 +137,9 @@ describe("POST /payment-intents/:id/confirm", () => {
     expect(body.paymentIntent.status).toBe("COMPLETED");
     expect(body.clearing).toMatchObject({
       state: "SUCCESS",
-      settlementAmount: { amount: "5000000", asset: "IDRX" },
-      fee: { amount: "25000", asset: "IDRX" },
-      netAmount: { amount: "4975000", asset: "IDRX" },
+      settlementAmount: { amount: "5000000", asset: "USDC" },
+      fee: { amount: "25000", asset: "USDC" },
+      netAmount: { amount: "4975000", asset: "USDC" },
     });
     expect(body.timeline.map((entry: { state: string }) => entry.state)).toEqual([
       "CREATED",
@@ -167,7 +167,7 @@ describe("POST /payment-intents/:id/confirm", () => {
     expect(second.status).toBe(200);
     expect(second.body.clearing.id).toBe(first.body.clearing.id);
     expect(second.body.timeline).toHaveLength(first.body.timeline.length);
-    expect((await harness.ledger.balance("TREASURY", "IDRX")).balance.amount).toBe(25_000n);
+    expect((await harness.ledger.balance("TREASURY", "USDC")).balance.amount).toBe(25_000n);
   });
 
   test("settles internally via the stablecoin adapter, crediting a merchant holding", async () => {
@@ -176,7 +176,7 @@ describe("POST /payment-intents/:id/confirm", () => {
       body: {
         merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
         amount: { amount: "50000.00", asset: "IDR" },
-        settlementAsset: "IDRX",
+        settlementAsset: "USDC",
         provider: "stablecoin",
       },
     });
@@ -191,11 +191,11 @@ describe("POST /payment-intents/:id/confirm", () => {
     expect(body.clearing.provider).toBe("stablecoin");
     // Treasury keeps the full settlement amount; the net is owed to the merchant
     // as an internal holding, not returned to treasury.
-    expect((await harness.ledger.balance("TREASURY", "IDRX")).balance.amount).toBe(5_000_000n);
-    expect((await harness.ledger.balance("MERCHANT_HOLDING", "IDRX")).balance.amount).toBe(
+    expect((await harness.ledger.balance("TREASURY", "USDC")).balance.amount).toBe(5_000_000n);
+    expect((await harness.ledger.balance("MERCHANT_HOLDING", "USDC")).balance.amount).toBe(
       4_975_000n,
     );
-    expect((await harness.ledger.balance("SETTLEMENT_IN_FLIGHT", "IDRX")).balance.amount).toBe(0n);
+    expect((await harness.ledger.balance("SETTLEMENT_IN_FLIGHT", "USDC")).balance.amount).toBe(0n);
   });
 
   test("404s for an unknown intent", async () => {
@@ -322,7 +322,7 @@ describe("GET /health", () => {
     expect(status).toBe(200);
     expect(body).toEqual({
       status: "ok",
-      settlementAsset: "IDRX",
+      settlementAsset: "USDC",
       providers: ["mock", "stablecoin"],
     });
   });

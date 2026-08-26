@@ -13,8 +13,8 @@ import { createHarness } from "./harness.ts";
  * that no payment ends up half on one scheme and half on the other.
  */
 
-/** 50,000.00 IDR settles as 50,000.00 IDRX (0.50% fee) against a 16.000000 USDC deposit. */
-const RATES = { "IDR/IDRX": 100n, "IDR/USDC": 320n };
+/** 50,000.00 IDR settles as 5.000000 USDC (0.50% fee) against a 16.000000 USDT deposit. */
+const RATES = { "IDR/USDC": 100n, "IDR/USDT": 320n };
 
 function railIntent(harness: ReturnType<typeof createHarness>) {
   return harness.confirmedIntent({ payment: { asset: "USDC", chain: "base-sepolia" } });

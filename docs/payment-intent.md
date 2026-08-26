@@ -13,7 +13,7 @@ incremented version; nothing is mutated in place.
   status: "CREATED",
   merchant: { id: "ID1020017611473", name: "Warung Kopi Mayarin", city: "Jakarta", countryCode: "ID" },
   amount: { amount: 5_000_000n, asset: "IDR" },
-  settlementAsset: "IDRX",
+  settlementAsset: "USDC",
   provider: "mock",
   expiresAt: "2026-01-01T00:15:00.000Z",
   version: 1

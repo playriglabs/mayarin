@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { money, toDecimalString } from "@mayarin/shared";
 import { createApiHarness, qrisPayload } from "./harness.ts";
 
 type Harness = ReturnType<typeof createApiHarness>;
@@ -34,7 +35,7 @@ describe("POST /payments/:id/refunds", () => {
     expect(status).toBe(201);
     expect(body.refund.state).toBe("SUCCEEDED");
     // 50,000.00 IDR at 100 minor units per whole unit, less the 50 bps fee.
-    expect(body.refund.amount).toMatchObject({ asset: "IDRX" });
+    expect(body.refund.amount).toMatchObject({ asset: "USDC" });
     expect(BigInt(body.refund.amount.amount)).toBeGreaterThan(0n);
   });
 
@@ -46,7 +47,7 @@ describe("POST /payments/:id/refunds", () => {
     const refundable = BigInt(before.body.summary.refundable.amount);
 
     const partial = await harness.request("POST", `/v1/payments/${id}/refunds`, {
-      body: { amount: { amount: "100.00", asset: "IDRX" } },
+      body: { amount: { amount: "0.010000", asset: "USDC" } },
     });
     expect(partial.status).toBe(201);
 
@@ -63,14 +64,14 @@ describe("POST /payments/:id/refunds", () => {
     const refundable = BigInt(summary.body.summary.refundable.amount);
 
     const first = await harness.request("POST", `/v1/payments/${id}/refunds`, {
-      body: { amount: { amount: "100.00", asset: "IDRX" } },
+      body: { amount: { amount: "0.010000", asset: "USDC" } },
     });
     expect(first.status).toBe(201);
 
     // Each is within the balance on its own; together they are not — the case a
     // per-refund check misses.
     const second = await harness.request("POST", `/v1/payments/${id}/refunds`, {
-      body: { amount: { amount: `${refundable / 100n}.00`, asset: "IDRX" } },
+      body: { amount: { amount: toDecimalString(money(refundable, "USDC")), asset: "USDC" } },
     });
     expect(second.status).toBe(400);
   });
@@ -80,7 +81,7 @@ describe("POST /payments/:id/refunds", () => {
     const id = await settledPayment(harness);
 
     const { status } = await harness.request("POST", `/v1/payments/${id}/refunds`, {
-      body: { amount: { amount: "100.00", asset: "USDC" } },
+      body: { amount: { amount: "0.010000", asset: "USDT" } },
     });
     expect(status).toBe(400);
   });
@@ -89,7 +90,7 @@ describe("POST /payments/:id/refunds", () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);
     const headers = { "Idempotency-Key": "refund-key-00001" };
-    const body = { amount: { amount: "100.00", asset: "IDRX" } };
+    const body = { amount: { amount: "0.010000", asset: "USDC" } };
 
     const first = await harness.request("POST", `/v1/payments/${id}/refunds`, { body, headers });
     const second = await harness.request("POST", `/v1/payments/${id}/refunds`, { body, headers });
@@ -117,14 +118,14 @@ describe("POST /payments/:id/refunds", () => {
     const id = await settledPayment(harness);
 
     await harness.request("POST", `/v1/payments/${id}/refunds`, {
-      body: { amount: { amount: "100.00", asset: "IDRX" } },
+      body: { amount: { amount: "0.010000", asset: "USDC" } },
     });
 
     // `LedgerService.post` raises `LedgerImbalanceError` on an unbalanced
     // posting, so a succeeded refund is itself half the assertion. The other
     // half is that the posting actually ran: the refund debits the merchant's
-    // holding, so 100.00 IDRX of it must have been taken back.
-    const holding = await harness.ledger.balance("MERCHANT_HOLDING", "IDRX");
+    // holding, so 0.010000 USDC of it must have been taken back.
+    const holding = await harness.ledger.balance("MERCHANT_HOLDING", "USDC");
     expect(holding.debits.amount).toBe(10_000n);
   });
 });

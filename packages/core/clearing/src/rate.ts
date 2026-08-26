@@ -36,7 +36,7 @@ export interface RateProvider {
  * Fixed-table rate provider.
  *
  * Same-asset conversions are the identity rate, so a deployment that clears
- * IDR into IDRX 1:1 needs no configuration at all.
+ * USD into USDC 1:1 needs no configuration at all.
  */
 export class StaticRateProvider implements RateProvider {
   readonly #rates: ReadonlyMap<string, bigint>;

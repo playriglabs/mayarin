@@ -59,7 +59,7 @@ export interface MoneyFormatOptions {
  * ```ts
  * formatMoneyLocale(money(5_043_200n, "IDR"))                        // "Rp 50.432,00"
  * formatMoneyLocale(money(5_043_200n, "IDR"), { trimZeroFraction: true }) // "Rp 50.432"
- * formatMoneyLocale(money(5_043_200n, "IDRX"))                       // "50.432,00 IDRX"
+ * formatMoneyLocale(money(50_432_000_000n, "USDC"))                  // "50.432,000000 USDC"
  * ```
  */
 export function formatMoneyLocale(value: Money, options: MoneyFormatOptions = {}): string {

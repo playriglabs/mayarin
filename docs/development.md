@@ -134,13 +134,13 @@ Which stablecoins a deployment admits — and where each lives on-chain — is
 declared in two env vars that the registry unions at boot:
 
 ```bash
-SETTLEMENT_ASSETS=["IDRX","USDC","USDT"]      # admissible settlement set (ledger-only allowed)
+SETTLEMENT_ASSETS=["USDC","USDT"]              # admissible settlement set (ledger-only allowed)
 CHAIN_ASSETS={"base-sepolia":{"USDC":"0x..."}} # on-chain identities; also admitted for settlement
-SETTLEMENT_ASSET=IDRX                          # default; must be in the admitted union
+SETTLEMENT_ASSET=USDC                          # default; must be in the admitted union
 ```
 
-`SETTLEMENT_ASSETS` carries ledger-only stablecoins (no on-chain identity, like
-`IDRX` when a deployment credits it internally); `CHAIN_ASSETS` carries the
+`SETTLEMENT_ASSETS` carries ledger-only stablecoins (no on-chain identity, for a
+deployment that credits one internally); `CHAIN_ASSETS` carries the
 on-chain identities the watcher also needs. Every asset in either must be a
 known stablecoin (`kind === "stablecoin"`); a non-stablecoin or an unknown code
 fails to boot. A merchant may ask for any admitted settlement asset; a payer's

@@ -206,18 +206,52 @@ export function DepositCard({
     <>
       <div className="send-amount">
         <span>Send this exact amount</span>
-        <strong>
-          <AssetLogo symbol={deposit.amount.asset} size={30} />
-          {amount} {deposit.amount.asset}
-        </strong>
-        <button
-          type="button"
-          className="copy"
-          aria-label={`Copy the amount ${amount}`}
-          onClick={() => onCopy("amount", amount)}
-        >
-          {copied === "amount" ? "Amount copied" : "Copy amount"}
-        </button>
+        {/* The amount and its copy button read as one unit, so they share a
+            row rather than the button spanning the card. */}
+        <div className="amount-row">
+          <strong>
+            <AssetLogo symbol={deposit.amount.asset} size={30} />
+            {amount} {deposit.amount.asset}
+          </strong>
+          <button
+            type="button"
+            className="copy copy-inline"
+            // Icon-only, so the label carries the whole message — including the
+            // confirmation, which a sighted payer reads from the check glyph.
+            aria-label={copied === "amount" ? "Amount copied" : `Copy the amount ${amount}`}
+            onClick={() => onCopy("amount", amount)}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              {copied === "amount" ? (
+                <path
+                  d="M2.5 8.5 L6.5 12.5 L13.5 3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="square"
+                />
+              ) : (
+                <>
+                  <rect
+                    x="6"
+                    y="6"
+                    width="7.5"
+                    height="7.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                  />
+                  <path
+                    d="M10 6 V2.5 H2.5 V10 H6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                  />
+                </>
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
       {deposit.uri !== null && (
         <div className="qr">
@@ -389,7 +423,7 @@ export function Outcome({
           </svg>
         </div>
         <h2>{heading}</h2>
-        <p>{note}</p>
+        <p className="pt-2">{note}</p>
         <p className="reference">
           Reference ID <code>{intentId}</code>
         </p>

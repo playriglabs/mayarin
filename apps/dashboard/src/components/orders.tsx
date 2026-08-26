@@ -132,6 +132,10 @@ function Orders() {
     pagination.cursor,
   );
   const rows = orders.data?.orders ?? [];
+  // Locked while the page this filters is still loading. `isPending` and not
+  // `isFetching`: the list polls itself every 5s while an order is live, and a
+  // control that greys out on every poll is worse than one that never does.
+  const filtersBusy = orders.isPending;
 
   return (
     <section className="flex flex-col gap-4">
@@ -162,7 +166,7 @@ function Orders() {
                 pagination.reset();
               }}
             >
-              <SelectTrigger id="order-status">
+              <SelectTrigger id="order-status" disabled={filtersBusy}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -179,6 +183,7 @@ function Orders() {
           <DateRangeFilter
             from={from}
             to={to}
+            disabled={filtersBusy}
             onFromChange={(value) => {
               setFrom(value);
               pagination.reset();
@@ -200,7 +205,7 @@ function Orders() {
                 pagination.reset();
               }}
             >
-              <SelectTrigger id="order-sort">
+              <SelectTrigger id="order-sort" disabled={filtersBusy}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

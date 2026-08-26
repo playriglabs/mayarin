@@ -44,9 +44,9 @@ function jsonObject<T>(name: string, fallback: string) {
 const configSchema = z.object({
   port: z.coerce.number().int().positive().default(3000),
   databaseUrl: z.string().min(1),
-  settlementAsset: assetCodeSchema.default("IDRX"),
-  /** Admissible settlement set, JSON array of AssetCode. Defaults to IDRX only. */
-  settlementAssets: jsonObject<string[]>("SETTLEMENT_ASSETS", '["IDRX"]'),
+  settlementAsset: assetCodeSchema.default("USDC"),
+  /** Admissible settlement set, JSON array of AssetCode. Defaults to USDC only. */
+  settlementAssets: jsonObject<string[]>("SETTLEMENT_ASSETS", '["USDC"]'),
   feeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(50),
   /** Successful relayed PaymentRouter calls reimburse gas from settlement. */
   relayerGasFeeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(10),
@@ -70,7 +70,7 @@ const configSchema = z.object({
   /** Minor units of the target asset per whole unit of the source asset. */
   exchangeRates: z
     .string()
-    .default('{"IDR/IDRX":"100"}')
+    .default('{"USD/USDC":"1000000"}')
     .transform((value, ctx) => {
       try {
         const parsed = z.record(z.string(), z.string()).parse(JSON.parse(value));
@@ -80,7 +80,7 @@ const configSchema = z.object({
       } catch {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'EXCHANGE_RATES must be JSON like {"IDR/IDRX":"100"}',
+          message: 'EXCHANGE_RATES must be JSON like {"USD/USDC":"1000000"}',
         });
         return z.NEVER;
       }
@@ -223,7 +223,7 @@ const configSchema = z.object({
   quoteMaxReferenceAgeSeconds: z.coerce.number().int().positive().default(60),
   /**
    * Fiat/stablecoin pairs that are the same currency in two representations,
-   * e.g. `["IDR/IDRX"]`. Declared, never inferred: whether an issuer holds its
+   * e.g. `["USD/USDC"]`. Declared, never inferred: whether an issuer holds its
    * peg is a judgement about that issuer, not something an asset code implies.
    */
   quotePeggedPairs: jsonObject<string[]>("QUOTE_PEGGED_PAIRS", "[]"),

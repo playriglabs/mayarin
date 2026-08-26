@@ -69,11 +69,10 @@ import type { SettingsDto } from "@/types/settings";
 const SETTLEMENT_OPTIONS: readonly SelectOption[] = [
   { value: "USDC", label: "USDC" },
   { value: "USDT", label: "USDT" },
-  { value: "IDRX", label: "IDRX" },
 ];
 
 /** What a payer may pay with. The settlement asset itself is the no-swap path. */
-const PAYABLE_ASSETS: readonly string[] = ["USDC", "USDT", "IDRX", "ETH"];
+const PAYABLE_ASSETS: readonly string[] = ["USDC", "USDT", "ETH"];
 
 /**
  * Every country, with the unsupported ones disabled rather than hidden.
