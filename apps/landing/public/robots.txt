@@ -1,5 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /pitch-deck
 
 Sitemap: https://mayarin.xyz/sitemap.xml
