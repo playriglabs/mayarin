@@ -9,7 +9,7 @@ description: Create a payment link from a server using the existing @mayarin/sdk
 bun add @mayarin/sdk
 ```
 
-Use the server entry point with a secret key minted from the Mayarin dashboard. Never place an `sk_` key in a browser bundle.
+Use the server entry point with a secret key minted from the Mayarin dashboard — [dashboard-testnet.mayarin.xyz](https://dashboard-testnet.mayarin.xyz) for testnet, [dashboard.mayarin.xyz](https://dashboard.mayarin.xyz) for mainnet, under **API keys**. See [getting a key](/guides/authentication#get-a-key). Never place an `sk_` key in a browser bundle.
 
 ## Create a client
 
@@ -34,11 +34,11 @@ const link = await mayarin.commerce.paymentLinks.create({
   kind: "fixed",
   merchant: {
     id: "merchant_123",
-    name: "Warung Kopi",
-    city: "Jakarta",
-    countryCode: "ID",
+    name: "Northwind Coffee",
+    city: "Singapore",
+    countryCode: "SG",
   },
-  amount: { amount: "50000.00", asset: "IDR" },
+  amount: { amount: "18.50", asset: "SGD" },
 });
 
 console.log(link.url);
@@ -73,4 +73,8 @@ try {
 }
 ```
 
-Every SDK failure is a `MayarinApiError` with a stable `code`, HTTP `status`, and `retryable` flag.
+Every SDK failure is a `MayarinApiError` with a stable `code`, HTTP `status`, and `retryable` flag — see [errors and retries](/errors) for every code.
+
+## A complete integration
+
+[`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) is this quickstart grown into a working storefront: catalog seeding, a thin server holding the secret key, link minting with a deterministic idempotency key, a verified webhook endpoint, and a status page. It runs against a local API or the hosted testnet.

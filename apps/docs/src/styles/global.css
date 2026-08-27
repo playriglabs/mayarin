@@ -75,6 +75,21 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Tailwind v4 resets buttons to `cursor: default`, which makes the copy
+   buttons, the sidebar folder triggers and the tab/select controls read as
+   inert. Restore the pointer for anything clickable — links included, since
+   several are styled as buttons. */
+button:not(:disabled),
+summary,
+label[for],
+[role="button"]:not([aria-disabled="true"]),
+[role="tab"],
+[role="option"],
+[role="menuitem"],
+a[href] {
+  cursor: pointer;
+}
+
 ::selection {
   background: var(--color-accent);
   color: var(--color-void);
@@ -83,6 +98,14 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-forest);
   outline-offset: 3px;
+}
+
+/* …except the search dialog's input. Opening the dialog focuses it
+   immediately, so the outline is drawn every time and boxes the field for no
+   decision the reader has to make. The dialog itself is the focus affordance.
+   (Unlayered, so it also beats the utility classes fumadocs sets there.) */
+#docs-search-input:focus-visible {
+  outline: none;
 }
 
 .docs-title,
@@ -125,6 +148,14 @@ body {
 
 .api-reference-content p {
   margin-top: calc(var(--spacing) * 3);
+}
+
+/* …but not inside the playground's own single-line rows (the client-error and
+   response-status banners put an icon and a <p> in one `items-center` flex
+   row). The paragraph spacing above would push the label below the icon's
+   centre line. */
+.api-reference-content .items-center > p {
+  margin-top: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

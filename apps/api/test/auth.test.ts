@@ -288,3 +288,27 @@ describe("CORS on /v1 (#113)", () => {
     );
   });
 });
+
+describe("CORS on the unversioned buyer pages", () => {
+  test("a cross-origin read of the checkout QR is admitted", async () => {
+    const harness = createApiHarness();
+    const response = await harness.app.request("/checkout/qr?value=mayarin", {
+      headers: { Origin: "https://docs.mayarin.xyz" },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+  });
+
+  test("a preflight for a buyer page is admitted", async () => {
+    const harness = createApiHarness();
+    const response = await harness.app.request("/invoices/inv_1/view", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "http://localhost:4321",
+        "Access-Control-Request-Method": "GET",
+      },
+    });
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+  });
+});

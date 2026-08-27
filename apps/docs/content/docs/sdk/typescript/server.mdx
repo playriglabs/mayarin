@@ -12,4 +12,116 @@ const mayarin = createMayarin({
 });
 ```
 
-The server client exposes `commerce` and `payment` modules plus health/status behavior shared by both entry points. Validate required environment variables at application startup rather than relying on a non-null assertion in production code.
+The client exposes [`commerce`](/sdk/typescript/commerce), [`payment`](/sdk/typescript/payments), the resolved `preset`, and the raw `transport`.
+
+## Configuration
+
+| Field                    | Required | Meaning                                                                       |
+| ------------------------ | -------- | ----------------------------------------------------------------------------- |
+| `baseUrl`                | yes      | API origin, e.g. `https://api.mayarin.xyz`. No `/v1`, trailing slash optional. |
+| `secretKey`              | yes      | `sk_…` minted under **API keys** in the dashboard — see [getting a key](/guides/authentication#get-a-key). Server-side only. |
+| `preset`                 | no       | Config bundle for module defaults. Only `merchant` exists today.               |
+| `fetch`                  | no       | Replacement for the global `fetch` — instrumentation, proxies, tests.          |
+| `generateIdempotencyKey` | no       | Replacement for `crypto.randomUUID()` on writes.                               |
+
+## Validate the environment at startup
+
+The non-null assertion above is fine in a snippet and wrong in production: it turns a missing variable into a confusing failure on the first API call instead of a clear one at boot. Fail where the cause is visible, naming what is missing:
+
+```ts
+function required(name: string): string {
+  const value = process.env[name];
+  if (value === undefined || value === "") {
+    throw new Error(`${name} is required`);
+  }
+  return value;
+}
+
+const mayarin = createMayarin({
+  baseUrl: process.env.MAYARIN_API_URL ?? "https://api.mayarin.xyz",
+  secretKey: required("MAYARIN_SECRET_KEY"),
+});
+```
+
+Build the client once per process and reuse it. It holds no connection state, so it is safe to share across requests.
+
+In the demo, [`loadDemoConfig`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts) does this and throws naming **every** missing variable at once, so a first run tells the operator the whole list rather than one variable per attempt.
+
+## Keep the secret on the server
+
+A storefront calls the two secret-key routes it needs from its own backend and ships neither the key nor the routes to the browser. The demo storefront ([`apps/demo/server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) mounts exactly two:
+
+```ts
+// GET /api/products — the merchant's catalog
+const products = await mayarin.commerce.products.list(merchantId);
+
+// POST /api/checkout — mint a link, hand back only its URL
+const link = await mayarin.commerce.paymentLinks.create({
+  kind: "catalog",
+  merchant,
+  currency: "SGD",
+  lines: [{ productId, quantity: 2 }],
+});
+return { url: link.url };
+```
+
+If a browser needs catalog reads and cart checkout directly, use a publishable key and the [browser client](/sdk/typescript/browser) instead of proxying.
+
+## Cloudflare Workers and other edge runtimes
+
+Nothing in the SDK is Node-specific, so the same code runs in a Worker — [`apps/demo/server/worker.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/worker.ts) is the demo's storefront deployed that way. Read config from `env` rather than `process.env`, and build the client per request — a Worker isolate may serve many requests, but config arrives with each one:
+
+```ts
+export default {
+  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+    const mayarin = createMayarin({
+      baseUrl: env.MAYARIN_API_URL ?? "https://api.mayarin.xyz",
+      secretKey: env.MAYARIN_SECRET_KEY,
+    });
+
+    const products = await mayarin.commerce.products.list(env.MAYARIN_MERCHANT_ID);
+    return Response.json({ products });
+  },
+};
+```
+
+## The transport escape hatch
+
+`client.transport` is the typed HTTP client the modules are built on. Use it when a route has no module method yet; you keep the `/v1` prefix, the version header, auth, idempotency, and error mapping:
+
+```ts
+const preview = await mayarin.transport.post<{
+  readonly source: MoneyDto;
+  readonly quotes: readonly {
+    readonly asset: string;
+    readonly amount: MoneyDto | null;
+    readonly available: boolean;
+    readonly reason?: string;
+  }[];
+  readonly indicative: true;
+}>("/quotes", {
+  amount: { amount: "125.00", asset: "USD" },
+  assets: ["USDC", "ETH"],
+});
+```
+
+Those quotes are indicative: they price against the same source the lock will read, but nothing is reserved until a payment is confirmed.
+
+`get`, `post`, and `patch` all accept `RequestOptions`: `query`, `idempotencyKey`, and `signal`.
+
+```ts
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 5_000);
+
+const payment = await mayarin.payment.get(id, { signal: controller.signal });
+```
+
+An aborted request surfaces as `MayarinApiError` with code `NETWORK_ERROR` and `status: 0`.
+
+## Presets
+
+`preset` names the integration shape and carries module-level defaults; the transport ignores it. The only preset today is `merchant` — a back office that manages a catalog and queries payments — and it is the default, so most integrations never set the field.
+
+```ts
+mayarin.preset; // { name: "merchant", openAmountLinks: false, checkout: "catalog" }
+```

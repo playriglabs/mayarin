@@ -84,6 +84,22 @@ export function createApp(container: Container): Hono {
   // link encode these paths, so a `/v2` must never move them (#138). The pages
   // are the checkout UI SPA (#151); its hashed assets mount here, matching the
   // bundle's Vite `base`.
+  //
+  // They are read-only and public — a QR, an HTML page, a status stream — and
+  // something other than a top-level browser navigation does fetch them: the
+  // docs playground calls them from the docs origin, and a merchant page may
+  // embed the QR. Without CORS headers those reads fail on the origin check
+  // alone, which protects nothing here: there is no cookie to ride along and
+  // no key to leak.
+  const buyerPageCors = cors({
+    origin: "*",
+    allowHeaders: ["Content-Type"],
+    allowMethods: ["GET", "OPTIONS"],
+  });
+  app.use("/checkout-ui/*", buyerPageCors);
+  app.use("/invoices/*", buyerPageCors);
+  app.use("/checkout/*", buyerPageCors);
+
   app.route("/checkout-ui", checkoutUiRoutes(container));
   app.route("/invoices", invoicePageRoutes(container));
   app.route("/checkout", checkoutPageRoutes(container));

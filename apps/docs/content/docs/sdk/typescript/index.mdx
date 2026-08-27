@@ -9,7 +9,81 @@ description: Typed access to payments, commerce, QR helpers, and webhook verific
 bun add @mayarin/sdk
 ```
 
-Choose the correct entry point:
+## Two entry points
 
-- `@mayarin/sdk` for trusted server environments;
-- `@mayarin/sdk/browser` for catalog and cart checkout with a publishable key.
+| Import                   | Key                       | Surface                                                    |
+| ------------------------ | ------------------------- | ---------------------------------------------------------- |
+| `@mayarin/sdk`           | secret (`sk_…`)           | [`commerce`](/sdk/typescript/commerce) and [`payment`](/sdk/typescript/payments) in full |
+| `@mayarin/sdk/browser`   | publishable (`pk_…`), optional | catalog read and cart checkout only                   |
+
+The split is enforced by types, not by a runtime check: `MayarinBrowserConfig` has no `secretKey` field, and the browser commerce module has no `create` or `update`. A secret key in browser code does not compile.
+
+```ts
+import { createMayarin } from "@mayarin/sdk";           // server
+import { createMayarinBrowser } from "@mayarin/sdk/browser"; // browser
+```
+
+## What the transport does for you
+
+Every module call goes through one transport, so no module re-implements the table stakes:
+
+- **Versioned base URL.** `baseUrl` is the API origin; the transport appends `/v1`. Never include it yourself.
+- **`Mayarin-Version` header.** Pinned per SDK build (`MAYARIN_VERSION`, currently `2026-08-11`), the date revision inside `/v1`. See [API versioning](/concepts/versioning).
+- **Bearer auth.** The secret or publishable key, whichever the entry point holds.
+- **`Idempotency-Key` on every write.** Auto-generated with `crypto.randomUUID()` unless you pass your own — see [idempotency](#idempotency).
+- **One error type.** Any failure — an API error body, a non-JSON response, a dead socket — arrives as [`MayarinApiError`](/errors).
+
+```ts
+const intent = await mayarin.payment.getIntent("pi_01KZ…");
+// GET https://api.mayarin.xyz/v1/payment-intents/pi_01KZ…
+// Authorization: Bearer sk_…
+// Mayarin-Version: 2026-08-11
+```
+
+## Idempotency
+
+Writes carry a generated key by default, which protects a retry inside a single call but not a retry across process restarts. When your system already has a stable identifier for the operation, pass it:
+
+```ts
+const link = await mayarin.commerce.paymentLinks.create(body, {
+  idempotencyKey: "order-4711",
+});
+```
+
+Reusing a key with the same request returns the original result. Reusing it with different parameters is a conflict.
+
+## Runtimes
+
+The SDK depends on `fetch`, `crypto.randomUUID`, and WebCrypto only, so it runs unchanged on Node 20+, Bun, and Cloudflare Workers. There is no Node-specific crypto import — webhook verification uses `crypto.subtle`.
+
+Both `fetch` and the idempotency-key generator are injectable, which is also how the SDK's own tests run without a server:
+
+```ts
+const mayarin = createMayarin({
+  baseUrl: "https://api.mayarin.xyz",
+  secretKey,
+  fetch: instrumentedFetch,
+  generateIdempotencyKey: () => nextKeyFromYourQueue(),
+});
+```
+
+## A working example
+
+[`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) is a complete storefront built on this SDK, small enough to read in one sitting:
+
+| File | Shows |
+| ---- | ----- |
+| [`seed.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/seed.ts) | Upserting a catalog by SKU with `commerce.products` |
+| [`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts) | The thin server: catalog reads, link minting, a verified webhook endpoint, payment status |
+| [`server/worker.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/worker.ts) | The same integration on Cloudflare Workers |
+
+The browser never sees the secret key — the build fails if it reaches the bundle.
+
+## Where to go next
+
+- [Server client](/sdk/typescript/server) — configuration, environment handling, the raw transport escape hatch.
+- [Browser client](/sdk/typescript/browser) — the publishable surface and hosted checkout hand-off.
+- [Payments module](/sdk/typescript/payments) — intents, confirmation, status, contract calldata.
+- [Commerce module](/sdk/typescript/commerce) — products, carts, payment links, invoices.
+- [Webhook helpers](/sdk/typescript/webhooks) — verify a delivery, then re-query the API.
+- [SDK reference](/sdk/typescript/reference) — generated type tables.

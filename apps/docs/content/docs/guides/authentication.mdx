@@ -1,6 +1,6 @@
 ---
 title: Authentication and key safety
-description: Use secret and publishable keys only in the environments they are designed for.
+description: Mint keys in the dashboard, then use secret and publishable keys only in the environments they are designed for.
 ---
 
 Send API keys as bearer tokens:
@@ -8,6 +8,29 @@ Send API keys as bearer tokens:
 ```http
 Authorization: Bearer sk_...
 ```
+
+## Get a key
+
+Keys are minted in the Mayarin dashboard, one per environment:
+
+| Environment | Dashboard                            | API base URL                       |
+| ----------- | ------------------------------------ | ---------------------------------- |
+| Testnet     | https://dashboard-testnet.mayarin.xyz | `https://api-testnet.mayarin.xyz` |
+| Mainnet     | https://dashboard.mayarin.xyz         | `https://api.mayarin.xyz`         |
+
+A testnet key is rejected by the mainnet API and vice versa, so an integration keeps two sets of credentials and switches both the key and the base URL together.
+
+1. Sign in to the dashboard for the environment you are integrating against.
+2. Open **API keys** in the sidebar. It needs the `settings:manage` permission, so an account without it will not see the menu.
+3. Choose **Create key**, name it after the integration that will hold it — one key per integration keeps revocation from taking down everything else.
+4. Pick the **Kind**:
+   - **Secret — server-side** (`sk_…`), then tick the permissions it may use. A secret key grants a subset of your own: `payments:read`, `catalog:manage`, `settings:manage`, `users:manage`, `admin:access`. Grant the fewest that the integration needs.
+   - **Publishable — browser-safe** (`pk_…`). It carries no permission checkboxes; its surface is fixed.
+5. Copy the secret from the dialog and store it in your secret manager or `.env`.
+
+The secret is shown **once**, at creation. Mayarin stores only a hash and cannot recover it — a lost secret means minting a new key and deactivating the old one, which you do from the same page.
+
+Webhook signing secrets are separate and live under **Webhooks**; see [verify webhooks](/guides/webhooks).
 
 ## Secret keys
 
@@ -18,3 +41,9 @@ An `sk_` key belongs on a server. It can carry merchant permissions such as cata
 A `pk_` key may ship in browser code. It identifies a merchant and reaches only the publishable commerce surface: the merchant's catalog read and cart checkout. It cannot manage catalog data or authenticate to the dashboard.
 
 The SDK makes the separation explicit: `@mayarin/sdk` accepts a secret key, while `@mayarin/sdk/browser` has no secret-key field.
+
+## If a key leaks
+
+Deactivate it from **API keys** in the dashboard and mint a replacement. Every request is checked against the key's active flag, so deactivation takes effect on the next call — mint and deploy the replacement first if the integration is live.
+
+Deactivation is one-way: a minted secret cannot be un-minted, so there is no reactivation. The replacement is always a new key.

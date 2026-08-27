@@ -13,11 +13,12 @@ Mayarin is crypto-commerce infrastructure for merchants who think in local curre
 | A browser checkout with a publishable key | [Browser SDK](/sdk/typescript/browser)                         |
 | A platform using raw HTTP                 | [API quickstart](/guides/api-quickstart)                       |
 | A production integration                  | [Webhooks](/guides/webhooks) and [errors and retries](/errors) |
+| Reading a finished integration            | [`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) — storefront, thin server, webhook endpoint |
 
 ## The model
 
 ```text
-Merchant prices       IDR 50,000
+Merchant prices       its own currency (SGD, MYR, THB, USD, IDR…)
 Customer pays         ETH, USDC, or USDT
 Mayarin executes      quote → pay → swap if needed → settle
 Merchant receives     configured stablecoin

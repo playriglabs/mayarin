@@ -3,6 +3,162 @@ title: Webhook helpers
 description: Verify signatures and construct typed webhook payloads with WebCrypto.
 ---
 
-`verifyWebhook()` validates the timestamp and signature without parsing the payload. `constructWebhook<T>()` verifies first, then parses the JSON payload.
+Mayarin signs every delivery. `verifyWebhook()` validates the timestamp and signature without parsing the payload; `constructWebhook<T>()` verifies first, then parses the JSON.
 
-Both functions use WebCrypto, so they run in Node, Bun, and Cloudflare Workers without a Node-specific crypto dependency.
+Both use WebCrypto, so they run in Node, Bun, and Cloudflare Workers without a Node-specific crypto dependency.
+
+## What arrives
+
+| Header             | Meaning                                                     |
+| ------------------ | ----------------------------------------------------------- |
+| `webhook-id`       | The event id. Use it as your deduplication key.             |
+| `webhook-timestamp`| Unix seconds the delivery was signed at.                    |
+| `webhook-signature`| `t=<unix>,v1=<hex>` — one `v1` per active secret.           |
+
+```json
+{
+  "id": "evt_01KZ…",
+  "type": "payment.state_changed",
+  "occurredAt": "2026-08-27T10:31:04.882Z",
+  "data": {
+    "paymentIntentId": "pi_01KZ…",
+    "clearingTransactionId": "ctx_01KZ…",
+    "state": "SUCCESS",
+    "sequence": 7,
+    "metadata": { "orderId": "4711" }
+  }
+}
+```
+
+`type` is one of `payment.created`, `payment.state_changed`, `payment.failed`. `state` is the clearing state the payment moved to — `SUCCESS` is the terminal one. A delivery carries ids and a state, never figures you could book against: [a webhook is a signal, not truth](/concepts/payment-lifecycle).
+
+Put your own order id in the intent's `metadata` (or `merchantReference`) at creation, and `data.metadata` gives you the match without a lookup table.
+
+The SDK verifies and parses; it does not ship a type for the payload, so declare the shape you rely on:
+
+```ts
+interface MayarinWebhookEvent {
+  readonly id: string;
+  readonly type: "payment.created" | "payment.state_changed" | "payment.failed";
+  readonly occurredAt: string;
+  readonly data: {
+    readonly paymentIntentId: string;
+    readonly clearingTransactionId: string;
+    readonly state: string;
+    readonly sequence: number;
+    readonly metadata: Readonly<Record<string, string>>;
+  };
+}
+```
+
+## Verify
+
+Use the exact raw request body. Parsing and re-serializing JSON changes the signed bytes.
+
+```ts
+import { constructWebhook } from "@mayarin/sdk";
+
+const rawBody = await request.text();
+
+const event = await constructWebhook<MayarinWebhookEvent>({
+  payload: rawBody,
+  signature: request.headers.get("webhook-signature") ?? "",
+  secret: process.env.MAYARIN_WEBHOOK_SECRET ?? "",
+});
+```
+
+Options: `payload`, `signature`, `secret`, plus `now` and `toleranceSeconds` for tests. The default tolerance is five minutes, and a delivery outside it is rejected — which is what stops a captured delivery from being replayed later.
+
+Failures throw `MayarinWebhookError` with a `code`:
+
+| Code                | Meaning                                                  |
+| ------------------- | -------------------------------------------------------- |
+| `INVALID_SIGNATURE` | Malformed header, or no signature matched the secret.    |
+| `STALE_TIMESTAMP`   | Signed outside the tolerance window.                     |
+| `INVALID_PAYLOAD`   | Signature verified, body is not JSON.                    |
+
+```ts
+import { MayarinWebhookError } from "@mayarin/sdk";
+
+try {
+  const event = await constructWebhook(options);
+} catch (error) {
+  if (error instanceof MayarinWebhookError) {
+    return new Response(error.message, { status: 401 });
+  }
+  throw error;
+}
+```
+
+Answer an unverified delivery with `401`, never `200`: a `2xx` tells the dispatcher the event was accepted and stops the retries.
+
+## Secret rotation
+
+A rotated endpoint signs with both the new and previous secret, so both verify during the overlap. `verifyWebhook` takes one secret per call — try each secret you hold:
+
+```ts
+import { verifyWebhook } from "@mayarin/sdk";
+
+async function verifyWithAny(payload: string, signature: string, secrets: readonly string[]) {
+  for (const secret of secrets) {
+    try {
+      await verifyWebhook({ payload, signature, secret });
+      return true;
+    } catch {
+      // Try the next secret.
+    }
+  }
+  return false;
+}
+```
+
+The demo implements exactly this endpoint twice — [`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts) for the Node dev server and [`server/worker.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/worker.ts) for Cloudflare — answering `401` on a bad signature and `202` once accepted.
+
+## Handle it idempotently
+
+Deliveries are at-least-once and unordered. Two rules make that harmless:
+
+- Deduplicate on `webhook-id` (`event.id`) — a retry is the same fact, not a new one.
+- Keep the highest `data.sequence` seen per payment and discard anything below it, rather than trusting arrival order.
+
+Then re-read the authoritative record before acting on it:
+
+```ts
+if (event.data.state === "SUCCESS") {
+  const intent = await mayarin.payment.getIntent(event.data.paymentIntentId);
+  if (intent.status === "COMPLETED" && intent.merchant.id === merchantId) {
+    fulfil(intent.merchantReference ?? intent.id);
+  }
+}
+```
+
+## A Worker endpoint, end to end
+
+```ts
+export default {
+  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+    const rawBody = await request.text();
+
+    try {
+      const event = await constructWebhook<MayarinWebhookEvent>({
+        payload: rawBody,
+        signature: request.headers.get("webhook-signature") ?? "",
+        secret: env.MAYARIN_WEBHOOK_SECRET,
+      });
+
+      if (event.data.state === "SUCCESS") {
+        await recordSuccess(event.id, event.data.paymentIntentId);
+      }
+      return Response.json({ received: true }, { status: 202 });
+    } catch (error) {
+      if (error instanceof MayarinWebhookError) {
+        return Response.json({ error: error.code }, { status: 401 });
+      }
+      // An unexpected failure: 5xx, so the dispatcher retries.
+      return Response.json({ error: "handler failed" }, { status: 500 });
+    }
+  },
+};
+```
+
+Respond quickly — under a second. Queue anything slow, because the dispatcher retries on a backoff (roughly 1m, 5m, 30m, 2h, 12h) and marks the delivery dead after the last attempt.

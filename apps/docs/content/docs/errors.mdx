@@ -1,6 +1,6 @@
 ---
 title: Errors and retries
-description: Branch on stable error codes and retry only failures explicitly marked retryable.
+description: Every error code the API returns, what it means, and which ones are worth retrying.
 ---
 
 API errors use one envelope:
@@ -16,6 +16,95 @@ API errors use one envelope:
 }
 ```
 
-Treat `code` as the programmatic contract and `message` as human-readable context. Retry only when `retryable` is true, using bounded exponential backoff with jitter. Keep the same idempotency key when retrying a write.
+Treat `code` as the programmatic contract and `message` as human-readable context — messages are rewritten freely, codes are not. `details` is present only when there is something structured to say. Retry only when `retryable` is true.
 
-The SDK additionally emits `NETWORK_ERROR` when no response arrives and `INVALID_RESPONSE` when a successful response is not valid JSON.
+## Every code
+
+| Code                       | HTTP | Retryable | Means                                                                                     |
+| -------------------------- | ---- | --------- | ----------------------------------------------------------------------------------------- |
+| `VALIDATION_ERROR`         | 400  | no        | The body or query failed schema or domain validation. `details.issues` lists each failure. |
+| `QR_PARSE_ERROR`           | 400  | no        | A QR payload could not be decoded, failed its checksum, or is an unsupported scheme.       |
+| `UNAUTHORIZED`             | 401  | no        | Missing, malformed, revoked, or wrong-environment key.                                     |
+| `FORBIDDEN`                | 403  | no        | The key is valid but lacks the permission this route needs.                                |
+| `NOT_FOUND`                | 404  | no        | No such route, or no such intent, payment, product, link, or invoice.                      |
+| `CONFLICT`                 | 409  | no        | The request contradicts current state — a disabled link, an invoice already voided.        |
+| `IDEMPOTENCY_CONFLICT`     | 409  | no        | The idempotency key was replayed with a **different** body. Same body replays fine.        |
+| `INVALID_STATE_TRANSITION` | 409  | no        | The state machine refused the move — confirming an expired intent, say.                    |
+| `CONCURRENCY_CONFLICT`     | 409  | **yes**   | Two writers raced the same aggregate. Re-read and retry.                                   |
+| `QUOTE_EXPIRED`            | 410  | no        | The locked quote passed its deadline. A new price needs the payer, so start over.          |
+| `RATE_LIMIT_EXCEEDED`      | 429  | **yes**   | Too many requests. `details.retryAfterSeconds` and `Retry-After` say when.                  |
+| `LEDGER_IMBALANCE`         | 500  | no        | An invariant violation on Mayarin's side. Nothing the caller can fix; report it.           |
+| `CONFIGURATION_ERROR`      | 500  | no        | The deployment is misconfigured — missing adapter, unknown asset, bad environment.         |
+| `INTERNAL_ERROR`           | 500  | no        | Unhandled failure. No internal detail is leaked.                                            |
+| `PROVIDER_ERROR`           | 502  | usually   | A settlement or chain provider failed the call. Retryable unless the body says otherwise.  |
+| `EXECUTION_EXHAUSTED`      | 502  | no        | The swap could not meet `minOut` within the attempt bound. Terminal on purpose.            |
+
+`EXECUTION_EXHAUSTED` is terminal by design: every attempt already refetched a route, so retrying is a bet that the price comes back — and while it does not, Mayarin holds the payer's asset against an obligation it cannot discharge. That payment needs operator attention, not another call.
+
+## Codes the SDK adds
+
+`@mayarin/sdk` maps every failure onto the same `MayarinApiError`, including two that never come from the API:
+
+| Code               | `status` | Retryable | Means                                                     |
+| ------------------ | -------- | --------- | ---------------------------------------------------------- |
+| `NETWORK_ERROR`    | `0`      | **yes**   | The request never reached the API — DNS, refused, aborted. |
+| `INVALID_RESPONSE` | actual   | no        | A response arrived, and its body was not the JSON the contract promises. |
+
+Webhook verification is separate and throws `MayarinWebhookError` with `INVALID_SIGNATURE`, `STALE_TIMESTAMP`, or `INVALID_PAYLOAD` — see [webhook helpers](/sdk/typescript/webhooks).
+
+## Details payloads
+
+`VALIDATION_ERROR` names each failing field:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request failed validation",
+    "retryable": false,
+    "details": {
+      "issues": [{ "path": "amount.asset", "message": "Invalid enum value" }]
+    }
+  }
+}
+```
+
+`RATE_LIMIT_EXCEEDED` carries `details.retryAfterSeconds`, matching the `Retry-After` header. Every `/v1` response also carries `RateLimit-Limit`, `RateLimit-Remaining`, and `RateLimit-Reset`, so a client can slow down before it is refused.
+
+Other codes carry `details` only where the domain has something specific to add; treat it as diagnostic, never as a field to branch on. Branch on `code`.
+
+## Retrying
+
+```ts
+import { isMayarinApiError } from "@mayarin/sdk";
+
+async function withRetry<T>(call: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await call();
+    } catch (error) {
+      if (!isMayarinApiError(error) || !error.retryable || attempt === attempts) throw error;
+      const backoffMs = 2 ** attempt * 100 + Math.random() * 100;
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+    }
+  }
+}
+```
+
+Three rules make retrying safe:
+
+- **Only when `retryable` is true.** A `409 CONFLICT` or `400 VALIDATION_ERROR` will fail identically forever.
+- **Bounded, with jitter.** Exponential backoff, a cap on attempts, and randomness so a fleet of clients does not retry in lockstep.
+- **Same idempotency key.** The SDK generates one per call, so pass your own for a write you intend to retry across processes — otherwise the retry is a new request and can create a second link, invoice, or intent.
+
+```ts
+await withRetry(() =>
+  mayarin.commerce.paymentLinks.create(body, { idempotencyKey: `order-${orderId}` }),
+);
+```
+
+Honour `Retry-After` on a 429 rather than your own backoff — it is the server telling you exactly how long the block lasts.
+
+## Failures that are not errors
+
+A payment that ends in `FAILED` is a successful API call: the request worked, the payment did not. Read `paymentIntent.failureReason` rather than catching anything. Likewise an expired intent reports `EXPIRED` on read — only *acting* on it (confirming, checking out) raises `INVALID_STATE_TRANSITION`.

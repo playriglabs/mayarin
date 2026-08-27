@@ -10,15 +10,16 @@ curl https://api.mayarin.xyz/v1/payment-intents \
   --request POST \
   --header 'Authorization: Bearer sk_...' \
   --header 'Content-Type: application/json' \
+  --header 'Mayarin-Version: 2026-08-11' \
   --header 'Idempotency-Key: order-4711' \
   --data '{
     "merchant": {
       "id": "merchant_123",
-      "name": "Warung Kopi",
-      "city": "Jakarta",
-      "countryCode": "ID"
+      "name": "Bukit Bakery",
+      "city": "Kuala Lumpur",
+      "countryCode": "MY"
     },
-    "amount": { "amount": "50000.00", "asset": "IDR" }
+    "amount": { "amount": "45.00", "asset": "MYR" }
   }'
 ```
 

@@ -3,12 +3,152 @@ title: Payments module
 description: Create intents, confirm them, inspect status, and obtain contract call data.
 ---
 
-The `payment` module exposes:
+`mayarin.payment` is the low-level payment surface: one intent, priced in the merchant's currency, paid on a crypto rail. [Commerce](/sdk/typescript/commerce) sits above it — a cart, link, or invoice checkout returns the same `PaymentIntentDto` this module creates.
 
-- `createIntent(body, options?)`;
-- `getIntent(id, options?)`;
-- `confirmIntent(id, options?)`;
-- `get(id, options?)`;
-- `getContractCall(id, options?)`.
+| Method                          | Returns             | Use it for                                            |
+| ------------------------------- | ------------------- | ----------------------------------------------------- |
+| `createIntent(body, options?)`  | `PaymentIntentDto`  | Price a charge and choose the payer's rail.           |
+| `getIntent(id, options?)`       | `PaymentIntentDto`  | Read intent status and its resolved execution path.   |
+| `confirmIntent(id, options?)`   | `PaymentDto`        | Lock the price and start clearing.                    |
+| `get(id, options?)`             | `PaymentDto`        | Full view: intent, clearing, deposit, timeline.       |
+| `getContractCall(id, options?)` | `ContractCallDto`   | Fetch fresh calldata for a wallet to submit.          |
 
-`get` accepts a payment intent ID or clearing transaction ID. `getContractCall` applies only to an on-chain-contract payment waiting for payer submission; route calldata is fetched fresh because it expires faster than the locked price.
+`get` accepts a payment intent ID or a clearing transaction ID.
+
+## Create an intent
+
+An intent needs who is being paid and how much: either merchant details plus an amount, or a scanned EMVCo/QRIS payload that carries both. The `payment` field names the rail the payer intends to use.
+
+```ts
+const intent = await mayarin.payment.createIntent({
+  merchant: {
+    id: "merchant_123",
+    name: "Northwind Coffee",
+    city: "Singapore",
+    countryCode: "SG",
+  },
+  amount: { amount: "18.50", asset: "SGD" },
+  payment: { asset: "USDC", chain: "base" },
+  settlementAsset: "USDC",
+  merchantReference: "order-4711",
+  metadata: { channel: "kiosk" },
+  ttlSeconds: 900,
+});
+
+intent.id; // "pi_01KZ…"
+intent.status; // "CREATED"
+intent.executionPath; // "on-chain-contract" | "deposit-match" | null
+```
+
+| Field               | Meaning                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| `merchant`          | Snapshot of who is paid — id, name, city, two-letter `countryCode`, optional `categoryCode`.              |
+| `qr`                | Raw EMVCo/QRIS payload, as an alternative to `merchant`. One of the two is required.                       |
+| `amount`            | Decimal string plus asset: `{ amount: "18.50", asset: "SGD" }`. Never a float.                             |
+| `payment`           | The payer's rail: `asset`, `chain` (`base` or `base-sepolia`), and `payerAddress` for the contract path.   |
+| `settlementAsset`   | What the merchant receives. Falls back to the deployment default.                                          |
+| `executionPath`     | `on-chain-contract` or `deposit-match`. Omitted, the deployment default applies.                           |
+| `merchantReference` | Your own order id. Stored, indexed, echoed back, never interpreted.                                        |
+| `metadata`          | Free-form string map, carried through to webhooks.                                                         |
+| `ttlSeconds`        | How long the intent stays payable before it expires.                                                       |
+
+Pass `merchantReference` whenever you have one — it is what lets a webhook or a reconciliation query find your order without a lookup table.
+
+## Confirm and pay
+
+Confirming locks the price and starts clearing. What the payer does next depends on the execution path, and the intent tells you which one resolved — a requested path is not always the one that applies. See [execution paths](/concepts/execution-paths).
+
+```ts
+const payment = await mayarin.payment.confirmIntent(intent.id);
+
+payment.paymentIntent.status; // "CONFIRMED" | "PROCESSING" | …
+payment.deposit; // set on the deposit-match path
+payment.clearing; // clearing transaction once one exists
+payment.timeline; // ordered clearing events
+```
+
+### Deposit match
+
+The payer sends a plain transfer to a per-intent address; the watcher matches it. `payment.deposit` carries everything a payer-facing screen needs:
+
+```ts
+const deposit = payment.deposit;
+if (deposit !== null) {
+  deposit.address; // per-intent deposit address
+  deposit.amount.display; // what to send
+  deposit.uri; // EIP-681 URI to render as a QR, or null
+  deposit.received.amount; // confirmed so far, in minor units
+  deposit.required; // confirmations needed
+}
+```
+
+Poll `payment.get(intent.id)` — or wait for a [webhook](/sdk/typescript/webhooks) — until the intent reaches `COMPLETED`. The hosted checkout renders all of this for you; build the screen yourself only when you are replacing that page.
+
+### On-chain contract
+
+The payer's wallet submits the payment to `PaymentRouter`. Fetch the calldata immediately before submission: the signed order and the swap route expire faster than the locked price, so calldata cached from a page load is likely stale.
+
+```ts
+const call = await mayarin.payment.getContractCall(intent.id);
+
+call.paymentRouter; // contract address
+call.order; // intentId, settlementToken, minOut, fee, merchantSafe, refundTo, deadline
+call.signature; // the operator's EIP-712 signature over the order
+call.transaction; // ready payEth call { to, data, value } — native payers only
+call.payerEstimate; // what the payer is expected to send
+call.expiresAt; // refetch after this
+```
+
+A native-asset payer can send `call.transaction` as-is. An ERC-20 payer assembles `payERC20` client-side, because only their wallet can sign the Permit2 authorisation. `minOut` is the merchant's protection: the contract reverts rather than settling less.
+
+## Status and reconciliation
+
+`PaymentIntentDto.status` is one of `CREATED`, `CONFIRMED`, `PROCESSING`, `COMPLETED`, `FAILED`, `EXPIRED`. The clearing state machine underneath is finer-grained and visible in `payment.timeline` — see [payment lifecycle](/concepts/payment-lifecycle).
+
+```ts
+const payment = await mayarin.payment.get(paymentIntentId);
+const intent = payment.paymentIntent;
+
+if (intent.status === "COMPLETED") {
+  fulfil(intent.merchantReference ?? intent.id);
+} else if (intent.status === "FAILED") {
+  console.error(intent.failureReason);
+}
+```
+
+Treat a webhook as a signal and this call as the truth — the demo storefront ([`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) verifies the delivery, then re-reads the intent before marking an order paid:
+
+```ts
+const event = parseWebhookEvent(rawBody);
+if (event.state === "SUCCESS") {
+  const intent = await mayarin.payment.getIntent(event.paymentIntentId);
+  if (intent.status === "COMPLETED" && intent.merchant.id === merchantId) {
+    markPaid(event.paymentIntentId);
+  }
+}
+```
+
+Checking `merchant.id` matters: an intent id is not a capability, and a merchant should only ever fulfil its own orders.
+
+The demo's success page polls the same way: the browser calls its own `/api/payment-status/:id` ([`PaymentSuccess.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/PaymentSuccess.tsx)), and the server answers from `payment.getIntent` ([`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) — so the page learns the outcome without ever holding a key.
+
+## Expiry
+
+An intent stops being payable at `expiresAt`, and reads after that point report `EXPIRED` rather than a stale `CREATED`. Nothing is owed on an expired intent — create a fresh one for a payer who comes back later.
+
+## Errors
+
+Every failure is a [`MayarinApiError`](/errors) with a stable `code`, HTTP `status`, and a `retryable` flag:
+
+```ts
+import { isMayarinApiError } from "@mayarin/sdk";
+
+try {
+  await mayarin.payment.confirmIntent(intent.id);
+} catch (error) {
+  if (isMayarinApiError(error) && error.retryable) {
+    // Retry with bounded backoff, reusing the same idempotency key.
+  }
+  throw error;
+}
+```
