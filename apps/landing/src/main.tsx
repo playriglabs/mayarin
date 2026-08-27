@@ -1,21 +1,12 @@
-import { render } from "preact";
-import { App } from "./app.tsx";
-import { BrandKit } from "./pages/brand-kit.tsx";
-import { NotFound } from "./pages/not-found.tsx";
-import { PitchDeck } from "./pages/pitch-deck/index.tsx";
+import { hydrate, render } from "preact";
+import { routeFor } from "./routes.tsx";
 
 const root = document.getElementById("app");
+const page = routeFor(window.location.pathname).page();
 
-const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
-const page =
-  pathname === "/" ? (
-    <App />
-  ) : pathname === "/brand-kit" ? (
-    <BrandKit />
-  ) : pathname === "/pitch-deck" ? (
-    <PitchDeck />
-  ) : (
-    <NotFound />
-  );
-
-if (root) render(page, root);
+// The build ships this page already rendered, so the browser adopts that markup
+// instead of throwing it away and painting the same thing again.
+if (root) {
+  if (root.firstChild) hydrate(page, root);
+  else render(page, root);
+}

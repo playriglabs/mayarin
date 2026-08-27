@@ -1,14 +1,6 @@
-import { useEffect } from "preact/hooks";
 import { GridField } from "../graphics/grid-field.tsx";
 
 export function NotFound() {
-  useEffect(() => {
-    document.title = "Page not found — Mayarin";
-    document
-      .querySelector('meta[name="description"]')
-      ?.setAttribute("content", "The Mayarin page you requested could not be found.");
-  }, []);
-
   return (
     <main class="relative flex h-screen items-center overflow-hidden bg-paper text-ink">
       <GridField tone="light" />

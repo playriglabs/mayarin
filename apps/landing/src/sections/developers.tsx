@@ -4,6 +4,7 @@ import { useState } from "preact/hooks";
 import { CodeBlock } from "../components/code-block.tsx";
 import { Reveal } from "../components/reveal.tsx";
 import { ArrowRight, Button, Label, Lede, Section } from "../components/ui.tsx";
+import { HoverGrid } from "../graphics/hover-grid.tsx";
 
 const PROMISES = [
   {
@@ -26,7 +27,7 @@ export function Developers() {
   if (!snippet) return null;
 
   return (
-    <Section id="developers" tone="dark">
+    <Section id="developers" tone="dark" backdrop={<HoverGrid tone="dark" />}>
       <Reveal>
         <Label tone="dark">Developer experience</Label>
       </Reveal>

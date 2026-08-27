@@ -116,3 +116,86 @@ export const glyphs = {
 } as const;
 
 export type GlyphName = keyof typeof glyphs;
+
+/**
+ * Marks for the principles list. Heavier and squarer than the small line
+ * glyphs above: at 36px beside a serif heading, a hairline squiggle reads as
+ * lint, and the page's motif is a pixel square — the hero packets, the
+ * topology endpoints and the clearing node are all squares.
+ */
+function PrincipleGlyph({ children, ...rest }: GlyphProps) {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      width="32"
+      height="32"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.6"
+      stroke-linecap="square"
+      stroke-linejoin="miter"
+      aria-hidden="true"
+      {...rest}
+    >
+      {children}
+    </svg>
+  );
+}
+
+export const principleGlyphs = {
+  /** Many rails in, one intent out: the caller never names the rail. */
+  abstractRail: (
+    <PrincipleGlyph>
+      <path d="M2 8h9M2 16h9M2 24h9" />
+      <rect x="11" y="11" width="10" height="10" />
+      <rect x="14" y="14" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+      <path d="M21 16h9" />
+    </PrincipleGlyph>
+  ),
+  /** One port, two providers behind it — one wired, one swappable. */
+  providerAgnostic: (
+    <PrincipleGlyph>
+      <rect x="2" y="11" width="10" height="10" />
+      {/* One port, forking to both providers — neither is wired in by name. */}
+      <path d="M12 16h4M16 8v16M16 8h2M16 24h2" />
+      <rect x="18" y="3" width="11" height="10" stroke-dasharray="2 2.5" />
+      <rect x="18" y="19" width="11" height="10" />
+      <rect x="21" y="22" width="5" height="4" fill="var(--color-accent)" stroke="none" />
+    </PrincipleGlyph>
+  ),
+  /** A gate you program: the condition picks the branch, in code. */
+  programmable: (
+    <PrincipleGlyph>
+      <path d="M2 16h7" />
+      <rect x="9" y="11" width="10" height="10" />
+      {/* The condition resolves and exactly one branch is taken. */}
+      <path d="M19 16h4M23 16V8h4" />
+      <path d="M23 16v8h4" stroke-dasharray="2 2.5" />
+      <rect x="27" y="6" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+      <rect x="27" y="22" width="4" height="4" stroke-dasharray="2 2.5" />
+    </PrincipleGlyph>
+  ),
+  /** Two sides of one book: every posting lands on both, or on neither. */
+  oneLedger: (
+    <PrincipleGlyph>
+      <path d="M16 3v26" />
+      <rect x="4" y="8" width="8" height="6" />
+      <rect x="4" y="19" width="8" height="6" />
+      <rect x="20" y="8" width="8" height="6" />
+      <rect x="20" y="19" width="8" height="6" />
+      <rect x="14" y="14" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+    </PrincipleGlyph>
+  ),
+  /** Four pieces that stand alone and still snap together. */
+  compose: (
+    <PrincipleGlyph>
+      <rect x="3" y="3" width="9" height="9" />
+      <rect x="20" y="3" width="9" height="9" />
+      <rect x="3" y="20" width="9" height="9" />
+      <rect x="20" y="20" width="9" height="9" fill="var(--color-accent)" stroke="none" />
+      <path d="M12 7.5h8M12 24.5h8M7.5 12v8M24.5 12v8" />
+    </PrincipleGlyph>
+  ),
+} as const;
+
+export type PrincipleGlyphName = keyof typeof principleGlyphs;

@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Prerender's throwaway SSR bundle; the build removes it, a failed build may not.
+dist-ssr/
 build/
 coverage/
 

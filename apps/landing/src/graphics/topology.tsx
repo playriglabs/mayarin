@@ -28,6 +28,13 @@ const inboundY = [140, 280, 420];
 const outboundY = [140, 280, 420];
 
 /**
+ * One lane clock, shared by both halves. A pulse takes a whole cycle to cross,
+ * so an outbound lane on the same delay as an inbound one leaves the node at
+ * the exact moment the inbound arrives.
+ */
+const laneDelay = (index: number) => `--flow-delay:${(index * 0.7).toFixed(1)}s`;
+
+/**
  * Wide routing topology: many sources of value collapse into a single clearing
  * node, then fan back out to the rails a merchant actually gets paid on.
  */
@@ -51,7 +58,7 @@ function TopologyWide() {
             stroke="var(--color-accent)"
             stroke-width="1.5"
             class="flow-line"
-            style={`--flow-delay:${index * 0.9}s`}
+            style={laneDelay(index)}
           />
         </g>
       ))}
@@ -66,14 +73,22 @@ function TopologyWide() {
             stroke="var(--color-accent)"
             stroke-width="1.5"
             class="flow-line"
-            style={`--flow-delay:${1.6 + index * 0.7}s`}
+            style={laneDelay(index)}
           />
         </g>
       ))}
 
       {inboundY.map((y, index) => (
         <g key={y}>
-          <circle cx="104" cy={y} r="4" fill="var(--color-ink)" />
+          <rect
+            class="route-pulse"
+            style={laneDelay(index)}
+            x="100"
+            y={y - 4}
+            width="8"
+            height="8"
+            fill="var(--color-ink)"
+          />
           <text
             x="104"
             y={y - 22}
@@ -89,7 +104,15 @@ function TopologyWide() {
 
       {outboundY.map((y, index) => (
         <g key={y}>
-          <rect x="1092" y={y - 4} width="8" height="8" fill="var(--color-ink)" />
+          <rect
+            class="route-pulse"
+            style={laneDelay(index)}
+            x="1092"
+            y={y - 4}
+            width="8"
+            height="8"
+            fill="var(--color-ink)"
+          />
           <text
             x="1096"
             y={y - 34}
@@ -117,16 +140,34 @@ function TopologyWide() {
       ))}
 
       {/* Clearing node */}
-      <circle
-        cx="600"
-        cy="280"
-        r="26"
+      <rect
+        class="node-ring"
+        x="574"
+        y="254"
+        width="52"
+        height="52"
         fill="none"
         stroke="var(--color-line)"
         stroke-dasharray="2 5"
       />
-      <circle cx="600" cy="280" r="11" fill="var(--color-paper)" stroke="var(--color-ink)" />
-      <circle cx="600" cy="280" r="4" fill="var(--color-accent)" class="flow-dot" />
+      <rect
+        class="node-ripple"
+        x="574"
+        y="254"
+        width="52"
+        height="52"
+        fill="none"
+        stroke="var(--color-accent)"
+      />
+      <rect
+        x="589"
+        y="269"
+        width="22"
+        height="22"
+        fill="var(--color-paper)"
+        stroke="var(--color-ink)"
+      />
+      <rect class="flow-dot" x="596" y="276" width="8" height="8" fill="var(--color-accent)" />
       <text
         x="600"
         y="222"
@@ -138,7 +179,15 @@ function TopologyWide() {
       >
         CLEARING
       </text>
-      <line x1="600" y1="326" x2="600" y2="352" stroke="var(--color-line)" stroke-dasharray="2 4" />
+      <line
+        class="iso-flow"
+        x1="600"
+        y1="326"
+        x2="600"
+        y2="352"
+        stroke="var(--color-line)"
+        stroke-dasharray="2 4"
+      />
       <text
         x="600"
         y="372"
@@ -189,14 +238,22 @@ function TopologyCompact() {
             stroke="var(--color-accent)"
             stroke-width="1.5"
             class="flow-line"
-            style={`--flow-delay:${index * 0.8}s`}
+            style={laneDelay(index % 3)}
           />
         </g>
       ))}
 
       {[60, 170, 280].map((x, index) => (
         <g key={x}>
-          <circle cx={x} cy="96" r="3.5" fill="var(--color-ink)" />
+          <rect
+            class="route-pulse"
+            style={laneDelay(index)}
+            x={x - 3.5}
+            y="92.5"
+            width="7"
+            height="7"
+            fill="var(--color-ink)"
+          />
           <text
             x={x}
             y="74"
@@ -213,7 +270,15 @@ function TopologyCompact() {
 
       {[60, 170, 280].map((x, index) => (
         <g key={x}>
-          <rect x={x - 3.5} y="352" width="7" height="7" fill="var(--color-ink)" />
+          <rect
+            class="route-pulse"
+            style={laneDelay(index)}
+            x={x - 3.5}
+            y="352"
+            width="7"
+            height="7"
+            fill="var(--color-ink)"
+          />
           <text
             x={x}
             y="380"
@@ -228,16 +293,34 @@ function TopologyCompact() {
         </g>
       ))}
 
-      <circle
-        cx="170"
-        cy="220"
-        r="22"
+      <rect
+        class="node-ring"
+        x="148"
+        y="198"
+        width="44"
+        height="44"
         fill="none"
         stroke="var(--color-line)"
         stroke-dasharray="2 5"
       />
-      <circle cx="170" cy="220" r="10" fill="var(--color-paper)" stroke="var(--color-ink)" />
-      <circle cx="170" cy="220" r="3.5" fill="var(--color-accent)" class="flow-dot" />
+      <rect
+        class="node-ripple"
+        x="148"
+        y="198"
+        width="44"
+        height="44"
+        fill="none"
+        stroke="var(--color-accent)"
+      />
+      <rect
+        x="160"
+        y="210"
+        width="20"
+        height="20"
+        fill="var(--color-paper)"
+        stroke="var(--color-ink)"
+      />
+      <rect class="flow-dot" x="166.5" y="216.5" width="7" height="7" fill="var(--color-accent)" />
       <text
         x="170"
         y="180"

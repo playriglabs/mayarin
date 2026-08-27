@@ -110,18 +110,13 @@ export function PitchDeck() {
     if (focus) target.focus({ preventScroll: true });
   }, []);
 
-  // Document metadata and the root class that turns the page into a deck.
+  // The root class that turns the page into a deck.
   useEffect(() => {
     const root = document.documentElement;
+    // Title and robots ship in the prerendered HTML; only the deck class is
+    // a runtime concern.
     root.classList.add("deck");
-    document.title = "Mayarin — Pitch";
-    const robots = document.querySelector('meta[name="robots"]');
-    const previousRobots = robots?.getAttribute("content") ?? null;
-    robots?.setAttribute("content", "noindex, nofollow");
-    return () => {
-      root.classList.remove("deck");
-      if (robots && previousRobots !== null) robots.setAttribute("content", previousRobots);
-    };
+    return () => root.classList.remove("deck");
   }, []);
 
   const toggleFullscreen = useCallback(() => {

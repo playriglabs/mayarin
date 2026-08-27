@@ -7,11 +7,14 @@ export function Section({
   id,
   tone = "light",
   class: className = "",
+  backdrop,
   children,
 }: {
   id?: string;
   tone?: Tone;
   class?: string;
+  /** Full-bleed graphic behind the section, outside the shell's padding. */
+  backdrop?: ComponentChildren;
   children: ComponentChildren;
 }) {
   const toned =
@@ -20,8 +23,9 @@ export function Section({
       : "bg-paper text-ink [--hairline:var(--color-line)]";
 
   return (
-    <section id={id} class={clsx("relative", toned, className)}>
-      <div class="shell py-20 md:py-24 lg:py-28">{children}</div>
+    <section id={id} class={clsx("relative overflow-hidden", toned, className)}>
+      {backdrop}
+      <div class="relative shell py-20 md:py-24 lg:py-28">{children}</div>
     </section>
   );
 }

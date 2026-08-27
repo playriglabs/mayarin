@@ -232,7 +232,8 @@ export function HowItWorks() {
         >
           <article class="flex h-full flex-col border border-line-inverse">
             <div class="relative aspect-16/10 overflow-hidden border-b border-line-inverse bg-plate/30">
-              <div key={`${stage.index}:scene`} class="stage-enter h-full w-full">
+              {/* The scene stages its own parts in; a wrapper slide on top of that reads as two moves. */}
+              <div key={`${stage.index}:scene`} class="h-full w-full">
                 {stageScenes[stage.index]?.()}
               </div>
               <span class="label absolute top-5 left-5 text-white/55">

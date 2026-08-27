@@ -88,6 +88,13 @@
       }
     </script>
 
+    <script>
+      // Entrance animations start hidden. Marking the document before first
+      // paint keeps that behaviour for real browsers while leaving the
+      // prerendered markup visible to anything that does not run scripts.
+      document.documentElement.classList.add("js");
+    </script>
+
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>

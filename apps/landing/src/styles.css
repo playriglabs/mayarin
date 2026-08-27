@@ -123,7 +123,10 @@
   mask-image: radial-gradient(120% 90% at 50% 0%, #000 10%, transparent 72%);
 }
 
-.reveal {
+/* Entrance states are driven by JS, so they only apply once JS is running.
+   The page now ships prerendered, and without this guard its whole body would
+   sit at opacity: 0 for anything that does not execute the script. */
+.js .reveal {
   opacity: 0;
   transform: translate3d(0, 12px, 0);
   transition:
@@ -132,15 +135,18 @@
   transition-delay: var(--reveal-delay, 0ms);
 }
 
-.reveal[data-in="true"] {
+.js .reveal[data-in="true"] {
   opacity: 1;
   transform: none;
 }
 
-/* A single green pulse travelling a routing path. */
+/* A single green pulse travelling a routing path. One shared 6s cycle runs the
+   whole topology: a pulse takes a full cycle to cross, so an inbound and an
+   outbound lane on the same delay hand over at the node — what arrives is what
+   leaves, instead of two conveyor belts running past each other. */
 .flow-line {
   stroke-dasharray: 14 182;
-  animation: flow 5.5s linear infinite;
+  animation: flow 6s linear infinite;
   animation-delay: var(--flow-delay, 0s);
 }
 
@@ -153,9 +159,79 @@
   }
 }
 
-.flow-dot {
-  animation: pulse 3.2s var(--ease-out-expo) infinite;
+/* An endpoint fires as its own lane departs, and again as one lands on it. */
+.route-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: route-pulse 6s linear infinite;
   animation-delay: var(--flow-delay, 0s);
+}
+
+@keyframes route-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1.55);
+  }
+  14%,
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+}
+
+/* Three handovers per cycle, on the three lane delays — the node beats when
+   value actually reaches it, not on a decorative loop of its own. */
+.flow-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: node-flash 6s linear infinite;
+}
+
+@keyframes node-flash {
+  0%,
+  11.7%,
+  23.3% {
+    opacity: 1;
+    transform: scale(1.75);
+  }
+  7%,
+  19%,
+  30%,
+  100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+}
+
+.node-ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: node-ripple 6s ease-out infinite;
+}
+
+@keyframes node-ripple {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.7);
+  }
+  45%,
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+/* The node's outer ring turns: the clearing layer is never idle. */
+.node-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: node-ring 30s linear infinite;
+}
+
+@keyframes node-ring {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse {
@@ -304,6 +380,9 @@
    accent rail draws itself under them. */
 .wordmark-letter {
   display: inline-block;
+}
+
+.js .wordmark-letter {
   transform: translate3d(0, 0.42em, 0);
   opacity: 0;
   /* The stagger belongs to the entrance alone. Left on the shorthand it also
@@ -316,7 +395,7 @@
     color 160ms ease-out;
 }
 
-.wordmark[data-in="true"] .wordmark-letter {
+.js .wordmark[data-in="true"] .wordmark-letter {
   transform: none;
   opacity: 1;
 }
@@ -330,7 +409,7 @@
   }
 }
 
-.wordmark[data-in="true"] .wordmark-rail {
+.js .wordmark[data-in="true"] .wordmark-rail {
   transform: scaleX(1);
 }
 
@@ -390,15 +469,82 @@
   animation: stage-enter 520ms var(--ease-out-expo) both;
 }
 
-/* The accent path of a stage diagram draws itself in behind the copy. */
-.stage-draw {
-  stroke-dashoffset: 100;
-  animation: stage-draw 900ms var(--ease-out-expo) 180ms forwards;
+/* Isometric scenes are drawn, not photographed: they keep breathing. Parts
+   float on their own clocks, dashed guides flow, and an accent packet runs the
+   path the stage is about instead of drawing itself once and stopping. */
+.iso-in {
+  animation: iso-in 560ms var(--ease-out-expo) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
 }
 
-@keyframes stage-draw {
+@keyframes iso-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
   to {
-    stroke-dashoffset: 0;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.iso-float {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: iso-float 6s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i, 0) * -900ms);
+}
+
+@keyframes iso-float {
+  from {
+    transform: translate3d(0, 2.5px, 0);
+  }
+  to {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+.iso-flow {
+  animation: iso-flow 2.6s linear infinite;
+}
+
+@keyframes iso-flow {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+.iso-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: iso-pulse 2.8s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -700ms);
+}
+
+@keyframes iso-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.3);
+  }
+}
+
+/* A short dash running the whole length: the value moving, not the line
+   appearing. Pairs with pathLength=100 and stroke-dasharray="8 92". */
+.iso-travel {
+  animation: iso-travel 3.4s linear infinite;
+}
+
+@keyframes iso-travel {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: -8;
   }
 }
 
@@ -424,10 +570,17 @@
 
   .flow-line,
   .flow-dot,
+  .route-pulse,
+  .node-ripple,
+  .node-ring,
   .marquee,
   .stage-fill,
   .stage-enter,
-  .stage-draw {
+  .iso-in,
+  .iso-float,
+  .iso-flow,
+  .iso-pulse,
+  .iso-travel {
     animation: none;
   }
 
@@ -442,8 +595,8 @@
     transition: none;
   }
 
-  .stage-draw {
-    stroke-dashoffset: 0;
+  .iso-travel {
+    stroke-dasharray: none;
   }
 
   .flow-line {
@@ -518,7 +671,9 @@
    `data-shown` straight to true. */
 .deck-slide[data-shown="false"][data-reveal-headline] [data-headline],
 .deck-slide[data-shown="false"][data-reveal-visual="fade"] [data-visual],
-.deck-slide[data-shown="false"][data-reveal-visual="stagger"] [data-visual] [data-reveal] {
+.deck-slide[data-shown="false"][data-reveal-visual="stagger"]
+  [data-visual]
+  [data-reveal] {
   opacity: 0;
 }
 

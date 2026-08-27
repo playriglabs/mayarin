@@ -1,12 +1,12 @@
 import { PoweredBy } from "../components/powered-by.tsx";
 import { Reveal } from "../components/reveal.tsx";
 import { ArrowRight } from "../components/ui.tsx";
-import { WaveGrid } from "../graphics/wave-grid.tsx";
+import { HoverGrid } from "../graphics/hover-grid.tsx";
 
 export function Hero() {
   return (
     <section id="top" class="relative overflow-hidden bg-paper pt-28 pb-0 md:pt-36">
-      <WaveGrid />
+      <HoverGrid />
 
       <div class="shell relative flex flex-col items-center text-center">
         <Reveal>

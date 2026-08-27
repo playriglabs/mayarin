@@ -81,7 +81,7 @@ export function EarlyAccess() {
               <button
                 type="submit"
                 disabled={submitting}
-                class="btn-fill [--btn-fill:var(--color-accent)] inline-flex h-13 cursor-pointer items-center justify-center gap-2 bg-ink px-6 text-sm text-white hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 font-semibold"
+                class="btn-fill [--btn-fill:var(--color-forest)] inline-flex h-13 cursor-pointer items-center justify-center gap-2 bg-ink px-6 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60 font-semibold"
               >
                 {submitting ? "Joining…" : "Request access"}
                 {!submitting && <ArrowRight />}
