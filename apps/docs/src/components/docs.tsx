@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { APIReference } from "./api-reference";
 import { MethodItem } from "./method-badge";
 import SearchDialog from "./search.tsx";
+import { PersistentFolder } from "./sidebar-folder";
 import { ThemeSwitchWithHash } from "./theme-switch";
 
 const BRAND_KIT_BASE_URL = "https://mayarin.xyz/brand-kit";
@@ -57,7 +58,10 @@ export function Docs({
       <DocsLayout
         tree={tree}
         nav={{ title: <Brand />, url: "/" }}
-        sidebar={{ defaultOpenLevel: 1, components: { Item: MethodItem } }}
+        sidebar={{
+          defaultOpenLevel: 1,
+          components: { Item: MethodItem, Folder: PersistentFolder },
+        }}
         slots={{
           // Park the last commit hash inside the bottom box, next to the
           // light/dark toggle (the default theme switch slot).

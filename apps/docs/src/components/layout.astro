@@ -1,5 +1,9 @@
+---
+import { ClientRouter } from "astro:transitions";
+---
+
 <!doctype html>
-<html lang="en" class="bg-paper text-ink">
+<html lang="en" class="bg-fd-background text-fd-foreground">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -21,6 +25,56 @@
     <meta property="og:locale" content="en_US" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@mayarinxyz" />
+    <!-- next-themes lives inside the fumadocs island, so it can only stamp the
+         `dark` class once React hydrates, and a swap resets <html class> to the
+         server value. Both paint one light frame first. Apply the theme here
+         instead: blocking, in <head>, and again on every swap before paint.
+         The root element carries `bg-fd-background` for the same reason — a
+         fixed light background bleeds through any repaint in dark mode. -->
+    <script is:inline>
+      (() => {
+        const applyTheme = () => {
+          let stored = null;
+          try {
+            stored = localStorage.getItem("theme");
+          } catch {
+            // Storage blocked: fall back to the OS preference.
+          }
+          const dark =
+            stored === "dark" ||
+            ((stored === null || stored === "system") &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        };
+
+        applyTheme();
+        document.addEventListener("astro:after-swap", applyTheme);
+      })();
+    </script>
+    <!-- Client-side navigation: swap the page in place so the sidebar, its
+         scroll position and the theme never flash through a full reload. -->
+    <ClientRouter />
+    <script>
+      import "../scripts/code-copy.ts";
+
+      // The sidebar is re-rendered from the swapped-in HTML, so its scroll box
+      // starts at the top. Carry the offset across the swap.
+      const KEY = "mayarin-docs-sidebar-scroll";
+      const viewport = () =>
+        document.querySelector("#nd-sidebar [data-radix-scroll-area-viewport]");
+
+      document.addEventListener("astro:before-swap", () => {
+        const element = viewport();
+        if (element !== null) sessionStorage.setItem(KEY, String(element.scrollTop));
+      });
+
+      document.addEventListener("astro:after-swap", () => {
+        const element = viewport();
+        const top = Number(sessionStorage.getItem(KEY) ?? "0");
+        if (element !== null && top > 0) element.scrollTop = top;
+      });
+    </script>
   </head>
   <body class="flex min-h-screen flex-col">
     <slot />

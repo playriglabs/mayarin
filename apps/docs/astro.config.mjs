@@ -73,6 +73,9 @@ const remarkPlugins = [
 export default defineConfig({
   site: "https://docs.mayarin.xyz",
   output: "server",
+  // Sidebar links are swapped in place by <ClientRouter />; prefetching the
+  // hovered target makes that swap land without a visible wait.
+  prefetch: { prefetchAll: true, defaultStrategy: "hover" },
   adapter: node({ mode: "standalone" }),
   publicDir: fileURLToPath(new URL("../landing/public", import.meta.url)),
   markdown: {

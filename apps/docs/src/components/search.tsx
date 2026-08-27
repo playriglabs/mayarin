@@ -26,7 +26,10 @@ export default function MayarinSearchDialog(props: SharedProps) {
       <SearchDialogContent>
         <SearchDialogHeader>
           <SearchDialogIcon />
-          <SearchDialogInput placeholder="Search Mayarin documentation" />
+          {/* The id is the hook global.css uses to drop the app-wide focus
+              outline here: the dialog is already the focused surface, so a ring
+              around its input reads as an error state. */}
+          <SearchDialogInput id="docs-search-input" />
           <SearchDialogClose />
         </SearchDialogHeader>
         <SearchDialogList items={query.data !== "empty" ? query.data : null} />
