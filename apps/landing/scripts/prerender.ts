@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { prerenderAll } from "../dist-ssr/entry-server.js";
@@ -17,6 +18,19 @@ function setMeta(html: string, attribute: string, name: string, value: string): 
   // Prettier writes the content attribute before the name on some tags.
   const reversed = new RegExp(`(<meta[^>]*content=")[^"]*("[^>]*${attribute}="${name}")`, "i");
   return html.replace(reversed, `$1${escapeAttribute(value)}$2`);
+}
+
+/**
+ * The last commit date, not the build date: a rebuild that changed nothing is
+ * not a modification, and a lastmod Google learns to distrust is worse than no
+ * lastmod at all.
+ */
+function lastModified(): string {
+  try {
+    return execFileSync("git", ["log", "-1", "--format=%cs"], { encoding: "utf8" }).trim();
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
 }
 
 const template = await readFile(join(DIST, "index.html"), "utf8");
@@ -52,5 +66,25 @@ for (const page of pages) {
   await writeFile(target, html);
   console.log(`prerendered ${page.file}`);
 }
+
+// The sitemap comes from the same route table as the pages, so a route can
+// never be prerendered and left out of it. changefreq and priority are gone:
+// Google ignores both, and they were the only thing in the file that could
+// disagree with reality.
+const lastmod = lastModified();
+const indexable = pages.filter((page) => page.route.meta.canonical);
+const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${indexable
+  .map(
+    (page) =>
+      `  <url>\n    <loc>${page.route.meta.canonical}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </url>`,
+  )
+  .join("\n")}
+</urlset>
+`;
+
+await writeFile(join(DIST, "sitemap.xml"), sitemap);
+console.log(`sitemap.xml (${indexable.length} urls, lastmod ${lastmod})`);
 
 await rm(SSR_DIST, { recursive: true, force: true });
