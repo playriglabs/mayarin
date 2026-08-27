@@ -11,7 +11,10 @@ import "@/styles/global.css";
 
 const slugs = typeof Astro.params.slug === "string" ? Astro.params.slug.split("/") : [];
 const page = source.getPage(slugs);
-if (page === undefined) return Astro.redirect("/404");
+// A rewrite, not a redirect: the reader keeps the URL they asked for, the
+// response carries 404, and — crucially — `/404` itself no longer resolves
+// through this catch-all, which used to redirect it to itself forever.
+if (page === undefined) return Astro.rewrite("/404");
 
 const authoredPage = page.data.type === "docs" ? page.data : undefined;
 const apiPage = page.data.type === "api" ? page.data : undefined;

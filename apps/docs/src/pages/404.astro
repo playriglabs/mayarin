@@ -1,0 +1,49 @@
+---
+/**
+ * Not found.
+ *
+ * A static route, so it wins over `[...slug].astro` — which is what stops the
+ * catch-all from resolving `/404` as a missing page and redirecting to itself.
+ * The catch-all rewrites here rather than redirecting, so the reader keeps the
+ * URL they asked for and the response carries a real 404.
+ */
+import { Docs } from "@/components/docs";
+import Layout from "@/components/layout.astro";
+import { commitHash } from "@/lib/version";
+import { source } from "@/lib/source";
+import "@/styles/global.css";
+
+Astro.response.status = 404;
+Astro.response.statusText = "Not found";
+---
+
+<Layout>
+  <title>Page not found — Mayarin Docs</title>
+  <meta name="description" content="This documentation page does not exist." />
+  <meta name="robots" content="noindex" />
+  <Docs
+    tree={source.getPageTree()}
+    pathname={Astro.url.pathname}
+    params={Astro.params}
+    page={{ toc: [] }}
+    commitHash={commitHash}
+    client:load
+  >
+    <header class="mb-10 border-b border-fd-border pb-8">
+      <p class="font-mono text-xs uppercase tracking-[0.16em] text-fd-muted-foreground">404</p>
+      <h1 class="docs-title mt-4 text-2xl md:text-3xl">Page not found</h1>
+      <p class="mt-4 max-w-3xl text-lg leading-8 text-fd-muted-foreground">
+        Nothing lives at <code>{Astro.url.pathname}</code>. It may have moved, or the link may be
+        wrong.
+      </p>
+    </header>
+    <div class="prose flex-1">
+      <ul>
+        <li><a href="/">Docs home</a></li>
+        <li><a href="/quickstart">TypeScript quickstart</a></li>
+        <li><a href="/api-reference">API reference</a></li>
+      </ul>
+      <p>Search with <kbd>⌘</kbd> <kbd>K</kbd> if you know what you are looking for.</p>
+    </div>
+  </Docs>
+</Layout>
