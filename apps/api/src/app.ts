@@ -32,6 +32,25 @@ export function createApp(container: Container): Hono {
     throw new NotFoundError("Route not found");
   });
 
+  // Everything outside `/v1` — the health probe, the buyer-facing checkout and
+  // invoice pages, the QR, the status stream, the checkout UI's assets — is
+  // public and read-only, and something other than a top-level browser
+  // navigation does fetch it: the docs playground calls these from the docs
+  // origin, and a merchant page may embed the QR. Without CORS headers those
+  // reads fail the origin check, which protects nothing here — no cookie rides
+  // along and there is no key to leak.
+  //
+  // Registered as a guard rather than per-mount so a route added at the root
+  // later is covered by default. `/v1` is excluded because it runs its own,
+  // wider CORS below; letting this one answer a `/v1` preflight would advertise
+  // GET/OPTIONS only and break every write from a browser.
+  const publicCors = cors({
+    origin: "*",
+    allowHeaders: ["Content-Type"],
+    allowMethods: ["GET", "OPTIONS"],
+  });
+  app.use("*", (c, next) => (c.req.path.startsWith("/v1") ? next() : publicCors(c, next)));
+
   app.route("/", healthRoutes(container));
 
   // The developer/merchant API lives under `/v1` (#138). The path is the
@@ -83,23 +102,7 @@ export function createApp(container: Container): Hono {
   // Buyer-facing pages stay unversioned forever: a printed QR and a shared
   // link encode these paths, so a `/v2` must never move them (#138). The pages
   // are the checkout UI SPA (#151); its hashed assets mount here, matching the
-  // bundle's Vite `base`.
-  //
-  // They are read-only and public — a QR, an HTML page, a status stream — and
-  // something other than a top-level browser navigation does fetch them: the
-  // docs playground calls them from the docs origin, and a merchant page may
-  // embed the QR. Without CORS headers those reads fail on the origin check
-  // alone, which protects nothing here: there is no cookie to ride along and
-  // no key to leak.
-  const buyerPageCors = cors({
-    origin: "*",
-    allowHeaders: ["Content-Type"],
-    allowMethods: ["GET", "OPTIONS"],
-  });
-  app.use("/checkout-ui/*", buyerPageCors);
-  app.use("/invoices/*", buyerPageCors);
-  app.use("/checkout/*", buyerPageCors);
-
+  // bundle's Vite `base`. They are covered by the public CORS guard above.
   app.route("/checkout-ui", checkoutUiRoutes(container));
   app.route("/invoices", invoicePageRoutes(container));
   app.route("/checkout", checkoutPageRoutes(container));

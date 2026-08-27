@@ -289,7 +289,16 @@ describe("CORS on /v1 (#113)", () => {
   });
 });
 
-describe("CORS on the unversioned buyer pages", () => {
+describe("CORS on the unversioned routes", () => {
+  test("a cross-origin read of the health probe is admitted", async () => {
+    const harness = createApiHarness();
+    const response = await harness.app.request("/health", {
+      headers: { Origin: "https://docs.mayarin.xyz" },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+  });
+
   test("a cross-origin read of the checkout QR is admitted", async () => {
     const harness = createApiHarness();
     const response = await harness.app.request("/checkout/qr?value=mayarin", {
@@ -310,5 +319,17 @@ describe("CORS on the unversioned buyer pages", () => {
     });
     expect(response.status).toBe(204);
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
+  });
+
+  test("the /v1 preflight still advertises writes, not the read-only set", async () => {
+    const harness = createApiHarness();
+    const response = await harness.app.request("/v1/quotes", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://toko.example.com",
+        "Access-Control-Request-Method": "POST",
+      },
+    });
+    expect(response.headers.get("access-control-allow-methods")).toContain("POST");
   });
 });
