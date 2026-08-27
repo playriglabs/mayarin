@@ -3,6 +3,204 @@ title: Commerce module
 description: Manage products, carts, payment links, and invoices.
 ---
 
-The trusted server module exposes products, cart checkout, payment links, and invoices. The browser entry point deliberately exposes only product reads and cart checkout.
+`mayarin.commerce` groups four surfaces. Each checkout — cart, link, or invoice — returns the same `PaymentIntentDto` the [payments module](/sdk/typescript/payments) works with.
 
-Use payment links for hosted checkout. Use invoices when buyer identity, numbering, issue state, and a due date are part of the business record.
+| Group          | Methods                                                        |
+| -------------- | -------------------------------------------------------------- |
+| `products`     | `create`, `list`, `get`, `update`                              |
+| `carts`        | `checkout`                                                     |
+| `paymentLinks` | `create`, `list`, `get`, `disable`, `checkout`                 |
+| `invoices`     | `create`, `list`, `get`, `update`, `issue`, `void`, `checkout` |
+
+The browser entry point exposes only `products.list`, `products.get`, and `carts.checkout` — see [browser client](/sdk/typescript/browser).
+
+## Products
+
+A product carries one price per currency the merchant sells in, and `metadata` for anything your storefront needs to render it.
+
+```ts
+const product = await mayarin.commerce.products.create({
+  merchantId: "merchant_123",
+  sku: "beans-guji-250g",
+  name: "Guji Natural 250g",
+  description: "Washed Ethiopian, roasted weekly.",
+  prices: [
+    { amount: "24.00", asset: "SGD" },
+    { amount: "18.00", asset: "USD" },
+  ],
+  metadata: { category: "beans", image: "/img/guji.jpg" },
+});
+
+const catalog = await mayarin.commerce.products.list("merchant_123");
+const one = await mayarin.commerce.products.get(product.id);
+
+await mayarin.commerce.products.update(product.id, { active: false });
+```
+
+`update` is a partial write: an absent field is left alone, and `description: null` clears it.
+
+Seeding is naturally idempotent when keyed on SKU — read the catalog first and create only what is missing, which is how [`apps/demo/seed.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/seed.ts) runs unchanged on every boot:
+
+```ts
+const existing = new Set(
+  (await mayarin.commerce.products.list(merchantId)).map((p) => p.sku),
+);
+for (const item of SEED_PRODUCTS.filter((p) => !existing.has(p.sku))) {
+  await mayarin.commerce.products.create({ merchantId, ...item });
+}
+```
+
+In the demo, product `metadata` carries the storefront's own presentation — category, colorway, image path — and the catalog read is the storefront's first call ([`Marketplace.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/Marketplace.tsx) → `GET /api/products` → `products.list`).
+
+## Carts
+
+A cart is never stored. Lines go in, one payment intent comes out, and the cart survives only as an immutable snapshot on that intent — so there is no cart to expire, sync, or reconcile.
+
+```ts
+const intent = await mayarin.commerce.carts.checkout({
+  merchant,
+  currency: "SGD",
+  lines: [
+    { productId: "prod_01…", quantity: 2 },
+    {
+      name: "Gift wrapping",
+      unitPrice: { amount: "3.00", asset: "SGD" },
+      quantity: 1,
+    },
+  ],
+  merchantReference: "order-4711",
+  payment: { asset: "USDC", chain: "base" },
+});
+```
+
+A line is either a catalog reference (`productId` + `quantity`) or an ad-hoc line a cashier typed (`name` + `unitPrice` + `quantity`). The demo builds its lines from a `localStorage` cart in [`CheckoutButton.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/CheckoutButton.tsx), then posts them to its own server. Every checkout also accepts the intent-shaping options: `settlementAsset`, `provider`, `payment`, `executionPath`, `metadata`, `merchantReference`, `ttlSeconds`.
+
+## Payment links
+
+A link is a shareable, re-payable URL — the hosted checkout owns asset choice, wallet interaction, and live status. Three kinds:
+
+| Kind      | Amount                                | Requires             |
+| --------- | ------------------------------------- | -------------------- |
+| `fixed`   | Set at creation                       | `amount`             |
+| `open`    | Typed by the payer at checkout        | `currency`           |
+| `catalog` | Summed from catalog lines at checkout | `currency` + `lines` |
+
+```ts
+const link = await mayarin.commerce.paymentLinks.create({
+  kind: "fixed",
+  merchant,
+  amount: { amount: "45.00", asset: "MYR" },
+  title: "Workshop ticket",
+  merchantReference: "ticket-221",
+  expiresAt: "2026-09-30T23:59:59.000Z",
+});
+
+link.url; // hand this to the buyer, or render it as a QR
+link.payable; // false once disabled or expired
+```
+
+Redirecting to `link.url` is what the demo does — `POST /api/checkout` returns `{ id, url }` and the browser assigns it ([`CheckoutButton.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/CheckoutButton.tsx)). Alternatively, drive checkout yourself with `paymentLinks.checkout(id)` — which mints the intent server-side and, for an `open` link, takes the amount:
+
+```ts
+const intent = await mayarin.commerce.paymentLinks.checkout(link.id, {
+  amount: { amount: "45.00", asset: "MYR" },
+  payment: { asset: "USDC", chain: "base" },
+});
+```
+
+`disable` stops a link from being paid without deleting the record:
+
+```ts
+await mayarin.commerce.paymentLinks.disable(link.id);
+```
+
+### Reuse a link instead of minting duplicates
+
+A storefront that mints a link per checkout click accumulates one link per abandoned cart. The demo ([`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) looks for an equivalent payable link first and passes a deterministic idempotency key derived from the cart, so a double-click cannot create two:
+
+```ts
+const links = await mayarin.commerce.paymentLinks.list(merchantId);
+const reusable = links.find(
+  (candidate) =>
+    candidate.kind === "catalog" &&
+    candidate.payable &&
+    candidate.currency === "SGD" &&
+    sameLines(candidate.lines, lines),
+);
+
+const link =
+  reusable ??
+  (await mayarin.commerce.paymentLinks.create(
+    { kind: "catalog", merchant, currency: "SGD", lines },
+    { idempotencyKey: `cart:${merchantId}:${cartFingerprint}` },
+  ));
+```
+
+## Invoices
+
+Use an invoice when buyer identity, a number, an issue state, and a due date are part of the business record; use a payment link when they are not.
+
+An invoice is written as a `draft`, then issued. Lines always carry their own price — an invoice freezes what it says, rather than re-resolving catalog prices later.
+
+```ts
+const draft = await mayarin.commerce.invoices.create({
+  merchantId: "merchant_123",
+  merchant,
+  buyer: {
+    name: "Acme Pte Ltd",
+    email: "ap@acme.example",
+    taxId: "T21…",
+    address: "1 Marina Blvd",
+  },
+  currency: "SGD",
+  lines: [
+    {
+      name: "Consulting, June",
+      unitPrice: { amount: "2400.00", asset: "SGD" },
+      quantity: 1,
+    },
+  ],
+  notes: "Net 14.",
+});
+
+await mayarin.commerce.invoices.update(draft.id, { notes: "Net 30." });
+
+const issued = await mayarin.commerce.invoices.issue(draft.id, {
+  dueAt: "2026-09-30T00:00:00.000Z",
+  prefix: "INV",
+  includeYear: true,
+});
+
+issued.number; // "INV/2026/0007"
+issued.url; // buyer-facing invoice page
+```
+
+`update` applies to a draft — issuing is what freezes it. `void` cancels an invoice that should not be paid:
+
+```ts
+await mayarin.commerce.invoices.void(issued.id);
+```
+
+`get` returns the invoice plus everything derived from its payments, so no client re-sums what is owed:
+
+```ts
+const view = await mayarin.commerce.invoices.get(issued.id);
+
+view.status; // "draft" | "issued" | "partially_paid" | "paid" | "overdue" | "void"
+view.total.display;
+view.paid.display;
+view.outstanding.display;
+```
+
+Checkout defaults to the outstanding balance, and never exceeds it — which is what makes partial payment work:
+
+```ts
+const intent = await mayarin.commerce.invoices.checkout(issued.id, {
+  amount: { amount: "1000.00", asset: "SGD" },
+  payment: { asset: "USDC", chain: "base" },
+});
+```
+
+## Listing by merchant
+
+`products.list`, `paymentLinks.list`, and `invoices.list` take an optional merchant id, which becomes a `merchantId` query parameter. A key scoped to one merchant can omit it; a platform key managing several should always pass it.

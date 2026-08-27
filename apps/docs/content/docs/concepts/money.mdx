@@ -1,5 +1,5 @@
 ---
-title: Money and IDR formatting
+title: Money and locale formatting
 description: Calculate with exact minor units, parse machine decimals, and display localized values safely.
 ---
 
@@ -9,15 +9,27 @@ Mayarin never represents money as a JavaScript floating-point number. Every amou
 
 ```json
 {
-  "amount": "5000000",
-  "asset": "IDR",
-  "formatted": "50000.00",
-  "display": "Rp 50.000,00"
+  "amount": "1850",
+  "asset": "SGD",
+  "formatted": "18.50",
+  "display": "S$ 18,50"
 }
 ```
 
 - `amount` is the exact minor-unit string. Use it for calculations.
 - `formatted` is a machine-readable decimal with `.` as the separator and no grouping.
-- `display` is localized for a person. Show it; never parse it.
+- `display` is rendered for a person. Show it; never parse it.
 
-The same contract works for two-decimal fiat and eighteen-decimal ERC-20 assets without losing precision.
+The same contract works for two-decimal fiat, six-decimal stablecoins, and eighteen-decimal ERC-20 assets without losing precision:
+
+```json
+{ "amount": "12500000", "asset": "USDC", "formatted": "12.500000", "display": "12,50 USDC" }
+```
+
+## Display follows the deployment's locale, not the currency
+
+`display` is written in the deployment's default locale, which is `id-ID` today — the first market Mayarin serves. Indonesian convention groups thousands with `.` and marks the decimal with `,`, so fifty thousand four hundred thirty-two rupiah is written **Rp 50.432,00**, and a Singapore dollar amount rendered by the same deployment reads `S$ 18,50`.
+
+That is exactly why `display` must never be parsed: in `50.432`, the dot is a thousands separator under one locale and a decimal point under another. Parse `formatted`, or do arithmetic on `amount`.
+
+An asset with no conventional symbol is suffixed with its code (`12,50 USDC`) rather than prefixed. Trailing zeros past two decimals are trimmed, losslessly — eighteen printed decimals are noise a reader counts through to find the magnitude.

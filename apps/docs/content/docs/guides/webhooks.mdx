@@ -3,6 +3,8 @@ title: Verify webhooks
 description: Verify the raw body and timestamp before trusting a Mayarin event.
 ---
 
+Every delivery carries three headers: `webhook-id` (the event id, your deduplication key), `webhook-timestamp`, and `webhook-signature` in the form `t=<unix>,v1=<hex>`.
+
 Use the exact raw request body. Parsing and re-serializing JSON changes the signed bytes.
 
 ```ts
@@ -10,11 +12,13 @@ import { constructWebhook } from "@mayarin/sdk";
 
 const event = await constructWebhook({
   payload: rawBody,
-  signature: request.headers.get("Mayarin-Signature") ?? "",
+  signature: request.headers.get("webhook-signature") ?? "",
   secret: process.env.MAYARIN_WEBHOOK_SECRET ?? "",
 });
 ```
 
 The verifier checks an HMAC-SHA256 signature and rejects timestamps outside the default five-minute tolerance. Store event identifiers and process them idempotently.
 
-A webhook is a notification, not settlement truth. Mayarin itself re-queries authoritative provider state before advancing a payment.
+Answer an unverified delivery with `401`. A `2xx` tells the dispatcher the event was accepted and stops the retries, which run on a backoff of roughly 1m, 5m, 30m, 2h, 12h before the delivery is marked dead.
+
+A webhook is a notification, not settlement truth. Mayarin itself re-queries authoritative provider state before advancing a payment, and your handler should re-read the payment intent before acting on it — see [webhook helpers](/sdk/typescript/webhooks) for the full payload shape, rotation handling, and an end-to-end handler.

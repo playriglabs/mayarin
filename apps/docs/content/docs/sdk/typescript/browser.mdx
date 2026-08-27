@@ -8,10 +8,99 @@ import { createMayarinBrowser } from "@mayarin/sdk/browser";
 
 const mayarin = createMayarinBrowser({
   baseUrl: "https://api.mayarin.xyz",
-  publishableKey: "pk_...",
+  publishableKey: "pk_…",
 });
 
 const products = await mayarin.commerce.products.list("merchant_123");
 ```
 
-The browser client exposes only catalog read and cart checkout. If a method requires a secret key, move it to your server.
+`@mayarin/sdk/browser` is the entry point for code that ships to a device. Its config has no `secretKey` field, so a leaked secret is a compile error rather than a production incident.
+
+## What a publishable key reaches
+
+| Available                 | Not available                        | Where the rest lives                                            |
+| ------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| `commerce.products.list`  | `products.create`, `products.update` | [Commerce → Products](/sdk/typescript/commerce#products)         |
+| `commerce.products.get`   | `paymentLinks.*`                     | [Commerce → Payment links](/sdk/typescript/commerce#payment-links) |
+| `commerce.carts.checkout` | `invoices.*`                         | [Commerce → Invoices](/sdk/typescript/commerce#invoices)         |
+|                           | the whole `payment` module           | [Payments module](/sdk/typescript/payments)                      |
+
+`PublishableCommerceModule` is a narrowed `CommerceModule`, so the missing methods do not exist on the type — the browser bundle refuses a catalog write the same way the API's key check would.
+
+```ts
+mayarin.commerce.products.create; // ✗ type error, property does not exist
+```
+
+Nothing in the right-hand column is missing from the SDK; it is missing from *this entry point*. Creating a product, minting a payment link, issuing an invoice, or reading a payment all run on the [server client](/sdk/typescript/server) with an `sk_` key — a publishable key reaches none of them, and shipping a secret key to the browser to get around that is the one thing the split exists to prevent. See [authentication and key safety](/guides/authentication).
+
+A browser that needs one of those results calls your own backend, which does the work with the secret key and returns only what the page needs. That is the shape [`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) takes — its page holds no key at all, and the build fails if a secret ever reaches the bundle ([`verify-bundle.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/verify-bundle.ts)):
+
+```ts
+// Browser: no Mayarin key involved.
+const { url } = await fetch("/api/checkout", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ lines }),
+}).then((response) => response.json());
+
+window.location.assign(url);
+```
+
+`publishableKey` is optional: without one, the client still reaches the keyless buyer routes, and no `Authorization` header is sent.
+
+## Check out a cart from the browser
+
+```ts
+const intent = await mayarin.commerce.carts.checkout({
+  merchant,
+  currency: "USD",
+  lines: cart.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+  merchantReference: orderId,
+});
+
+window.location.assign(`https://pay.mayarin.xyz/checkout/pay/${intent.id}`);
+```
+
+The hosted checkout owns asset selection, the wallet connection or deposit instructions, and live payment status — so a storefront hands the payer over and waits for a [webhook](/sdk/typescript/webhooks) rather than tracking clearing itself.
+
+A payment link is the alternative hand-off: mint it on the server and redirect to `link.url`, which needs no publishable key in the page at all.
+
+## QR helpers
+
+Both entry points re-export the QR utilities, which are pure functions with no network access:
+
+```ts
+import { qr } from "@mayarin/sdk/browser";
+
+const parsed = qr.parseQr(scannedPayload); // EMVCo/QRIS → normalized merchant + amount
+const uri = qr.encodeAddressUri({
+  recipient: deposit.address,
+  chainId: 8453n,
+  amount: { amount: 18_500_000n, asset: "USDC" },
+  token: usdcAddress, // omit for a chain's native asset
+});
+```
+
+`parseQr` verifies the CRC and throws on a malformed payload. `encodeAddressUri` builds the EIP-681 URI a wallet scans; the deposit DTO already carries a ready `uri`, so encode one yourself only when you are constructing the request from parts.
+
+Omitting `token` produces the **native** form. A token amount sent through the native form transfers the chain's native asset to a token contract, which is unrecoverable — pass the contract address whenever the asset is not native.
+
+## Errors
+
+Failures use the same [`MayarinApiError`](/errors) contract as the server client, re-exported here:
+
+```ts
+import { isMayarinApiError } from "@mayarin/sdk/browser";
+
+try {
+  await mayarin.commerce.carts.checkout(body);
+} catch (error) {
+  if (isMayarinApiError(error)) {
+    showMessage(error.status === 0 ? "Network unavailable" : error.message);
+    return;
+  }
+  throw error;
+}
+```
+
+`status: 0` with code `NETWORK_ERROR` means the request never reached the API — the usual case on a flaky mobile connection, and worth retrying.
