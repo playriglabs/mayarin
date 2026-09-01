@@ -41,7 +41,7 @@ export function NotFound() {
         </div>
 
         <div class="mt-20 md:mt-32">
-          <p class="label text-slate">Money moves · Infrastructure orchestrates</p>
+          <p class="text-slate text-sm">Money moves – Infrastructure orchestrates</p>
         </div>
       </div>
     </main>

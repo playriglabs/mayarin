@@ -182,9 +182,9 @@ export function UseCases() {
                 <UseCaseIcon name={useCase.icon} />
               </svg>
             </div>
-            <h3 class="mt-auto pt-12 font-display text-[clamp(1.8rem,2.5vw,2.4rem)] leading-[1.05]">
+            <h4 class="mt-auto pt-12 font-display text-[clamp(1.8rem,2.5vw,2.4rem)] leading-none">
               {useCase.title}
-            </h3>
+            </h4>
             <p class="mt-5 max-w-[32ch] text-[0.9375rem] leading-[1.65] text-slate">
               {useCase.body}
             </p>

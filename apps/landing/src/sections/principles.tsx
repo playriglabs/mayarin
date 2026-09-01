@@ -60,9 +60,9 @@ export function Principles() {
               <span class="shrink-0 text-forest transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1 [&>svg]:size-9">
                 {principle.icon}
               </span>
-              <h3 class="text-[clamp(2rem,2.8vw,2.125rem)] leading-[1.12] transition-transform duration-300 group-hover:translate-x-1">
+              <h4 class="text-[clamp(2rem,2.8vw,2rem)] tracking-[-0.1rem] leading-[1.12] transition-transform duration-300 group-hover:translate-x-1">
                 {principle.title}
-              </h3>
+              </h4>
             </div>
             <p class="max-w-[56ch] text-[0.9375rem] leading-[1.8] text-slate">{principle.body}</p>
           </Reveal>

@@ -105,7 +105,7 @@ export function Footer() {
           <p class="text-xs text-slate">
             © {new Date().getFullYear()} Mayarin. All rights reserved.
           </p>
-          <p class="label text-slate leading-5">Money moves · Infrastructure orchestrates</p>
+          <p class="text-slate leading-5 text-sm">Money moves – Infrastructure orchestrates</p>
         </div>
       </div>
     </footer>

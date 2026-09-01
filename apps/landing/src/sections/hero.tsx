@@ -33,7 +33,7 @@ export function Hero() {
         </Reveal>
 
         <Reveal delay={80}>
-          <h1 class="mt-10 max-w-[16ch] text-[clamp(2.8rem,7vw,6.5rem)] leading-[0.98]">
+          <h1 class="mt-10 max-w-[16ch] text-[clamp(2.8rem,7vw,6rem)] leading-[0.98]">
             Clearing infrastructure for money <em class="italic">in motion</em>.
           </h1>
         </Reveal>
@@ -48,7 +48,7 @@ export function Hero() {
         <Reveal delay={240} class="mt-10 flex items-center gap-3">
           <a
             href="#developers"
-            class="btn-fill [--btn-fill:var(--color-forest)] label inline-flex h-14 cursor-pointer items-center bg-ink px-10 text-white"
+            class="btn-fill [--btn-fill:var(--color-forest)] label inline-flex h-14 text-[11px] cursor-pointer items-center bg-ink px-10 text-white"
           >
             Start building
           </a>

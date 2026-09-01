@@ -71,7 +71,7 @@ function LogoItem({ logo, muted }: { logo: Logo; muted: boolean }) {
 export function PoweredBy() {
   return (
     <div class="relative mt-20 border-y border-line md:mt-28 bg-white">
-      <div class="shell flex flex-col gap-5 py-6 md:flex-row md:items-center md:gap-10 md:py-8">
+      <div class="shell flex flex-col gap-5 py-6 md:flex-row md:items-center md:gap-10 md:py-4">
         <span class="label shrink-0 text-slate text-center">Powered By</span>
 
         {/* Phones bleed the track past the shell padding so the strip runs edge

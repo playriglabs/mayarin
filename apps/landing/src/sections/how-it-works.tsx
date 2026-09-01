@@ -242,7 +242,7 @@ export function HowItWorks() {
             </div>
 
             <div key={stage.index} class="stage-enter flex flex-1 flex-col p-7 lg:p-9">
-              <h3 class="max-w-[18ch] text-[clamp(1.75rem,2.6vw,2.5rem)] leading-[1.04] text-white">
+              <h3 class="max-w-[18ch] text-[clamp(1.75rem,2.6vw,2.5rem)] leading-[1.04] tracking-normal text-white">
                 {stage.title}
               </h3>
               <p class="mt-4 max-w-[46ch] text-[0.9375rem] leading-[1.7] text-slate-inverse">
@@ -289,7 +289,7 @@ export function HowItWorks() {
                 </span>
               </div>
               <div class="p-6">
-                <h3 class="text-[2rem] leading-[1.05] text-white">{item.title}</h3>
+                <h3 class="text-[2rem] leading-[1.05] text-white tracking-normal">{item.title}</h3>
                 <p class="mt-3 text-sm leading-[1.7] text-slate-inverse">{item.body}</p>
                 <div class="mt-6">
                   <StateChips states={item.states} />
