@@ -58,9 +58,9 @@ function ExternalArrow() {
       viewBox="0 0 16 16"
       fill="none"
       aria-hidden="true"
-      class="size-4 text-black/40"
+      class="size-3 text-black/40"
       stroke="currentColor"
-      stroke-width="1.5"
+      stroke-width="1.25"
     >
       <path d="M4 12 12 4M6 4h6v6" stroke-linecap="square" />
     </svg>

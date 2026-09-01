@@ -37,7 +37,7 @@ beyond layout utilities.
 `--color-accent` never carries text on white: at 1.6:1 it fails contrast. Accent green marks
 nodes, rails and flow; `--color-forest` is its accessible counterpart for type.
 
-Type is a trio: `--font-display` (Instrument Serif) for headlines, `--font-sans` (Geist) for
+Type is a trio: `--font-display` (PolySans) for headlines, `--font-sans` (Geist) for
 everything read, and `--font-mono` (Geist Mono) for labels and code. `--font-brand` uses the
 display face for the wordmark.
 

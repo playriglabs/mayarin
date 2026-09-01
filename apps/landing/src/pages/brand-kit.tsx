@@ -48,17 +48,30 @@ type BrandKitAsset = (typeof MARK_ASSETS | typeof WORDMARK_ASSETS)[number];
 
 const BRAND_KIT_PATH = "/brand-kit";
 
+function DownloadIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      aria-hidden="true"
+      class="size-4 shrink-0"
+    >
+      <path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M2.5 11.5v2h11v-2" stroke-linecap="square" />
+    </svg>
+  );
+}
+
 function DownloadLink({ file }: { file: string }) {
   return (
     <a
       href={`${BRAND_KIT_PATH}/${file}`}
       download
-      class="label inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-slate transition-colors duration-200 hover:text-forest"
+      class="label inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-slate transition-colors duration-200 hover:text-forest"
     >
       <span>Download PNG</span>
-      <span aria-hidden="true" class="text-base leading-none">
-        ↘
-      </span>
+      <DownloadIcon />
     </a>
   );
 }

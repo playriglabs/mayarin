@@ -3,6 +3,22 @@ import { Reveal } from "../components/reveal.tsx";
 import { ArrowRight } from "../components/ui.tsx";
 import { HoverGrid } from "../graphics/hover-grid.tsx";
 
+function DocumentationIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.25"
+      stroke-linecap="square"
+      aria-hidden="true"
+      class="size-3.5 shrink-0"
+    >
+      <path d="M2 3.5h3.5A2.5 2.5 0 0 1 8 6v7a2.5 2.5 0 0 0-2.5-2.5H2zM14 3.5h-3.5A2.5 2.5 0 0 0 8 6v7a2.5 2.5 0 0 1 2.5-2.5H14z" />
+    </svg>
+  );
+}
+
 export function Hero() {
   return (
     <section id="top" class="relative overflow-hidden bg-paper pt-28 pb-0 md:pt-36">
@@ -50,6 +66,7 @@ export function Hero() {
             href="https://docs.mayarin.xyz"
             class="label mt-10 inline-flex items-center gap-2 text-slate transition-colors duration-200 hover:text-ink"
           >
+            <DocumentationIcon />
             Read the documentation
             <ArrowRight width="12" height="12" />
           </a>
