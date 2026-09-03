@@ -2,21 +2,25 @@
 
 **/maɪˈjɑːrɪn/** — _“My-ar-in”_
 
-> **Programmable crypto-commerce infrastructure**
+> **Programmable clearing infrastructure for people and programs**
 >
-> Price in fiat. Settle in stablecoins. Pay with anything.
+> Price in fiat. Settle in stablecoins. Paid by anyone — or anything.
 
-Mayarin lets merchants price in their local currency, receive a configured
-stablecoin, and accept supported crypto assets from customers. A
-provider-agnostic clearing layer coordinates quoting, execution, settlement,
-accounting, wallets, and merchant-facing commerce without making those concerns
-part of the merchant's application.
+Mayarin turns fragmented crypto-payment infrastructure into one programmable
+clearing layer. Merchants price in their local currency and receive a configured
+stablecoin; the payer brings whatever supported asset they already hold.
+Quoting, execution, settlement, accounting, wallets, and merchant-facing commerce
+are coordinated behind one provider-agnostic layer rather than becoming part of
+the merchant's application.
 
-The same primitives serve a second kind of buyer. With
-[x402](https://github.com/coinbase/x402), any Mayarin-gated endpoint becomes
-payable per call by an **AI agent that has no account, no API key and no
-checkout page** — it signs one authorization for an exact amount and receives the
-resource.
+**The payer no longer has to be a person.** They may be a customer at a checkout,
+a wallet scanning a QR, or an autonomous agent with no account at all — and none
+of the three needs to understand the others' world.
+
+That last case is [x402](https://github.com/coinbase/x402): any Mayarin-gated
+endpoint becomes payable per call by an agent that has never registered, holds no
+API key, and will never see a checkout page. It signs one authorization for an
+exact amount and receives the resource.
 
 The project currently runs on **testnet**. Its Base Sepolia execution contracts
 are deployed and verified; the mainnet environment remains deliberately

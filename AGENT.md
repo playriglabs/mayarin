@@ -7,11 +7,20 @@ free of tool-specific configuration; that belongs in the pointer file.
 
 ## What this is
 
-Mayarin is **programmable crypto-commerce infrastructure**: merchants price in
-their local currency and settle in a stablecoin; customers pay with any
-supported crypto asset. One provider-agnostic clearing layer bridges the two so
-merchants never need to understand blockchain. Bun workspace monorepo,
+Mayarin is **programmable clearing infrastructure for people and programs**:
+merchants price in their local currency and settle in a stablecoin; the payer
+brings any supported asset. One provider-agnostic clearing layer bridges the two
+so merchants never need to understand blockchain. Bun workspace monorepo,
 TypeScript, Hono API on Postgres.
+
+**A payer is not necessarily a person.** Three execution paths serve three kinds
+of buyer, chosen per payer rather than per deployment: a customer who connects a
+wallet (contract path), one who can only send a transfer (deposit-match), and a
+program that signs an x402 authorization and has no account at all. Anything that
+branches on how a payment is funded must say which of the three it means — see
+`usesDepositAddress` and `awaitsFacilitatorSettlement`, which exist because the
+old `!== "on-chain-contract"` phrasing was right with two paths and silently
+wrong with three.
 
 Fiat payment rails (QRIS, bank transfer) and a stablecoin → fiat off-ramp are
 intentionally **out of the MVP** — later, explicit phases with their own custody

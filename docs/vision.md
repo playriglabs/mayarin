@@ -8,17 +8,23 @@ Why Mayarin exists, what it refuses to become, and the problem it is pointed at.
 
 ## Philosophy
 
-> **Merchants think in fiat. Settlement happens in stablecoins. Customers pay
-> with whatever they hold.**
+> **Merchants think in fiat. Settlement happens in stablecoins. The payer holds
+> whatever they hold — and may not be a person at all.**
 
 Traditional payment systems understand fiat. Blockchain understands programmable
 value. Mayarin is the infrastructure that lets a merchant price in their local
-currency and receive a stablecoin, while a customer pays in any supported crypto
-asset — without either side understanding the other's world.
+currency and receive a stablecoin, while the payer pays in any supported asset —
+without either side understanding the other's world.
+
+The second half of that sentence has widened. A payer used to mean a person: at
+a checkout, scanning a QR, connecting a wallet. It now also means a **program** —
+an autonomous agent that has no account, no API key and no checkout page, and
+that pays for a single API call by signing one authorization. Same clearing
+layer, same ledger, same merchant experience; a different kind of buyer.
 
 Not another payment gateway. Not another crypto wallet. Not another exchange.
 
-Programmable Programmable clearing infrastructure..
+**Programmable clearing infrastructure for people and programs.**
 
 ---
 
@@ -51,7 +57,7 @@ exchange rates, or care which asset the customer paid with; the customer does
 not want to hunt for the one stablecoin the merchant accepts.
 
 Mayarin closes that gap. A merchant prices in their local currency and configures
-a settlement stablecoin. A customer pays in any supported asset. Mayarin quotes,
+a settlement stablecoin. A payer pays in any supported asset. Mayarin quotes,
 locks, and — when the assets differ — converts on-chain before settlement.
 
 ```
@@ -64,6 +70,21 @@ Merchant receives    0.95 USDC
 The merchant never learns which asset the customer used. The customer never
 learns which stablecoin the merchant settles in.
 
+The same gap exists between a merchant and a machine, and it is wider. An agent
+buying one API call cannot open an account, cannot hold a card, and cannot be
+asked to understand gas. It can sign one authorization for an exact amount in an
+asset it already holds — so that is the whole interface it is given.
+
+```
+Agent requests       GET /premium-data
+Mayarin answers      402, with the price in machine-readable terms
+Agent signs          an authorization for exactly that amount
+Merchant receives    0.02 USDC
+```
+
+No signup, no key, no invoice. The merchant's side of that transaction is
+indistinguishable from any other payment.
+
 ---
 
 ## Problem
@@ -72,6 +93,12 @@ Stablecoins are programmable money, but merchant payment infrastructure for them
 is fragmented and crypto-native in all the wrong places: merchants are asked to
 connect wallets, manage seed phrases, understand gas, and reconcile which asset
 arrived from which customer.
+
+There is now a second gap, and it is newer. Software agents can decide to buy
+things, and the payment infrastructure they are handed assumes a human: an
+account to open, a card to hold, a subscription to manage, an API key to be
+issued. An agent that wants one API call once has no way to pay for one API call
+once.
 
 Today a merchant who wants to accept crypto must either:
 
@@ -98,6 +125,8 @@ Core responsibilities:
 - Record every movement through double-entry accounting.
 - Expose one API and one SDK so developers build their own storefronts, POS,
   and checkout on top.
+- Make any endpoint payable per call, so a program can buy from it without an
+  account.
 
 The business layer never speaks to a DEX, a wallet provider, or a chain directly.
 Every payment flows through the same orchestration, and execution happens
@@ -110,7 +139,8 @@ on-chain behind a smart contract.
 Mayarin is designed around four principles.
 
 - Let merchants price in fiat and settle in stablecoins.
-- Let customers pay with any supported asset.
+- Let payers pay with any supported asset — whether they are a person or a
+  program.
 - Keep execution on-chain and trust-minimized; keep the backend an orchestrator.
 - Keep integrations provider-agnostic (wallet, liquidity, price, chain).
 
