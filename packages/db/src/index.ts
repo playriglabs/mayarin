@@ -13,4 +13,5 @@ export * from "./repositories/payment-intent.ts";
 export * from "./repositories/refund.ts";
 export * from "./repositories/stablecoin.ts";
 export * from "./repositories/wallet.ts";
+export * from "./repositories/x402.ts";
 export * from "./schema.ts";

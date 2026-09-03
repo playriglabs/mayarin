@@ -35,6 +35,7 @@ import { PaymentIntentService } from "@mayarin/payment-intent";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { ConcurrencyError, FixedClock, generateId, money, RATE_SCALE } from "@mayarin/shared";
+import type { X402Resource } from "@mayarin/x402";
 import { sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
 import { listenPaymentChanged, notifyPaymentChanged } from "../src/notify.ts";
@@ -62,6 +63,7 @@ import {
   DrizzleMerchantWalletRepository,
   DrizzleWalletWithdrawalRepository,
 } from "../src/repositories/wallet.ts";
+import { DrizzleX402ResourceRepository } from "../src/repositories/x402.ts";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
@@ -118,7 +120,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -543,6 +545,122 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     await repository.set("base-sepolia", "USDC", 900n);
 
     expect(await repository.get("base-sepolia", "USDC")).toBe(900n);
+  });
+
+  describe("x402 resource repository", () => {
+    const resources = new DrizzleX402ResourceRepository(handle.db);
+    const MERCHANT = "ID1020017611473";
+
+    async function seedX402Merchant(): Promise<void> {
+      const now = clock.now();
+      await new DrizzleMerchantRepository(handle.db).insert({
+        id: MERCHANT,
+        name: "Warung Kopi Mayarin",
+        settlementAsset: "USDC",
+        acceptedAssets: [],
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      });
+    }
+
+    function aResource(overrides: Partial<X402Resource> = {}): X402Resource {
+      return {
+        id: "res_fx_quote",
+        merchantId: MERCHANT,
+        url: "https://api.example.com/x402/fx/quote",
+        description: "One oracle-guarded FX quote",
+        mimeType: "application/json",
+        price: money(1_500n, "IDR"),
+        accepts: [
+          {
+            chain: "base-sepolia",
+            asset: "USDC",
+            contract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            domain: { name: "USDC", version: "2" },
+            transferMethod: "eip3009",
+          },
+        ],
+        maxTimeoutSeconds: 60,
+        ...overrides,
+      };
+    }
+
+    test("round-trips a resource, accepts and all", async () => {
+      await seedX402Merchant();
+      const resource = aResource();
+
+      await resources.save(resource);
+
+      expect(await resources.findById(resource.id)).toEqual(resource);
+    });
+
+    // `exactOptionalPropertyTypes` distinguishes an absent field from one set to
+    // undefined, and so does the wire: a `"description": null` in a
+    // `PaymentRequired` is a description.
+    test("keeps an unset description absent rather than null", async () => {
+      await seedX402Merchant();
+      const { description: _d, mimeType: _m, ...bare } = aResource();
+
+      await resources.save(bare);
+      const read = await resources.findById(bare.id);
+
+      expect(read).not.toBeUndefined();
+      expect(Object.hasOwn(read as object, "description")).toBe(false);
+      expect(Object.hasOwn(read as object, "mimeType")).toBe(false);
+    });
+
+    // A merchant moving a resource to a new URL keeps its id. Conflicting on
+    // the URL instead would leave the old row behind as a second gate on an
+    // endpoint nobody meant to keep charging for.
+    test("a second save of the same id moves the resource rather than duplicating it", async () => {
+      await seedX402Merchant();
+      await resources.save(aResource());
+
+      await resources.save(aResource({ url: "https://api.example.com/x402/fx/quote/v2" }));
+      const listed = await resources.listByMerchant(MERCHANT);
+
+      expect(listed).toHaveLength(1);
+      expect(listed[0]?.url).toBe("https://api.example.com/x402/fx/quote/v2");
+    });
+
+    test("refuses two resources gating one URL for one merchant", async () => {
+      await seedX402Merchant();
+      await resources.save(aResource());
+
+      expect(resources.save(aResource({ id: "res_other" }))).rejects.toThrow();
+    });
+
+    // JSON columns have no schema, so this parser is the only thing between a
+    // corrupted row and a PaymentRequired — which is what a payer signs a
+    // transfer against.
+    test("refuses to read a row whose accepts entry names an unknown chain", async () => {
+      await seedX402Merchant();
+      await resources.save(aResource());
+      await handle.db.execute(
+        sql`update x402_resources set accepts = '[{"chain":"ethereum","asset":"USDC","contract":"0x1","payTo":"0x2","domain":{"name":"USDC","version":"2"},"transferMethod":"eip3009"}]'::jsonb where id = 'res_fx_quote'`,
+      );
+
+      expect(resources.findById("res_fx_quote")).rejects.toThrow(/unknown chain/);
+    });
+
+    test("refuses to read a row whose accepts entry has no EIP-712 domain", async () => {
+      await seedX402Merchant();
+      await resources.save(aResource());
+      await handle.db.execute(
+        sql`update x402_resources set accepts = '[{"chain":"base-sepolia","asset":"USDC","contract":"0x1","payTo":"0x2","transferMethod":"eip3009"}]'::jsonb where id = 'res_fx_quote'`,
+      );
+
+      expect(resources.findById("res_fx_quote")).rejects.toThrow(/EIP-712 domain/);
+    });
+
+    test("does not leak one merchant's resources to another", async () => {
+      await seedX402Merchant();
+      await resources.save(aResource());
+
+      expect(await resources.listByMerchant("ID9999999999999")).toEqual([]);
+    });
   });
 
   describe("webhook repositories", () => {
