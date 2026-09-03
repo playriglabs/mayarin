@@ -310,6 +310,29 @@ const configSchema = z.object({
   treasuryAddress: z.string().min(1).optional(),
   /** The operator key. Pays gas and is the one key that can move funds. */
   operatorPrivateKey: z.string().min(1).optional(),
+  /**
+   * The x402 rail (#207): endpoints payable per call by an agent that never
+   * registered.
+   *
+   * Off by default and separate from the contract path, because it needs a
+   * different thing: a key that broadcasts *the payer's* signed authorization.
+   * That key cannot change an amount or a recipient, so it buys gas rather than
+   * discretion — but it is still a key, and a deployment gets one only by
+   * asking.
+   */
+  x402Enabled: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /**
+   * How long a price offered in a `402` is honoured.
+   *
+   * This is the only knob: the `maxTimeoutSeconds` a payer sees is derived from
+   * it and from the merchant's own ceiling, never configured beside it. A quote
+   * TTL and a deadline that can drift apart is what produced settlement after
+   * expiry, and then EXECUTION_EXHAUSTED, on the deposit path.
+   */
+  x402QuoteTtlSeconds: z.coerce.number().int().min(5).max(300).default(60),
   treasuryMaxAttempts: z.coerce.number().int().positive().default(3),
   /**
    * The Safe that receives settlements. One address for the whole deployment
@@ -849,6 +872,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     contractPathEnabled: env.CONTRACT_PATH_ENABLED,
     paymentRouters: env.PAYMENT_ROUTERS,
     treasuryExecutionEnabled: env.TREASURY_EXECUTION_ENABLED,
+    x402Enabled: env.X402_ENABLED,
+    x402QuoteTtlSeconds: env.X402_QUOTE_TTL_SECONDS,
     depositForwarders: env.DEPOSIT_FORWARDERS,
     depositForwarderInitCodeHash: env.DEPOSIT_FORWARDER_INIT_CODE_HASH,
     treasuryAddress: env.TREASURY_ADDRESS,

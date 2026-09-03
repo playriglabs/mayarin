@@ -22,6 +22,7 @@ import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { quoteRoutes } from "./routes/quotes.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
+import { x402Routes } from "./routes/x402.ts";
 import { checkoutUiRoutes } from "./services/checkout-shell.ts";
 
 export function createApp(container: Container): Hono {
@@ -106,6 +107,13 @@ export function createApp(container: Container): Hono {
   app.route("/checkout-ui", checkoutUiRoutes(container));
   app.route("/invoices", invoicePageRoutes(container));
   app.route("/checkout", checkoutPageRoutes(container));
+
+  // x402 is unversioned for the same reason the pages are, and a stronger one:
+  // a `PaymentRequired` names the resource by URL, so a `/v2` that moved these
+  // would invalidate every price an agent is already holding. Covered by the
+  // public CORS guard above — an agent that has never met Mayarin is the point,
+  // and a price is not a secret.
+  app.route("/x402", x402Routes(container));
 
   return app;
 }

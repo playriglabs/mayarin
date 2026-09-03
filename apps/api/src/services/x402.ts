@@ -1,0 +1,268 @@
+/**
+ * The x402 application service.
+ *
+ * Ties together the four pieces that already exist — the resource registry, the
+ * quote layer, a facilitator, and the clearing engine — into the two operations
+ * an HTTP request needs: *what would this cost*, and *here is the signed
+ * authorization*.
+ *
+ * The ordering below is the interesting part, and it is the clearing engine's
+ * own rule rather than a new one: **side effects run before the state that
+ * records them is persisted.** A crash after the transfer and before the
+ * receipt leaves a payment the resumed step can finish, because the receipt is
+ * keyed by the authorization nonce and recording it twice is a no-op. A crash
+ * the other way round would credit a merchant for money that never moved.
+ */
+
+import { caip2Of } from "@mayarin/chain";
+import type { ClearingEngine, RateProvider } from "@mayarin/clearing";
+import type {
+  MerchantSnapshot,
+  PaymentIntent,
+  PaymentIntentService,
+} from "@mayarin/payment-intent";
+import {
+  type Clock,
+  convert,
+  type Money,
+  NotFoundError,
+  roundUpToPayerPrecision,
+  ValidationError,
+} from "@mayarin/shared";
+import type {
+  AcceptedAsset,
+  FacilitatorRegistry,
+  PaymentPayload,
+  PaymentRequired,
+  PricedAsset,
+  SettlementConfirmer,
+  SettleResponse,
+  X402Resource,
+  X402ResourceRepository,
+} from "@mayarin/x402";
+import {
+  authorizationWithinLock,
+  buildPaymentRequired,
+  confirmSettlement,
+  eip3009PayloadOf,
+  idempotencyKeyOf,
+  parseUnixSeconds,
+  selectRequirements,
+} from "@mayarin/x402";
+
+export interface X402ServiceOptions {
+  readonly resources: X402ResourceRepository;
+  readonly facilitators: FacilitatorRegistry;
+  /** One confirmer per CAIP-2 network. A network without one cannot be served. */
+  readonly confirmers: ReadonlyMap<string, SettlementConfirmer>;
+  readonly rates: RateProvider;
+  readonly intents: PaymentIntentService;
+  readonly engine: ClearingEngine;
+  readonly clock: Clock;
+  /** How long a price offered in a `402` is honoured. Seconds. */
+  readonly quoteTtlSeconds: number;
+  /**
+   * The merchant, as the intent records them.
+   *
+   * A function rather than a repository because the snapshot is the only thing
+   * this service needs from a merchant, and taking the whole repository would
+   * let it reach for more later without anyone deciding that.
+   */
+  readonly merchantSnapshot: (merchantId: string) => Promise<MerchantSnapshot>;
+}
+
+/** What a settled payment produced, for the caller to put in a header. */
+export interface X402Settlement {
+  readonly response: SettleResponse;
+  readonly intent: PaymentIntent;
+}
+
+export class X402Service {
+  readonly #options: X402ServiceOptions;
+
+  constructor(options: X402ServiceOptions) {
+    this.#options = options;
+  }
+
+  async resourceById(id: string): Promise<X402Resource> {
+    const resource = await this.#options.resources.findById(id);
+    if (resource === undefined) {
+      throw new NotFoundError(`x402 resource ${id} not found`, { resourceId: id });
+    }
+    return resource;
+  }
+
+  listByMerchant(merchantId: string): Promise<readonly X402Resource[]> {
+    return this.#options.resources.listByMerchant(merchantId);
+  }
+
+  /**
+   * The `402` body for a resource.
+   *
+   * An asset the rate provider cannot price is dropped rather than failing the
+   * request — the same choice `/v1/quotes` already makes, for the same reason:
+   * one unpriceable rail should not close a resource that has another. All of
+   * them failing is a different matter and raises.
+   */
+  async paymentRequired(resource: X402Resource, error?: string): Promise<PaymentRequired> {
+    const now = this.#options.clock.now();
+    const expiresAt = new Date(now.getTime() + this.#options.quoteTtlSeconds * 1000);
+
+    const priced: PricedAsset[] = [];
+    for (const accept of resource.accepts) {
+      if (!this.#options.facilitators.canServe(requirementsProbe(accept))) continue;
+      const amount = await this.#priceInto(resource.price, accept);
+      if (amount === undefined) continue;
+      priced.push({ accept, amount, expiresAt });
+    }
+
+    if (priced.length === 0) {
+      throw new ValidationError(`x402 resource ${resource.id} has no way to be paid right now`, {
+        resourceId: resource.id,
+      });
+    }
+
+    return error === undefined
+      ? buildPaymentRequired(resource, priced, now)
+      : buildPaymentRequired(resource, priced, now, error);
+  }
+
+  async #priceInto(price: Money, accept: AcceptedAsset): Promise<Money | undefined> {
+    try {
+      const quote = await this.#options.rates.quote(price.asset, accept.asset, price);
+      // Rounded up to what a payer can express, exactly as the deposit path
+      // does: an amount carried to eighteen decimals is one no signature will
+      // ever match against a merchant's rounded expectation.
+      return roundUpToPayerPrecision(convert(price, accept.asset, quote.scaledRate));
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Check a payload without settling it.
+   *
+   * The requirements come from our own `PaymentRequired`, never from the
+   * payload's echo of them — `selectRequirements` reads the echo only to find
+   * which option the payer chose.
+   */
+  async verify(resource: X402Resource, payment: PaymentPayload) {
+    const required = await this.paymentRequired(resource);
+    const requirements = selectRequirements(required, payment);
+    return this.#options.facilitators.for(requirements).verify(payment, requirements);
+  }
+
+  /**
+   * Settle a payload, and credit the merchant.
+   *
+   * Every step before the broadcast can be repeated freely. The broadcast
+   * itself is guarded by the authorization nonce, which EIP-3009 records
+   * on-chain and which also keys the intent — so a client that retries the same
+   * `PAYMENT-SIGNATURE` reaches the same intent rather than opening a second.
+   */
+  async settle(resource: X402Resource, payment: PaymentPayload): Promise<X402Settlement> {
+    const required = await this.paymentRequired(resource);
+    const requirements = selectRequirements(required, payment);
+
+    // The payer chooses `validBefore`; nothing stops them choosing one long
+    // past the budget the 402 advertised. Holding that authorization would mean
+    // settling against a price no longer honoured — the arrangement that
+    // produced settlement after expiry, and then EXECUTION_EXHAUSTED, the last
+    // time these two numbers were allowed to differ.
+    const { authorization } = eip3009PayloadOf(payment);
+    const lockExpiresAt = new Date(
+      this.#options.clock.now().getTime() + requirements.maxTimeoutSeconds * 1000,
+    );
+    if (
+      !authorizationWithinLock(
+        parseUnixSeconds(authorization.validBefore, "validBefore"),
+        lockExpiresAt,
+      )
+    ) {
+      throw new ValidationError("x402 authorization outlives the price it was signed against", {
+        validBefore: authorization.validBefore,
+        maxTimeoutSeconds: requirements.maxTimeoutSeconds,
+      });
+    }
+
+    const merchant = await this.#options.merchantSnapshot(resource.merchantId);
+    const intent = await this.#intentFor(resource, requirements, merchant, payment);
+
+    const response = await this.#options.facilitators
+      .for(requirements)
+      .settle(payment, requirements);
+
+    // The facilitator's answer is a claim. Nothing advances until the
+    // transaction has been read back off the chain and matched to this payment.
+    const confirmer = this.#options.confirmers.get(requirements.network);
+    if (confirmer === undefined) {
+      throw new ValidationError(`no x402 settlement confirmer for ${requirements.network}`, {
+        network: requirements.network,
+      });
+    }
+    await confirmSettlement(response, requirements, confirmer);
+
+    const confirmed = await this.#options.intents.confirm(intent.id);
+    const transaction = await this.#options.engine.start(confirmed);
+    await this.#options.engine.recordAssetReceived(transaction.id);
+
+    return { response, intent: await this.#options.intents.getById(intent.id) };
+  }
+
+  /**
+   * The intent for this authorization, created once.
+   *
+   * `idempotencyKeyOf` is the nonce scoped by network and asset, so a replayed
+   * header reaches the intent it already made. That matters most in the window
+   * before the chain has recorded the nonce: without it, two requests carrying
+   * the same signature would each open an intent and post to the ledger, and
+   * only the second settlement would fail.
+   */
+  async #intentFor(
+    resource: X402Resource,
+    requirements: { network: string; asset: string; amount: string },
+    merchant: MerchantSnapshot,
+    payment: PaymentPayload,
+  ): Promise<PaymentIntent> {
+    const accept = resource.accepts.find(
+      (candidate) => candidate.contract.toLowerCase() === requirements.asset.toLowerCase(),
+    );
+    if (accept === undefined) {
+      throw new ValidationError(
+        `x402 resource ${resource.id} does not accept ${requirements.asset}`,
+      );
+    }
+
+    return this.#options.intents.create({
+      merchant,
+      amount: resource.price,
+      idempotencyKey: idempotencyKeyOf(payment),
+      payment: { chain: accept.chain, asset: accept.asset },
+      executionPath: "x402",
+      source: { type: "manual" },
+      metadata: {
+        x402Resource: resource.id,
+        x402Nonce: eip3009PayloadOf(payment).authorization.nonce,
+      },
+    });
+  }
+}
+
+/**
+ * The shape `FacilitatorRegistry.canServe` needs to answer for an accepted
+ * asset, before a price exists to fill the rest in.
+ *
+ * Only `scheme` and `network` are read, which is why the rest is allowed to be
+ * empty here rather than requiring a quote first — asking a rate provider for a
+ * price on a rail nothing can settle is work thrown away.
+ */
+function requirementsProbe(accept: AcceptedAsset) {
+  return {
+    scheme: "exact",
+    network: caip2Of(accept.chain),
+    amount: "0",
+    asset: accept.contract,
+    payTo: accept.payTo,
+    maxTimeoutSeconds: 0,
+  };
+}
