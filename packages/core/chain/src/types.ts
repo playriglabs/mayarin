@@ -64,6 +64,26 @@ export function isMainnetChain(chain: ChainId): boolean {
   return MAINNET_CHAIN_IDS.has(chain);
 }
 
+/**
+ * The CAIP-2 identifier for a chain — `eip155:<EIP-155 id>`.
+ *
+ * A chain fact, derived from `EVM_CHAIN_IDS` rather than written out a second
+ * time, so a chain added above cannot arrive here with a different number. x402
+ * names networks this way on the wire; nothing else in the domain does yet.
+ */
+export function caip2Of(chain: ChainId): string {
+  return `eip155:${EVM_CHAIN_IDS[chain]}`;
+}
+
+/**
+ * The chain a CAIP-2 identifier names, or `undefined` for one this deployment
+ * does not know. Undefined rather than a throw: an unknown network arriving off
+ * the wire is a rejected request, not a bug.
+ */
+export function chainOfCaip2(id: string): ChainId | undefined {
+  return CHAIN_IDS.find((chain) => caip2Of(chain) === id);
+}
+
 /** A block identified by both height and hash — the hash is what detects a reorg. */
 export interface BlockRef {
   readonly number: bigint;
