@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { CHAIN_IDS, EVM_CHAIN_IDS, isChainId, isMainnetChain } from "../src/types.ts";
+import {
+  CHAIN_IDS,
+  caip2Of,
+  chainOfCaip2,
+  EVM_CHAIN_IDS,
+  isChainId,
+  isMainnetChain,
+} from "../src/types.ts";
 
 describe("chain facts", () => {
   test("every supported chain has an EIP-155 id", () => {
@@ -44,5 +51,27 @@ describe("isMainnetChain", () => {
     expect(isMainnetChain("robinhood-testnet")).toBe(false);
     expect(isMainnetChain("arc-testnet")).toBe(false);
     expect(isMainnetChain("hedera-testnet")).toBe(false);
+  });
+});
+
+describe("CAIP-2", () => {
+  test("derives the identifier from the EIP-155 id rather than a second table", () => {
+    expect(caip2Of("base-sepolia")).toBe("eip155:84532");
+    expect(caip2Of("arc-testnet")).toBe("eip155:5042002");
+    expect(caip2Of("hedera-testnet")).toBe("eip155:296");
+  });
+
+  test("round-trips every supported chain", () => {
+    for (const chain of CHAIN_IDS) {
+      expect(chainOfCaip2(caip2Of(chain))).toBe(chain);
+    }
+  });
+
+  // An unknown network arriving off the wire is a request to reject, not a bug
+  // to throw on: x402 payers name their own network.
+  test("returns undefined for a network this deployment does not know", () => {
+    expect(chainOfCaip2("eip155:1")).toBeUndefined();
+    expect(chainOfCaip2("solana:mainnet")).toBeUndefined();
+    expect(chainOfCaip2("")).toBeUndefined();
   });
 });
