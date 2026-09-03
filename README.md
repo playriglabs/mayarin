@@ -12,6 +12,12 @@ provider-agnostic clearing layer coordinates quoting, execution, settlement,
 accounting, wallets, and merchant-facing commerce without making those concerns
 part of the merchant's application.
 
+The same primitives serve a second kind of buyer. With
+[x402](https://github.com/coinbase/x402), any Mayarin-gated endpoint becomes
+payable per call by an **AI agent that has no account, no API key and no
+checkout page** — it signs one authorization for an exact amount and receives the
+resource.
+
 The project currently runs on **testnet**. Its Base Sepolia execution contracts
 are deployed and verified; the mainnet environment remains deliberately
 unprovisioned until the documented security and deployment gates are satisfied.
@@ -21,6 +27,7 @@ unprovisioned until the documented security and deployment gates are satisfied.
 - [Why Mayarin](#why-mayarin)
 - [Project status](#project-status)
 - [Features](#features)
+- [Agent payments](#agent-payments)
 - [Architecture](#architecture)
 - [How a payment moves](#how-a-payment-moves)
 - [Design principles](#design-principles)
@@ -74,6 +81,7 @@ same payment primitives.
 | Wallet infrastructure     | Shipped with browser follow-up | Verified addresses, managed Safe, balances, and withdrawals; complete passkey browser ceremony remains roadmap work |
 | TypeScript SDK            | Shipped in the monorepo        | Server and publishable browser clients; publication is a release decision                                           |
 | Webhooks and live status  | Shipped                        | Signed retries, delivery inspection, replay, SSE buyer status                                                       |
+| Agent payments (x402)     | Shipped, off by default        | Protocol, facilitator, resource registry, and HTTP surface; enabled with `X402_ENABLED`                             |
 | Mainnet                   | Planned                        | No mainnet Railway project is provisioned                                                                           |
 
 The detailed and continuously updated status lives in
@@ -93,6 +101,23 @@ The detailed and continuously updated status lives in
 - Pyth and Chainlink reference-price adapters.
 - Uniswap and 0x exact-output route adapters, plus LiFi quote support.
 - Signed quote locks with settlement minimums, deadlines, and slippage bounds.
+
+### Agent payments (x402)
+
+- x402 protocol v2 over the existing clearing engine — no second value path.
+- `requirePayment` middleware turning any handler into a machine-payable
+  resource.
+- Resources priced once in the merchant's currency, offered on several chains at
+  once; the payer picks.
+- `exact` scheme over EIP-3009, with EIP-2612/Permit2 as the fallback for tokens
+  that lack it.
+- Facilitator port with a local implementation, so Mayarin can broadcast a
+  payer's authorization or delegate to somebody else's facilitator.
+- Settlement confirmed by reading the transaction back off the chain — a
+  facilitator's word is never enough.
+- Token capability probed from the contract at boot, never configured.
+- Replay key scoped by network, asset and nonce, covering the window before the
+  chain has recorded it.
 
 ### Commerce and checkout
 
@@ -133,6 +158,48 @@ The detailed and continuously updated status lives in
 - Provider ports for storage, chains, settlement, liquidity, prices, wallets,
   execution, and screening.
 
+## Agent payments
+
+An agent asks for a resource, is told the price in machine-readable terms, pays,
+and is served. It never registered with anyone.
+
+```text
+GET /premium-data
+        ↓
+402 Payment Required
+   PAYMENT-REQUIRED: { price, chains, assets, deadline }
+        ↓
+agent signs an authorization for exactly that amount
+        ↓
+GET /premium-data
+   PAYMENT-SIGNATURE: { signature, authorization }
+        ↓
+verify → broadcast → confirm on-chain → credit the merchant
+        ↓
+200 OK  +  PAYMENT-RESPONSE: { transaction, network }
+```
+
+Three properties are worth stating plainly, because each is a rule the code
+enforces rather than a claim:
+
+- **The agent signs exactly one thing** — an authorization for an exact amount,
+  in an asset it already holds. It never touches gas, never holds the merchant's
+  asset, and never sees an address. Gas is paid by whoever broadcasts, and
+  `transferWithAuthorization` cannot change the amount or the recipient, so a
+  facilitator is a broadcaster rather than a custodian.
+- **A facilitator's `success` is a claim, not a settlement.** Nothing advances
+  until the transaction has been read back off the chain and matched to this
+  payment — right token, right recipient, full amount.
+- **The merchant is unchanged.** They are still priced in their own currency and
+  still settled in their configured stablecoin. An agent is a different kind of
+  payer, not a different kind of merchant.
+
+Enabled with `X402_ENABLED`, which is off by default: without an operator key
+there is nothing to broadcast an authorization with, so the routes answer 404
+rather than half-working.
+
+See [ROADMAP.md](./ROADMAP.md) for the ETHOnline 2026 work built on this.
+
 ## Architecture
 
 ![Mayarin architecture flow: merchants and customers enter through the Mayarin API, which coordinates quoting, contract execution or transfer watching, clearing, the ledger, and stablecoin settlement](./apps/landing/public/images/pitch-deck/mayarin-architecture-flow.png)
@@ -142,16 +209,24 @@ Postgres, EVM, oracle, liquidity, settlement, and wallet packages implement
 them. Composition roots in the applications select the concrete deployment.
 
 Every payment enters the same orchestration and accounting model, but value can
-move through one of two paths:
+move through one of three paths. Which one applies is chosen per payer, not per
+deployment — they serve different buyers rather than acting as fallbacks for one
+another:
 
 1. **On-chain contract path — primary where supported.** Mayarin locks the
    merchant's settlement minimum and builds a signed order. The customer calls
    `PaymentRouter`, which receives, optionally swaps, and settles atomically. A
    confirmed `PaymentCompleted` event is indexed into clearing and the ledger.
-2. **Deposit-matching path — fallback.** The customer transfers to a unique
-   per-intent address. The chain worker confirms the transfer and a treasury
-   executor converts and settles it. This path briefly holds the payer asset;
-   that custody boundary is explicit and audited.
+2. **Deposit-matching path.** The customer transfers to a unique per-intent
+   address. The chain worker confirms the transfer and a treasury executor
+   converts and settles it. This path briefly holds the payer asset; that custody
+   boundary is explicit and audited. It is the only path open to a payer who can
+   just send a transfer — a QR scan, or a withdrawal from an exchange.
+3. **x402 path — for programs.** The payer signs an EIP-3009 authorization and a
+   facilitator broadcasts it. No deposit address is derived, because the payment
+   is identified by the authorization nonce rather than by where the money
+   landed. An agent never sees an address, so deriving one per `402` would be an
+   unused address for every request that is never paid.
 
 Read [Architecture](./docs/architecture.md), [Chain Layer](./docs/chain.md), and
 [Threat Model](./docs/threat-model.md) before changing an execution or custody
@@ -194,6 +269,28 @@ Treasury executor converts and settles
         ↓
 Clearing state → double-entry ledger → dashboard and webhooks
 ```
+
+### x402 path
+
+```text
+Agent requests a gated resource with no payment
+        ↓
+Resource priced through the quote engine, once per accepted rail
+        ↓
+402 Payment Required, terms in the PAYMENT-REQUIRED header
+        ↓
+Agent signs an EIP-3009 authorization for the exact amount
+        ↓
+Facilitator verifies, then broadcasts
+        ↓
+Settlement read back off the chain and matched to this payment
+        ↓
+Clearing state → double-entry ledger → resource served
+```
+
+The price a payer is given is honoured for a window derived from the quote lock,
+never configured beside it. The two numbers cannot drift apart because there is
+only one.
 
 ## Design principles
 
@@ -300,25 +397,25 @@ and the [reference storefront](./apps/demo/README.md).
 
 Mayarin is a Bun workspace monorepo.
 
-| Path                                | Responsibility                                                     |
-| ----------------------------------- | ------------------------------------------------------------------ |
-| `apps/api`                          | Public payment and commerce API; hosted checkout and invoice pages |
-| `apps/chain-worker`                 | Wallet watcher, settlement indexer, and deposit-path executor      |
-| `apps/checkout-ui`                  | Buyer-facing checkout bundled with the core API                    |
-| `apps/dashboard-api`                | Authenticated, tenant-scoped merchant API                          |
-| `apps/dashboard`                    | Merchant operations dashboard                                      |
-| `apps/demo`                         | Parahyangan Supply reference storefront                            |
-| `apps/docs`                         | Interactive API and SDK documentation                              |
-| `apps/landing`                      | Marketing site and pitch deck                                      |
-| `apps/pay-proxy`                    | Restricted buyer-origin proxy for hosted payment surfaces          |
-| `apps/blog` / `apps/studio`         | Editorial site and content studio                                  |
-| `packages/core/*`                   | Pure domain modules and provider/repository ports                  |
-| `packages/providers/*`              | EVM, oracle, swap, settlement, password, and wallet adapters       |
-| `packages/contracts/payment-router` | Solidity contracts and Foundry tests                               |
-| `packages/db`                       | Drizzle schema, migrations, and Postgres repositories              |
-| `packages/sdk`                      | TypeScript client SDK                                              |
-| `packages/embed`                    | Embeddable checkout package                                        |
-| `plugins/woocommerce`               | WooCommerce integration                                            |
+| Path                                | Responsibility                                                   |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| `apps/api`                          | Public payment and commerce API; hosted checkout, invoices, x402 |
+| `apps/chain-worker`                 | Wallet watcher, settlement indexer, and deposit-path executor    |
+| `apps/checkout-ui`                  | Buyer-facing checkout bundled with the core API                  |
+| `apps/dashboard-api`                | Authenticated, tenant-scoped merchant API                        |
+| `apps/dashboard`                    | Merchant operations dashboard                                    |
+| `apps/demo`                         | Parahyangan Supply reference storefront                          |
+| `apps/docs`                         | Interactive API and SDK documentation                            |
+| `apps/landing`                      | Marketing site and pitch deck                                    |
+| `apps/pay-proxy`                    | Restricted buyer-origin proxy for hosted payment surfaces        |
+| `apps/blog` / `apps/studio`         | Editorial site and content studio                                |
+| `packages/core/*`                   | Pure domain modules and provider/repository ports                |
+| `packages/providers/*`              | EVM, oracle, swap, settlement, password, and wallet adapters     |
+| `packages/contracts/payment-router` | Solidity contracts and Foundry tests                             |
+| `packages/db`                       | Drizzle schema, migrations, and Postgres repositories            |
+| `packages/sdk`                      | TypeScript client SDK                                            |
+| `packages/embed`                    | Embeddable checkout package                                      |
+| `plugins/woocommerce`               | WooCommerce integration                                          |
 
 The central dependency rule is one-way: domain packages may depend on other
 domain contracts, but never on Postgres, Hono, viem, Turnkey, or another concrete
@@ -336,6 +433,7 @@ adapter. See [AGENT.md](./AGENT.md) for the complete repository conventions.
 | EVM integration       | viem                                                    |
 | Wallet infrastructure | Safe smart accounts, Turnkey adapter                    |
 | Quotes and execution  | Pyth, Chainlink, Uniswap, 0x, LiFi adapters             |
+| Agent payments        | x402 protocol v2, EIP-3009, EIP-712 typed data          |
 | Monorepo and quality  | Bun workspaces, Turbo, Biome, Prettier, Lefthook        |
 | Deployment            | Railway services and Cloudflare Workers/Pages           |
 
@@ -441,6 +539,10 @@ follow its environment-isolation and key-handling rules.
 The canonical interactive API reference is published at
 [docs.mayarin.xyz](https://docs.mayarin.xyz).
 
+[ROADMAP.md](./ROADMAP.md) is the working state of the ETHOnline 2026 entry —
+what shipped, what is next, and the chain facts that were measured rather than
+read from a vendor's documentation.
+
 ## Roadmap and current boundaries
 
 Current boundaries are part of the design, not hidden footnotes:
@@ -461,6 +563,13 @@ Future work is organized around completing the commerce experience, expanding
 payer assets and execution venues, reaching more chains and markets, scaling
 operations, and opening provider/plugin extension points. See the
 [roadmap](./docs/roadmap.md) for item-level status.
+
+Agent payments have boundaries of their own, and they are current rather than
+aspirational: only the `exact` scheme is implemented, only over EVM; the
+Permit2 fallback is specified but not yet built; and in that scheme the
+broadcaster pays gas, so sub-cent resources invert the economics until a
+sponsorship path exists. [ROADMAP.md](./ROADMAP.md) tracks the ETHOnline 2026
+work on top of this and records those gaps in one place.
 
 ## Community and support
 
