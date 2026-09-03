@@ -25,22 +25,10 @@ const USE_CASES = [
     body: "Add digital-asset acceptance behind an existing processing stack without rebuilding settlement.",
   },
   {
-    index: "03",
-    icon: "wallet" as const,
-    title: "Wallets",
-    body: "Turn a balance into a payment at any merchant, with clearing handled off the client.",
-  },
-  {
     index: "04",
     icon: "coin" as const,
     title: "Stablecoin platforms",
     body: "Give issued value somewhere to go: merchant payouts, treasury movements, on-chain settlement.",
-  },
-  {
-    index: "05",
-    icon: "bag" as const,
-    title: "Marketplaces",
-    body: "Split, hold and release funds against a ledger that reconciles itself by construction.",
   },
   {
     index: "06",
@@ -49,16 +37,28 @@ const USE_CASES = [
     body: "Route across assets and chains per payment, priced at lock time, settled in the merchant's stablecoin.",
   },
   {
-    index: "07",
-    icon: "spark" as const,
-    title: "Content creators",
-    body: "Share a payment link for tips, commissions or digital work — priced locally and payable with supported crypto assets.",
-  },
-  {
     index: "08",
     icon: "invoice" as const,
     title: "Freelancers & agencies",
-    body: "Issue an invoice with your own reference, collect across borders and reconcile every payment to the right client.",
+    body: "Issue an invoice with your own reference, collect across borders and reconcile every payment.",
+  },
+  {
+    index: "05",
+    icon: "bag" as const,
+    title: "Marketplaces",
+    body: "Split, hold and release funds against a ledger that reconciles itself by construction.",
+  },
+  {
+    index: "03",
+    icon: "wallet" as const,
+    title: "Wallets",
+    body: "Turn a balance into a payment at any merchant, with clearing handled off the client.",
+  },
+  {
+    index: "07",
+    icon: "spark" as const,
+    title: "Content creators",
+    body: "Share a payment link for tips, commissions or digital work priced locally and paid by assets.",
   },
 ];
 
@@ -109,12 +109,9 @@ function UseCaseIcon({ name }: { name: UseCaseGlyph }) {
     case "coin":
       return (
         <>
-          <ellipse {...common} cx="12" cy="6" rx="6" ry="3" />
-          <path
-            {...common}
-            d="M6 6v6c0 1.7 2.7 3 6 3s6-1.3 6-3V6M6 12v6c0 1.7 2.7 3 6 3s6-1.3 6-3v-6"
-          />
-          <path {...common} d="M12 8.5v4M10.5 10h3" />
+          <path {...common} d="M13.744 17.736a6 6 0 1 1-7.48-7.48" />
+          <path {...common} d="M15 6h1v4M6.134 14.768l.866-.5 2 3.464" />
+          <circle {...common} cx="16" cy="8" r="6" />
         </>
       );
     case "bag":
@@ -182,7 +179,7 @@ export function UseCases() {
                 <UseCaseIcon name={useCase.icon} />
               </svg>
             </div>
-            <h4 class="mt-auto pt-12 font-display text-[clamp(1.8rem,2.5vw,2.4rem)] leading-none">
+            <h4 class="mt-auto pt-12 font-display text-[clamp(1.8rem,2.5vw,2.2rem)] leading-none">
               {useCase.title}
             </h4>
             <p class="mt-5 max-w-[32ch] text-[0.9375rem] leading-[1.65] text-slate">

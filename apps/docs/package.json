@@ -26,7 +26,7 @@
     "fumadocs-ui": "16.14.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.4",
     "shiki": "^4.0.2",
     "tailwindcss": "^4.1.18",
     "takumi-js": "^2.7.3",

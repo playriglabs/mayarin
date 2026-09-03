@@ -51,7 +51,7 @@ export function Trust() {
         {PILLARS.map((pillar, index) => (
           <div key={pillar.title} class="bg-paper py-8 md:px-8 md:py-2 md:first:pl-0">
             <Reveal delay={index * 90}>
-              <h3 class="font-sans text-lg font-medium tracking-[-0.01em]">{pillar.title}</h3>
+              <h3 class="text-xl font-medium tracking-[-0.01em]">{pillar.title}</h3>
               <p class="mt-4 max-w-[42ch] text-[0.9375rem] leading-[1.7] text-slate">
                 {pillar.body}
               </p>

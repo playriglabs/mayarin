@@ -9,7 +9,8 @@ type Logo = {
 };
 
 const LOGOS: Logo[] = [
-  { src: "/images/logos/tempo.svg", name: "Tempo", lockup: true, class: "h-4 md:h-[1.35rem]" },
+  // { src: "/images/logos/tempo.svg", name: "Tempo", lockup: true, class: "h-4 md:h-[1.35rem]" },
+  // { src: "/images/logos/solana.svg", name: "Solana", lockup: true, class: "h-4 md:h-[1.35rem]" },
   { src: "/images/logos/base.svg", name: "Base", lockup: true, class: "h-4 md:h-[1.35rem]" },
   {
     src: "/images/logos/arbitrum.svg",
@@ -17,8 +18,31 @@ const LOGOS: Logo[] = [
     lockup: true,
     class: "h-12 md:h-[4rem]",
   },
-  // { src: "/images/logos/solana.svg", name: "Solana", lockup: true, class: "h-4 md:h-[1.35rem]" },
   { src: "/images/logos/polygon.svg", name: "Polygon", lockup: true, class: "h-6 md:h-[2rem]" },
+  {
+    src: "/images/logos/arc.svg",
+    name: "Arc",
+    lockup: true,
+    class: "h-5 md:h-[1.5rem]",
+  },
+  {
+    src: "/images/logos/hedera.svg",
+    name: "Hedera",
+    lockup: true,
+    class: "h-8 md:h-[2.25rem]",
+  },
+  {
+    src: "/images/logos/x402.svg",
+    name: "x402",
+    lockup: true,
+    class: "h-5 md:h-[1.5rem]",
+  },
+  {
+    src: "/images/logos/the-graph.svg",
+    name: "The Graph",
+    lockup: true,
+    class: "h-8 md:h-[2.25rem]",
+  },
   {
     src: "/images/logos/pyth.svg",
     name: "Pyth Network",
@@ -35,6 +59,12 @@ const LOGOS: Logo[] = [
   { src: "/images/logos/0x.svg", name: "0x Protocol", lockup: true, class: "h-4 md:h-[1.35rem]" },
   { src: "/images/logos/alchemy.svg", name: "Alchemy" },
   { src: "/images/logos/viem.svg", name: "viem", lockup: true, class: "h-4 md:h-[1.25rem]" },
+  {
+    src: "/images/logos/privy.svg",
+    name: "Privy",
+    lockup: true,
+    class: "h-5 md:h-[1.375rem]",
+  },
   { src: "/images/logos/turnkey.svg", name: "Turnkey", lockup: true, class: "h-5 md:h-[1.5rem]" },
   {
     src: "/images/logos/safe-wallet.svg",
