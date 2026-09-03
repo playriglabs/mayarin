@@ -183,6 +183,13 @@
       "when": 1787379531000,
       "tag": "0025_wallet_withdrawals",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788429600000,
+      "tag": "0026_x402_resources",
+      "breakpoints": true
     }
   ]
 }

@@ -27,6 +27,7 @@
     "@mayarin/qr-parser": "workspace:*",
     "@mayarin/shared": "workspace:*",
     "@mayarin/wallet": "workspace:*",
+    "@mayarin/x402": "workspace:*",
     "drizzle-orm": "^0.38.3",
     "postgres": "^3.4.5"
   },

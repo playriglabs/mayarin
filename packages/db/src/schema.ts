@@ -943,6 +943,43 @@ export const merchantApiKeys = pgTable(
   ],
 );
 
+/**
+ * Endpoints a merchant has made payable per call over x402 (#207).
+ *
+ * `accepts` is JSON rather than a child table because an entry is only ever
+ * read and written whole: a resource's ways to pay are rebuilt together from a
+ * capability probe at boot, never edited one at a time. A row of columns would
+ * buy joins nobody makes and a migration every time the probe learns to record
+ * one more fact about a token.
+ *
+ * `(merchant_id, url)` is unique. Two resources gating the same URL for one
+ * merchant would make the price of a request depend on which row was read
+ * first.
+ */
+export const x402Resources = pgTable(
+  "x402_resources",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    url: text("url").notNull(),
+    description: text("description"),
+    mimeType: text("mime_type"),
+    priceAmount: minorUnits("price_amount").notNull(),
+    priceAsset: text("price_asset").notNull(),
+    /** `AcceptedAsset[]` — chain, contract, payTo, EIP-712 domain, transfer method. */
+    accepts: jsonb("accepts").notNull(),
+    maxTimeoutSeconds: integer("max_timeout_seconds").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("x402_resources_merchant_idx").on(table.merchantId),
+    uniqueIndex("x402_resources_merchant_url_idx").on(table.merchantId, table.url),
+  ],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -973,4 +1010,5 @@ export const schema = {
   webhookEndpoints,
   webhookDeliveries,
   webhookCursors,
+  x402Resources,
 };
