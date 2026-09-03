@@ -38,7 +38,7 @@ export function FooterWordmark() {
         <span class="sr-only">Mayarin</span>
         <span
           aria-hidden="true"
-          class="block pb-[0.06em] font-display text-[clamp(3.25rem,25vw,24rem)] text-center leading-[0.78] tracking-[-0.045em] text-ink"
+          class="block pb-[0.06em] font-display text-[clamp(3.25rem,26vw,25.5rem)] text-center leading-[0.78] tracking-[-0.045em] text-ink"
         >
           {[...WORD].map((letter, index) => (
             <span

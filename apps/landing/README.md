@@ -37,9 +37,10 @@ beyond layout utilities.
 `--color-accent` never carries text on white: at 1.6:1 it fails contrast. Accent green marks
 nodes, rails and flow; `--color-forest` is its accessible counterpart for type.
 
-Type uses `--font-heading` (HB Set) for `h1`–`h3`, `--font-display` (PolySans) for display
-accents, `--font-sans` (Geist) for everything read, and `--font-mono` (Geist Mono) for labels
-and code. `--font-brand` uses the display face for the wordmark.
+Type uses HB Set through `--font-heading` for `h1`–`h3`, `--font-display` for display accents,
+and `--font-brand` for the wordmark. The hero's _in motion_ accent uses Instrument Serif through
+`--font-motion`. `--font-sans` (Geist) handles everything read, while `--font-mono` (Geist Mono)
+handles labels and code.
 
 ## Structure
 

@@ -62,9 +62,7 @@ export function SectionHeading({
   class?: string;
 }) {
   return (
-    <h2 class={clsx("mt-7 max-w-[19ch] text-[clamp(3.3rem,5.2vw,4.25rem)]", className)}>
-      {children}
-    </h2>
+    <h2 class={clsx("mt-7 max-w-[19ch] text-[clamp(3rem,5.2vw,4rem)]", className)}>{children}</h2>
   );
 }
 

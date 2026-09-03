@@ -347,10 +347,36 @@ function toSessionRow(session: Session): typeof sessions.$inferInsert {
   };
 }
 
-/** Maps a Postgres unique-violation on `email`/merchant id to a domain `ConflictError`. */
+/** Postgres `unique_violation`. */
+const UNIQUE_VIOLATION = "23505";
+
+/**
+ * Maps a Postgres unique-violation on `email`/merchant id to a domain
+ * `ConflictError`.
+ *
+ * Matches on the SQLSTATE code and walks the `cause` chain to find it. Both
+ * halves are load-bearing.
+ *
+ * Drizzle 0.45 wraps a failed query in `DrizzleQueryError`, whose message is
+ * the SQL and its parameters; the driver's error, and its code, moved to
+ * `cause`. The previous version of this function tested the top-level message
+ * for the words "unique" or "duplicate key", so the upgrade turned every
+ * duplicate-email registration from a 409 into a 500 — silently, because the
+ * error still reached the caller and still said the right thing to a human
+ * reading a log.
+ *
+ * Reading the code rather than the prose also fixes the older fragility it
+ * replaced: message matching depends on the driver's phrasing and on the
+ * server's locale, and a table whose name happens to contain "unique" matched
+ * it for the wrong reason.
+ */
 function toConflict(error: unknown, key: string): unknown {
-  if (error instanceof Error && /unique|duplicate key/i.test(error.message)) {
-    return new ConflictError(`Already exists: ${key}`, { key });
+  for (let current: unknown = error, depth = 0; current !== undefined && depth < 8; depth += 1) {
+    if (typeof current !== "object" || current === null) break;
+    if ((current as { code?: unknown }).code === UNIQUE_VIOLATION) {
+      return new ConflictError(`Already exists: ${key}`, { key });
+    }
+    current = (current as { cause?: unknown }).cause;
   }
   return error;
 }

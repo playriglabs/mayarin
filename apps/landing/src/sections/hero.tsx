@@ -34,7 +34,8 @@ export function Hero() {
 
         <Reveal delay={80}>
           <h1 class="mt-10 max-w-[16ch] text-[clamp(2.8rem,7vw,6rem)] leading-[0.98]">
-            Clearing infrastructure for money <em class="italic">in motion</em>.
+            Clearing infrastructure for money{" "}
+            <em class="font-motion font-normal italic">in motion</em>.
           </h1>
         </Reveal>
 

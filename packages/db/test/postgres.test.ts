@@ -175,7 +175,15 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       },
       amount: money(5_000_000n, "IDR"),
       source: { type: "qr", scheme: "QRIS", payload: "00020101021226..." },
-      payment: { asset: "USDC", chain: "base-sepolia" },
+      // The contract path signs the payer's change back to `refundTo`, so it
+      // has refused a rail without the payer's address since #61. These three
+      // tests were written before that and have failed ever since — invisibly,
+      // because this suite is opt-in and never runs in pre-push.
+      payment: {
+        asset: "USDC",
+        chain: "base-sepolia",
+        payerAddress: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+      },
       executionPath: "on-chain-contract",
     });
     const loaded = await intents.getById(created.id);
@@ -198,7 +206,15 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       },
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" },
-      payment: { asset: "USDC", chain: "base-sepolia" },
+      // The contract path signs the payer's change back to `refundTo`, so it
+      // has refused a rail without the payer's address since #61. These three
+      // tests were written before that and have failed ever since — invisibly,
+      // because this suite is opt-in and never runs in pre-push.
+      payment: {
+        asset: "USDC",
+        chain: "base-sepolia",
+        payerAddress: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+      },
       executionPath: "on-chain-contract",
     });
     const { transaction, event } = createClearingTransaction(
@@ -247,7 +263,15 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       },
       amount: money(5_000_000n, "IDR"),
       source: { type: "manual" },
-      payment: { asset: "USDC", chain: "base-sepolia" },
+      // The contract path signs the payer's change back to `refundTo`, so it
+      // has refused a rail without the payer's address since #61. These three
+      // tests were written before that and have failed ever since — invisibly,
+      // because this suite is opt-in and never runs in pre-push.
+      payment: {
+        asset: "USDC",
+        chain: "base-sepolia",
+        payerAddress: "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+      },
       executionPath: "on-chain-contract",
     });
     const { transaction, event } = createClearingTransaction(

@@ -97,7 +97,7 @@ export function Capabilities() {
               <span class="block text-ink transition-transform duration-500 ease-out-expo group-hover:translate-x-1">
                 {glyphs[capability.glyph]}
               </span>
-              <h3 class="mt-8 font-sans text-[0.9375rem] font-medium tracking-[-0.01em]">
+              <h3 class="mt-8 text-[1.2rem] tracking-[-0.01em]">
                 <ScrambleText text={capability.name} trigger="[data-scramble-cell]" />
               </h3>
               <p class="mt-3 max-w-[34ch] text-sm leading-[1.7] text-slate">{capability.body}</p>
