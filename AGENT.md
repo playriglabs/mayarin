@@ -24,6 +24,13 @@ the design record and is expected to stay in sync with the code. RFC issues
 
 ## Commands
 
+**Node 22.12 or newer is required**, alongside Bun. Astro 7 refuses to run below
+it, so `astro check` and `astro build` fail on Node 20 with a message about the
+engine rather than about the code — and only the three Astro apps (`blog`,
+`dashboard`, `docs`) are affected, so the rest of the suite passes and hides it.
+`.nvmrc` pins the version; a Cloudflare or CI build image needs `NODE_VERSION`
+set to match.
+
 ```bash
 bun run setup                   # clone to running: install, .env, db, migrate, config check
 bun run setup -- --check        # report drift only, change nothing
