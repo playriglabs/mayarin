@@ -6,6 +6,7 @@ import { ArrowRight } from "./ui.tsx";
 
 const links = [
   { label: "Platform", href: "#platform" },
+  { label: "Agents", href: "#agents" },
   { label: "Architecture", href: "#architecture" },
   { label: "Developers", href: "#developers" },
   { label: "Use cases", href: "#use-cases" },
