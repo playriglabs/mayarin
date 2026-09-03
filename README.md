@@ -2,9 +2,10 @@
 
 **/maɪˈjɑːrɪn/** — _“My-ar-in”_
 
-> **Programmable clearing infrastructure for people and programs**
+> **A programmable clearing layer for humans, applications, and autonomous
+> agents**
 >
-> Price in fiat. Settle in stablecoins. Paid by anyone — or anything.
+> Price in fiat. Settle in stablecoins. Paid by any of the three.
 
 Mayarin turns fragmented crypto-payment infrastructure into one programmable
 clearing layer. Merchants price in their local currency and receive a configured
@@ -13,9 +14,17 @@ Quoting, execution, settlement, accounting, wallets, and merchant-facing commerc
 are coordinated behind one provider-agnostic layer rather than becoming part of
 the merchant's application.
 
-**The payer no longer has to be a person.** They may be a customer at a checkout,
-a wallet scanning a QR, or an autonomous agent with no account at all — and none
-of the three needs to understand the others' world.
+**The thesis has not changed. What widened is who may be a payer.**
+
+```text
+today      Human       → Mayarin → Merchant
+           Application → Mayarin → Merchant
+next       AI agent    → Mayarin → Merchant · Agent · API
+```
+
+An autonomous agent is a **payer class**, not a product line. It reaches the same
+clearing layer, the same ledger and the same merchant as a person at a checkout —
+it simply cannot open an account, hold a card, or be asked to understand gas.
 
 That last case is [x402](https://github.com/coinbase/x402): any Mayarin-gated
 endpoint becomes payable per call by an agent that has never registered, holds no

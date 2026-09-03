@@ -7,20 +7,26 @@ free of tool-specific configuration; that belongs in the pointer file.
 
 ## What this is
 
-Mayarin is **programmable clearing infrastructure for people and programs**:
-merchants price in their local currency and settle in a stablecoin; the payer
-brings any supported asset. One provider-agnostic clearing layer bridges the two
-so merchants never need to understand blockchain. Bun workspace monorepo,
-TypeScript, Hono API on Postgres.
+Mayarin is **a programmable clearing layer for humans, applications, and
+autonomous agents**: merchants price in their local currency and settle in a
+stablecoin; the payer brings any supported asset. One provider-agnostic clearing
+layer bridges the two so merchants never need to understand blockchain. Bun
+workspace monorepo, TypeScript, Hono API on Postgres.
 
-**A payer is not necessarily a person.** Three execution paths serve three kinds
-of buyer, chosen per payer rather than per deployment: a customer who connects a
-wallet (contract path), one who can only send a transfer (deposit-match), and a
-program that signs an x402 authorization and has no account at all. Anything that
-branches on how a payment is funded must say which of the three it means — see
-`usesDepositAddress` and `awaitsFacilitatorSettlement`, which exist because the
-old `!== "on-chain-contract"` phrasing was right with two paths and silently
-wrong with three.
+**An autonomous agent is a payer class, not a product line.** This distinction is
+load-bearing for anyone changing code here: Mayarin is not becoming an AI
+product, and nothing agent-shaped belongs in the domain. An agent reaches the
+same clearing engine, the same ledger and the same merchant as a person at a
+checkout — it differs only in that it cannot open an account, hold a card, or be
+asked to understand gas, so it is given one thing to sign.
+
+Separately from _who_ pays, three **execution paths** describe _how_ value moves,
+and they are chosen per payment rather than per deployment: the contract path,
+deposit-match, and x402. Anything branching on how a payment is funded must say
+which of the three it means — see `usesDepositAddress` and
+`awaitsFacilitatorSettlement`, which exist because the old
+`!== "on-chain-contract"` phrasing was right with two paths and silently wrong
+with three.
 
 Fiat payment rails (QRIS, bank transfer) and a stablecoin → fiat off-ramp are
 intentionally **out of the MVP** — later, explicit phases with their own custody

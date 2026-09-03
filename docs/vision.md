@@ -9,22 +9,52 @@ Why Mayarin exists, what it refuses to become, and the problem it is pointed at.
 ## Philosophy
 
 > **Merchants think in fiat. Settlement happens in stablecoins. The payer holds
-> whatever they hold — and may not be a person at all.**
+> whatever they hold.**
 
 Traditional payment systems understand fiat. Blockchain understands programmable
 value. Mayarin is the infrastructure that lets a merchant price in their local
 currency and receive a stablecoin, while the payer pays in any supported asset —
 without either side understanding the other's world.
 
-The second half of that sentence has widened. A payer used to mean a person: at
-a checkout, scanning a QR, connecting a wallet. It now also means a **program** —
-an autonomous agent that has no account, no API key and no checkout page, and
-that pays for a single API call by signing one authorization. Same clearing
-layer, same ledger, same merchant experience; a different kind of buyer.
-
 Not another payment gateway. Not another crypto wallet. Not another exchange.
 
-**Programmable clearing infrastructure for people and programs.**
+**A programmable clearing layer for humans, applications, and autonomous
+agents.**
+
+---
+
+## The payer class
+
+The thesis above has not changed since the first line of this repository. What
+widened is a single axis: **who is allowed to be a payer.**
+
+```
+today      Human       → Mayarin → Merchant
+           Application → Mayarin → Merchant
+next       AI agent    → Mayarin → Merchant · Agent · API
+```
+
+Three classes, one clearing layer. A human pays at a checkout or scans a QR. An
+application pays on a person's behalf, or on its own schedule. An autonomous
+agent pays for one API call, once, having never registered with anybody.
+
+**The agent is not the product.** That sentence is the guard rail on this
+document. It would be easy, and wrong, to read agent payments as a pivot into an
+AI product — and a system that made that turn would start growing agent-shaped
+concepts in its domain, which is exactly the fragmentation Mayarin exists to
+remove. An agent reaches the same clearing engine, writes to the same
+double-entry ledger, and settles to the same merchant as everyone else.
+
+The last line is the one that widens furthest, and it widens the _recipient_
+rather than the payer: an agent can be paid as well as pay. That needs nothing
+new, because a seller is a merchant account, and the account does not care
+whether a human or a program operates it.
+
+What genuinely differs about the third class is small and specific. An agent
+cannot open an account, cannot hold a card, cannot be handed an API key it did
+not ask for, and cannot be told to understand gas. So it is given exactly one
+thing to do: sign an authorization for an exact amount, in an asset it already
+holds. Everything else on this page applies to it unchanged.
 
 ---
 
@@ -70,10 +100,8 @@ Merchant receives    0.95 USDC
 The merchant never learns which asset the customer used. The customer never
 learns which stablecoin the merchant settles in.
 
-The same gap exists between a merchant and a machine, and it is wider. An agent
-buying one API call cannot open an account, cannot hold a card, and cannot be
-asked to understand gas. It can sign one authorization for an exact amount in an
-asset it already holds — so that is the whole interface it is given.
+The same gap exists between a merchant and a machine, and it is wider — the
+third payer class described above.
 
 ```
 Agent requests       GET /premium-data

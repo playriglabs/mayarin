@@ -14,13 +14,24 @@ ports-and-adapters rule it describes constrains everything below.
 
 ## The idea
 
-An AI agent receives a payment intent — _buy this API call_, _pay this invoice_,
-_settle $50 USDC to this merchant_ — and Mayarin handles authorization, quote,
-route, swap, settlement and receipt. The agent never learns what a chain is,
-where liquidity comes from, or what gas costs.
+**Mayarin is not becoming an AI product.** The thesis is unchanged — one
+programmable clearing layer — and what widened is a single axis: who is allowed
+to be a payer.
 
-This is the backbone, not a bounty. Every sponsor below occupies a position it
-actually needs filled.
+```text
+today      Human       → Mayarin → Merchant
+           Application → Mayarin → Merchant
+this event AI agent    → Mayarin → Merchant · Agent · API
+```
+
+An autonomous agent is a **payer class**, not a product line. It receives a
+payment intent — _buy this API call_, _pay this invoice_, _settle $50 USDC to
+this merchant_ — and Mayarin handles authorization, quote, route, swap,
+settlement and receipt, exactly as it does for a person at a checkout. The agent
+never learns what a chain is, where liquidity comes from, or what gas costs.
+
+That framing is the backbone, not a bounty. Every sponsor below occupies a
+position it actually needs filled.
 
 **The agent signs exactly one thing:** an authorization for an exact amount, in
 an asset it already holds. It never touches gas, never holds the merchant's
