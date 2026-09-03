@@ -552,6 +552,16 @@
         "viem": "^2.21.0",
       },
     },
+    "packages/providers/x402-local": {
+      "name": "@mayarin/provider-x402-local",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+        "@mayarin/x402": "workspace:*",
+        "viem": "^2.21.0",
+      },
+    },
     "packages/sdk": {
       "name": "@mayarin/sdk",
       "version": "0.1.0",
@@ -1262,6 +1272,8 @@
     "@mayarin/provider-turnkey": ["@mayarin/provider-turnkey@workspace:packages/providers/turnkey"],
 
     "@mayarin/provider-viem-chains": ["@mayarin/provider-viem-chains@workspace:packages/providers/viem-chains"],
+
+    "@mayarin/provider-x402-local": ["@mayarin/provider-x402-local@workspace:packages/providers/x402-local"],
 
     "@mayarin/qr-parser": ["@mayarin/qr-parser@workspace:packages/core/qr-parser"],
 
