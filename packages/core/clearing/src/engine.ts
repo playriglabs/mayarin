@@ -27,6 +27,7 @@ import type {
 } from "@mayarin/chain";
 import type { LedgerService } from "@mayarin/ledger";
 import type { PaymentIntent, PaymentIntentService } from "@mayarin/payment-intent";
+import { awaitsFacilitatorSettlement, usesDepositAddress } from "@mayarin/payment-intent";
 import type {
   SettlementAdapterRegistry,
   SettlementRequest,
@@ -460,7 +461,14 @@ export class ClearingEngine {
           );
         }
 
-        if (!this.#autoConfirmAssetReceipt && signals.assetReceived !== true) return null;
+        // `autoConfirmAssetReceipt` is the stand-in for the wallet watcher, and
+        // the watcher only ever confirms a deposit. An x402 payment is
+        // confirmed by reading its settlement transaction back off the chain,
+        // so auto-confirm must not reach it: doing so would credit a merchant
+        // for an authorization nobody had broadcast.
+        const mayAutoConfirm =
+          this.#autoConfirmAssetReceipt && !awaitsFacilitatorSettlement(transaction.executionPath);
+        if (!mayAutoConfirm && signals.assetReceived !== true) return null;
         // Split the receipt only when something will actually convert the
         // deposit. The two postings are a pair: the receipt stops crediting
         // `MERCHANT_PAYABLE` and the swap starts, so booking the first without
@@ -608,7 +616,11 @@ export class ClearingEngine {
    */
   async #plansExecutableDeposit(transaction: ClearingTransaction): Promise<boolean> {
     if (this.#contractPlanner === undefined || this.#treasuryAddress === undefined) return false;
-    if (transaction.executionPath === "on-chain-contract") return false;
+    // Asked as "is this the deposit path" rather than "is this not the contract
+    // path". The second phrasing was correct with two paths and would have
+    // planned a signed router order for an x402 payment, which has no deposit
+    // to convert and no address to refund to.
+    if (!usesDepositAddress(transaction.executionPath)) return false;
 
     const intent = await this.#intents.getById(transaction.paymentIntentId);
     return intent.payment !== undefined;
@@ -752,6 +764,14 @@ export class ClearingEngine {
   ): Promise<ClearingDeposit | undefined> {
     // The on-chain-contract path never reaches here: `#lockPrice` branches to
     // `#lockContract`, which locks a signed order instead of an address.
+    //
+    // x402 does reach here and must not derive one. Its payer is a program that
+    // never sees an address — the payment is identified by the authorization
+    // nonce — so an address here would be one derived per `402`, and most 402s
+    // are never paid. It also needs no chain layer, which is why this returns
+    // before the check below rather than after it.
+    if (!usesDepositAddress(transaction.executionPath)) return undefined;
+
     const intent = await this.#intents.getById(transaction.paymentIntentId);
     const rail = intent.payment;
     if (rail === undefined) return undefined;
@@ -975,7 +995,7 @@ export class ClearingEngine {
     return (
       transaction.contract !== undefined &&
       transaction.deposit !== undefined &&
-      transaction.executionPath !== "on-chain-contract"
+      usesDepositAddress(transaction.executionPath)
     );
   }
 

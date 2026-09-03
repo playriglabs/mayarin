@@ -72,18 +72,58 @@ export interface PaymentRail {
  * `"deposit-match"`: the payer's asset arrives at a per-intent deposit address
  * and the watcher drives `ASSET_RECEIVED`. `"on-chain-contract"`:
  * `PaymentRouter.sol` receives, swaps and settles atomically in one transaction,
- * and `recordPaymentCompleted` drives `ASSET_RECEIVED`.
+ * and `recordPaymentCompleted` drives `ASSET_RECEIVED`. `"x402"`: the payer
+ * signs an EIP-3009 authorization, a facilitator broadcasts it, and
+ * `recordAssetReceived` drives the transition once the transfer has been read
+ * back off the chain.
  *
- * Neither is a fallback for the other — they serve different payers. The
- * contract path needs the payer to *connect* a wallet, because it submits
- * calldata and because the signed order's `refundTo` must be known before the
- * payer pays. A payer who scans a QR or pastes an address into a custodial
- * withdrawal can only do a plain transfer, so deposit-matching is the only path
- * open to them. Which is why this is chosen per payer, not per deployment.
+ * None is a fallback for another — they serve different payers. The contract
+ * path needs the payer to *connect* a wallet, because it submits calldata and
+ * because the signed order's `refundTo` must be known before the payer pays. A
+ * payer who scans a QR or pastes an address into a custodial withdrawal can
+ * only do a plain transfer, so deposit-matching is the only path open to them.
+ * An `x402` payer is a program: it never sees an address, and the payment is
+ * identified by the authorization nonce rather than by where the money landed —
+ * which is why that path derives no deposit address at all.
+ *
+ * Chosen per payer, not per deployment.
  */
-export const EXECUTION_PATHS = ["deposit-match", "on-chain-contract"] as const;
+export const EXECUTION_PATHS = ["deposit-match", "on-chain-contract", "x402"] as const;
 
 export type ExecutionPath = (typeof EXECUTION_PATHS)[number];
+
+/**
+ * Whether this path is funded by a transfer to a per-intent deposit address.
+ *
+ * A named predicate rather than `path !== "on-chain-contract"`, which is how
+ * every site here used to ask the question. That phrasing was correct while
+ * there were two paths and silently wrong the moment there were three: `x402`
+ * is not the contract path, so every one of those tests would have answered
+ * "deposit" for it and gone looking for an address that does not exist.
+ *
+ * The same shape of bug as `chain === "base"` deciding whether a chain carried
+ * real value. The fix is the same: ask the question you mean.
+ */
+/**
+ * Whether this path waits for a facilitator to broadcast a signed
+ * authorization, rather than for money to arrive on its own.
+ *
+ * The distinction matters to anything that stands in for the wallet watcher:
+ * an x402 payment is confirmed by reading its settlement transaction back off
+ * the chain, so a development shortcut that confirms receipt on a timer must
+ * not reach it.
+ */
+export function awaitsFacilitatorSettlement(path: ExecutionPath | undefined): boolean {
+  return path === "x402";
+}
+
+export function usesDepositAddress(path: ExecutionPath | undefined): boolean {
+  // `undefined` counts, because the field's own default is deposit-match: an
+  // intent whose deployment configured no default still funds through an
+  // address. Reading it as "not deposit" here would quietly stop planning the
+  // executable deposits those intents already rely on.
+  return path === undefined || path === "deposit-match";
+}
 
 export interface PaymentIntent {
   readonly id: string;

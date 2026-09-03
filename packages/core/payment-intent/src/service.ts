@@ -128,8 +128,14 @@ export class PaymentIntentService {
       }
     }
 
-    if (command.executionPath === "on-chain-contract" && command.payment === undefined) {
-      throw new ValidationError("on-chain-contract execution path requires a payment rail", {
+    // Both on-chain paths need a rail: the contract path submits calldata for
+    // one, and an x402 payer authorises a transfer of one. Only a fiat-only
+    // intent has neither.
+    if (
+      (command.executionPath === "on-chain-contract" || command.executionPath === "x402") &&
+      command.payment === undefined
+    ) {
+      throw new ValidationError(`${command.executionPath} execution path requires a payment rail`, {
         executionPath: command.executionPath,
       });
     }
