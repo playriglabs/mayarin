@@ -4,6 +4,9 @@ const EXPLORERS = {
   arbitrum: "https://arbiscan.io/",
   "arbitrum-sepolia": "https://sepolia.arbiscan.io/",
   "robinhood-testnet": "https://explorer.testnet.chain.robinhood.com/",
+  "arc-testnet": "https://testnet.arcscan.app/",
+  hedera: "https://hashscan.io/mainnet/",
+  "hedera-testnet": "https://hashscan.io/testnet/",
 } as const satisfies Readonly<Record<string, string>>;
 
 type ExplorerChain = keyof typeof EXPLORERS;

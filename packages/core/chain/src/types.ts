@@ -15,6 +15,9 @@ export const CHAIN_IDS = [
   "arbitrum",
   "arbitrum-sepolia",
   "robinhood-testnet",
+  "arc-testnet",
+  "hedera",
+  "hedera-testnet",
 ] as const;
 
 export type ChainId = (typeof CHAIN_IDS)[number];
@@ -34,6 +37,13 @@ export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
   arbitrum: 42_161n,
   "arbitrum-sepolia": 421_614n,
   "robinhood-testnet": 46_630n,
+  // Read off each chain with `cast chain-id` rather than taken from a docs page.
+  // Arc mainnet is absent on purpose: it does not launch until 16 Sep 2026, so
+  // no endpoint can confirm its id and a chain fact nobody can check is worse
+  // than a missing one. Add it when the network answers.
+  "arc-testnet": 5_042_002n,
+  hedera: 295n,
+  "hedera-testnet": 296n,
 };
 
 /**
@@ -44,7 +54,11 @@ export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
  * Guards read this instead of comparing against a chain name, so adding a
  * mainnet cannot silently slip past a check written when Base was the only one.
  */
-export const MAINNET_CHAIN_IDS: ReadonlySet<ChainId> = new Set<ChainId>(["base", "arbitrum"]);
+export const MAINNET_CHAIN_IDS: ReadonlySet<ChainId> = new Set<ChainId>([
+  "base",
+  "arbitrum",
+  "hedera",
+]);
 
 export function isMainnetChain(chain: ChainId): boolean {
   return MAINNET_CHAIN_IDS.has(chain);
