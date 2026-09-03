@@ -16,6 +16,7 @@
     "@mayarin/clearing": "workspace:*",
     "@mayarin/contracts": "workspace:*",
     "@mayarin/execution": "workspace:*",
+    "@mayarin/provider-viem-chains": "workspace:*",
     "@mayarin/quote": "workspace:*",
     "@mayarin/shared": "workspace:*",
     "@mayarin/wallet": "workspace:*",

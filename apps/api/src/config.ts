@@ -6,7 +6,7 @@
  */
 
 import { fileURLToPath } from "node:url";
-import { CHAIN_IDS, type ChainId } from "@mayarin/chain";
+import { CHAIN_IDS, type ChainId, isChainId, isMainnetChain } from "@mayarin/chain";
 import type { PythFeed } from "@mayarin/provider-pyth";
 import {
   type AssetCode,
@@ -457,7 +457,9 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     // The promise `docs/quote-signing.md` makes: the composition root refuses an
     // in-process signing key outside development. Anything that can read the
     // process could otherwise authorize settlement amounts.
-    const mainnetRouters = Object.keys(data.paymentRouters).filter((chain) => chain === "base");
+    const mainnetRouters = Object.keys(data.paymentRouters).filter(
+      (chain) => isChainId(chain) && isMainnetChain(chain),
+    );
     if (data.nodeEnv !== "development" && mainnetRouters.length > 0) {
       issues.push(
         `QUOTE_SIGNER=local holds the quote-signing key in this process and is refused for ` +

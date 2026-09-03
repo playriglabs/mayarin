@@ -18,16 +18,9 @@ import type {
   TransferQuery,
 } from "@mayarin/chain";
 import { paymentRouterAbi } from "@mayarin/contracts";
+import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
 import { type AssetCode, ConfigurationError, ProviderError } from "@mayarin/shared";
-import {
-  type Chain,
-  createPublicClient,
-  getAddress,
-  http,
-  type PublicClient,
-  parseAbiItem,
-} from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { createPublicClient, getAddress, http, type PublicClient, parseAbiItem } from "viem";
 import { shortReason } from "./errors.ts";
 
 const TRANSFER_EVENT = parseAbiItem(
@@ -44,15 +37,6 @@ const PAYMENT_COMPLETED_EVENT = paymentRouterAbi.find(
   (entry): entry is Extract<typeof entry, { type: "event"; name: "PaymentCompleted" }> =>
     entry.type === "event" && entry.name === "PaymentCompleted",
 );
-
-// Typed as the generic `Chain` rather than `base | baseSepolia` so the public
-// clients share one type: the op-stack chains specialise their block's
-// `transactions` to include deposit transactions, which is unrelated to the
-// generic client's block type and would otherwise force a cast everywhere.
-const CHAINS: Record<ChainId, Chain> = {
-  base,
-  "base-sepolia": baseSepolia,
-};
 
 export interface EvmChainClientOptions {
   readonly rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
@@ -378,7 +362,7 @@ export class EvmChainClient implements ChainClient {
     }
 
     const client = createPublicClient({
-      chain: CHAINS[chain],
+      chain: VIEM_CHAINS[chain],
       transport: http(url, { retryCount: this.#retryCount, timeout: this.#timeoutMs }),
     });
     this.#clients.set(chain, client);

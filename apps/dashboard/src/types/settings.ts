@@ -75,6 +75,8 @@ export interface WalletDto {
 
 export interface WalletListResponse {
   readonly wallets: readonly WalletDto[];
+  /** The chain this deployment links, provisions and settles on. */
+  readonly chain: string;
 }
 
 export interface WalletResponse {

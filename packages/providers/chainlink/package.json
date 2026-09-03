@@ -12,6 +12,7 @@
   "dependencies": {
     "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
+    "@mayarin/provider-viem-chains": "workspace:*",
     "@mayarin/shared": "workspace:*",
     "viem": "^2.21.0"
   }

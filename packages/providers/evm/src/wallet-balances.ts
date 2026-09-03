@@ -12,24 +12,12 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
+import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
 import { type AssetCode, type Money, money, ProviderError } from "@mayarin/shared";
 import type { WalletBalanceQuery, WalletBalanceReader } from "@mayarin/wallet";
-import {
-  type Chain,
-  createPublicClient,
-  getAddress,
-  http,
-  type PublicClient,
-  parseAbi,
-} from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { createPublicClient, getAddress, http, type PublicClient, parseAbi } from "viem";
 
 const ERC20_ABI = parseAbi(["function balanceOf(address account) view returns (uint256)"]);
-
-const CHAINS: Record<ChainId, Chain> = {
-  base,
-  "base-sepolia": baseSepolia,
-};
 
 export interface EvmWalletBalanceReaderOptions {
   readonly rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
@@ -92,7 +80,7 @@ export class EvmWalletBalanceReader implements WalletBalanceReader {
       throw new ProviderError(`No RPC URL configured for ${chain}`, { chain });
     }
 
-    const client = createPublicClient({ chain: CHAINS[chain], transport: http(url) });
+    const client = createPublicClient({ chain: VIEM_CHAINS[chain], transport: http(url) });
     this.#clients.set(chain, client);
     return client;
   }

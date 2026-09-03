@@ -19,6 +19,7 @@ import type { ChainId } from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import type { SwapVenue } from "@mayarin/execution";
+import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
 import {
   type AssetCode,
   assetDecimals,
@@ -27,15 +28,7 @@ import {
   ProviderError,
   ValidationError,
 } from "@mayarin/shared";
-import {
-  type Chain,
-  createPublicClient,
-  getAddress,
-  http,
-  type PublicClient,
-  parseAbi,
-} from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { createPublicClient, getAddress, http, type PublicClient, parseAbi } from "viem";
 import { scaleSwapRate } from "./quoter.ts";
 
 // QuoterV2 declares the function nonpayable, but it mutates no committed
@@ -45,11 +38,6 @@ const QUOTER_V2_ABI = parseAbi([
   "struct QuoteExactInputSingleParams { address tokenIn; address tokenOut; uint256 amountIn; uint24 fee; uint160 sqrtPriceLimitX96; }",
   "function quoteExactInputSingle(QuoteExactInputSingleParams params) view returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
 ]);
-
-const CHAINS: Record<ChainId, Chain> = {
-  base,
-  "base-sepolia": baseSepolia,
-};
 
 /** The pool one configured pair trades through. */
 export interface UniswapPool {
@@ -151,7 +139,7 @@ export class UniswapSwapVenue implements SwapVenue {
       throw new ConfigurationError(`No RPC URL configured for ${chain}`, { chain });
     }
 
-    const client = createPublicClient({ chain: CHAINS[chain], transport: http(url) });
+    const client = createPublicClient({ chain: VIEM_CHAINS[chain], transport: http(url) });
     this.#clients.set(chain, client);
     return client;
   }

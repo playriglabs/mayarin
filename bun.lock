@@ -441,6 +441,7 @@
       "dependencies": {
         "@mayarin/chain": "workspace:*",
         "@mayarin/clearing": "workspace:*",
+        "@mayarin/provider-viem-chains": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "viem": "^2.21.0",
       },
@@ -454,6 +455,7 @@
         "@mayarin/clearing": "workspace:*",
         "@mayarin/contracts": "workspace:*",
         "@mayarin/execution": "workspace:*",
+        "@mayarin/provider-viem-chains": "workspace:*",
         "@mayarin/quote": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "@mayarin/wallet": "workspace:*",
@@ -516,6 +518,7 @@
         "@mayarin/chain": "workspace:*",
         "@mayarin/clearing": "workspace:*",
         "@mayarin/execution": "workspace:*",
+        "@mayarin/provider-viem-chains": "workspace:*",
         "@mayarin/shared": "workspace:*",
         "viem": "^2.21.0",
       },
@@ -531,6 +534,14 @@
         "@noble/curves": "1.9.1",
         "viem": "^2.21.0",
         "zod": "^3.24.1",
+      },
+    },
+    "packages/providers/viem-chains": {
+      "name": "@mayarin/provider-viem-chains",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "viem": "^2.21.0",
       },
     },
     "packages/sdk": {
@@ -1241,6 +1252,8 @@
     "@mayarin/provider-swap-uniswap": ["@mayarin/provider-swap-uniswap@workspace:packages/providers/swap-uniswap"],
 
     "@mayarin/provider-turnkey": ["@mayarin/provider-turnkey@workspace:packages/providers/turnkey"],
+
+    "@mayarin/provider-viem-chains": ["@mayarin/provider-viem-chains@workspace:packages/providers/viem-chains"],
 
     "@mayarin/qr-parser": ["@mayarin/qr-parser@workspace:packages/core/qr-parser"],
 

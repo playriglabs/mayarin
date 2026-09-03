@@ -1,6 +1,9 @@
 const EXPLORERS = {
   base: "https://basescan.org/",
   "base-sepolia": "https://sepolia.basescan.org/",
+  arbitrum: "https://arbiscan.io/",
+  "arbitrum-sepolia": "https://sepolia.arbiscan.io/",
+  "robinhood-testnet": "https://explorer.testnet.chain.robinhood.com/",
 } as const satisfies Readonly<Record<string, string>>;
 
 type ExplorerChain = keyof typeof EXPLORERS;
