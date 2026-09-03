@@ -8,12 +8,12 @@ Why Mayarin exists, what it refuses to become, and the problem it is pointed at.
 
 ## Philosophy
 
-> **Merchants think in fiat. Settlement happens in stablecoins. The payer holds
-> whatever they hold.**
+> **Merchants think in fiat. Settlement happens in stablecoins. Customers pay
+> with whatever they hold.**
 
 Traditional payment systems understand fiat. Blockchain understands programmable
 value. Mayarin is the infrastructure that lets a merchant price in their local
-currency and receive a stablecoin, while the payer pays in any supported asset —
+currency and receive a stablecoin, while a customer pays in any supported asset —
 without either side understanding the other's world.
 
 Not another payment gateway. Not another crypto wallet. Not another exchange.
@@ -25,8 +25,9 @@ agents.**
 
 ## The payer class
 
-The thesis above has not changed since the first line of this repository. What
-widened is a single axis: **who is allowed to be a payer.**
+The line above is the original thesis and it is untouched — a customer paying
+with whatever they hold is still the centre of this system. What widened is a
+single axis around it: **who is allowed to be a customer.**
 
 ```
 today      Human       → Mayarin → Merchant
@@ -37,6 +38,9 @@ next       AI agent    → Mayarin → Merchant · Agent · API
 Three classes, one clearing layer. A human pays at a checkout or scans a QR. An
 application pays on a person's behalf, or on its own schedule. An autonomous
 agent pays for one API call, once, having never registered with anybody.
+
+"Payer" is the word this section needs because it has to cover all three at
+once. Everywhere else, "customer" is still the right word and stays.
 
 **The agent is not the product.** That sentence is the guard rail on this
 document. It would be easy, and wrong, to read agent payments as a pivot into an
@@ -87,7 +91,7 @@ exchange rates, or care which asset the customer paid with; the customer does
 not want to hunt for the one stablecoin the merchant accepts.
 
 Mayarin closes that gap. A merchant prices in their local currency and configures
-a settlement stablecoin. A payer pays in any supported asset. Mayarin quotes,
+a settlement stablecoin. A customer pays in any supported asset. Mayarin quotes,
 locks, and — when the assets differ — converts on-chain before settlement.
 
 ```
