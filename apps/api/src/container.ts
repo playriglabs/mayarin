@@ -9,6 +9,7 @@
 import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import {
   type BlockRef,
+  CHAIN_IDS,
   type ChainId,
   type PaymentCompletionSink,
   SettlementIndexer,
@@ -46,6 +47,7 @@ import {
   DrizzleWebhookDeliveryRepository,
   DrizzleWebhookEndpointRepository,
   DrizzleWebhookOutbox,
+  DrizzleX402ResourceRepository,
   listenPaymentChanged,
 } from "@mayarin/db";
 import { InvoiceService } from "@mayarin/invoicing";
@@ -64,6 +66,7 @@ import {
 } from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
+import { EvmX402Reader, LocalX402Facilitator } from "@mayarin/provider-x402-local";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import {
   type AssetCode,
@@ -71,10 +74,13 @@ import {
   ConfigurationError,
   type EventPublisher,
   InMemoryEventBus,
+  NotFoundError,
   systemClock,
 } from "@mayarin/shared";
 import { pairsOf, type Stablecoin, type StablecoinRegistry } from "@mayarin/stablecoin";
 import { SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
+import type { SettlementConfirmer, X402Facilitator } from "@mayarin/x402";
+import { facilitatorRegistry } from "@mayarin/x402";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
@@ -86,6 +92,7 @@ import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
 import { FetchWebhookTransport } from "./services/webhook-transport.ts";
+import { X402Service } from "./services/x402.ts";
 
 export interface Container {
   readonly config: Config;
@@ -178,6 +185,15 @@ export interface Container {
   readonly webhookEndpoints?: WebhookEndpointRepository;
   /** Delivery inspection and replay for the admin surface. Present with `webhooks`. */
   readonly webhookDeliveries?: WebhookDeliveryRepository;
+  /**
+   * The x402 rail (#207). Present only when `X402_ENABLED` is true.
+   *
+   * Optional for the same reason the contract path is: a deployment with no
+   * facilitator has nothing to broadcast an authorization with, and the honest
+   * answer to a request for a resource it cannot settle is that this deployment
+   * does not serve one.
+   */
+  readonly x402?: X402Service;
   close(): Promise<void>;
 }
 
@@ -208,6 +224,103 @@ function firstRouterChain(config: Config): ChainId {
  * `resolveContract` has already refused a half-configured executor, so the
  * narrowing here is for the compiler rather than a real branch.
  */
+/**
+ * The x402 rail, or nothing.
+ *
+ * Built per chain, because a facilitator is per chain: it holds one RPC
+ * endpoint and broadcasts with one key against one network. The registry then
+ * picks between them by what a `PaymentRequirements` names, which is why a
+ * deployment with two chains configured needs no further wiring to serve both.
+ *
+ * Absent rather than broken when the pieces are missing. Without an operator
+ * key there is nothing to broadcast an authorization with, and the honest
+ * answer to a request for a resource this deployment cannot settle is that it
+ * does not serve one.
+ */
+function createX402(deps: {
+  config: Config;
+  handle: DatabaseHandle;
+  rates: RateProvider;
+  intents: PaymentIntentService;
+  engine: ClearingEngine;
+  merchants: DrizzleMerchantRepository;
+  clock: Clock;
+}): X402Service | undefined {
+  const { config, handle, rates, intents, engine, merchants, clock } = deps;
+
+  if (!config.x402Enabled) return undefined;
+  if (config.operatorPrivateKey === undefined) return undefined;
+
+  const rpcUrls = config.chain?.rpcUrls ?? {};
+  const account = privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
+
+  const facilitators: X402Facilitator[] = [];
+  const confirmers = new Map<string, SettlementConfirmer>();
+
+  for (const chain of CHAIN_IDS) {
+    const rpcUrl = rpcUrls[chain];
+    if (rpcUrl === undefined) continue;
+    const transport = http(rpcUrl);
+    const publicClient = createPublicClient({ transport });
+    const reader = new EvmX402Reader({ chain, publicClient });
+    facilitators.push(
+      new LocalX402Facilitator({
+        chain,
+        reader,
+        publicClient,
+        walletClient: createWalletClient({ account, transport }),
+        account,
+        clock,
+        ...(config.chain?.confirmations[chain] === undefined
+          ? {}
+          : { confirmations: config.chain.confirmations[chain] }),
+      }),
+    );
+    confirmers.set(reader.network, reader);
+  }
+
+  if (facilitators.length === 0) {
+    throw new ConfigurationError(
+      "X402_ENABLED is true but no chain has a CHAIN_RPC_URLS entry to broadcast against",
+      {},
+    );
+  }
+
+  return new X402Service({
+    resources: new DrizzleX402ResourceRepository(handle.db),
+    facilitators: facilitatorRegistry(facilitators),
+    confirmers,
+    rates,
+    intents,
+    engine,
+    clock,
+    quoteTtlSeconds: config.x402QuoteTtlSeconds,
+    /**
+     * A merchant, as an intent records them.
+     *
+     * `city` and `countryCode` are optional on a merchant and required on a
+     * snapshot — they arrive with a QRIS payload, and an x402 payment has no
+     * QR. A merchant who has not set them is refused rather than given
+     * placeholders: an intent carrying an invented country is a record that
+     * reads as fact and is not one.
+     */
+    async merchantSnapshot(merchantId) {
+      const merchant = await merchants.findById(merchantId);
+      if (merchant === null) {
+        throw new NotFoundError(`Merchant ${merchantId} not found`, { merchantId });
+      }
+      const { city, countryCode } = merchant;
+      if (city === undefined || countryCode === undefined) {
+        throw new ConfigurationError(
+          `Merchant ${merchantId} needs a city and country code before x402 can price for them`,
+          { merchantId },
+        );
+      }
+      return { id: merchant.id, name: merchant.name, city, countryCode };
+    },
+  });
+}
+
 function createTreasuryExecutor(deps: {
   config: Config;
   ledger: LedgerService;
@@ -606,6 +719,16 @@ export function createContainer({
     });
   }
 
+  const x402 = createX402({
+    config,
+    handle,
+    rates,
+    intents,
+    engine,
+    merchants: new DrizzleMerchantRepository(handle.db),
+    clock,
+  });
+
   return {
     config,
     verifyApiKey: createApiKeyVerifier({ keys: new DrizzleApiKeyRepository(handle.db), clock }),
@@ -633,6 +756,7 @@ export function createContainer({
     ...(webhooks === undefined ? {} : { webhooks }),
     ...(webhookEndpoints === undefined ? {} : { webhookEndpoints }),
     ...(webhookDeliveries === undefined ? {} : { webhookDeliveries }),
+    ...(x402 === undefined ? {} : { x402 }),
     close: () => handle.close(),
   };
 }
