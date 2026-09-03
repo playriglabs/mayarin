@@ -17,7 +17,7 @@ export const GET: APIRoute = async ({ params }) => {
   const slugs = typeof params.slug === "string" ? params.slug.split("/") : [];
   const page = source.getPage(slugs);
   const title = page?.data.title ?? "Mayarin Docs";
-  const description = page?.data.description ?? "Build programmable crypto-commerce with Mayarin.";
+  const description = page?.data.description ?? "Build programmable clearing with Mayarin.";
 
   const markup = `
 <div style="display:flex;flex-direction:column;justify-content:space-between;width:1200px;height:630px;padding:80px;background:#ffffff;color:#0a0a0a;font-family:Geist Variable,Helvetica,Arial,sans-serif;">

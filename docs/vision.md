@@ -13,12 +13,52 @@ Why Mayarin exists, what it refuses to become, and the problem it is pointed at.
 
 Traditional payment systems understand fiat. Blockchain understands programmable
 value. Mayarin is the infrastructure that lets a merchant price in their local
-currency and receive a stablecoin, while a customer pays in any supported crypto
-asset — without either side understanding the other's world.
+currency and receive a stablecoin, while a customer pays in any supported asset —
+without either side understanding the other's world.
 
 Not another payment gateway. Not another crypto wallet. Not another exchange.
 
-Programmable Programmable clearing infrastructure..
+**A programmable clearing layer for humans, applications, and autonomous
+agents.**
+
+---
+
+## The payer class
+
+The line above is the original thesis and it is untouched — a customer paying
+with whatever they hold is still the centre of this system. What widened is a
+single axis around it: **who is allowed to be a customer.**
+
+```
+today      Human       → Mayarin → Merchant
+           Application → Mayarin → Merchant
+next       AI agent    → Mayarin → Merchant · Agent · API
+```
+
+Three classes, one clearing layer. A human pays at a checkout or scans a QR. An
+application pays on a person's behalf, or on its own schedule. An autonomous
+agent pays for one API call, once, having never registered with anybody.
+
+"Payer" is the word this section needs because it has to cover all three at
+once. Everywhere else, "customer" is still the right word and stays.
+
+**The agent is not the product.** That sentence is the guard rail on this
+document. It would be easy, and wrong, to read agent payments as a pivot into an
+AI product — and a system that made that turn would start growing agent-shaped
+concepts in its domain, which is exactly the fragmentation Mayarin exists to
+remove. An agent reaches the same clearing engine, writes to the same
+double-entry ledger, and settles to the same merchant as everyone else.
+
+The last line is the one that widens furthest, and it widens the _recipient_
+rather than the payer: an agent can be paid as well as pay. That needs nothing
+new, because a seller is a merchant account, and the account does not care
+whether a human or a program operates it.
+
+What genuinely differs about the third class is small and specific. An agent
+cannot open an account, cannot hold a card, cannot be handed an API key it did
+not ask for, and cannot be told to understand gas. So it is given exactly one
+thing to do: sign an authorization for an exact amount, in an asset it already
+holds. Everything else on this page applies to it unchanged.
 
 ---
 
@@ -64,6 +104,19 @@ Merchant receives    0.95 USDC
 The merchant never learns which asset the customer used. The customer never
 learns which stablecoin the merchant settles in.
 
+The same gap exists between a merchant and a machine, and it is wider — the
+third payer class described above.
+
+```
+Agent requests       GET /premium-data
+Mayarin answers      402, with the price in machine-readable terms
+Agent signs          an authorization for exactly that amount
+Merchant receives    0.02 USDC
+```
+
+No signup, no key, no invoice. The merchant's side of that transaction is
+indistinguishable from any other payment.
+
 ---
 
 ## Problem
@@ -72,6 +125,12 @@ Stablecoins are programmable money, but merchant payment infrastructure for them
 is fragmented and crypto-native in all the wrong places: merchants are asked to
 connect wallets, manage seed phrases, understand gas, and reconcile which asset
 arrived from which customer.
+
+There is now a second gap, and it is newer. Software agents can decide to buy
+things, and the payment infrastructure they are handed assumes a human: an
+account to open, a card to hold, a subscription to manage, an API key to be
+issued. An agent that wants one API call once has no way to pay for one API call
+once.
 
 Today a merchant who wants to accept crypto must either:
 
@@ -98,6 +157,8 @@ Core responsibilities:
 - Record every movement through double-entry accounting.
 - Expose one API and one SDK so developers build their own storefronts, POS,
   and checkout on top.
+- Make any endpoint payable per call, so a program can buy from it without an
+  account.
 
 The business layer never speaks to a DEX, a wallet provider, or a chain directly.
 Every payment flows through the same orchestration, and execution happens
@@ -110,7 +171,8 @@ on-chain behind a smart contract.
 Mayarin is designed around four principles.
 
 - Let merchants price in fiat and settle in stablecoins.
-- Let customers pay with any supported asset.
+- Let payers pay with any supported asset — whether they are a person or a
+  program.
 - Keep execution on-chain and trust-minimized; keep the backend an orchestrator.
 - Keep integrations provider-agnostic (wallet, liquidity, price, chain).
 

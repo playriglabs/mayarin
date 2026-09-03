@@ -4,10 +4,13 @@
 
 # Roadmap
 
-Mayarin is **Programmable clearing infrastructure.**. Merchants price in their local
-currency and settle in a stablecoin; customers pay with any supported crypto
-asset. Mayarin bridges the two without requiring merchants to understand
-blockchain.
+Mayarin is **a programmable clearing layer for humans, applications, and
+autonomous agents**. Merchants price in their local currency and settle in a
+stablecoin; the payer brings any supported asset. Mayarin bridges the two without
+requiring merchants to understand blockchain.
+
+The phases below expand the layer along one axis at a time. An autonomous agent
+is a payer class rather than a product line — see [vision](./vision.md#the-payer-class).
 
 The platform is developed in layers. Each phase expands the platform without
 changing the core payment intent, allowing new assets, chains, liquidity
