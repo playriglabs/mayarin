@@ -12,3 +12,4 @@
 
 export * from "./fake-facilitator.ts";
 export * from "./fixtures.ts";
+export * from "./in-memory-resources.ts";
