@@ -17,4 +17,23 @@ describe("VIEM_CHAINS", () => {
       expect(BigInt(VIEM_CHAINS[chain].id)).toBe(EVM_CHAIN_IDS[chain]);
     }
   });
+
+  // Every chain before Arc had an 18-decimal native asset, and code that
+  // formats or estimates against that assumption is wrong by twelve orders of
+  // magnitude the day one is not. Pinning the decimals here means viem changing
+  // a definition under us fails a test rather than a settlement.
+  test("pins the native decimals each chain actually uses", () => {
+    for (const chain of CHAIN_IDS) {
+      expect(VIEM_CHAINS[chain].nativeCurrency.decimals).toBe(18);
+    }
+  });
+
+  // Arc's native asset is USDC and Hedera's is HBAR, not ETH. The client scans
+  // native transfers against a configured `nativeAssets` map for exactly this
+  // reason; a chain whose symbol is not ETH must not be assumed to be.
+  test("names the native asset of the non-ETH chains", () => {
+    expect(VIEM_CHAINS["arc-testnet"].nativeCurrency.symbol).toBe("USDC");
+    expect(VIEM_CHAINS.hedera.nativeCurrency.symbol).toBe("HBAR");
+    expect(VIEM_CHAINS["hedera-testnet"].nativeCurrency.symbol).toBe("HBAR");
+  });
 });

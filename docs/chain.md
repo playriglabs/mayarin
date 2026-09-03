@@ -251,6 +251,14 @@ with it.
 | `arbitrum`          | 42161      | `https://arbiscan.io`                          |
 | `arbitrum-sepolia`  | 421614     | `https://sepolia.arbiscan.io`                  |
 | `robinhood-testnet` | 46630      | `https://explorer.testnet.chain.robinhood.com` |
+| `arc-testnet`       | 5042002    | `https://testnet.arcscan.app`                  |
+| `hedera`            | 295        | `https://hashscan.io/mainnet`                  |
+| `hedera-testnet`    | 296        | `https://hashscan.io/testnet`                  |
+
+Every id above was read off the network with `cast chain-id`, not copied from a
+documentation page. Arc mainnet is missing on purpose: it does not launch until
+16 September 2026, so no endpoint can confirm its id, and a chain fact nobody can
+check is worse than a missing one. Add it when the network answers.
 
 Which of them a deployment actually watches is configuration: a chain with no
 `CHAIN_RPC_URLS` entry is not scanned, and `CHAIN_ASSETS` naming a chain without
@@ -271,6 +279,32 @@ a chain cannot be defined two slightly different ways in two adapters. The test
 beside it asserts each viem `id` equals the `EVM_CHAIN_IDS` entry: viem
 broadcasts with its own id, so a typo there would send a transaction to the wrong
 network while every check against the domain table still passed.
+
+### Arc, and the first chains whose native asset is not ETH
+
+Arc and Hedera are the first chains here whose native asset is not ETH — USDC on
+Arc, HBAR on Hedera. `EvmChainClient` already takes a `nativeAssets` map rather
+than assuming, so this is configuration; the failure it prevents is a native
+transfer scanned as if it were ETH, which is a wrong balance rather than an
+error.
+
+Arc needs one thing said explicitly, because it is the only chain here where
+getting it wrong corrupts the ledger rather than a display. **Arc has one USDC
+balance behind two interfaces**: the native view used for gas and `msg.value`
+carries 18 decimals, and the ERC-20 contract at
+`0x3600000000000000000000000000000000000000` is a 6-decimal view of the same
+balance, a factor of 10^12 apart, with the native side canonical. They are not
+two holdings. Modelling them as two `AssetCode`s would count the same money
+twice, and every reconciliation afterwards would be wrong while still balancing.
+
+That contract is not a precompile despite its address. It is Circle's
+`FiatTokenV2` behind an EIP-1967 proxy, and — though Arc's documentation
+describes only `transferFrom`, `approve` and allowances — it implements EIP-3009
+and EIP-2612. Measured on 3 September 2026 against Arc testnet:
+`authorizationState(address,bytes32)` and `nonces(address)` both answer, two
+invented selectors both revert, and `DOMAIN_SEPARATOR()` equals the value
+computed locally for `{name: "USDC", version: "2", chainId: 5042002,
+verifyingContract: 0x3600…0000}`.
 
 ### Block numbers on an Arbitrum chain
 
