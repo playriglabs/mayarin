@@ -18,6 +18,13 @@ intentionally **out of the MVP** — later, explicit phases with their own custo
 perimeter.
 
 Phases 1 through 3 are shipped; Phase 4 (commerce platform) is next.
+
+**Working on the ETHOnline 2026 entry?** [`ROADMAP.md`](./ROADMAP.md) is the
+state of that work — what shipped with its PR numbers, what is next per sponsor,
+the facts measured off Arc and Hedera rather than read from their docs, and the
+seven things about the x402 rail that are expensive to rediscover. Read it
+before touching `packages/core/x402` or anything under `x402` in the API.
+
 `docs/roadmap.md` is the authority on what each phase adds; `docs/` as a whole is
 the design record and is expected to stay in sync with the code. RFC issues
 (#4–#21 on GitHub, labeled `rfc` + `phase-N`) track Phase 3–5 feature work.
