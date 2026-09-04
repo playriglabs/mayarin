@@ -33,6 +33,11 @@ export class HdDepositAddressDeriver implements DepositAddressDeriver {
     }
   }
 
+  /**
+   * The chain is ignored, and that is correct here rather than an oversight: an
+   * address derived from a public key is the same on every EVM chain, because
+   * nothing about the derivation names one.
+   */
   derive(index: number): string {
     if (!Number.isInteger(index) || index < 0) {
       throw new ConfigurationError(

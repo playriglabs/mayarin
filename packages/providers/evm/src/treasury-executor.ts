@@ -131,9 +131,22 @@ export interface DepositIndexLookup {
   indexFor(clearingTransactionId: string): Promise<number | undefined>;
 }
 
-export interface EvmTreasuryExecutionPortOptions {
+/** The two clients a chain needs: one to read it, one to sign against it. */
+export interface ChainClients {
   readonly publicClient: PublicClient;
   readonly walletClient: WalletClient;
+}
+
+export interface EvmTreasuryExecutionPortOptions {
+  /**
+   * Clients per chain, because a deployment settles on more than one.
+   *
+   * One pair for the whole port sent every submission to whichever chain came
+   * first in the router map — so a sweep on Arc was broadcast to Base, where the
+   * forwarder factory address has no code, and the node answered `execution
+   * reverted` with nothing to say it was the wrong chain.
+   */
+  readonly clients: Readonly<Partial<Record<ChainId, ChainClients>>>;
   readonly account: Account;
   readonly lookup: DepositIndexLookup;
   readonly routes: SwapRouteSource;
@@ -145,7 +158,8 @@ export interface EvmTreasuryExecutionPortOptions {
   readonly tokens: Readonly<Partial<Record<ChainId, Readonly<Record<string, string>>>>>;
   /** The chain's native asset, so the adapter knows what needs no token address. */
   readonly nativeAssets: Readonly<Partial<Record<ChainId, AssetCode>>>;
-  readonly confirmations?: number;
+  /** Confirmation depth per chain. A chain with no entry uses two. */
+  readonly confirmations?: Readonly<Partial<Record<ChainId, number>>>;
   /** How long a signed Permit2 permit stays valid. Seconds. */
   readonly permitTtlSeconds?: number;
 }
@@ -168,7 +182,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
    * mempool the next `pending` read already counts it, so holding the lock
    * through a receipt would serialise confirmations for no benefit.
    */
-  #submissions: Promise<unknown> = Promise.resolve();
+  readonly #submissions = new Map<ChainId, Promise<unknown>>();
 
   /**
    * The next nonce this port will hand out, once it has handed out one.
@@ -177,7 +191,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
    * not a source of truth. A restart re-reads the chain, which is correct — by
    * then everything in flight has either landed or been dropped.
    */
-  #nextNonce: number | undefined;
+  readonly #nextNonce = new Map<ChainId, number>();
 
   constructor(options: EvmTreasuryExecutionPortOptions) {
     this.#options = options;
@@ -194,13 +208,13 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
    * broadcast, a provider throttling. The executor bounds how many attempts are
    * worth making; none of these are terminal on their own.
    */
-  async #send(work: () => Promise<Hex>): Promise<Hex> {
+  async #send(chain: ChainId, work: () => Promise<Hex>): Promise<Hex> {
     try {
-      return await this.#serialize(work);
+      return await this.#serialize(chain, work);
     } catch (error) {
       // A dropped nonce would stall every later submission, so the counter is
       // rebuilt from the chain on the next attempt rather than trusted.
-      this.#nextNonce = undefined;
+      this.#nextNonce.delete(chain);
       throw new ProviderError(
         `Submitting the transaction failed: ${shortReason(error)}`,
         {},
@@ -209,16 +223,40 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     }
   }
 
-  /** Runs `work` after every submission queued before it, failures included. */
-  #serialize<T>(work: () => Promise<T>): Promise<T> {
-    const result = this.#submissions.then(work, work);
-    // The chain must not inherit a rejection, or one failed submission would
+  /**
+   * Runs `work` after every submission queued **for that chain**, failures
+   * included.
+   *
+   * Per chain because a nonce belongs to a key on one chain: serialising Arc
+   * behind Base would make two independent counters wait on each other for
+   * nothing, and sharing one counter between them would hand out a nonce from
+   * the wrong chain entirely.
+   */
+  #serialize<T>(chain: ChainId, work: () => Promise<T>): Promise<T> {
+    const queued = this.#submissions.get(chain) ?? Promise.resolve();
+    const result = queued.then(work, work);
+    // The queue must not inherit a rejection, or one failed submission would
     // reject every later one without ever running it.
-    this.#submissions = result.then(
-      () => undefined,
-      () => undefined,
+    this.#submissions.set(
+      chain,
+      result.then(
+        () => undefined,
+        () => undefined,
+      ),
     );
     return result;
+  }
+
+  #clientsFor(chain: ChainId): ChainClients {
+    const clients = this.#options.clients[chain];
+    if (clients === undefined) {
+      throw new ProviderError(
+        `No RPC client for ${chain}; the treasury executor cannot submit there`,
+        { chain },
+        { retryable: false },
+      );
+    }
+    return clients;
   }
 
   async sweep(request: SweepRequest): Promise<void> {
@@ -259,7 +297,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
             args: [salt, token],
           });
 
-    await this.#submit(factory, data, 0n);
+    await this.#submit(request.chain, factory, data, 0n);
   }
 
   async execute(request: ExecuteRequest): Promise<ExecutionResult> {
@@ -311,11 +349,19 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
             paymentRouter,
             order,
             signature,
-            ...(await this.#permitFor(inputToken, paymentRouter, request.inputAmount.amount)),
+            ...(await this.#permitFor(
+              request.chain,
+              inputToken,
+              paymentRouter,
+              request.inputAmount.amount,
+            )),
             ...(route === undefined ? {} : { route }),
           });
 
-    return this.#submit(call.to, call.data, call.value, { paymentRouter, settlementAsset });
+    return this.#submit(request.chain, call.to, call.data, call.value, {
+      paymentRouter,
+      settlementAsset,
+    });
   }
 
   /**
@@ -329,11 +375,13 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
    * Permit2 owner must do once before any pull can work.
    */
   async #permitFor(
+    chain: ChainId,
     token: Address,
     paymentRouter: Address,
     amount: bigint,
   ): Promise<{ permit: Permit2Single; permitSignature: Hex }> {
-    const { publicClient, account } = this.#options;
+    const { account } = this.#options;
+    const { publicClient, walletClient } = this.#clientsFor(chain);
 
     const approved = await publicClient.readContract({
       address: token,
@@ -348,7 +396,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
         functionName: "approve",
         args: [PERMIT2, 2n ** 256n - 1n],
       });
-      await this.#submit(token, data, 0n);
+      await this.#submit(chain, token, data, 0n);
     }
 
     const [, , nonce] = await publicClient.readContract({
@@ -370,7 +418,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       sigDeadline: expiry,
     };
 
-    const permitSignature = await this.#options.walletClient.signTypedData({
+    const permitSignature = await walletClient.signTypedData({
       account,
       domain: {
         name: "Permit2",
@@ -396,12 +444,14 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
 
   /** Submits, waits for the confirmation depth, and measures what it produced. */
   async #submit(
+    chain: ChainId,
     to: Address,
     data: Hex,
     value: bigint,
     measure?: { paymentRouter: Address; settlementAsset: AssetCode },
   ): Promise<ExecutionResult> {
-    const { publicClient, walletClient, account } = this.#options;
+    const { account } = this.#options;
+    const { publicClient, walletClient } = this.#clientsFor(chain);
 
     // Nonce read and broadcast happen together under the lock. Left to viem the
     // nonce is fetched per call and cached across back-to-back sends, which is
@@ -413,12 +463,13 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     // so the next submission reuses it and the provider replies "already
     // known". Remembering what was handed out closes that window: the node's
     // answer can only ever move the counter forward.
-    const hash = await this.#send(async () => {
+    const hash = await this.#send(chain, async () => {
       const observed = await publicClient.getTransactionCount({
         address: account.address,
         blockTag: "pending",
       });
-      const nonce = this.#nextNonce === undefined ? observed : Math.max(observed, this.#nextNonce);
+      const remembered = this.#nextNonce.get(chain);
+      const nonce = remembered === undefined ? observed : Math.max(observed, remembered);
       const sent = await walletClient.sendTransaction({
         account,
         to,
@@ -429,18 +480,28 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       });
       // Advanced only on a successful broadcast: a rejected send consumed
       // nothing, and skipping a nonce would stall every later submission.
-      this.#nextNonce = nonce + 1;
+      this.#nextNonce.set(chain, nonce + 1);
       return sent;
     });
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
-      confirmations: this.#options.confirmations ?? 2,
+      confirmations: this.#options.confirmations?.[chain] ?? 2,
     });
 
-    const gasCost = money(receipt.gasUsed * receipt.effectiveGasPrice, "ETH");
+    // Gas is paid in the chain's own currency, which is not ETH everywhere —
+    // Arc's is USDC. A chain that has not declared one gets **no** gas figure
+    // rather than a number labelled with the wrong asset: the ledger would post
+    // it, and a posting in an asset the chain does not have is worse than an
+    // unmeasured cost.
+    const gasAsset = this.#options.nativeAssets[chain];
+    const gasCost =
+      gasAsset === undefined
+        ? undefined
+        : money(receipt.gasUsed * receipt.effectiveGasPrice, gasAsset);
 
     if (receipt.status !== "success") {
       throw await this.#revertedTransaction({
+        chain,
         hash,
         to,
         data,
@@ -450,18 +511,23 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     }
 
     if (measure === undefined) {
-      return { txHash: hash, output: money(0n, "ETH"), gasCost };
+      return {
+        txHash: hash,
+        output: money(0n, "ETH"),
+        ...(gasCost === undefined ? {} : { gasCost }),
+      };
     }
 
     return {
       txHash: hash,
       output: this.#outputFrom(receipt.logs, measure.paymentRouter, measure.settlementAsset),
-      gasCost,
+      ...(gasCost === undefined ? {} : { gasCost }),
     };
   }
 
   /** Replays a reverted call to recover the router's custom-error selector. */
   async #revertedTransaction(request: {
+    readonly chain: ChainId;
     readonly hash: Hex;
     readonly to: Address;
     readonly data: Hex;
@@ -469,7 +535,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     readonly blockNumber: bigint;
   }): Promise<ProviderError> {
     try {
-      await this.#options.publicClient.call({
+      await this.#clientsFor(request.chain).publicClient.call({
         account: this.#options.account,
         to: request.to,
         data: request.data,

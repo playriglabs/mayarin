@@ -22,7 +22,7 @@ export interface AllocateDepositAddress {
   readonly clearingTransactionId: string;
   readonly chain: ChainId;
   readonly asset: AssetCode;
-  readonly deriver: { derive(index: number): string };
+  readonly deriver: { derive(index: number, chain: ChainId): string };
   readonly now: Date;
 }
 

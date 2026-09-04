@@ -100,7 +100,21 @@ export interface AssetBalance {
 }
 
 export interface DepositAddressDeriver {
-  derive(index: number): string;
+  /**
+   * The address a payer is told to send to, for this index on this chain.
+   *
+   * The chain is a parameter because a CREATE2 deposit address is derived from
+   * the **factory that will deploy the forwarder**, and that factory is
+   * deployed per chain. One factory for every chain hands the payer an address
+   * on chain B that only chain A's factory could ever sweep: the funds arrive,
+   * the sweep deploys an empty forwarder somewhere else and reports success,
+   * and the payment settles out of the operator's own balance.
+   *
+   * An HD-derived address is the same on every EVM chain, so that
+   * implementation ignores it — correctly, and only because a public key is not
+   * chain-specific.
+   */
+  derive(index: number, chain: ChainId): string;
 }
 
 /**

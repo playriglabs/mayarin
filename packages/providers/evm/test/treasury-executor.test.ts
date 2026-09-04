@@ -166,8 +166,9 @@ function harness(
   };
 
   const port = new EvmTreasuryExecutionPort({
-    publicClient: publicClient as any,
-    walletClient: walletClient as any,
+    clients: {
+      "base-sepolia": { publicClient: publicClient as any, walletClient: walletClient as any },
+    },
     account: ACCOUNT,
     lookup: {
       async indexFor() {
@@ -179,7 +180,7 @@ function harness(
     paymentRouters: { "base-sepolia": ROUTER },
     tokens: { "base-sepolia": { USDC } },
     nativeAssets: { "base-sepolia": "ETH" },
-    confirmations: 1,
+    confirmations: { "base-sepolia": 1 },
   });
 
   return { port, sent, routes };
