@@ -129,6 +129,24 @@ const configSchema = z.object({
     .transform((value) => value === "true"),
   /** One chain, deployed and proven, before address derivation multiplies. */
   walletProvisionChain: z.enum(CHAIN_IDS).default("base-sepolia"),
+  /**
+   * Every chain this deployment can provision a wallet on.
+   *
+   * A merchant's Safe address is derived per chain — the salt carries the chain
+   * — so a merchant paid on two chains has two addresses, and each has to be
+   * deployed on the chain it belongs to. `walletProvisionChain` remains the
+   * default for surfaces that still ask about one chain.
+   */
+  walletProvisionChains: z
+    .string()
+    .transform((value) =>
+      value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.enum(CHAIN_IDS)).min(1))
+    .default("base-sepolia"),
   walletProvisionRpcUrl: z.string().min(1).optional(),
   /** Pays the gas to deploy a merchant's Safe. The merchant has none — that is #9. */
   walletDeployerPrivateKey: z.string().min(1).optional(),
@@ -158,6 +176,8 @@ const configSchema = z.object({
   ),
   /** The chain's own currency, which has no contract to read a balance from. */
   chainNativeAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("CHAIN_NATIVE_ASSETS", "{}"),
+  /** One RPC per chain, the same map the payment API reads. */
+  chainRpcUrls: jsonObject<Partial<Record<ChainId, string>>>("CHAIN_RPC_URLS", "{}"),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -205,6 +225,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     treasuryAddress: env.TREASURY_ADDRESS,
     walletProvisioningEnabled: env.WALLET_PROVISIONING_ENABLED,
     walletProvisionChain: env.WALLET_PROVISION_CHAIN,
+    walletProvisionChains: env.WALLET_PROVISION_CHAINS,
     walletProvisionRpcUrl: env.WALLET_PROVISION_RPC_URL,
     walletDeployerPrivateKey: env.WALLET_DEPLOYER_PRIVATE_KEY,
     turnkeyOrganizationId: env.TURNKEY_ORGANIZATION_ID,
@@ -213,6 +234,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     turnkeySignerApiPublicKey: env.TURNKEY_SIGNER_API_PUBLIC_KEY,
     chainAssets: env.CHAIN_ASSETS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
+    chainRpcUrls: env.CHAIN_RPC_URLS,
   });
 
   if (!result.success) {
