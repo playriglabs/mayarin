@@ -33,15 +33,26 @@ deployment, not one to guess at here.
 
 ## Running it
 
-Requires a Graph Studio deploy key (`graph auth`) and a subgraph created in
-Studio under the matching name.
+Deploying needs two things Studio owns: a subgraph created there, and a deploy
+key. Create `mayarin-base-sepolia` and `mayarin-arc-testnet` at
+[thegraph.com/studio](https://thegraph.com/studio) — the slug must match the name
+in the deploy script — then:
 
 ```bash
 bun install
+bunx graph auth <deploy-key>                         # once per machine
 bun run --cwd packages/subgraph codegen              # syncs the ABI, then generates types
 bun run --cwd packages/subgraph build:base-sepolia   # compile against base-sepolia
-bun run --cwd packages/subgraph deploy:base-sepolia
+bun run --cwd packages/subgraph deploy:base-sepolia  # prompts for a version label
 ```
+
+`base-sepolia` first: it needs nothing from the Arc deployment, so it de-risks
+the whole thing. `deploy:arc-testnet` is the same command against the other
+network entry.
+
+The deploy scripts pass `--node https://api.studio.thegraph.com/deploy/`
+explicitly. Studio is not the CLI's default node, and without it the failure
+names IPFS rather than the node it could not reach.
 
 The ABI is **generated** into `abis/PaymentRouter.json` from `@mayarin/contracts`
 before every codegen, so the manifest can never index an event shape the contract
