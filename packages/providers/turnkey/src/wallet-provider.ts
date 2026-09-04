@@ -796,4 +796,44 @@ export const SAFE_BASE_SEPOLIA: SafeDeployment = {
   fallbackHandler: "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
 };
 
+/**
+ * The same canonical 1.4.1 addresses, read off Arc testnet on 4 September 2026
+ * rather than assumed from Base: proxy factory 3055 bytes, `SafeL2` singleton
+ * 24422, fallback handler 5638 — byte-for-byte the sizes Base reports.
+ *
+ * Checking was the point. Safe publishes these as canonical, but a chain that
+ * had not been through the deterministic-deployment ceremony would leave one of
+ * them empty, and deploying against an empty factory produces no wallet while
+ * looking exactly like a wallet that failed to index.
+ */
+export const SAFE_ARC_TESTNET: SafeDeployment = {
+  proxyFactory: "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
+  singleton: "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+  fallbackHandler: "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+};
+
+/**
+ * Where a Safe can be deployed, by chain.
+ *
+ * A chain absent here cannot provision, and that is the honest answer rather
+ * than falling back to another chain's addresses — which, since the salt already
+ * carries the chain, would deploy a wallet nobody predicted at an address nobody
+ * recorded.
+ */
+export const SAFE_DEPLOYMENTS: Readonly<Partial<Record<ChainId, SafeDeployment>>> = {
+  "base-sepolia": SAFE_BASE_SEPOLIA,
+  "arc-testnet": SAFE_ARC_TESTNET,
+};
+
+export function safeDeploymentFor(chain: ChainId): SafeDeployment {
+  const deployment = SAFE_DEPLOYMENTS[chain];
+  if (deployment === undefined) {
+    throw new ConfigurationError(
+      `No verified Safe deployment for ${chain}. Read the factory, singleton and fallback handler off that chain before adding one.`,
+      { chain },
+    );
+  }
+  return deployment;
+}
+
 export type { ChainId };

@@ -23,7 +23,7 @@ import {
   type PaymentLinkRepository,
   type ProductRepository,
 } from "@mayarin/catalog";
-import type { DepositRepository, SettlementEventRepository } from "@mayarin/chain";
+import type { ChainId, DepositRepository, SettlementEventRepository } from "@mayarin/chain";
 import type { ClearingRepository } from "@mayarin/clearing";
 import {
   type AuditQueryRepository,
@@ -64,7 +64,7 @@ import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
 import { EvmWalletBalanceReader, ViemSignatureVerifier } from "@mayarin/provider-evm";
 import {
   ApiKeyStamper,
-  SAFE_BASE_SEPOLIA,
+  safeDeploymentFor,
   TurnkeyMerchantKeyProvider,
   TurnkeyWalletProvider,
 } from "@mayarin/provider-turnkey";
@@ -468,21 +468,80 @@ export function createContainer(options: CreateContainerOptions): Container {
  * deployment can provision wallets.
  */
 function createBalanceReader(config: Config): WalletBalanceReader | undefined {
-  const rpcUrl = config.walletProvisionRpcUrl;
-  if (rpcUrl === undefined) return undefined;
+  // Every chain this deployment can reach, not just the one it provisions on
+  // by default — a merchant paid on two chains has a balance on each, and the
+  // reader is keyed by chain already.
+  const rpcUrls: Partial<Record<ChainId, string>> = { ...config.chainRpcUrls };
+  if (config.walletProvisionRpcUrl !== undefined) {
+    rpcUrls[config.walletProvisionChain] ??= config.walletProvisionRpcUrl;
+  }
+  if (Object.keys(rpcUrls).length === 0) return undefined;
 
   return new EvmWalletBalanceReader({
-    rpcUrls: { [config.walletProvisionChain]: rpcUrl },
+    rpcUrls,
     tokens: config.chainAssets,
     nativeAssets: config.chainNativeAssets,
   });
 }
 
+/**
+ * A provider per chain, behind one port.
+ *
+ * `TurnkeyWalletProvider` deploys on exactly one chain and refuses a request for
+ * another — deliberately, since its RPC, its token table and its Safe addresses
+ * are all per chain. So a deployment that provisions on two chains holds two of
+ * them, and this routes by the chain the request names.
+ *
+ * That matters more than it looks: the salt a Safe is deployed at carries the
+ * chain, so a merchant's Arc wallet is a **different address** from their Base
+ * one. Routing to the wrong provider would not produce the wrong wallet — it
+ * would produce a second wallet nobody predicted.
+ */
 function createWalletProvider(config: Config): WalletProvider | undefined {
   if (!config.walletProvisioningEnabled) return undefined;
 
-  const tokens = config.chainAssets[config.walletProvisionChain];
-  const nativeAsset = config.chainNativeAssets[config.walletProvisionChain];
+  const providers = new Map<ChainId, WalletProvider>(
+    config.walletProvisionChains.map((chain) => [chain, providerFor(config, chain)]),
+  );
+
+  const providerOn = (chain: ChainId): WalletProvider => {
+    const provider = providers.get(chain);
+    if (provider === undefined) {
+      throw new ConfigurationError(
+        `This deployment provisions on ${config.walletProvisionChains.join(", ")}, not ${chain}`,
+        { chain },
+      );
+    }
+    return provider;
+  };
+
+  // Creating the merchant's signer touches no chain, so it goes to the default
+  // one: a second sub-organization per chain would give one merchant two
+  // signers and two policies to keep in step.
+  const [first] = config.walletProvisionChains;
+  const primary = providerOn(first as ChainId);
+
+  return {
+    createManagedSigner: (merchantId) => primary.createManagedSigner(merchantId),
+    predictAddress: (request) => providerOn(request.chain).predictAddress(request),
+    deploy: (request) => providerOn(request.chain).deploy(request),
+    // Routed by the wallet's own chain: an intent says what to move, the
+    // wallet says where it lives.
+    propose: (wallet, intent) => providerOn(wallet.chain).propose(wallet, intent),
+  };
+}
+
+function providerFor(config: Config, chain: ChainId): WalletProvider {
+  const tokens = config.chainAssets[chain];
+  const nativeAsset = config.chainNativeAssets[chain];
+  const rpcUrl = config.chainRpcUrls[chain] ?? config.walletProvisionRpcUrl;
+
+  if (rpcUrl === undefined) {
+    throw new ConfigurationError(
+      `WALLET_PROVISION_CHAINS names ${chain}, which has no CHAIN_RPC_URLS entry to deploy through`,
+      { chain },
+    );
+  }
 
   return new TurnkeyWalletProvider({
     ...(tokens === undefined ? {} : { tokens }),
@@ -492,13 +551,15 @@ function createWalletProvider(config: Config): WalletProvider | undefined {
       apiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
       apiPrivateKey: required(config.turnkeyApiPrivateKey, "TURNKEY_API_PRIVATE_KEY"),
     }),
-    chain: config.walletProvisionChain,
+    chain,
     deployerPrivateKey: required(
       config.walletDeployerPrivateKey,
       "WALLET_DEPLOYER_PRIVATE_KEY",
     ) as `0x${string}`,
-    rpcUrl: required(config.walletProvisionRpcUrl, "WALLET_PROVISION_RPC_URL"),
-    safe: SAFE_BASE_SEPOLIA,
+    rpcUrl,
+    // Read off each chain before it was added here, never inherited from
+    // another chain's table.
+    safe: safeDeploymentFor(chain),
     rootApiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
     signerApiPublicKey: required(config.turnkeySignerApiPublicKey, "TURNKEY_SIGNER_API_PUBLIC_KEY"),
   });

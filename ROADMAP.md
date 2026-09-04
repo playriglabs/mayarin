@@ -273,6 +273,16 @@ unverifiable against a live endpoint.
       than from the resource row.
 - [ ] Audit the native-decimal assumption at the four sites `docs/chain.md`
       names, before trusting any Arc balance.
+- [x] Merchant wallets can be provisioned on Arc: `SAFE_ARC_TESTNET` (factory,
+      singleton and fallback handler all read off Arc, not inherited from Base)
+      and one `TurnkeyWalletProvider` per chain in `WALLET_PROVISION_CHAINS`,
+      routed by the chain a request names. **A merchant's Arc Safe is a different
+      address from their Base one** — the salt is
+      `mayarin:wallet:<merchant>:<chain>` — so provisioning has to run per chain
+      rather than reusing an address that exists elsewhere.
+- [ ] Surface per-chain balances in the dashboard. The reader is already keyed by
+      chain and now gets every RPC the deployment has; `WalletService` still
+      takes one chain, so the UI cannot ask for another yet.
 - [ ] Circle Agent Stack as the payer, spending under a Circle policy — including
       the policy refusing an over-limit payment.
 - [ ] Architecture diagram, video, documentation, repo.
@@ -343,7 +353,7 @@ settlements`.
       pointed at a different router.
 - [ ] Seed both testnets with real settlements before recording, or the fallback
       fires on camera. `bun run e2e -- --chain arc-testnet --asset USDC --amount
-  0.25` is the tool: the chain is an argument now rather than a constant.
+0.25` is the tool: the chain is an argument now rather than a constant.
       **A deposit payment is the only thing that fills an empty rail** — x402
       never touches `PaymentRouter`, so no amount of agent traffic emits a
       `PaymentCompleted`; the deposit path does, because the treasury executor
