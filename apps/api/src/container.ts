@@ -10,9 +10,11 @@ import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import {
   type BlockRef,
   CHAIN_IDS,
+  type ChainClient,
   type ChainId,
   type PaymentCompletionSink,
   SettlementIndexer,
+  type SettlementSource,
   WalletWatcher,
 } from "@mayarin/chain";
 import {
@@ -66,6 +68,7 @@ import {
 } from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
+import { SubgraphSettlementSource } from "@mayarin/provider-subgraph";
 import {
   EvmAssetCapabilityProbe,
   EvmX402Reader,
@@ -334,6 +337,38 @@ function createX402(deps: {
       return { id: merchant.id, name: merchant.name, city, countryCode };
     },
   });
+}
+
+/**
+ * Where each chain's settlements are read from.
+ *
+ * Per chain, and composed here rather than inside an adapter, because the two
+ * sources answer for different chains in one deployment: a chain with a
+ * `SUBGRAPH_ENDPOINTS` entry is served by the subgraph, and every other chain
+ * keeps polling `eth_getLogs` exactly as before.
+ *
+ * `indexedHead` is the part that makes the substitution safe. The indexer moves
+ * its cursor across the range it asked about, so a subgraph that has not caught
+ * up must be able to say so; a client reading the chain cannot lag it and
+ * answers `undefined`.
+ */
+function createSettlementSource(deps: {
+  client: ChainClient;
+  endpoints: Readonly<Partial<Record<ChainId, string>>>;
+  routers: Readonly<Partial<Record<ChainId, string>>>;
+}): SettlementSource {
+  const { client, endpoints, routers } = deps;
+  if (Object.keys(endpoints).length === 0) return client;
+
+  const subgraph = new SubgraphSettlementSource({ endpoints, routers });
+  const servesSubgraph = (chain: ChainId): boolean => endpoints[chain] !== undefined;
+
+  return {
+    settlements: (query) =>
+      servesSubgraph(query.chain) ? subgraph.settlements(query) : client.settlements(query),
+    indexedHead: async (chain) =>
+      servesSubgraph(chain) ? await subgraph.indexedHead(chain) : undefined,
+  };
 }
 
 /**
@@ -681,6 +716,11 @@ export function createContainer({
       rpcUrls: chain.rpcUrls,
       tokens: tokensOf(config.stablecoins),
     });
+    const settlementSource = createSettlementSource({
+      client: indexerClient,
+      endpoints: config.subgraphEndpoints,
+      routers: config.contract.paymentRouters,
+    });
 
     for (const [routerChain, router] of Object.entries(config.contract.paymentRouters)) {
       if (router === undefined) continue;
@@ -688,6 +728,7 @@ export function createContainer({
         routerChain as ChainId,
         new SettlementIndexer({
           client: indexerClient,
+          source: settlementSource,
           settlements: settlementRepository,
           cursors: indexerCursors,
           sink: completionSink,
