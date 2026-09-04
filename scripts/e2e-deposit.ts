@@ -351,7 +351,11 @@ console.log("   to            ", deposit.address, "(no code until the operator s
 // 3. The payer pays — a plain transfer, exactly as a wallet or exchange would
 // ---------------------------------------------------------------------------
 
-const fees = { maxFeePerGas: 200_000_000n, maxPriorityFeePerGas: 20_000_000n };
+// Asked of the chain rather than hardcoded. The constant that used to live here
+// — 0.2 gwei, with a 0.02 gwei tip — is generous on Base Sepolia and below the
+// floor on Arc, whose base fee is 20 gwei. A fee cap under the base fee is not a
+// slow transaction; the node refuses it outright.
+const fees = await pub.estimateFeesPerGas();
 const payHash = await payerWallet.sendTransaction({
   ...(tokenAddress === undefined
     ? { to: deposit.address as `0x${string}`, value: deposit.amount.amount }
