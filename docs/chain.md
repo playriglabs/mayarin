@@ -443,12 +443,41 @@ contracts are verified on Basescan.
 | `TimelockController`      | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
 | `DepositForwarderFactory` | `0x598F64551456BCa2536386ED54A24412E3e32fCe` |
 
+A second factory with byte-identical code and the same `INIT_CODE_HASH` sits at
+`0x69c72C5191149e85CD862FCcccC2A6F699E9582F`, and that is the one
+`DEPOSIT_FORWARDERS` currently names for Base Sepolia. Either serves; a deposit
+address derives from whichever the deriver is given, so what matters is that the
+configuration and the sweeper agree — not which of the two is listed here.
+
 `DepositForwarderFactory` sweeps to `0x616e2B9Bc83D60790E70CbaAc6c8612AFc6A7896`
 and its `INIT_CODE_HASH` is
 `0xee0569965b5f80efbe628375129a0db290a6d9476366befecb3529b51c25be89` — the value
 `DEPOSIT_FORWARDER_INIT_CODE_HASH` must carry, since every deposit address
 derives from it. Verified against the deployed factory: the TypeScript deriver
 and `forwarderAddress(salt)` agree for indices 0, 1, 42 and 999.
+
+Arc testnet (chain id 5042002), deployed 2026-09-04 in block 60392299 and
+verified on ArcScan. **Throwaway v0**: these addresses must not reach the SDK,
+the documentation of a released version, or a demo link.
+
+| Contract                  | Address                                      |
+| ------------------------- | -------------------------------------------- |
+| `PaymentRouter`           | `0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9` |
+| `TimelockController`      | `0x0c006fc14063e3f78271312b975231e4bd6e8b00` |
+| `DepositForwarderFactory` | `0x04cd74e77ac145b18d61c6c8d7939e3241dbb60a` |
+
+**Two address collisions live in that table, and both are the same phenomenon.**
+The router and timelock carry Base Sepolia's addresses exactly, because the same
+deployer used the same nonces — `CREATE` is a function of those two and nothing
+else. It is harmless on chain, since the EIP-712 domain carries `chainId`, and
+misleading everywhere else: an address no longer identifies a chain, so read the
+chain key in `PAYMENT_ROUTERS` rather than the address.
+
+The second collision is worse to read. Arc's factory sits at the address Base
+calls **superseded below** — and on Arc it is the _current_ contract, deployed
+today from current source, with `INIT_CODE_HASH`
+`0xee0569965b5f80efbe628375129a0db290a6d9476366befecb3529b51c25be89`. Same
+address, different chain, different bytecode, opposite status.
 
 An earlier factory at `0x04CD74e77ac145B18d61c6C8D7939e3241DBB60A` is
 **superseded**. The security pass (#83) moved `destination` into the forwarder's

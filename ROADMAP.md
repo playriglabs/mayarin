@@ -270,7 +270,11 @@ unverifiable against a live endpoint.
       entry**: Arc's native currency is USDC, 18 decimals in the native view and
       6 in the ERC-20 view over one balance, so declaring it native would give
       one balance two `AssetCode`s and count the same money twice.
-- [ ] Set `X402_ENABLED=true` once an operator key is funded for broadcasting.
+- [x] `X402_ENABLED=true` on the testnet deployment, with the operator key
+      reaching core-api. The key had been excluded from that service on purpose —
+      one signer for the chain-worker — and x402 broadcasts the payer's
+      authorization from the API process, so excluding it produced a deployment
+      where `/x402/*` answered 404 and looked healthy.
 - [x] **Call `EvmAssetCapabilityProbe` from the composition root at boot.** Done:
       `AssetCapabilities` (core port + cache) is built in `createX402`, warmed by
       `apps/api/src/index.ts` before traffic, and `X402Service.paymentRequired`
@@ -331,7 +335,7 @@ one `DEPOSIT_FORWARDER_INIT_CODE_HASH` correct for every chain.
       so `PaymentCompleted` carries none of them, and the token's
       `AuthorizationUsed` carries no `validBefore` — there is no headroom to read
       off it. Decide with the Arc deployment, not before.
-- [ ] Same subgraph for `arc-testnet` once #208 deploys there.
+- [x] Same subgraph for `arc-testnet`, deployed and indexing.
 - [x] `chooseRail` in `packages/core/x402/src/rail.ts` — pure, 11 tests, one per
       rule, including the fallback that announces itself. Ranks on **median**
       headroom (one lucky settlement cannot carry a rail), needs `minSamples`
@@ -362,28 +366,37 @@ settlements`.
       both chains, a range query returns a `SettlementLog` complete with
       `logIndex` and `blockHash`, and the router guard refuses an endpoint
       pointed at a different router.
-- [ ] Seed both testnets with real settlements before recording, or the fallback
-      fires on camera. `bun run e2e -- --chain arc-testnet --asset USDC --amount
-0.25` is the tool: the chain is an argument now rather than a constant.
-      **A deposit payment is the only thing that fills an empty rail** — x402
-      never touches `PaymentRouter`, so no amount of agent traffic emits a
-      `PaymentCompleted`; the deposit path does, because the treasury executor
-      settles through the router.
+- [x] Seed both testnets with real settlements. Arc has **5**, which is what
+      `minSamples` needs before a rail is ranked at all — see **Subgraphs live**
+      below. `bun run e2e -- --chain arc-testnet` is the tool, and a deposit
+      payment is the only thing that fills an empty rail: x402 never touches
+      `PaymentRouter`, so no amount of agent traffic emits a `PaymentCompleted`.
 
 #### Subgraphs live
 
-| Network        | Query URL                                                                   | State                     |
-| -------------- | --------------------------------------------------------------------------- | ------------------------- |
-| `base-sepolia` | `https://api.studio.thegraph.com/query/1758657/mayarin-base-sepolia/v0.0.1` | 78 settlements            |
-| `arc-testnet`  | `https://api.studio.thegraph.com/query/1758657/mayarin-arc-testnet/v0.0.1`  | 0 — router deployed today |
+| Network        | Query URL                                                                   | State          |
+| -------------- | --------------------------------------------------------------------------- | -------------- |
+| `base-sepolia` | `https://api.studio.thegraph.com/query/1758657/mayarin-base-sepolia/v0.0.2` | 78 settlements |
+| `arc-testnet`  | `https://api.studio.thegraph.com/query/1758657/mayarin-arc-testnet/v0.0.2`  | 5 settlements  |
 
 Base's headroom: median 828s, min 28s, max 1797s, none negative. **Three
 settlements landed under a minute**, one of them at 28s. That tail is what a mean
 would have hidden, and it is the reason `chooseRail` ranks on the median.
 
-Arc being empty is correct rather than broken, and it is the condition worth
-rehearsing: with no observations there, the choice falls to the fallback that
-announces itself.
+Arc is no longer empty. Its five came through the deposit path, which is the only
+thing that emits a `PaymentCompleted` on a rail nothing has paid yet — x402 never
+touches `PaymentRouter`, so no amount of agent traffic fills that gap.
+
+```
+base-sepolia   78 samples · median 828s
+arc-testnet     5 samples · median 942s
+
+→ arc-testnet: median headroom 942s over 5 settlements
+```
+
+Arc wins on headroom rather than on novelty, and it entered the ranking only at
+the fifth settlement. Before that the announced fallback fired, which is worth
+rehearsing on camera too.
 
 ### #209 — Hedera
 
@@ -397,9 +410,50 @@ announces itself.
       only, and `x402ExactPermit2Proxy` still has to be deployed. Decide between
       building that and letting Blocky402's facilitator carry Hedera before
       spending a day on it.
-- [x] `GET /x402/fx/quote`, gated by `requirePayment` — the endpoint exists and
-      prices through the same rate provider a payment uses. Still has to be
-      **publicly reachable** on the testnet deployment for judging.
+- [x] `GET /x402/fx/quote`, gated and **publicly reachable**. See **The 402, in
+      public** below.
+
+#### The 402, in public
+
+A `curl` from a clean machine, with no account and no key:
+
+```
+HTTP/2 402
+content-length: 0
+payment-required: eyJ4NDAyVmVyc2lvbiI6Mi…
+```
+
+```json
+{
+  "scheme": "exact",
+  "network": "eip155:5042002",
+  "amount": "20000",
+  "asset": "0x3600000000000000000000000000000000000000",
+  "payTo": "0xe5dd11a0579c0ab6a60b8263277c174cc8eb675e",
+  "maxTimeoutSeconds": 60,
+  "extra": { "name": "USDC", "version": "2", "assetTransferMethod": "eip3009" }
+}
+```
+
+Four of those values are derived rather than configured, which is the whole
+point. `assetTransferMethod` and the EIP-712 domain came off the Arc contract
+when the resource was registered — Arc's own documentation describes its USDC as
+`approve`/`transferFrom` and never mentions EIP-3009. The amount came through the
+same quote engine a payment uses. And `maxTimeoutSeconds` is the quote TTL rather
+than a second number free to drift from it, which is the arrangement that once
+produced `EXECUTION_EXHAUSTED`.
+
+The empty body is the specification's: a client that cannot read the header has
+not implemented x402 and would not understand a JSON body either.
+
+**Getting there needed three things nobody had listed.** The database migration
+`0026_x402_resources` had never run on testnet — `deploy:testnet` migrates only
+with `--migrate` — so the route answered 500 while the rail itself was healthy.
+`market_config.stablecoins` is seeded once and never overwritten (#95), so adding
+Arc to `CHAIN_ASSETS` changed nothing until the admin API was told; the deployed
+registry and the environment are two different sources of truth and both must
+agree. And the operator key had to reach core-api, which the env sync had been
+excluding on purpose.
 
 **The gap that blocked every one of these.** `X402ResourceRepository.save` had no
 caller — no route, no script, no seed — so a running deployment could not be
@@ -411,6 +465,38 @@ resource cannot be created advertising terms no payer could sign.
 - [ ] Measure `eth_getLogs` through HashIO before running `SettlementIndexer`
       against it.
 - [ ] Contracts verified on HashScan; video ≤5 min showing a paid request execute.
+
+### Next, in order
+
+The rail is live and nothing has paid it yet. Everything below is ordered by what
+unblocks the most.
+
+1. **One agent pays the 402 end to end.** Sign an EIP-3009 authorization for the
+   20000 units the header asks for, send it back in `PAYMENT-SIGNATURE`, and
+   watch the facilitator broadcast, read the transaction back off Arc, and serve
+   the resource. That single run closes acceptance criterion 6 on
+   [#207](https://github.com/playriglabs/mayarin/issues/207) — the only one left
+   that needs a live rail rather than a test — and is the spine of the demo.
+2. **Documentation and the OpenAPI paths** ([#207](https://github.com/playriglabs/mayarin/issues/207)
+   criterion 9). `openapi.json` has 26 paths and none of them x402: the routes
+   are unversioned and outside `/v1`, so the generator never saw them. That is
+   also why nobody noticed.
+3. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
+   the trace, the refusal run, and the no-signup `curl`. Two of the three now
+   have something real to point at.
+4. **Exact-output swaps** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
+   Without it an agent holding only ETH cannot pay a USDC price at all, which is
+   one of the pitch's own sentences.
+5. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
+   and the policy visibly refusing an over-limit payment. A spending policy
+   nobody has watched refuse anything is a claim.
+6. **Decide Hedera's path** ([#209](https://github.com/playriglabs/mayarin/issues/209)):
+   Blocky402's facilitator, or building the permit2 scheme ourselves. Its USDC
+   has no EIP-3009, so `exact`/EIP-3009 is not available there at all.
+
+Not code, and still open: **Continuity registration with every sponsor**, and
+moving the dashboard's custom domain now that it deploys as a Worker rather than
+to Pages.
 
 ### #211 — Uniswap
 
