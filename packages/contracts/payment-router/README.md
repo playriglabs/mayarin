@@ -176,10 +176,40 @@ The script reads the signer back at the block the execution landed in rather
 than at `latest` — a read served by a lagging node once reported a rotation that
 had succeeded as a mismatch.
 
-Deploy with `scripts/deploy-base-sepolia.sh`, which runs `DeployPaymentRouter`
-and then `ConfigurePaymentRouter`. The second is not optional: the constructor
+Deploy with `scripts/deploy.sh <chain>`, which runs `DeployPaymentRouter` and
+then `ConfigurePaymentRouter`. The second is not optional: the constructor
 whitelists settlement assets only, so a router that has not been configured
 reverts `RouterNotWhitelisted` on its first swap payment.
+
+```bash
+./scripts/deploy.sh base-sepolia --dry          # simulate, broadcast nothing
+./scripts/deploy.sh arc-testnet                 # all three steps
+./scripts/deploy.sh arc-testnet --factory-only  # router already deployed
+```
+
+Three scripts run in order: the router and timelock, then
+`DepositForwarderFactory`, then the configure step. The factory is not a
+separate errand — the API refuses to boot when a chain has a `PaymentRouter` and
+no `DEPOSIT_FORWARDERS` entry.
+
+Its `destination` — the operator that sweeps every forwarder — is baked into the
+forwarder's init code, so it decides `INIT_CODE_HASH`, and that one hash serves
+every chain. A chain deployed with a different destination would make the API
+derive deposit addresses no factory can sweep, so the script reads the hash back
+off the new factory and refuses to continue when it differs from
+`DEPOSIT_FORWARDER_INIT_CODE_HASH`. It defaults `DESTINATION` to the operator
+key's own address rather than letting it be typed twice.
+
+The chain table in the script holds the chain id, the RPC variable it reads, and
+the verifier; every address it needs is per deployment and comes from `.env`.
+The run refuses to start if the RPC reports a different chain id than the name
+asked for — a router deployed to the chain nobody is watching is silent until
+the first payment.
+
+**Arc measured, not assumed** (September 2026): chain `5042002`, `PUSH0`,
+`MCOPY` and `TSTORE` all execute, so `evm_version = "cancun"` needs no
+downgrade. Permit2 is at its canonical address, base fee 20 gwei, and Arc's own
+currency is USDC — a full deploy costs cents rather than test ETH nobody has.
 
 `docs/chain.md` carries the full on-chain configuration and the role layout.
 
