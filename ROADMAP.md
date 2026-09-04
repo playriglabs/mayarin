@@ -280,6 +280,12 @@ unverifiable against a live endpoint.
       address from their Base one** — the salt is
       `mayarin:wallet:<merchant>:<chain>` — so provisioning has to run per chain
       rather than reusing an address that exists elsewhere.
+- [ ] One link, many rails: the payer picks chain and asset at checkout, filtered
+      per chain ([#244](https://github.com/playriglabs/mayarin/issues/244)). Base
+      offers ETH and USDC where Arc offers only USDC, and a rail is offered only
+      when the merchant can actually be paid on it. Today the chain is whichever
+      key comes first in `CHAIN_ASSETS` and the asset list is a union across
+      chains — invisible with one chain, wrong with two.
 - [ ] Surface per-chain balances in the dashboard. The reader is already keyed by
       chain and now gets every RPC the deployment has; `WalletService` still
       takes one chain, so the UI cannot ask for another yet.
