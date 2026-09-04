@@ -9,6 +9,16 @@ type Settlement @entity(immutable: true) {
   "txHash + logIndex — the same idempotency key the settlement indexer uses."
   id: Bytes!
   intentId: Bytes!
+  """
+  The log's own position, kept as a field rather than left inside `id`.
+
+  The settlement indexer keys by `(chain, txHash, logIndex)` and classifies
+  reorgs by block hash, so a source that serves it has to carry both. Digging
+  them back out of a concatenated id is the kind of decoding that is wrong once
+  and wrong silently.
+  """
+  logIndex: Int!
+  blockHash: Bytes!
   merchantSafe: Bytes!
   refundTo: Bytes!
   "address(0) for native."
@@ -38,6 +48,8 @@ type Settlement @entity(immutable: true) {
 type Residue @entity(immutable: true) {
   id: Bytes!
   intentId: Bytes!
+  logIndex: Int!
+  blockHash: Bytes!
   "address(0) for native."
   asset: Bytes!
   to: Bytes!

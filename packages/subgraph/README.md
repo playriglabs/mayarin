@@ -50,6 +50,11 @@ bun run --cwd packages/subgraph deploy:base-sepolia  # prompts for a version lab
 the whole thing. `deploy:arc-testnet` is the same command against the other
 network entry.
 
+**A schema change needs a redeploy under a new version label.** `logIndex` and
+`blockHash` landed after `v0.0.1`, so a deployment still on that version cannot
+serve `SubgraphSettlementSource` — the query names fields it does not have.
+Deploy `v0.0.2` before putting an endpoint in `SUBGRAPH_ENDPOINTS`.
+
 The deploy scripts pass `--node https://api.studio.thegraph.com/deploy/`
 explicitly. Studio is not the CLI's default node, and without it the failure
 names IPFS rather than the node it could not reach.
@@ -73,6 +78,14 @@ They look like TypeScript and are not, which shows up in two places:
   import into a type import turns the mapping into a parse error, and the build
   fails with "the AssemblyScript compiler crashed" rather than anything naming
   the line.
+
+## `subgraph.yaml` is rewritten by the build
+
+`graph build --network <name>` writes the chosen network's address and start
+block back into the manifest, in place, and drops any comment in the file while
+it is there. So the three fields under `source:` are whichever network was built
+last, and a diff touching only those is noise — `networks.json` is the truth, and
+this README is the only place a note about it survives.
 
 ## Adding a network
 

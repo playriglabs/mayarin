@@ -17,6 +17,8 @@ export function handlePaymentCompleted(event: PaymentCompleted): void {
   const settlement = new Settlement(event.transaction.hash.concatI32(event.logIndex.toI32()));
 
   settlement.intentId = event.params.intentId;
+  settlement.logIndex = event.logIndex.toI32();
+  settlement.blockHash = event.block.hash;
   settlement.merchantSafe = event.params.merchantSafe;
   settlement.refundTo = event.params.refundTo;
   settlement.inputAsset = event.params.inputAsset;
@@ -46,6 +48,8 @@ export function handleResidueRefunded(event: ResidueRefunded): void {
   const residue = new Residue(event.transaction.hash.concatI32(event.logIndex.toI32()));
 
   residue.intentId = event.params.intentId;
+  residue.logIndex = event.logIndex.toI32();
+  residue.blockHash = event.block.hash;
   residue.asset = event.params.asset;
   residue.to = event.params.to;
   residue.amount = event.params.amount;
