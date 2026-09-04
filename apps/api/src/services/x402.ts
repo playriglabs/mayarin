@@ -31,6 +31,7 @@ import {
 } from "@mayarin/shared";
 import type {
   AcceptedAsset,
+  AssetCapabilities,
   FacilitatorRegistry,
   PaymentPayload,
   PaymentRequired,
@@ -53,6 +54,17 @@ import {
 export interface X402ServiceOptions {
   readonly resources: X402ResourceRepository;
   readonly facilitators: FacilitatorRegistry;
+  /**
+   * What each token actually implements, asked of the token.
+   *
+   * A resource row records a domain and a transfer method, and a row is
+   * configuration: it can say `permit2` about a token that implements EIP-3009,
+   * or carry an EIP-712 domain one character off. Either produces a signature
+   * the token will not accept, from a payer who did everything right. So the
+   * chain's answer is what reaches the payer, and the row is only ever a
+   * statement of intent.
+   */
+  readonly capabilities: AssetCapabilities;
   /** One confirmer per CAIP-2 network. A network without one cannot be served. */
   readonly confirmers: ReadonlyMap<string, SettlementConfirmer>;
   readonly rates: RateProvider;
@@ -84,6 +96,17 @@ export class X402Service {
     this.#options = options;
   }
 
+  /**
+   * Ask every configured token what it implements, before serving anything.
+   *
+   * Optional by design: a lookup probes on demand, so this only moves the
+   * failure from a payer's first request to startup. An entry point that would
+   * rather find out now calls it.
+   */
+  warmUp(): Promise<void> {
+    return this.#options.capabilities.warmUp();
+  }
+
   async resourceById(id: string): Promise<X402Resource> {
     const resource = await this.#options.resources.findById(id);
     if (resource === undefined) {
@@ -111,9 +134,11 @@ export class X402Service {
     const priced: PricedAsset[] = [];
     for (const accept of resource.accepts) {
       if (!this.#options.facilitators.canServe(requirementsProbe(accept))) continue;
-      const amount = await this.#priceInto(resource.price, accept);
+      const asked = await this.#asked(accept);
+      if (asked === undefined) continue;
+      const amount = await this.#priceInto(resource.price, asked);
       if (amount === undefined) continue;
-      priced.push({ accept, amount, expiresAt });
+      priced.push({ accept: asked, amount, expiresAt });
     }
 
     if (priced.length === 0) {
@@ -125,6 +150,23 @@ export class X402Service {
     return error === undefined
       ? buildPaymentRequired(resource, priced, now)
       : buildPaymentRequired(resource, priced, now, error);
+  }
+
+  /**
+   * The asset as the token describes itself, or nothing.
+   *
+   * A token that cannot be reached or cannot be described is dropped like an
+   * unpriceable one — a resource with another working rail still answers. All
+   * of them failing raises, which is the existing behaviour and the honest one:
+   * a 402 offering terms nobody can sign is worse than no 402 at all.
+   */
+  async #asked(accept: AcceptedAsset): Promise<AcceptedAsset | undefined> {
+    try {
+      const capability = await this.#options.capabilities.of(accept.chain, accept.contract);
+      return { ...accept, domain: capability.domain, transferMethod: capability.transferMethod };
+    } catch {
+      return undefined;
+    }
   }
 
   async #priceInto(price: Money, accept: AcceptedAsset): Promise<Money | undefined> {

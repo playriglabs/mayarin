@@ -28,6 +28,16 @@ if (seeded.length > 0) {
 // because nothing about it looks wrong at request time.
 await container.walletGuard.assertTreasuryUnclaimed(CHAIN_IDS);
 
+// Ask every configured token what it implements, before a payer is handed terms
+// to sign. Two fields of an x402 offer — the transfer method and the EIP-712
+// domain — are facts about a deployed contract, and a deployment that got
+// either wrong from configuration hands out signatures the token will refuse.
+// Failing here is loud; failing at the first 402 is a payer's problem.
+if (container.x402 !== undefined) {
+  await container.x402.warmUp();
+  console.log("[api] x402 asset capabilities probed");
+}
+
 // One LISTEN connection for the process, opened before traffic: a payer whose
 // page loads first and pays second must not miss the change in between.
 if (container.stream !== undefined) {
