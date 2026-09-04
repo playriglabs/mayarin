@@ -503,6 +503,16 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/providers/subgraph": {
+      "name": "@mayarin/provider-subgraph",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+        "@mayarin/x402": "workspace:*",
+        "zod": "^3.24.1",
+      },
+    },
     "packages/providers/swap-0x": {
       "name": "@mayarin/provider-swap-0x",
       "version": "0.1.0",
@@ -1357,6 +1367,8 @@
     "@mayarin/provider-pyth": ["@mayarin/provider-pyth@workspace:packages/providers/pyth"],
 
     "@mayarin/provider-stablecoin": ["@mayarin/provider-stablecoin@workspace:packages/providers/stablecoin"],
+
+    "@mayarin/provider-subgraph": ["@mayarin/provider-subgraph@workspace:packages/providers/subgraph"],
 
     "@mayarin/provider-swap-0x": ["@mayarin/provider-swap-0x@workspace:packages/providers/swap-0x"],
 
