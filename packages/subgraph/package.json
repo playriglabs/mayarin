@@ -8,8 +8,8 @@
     "codegen": "bun run abi && graph codegen",
     "build:base-sepolia": "bun run codegen && graph build --network base-sepolia",
     "build:arc-testnet": "bun run codegen && graph build --network arc-testnet",
-    "deploy:base-sepolia": "bun run codegen && graph deploy mayarin-base-sepolia --network base-sepolia",
-    "deploy:arc-testnet": "bun run codegen && graph deploy mayarin-arc-testnet --network arc-testnet"
+    "deploy:base-sepolia": "bun run codegen && graph deploy mayarin-base-sepolia --node https://api.studio.thegraph.com/deploy/ --network base-sepolia",
+    "deploy:arc-testnet": "bun run codegen && graph deploy mayarin-arc-testnet --node https://api.studio.thegraph.com/deploy/ --network arc-testnet"
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "0.98.1",
