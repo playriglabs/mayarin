@@ -117,6 +117,40 @@ describe("x402 execution path", () => {
     expect(second.transaction.state).toBe("SUCCESS");
     expect(second.transaction.version).toBe(first.transaction.version);
   });
+
+  /**
+   * The crash the x402 service's ordering is designed around.
+   *
+   * `settle` broadcasts before the receipt is written, so a process that dies in
+   * between leaves an intent whose money has moved on-chain and whose engine
+   * knows nothing about it. The recovery is not an x402 mechanism — it is the
+   * engine's own `resumeStuck`, and the point of testing it here is that a path
+   * which derives no deposit address and is advanced by nothing but a
+   * facilitator could quietly fall outside it.
+   */
+  test("resumeStuck recovers an intent killed between settle and the receipt", async () => {
+    const harness = createHarness({
+      autoConfirmAssetReceipt: false,
+      behaviour: "pending",
+      rates: { "IDR/USDC": 100n },
+    });
+    const intent = await harness.confirmedIntent({
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      executionPath: "x402",
+    });
+    const started = await harness.engine.start(intent);
+
+    // The facilitator broadcast, and the process died before the receipt.
+    const settling = await harness.engine.recordAssetReceived(started.id);
+    expect(settling.transaction.state).toBe("SETTLING");
+    harness.adapter.complete(settling.transaction.providerReference as string);
+
+    const [resumed] = await harness.engine.resumeStuck();
+
+    expect(resumed?.transaction.id).toBe(started.id);
+    expect(resumed?.transaction.state).toBe("SUCCESS");
+    expect(await harness.engine.resumeStuck()).toHaveLength(0);
+  });
 });
 
 describe("execution path predicates", () => {
