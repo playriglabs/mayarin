@@ -75,6 +75,35 @@ const parseFlags = (argv: readonly string[]): Flags => {
   return { only, migrate, skipGate };
 };
 
+/**
+ * The Node the gate needs, before the gate fails for a reason nobody reads.
+ *
+ * Astro 7 refuses to run below 22.12, and only the three Astro apps notice — so
+ * `bun run check` fails with three `astro check` errors about an engine while
+ * every package that matters has already passed. Naming it here turns ten
+ * minutes of reading turbo output into one line.
+ */
+const requireNodeVersion = async (): Promise<void> => {
+  const required = Number.parseInt((await Bun.file(".nvmrc").text()).trim(), 10);
+
+  // The *system* node, not `process.versions.node` — Bun reports the Node API
+  // version it emulates, which is not what runs `astro check`. Astro's binary
+  // carries a `#!/usr/bin/env node` shebang, so the version that matters is
+  // whatever `node` resolves to on the PATH.
+  const probe = Bun.spawn(["node", "--version"], { stdout: "pipe", stderr: "pipe" });
+  const found = (await new Response(probe.stdout).text()).trim().replace(/^v/, "");
+  if ((await probe.exited) !== 0 || found === "") return;
+
+  const [major = 0, minor = 0] = found.split(".").map(Number);
+  if (major > required || (major === required && minor >= 12)) return;
+
+  throw new Error(
+    `Node ${found} is on the PATH, and Astro needs ${required}.12 or newer.\n` +
+      "The gate would fail in apps/blog, apps/dashboard and apps/docs with an engine\n" +
+      "message rather than anything about the code. Run `nvm use` and try again.",
+  );
+};
+
 /** Runs a command with inherited stdio, and stops the deployment on failure. */
 const run = async (label: string, command: readonly string[]): Promise<void> => {
   console.log(`\n▶ ${label}`);
@@ -173,6 +202,7 @@ console.log(`Deploying to ${TESTNET_PROJECT_NAME}: ${flags.only.join(", ")}`);
 if (flags.skipGate) {
   console.log("\n▶ Local gate skipped (--skip-gate)");
 } else {
+  await requireNodeVersion();
   await run("Local gate: format, typecheck, tests", ["bun", "run", "check"]);
   await run("Local gate: build the checkout UI", [
     "bun",
