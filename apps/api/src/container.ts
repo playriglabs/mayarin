@@ -61,6 +61,7 @@ import {
 } from "@mayarin/notifications";
 import { type MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
 import {
+  type ChainClients,
   Create2DepositAddressDeriver,
   EvmChainClient,
   EvmTreasuryExecutionPort,
@@ -214,28 +215,6 @@ export interface CreateContainerOptions {
   readonly clock?: Clock;
 }
 
-/**
- * The chain treasury execution runs on.
- *
- * One chain today: `PAYMENT_ROUTERS` is validated to name at least one, and the
- * executor is wired per deployment rather than per payment. A multi-chain
- * operator would key the deriver by chain instead, which is a change to this
- * function and nothing else.
- */
-function firstRouterChain(config: Config): ChainId {
-  const [chain] = Object.keys(config.paymentRouters) as ChainId[];
-  if (chain === undefined) {
-    throw new ConfigurationError("No PAYMENT_ROUTERS configured", {});
-  }
-  return chain;
-}
-
-/**
- * Builds the treasury executor, or nothing when the deployment has no operator.
- *
- * `resolveContract` has already refused a half-configured executor, so the
- * narrowing here is for the compiler rather than a real branch.
- */
 /**
  * The x402 rail, or nothing.
  *
@@ -393,6 +372,12 @@ function assetPairs(
   return pairs;
 }
 
+/**
+ * Builds the treasury executor, or nothing when the deployment has no operator.
+ *
+ * `resolveContract` has already refused a half-configured executor, so the
+ * narrowing here is for the compiler rather than a real branch.
+ */
 function createTreasuryExecutor(deps: {
   config: Config;
   ledger: LedgerService;
@@ -403,14 +388,25 @@ function createTreasuryExecutor(deps: {
   if (!config.treasuryExecutionEnabled) return undefined;
   if (config.operatorPrivateKey === undefined || depositAddresses === undefined) return undefined;
 
-  const chainId = firstRouterChain(config);
-  const rpcUrl = config.chain?.rpcUrls[chainId];
-  if (rpcUrl === undefined) {
-    throw new ConfigurationError(`No CHAIN_RPC_URLS entry for ${chainId}`, { chain: chainId });
+  const account = privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
+
+  // A client pair per router chain. One pair for the whole executor sent every
+  // submission to whichever chain came first in `PAYMENT_ROUTERS` — so a sweep
+  // on Arc went to Base's RPC, where the forwarder factory address has no code,
+  // and the node answered `execution reverted` with nothing naming the chain.
+  const clients: Partial<Record<ChainId, ChainClients>> = {};
+  for (const chainId of Object.keys(config.paymentRouters) as ChainId[]) {
+    const rpcUrl = config.chain?.rpcUrls[chainId];
+    if (rpcUrl === undefined) {
+      throw new ConfigurationError(`No CHAIN_RPC_URLS entry for ${chainId}`, { chain: chainId });
+    }
+    const transport = http(rpcUrl);
+    clients[chainId] = {
+      publicClient: createPublicClient({ transport }),
+      walletClient: createWalletClient({ account, transport }),
+    };
   }
 
-  const account = privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
-  const transport = http(rpcUrl);
   const routes = createRouteSources(config).values().next().value;
 
   if (routes === undefined) {
@@ -418,8 +414,7 @@ function createTreasuryExecutor(deps: {
   }
 
   const port = new EvmTreasuryExecutionPort({
-    publicClient: createPublicClient({ transport }),
-    walletClient: createWalletClient({ account, transport }),
+    clients,
     account,
     lookup: {
       async indexFor(clearingTransactionId) {
@@ -431,13 +426,12 @@ function createTreasuryExecutor(deps: {
     forwarderFactories: config.depositForwarders,
     paymentRouters: config.paymentRouters,
     tokens: config.chainAssets,
-    // Every chain the router runs on is EVM, so the native asset is ETH.
-    nativeAssets: Object.fromEntries(
-      Object.keys(config.paymentRouters).map((chain) => [chain, "ETH" as AssetCode]),
-    ),
-    ...(config.chain?.confirmations[chainId] === undefined
-      ? {}
-      : { confirmations: config.chain.confirmations[chainId] }),
+    // Read from configuration rather than assumed to be ETH. It was ETH on every
+    // chain a router had run on, and Arc's own currency is USDC — a gas cost
+    // labelled ETH there is a ledger posting in an asset the chain does not
+    // have. A chain that declares no native asset gets no gas posting at all.
+    nativeAssets: config.chainNativeAssets,
+    ...(config.chain === undefined ? {} : { confirmations: config.chain.confirmations }),
   });
 
   return new TreasuryExecutor({ port, ledger, maxAttempts: config.treasuryMaxAttempts });
@@ -488,13 +482,21 @@ export function createContainer({
   // process, which intentionally has no operator key. Both processes derive
   // the same CREATE2 address from public deployment facts; only the worker can
   // deploy and sweep it. Falling back to an HD EOA here strands the deposit.
-  const forwarderFactory = config.depositForwarders[firstRouterChain(config)];
+  // Every chain's factory, not the first one's. A CREATE2 deposit address is
+  // derived from the factory that will deploy the forwarder, so deriving Arc's
+  // address with Base's factory hands the payer an address the Arc sweep can
+  // never reach — the funds arrive, the sweep deploys an empty forwarder
+  // elsewhere and reports success, and the payment settles out of the operator's
+  // own balance.
+  const hasForwarders = Object.values(config.depositForwarders).some(
+    (factory) => factory !== undefined,
+  );
   const depositDeriver =
     chain === undefined
       ? undefined
-      : forwarderFactory !== undefined && config.depositForwarderInitCodeHash !== undefined
+      : hasForwarders && config.depositForwarderInitCodeHash !== undefined
         ? new Create2DepositAddressDeriver({
-            factory: forwarderFactory,
+            factories: config.depositForwarders,
             initCodeHash: config.depositForwarderInitCodeHash,
           })
         : new HdDepositAddressDeriver({ xpub: chain.xpub });

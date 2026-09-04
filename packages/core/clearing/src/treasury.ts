@@ -75,8 +75,15 @@ export interface ExecutionResult {
   readonly txHash: string;
   /** Settlement asset actually delivered, measured on-chain — not the quote. */
   readonly output: Money;
-  /** Native gas the operator paid for this submission. */
-  readonly gasCost: Money;
+  /**
+   * Native gas the operator paid, when the chain's own currency is one this
+   * deployment can name.
+   *
+   * Optional because a figure in the wrong asset is worse than no figure: it
+   * would be posted to the ledger, and a gas expense denominated in an asset
+   * the chain does not have is a number that balances and means nothing.
+   */
+  readonly gasCost?: Money;
 }
 
 /**
@@ -107,7 +114,7 @@ export interface TreasuryExecutorOptions {
 export interface TreasuryExecution {
   readonly txHash: string;
   readonly output: Money;
-  readonly gasCost: Money;
+  readonly gasCost?: Money;
 }
 
 export class TreasuryExecutor {
@@ -163,7 +170,10 @@ export class TreasuryExecutor {
     // Post what actually happened, not what was quoted. The gap between the two
     // is the FX result, and it is Mayarin's — see `swapPosting`.
     await this.#ledger.post(swapPosting(transaction, result.output));
-    await this.#ledger.post(gasPosting(transaction, result.gasCost));
+    // An unmeasurable gas cost is left out of the books rather than guessed at.
+    if (result.gasCost !== undefined) {
+      await this.#ledger.post(gasPosting(transaction, result.gasCost));
+    }
 
     return result;
   }

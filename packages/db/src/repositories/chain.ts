@@ -76,7 +76,7 @@ export class DrizzleDepositAddressRepository implements DepositAddressRepository
       derivationIndex,
       chain: input.chain,
       asset: input.asset,
-      address: input.deriver.derive(derivationIndex).toLowerCase(),
+      address: input.deriver.derive(derivationIndex, input.chain).toLowerCase(),
       createdAt: new Date(input.now),
     };
 

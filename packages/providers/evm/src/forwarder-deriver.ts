@@ -16,48 +16,26 @@
  * the xpub gave, arrived at differently.
  */
 
-import type { DepositAddressDeriver } from "@mayarin/chain";
+import type { ChainId, DepositAddressDeriver } from "@mayarin/chain";
 import { ConfigurationError } from "@mayarin/shared";
 import { getAddress, getCreate2Address, isAddress, isHex, keccak256, toHex } from "viem";
 
 export interface Create2DepositAddressDeriverOptions {
-  /** Deployed `DepositForwarderFactory`. Part of the CREATE2 preimage. */
-  readonly factory: string;
-  /**
-   * `keccak256(type(DepositForwarder).creationCode)`.
-   *
-   * Configuration rather than a constant compiled in here: it changes whenever
-   * the forwarder's bytecode changes, and a stale constant would derive
-   * addresses the deployed factory can never deploy to — payers would send to
-   * addresses that nothing can sweep. `DepositForwarderFactory.INIT_CODE_HASH()`
-   * is the authority, and the composition root checks this against it at boot.
-   */
+  /** `DepositForwarderFactory` per chain. A chain with none cannot take deposits. */
+  readonly factories: Readonly<Partial<Record<ChainId, string>>>;
+  /** `INIT_CODE_HASH()` — one value, because the forwarder takes no constructor arguments. */
   readonly initCodeHash: string;
 }
 
-/**
- * Salt for a deposit index.
- *
- * `keccak256` of the index rather than the index padded into 32 bytes: a
- * left-padded integer salt makes the low bits of every deposit address
- * derivable from a small counter, so an observer who learns one address learns
- * the shape of the next. Hashing costs nothing and removes the pattern.
- */
 export function depositSalt(index: number): `0x${string}` {
   return keccak256(toHex(`mayarin.deposit.${index}`));
 }
 
 export class Create2DepositAddressDeriver implements DepositAddressDeriver {
-  readonly #factory: `0x${string}`;
+  readonly #factories: Readonly<Partial<Record<ChainId, `0x${string}`>>>;
   readonly #initCodeHash: `0x${string}`;
 
   constructor(options: Create2DepositAddressDeriverOptions) {
-    if (!isAddress(options.factory)) {
-      throw new ConfigurationError("DEPOSIT_FORWARDER_FACTORY is not a valid address", {
-        factory: options.factory,
-      });
-    }
-
     if (!isHex(options.initCodeHash) || options.initCodeHash.length !== 66) {
       throw new ConfigurationError(
         "DEPOSIT_FORWARDER_INIT_CODE_HASH must be a 32-byte hex string",
@@ -65,11 +43,33 @@ export class Create2DepositAddressDeriver implements DepositAddressDeriver {
       );
     }
 
-    this.#factory = getAddress(options.factory);
+    const factories: Partial<Record<ChainId, `0x${string}`>> = {};
+    for (const [chain, factory] of Object.entries(options.factories)) {
+      if (factory === undefined) continue;
+      if (!isAddress(factory)) {
+        throw new ConfigurationError(`DEPOSIT_FORWARDERS[${chain}] is not a valid address`, {
+          chain,
+          factory,
+        });
+      }
+      factories[chain as ChainId] = getAddress(factory);
+    }
+
+    this.#factories = factories;
     this.#initCodeHash = options.initCodeHash;
   }
 
-  derive(index: number): string {
+  /**
+   * Per chain, because the factory is the CREATE2 deployer.
+   *
+   * One factory used for every chain derives an address the sweep on that chain
+   * can never reach: the payer's funds arrive at an address only another
+   * chain's factory could deploy to, the sweep deploys an empty forwarder at
+   * the address it *can* reach and reports success, and the payment settles out
+   * of the operator's own balance. Nothing fails; the money is simply somebody
+   * else's.
+   */
+  derive(index: number, chain: ChainId): string {
     if (!Number.isInteger(index) || index < 0) {
       throw new ConfigurationError(
         `Derivation index must be a non-negative integer, got ${index}`,
@@ -77,8 +77,16 @@ export class Create2DepositAddressDeriver implements DepositAddressDeriver {
       );
     }
 
+    const factory = this.#factories[chain];
+    if (factory === undefined) {
+      throw new ConfigurationError(
+        `No DEPOSIT_FORWARDERS factory for ${chain}; a deposit address there could never be swept`,
+        { chain, index },
+      );
+    }
+
     return getCreate2Address({
-      from: this.#factory,
+      from: factory,
       salt: depositSalt(index),
       bytecodeHash: this.#initCodeHash,
     });

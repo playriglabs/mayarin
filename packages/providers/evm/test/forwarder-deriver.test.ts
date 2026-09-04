@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import type { ChainId } from "@mayarin/chain";
 import { ConfigurationError } from "@mayarin/shared";
 import { Create2DepositAddressDeriver, depositSalt } from "../src/forwarder-deriver.ts";
+
+const CHAIN: ChainId = "base-sepolia";
+const OTHER_CHAIN: ChainId = "arc-testnet";
 
 /**
  * The same vectors `DepositForwarder.t.sol` pins, computed there from the
@@ -18,23 +22,26 @@ const VECTORS = [
 ] as const;
 
 function deriver() {
-  return new Create2DepositAddressDeriver({ factory: FACTORY, initCodeHash: INIT_CODE_HASH });
+  return new Create2DepositAddressDeriver({
+    factories: { [CHAIN]: FACTORY },
+    initCodeHash: INIT_CODE_HASH,
+  });
 }
 
 describe("Create2DepositAddressDeriver", () => {
   test.each(VECTORS)(
     "index %i derives the address the factory would deploy to",
     (index, expected) => {
-      expect(deriver().derive(index)).toBe(expected);
+      expect(deriver().derive(index, CHAIN)).toBe(expected);
     },
   );
 
   test("is deterministic across instances", () => {
-    expect(deriver().derive(7)).toBe(deriver().derive(7));
+    expect(deriver().derive(7, CHAIN)).toBe(deriver().derive(7, CHAIN));
   });
 
   test("gives distinct addresses to distinct indices", () => {
-    const addresses = new Set([0, 1, 2, 3, 4].map((index) => deriver().derive(index)));
+    const addresses = new Set([0, 1, 2, 3, 4].map((index) => deriver().derive(index, CHAIN)));
     expect(addresses.size).toBe(5);
   });
 
@@ -49,20 +56,20 @@ describe("Create2DepositAddressDeriver", () => {
 
   test("a changed init code hash changes every address", () => {
     const other = new Create2DepositAddressDeriver({
-      factory: FACTORY,
+      factories: { [CHAIN]: FACTORY },
       initCodeHash: "0x2222222222222222222222222222222222222222222222222222222222222222",
     });
 
-    expect(other.derive(0)).not.toBe(deriver().derive(0));
+    expect(other.derive(0, CHAIN)).not.toBe(deriver().derive(0, CHAIN));
   });
 
   test("a changed factory changes every address", () => {
     const other = new Create2DepositAddressDeriver({
-      factory: "0x000000000000000000000000000000000000beef",
+      factories: { [CHAIN]: "0x000000000000000000000000000000000000beef" },
       initCodeHash: INIT_CODE_HASH,
     });
 
-    expect(other.derive(0)).not.toBe(deriver().derive(0));
+    expect(other.derive(0, CHAIN)).not.toBe(deriver().derive(0, CHAIN));
   });
 
   test("rejects an address whose checksum does not match, which is how a typo shows up", () => {
@@ -73,7 +80,7 @@ describe("Create2DepositAddressDeriver", () => {
     expect(
       () =>
         new Create2DepositAddressDeriver({
-          factory: "0x000000000000000000000000000000000000BEEF",
+          factories: { [CHAIN]: "0x000000000000000000000000000000000000BEEF" },
           initCodeHash: INIT_CODE_HASH,
         }),
     ).toThrow(ConfigurationError);
@@ -81,18 +88,43 @@ describe("Create2DepositAddressDeriver", () => {
 
   test("rejects a malformed factory address at construction", () => {
     expect(
-      () => new Create2DepositAddressDeriver({ factory: "nope", initCodeHash: INIT_CODE_HASH }),
+      () =>
+        new Create2DepositAddressDeriver({
+          factories: { [CHAIN]: "nope" },
+          initCodeHash: INIT_CODE_HASH,
+        }),
     ).toThrow(ConfigurationError);
   });
 
   test("rejects an init code hash that is not 32 bytes", () => {
     expect(
-      () => new Create2DepositAddressDeriver({ factory: FACTORY, initCodeHash: "0x1234" }),
+      () =>
+        new Create2DepositAddressDeriver({
+          factories: { [CHAIN]: FACTORY },
+          initCodeHash: "0x1234",
+        }),
     ).toThrow(ConfigurationError);
   });
 
+  test("derives per chain, because the factory is the CREATE2 deployer", () => {
+    // The failure this prevents is not an error. The payer's funds arrive at an
+    // address only the other chain's factory could deploy to; the sweep deploys
+    // an empty forwarder at the address it *can* reach, reports success, and the
+    // payment settles out of the operator's own balance.
+    const both = new Create2DepositAddressDeriver({
+      factories: { [CHAIN]: FACTORY, [OTHER_CHAIN]: "0x000000000000000000000000000000000000beef" },
+      initCodeHash: INIT_CODE_HASH,
+    });
+
+    expect(both.derive(0, CHAIN)).not.toBe(both.derive(0, OTHER_CHAIN));
+  });
+
+  test("refuses a chain with no factory rather than borrowing another's", () => {
+    expect(() => deriver().derive(0, OTHER_CHAIN)).toThrow(/No DEPOSIT_FORWARDERS factory/);
+  });
+
   test("rejects a negative or fractional index", () => {
-    expect(() => deriver().derive(-1)).toThrow(ConfigurationError);
-    expect(() => deriver().derive(1.5)).toThrow(ConfigurationError);
+    expect(() => deriver().derive(-1, CHAIN)).toThrow(ConfigurationError);
+    expect(() => deriver().derive(1.5, CHAIN)).toThrow(ConfigurationError);
   });
 });
