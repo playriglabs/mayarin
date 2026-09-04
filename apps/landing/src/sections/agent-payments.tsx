@@ -54,12 +54,12 @@ export function AgentPayments() {
         </Reveal>
       </div>
 
-      <div class="mt-12 grid gap-px border-y border-line bg-line md:mt-16 lg:grid-cols-5">
+      <div class="-mx-6 mt-12 grid gap-px border-y border-line bg-line md:-mx-10 md:mt-16 min-[1367px]:mx-0">
         {/* The dark card states the refusal. It is deliberately the largest
             surface in the section: "the agent is not the product" is the claim
             most readers arrive sceptical of. */}
-        <Reveal class="lg:col-span-3">
-          <article class="flex h-full flex-col justify-between bg-void px-6 py-10 text-white md:p-12">
+        <Reveal>
+          <article class="grid items-center gap-12 bg-void px-6 py-10 text-white md:p-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)] lg:gap-16">
             <div>
               <h3 class="max-w-[18ch] text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1] tracking-[-0.02em]">
                 An agent is a payer class, not a product line.
@@ -72,59 +72,76 @@ export function AgentPayments() {
               </p>
             </div>
 
-            <div class="mt-12" aria-hidden="true">
-              {/* ILLUSTRATION SLOT — three payer classes arriving at one clearing layer
-                  Drop the generated asset here. Keep `aria-hidden`: the caption and the
-                  copy already carry the meaning, so the image is decorative and a screen
-                  reader should skip it.
-                      <img src="/images/payer-classes.webp" alt="" class="h-auto w-full max-w-104" />
-                  The reserved box below keeps the layout from jumping while the slot is
-                  empty. Delete it once the image is in. */}
-              <div class="aspect-[4/3] w-full max-w-104 border border-line-inverse" />
+            <div class="flex justify-center lg:justify-end" aria-hidden="true">
+              <img
+                src="/images/payer-classes.webp?v=5"
+                alt=""
+                width="1248"
+                height="566"
+                loading="lazy"
+                decoding="async"
+                class="h-auto w-full max-w-[42rem]"
+              />
             </div>
           </article>
         </Reveal>
 
-        <div class="grid gap-px bg-line lg:col-span-2">
+        <div class="grid gap-px bg-line lg:grid-cols-2">
           <Reveal delay={80}>
-            <article class="h-full bg-paper px-6 py-10 md:p-10">
-              <h3 class="text-[1.2rem] tracking-[-0.01em]">
-                <ScrambleText text="One thing to sign" trigger="[data-scramble-cell]" />
-              </h3>
-              <p class="mt-3 max-w-[38ch] text-sm leading-[1.7] text-slate">
-                An authorization for an exact amount, in an asset the payer already holds. It never
-                touches gas, never holds the merchant's asset, and never sees an address.
-              </p>
-              <div class="mt-8" aria-hidden="true">
-                {/* ILLUSTRATION SLOT — one authorization, signed once
-                    Drop the generated asset here. Keep `aria-hidden`: the caption and the
-                    copy already carry the meaning, so the image is decorative and a screen
-                    reader should skip it.
-                        <img src="/images/authorization.webp" alt="" class="h-auto w-full max-w-60" />
-                    The reserved box below keeps the layout from jumping while the slot is
-                    empty. Delete it once the image is in. */}
-                <div class="aspect-square w-full max-w-60 border border-line" />
+            <article class="grid h-full items-center gap-8 bg-paper px-6 py-10 md:p-10 xl:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)]">
+              <div>
+                <h3 class="text-[24px] tracking-[-0.01em]">
+                  <ScrambleText text="One thing to sign" trigger="[data-scramble-cell]" />
+                </h3>
+                <p class="mt-3 max-w-[38ch] text-sm leading-[1.7] text-slate">
+                  An authorization for an exact amount, in an asset the payer already holds. It
+                  never touches gas, never holds the merchant's asset, and never sees an address.
+                </p>
+              </div>
+              <div class="flex justify-center xl:justify-end" aria-hidden="true">
+                <img
+                  src="/images/authorization.webp?v=2"
+                  alt=""
+                  width="457"
+                  height="640"
+                  loading="lazy"
+                  decoding="async"
+                  class="h-72 w-auto max-w-full object-contain"
+                />
               </div>
             </article>
           </Reveal>
 
           <Reveal delay={140}>
-            <article class="h-full bg-paper px-6 py-10 md:p-10">
-              <h3 class="text-[1.2rem] tracking-[-0.01em]">
-                <ScrambleText text="The merchant is unchanged" trigger="[data-scramble-cell]" />
-              </h3>
-              <p class="mt-3 max-w-[38ch] text-sm leading-[1.7] text-slate">
-                Still priced in their own currency. Still paid in their configured stablecoin. A
-                merchant does not have to know which of the three paid them, and the books do not
-                record it differently.
-              </p>
+            <article class="grid h-full items-center gap-8 bg-paper px-6 py-10 md:p-10 xl:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)]">
+              <div>
+                <h3 class="text-[24px] tracking-[-0.01em]">
+                  <ScrambleText text="The merchant is unchanged" trigger="[data-scramble-cell]" />
+                </h3>
+                <p class="mt-3 max-w-[38ch] text-sm leading-[1.7] text-slate">
+                  Still priced in their own currency. Still paid in their configured stablecoin. A
+                  merchant does not have to know which of the three paid them, and the books do not
+                  record it differently.
+                </p>
+              </div>
+              <div class="flex justify-center xl:justify-end" aria-hidden="true">
+                <img
+                  src="/images/merchant-unchanged.webp?v=4"
+                  alt=""
+                  width="457"
+                  height="640"
+                  loading="lazy"
+                  decoding="async"
+                  class="h-72 w-auto max-w-full object-contain"
+                />
+              </div>
             </article>
           </Reveal>
         </div>
       </div>
 
       {/* The table is the section's evidence: three rows, one of which is new. */}
-      <div class="mt-px grid gap-px border-b border-line bg-line md:grid-cols-3">
+      <div class="-mx-6 mt-px grid gap-px border-b border-line bg-line md:-mx-10 md:grid-cols-3 min-[1367px]:mx-0">
         {PAYER_CLASSES.map((payer, index) => (
           <Reveal key={payer.who} delay={index * 70}>
             <div class="flex h-full flex-col gap-3 bg-paper px-6 py-8 md:p-10">

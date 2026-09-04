@@ -72,16 +72,15 @@ export function X402Gateway() {
         <Reveal>
           <figure class="h-full bg-paper px-6 py-12 md:p-14">
             <div aria-hidden="true">
-              {/* ILLUSTRATION SLOT — an endpoint behind a gate
-                  Drop the generated asset here. Keep `aria-hidden`: the caption already
-                  carries the meaning, so the image is decorative and a screen reader
-                  should skip it.
-                      <img src="/images/gated-endpoint.webp" alt="" class="mx-auto h-auto w-full max-w-72" />
-                  The reserved box below keeps the layout from jumping while the slot is
-                  empty. Delete it once the image is in. */}
-              <div class="mx-auto aspect-[4/3] w-full max-w-72 border border-line" />
+              <img
+                src="/images/gated-endpoint.webp"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                class="mx-auto h-auto w-full max-w-72"
+              />
             </div>
-            <figcaption class="mt-10 max-w-[38ch] text-sm leading-[1.7] text-slate">
+            <figcaption class="mt-10 max-w-full text-sm leading-[1.7] text-slate">
               The same URL answers differently depending on what arrived with the request. Nothing
               about the handler changes.
             </figcaption>
@@ -91,16 +90,15 @@ export function X402Gateway() {
         <Reveal delay={80}>
           <figure class="h-full bg-paper px-6 py-12 md:p-14">
             <div aria-hidden="true">
-              {/* ILLUSTRATION SLOT — a settlement read back off the chain
-                  Drop the generated asset here. Keep `aria-hidden`: the caption already
-                  carries the meaning, so the image is decorative and a screen reader
-                  should skip it.
-                      <img src="/images/settlement-confirmed.webp" alt="" class="mx-auto h-auto w-full max-w-72" />
-                  The reserved box below keeps the layout from jumping while the slot is
-                  empty. Delete it once the image is in. */}
-              <div class="mx-auto aspect-[4/3] w-full max-w-72 border border-line" />
+              <img
+                src="/images/settlement-confirmed.webp"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                class="mx-auto h-auto w-full max-w-72"
+              />
             </div>
-            <figcaption class="mt-10 max-w-[38ch] text-sm leading-[1.7] text-slate">
+            <figcaption class="mt-10 max-w-full text-sm leading-[1.7] text-slate">
               A settlement is confirmed against the chain, never against the response that reported
               it. A spoofed callback settles nothing.
             </figcaption>
@@ -113,7 +111,7 @@ export function X402Gateway() {
           <Reveal key={step.index} delay={(index % 4) * 70}>
             <li class="flex h-full flex-col bg-paper px-6 py-8 md:p-10">
               <span class="label text-slate">{step.index}</span>
-              <h3 class="mt-6 max-w-[20ch] text-[1.05rem] leading-[1.35] tracking-[-0.01em]">
+              <h3 class="mt-6 max-w-[20ch] text-[1.6rem] leading-[1.2] tracking-[-0.01em]">
                 {step.title}
               </h3>
               <p class="mt-3 max-w-[36ch] flex-1 text-sm leading-[1.7] text-slate">{step.body}</p>

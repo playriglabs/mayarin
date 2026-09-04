@@ -7,22 +7,7 @@ const CAPABILITIES: { name: string; glyph: GlyphName; body: string }[] = [
   {
     name: "Payment Orchestration",
     glyph: "orchestration",
-    body: "One flow decides the route, the asset and the provider for every payment.",
-  },
-  {
-    name: "Programmable Settlement",
-    glyph: "settlement",
-    body: "Settlement conditions expressed in code, not in a support ticket.",
-  },
-  {
-    name: "Liquidity Routing",
-    glyph: "routing",
-    body: "Price the payer's asset and route it to what the destination rail accepts.",
-  },
-  {
-    name: "Double-entry Ledger",
-    glyph: "ledger",
-    body: "Balances are never written directly. Value moves only as balanced postings.",
+    body: "One flow decides the route, the asset and the execution path for every payment.",
   },
   {
     name: "Clearing Engine",
@@ -30,39 +15,54 @@ const CAPABILITIES: { name: string; glyph: GlyphName; body: string }[] = [
     body: "A nine-state machine that is idempotent, resumable and fully auditable.",
   },
   {
-    name: "Settlement Engine",
-    glyph: "engine",
-    body: "Provider calls keyed per step, so a replay settles once and only once.",
-  },
-  {
     name: "Payment Intent",
     glyph: "intent",
     body: "An immutable aggregate with optimistic locking on every transition.",
   },
   {
-    name: "Provider Adapters",
-    glyph: "adapters",
-    body: "Ports in the core, providers at the edge. Swap one without touching domain logic.",
+    name: "Double-entry Ledger",
+    glyph: "ledger",
+    body: "Balances are never written directly. Value moves only as balanced postings.",
   },
   {
-    name: "QR Infrastructure",
+    name: "Liquidity Routing",
+    glyph: "routing",
+    body: "Oracle-guarded quotes and exact-output routes into the merchant's stablecoin.",
+  },
+  {
+    name: "Programmable Settlement",
+    glyph: "settlement",
+    body: "A signed settlement minimum, a deadline and a slippage bound — expressed in code.",
+  },
+  {
+    name: "Agent Payments",
+    glyph: "agent",
+    body: "x402 over the same clearing engine: any endpoint payable per call, no account issued.",
+  },
+  {
+    name: "Chain Layer",
+    glyph: "adapters",
+    body: "Per-intent deposit addresses, confirmation depth, reorg detection and backfill.",
+  },
+  {
+    name: "Commerce & Checkout",
     glyph: "qr",
-    body: "EMVCo and QRIS parsing, validation and generation as first-class inputs.",
+    body: "Catalog, carts, payment links, invoices, hosted checkout and EMVCo or EIP-681 codes.",
+  },
+  {
+    name: "Wallets & Treasury",
+    glyph: "treasury",
+    body: "Verified addresses, managed Safe accounts, balances and withdrawals off the ledger.",
   },
   {
     name: "Merchant APIs",
     glyph: "api",
-    body: "Typed resources, idempotency keys, signed webhooks, replayable events.",
+    body: "Typed resources, idempotency keys, signed webhooks, replayable events, live status.",
   },
   {
-    name: "POS SDK",
+    name: "TypeScript SDK",
     glyph: "sdk",
-    body: "In-person acceptance that speaks the same intents as your server does.",
-  },
-  {
-    name: "Treasury",
-    glyph: "treasury",
-    body: "Positions, balances and reconciliation derived from the ledger itself.",
+    body: "One server client, one browser client on publishable keys, both speaking the same intents.",
   },
 ];
 
@@ -79,7 +79,8 @@ export function Capabilities() {
         </Reveal>
         <Reveal delay={120}>
           <Lede class="md:mb-3 md:max-w-[36ch]">
-            Use the whole clearing path, or reach for the one layer your stack is missing.
+            Use the whole clearing path, or reach for the one layer your stack is missing. Every one
+            of these is shipped and running on testnet today.
           </Lede>
         </Reveal>
       </div>

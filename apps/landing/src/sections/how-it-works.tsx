@@ -18,7 +18,7 @@ const STAGES: Stage[] = [
   {
     index: "01",
     title: "Application",
-    body: "Your product states what should happen: who pays, who gets paid, and in which asset. Nothing about rails, providers or chains leaks into your code.",
+    body: "Your product — or an agent hitting a gated endpoint — states what should happen: who pays, who gets paid, in which asset. Nothing about rails, providers or chains leaks into your code.",
     states: ["CREATED"],
     artifact: "POST /payment-intents · Idempotency-Key",
   },
@@ -32,9 +32,9 @@ const STAGES: Stage[] = [
   {
     index: "03",
     title: "Liquidity Routing",
-    body: "The payer's crypto asset is priced and routed into the settlement stablecoin the merchant is paid in. The rate is locked before anyone is asked to pay.",
+    body: "The payer's asset is priced against an oracle and routed into the stablecoin the merchant is paid in. The rate is locked, with a settlement minimum and a deadline, before anyone is asked to pay.",
     states: ["PRICE_LOCKED", "PAYMENT_PENDING", "ASSET_RECEIVED"],
-    artifact: "rate locked · deposit address derived per intent",
+    artifact: "quote locked · execution path chosen for this payment",
   },
   {
     index: "04",
@@ -46,9 +46,9 @@ const STAGES: Stage[] = [
   {
     index: "05",
     title: "Settlement",
-    body: "Value moves through a provider adapter, confirmed against the provider itself — never against a webhook alone. A spoofed callback settles nothing.",
+    body: "Value moves on-chain, or through a provider adapter, and is confirmed by reading the result back — never against a webhook or a facilitator's word alone. A spoofed callback settles nothing.",
     states: ["SETTLING", "SETTLED"],
-    artifact: "provider reference · each step keyed by transaction and state",
+    artifact: "chain evidence · each step keyed by transaction and state",
   },
   {
     index: "06",
@@ -56,6 +56,28 @@ const STAGES: Stage[] = [
     body: "The merchant is paid in the settlement stablecoin to their wallet. The event log left behind is the audit trail, not a reconstruction of one.",
     states: ["SUCCESS"],
     artifact: "terminal state · every transition replayable",
+  },
+];
+
+/**
+ * The three ways value actually moves. Chosen per payment, not per deployment:
+ * they serve different payers rather than acting as fallbacks for one another.
+ */
+const PATHS = [
+  {
+    name: "On-chain contract",
+    body: "The payer calls PaymentRouter with a signed order. Receive, optional swap and merchant settlement happen in one atomic transaction.",
+    wire: "PaymentCompleted · indexed into clearing",
+  },
+  {
+    name: "Deposit match",
+    body: "The payer transfers to a unique per-intent address — a QR scan, or a withdrawal from an exchange. The watcher confirms it and a treasury executor settles.",
+    wire: "per-intent address · confirmation depth · reorg-aware",
+  },
+  {
+    name: "x402",
+    body: "The payer signs one authorization and a facilitator broadcasts it. No deposit address is derived: the payment is identified by the authorization nonce.",
+    wire: "EIP-3009 · verify · settle · read back",
   },
 ];
 
@@ -299,6 +321,39 @@ export function HowItWorks() {
           </Reveal>
         ))}
       </ol>
+
+      {/* One engine, three ways value moves. Named here because the walkthrough
+          above is deliberately path-agnostic: every payment runs those six
+          stages, and only this choice differs. */}
+      <div class="mt-14 border-t border-line-inverse pt-12 md:mt-20">
+        <Reveal>
+          <h3 class="max-w-[24ch] text-[clamp(1.5rem,2.4vw,2rem)] leading-[1.1] tracking-normal text-white">
+            Three execution paths, one clearing engine.
+          </h3>
+          <p class="mt-4 max-w-[54ch] text-[0.9375rem] leading-[1.7] text-slate-inverse">
+            Which one applies is chosen per payment, not per deployment. They serve different
+            payers; none of them is the other's fallback.
+          </p>
+        </Reveal>
+
+        <div class="mt-10 grid gap-px bg-line-inverse md:grid-cols-3">
+          {PATHS.map((path, index) => (
+            <Reveal key={path.name} delay={index * 80}>
+              <div class="flex h-full flex-col bg-void py-8 md:px-8 md:py-2 md:first:pl-0">
+                <h4 class="font-sans text-base font-medium tracking-[-0.01em] text-white">
+                  {path.name}
+                </h4>
+                <p class="mt-3 max-w-[40ch] flex-1 text-sm leading-[1.75] text-slate-inverse">
+                  {path.body}
+                </p>
+                <code class="mt-6 block text-[0.7rem] tracking-[0.02em] text-slate-inverse">
+                  {path.wire}
+                </code>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
     </Section>
   );
 }

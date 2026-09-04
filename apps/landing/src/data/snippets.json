@@ -19,5 +19,12 @@
     "filename": "shell",
     "lang": "shellscript",
     "code": "curl -X POST https://api.mayarin.xyz/v1/payment-intents \\\n  -H \"Authorization: Bearer $MAYARIN_SECRET_KEY\" \\\n  -H \"Idempotency-Key: order-4711\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"merchant\": {\n      \"id\": \"M-1\",\n      \"name\": \"Warung Kopi\",\n      \"city\": \"Jakarta\",\n      \"countryCode\": \"ID\"\n    },\n    \"amount\": { \"amount\": \"50000.00\", \"asset\": \"IDR\" },\n    \"payment\": { \"asset\": \"USDC\", \"chain\": \"base\" },\n    \"merchantReference\": \"order-4711\"\n  }'\n"
+  },
+  {
+    "id": "x402",
+    "tab": "Pay per call",
+    "filename": "agent.sh",
+    "lang": "shellscript",
+    "code": "# An agent with no account, no API key and no checkout page.\n# Ask what the resource costs before deciding to call it.\ncurl https://api-testnet.mayarin.xyz/x402/resources/fx-quote/payment-required\n\n# Or just call it. The gate answers with its own terms.\ncurl -i https://api-testnet.mayarin.xyz/premium/fx-quote\n# HTTP/1.1 402 Payment Required\n# PAYMENT-REQUIRED: <price, chains, assets, deadline>\n\n# Sign one EIP-3009 authorization for exactly that amount, then ask again.\ncurl -i https://api-testnet.mayarin.xyz/premium/fx-quote \\\n  -H \"PAYMENT-SIGNATURE: $AUTHORIZATION\"\n# HTTP/1.1 200 OK\n# PAYMENT-RESPONSE: <transaction, network>\n\n# The merchant behind it was priced in IDR and settled in USDC,\n# exactly as it would be for a person at a checkout.\n"
   }
 ]

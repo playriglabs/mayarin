@@ -13,13 +13,13 @@ const PILLARS = [
   },
   {
     title: "Provider-agnostic",
-    body: "Domain logic depends on ports, never on providers. Changing a settlement provider, a chain client or a database is a composition change, not a rewrite.",
+    body: "Domain logic depends on ports, never on providers. Changing a settlement provider, a chain client, a price feed or a database is a composition change, not a rewrite.",
   },
 ];
 
 const FACTS = [
-  { figure: "9", caption: "states in the clearing machine, each idempotent and resumable" },
-  { figure: "0", caption: "floating-point numbers anywhere in the money path" },
+  { figure: "3", caption: "payer classes on one path: a person, an application, an agent" },
+  { figure: "3", caption: "execution paths — contract, deposit-match, x402 — chosen per payment" },
   { figure: "1:1", caption: "every posting balanced on write, or it never lands" },
   { figure: "100%", caption: "of transitions appended as events in the same transaction" },
 ];
@@ -37,8 +37,8 @@ export function Trust() {
         </Reveal>
         <Reveal delay={120}>
           <Lede class="md:mb-3 md:max-w-[34ch]">
-            Many sources of value collapse into one clearing path, then fan back out to the
-            stablecoin a merchant actually gets paid in.
+            Many kinds of payer and many sources of value collapse into one clearing path, then fan
+            back out to the stablecoin a merchant actually gets paid in.
           </Lede>
         </Reveal>
       </div>
@@ -64,7 +64,7 @@ export function Trust() {
 
       <dl class="grid grid-cols-2 gap-x-8 gap-y-12 pt-12 md:grid-cols-4">
         {FACTS.map((fact, index) => (
-          <Reveal key={fact.figure} delay={index * 70}>
+          <Reveal key={fact.caption} delay={index * 70}>
             <dt class="font-display text-[clamp(2.75rem,5vw,4rem)] leading-none tracking-[-0.03em]">
               {fact.figure}
             </dt>

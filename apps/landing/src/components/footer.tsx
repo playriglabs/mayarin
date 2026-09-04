@@ -6,6 +6,8 @@ const COLUMNS = [
     heading: "Platform",
     links: [
       { label: "Clearing Engine", href: "#how-it-works" },
+      { label: "Agent Payments", href: "#agents" },
+      { label: "x402 Gateway", href: "#x402" },
       { label: "Liquidity Routing", href: "#capabilities" },
       { label: "Settlement", href: "#capabilities" },
       { label: "Ledger", href: "#capabilities" },
@@ -28,7 +30,7 @@ const COLUMNS = [
       { label: "Brand Kit", href: "/brand-kit/" },
     ],
   },
-];
+] as const;
 
 function XIcon() {
   return (

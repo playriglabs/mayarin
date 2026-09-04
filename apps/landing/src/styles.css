@@ -340,11 +340,30 @@ h3 {
   }
 }
 
-/* Logo strip runs at every width, full-bleed on phones. */
+/* Logo strip runs at every width, full-bleed on phones.
+
+   The travel distance is one sequence, measured in pixels by the component and
+   written to `--marquee-distance`. A percentage would be a fraction of the
+   track's own width, which changes as SVGs decode and as the breakpoint moves
+   the gaps — so the loop point drifted and the strip visibly jumped. The
+   percentage stays only as the pre-measurement fallback.
+
+   The duration is measured too, from a constant pixels-per-second speed, so the
+   strip runs at one pace at every width instead of racing on a wide viewport. */
 .marquee {
-  animation: marquee 42s linear infinite;
-  backface-visibility: hidden;
+  animation: marquee var(--marquee-duration, 42s) linear infinite;
+  /* Its own compositor layer, so the browser never repaints the logos to move
+     them and the transform is not rounded to whole pixels each frame. */
+  transform: translate3d(0, 0, 0);
   will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* The strip is its own painting island: the logos moving inside it can never
+   invalidate anything outside, which is what keeps a wide track from costing a
+   whole-page repaint each frame. */
+.marquee-track {
+  contain: layout paint;
 }
 
 .marquee:hover {
@@ -356,7 +375,7 @@ h3 {
     transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translate3d(-50%, 0, 0);
+    transform: translate3d(calc(-1 * var(--marquee-distance, 50%)), 0, 0);
   }
 }
 
