@@ -336,10 +336,11 @@ settlements`.
       across the range it asked about, so a subgraph that has not caught up must
       hold the cursor back rather than let it walk over blocks nobody read. A
       deployment stuck on an indexing error refuses to report progress at all.
-- [ ] Redeploy both subgraphs as `v0.0.2`: the indexer keys on
-      `(chain, txHash, logIndex)` and classifies reorgs by block hash, and
-      `v0.0.1` carries neither field. `SUBGRAPH_ENDPOINTS` stays empty until
-      then.
+- [x] Redeploy both subgraphs as `v0.0.2` and configure `SUBGRAPH_ENDPOINTS`.
+      Verified live through `SubgraphSettlementSource`: `indexedHead` answers on
+      both chains, a range query returns a `SettlementLog` complete with
+      `logIndex` and `blockHash`, and the router guard refuses an endpoint
+      pointed at a different router.
 - [ ] Seed both testnets with real settlements before recording, or the fallback
       fires on camera.
 
@@ -370,7 +371,17 @@ announces itself.
       only, and `x402ExactPermit2Proxy` still has to be deployed. Decide between
       building that and letting Blocky402's facilitator carry Hedera before
       spending a day on it.
-- [ ] Host `GET /x402/fx/quote` gated and publicly reachable for judging.
+- [x] `GET /x402/fx/quote`, gated by `requirePayment` — the endpoint exists and
+      prices through the same rate provider a payment uses. Still has to be
+      **publicly reachable** on the testnet deployment for judging.
+
+**The gap that blocked every one of these.** `X402ResourceRepository.save` had no
+caller — no route, no script, no seed — so a running deployment could not be
+given a resource at all, and nothing could serve a `402`. `POST
+/admin/x402/resources` is that seam. The body names tokens and never their
+EIP-712 domain or transfer method: both are probed off the contract, so a
+resource cannot be created advertising terms no payer could sign.
+
 - [ ] Measure `eth_getLogs` through HashIO before running `SettlementIndexer`
       against it.
 - [ ] Contracts verified on HashScan; video ≤5 min showing a paid request execute.
