@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ChainId } from "@mayarin/chain";
 import { chooseRail } from "@mayarin/x402";
-import type { FetchLike } from "../src/rail-observations.ts";
+import type { FetchLike } from "../src/graphql.ts";
 import { SubgraphRailObservations } from "../src/rail-observations.ts";
 
 const BASE: ChainId = "base-sepolia";
