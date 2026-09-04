@@ -11,9 +11,25 @@ interface ServicePolicy {
 
 const policies: readonly ServicePolicy[] = [
   {
+    /**
+     * core-api holds the operator key now, because x402 needs one.
+     *
+     * It used to be excluded here so exactly one process could sign: the
+     * chain-worker sweeps deposits and calls the router, and a second holder
+     * of the same key is a second source of nonces. That reasoning still
+     * stands — what changed is that the x402 rail broadcasts the *payer's*
+     * authorization from the API process, so excluding the key does not make
+     * core-api keyless, it makes `/x402/*` answer 404 while looking deployed.
+     *
+     * The cost is real and worth writing down: submission serialisation is
+     * per process, so a sweep on chain-worker and an x402 broadcast on
+     * core-api can read the same pending nonce. `TREASURY_EXECUTION_ENABLED`
+     * stays false here, which keeps the two apart in practice — core-api only
+     * ever broadcasts authorizations. The fix that removes the race entirely
+     * is a separate key for the facilitator, which is its own nonce space.
+     */
     name: "core-api",
     configPath: "apps/api/src/config.ts",
-    excludedKeys: new Set(["OPERATOR_PRIVATE_KEY"]),
     overrides: {
       DATABASE_URL: "$" + "{{Postgres.DATABASE_URL}}",
       LEFTHOOK: "0",
