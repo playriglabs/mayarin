@@ -227,13 +227,18 @@ Read off Arc testnet on 4 September, before deploying anything to it:
 Arc's own currency is USDC, so a deploy is priced in cents rather than in test
 ETH nobody has.
 
-**Arc's block time is what makes the polling indexer untenable there, not the
-provider.** At ~0.5s per block, `CHAIN_LOG_RANGE=10` covers five seconds of chain
-per call and `WATCHER_INTERVAL_MS=60000` asks for it once a minute — the watcher
-loses twelve seconds of chain for every second it runs. Raising the range needs a
-plan above the Alchemy free tier's 10-block cap. The real answer is the
-`SettlementSource` port reading the subgraph instead of polling `eth_getLogs`,
-which is #231's production argument rather than a bounty.
+**Polling keeps up on Arc. An earlier note here said it could not, and that was
+wrong** — it read `CHAIN_LOG_RANGE=10` as the watcher's range per tick. It is the
+provider's cap per `eth_getLogs` call, and `EvmChainClient` splits a tick across
+as many calls as it needs; the docstring on `logRange` records the day that
+distinction was learned. A 200-block tick is 20 calls, and a lagging pair
+reschedules after `WATCHER_CATCH_UP_INTERVAL_MS=1000` instead of the usual
+minute, so the watcher advances ~200 blocks a second against a chain producing
+two.
+
+What is true is the cost: 20 RPC calls per tick per pair on a free tier, against
+one GraphQL query for the same range. `SettlementSource` reading the subgraph is
+an RPC-budget argument and a resilience one — not an impossibility claim.
 
 **The Arc decimal split is the one fact that corrupts accounting rather than
 display.** Two `AssetCode`s for one Arc balance counts the same money twice, and
