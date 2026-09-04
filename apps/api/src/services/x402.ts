@@ -83,6 +83,28 @@ export interface X402ServiceOptions {
   readonly merchantSnapshot: (merchantId: string) => Promise<MerchantSnapshot>;
 }
 
+/**
+ * A resource as an operator describes it.
+ *
+ * Deliberately not an `X402Resource`: the domain and the transfer method are
+ * absent because nobody should be able to state them. They come off the token.
+ */
+export interface RegisterResourceInput {
+  readonly id: string;
+  readonly merchantId: string;
+  readonly url: string;
+  readonly description?: string;
+  readonly mimeType?: string;
+  readonly price: Money;
+  readonly accepts: readonly {
+    readonly chain: AcceptedAsset["chain"];
+    readonly asset: AcceptedAsset["asset"];
+    readonly contract: string;
+    readonly payTo: string;
+  }[];
+  readonly maxTimeoutSeconds: number;
+}
+
 /** What a settled payment produced, for the caller to put in a header. */
 export interface X402Settlement {
   readonly response: SettleResponse;
@@ -94,6 +116,47 @@ export class X402Service {
 
   constructor(options: X402ServiceOptions) {
     this.#options = options;
+  }
+
+  /**
+   * Register a resource, asking each token what it implements as it goes.
+   *
+   * The registry had a `save` nothing called: every resource had to be written
+   * straight into the database, so no running deployment could be given one —
+   * which meant no `402` could be served, no gated endpoint hosted, and no agent
+   * demonstrated. This is the seam that was missing, not a new feature.
+   *
+   * The caller names the token, never its EIP-712 domain or transfer method.
+   * Those are facts about a deployed contract and are probed here, so a resource
+   * cannot be created carrying terms no payer could sign.
+   */
+  async register(input: RegisterResourceInput): Promise<X402Resource> {
+    const accepts: AcceptedAsset[] = [];
+    for (const accept of input.accepts) {
+      const capability = await this.#options.capabilities.of(accept.chain, accept.contract);
+      accepts.push({
+        chain: accept.chain,
+        asset: accept.asset,
+        contract: accept.contract,
+        payTo: accept.payTo,
+        domain: capability.domain,
+        transferMethod: capability.transferMethod,
+      });
+    }
+
+    const resource: X402Resource = {
+      id: input.id,
+      merchantId: input.merchantId,
+      url: input.url,
+      ...(input.description === undefined ? {} : { description: input.description }),
+      ...(input.mimeType === undefined ? {} : { mimeType: input.mimeType }),
+      price: input.price,
+      accepts,
+      maxTimeoutSeconds: input.maxTimeoutSeconds,
+    };
+
+    await this.#options.resources.save(resource);
+    return resource;
   }
 
   /**

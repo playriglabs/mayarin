@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  AssetCapabilities,
   decodePaymentRequired,
   decodeSettleResponse,
   PAYMENT_REQUIRED_HEADER,
@@ -9,6 +10,7 @@ import {
   type PaymentRequired,
   type SettleResponse,
   X402_VERSION,
+  type X402Resource,
 } from "@mayarin/x402";
 import {
   EXAMPLE_PAYMENT_PAYLOAD,
@@ -19,8 +21,8 @@ import {
 import { Hono } from "hono";
 import type { Container } from "../src/container.ts";
 import { errorHandler } from "../src/errors.ts";
-import { requirePayment, x402Routes } from "../src/routes/x402.ts";
-import type { X402Service } from "../src/services/x402.ts";
+import { FX_QUOTE_RESOURCE_ID, requirePayment, x402Routes } from "../src/routes/x402.ts";
+import { X402Service } from "../src/services/x402.ts";
 
 const REQUIRED: PaymentRequired = {
   x402Version: X402_VERSION,
@@ -84,6 +86,72 @@ function appFor(container: Container): Hono {
 
 const header = (payment: PaymentPayload) =>
   Buffer.from(JSON.stringify(payment), "utf8").toString("base64");
+
+describe("resource registration", () => {
+  test("the gated FX quote has a fixed id, so the route and the row agree", () => {
+    // A gate whose id came from configuration would 404 for a deployment that
+    // spelt it differently, with nothing on the payer's side to say why.
+    expect(FX_QUOTE_RESOURCE_ID).toBe("fx-quote");
+  });
+
+  test("registering probes the token instead of trusting the caller", async () => {
+    const saved: X402Resource[] = [];
+    const service = new X402Service({
+      resources: {
+        async findById() {
+          return undefined;
+        },
+        async listByMerchant() {
+          return [];
+        },
+        async save(resource: X402Resource) {
+          saved.push(resource);
+        },
+      },
+      capabilities: new AssetCapabilities({
+        pairs: [],
+        probes: [
+          {
+            chain: "arc-testnet",
+            async probe(contract) {
+              return {
+                chain: "arc-testnet",
+                contract,
+                transferMethod: "eip3009",
+                domain: { name: "USDC", version: "2" },
+                supportsPermit: true,
+              };
+            },
+          },
+        ],
+      }),
+      // Nothing below is reached by `register`; the seam is deliberately narrow.
+    } as unknown as ConstructorParameters<typeof X402Service>[0]);
+
+    const resource = await service.register({
+      id: "fx-quote",
+      merchantId: "M-1",
+      url: "https://api.example.com/x402/fx/quote",
+      price: { amount: 2000n, asset: "USD" },
+      accepts: [
+        {
+          chain: "arc-testnet",
+          asset: "USDC",
+          contract: "0x3600000000000000000000000000000000000000",
+          payTo: "0x0000000000000000000000000000000000000001",
+        },
+      ],
+      maxTimeoutSeconds: 120,
+    });
+
+    // The caller named a token. The domain and the method came off the token.
+    expect(resource.accepts[0]).toMatchObject({
+      transferMethod: "eip3009",
+      domain: { name: "USDC", version: "2" },
+    });
+    expect(saved).toHaveLength(1);
+  });
+});
 
 describe("requirePayment", () => {
   function gated(container: Container): Hono {

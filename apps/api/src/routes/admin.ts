@@ -7,6 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
+import { CHAIN_IDS } from "@mayarin/chain";
 import {
   assertWebhookUrl,
   isPrivateAddress,
@@ -16,13 +17,25 @@ import {
   type WebhookEndpoint,
   type WebhookEndpointRepository,
 } from "@mayarin/notifications";
-import { ConflictError, generateId, NotFoundError, ValidationError } from "@mayarin/shared";
+import {
+  ConflictError,
+  fromDecimalString,
+  generateId,
+  isAssetCode,
+  NotFoundError,
+  ValidationError,
+} from "@mayarin/shared";
 import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
+import { z } from "zod";
 import type { Container } from "../container.ts";
+import { toMoneyDto } from "../dto/money.ts";
 import { toPaymentIntentDto } from "../dto/payment-intent.ts";
 import { isMarketConfigKey, MARKET_CONFIG_KEYS } from "../market.ts";
 import { adminTokenMiddleware } from "../middleware/admin-token.ts";
+import type { X402Service } from "../services/x402.ts";
+
+const assetCodeSchema = z.string().refine(isAssetCode, "unknown asset");
 
 export function adminRoutes(container: Container, token: string): Hono {
   const app = new Hono();
@@ -230,7 +243,85 @@ export function adminRoutes(container: Container, token: string): Hono {
     return c.json(toDeliveryDto(requeued), 202);
   });
 
+  /**
+   * Register an x402 resource.
+   *
+   * Admin rather than merchant-facing for now: a resource names the address a
+   * payer is told to pay, so creating one is a deployment act, not a self-serve
+   * one. Until this existed there was no way to give a running deployment a
+   * resource at all — the registry's `save` had no caller — which meant no `402`
+   * could be served by anything but a hand-written database row.
+   *
+   * The body names tokens, never their EIP-712 domain or transfer method: those
+   * are read off the contracts, so a resource cannot be created advertising
+   * terms no payer could sign.
+   */
+  app.post("/x402/resources", async (c) => {
+    const service = requireX402(container);
+    const body = x402ResourceSchema.parse(await c.req.json());
+
+    const resource = await service.register({
+      id: body.id,
+      merchantId: body.merchantId,
+      url: body.url,
+      ...(body.description === undefined ? {} : { description: body.description }),
+      ...(body.mimeType === undefined ? {} : { mimeType: body.mimeType }),
+      price: fromDecimalString(body.price.amount, body.price.asset),
+      accepts: body.accepts,
+      maxTimeoutSeconds: body.maxTimeoutSeconds,
+    });
+
+    return c.json(
+      {
+        id: resource.id,
+        url: resource.url,
+        price: toMoneyDto(resource.price),
+        maxTimeoutSeconds: resource.maxTimeoutSeconds,
+        accepts: resource.accepts.map((accept) => ({
+          chain: accept.chain,
+          asset: accept.asset,
+          contract: accept.contract,
+          payTo: accept.payTo,
+          // Echoed so the operator can see what the token actually said, which
+          // is the only place these two values ever come from.
+          transferMethod: accept.transferMethod,
+          domain: accept.domain,
+        })),
+      },
+      201,
+    );
+  });
+
   return app;
+}
+
+const x402ResourceSchema = z
+  .object({
+    id: z.string().min(1),
+    merchantId: z.string().min(1),
+    url: z.string().url(),
+    description: z.string().min(1).optional(),
+    mimeType: z.string().min(1).optional(),
+    price: z.object({ amount: z.string().min(1), asset: assetCodeSchema }),
+    accepts: z
+      .array(
+        z.object({
+          chain: z.enum(CHAIN_IDS),
+          asset: assetCodeSchema,
+          contract: z.string().min(1),
+          payTo: z.string().min(1),
+        }),
+      )
+      .min(1),
+    maxTimeoutSeconds: z.number().int().positive(),
+  })
+  .strict();
+
+function requireX402(container: Container): X402Service {
+  if (container.x402 === undefined) {
+    throw new ValidationError("x402 is not enabled on this deployment");
+  }
+  return container.x402;
 }
 
 /**
