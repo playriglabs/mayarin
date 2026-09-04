@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "deploy:testnet": "bun run typecheck && bun run build && wrangler pages deploy",
+    "deploy:testnet": "bun run typecheck && bun run build && wrangler deploy -c dist/server/wrangler.json",
     "preview": "astro preview",
     "typecheck": "astro check"
   },

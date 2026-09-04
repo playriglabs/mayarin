@@ -1,9 +1,23 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "mayarin-dashboard-testnet",
-  "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-08-11",
   "compatibility_flags": ["nodejs_compat"],
+
+  // Deployed as a Worker with static assets, not to Pages. `@astrojs/cloudflare`
+  // dropped Pages in v12, and v14 is what Astro 7 requires: the build emits
+  // `dist/server/wrangler.json` with `main` and an `assets` binding named
+  // ASSETS — a name Pages reserves, so `wrangler pages deploy` refuses it and
+  // always will. `main` and `assets` are not repeated here; the adapter writes
+  // them, and this file is merged into what it writes.
+
+  // A Worker declares its own bindings. On Pages these were configured in the
+  // Cloudflare dashboard and inherited invisibly; here the namespace id has to
+  // be named, and `wrangler kv namespace list` is where it comes from. Without
+  // it every session is dropped on deploy — a silent logout for every merchant.
+  "kv_namespaces": [{ "binding": "SESSION", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }],
+  "images": { "binding": "IMAGES" },
+
   "vars": {
     "API_URL": "https://api-merchant-testnet.mayarin.xyz"
   }
