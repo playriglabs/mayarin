@@ -50,7 +50,16 @@ export interface LocalX402FacilitatorOptions {
 }
 
 export class LocalX402Facilitator implements X402Facilitator {
-  readonly name = "local";
+  /**
+   * One per chain, so the name says which.
+   *
+   * The registry refuses two facilitators sharing a name, because a payment
+   * would then settle through whichever came first in an array. A constant
+   * `"local"` made that refusal fire the moment a deployment served a second
+   * chain — correctly, and for the wrong reason: they were distinct
+   * facilitators wearing one label, not a duplicate.
+   */
+  readonly name: string;
   readonly #chain: ChainId;
   readonly #network: string;
   readonly #reader: EvmX402Reader;
@@ -80,6 +89,7 @@ export class LocalX402Facilitator implements X402Facilitator {
 
   constructor(options: LocalX402FacilitatorOptions) {
     this.#chain = options.chain;
+    this.name = `local:${options.chain}`;
     this.#network = caip2Of(options.chain);
     this.#reader = options.reader;
     this.#publicClient = options.publicClient;

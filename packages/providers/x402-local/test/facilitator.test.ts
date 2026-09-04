@@ -328,3 +328,15 @@ describe("callArgsFor", () => {
     expect((await facilitator.verify(await signedPayment(), REQUIREMENTS)).isValid).toBe(true);
   });
 });
+
+describe("facilitator identity", () => {
+  test("names itself by chain, so two chains are two facilitators", () => {
+    // The registry refuses a shared name. A constant "local" made that refusal
+    // fire the moment a deployment served a second chain — they were distinct
+    // facilitators wearing one label, not a duplicate, and the API refused to
+    // boot with `two x402 facilitators share a name`.
+    const { facilitator } = facilitatorFor(chainState());
+
+    expect(facilitator.name).toBe(`local:${CHAIN}`);
+  });
+});
