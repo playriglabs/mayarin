@@ -1,0 +1,66 @@
+# Settlements as the chain recorded them.
+#
+# Every entity here is immutable because every one of them is a log: a settled
+# payment is not edited later, and a subgraph that allowed it to be would be
+# describing something the chain does not do. The one mutable entity is `Rail`,
+# which is a running total and nothing else.
+
+type Settlement @entity(immutable: true) {
+  "txHash + logIndex — the same idempotency key the settlement indexer uses."
+  id: Bytes!
+  intentId: Bytes!
+  merchantSafe: Bytes!
+  refundTo: Bytes!
+  "address(0) for native."
+  inputAsset: Bytes!
+  settlementAsset: Bytes!
+  inputAmount: BigInt!
+  settledAmount: BigInt!
+  fee: BigInt!
+  "Settlement-asset excess above minOut, returned to refundTo."
+  refundAmount: BigInt!
+  deadline: BigInt!
+  """
+  Seconds left on the order when it settled: deadline − block timestamp.
+
+  This is the number the rail choice is actually about. A rail that settles with
+  four seconds to spare is one network hiccup away from an ExpiredOrder revert,
+  and an average hides exactly that — so the samples are kept and the caller
+  takes the median it wants over the window it cares about.
+  """
+  headroomSeconds: BigInt!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+"Value that arrived during a payment and was not part of the settlement split."
+type Residue @entity(immutable: true) {
+  id: Bytes!
+  intentId: Bytes!
+  "address(0) for native."
+  asset: Bytes!
+  to: Bytes!
+  amount: BigInt!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+"""
+One row per network, so a client can ask how alive a rail is without paging
+through its settlements.
+
+It counts what settled. It cannot count what failed: a reverted payment leaves
+no log, and an authorization that was never broadcast leaves no transaction. A
+failure rate has to come from Mayarin's own records — this entity would only be
+able to guess, and a guess in this position picks the rail.
+"""
+type Rail @entity(immutable: false) {
+  "The network name, as the manifest names it."
+  id: String!
+  settlements: BigInt!
+  totalSettled: BigInt!
+  lastSettlementAt: BigInt!
+  lastHeadroomSeconds: BigInt!
+}

@@ -35,7 +35,7 @@ const STEPS: readonly Step[] = [
   },
   {
     index: "03",
-    title: "A facilitator broadcasts it",
+    title: "A facilitator exist to broadcasts",
     body: "Whoever broadcasts pays the gas. They cannot change the amount or the recipient, which is what makes a facilitator a broadcaster rather than a custodian.",
     wire: "verify · settle",
   },

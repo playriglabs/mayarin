@@ -23,19 +23,8 @@
 
 import type { ChainId } from "@mayarin/chain";
 import { ConfigurationError } from "@mayarin/shared";
-import type { AssetTransferMethod } from "@mayarin/x402";
+import type { AssetCapability, AssetCapabilityProbe } from "@mayarin/x402";
 import { type Address, type Hex, type PublicClient, parseAbi } from "viem";
-
-/** What the probe found. Everything here comes off the contract. */
-export interface AssetCapability {
-  readonly chain: ChainId;
-  readonly contract: string;
-  readonly transferMethod: AssetTransferMethod;
-  /** The EIP-712 domain, as the token reports it. */
-  readonly domain: { readonly name: string; readonly version: string };
-  /** True when the token also implements EIP-2612, which the permit2 path can use. */
-  readonly supportsPermit: boolean;
-}
 
 const probeAbi = parseAbi([
   "function name() view returns (string)",
@@ -57,7 +46,7 @@ export interface AssetCapabilityProbeOptions {
   readonly publicClient: PublicClient;
 }
 
-export class EvmAssetCapabilityProbe {
+export class EvmAssetCapabilityProbe implements AssetCapabilityProbe {
   readonly chain: ChainId;
   readonly #client: PublicClient;
 

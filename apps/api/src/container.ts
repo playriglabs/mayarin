@@ -66,7 +66,11 @@ import {
 } from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
-import { EvmX402Reader, LocalX402Facilitator } from "@mayarin/provider-x402-local";
+import {
+  EvmAssetCapabilityProbe,
+  EvmX402Reader,
+  LocalX402Facilitator,
+} from "@mayarin/provider-x402-local";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import {
   type AssetCode,
@@ -79,8 +83,13 @@ import {
 } from "@mayarin/shared";
 import { pairsOf, type Stablecoin, type StablecoinRegistry } from "@mayarin/stablecoin";
 import { SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
-import type { SettlementConfirmer, X402Facilitator } from "@mayarin/x402";
-import { facilitatorRegistry } from "@mayarin/x402";
+import type {
+  AssetCapabilityProbe,
+  AssetPair,
+  SettlementConfirmer,
+  X402Facilitator,
+} from "@mayarin/x402";
+import { AssetCapabilities, facilitatorRegistry } from "@mayarin/x402";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
@@ -256,6 +265,7 @@ function createX402(deps: {
 
   const facilitators: X402Facilitator[] = [];
   const confirmers = new Map<string, SettlementConfirmer>();
+  const probes: AssetCapabilityProbe[] = [];
 
   for (const chain of CHAIN_IDS) {
     const rpcUrl = rpcUrls[chain];
@@ -263,6 +273,7 @@ function createX402(deps: {
     const transport = http(rpcUrl);
     const publicClient = createPublicClient({ transport });
     const reader = new EvmX402Reader({ chain, publicClient });
+    probes.push(new EvmAssetCapabilityProbe({ chain, publicClient }));
     facilitators.push(
       new LocalX402Facilitator({
         chain,
@@ -289,6 +300,10 @@ function createX402(deps: {
   return new X402Service({
     resources: new DrizzleX402ResourceRepository(handle.db),
     facilitators: facilitatorRegistry(facilitators),
+    capabilities: new AssetCapabilities({
+      probes,
+      pairs: assetPairs(config.stablecoins, rpcUrls),
+    }),
     confirmers,
     rates,
     intents,
@@ -319,6 +334,28 @@ function createX402(deps: {
       return { id: merchant.id, name: merchant.name, city, countryCode };
     },
   });
+}
+
+/**
+ * Every `(chain, token)` this deployment could be asked to settle in.
+ *
+ * Read off the stablecoin registry rather than a second list, and narrowed to
+ * chains that have an RPC entry — a token on a chain nothing can reach is not a
+ * pair a probe could describe, and warming it up would only produce an error
+ * about configuration that is already absent on purpose.
+ */
+function assetPairs(
+  stablecoins: readonly Stablecoin[],
+  rpcUrls: Readonly<Partial<Record<ChainId, string>>>,
+): readonly AssetPair[] {
+  const pairs: AssetPair[] = [];
+  for (const coin of stablecoins) {
+    for (const entry of coin.onChain) {
+      if (rpcUrls[entry.chain] === undefined) continue;
+      pairs.push({ chain: entry.chain, contract: entry.address });
+    }
+  }
+  return pairs;
 }
 
 function createTreasuryExecutor(deps: {

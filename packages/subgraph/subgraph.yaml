@@ -1,0 +1,31 @@
+specVersion: 1.0.0
+description: Mayarin PaymentRouter settlements
+repository: https://github.com/playriglabs/mayarin
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: PaymentRouter
+    network: arc-testnet
+    source:
+      abi: PaymentRouter
+      address: "0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9"
+      startBlock: 60392299
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/payment-router.ts
+      entities:
+        - Settlement
+        - Residue
+        - Rail
+      abis:
+        - name: PaymentRouter
+          file: ./abis/PaymentRouter.json
+      eventHandlers:
+        - event: PaymentCompleted(indexed bytes32,indexed address,indexed
+            address,address,address,uint256,uint256,uint256,uint256,uint256)
+          handler: handlePaymentCompleted
+        - event: ResidueRefunded(indexed bytes32,indexed address,indexed address,uint256)
+          handler: handleResidueRefunded

@@ -1,0 +1,14 @@
+{
+  "base-sepolia": {
+    "PaymentRouter": {
+      "address": "0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9",
+      "startBlock": 45164044
+    }
+  },
+  "arc-testnet": {
+    "PaymentRouter": {
+      "address": "0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9",
+      "startBlock": 60392299
+    }
+  }
+}

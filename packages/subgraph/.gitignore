@@ -1,0 +1,4 @@
+# Generated before every codegen from @mayarin/contracts — one ABI source only.
+abis/
+generated/
+build/

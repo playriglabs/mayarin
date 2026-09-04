@@ -80,7 +80,7 @@ export function AgentPayments() {
                 height="566"
                 loading="lazy"
                 decoding="async"
-                class="h-auto w-full max-w-[42rem]"
+                class="h-auto w-full max-w-2xl"
               />
             </div>
           </article>
@@ -100,13 +100,13 @@ export function AgentPayments() {
               </div>
               <div class="flex justify-center xl:justify-end" aria-hidden="true">
                 <img
-                  src="/images/authorization.webp?v=2"
+                  src="/images/authorization-flow.png"
                   alt=""
-                  width="457"
-                  height="640"
+                  width="1672"
+                  height="941"
                   loading="lazy"
                   decoding="async"
-                  class="h-72 w-auto max-w-full object-contain"
+                  class="h-auto w-full max-w-72 object-contain"
                 />
               </div>
             </article>

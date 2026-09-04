@@ -14,7 +14,10 @@
       "**/*.mjs",
       "**/*.json",
       "!**/migrations",
-      "!packages/contracts/*/lib"
+      "!packages/contracts/*/lib",
+      "!packages/subgraph/abis",
+      "!packages/subgraph/generated",
+      "!packages/subgraph/build"
     ]
   },
   "formatter": {
@@ -69,6 +72,19 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["packages/subgraph/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useImportType": "off"
+          },
+          "suspicious": {
+            "noShadowRestrictedNames": "off"
+          }
+        }
+      }
+    },
     {
       "includes": ["**/test/**", "**/*.test.ts"],
       "linter": {
