@@ -311,8 +311,23 @@ one `DEPOSIT_FORWARDER_INIT_CODE_HASH` correct for every chain.
       `AuthorizationUsed` carries no `validBefore` — there is no headroom to read
       off it. Decide with the Arc deployment, not before.
 - [ ] Same subgraph for `arc-testnet` once #208 deploys there.
-- [ ] `chooseRail` in `packages/core/x402/src/rail.ts` — pure, one test per rule,
-      including the fallback that announces itself.
+- [x] `chooseRail` in `packages/core/x402/src/rail.ts` — pure, 11 tests, one per
+      rule, including the fallback that announces itself. Ranks on **median**
+      headroom (one lucky settlement cannot carry a rail), needs `minSamples`
+      before a rail is ranked at all, and every tie-break is deterministic.
+      Failures are reported and **not ranked on**: the number cannot come from
+      the chain, so ranking on it would make the rail depend on how well we were
+      recording, and `undefined` would quietly become zero.
+- [x] Both subgraphs deployed to Studio and syncing without errors. See
+      **Subgraphs live** below.
+- [x] `SubgraphRailObservations` in `packages/providers/subgraph` implementing
+      the `RailObservationSource` port. Reads samples rather than the `Rail`
+      aggregate, because a running total is the one thing a median cannot be
+      recovered from. Raises on an unreachable or erroring subgraph instead of
+      reporting an empty rail — an outage and a rail that never settled are
+      different facts. Run against both live endpoints: Base 78 samples, Arc 0,
+      and the choice comes out `base-sepolia: median headroom 828s over 78
+settlements`.
 - [ ] Subgraph MCP in front of it, so the agent asks in natural language.
 - [ ] `SettlementSource` port so `SettlementIndexer` can read the subgraph instead
       of polling `eth_getLogs` — this is the production argument, and it fixes the
@@ -320,11 +335,33 @@ one `DEPOSIT_FORWARDER_INIT_CODE_HASH` correct for every chain.
 - [ ] Seed both testnets with real settlements before recording, or the fallback
       fires on camera.
 
+#### Subgraphs live
+
+| Network        | Query URL                                                                   | State                     |
+| -------------- | --------------------------------------------------------------------------- | ------------------------- |
+| `base-sepolia` | `https://api.studio.thegraph.com/query/1758657/mayarin-base-sepolia/v0.0.1` | 78 settlements            |
+| `arc-testnet`  | `https://api.studio.thegraph.com/query/1758657/mayarin-arc-testnet/v0.0.1`  | 0 — router deployed today |
+
+Base's headroom: median 828s, min 28s, max 1797s, none negative. **Three
+settlements landed under a minute**, one of them at 28s. That tail is what a mean
+would have hidden, and it is the reason `chooseRail` ranks on the median.
+
+Arc being empty is correct rather than broken, and it is the condition worth
+rehearsing: with no observations there, the choice falls to the fallback that
+announces itself.
+
 ### #209 — Hedera
 
 - [ ] `packages/providers/x402-blocky402` implementing `X402Facilitator`.
-- [ ] Find Hedera testnet USDC and probe it for EIP-3009. If absent, `permit2` is
-      the fallback and `x402ExactPermit2Proxy` has to be deployed there.
+- [x] Find Hedera testnet USDC and probe it for EIP-3009. **Answered, and the
+      answer is no.** Circle's USDC there is HTS token `0.0.429274`
+      (`0x…068cda`): 147 bytes of facade, no `version()`, so no EIP-712 domain
+      and no EIP-3009. Permit2 _is_ deployed at its canonical address (9152
+      bytes). So the permit2 path applies, and it is not a small job — the
+      facilitator and reader in `packages/providers/x402-local` are EIP-3009
+      only, and `x402ExactPermit2Proxy` still has to be deployed. Decide between
+      building that and letting Blocky402's facilitator carry Hedera before
+      spending a day on it.
 - [ ] Host `GET /x402/fx/quote` gated and publicly reachable for judging.
 - [ ] Measure `eth_getLogs` through HashIO before running `SettlementIndexer`
       against it.
