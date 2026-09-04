@@ -329,9 +329,17 @@ one `DEPOSIT_FORWARDER_INIT_CODE_HASH` correct for every chain.
       and the choice comes out `base-sepolia: median headroom 828s over 78
 settlements`.
 - [ ] Subgraph MCP in front of it, so the agent asks in natural language.
-- [ ] `SettlementSource` port so `SettlementIndexer` can read the subgraph instead
-      of polling `eth_getLogs` — this is the production argument, and it fixes the
-      2.5-blocks-per-tick bottleneck.
+- [x] `SettlementSource` port so `SettlementIndexer` can read the subgraph instead
+      of polling `eth_getLogs`. Per chain: a chain named in `SUBGRAPH_ENDPOINTS`
+      is served by `SubgraphSettlementSource`, every other chain polls exactly as
+      before. **`indexedHead` is what makes it safe** — the indexer's cursor moves
+      across the range it asked about, so a subgraph that has not caught up must
+      hold the cursor back rather than let it walk over blocks nobody read. A
+      deployment stuck on an indexing error refuses to report progress at all.
+- [ ] Redeploy both subgraphs as `v0.0.2`: the indexer keys on
+      `(chain, txHash, logIndex)` and classifies reorgs by block hash, and
+      `v0.0.1` carries neither field. `SUBGRAPH_ENDPOINTS` stays empty until
+      then.
 - [ ] Seed both testnets with real settlements before recording, or the fallback
       fires on camera.
 
