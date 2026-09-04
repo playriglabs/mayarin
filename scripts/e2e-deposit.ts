@@ -11,6 +11,7 @@
  * bun run e2e -- --asset USDC --amount 0.25
  * bun run e2e -- --asset ETH  --amount 0.10 --seed-merchant
  * bun run e2e -- --asset USDC --amount 5000 --currency IDR
+ * bun run e2e -- --chain arc-testnet --asset USDC --amount 0.25
  *
  * # pay a real merchant created by `bun run seed:merchant`
  * bun run e2e -- --merchant mrc_01K… --settlement-address 0x… --amount 0.25
@@ -44,6 +45,7 @@
  *   OPERATOR_PRIVATE_KEY              pays gas for the sweep and the router call
  */
 
+import { CHAIN_IDS, type ChainId } from "@mayarin/chain";
 import {
   createDatabase,
   DrizzleMerchantRepository,
@@ -60,7 +62,6 @@ import { privateKeyToAccount } from "viem/accounts";
 import { loadConfig } from "../apps/api/src/config.ts";
 import { createContainer } from "../apps/api/src/container.ts";
 
-const CHAIN = "base-sepolia" as const;
 /** The fixture `--seed-merchant` creates when no `--merchant` is named. */
 const FIXTURE_MERCHANT_ID = "ID1020017611473";
 const FIXTURE_MERCHANT_NAME = "Warung Kopi Mayarin";
@@ -88,6 +89,21 @@ const price = Number(arg("amount") ?? "0.25");
 const seedMerchant = process.argv.includes("--seed-merchant");
 const merchantId = arg("merchant") ?? FIXTURE_MERCHANT_ID;
 const settlementAddress = arg("settlement-address");
+
+/**
+ * The chain this run pays on.
+ *
+ * An argument rather than a constant, because seeding a second chain is exactly
+ * what this script is for: a deposit payment is the only thing that produces a
+ * `PaymentCompleted` on a chain whose router has never been used — x402 never
+ * touches the router, so no amount of agent traffic fills that gap.
+ */
+const chain = (arg("chain") ?? "base-sepolia") as ChainId;
+
+if (!CHAIN_IDS.includes(chain)) {
+  console.error(`--chain must be one of ${CHAIN_IDS.join(", ")}, got ${chain}`);
+  process.exit(1);
+}
 
 if (settlementAddress !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(settlementAddress)) {
   console.error(`--settlement-address must be a 20-byte hex address, got ${settlementAddress}`);
@@ -120,9 +136,9 @@ function required(name: string): string {
 // Boot the same container the API boots
 // ---------------------------------------------------------------------------
 
-const rpcUrl = JSON.parse(required("CHAIN_RPC_URLS"))[CHAIN];
+const rpcUrl = JSON.parse(required("CHAIN_RPC_URLS"))[chain];
 if (rpcUrl === undefined) {
-  console.error(`CHAIN_RPC_URLS has no entry for ${CHAIN}`);
+  console.error(`CHAIN_RPC_URLS has no entry for ${chain}`);
   process.exit(1);
 }
 
@@ -141,7 +157,7 @@ const config = loadConfig({
   // 10-block `eth_getLogs` cap on a free RPC tier. Only used when no cursor is
   // persisted yet — a stored cursor outranks this, which is why the run also
   // pins the cursor itself before it watches.
-  CHAIN_START_BLOCKS: JSON.stringify({ [CHAIN]: (head - 1n).toString() }),
+  CHAIN_START_BLOCKS: JSON.stringify({ [chain]: (head - 1n).toString() }),
 } as Record<string, string | undefined>);
 
 // A dev API on this database is a second clearing engine with its own wiring:
@@ -169,10 +185,10 @@ const payer = privateKeyToAccount(required("PAYER_PRIVATE_KEY") as `0x${string}`
 const payerWallet = createWalletClient({ account: payer, transport: http(rpcUrl) });
 const operator = privateKeyToAccount(required("OPERATOR_PRIVATE_KEY") as `0x${string}`);
 
-const tokens = JSON.parse(process.env.CHAIN_ASSETS ?? "{}")[CHAIN] ?? {};
+const tokens = JSON.parse(process.env.CHAIN_ASSETS ?? "{}")[chain] ?? {};
 const tokenAddress = tokens[asset] as `0x${string}` | undefined;
 if (asset !== "ETH" && tokenAddress === undefined) {
-  console.error(`CHAIN_ASSETS has no ${asset} address for ${CHAIN}`);
+  console.error(`CHAIN_ASSETS has no ${asset} address for ${chain}`);
   process.exit(1);
 }
 
@@ -198,7 +214,7 @@ async function payerBalance(): Promise<bigint> {
 console.log("=".repeat(70));
 const priceLabel =
   currency === "IDR" ? `Rp ${price.toLocaleString("id-ID")}` : `$${price.toFixed(2)}`;
-console.log(`Deposit path · ${CHAIN} · merchant prices ${priceLabel} · payer sends ${asset}`);
+console.log(`Deposit path · ${chain} · merchant prices ${priceLabel} · payer sends ${asset}`);
 console.log("=".repeat(70));
 console.log("payer     ", payer.address, show(await payerBalance()));
 console.log(
@@ -241,7 +257,7 @@ if (merchant === null) {
   await merchantDb.db.insert(merchantWalletsTable).values({
     id: generateId("wlt", now.getTime()),
     merchantId,
-    chain: CHAIN,
+    chain,
     address: (settlementAddress ?? MERCHANT_SAFE).toLowerCase(),
     provenance: "linked",
     verifiedAt: now,
@@ -300,7 +316,7 @@ const intent = await container.intents.create({
   // Both are 2-decimal, so minor units are cents / sen.
   amount: { amount: BigInt(Math.round(price * 100)), asset: currency },
   source: { type: "manual" },
-  payment: { asset, chain: CHAIN },
+  payment: { asset, chain },
   executionPath: "deposit-match",
   idempotencyKey: `e2e-${currency}-${asset}-${Date.now()}`,
 });
@@ -359,7 +375,7 @@ console.log("\n3. payer paid   ", payHash, `block ${payReceipt.blockNumber}`);
 // watcher never saw the payment". Pin the cursor to the block before the one
 // this run just paid into, so the first tick scans exactly it.
 await new DrizzleWatcherCursorRepository(merchantDb.db).set(
-  CHAIN,
+  chain,
   asset,
   payReceipt.blockNumber - 1n,
 );
@@ -368,9 +384,9 @@ await new DrizzleWatcherCursorRepository(merchantDb.db).set(
 // 4. The watcher notices; the executor converts and settles
 // ---------------------------------------------------------------------------
 
-const watcher = container.watchers.get(CHAIN);
+const watcher = container.watchers.get(chain);
 if (watcher === undefined) {
-  console.error(`No watcher for ${CHAIN} — is CHAIN_ENABLED true?`);
+  console.error(`No watcher for ${chain} — is CHAIN_ENABLED true?`);
   process.exit(1);
 }
 
@@ -378,7 +394,7 @@ let settled = false;
 for (let pass = 1; pass <= 15; pass += 1) {
   let tick: string;
   try {
-    const result = await watcher.tick(CHAIN, asset);
+    const result = await watcher.tick(chain, asset);
     tick = `recorded=${result.recorded} confirmed=${result.confirmed} funded=${result.funded}`;
   } catch (error) {
     // A retryable error means the payment is intact and someone else advanced

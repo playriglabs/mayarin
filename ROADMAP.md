@@ -342,7 +342,12 @@ settlements`.
       `logIndex` and `blockHash`, and the router guard refuses an endpoint
       pointed at a different router.
 - [ ] Seed both testnets with real settlements before recording, or the fallback
-      fires on camera.
+      fires on camera. `bun run e2e -- --chain arc-testnet --asset USDC --amount
+  0.25` is the tool: the chain is an argument now rather than a constant.
+      **A deposit payment is the only thing that fills an empty rail** — x402
+      never touches `PaymentRouter`, so no amount of agent traffic emits a
+      `PaymentCompleted`; the deposit path does, because the treasury executor
+      settles through the router.
 
 #### Subgraphs live
 
