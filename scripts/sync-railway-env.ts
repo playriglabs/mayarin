@@ -1,4 +1,15 @@
-/** Synchronize local deployment configuration to Railway without printing values. */
+/**
+ * Synchronize local deployment configuration to Railway without printing values.
+ *
+ *   bun run scripts/sync-railway-env.ts                  every service
+ *   bun run scripts/sync-railway-env.ts core-api         one service
+ *   bun run scripts/sync-railway-env.ts --dry-run        show, change nothing
+ *
+ * This overwrites the deployed environment with whatever is in the local `.env`,
+ * one key at a time, and there is no undo. `--dry-run` exists because the
+ * dangerous keys are the ones that look harmless: a development `false` for a
+ * feature the deployment has switched on is a silent regression, not an error.
+ */
 
 const DERIVED_KEYS = new Set(["DATABASE_URL", "PUBLIC_BASE_URL"]);
 
@@ -77,6 +88,19 @@ async function inBatches<T>(
   }
 }
 
+/**
+ * Enough of a value to recognise, never enough to leak.
+ *
+ * A dry run has to be readable or nobody reads it, and it has to be safe to
+ * paste into a chat or an issue — so anything that looks like a credential is
+ * reported by length alone.
+ */
+function preview(key: string, value: string): string {
+  if (/KEY|SECRET|TOKEN|PASSWORD|XPUB/.test(key)) return `<${value.length} chars>`;
+  const oneLine = value.replaceAll(/\s+/g, " ");
+  return oneLine.length > 68 ? `${oneLine.slice(0, 65)}…` : oneLine;
+}
+
 async function setVariable(service: string, key: string, value: string): Promise<void> {
   const child = Bun.spawn(
     [
@@ -102,7 +126,9 @@ async function setVariable(service: string, key: string, value: string): Promise
   }
 }
 
-const requestedService = process.argv[2];
+const args = process.argv.slice(2);
+const dryRun = args.includes("--dry-run");
+const requestedService = args.find((arg) => !arg.startsWith("--"));
 const selectedPolicies =
   requestedService === undefined
     ? policies
@@ -124,6 +150,15 @@ for (const policy of selectedPolicies) {
       .filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ""),
   );
   const variables = { ...policy.overrides, ...local };
+
+  if (dryRun) {
+    console.log(`\n${policy.name}: ${Object.keys(variables).length} key(s) would be set`);
+    for (const [key, value] of Object.entries(variables).sort(([a], [b]) => a.localeCompare(b))) {
+      const source = key in policy.overrides ? "override" : "local";
+      console.log(`  ${key.padEnd(34)} ${source.padEnd(8)} ${preview(key, value)}`);
+    }
+    continue;
+  }
 
   await inBatches(Object.entries(variables), 8, ([key, value]) =>
     setVariable(policy.name, key, value),
