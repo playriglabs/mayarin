@@ -41,8 +41,8 @@ export function Hero() {
 
         <Reveal delay={160}>
           <p class="mt-8 max-w-[62ch] text-base md:text-lg leading-[1.6] text-slate">
-            The fastest way for internet businesses in emerging markets to get paid globally and
-            settle locally.
+            Price in local currency. Accept supported crypto. Settle in your chosen
+            stablecoin—whoever or whatever pays.
           </p>
         </Reveal>
 
@@ -55,7 +55,7 @@ export function Hero() {
           </a>
           <a
             href="https://docs.mayarin.xyz"
-            aria-label="Start building"
+            aria-label="Read the documentation"
             class="inline-flex size-14 cursor-pointer items-center justify-center border border-black/20 text-ink transition-colors duration-200 hover:border-ink"
           >
             <ArrowRight width="16" height="16" />

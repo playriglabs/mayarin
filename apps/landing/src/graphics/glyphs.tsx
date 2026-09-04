@@ -103,6 +103,18 @@ export const glyphs = {
       <circle cx="5" cy="16" r="2.25" fill="var(--color-accent)" stroke="none" />
     </Glyph>
   ),
+  /**
+   * The machine payer: a processor with the page's accent square at its core
+   * and pins on every side. It reads as a program rather than a person, which
+   * is the whole distinction the card is making.
+   */
+  agent: (
+    <Glyph>
+      <rect x="9" y="9" width="14" height="14" />
+      <rect x="14" y="14" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+      <path d="M13 2v7M19 2v7M13 23v7M19 23v7M2 13h7M2 19h7M23 13h7M23 19h7" />
+    </Glyph>
+  ),
   /** A one-way gate: replay it as often as you like, value passes exactly once. */
   engine: (
     <Glyph>
@@ -184,6 +196,29 @@ export const principleGlyphs = {
       <rect x="20" y="8" width="8" height="6" />
       <rect x="20" y="19" width="8" height="6" />
       <rect x="14" y="14" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+    </PrincipleGlyph>
+  ),
+  /** A claim, unconfirmed, above the chain that is allowed to settle it. */
+  onChainTruth: (
+    <PrincipleGlyph>
+      {/* What a webhook or a facilitator says. Dashed: it settles nothing. */}
+      <rect x="11" y="3" width="10" height="7" stroke-dasharray="2 2.5" />
+      <path d="M16 10v4" stroke-dasharray="2 2.5" />
+      {/* What the chain says. */}
+      <rect x="2" y="19" width="8" height="8" />
+      <rect x="12" y="19" width="8" height="8" />
+      <rect x="22" y="19" width="8" height="8" />
+      <path d="M10 23h2M20 23h2" />
+      <rect x="14" y="21" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+    </PrincipleGlyph>
+  ),
+  /** A boundary drawn on purpose, with the value on one declared side of it. */
+  explicitCustody: (
+    <PrincipleGlyph>
+      <rect x="2" y="6" width="12" height="20" />
+      <rect x="4" y="14" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+      <path d="M16 2v28" stroke-dasharray="2 2.5" />
+      <rect x="18" y="6" width="12" height="20" stroke-dasharray="2 2.5" />
     </PrincipleGlyph>
   ),
   /** Four pieces that stand alone and still snap together. */

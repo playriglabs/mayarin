@@ -13,7 +13,7 @@ const PROMISES = [
   },
   {
     title: "Typed end to end",
-    body: "Requests, responses and events share one schema. Money carries its asset with it, always.",
+    body: "Requests, responses and events share one schema, published as OpenAPI 3.1. Money carries its asset with it, always.",
   },
   {
     title: "Observable by default",
@@ -42,7 +42,8 @@ export function Developers() {
 
         <Reveal delay={120} class="lg:pb-3">
           <Lede tone="dark" class="mt-0 max-w-[42ch]">
-            One resource to create, one signal to handle, one state machine behind both.
+            One resource to create, one signal to handle, one state machine behind both — and one
+            middleware when the payer is a program.
           </Lede>
           <div class="mt-8 flex flex-wrap gap-3">
             <Button href="https://docs.mayarin.xyz" variant="primary-dark">
@@ -99,7 +100,7 @@ export function Developers() {
         {PROMISES.map((promise, index) => (
           <div key={promise.title} class="bg-void md:px-8 md:first:pl-0 md:last:pr-0">
             <Reveal delay={index * 80} class="py-8">
-              <h3 class="font-sans text-base font-medium tracking-[-0.01em] text-white">
+              <h3 class="font-display text-xl font-medium tracking-[-0.01em] text-white">
                 {promise.title}
               </h3>
               <p class="mt-3 max-w-[40ch] text-sm leading-[1.75] text-slate-inverse">

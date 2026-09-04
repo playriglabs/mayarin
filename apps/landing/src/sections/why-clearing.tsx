@@ -26,6 +26,10 @@ const DIFFERENCES = [
     title: "Providers stay replaceable",
     body: "Pricing, coverage and regulation move. When the provider sits behind a port, moving to a new one is a configuration change instead of a migration project.",
   },
+  {
+    title: "A new payer is not a new stack",
+    body: "An agent paying per API call reaches the same engine, the same ledger and the same merchant as a person at a checkout. It is a third execution path, not a second product.",
+  },
 ];
 
 function Node({
@@ -77,7 +81,7 @@ export function WhyClearing() {
         <Reveal delay={120}>
           <Lede class="md:mb-3 md:max-w-[36ch]">
             The difference is where the truth of a payment lives — inside someone else's dashboard,
-            or inside your own system of record.
+            or inside your own system of record, whichever of the three paths moved the value.
           </Lede>
         </Reveal>
       </div>
@@ -94,8 +98,8 @@ export function WhyClearing() {
                 </div>
               ))}
               <p class="mt-10 text-center text-sm leading-[1.7] text-slate">
-                One hop, one provider, one opinion about what happened. Everything downstream —
-                routing, ledger, reconciliation — becomes your glue code.
+                One hop, one provider, one opinion about what happened. Routing, ledger and
+                reconciliation become your glue code.
               </p>
             </div>
           </Reveal>
@@ -112,18 +116,18 @@ export function WhyClearing() {
                 </div>
               ))}
               <p class="mt-10 text-center text-sm leading-[1.7] text-slate">
-                Each hop is explicit, persisted and replayable. The clearing engine owns the
-                sequence, so providers can change without your product noticing.
+                Each hop is explicit, persisted and replayable. The engine owns the sequence, so
+                providers change without your product noticing.
               </p>
             </div>
           </Reveal>
         </div>
       </div>
 
-      <div class="mt-12 grid gap-12 md:mt-16 md:grid-cols-3 md:gap-16">
+      <div class="mt-12 grid gap-12 md:mt-16 md:grid-cols-2 md:gap-16 xl:grid-cols-4">
         {DIFFERENCES.map((difference, index) => (
           <Reveal key={difference.title} delay={index * 90}>
-            <h3 class="font-sans text-base font-medium tracking-[-0.01em]">{difference.title}</h3>
+            <h3 class="text-[22px] font-medium tracking-[-0.01em]">{difference.title}</h3>
             <p class="mt-4 max-w-[40ch] text-sm leading-[1.75] text-slate">{difference.body}</p>
           </Reveal>
         ))}

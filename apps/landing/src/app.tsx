@@ -2,6 +2,7 @@ import { useEffect } from "preact/hooks";
 import { Footer } from "./components/footer.tsx";
 import { Nav } from "./components/nav.tsx";
 import { startSmoothScroll } from "./lib/smooth-scroll.ts";
+import { AgentPayments } from "./sections/agent-payments.tsx";
 import { Architecture } from "./sections/architecture.tsx";
 import { Capabilities } from "./sections/capabilities.tsx";
 import { Developers } from "./sections/developers.tsx";
@@ -14,6 +15,7 @@ import { Principles } from "./sections/principles.tsx";
 import { Trust } from "./sections/trust.tsx";
 import { UseCases } from "./sections/use-cases.tsx";
 import { WhyClearing } from "./sections/why-clearing.tsx";
+import { X402Gateway } from "./sections/x402-gateway.tsx";
 
 export function App() {
   useEffect(() => startSmoothScroll(), []);
@@ -33,6 +35,11 @@ export function App() {
         <HowItWorks />
         <Capabilities />
         <WhyClearing />
+        {/* Placed after the clearing argument and before the architecture: the
+            payer-class claim only lands once a reader knows what the layer is,
+            and it explains a path the architecture section then has to name. */}
+        <AgentPayments />
+        <X402Gateway />
         <Architecture />
         <Developers />
         <UseCases />

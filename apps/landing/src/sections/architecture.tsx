@@ -5,11 +5,11 @@ import { Label, Lede, Section, SectionHeading } from "../components/ui.tsx";
 const LAYERS = [
   {
     tag: "Interfaces",
-    items: ["Merchant app", "Point of sale", "Marketplace", "Wallet"],
+    items: ["Merchant app", "Hosted checkout", "Point of sale", "Autonomous agent"],
   },
   {
     tag: "API surface",
-    items: ["Payment resources", "Idempotency keys", "Webhooks", "Event stream"],
+    items: ["Payment resources", "Commerce & x402", "Idempotency keys", "Webhooks & events"],
   },
   {
     tag: "Domain core",
@@ -19,6 +19,8 @@ const LAYERS = [
       "Liquidity Router",
       "Clearing Engine",
       "Double-entry Ledger",
+      "Chain Layer",
+      "x402 Protocol",
       "Settlement",
     ],
     emphasis: true,
@@ -27,10 +29,10 @@ const LAYERS = [
 
 const ADAPTERS = [
   "Postgres",
-  "Chain clients",
-  "Stablecoin rails",
-  "Settlement providers",
-  "Price feeds",
+  "EVM clients",
+  "Price oracles",
+  "Swap venues",
+  "x402 facilitators",
   "Wallet providers",
 ];
 
@@ -47,9 +49,8 @@ export function Architecture() {
         </Reveal>
         <Reveal delay={120}>
           <Lede class="md:mb-3 md:max-w-[38ch]">
-            The domain depends on interfaces it defines itself. Concrete adapters are chosen once,
-            in a single composition root — which is what keeps the core testable without a database
-            and portable across providers.
+            The domain depends on interfaces it defines itself. Adapters are chosen once, in a
+            single composition root.
           </Lede>
         </Reveal>
       </div>
@@ -62,9 +63,11 @@ export function Architecture() {
               <div
                 class={clsx(
                   "grid flex-1 gap-px bg-line",
-                  layer.items.length > 4
-                    ? "grid-cols-2 md:grid-cols-3"
-                    : "grid-cols-2 md:grid-cols-4",
+                  layer.items.length > 6
+                    ? "grid-cols-2 md:grid-cols-4"
+                    : layer.items.length > 4
+                      ? "grid-cols-2 md:grid-cols-3"
+                      : "grid-cols-2 md:grid-cols-4",
                 )}
               >
                 {layer.items.map((item) => (
@@ -117,7 +120,7 @@ export function Architecture() {
         {[
           "Domain packages import no provider",
           "Adapters are swapped at the composition root",
-          "Every core package is testable without infrastructure",
+          "Three execution paths, one ledger and one event log",
         ].map((note) => (
           <p key={note} class="flex items-center gap-2.5 text-sm text-slate">
             <span aria-hidden="true" class="size-1.25 bg-accent" />
