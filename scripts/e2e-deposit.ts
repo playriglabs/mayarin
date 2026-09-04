@@ -217,10 +217,14 @@ const priceLabel =
 console.log(`Deposit path · ${chain} · merchant prices ${priceLabel} · payer sends ${asset}`);
 console.log("=".repeat(70));
 console.log("payer     ", payer.address, show(await payerBalance()));
+// Not every chain pays gas in ETH — Arc's own currency is USDC — so the label
+// comes from CHAIN_NATIVE_ASSETS rather than from an assumption that was true
+// while every chain here was an Ethereum testnet.
+const nativeAsset = JSON.parse(process.env.CHAIN_NATIVE_ASSETS ?? "{}")[chain] ?? "native units";
 console.log(
   "operator  ",
   operator.address,
-  `${Number(await pub.getBalance({ address: operator.address })) / 1e18} ETH (gas)`,
+  `${Number(await pub.getBalance({ address: operator.address })) / 1e18} ${nativeAsset} (gas)`,
 );
 
 // A merchant must exist and carry a settlement address, or `PRICE_LOCKED`
