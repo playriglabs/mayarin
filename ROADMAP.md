@@ -208,6 +208,33 @@ Read off the chains and registries on 3–4 September:
 | The Graph: `arc-testnet`, `arc` | Subgraph Studio ✓                                                                                           |
 | The Graph: Hedera               | **absent from the registry entirely**                                                                       |
 
+Read off Arc testnet on 4 September, before deploying anything to it:
+
+| Fact                                 | Value                                                            |
+| ------------------------------------ | ---------------------------------------------------------------- |
+| `eth_chainId` · `web3_clientVersion` | `0x4cef52` (5042002) · `arc/v1`                                  |
+| `PUSH0` · `MCOPY` · `TSTORE`         | all execute — `evm_version = "cancun"` needs no downgrade        |
+| Control (`0xfe` INVALID)             | reverts `InvalidFEOpcode`, so those three answers mean something |
+| Arc USDC probed                      | `eip3009` ✓ · `eip2612` ✓ · domain `{USDC, 2}`                   |
+| Arc EURC probed                      | `eip3009` ✓ · `eip2612` ✓ · domain `{EURC, 2}`                   |
+| Permit2 · Multicall3                 | 9152 bytes · 3808 bytes, both at their canonical addresses       |
+| Base fee · gas price · gas limit     | 20 gwei · 25 gwei · 30M                                          |
+| ArcScan                              | Blockscout API at `https://testnet.arcscan.app/api/`             |
+| Block time                           | ~0.517s, measured over 1000 blocks                               |
+| `eth_getLogs`: Alchemy free tier     | **10 blocks**, refused above it                                  |
+| `eth_getLogs`: public endpoint       | 2000 blocks, capped at 20000 results (16777 in one such window)  |
+
+Arc's own currency is USDC, so a deploy is priced in cents rather than in test
+ETH nobody has.
+
+**Arc's block time is what makes the polling indexer untenable there, not the
+provider.** At ~0.5s per block, `CHAIN_LOG_RANGE=10` covers five seconds of chain
+per call and `WATCHER_INTERVAL_MS=60000` asks for it once a minute — the watcher
+loses twelve seconds of chain for every second it runs. Raising the range needs a
+plan above the Alchemy free tier's 10-block cap. The real answer is the
+`SettlementSource` port reading the subgraph instead of polling `eth_getLogs`,
+which is #231's production argument rather than a bounty.
+
 **The Arc decimal split is the one fact that corrupts accounting rather than
 display.** Two `AssetCode`s for one Arc balance counts the same money twice, and
 every reconciliation afterwards is wrong _while still balancing_.
@@ -230,25 +257,59 @@ unverifiable against a live endpoint.
 
 ### #208 — Arc
 
-- [ ] Deploy `PaymentRouter`, `TimelockController`, `DepositForwarderFactory` to
-      Arc testnet; verify. Throwaway v0 — the address must not reach the SDK, the
-      docs, or a demo link.
-- [ ] Configure `CHAIN_RPC_URLS`, `CHAIN_ASSETS`, `CHAIN_NATIVE_ASSETS`,
-      `CHAIN_CONFIRMATIONS` for `arc-testnet`; set `X402_ENABLED=true`.
-- [ ] **Call `EvmAssetCapabilityProbe` from the composition root at boot.**
-      Written, tested and verified against real contracts — and nothing calls it
-      yet. The one loose end inside the merged work.
+- [x] Deploy `PaymentRouter`, `TimelockController`, `DepositForwarderFactory` to
+      Arc testnet; verified on ArcScan. See **Deployed on Arc** below.
+- [x] Configure `CHAIN_RPC_URLS`, `CHAIN_ASSETS`, `CHAIN_CONFIRMATIONS`,
+      `PAYMENT_ROUTERS`, `CHAIN_START_BLOCKS` and `DEPOSIT_FORWARDERS` for
+      `arc-testnet`. **`CHAIN_NATIVE_ASSETS` is deliberately left without an Arc
+      entry**: Arc's native currency is USDC, 18 decimals in the native view and
+      6 in the ERC-20 view over one balance, so declaring it native would give
+      one balance two `AssetCode`s and count the same money twice.
+- [ ] Set `X402_ENABLED=true` once an operator key is funded for broadcasting.
+- [x] **Call `EvmAssetCapabilityProbe` from the composition root at boot.** Done:
+      `AssetCapabilities` (core port + cache) is built in `createX402`, warmed by
+      `apps/api/src/index.ts` before traffic, and `X402Service.paymentRequired`
+      now takes the token's domain and transfer method from the chain rather
+      than from the resource row.
 - [ ] Audit the native-decimal assumption at the four sites `docs/chain.md`
       names, before trusting any Arc balance.
 - [ ] Circle Agent Stack as the payer, spending under a Circle policy — including
       the policy refusing an over-limit payment.
 - [ ] Architecture diagram, video, documentation, repo.
 
+#### Deployed on Arc
+
+4 September, 0.015 USDC all in — Arc's own currency is USDC, so gas is priced in
+cents. Throwaway v0: these addresses must not reach the SDK, the docs, or a demo
+link.
+
+| Contract                  | Address                                      |
+| ------------------------- | -------------------------------------------- |
+| `PaymentRouter`           | `0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9` |
+| `TimelockController`      | `0x0c006fc14063e3f78271312b975231e4bd6e8b00` |
+| `DepositForwarderFactory` | `0x04cd74e77ac145b18d61c6c8d7939e3241dbb60a` |
+
+The router and timelock carry **the same addresses as Base Sepolia** — same
+deployer, same nonces, same `CREATE`. Harmless on chain, because the EIP-712
+domain carries `chainId`. But an address no longer identifies a chain: read the
+chain key in `PAYMENT_ROUTERS`, never the address. The factory differs only
+because its nonce did.
+
+Read back off Arc after the deploy: `signer()` matches `QUOTE_SIGNER_PRIVATE_KEY`,
+USDC is whitelisted as both settlement and input asset, `paused() == false`, and
+the factory's `INIT_CODE_HASH` is byte-identical to Base's — which is what keeps
+one `DEPOSIT_FORWARDER_INIT_CODE_HASH` correct for every chain.
+
 ### #231 — The Graph
 
-- [ ] Subgraph over `PaymentCompleted` / `ResidueRefunded`, deployed to Studio for
-      `base-sepolia` **first** — it needs nothing from #208 and de-risks the whole
-      Graph story.
+- [x] Subgraph over `PaymentCompleted` / `ResidueRefunded` — `packages/subgraph`,
+      codegen and build green against `base-sepolia`. It also records
+      `headroomSeconds` per settlement, which is the number the rail choice is
+      about. **Deploying it needs a Studio key**, so that step is manual.
+- [ ] Decide how x402 settlements are indexed. They never touch `PaymentRouter`,
+      so `PaymentCompleted` carries none of them, and the token's
+      `AuthorizationUsed` carries no `validBefore` — there is no headroom to read
+      off it. Decide with the Arc deployment, not before.
 - [ ] Same subgraph for `arc-testnet` once #208 deploys there.
 - [ ] `chooseRail` in `packages/core/x402/src/rail.ts` — pure, one test per rule,
       including the fallback that announces itself.
