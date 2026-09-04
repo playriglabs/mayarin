@@ -15,7 +15,7 @@
  * `X402Service`, and writes a header back.
  */
 
-import { NotFoundError } from "@mayarin/shared";
+import { isAssetCode, NotFoundError, ValidationError, zero } from "@mayarin/shared";
 import {
   decodePaymentPayload,
   encodePaymentRequired,
@@ -95,8 +95,48 @@ const facilitatorBodySchema = z
   })
   .strict();
 
+/**
+ * The resource id the gated FX quote is registered under.
+ *
+ * Fixed rather than configured: `requirePayment` gates a route in code, and a
+ * gate whose id came from the environment would 404 for a deployment that spelt
+ * it differently — with nothing on the payer's side to say why.
+ */
+export const FX_QUOTE_RESOURCE_ID = "fx-quote";
+
 export function x402Routes(container: Container): Hono {
   const app = new Hono();
+
+  /**
+   * A resource an agent can actually buy (#209).
+   *
+   * The smallest honest one: a price, read through the same rate provider a
+   * payment uses, sold per call. It exists because everything else in this rail
+   * was demonstrable except the thing being sold — the middleware, the
+   * facilitator and the settlement confirmation had no endpoint in front of
+   * them.
+   *
+   * `requirePayment` answers `404` until the resource is registered, which is
+   * the same shape as the rest of this file: absent rather than half-working.
+   */
+  app.get("/fx/quote", requirePayment(container, FX_QUOTE_RESOURCE_ID), async (c) => {
+    const from = c.req.query("from");
+    const to = c.req.query("to");
+    if (!isAssetCode(from) || !isAssetCode(to)) {
+      throw new ValidationError("from and to must both be known asset codes", { from, to });
+    }
+
+    const quote = await container.rates.quote(from, to, zero(from));
+    return c.json({
+      from,
+      to,
+      // Minor units of `to` per one whole unit of `from`, the same integer the
+      // clearing engine locks. No float ever holds a rate.
+      scaledRate: quote.scaledRate.toString(),
+      source: quote.source,
+      ...(quote.expiresAt === undefined ? {} : { expiresAt: quote.expiresAt.toISOString() }),
+    });
+  });
 
   /**
    * What this deployment will sell, and on what rails.
