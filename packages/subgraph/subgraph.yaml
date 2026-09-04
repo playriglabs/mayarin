@@ -6,11 +6,11 @@ schema:
 dataSources:
   - kind: ethereum
     name: PaymentRouter
-    network: arc-testnet
+    network: base-sepolia
     source:
       abi: PaymentRouter
       address: "0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9"
-      startBlock: 60392299
+      startBlock: 45164044
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9

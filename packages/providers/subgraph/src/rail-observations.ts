@@ -18,9 +18,9 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
-import { ProviderError } from "@mayarin/shared";
 import type { RailObservation, RailObservationSource } from "@mayarin/x402";
 import { z } from "zod";
+import { type FetchLike, postGraphql } from "./graphql.ts";
 
 /** Newest first, so a shorter window is a smaller `first`. */
 const OBSERVE_QUERY = `query Observe($first: Int!) {
@@ -33,23 +33,9 @@ const OBSERVE_QUERY = `query Observe($first: Int!) {
  * Numbers arrive as strings — GraphQL has no integer wide enough for a
  * `BigInt`, so the subgraph serialises every one of them as text.
  */
-const responseSchema = z.object({
-  data: z
-    .object({
-      settlements: z.array(z.object({ headroomSeconds: z.string() })),
-    })
-    .optional(),
-  errors: z.array(z.object({ message: z.string() })).optional(),
+const settlementsSchema = z.object({
+  settlements: z.array(z.object({ headroomSeconds: z.string() })),
 });
-
-/**
- * The one call this adapter makes.
- *
- * Narrower than `typeof fetch` on purpose: the global carries runtime-specific
- * extras (Bun adds `preconnect`), and requiring them would mean a test double
- * has to implement things the adapter never calls.
- */
-export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
 export interface SubgraphRailObservationsOptions {
   /**
@@ -68,12 +54,12 @@ const DEFAULT_SAMPLE_SIZE = 100;
 export class SubgraphRailObservations implements RailObservationSource {
   readonly #endpoints: Readonly<Partial<Record<ChainId, string>>>;
   readonly #sampleSize: number;
-  readonly #fetch: FetchLike;
+  readonly #fetch: FetchLike | undefined;
 
   constructor(options: SubgraphRailObservationsOptions) {
     this.#endpoints = options.endpoints;
     this.#sampleSize = options.sampleSize ?? DEFAULT_SAMPLE_SIZE;
-    this.#fetch = options.fetch ?? globalThis.fetch;
+    this.#fetch = options.fetch;
   }
 
   async observe(chains: readonly ChainId[]): Promise<readonly RailObservation[]> {
@@ -86,55 +72,13 @@ export class SubgraphRailObservations implements RailObservationSource {
   }
 
   async #observeOne(chain: ChainId, endpoint: string): Promise<RailObservation> {
-    const response = await this.#post(chain, endpoint);
-    const body = responseSchema.parse(await response.json());
-
-    // A GraphQL error arrives with HTTP 200 and no data. Treating that as an
-    // empty rail would report "never settled" for a query that was rejected.
-    const failure = body.errors?.[0];
-    if (failure !== undefined || body.data === undefined) {
-      throw new ProviderError(
-        `subgraph for ${chain} answered with an error: ${failure?.message ?? "no data"}`,
-        { chain, endpoint },
-      );
-    }
+    const data = settlementsSchema.parse(
+      await postGraphql(endpoint, OBSERVE_QUERY, this.#fetch, { first: this.#sampleSize }),
+    );
 
     return {
       chain,
-      headroomSeconds: body.data.settlements.map((settlement) =>
-        Number(settlement.headroomSeconds),
-      ),
+      headroomSeconds: data.settlements.map((settlement) => Number(settlement.headroomSeconds)),
     };
-  }
-
-  async #post(chain: ChainId, endpoint: string): Promise<Response> {
-    let response: Response;
-    try {
-      response = await this.#fetch(endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          query: OBSERVE_QUERY,
-          variables: { first: this.#sampleSize },
-        }),
-      });
-    } catch (error) {
-      throw new ProviderError(
-        `subgraph for ${chain} is unreachable`,
-        { chain, endpoint },
-        {
-          cause: error,
-        },
-      );
-    }
-
-    if (!response.ok) {
-      throw new ProviderError(`subgraph for ${chain} answered ${response.status}`, {
-        chain,
-        endpoint,
-        status: response.status,
-      });
-    }
-    return response;
   }
 }

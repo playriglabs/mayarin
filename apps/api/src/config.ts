@@ -99,6 +99,16 @@ const configSchema = z.object({
    */
   chainNativeAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("CHAIN_NATIVE_ASSETS", "{}"),
   chainConfirmations: jsonObject<ConfirmationMap>("CHAIN_CONFIRMATIONS", "{}"),
+  /**
+   * Where a chain's settlements are read from, when not from the chain.
+   *
+   * A subgraph query URL per chain. Configured chains are read from the
+   * subgraph and clamped to how far it has indexed; the rest keep polling
+   * `eth_getLogs`. This exists because polling cannot keep up on a fast chain:
+   * Arc's blocks are half a second and its provider tier caps a log range at
+   * ten blocks, which is five seconds of chain per call.
+   */
+  subgraphEndpoints: jsonObject<Partial<Record<ChainId, string>>>("SUBGRAPH_ENDPOINTS", "{}"),
   chainStartBlocks: jsonObject<StartBlockMap>("CHAIN_START_BLOCKS", "{}"),
   depositXpub: z.string().min(1).optional(),
   watcherIntervalMs: z.coerce.number().int().min(0).default(15_000),
@@ -811,6 +821,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,
     chainAssets: env.CHAIN_ASSETS,
+    subgraphEndpoints: env.SUBGRAPH_ENDPOINTS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainConfirmations: env.CHAIN_CONFIRMATIONS,
     chainStartBlocks: env.CHAIN_START_BLOCKS,

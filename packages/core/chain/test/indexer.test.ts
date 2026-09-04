@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { type DomainEvent, FixedClock, ProviderError, ValidationError } from "@mayarin/shared";
-import type { PaymentCompletionSink } from "../src/index.ts";
+import type {
+  PaymentCompletionSink,
+  SettlementLog,
+  SettlementQuery,
+  SettlementSource,
+} from "../src/index.ts";
 import { SettlementIndexer } from "../src/indexer.ts";
 import {
   FakeChainClient,
@@ -279,6 +284,73 @@ describe("SettlementIndexer", () => {
       expect(event?.settledAmount).toBe(2_990_000n);
       expect(event?.fee).toBe(10_000n);
       expect(event?.refundAmount).toBe(80_000n);
+    });
+  });
+
+  describe("a source that indexes on its own behalf", () => {
+    /** A source wrapping the fake chain, but only as far as it claims to have read. */
+    function sourceAt(chain: FakeChainClient, indexedTo: bigint | undefined) {
+      const asked: { fromBlock: bigint; toBlock: bigint }[] = [];
+      const source = {
+        async settlements(query: SettlementQuery): Promise<SettlementLog[]> {
+          asked.push({ fromBlock: query.fromBlock, toBlock: query.toBlock });
+          return await chain.settlements(query);
+        },
+        async indexedHead(): Promise<bigint | undefined> {
+          return indexedTo;
+        },
+      };
+      return { source, asked };
+    }
+
+    function indexerReading(source: SettlementSource, chain: FakeChainClient) {
+      return new SettlementIndexer({
+        client: chain,
+        source,
+        settlements: harness.settlements,
+        cursors: harness.cursors,
+        sink: harness.sink,
+        clock: new FixedClock(NOW),
+        policy: { depth: 2, reorgWatchWindow: 2 },
+        routers: { [CHAIN]: ROUTER },
+        blockRange: 100,
+      });
+    }
+
+    test("never scans past what the source has indexed", async () => {
+      harness.chain.mine(10);
+      const { source, asked } = sourceAt(harness.chain, 4n);
+
+      const result = await indexerReading(source, harness.chain).tick(CHAIN);
+
+      expect(asked).toEqual([{ fromBlock: 1n, toBlock: 4n }]);
+      expect(result.scannedTo).toBe(4n);
+      expect(result.sourceIndexedTo).toBe(4n);
+      // The cursor stops with it, so the blocks the source has not reached are
+      // scanned by the next pass rather than skipped by this one.
+      expect(await harness.cursors.get(CHAIN, ROUTER)).toBe(4n);
+    });
+
+    test("scans nothing at all while the source is behind the cursor", async () => {
+      harness.chain.mine(10);
+      await harness.cursors.set(CHAIN, ROUTER, 6n);
+      const { source, asked } = sourceAt(harness.chain, 5n);
+
+      const result = await indexerReading(source, harness.chain).tick(CHAIN);
+
+      expect(asked).toEqual([]);
+      expect(result.recorded).toBe(0);
+      expect(await harness.cursors.get(CHAIN, ROUTER)).toBe(6n);
+    });
+
+    test("a source that cannot lag is not clamped", async () => {
+      harness.chain.mine(10);
+      const { source, asked } = sourceAt(harness.chain, undefined);
+
+      const result = await indexerReading(source, harness.chain).tick(CHAIN);
+
+      expect(asked).toEqual([{ fromBlock: 1n, toBlock: 10n }]);
+      expect(result.sourceIndexedTo).toBeUndefined();
     });
   });
 

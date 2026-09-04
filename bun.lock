@@ -37,6 +37,7 @@
         "@mayarin/provider-mock": "workspace:*",
         "@mayarin/provider-pyth": "workspace:*",
         "@mayarin/provider-stablecoin": "workspace:*",
+        "@mayarin/provider-subgraph": "workspace:*",
         "@mayarin/provider-swap-0x": "workspace:*",
         "@mayarin/provider-swap-lifi": "workspace:*",
         "@mayarin/provider-swap-uniswap": "workspace:*",

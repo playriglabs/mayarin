@@ -35,7 +35,30 @@ export interface SettlementQuery {
   readonly toBlock: bigint;
 }
 
-export interface ChainClient {
+/**
+ * Where `PaymentCompleted` logs are read from.
+ *
+ * Separate from `ChainClient` because the answer does not have to come from the
+ * chain. A subgraph has already done the scanning, which matters on a chain
+ * where polling cannot keep up: at Arc's half-second blocks a ten-block
+ * `eth_getLogs` window covers five seconds of chain per call, and no interval
+ * makes that catch up.
+ *
+ * A source that does its own indexing can lag the chain, and that lag is the
+ * dangerous part — the indexer's cursor advances over the range it asked for,
+ * so a source that answered "no logs" because it had not got there yet would
+ * lose those settlements permanently. `indexedHead` is how a source says how
+ * far it can be trusted; a client reading the chain directly cannot lag it and
+ * leaves the method off.
+ */
+export interface SettlementSource {
+  /** `PaymentCompleted` logs emitted by the router in the range. */
+  settlements(query: SettlementQuery): Promise<SettlementLog[]>;
+  /** How far this source has indexed. Absent when it reads the chain itself. */
+  indexedHead?(chain: ChainId): Promise<bigint | undefined>;
+}
+
+export interface ChainClient extends SettlementSource {
   head(chain: ChainId): Promise<BlockRef>;
   /** Canonical hash at a height, or `null` past the head. Drives the reorg probe. */
   blockHash(chain: ChainId, number: bigint): Promise<string | null>;
@@ -52,8 +75,6 @@ export interface ChainClient {
    * confirmation depth, so what it reports is settled by construction.
    */
   balances(query: BalanceQuery): Promise<AssetBalance[]>;
-  /** `PaymentCompleted` logs emitted by the router in the range. */
-  settlements(query: SettlementQuery): Promise<SettlementLog[]>;
 }
 
 /**
