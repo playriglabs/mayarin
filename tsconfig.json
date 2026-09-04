@@ -10,5 +10,6 @@
     "packages/providers/*/src/**/*.ts",
     "packages/providers/*/test/**/*.ts",
     "packages/db/drizzle.config.ts"
-  ]
+  ],
+  "exclude": ["packages/subgraph"]
 }

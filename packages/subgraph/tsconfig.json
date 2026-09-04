@@ -1,0 +1,8 @@
+{
+  "extends": "../../node_modules/assemblyscript/std/assembly.json",
+  "compilerOptions": {
+    "typeRoots": ["../../node_modules/assemblyscript/std/types"],
+    "skipLibCheck": true
+  },
+  "include": ["src", "generated"]
+}
