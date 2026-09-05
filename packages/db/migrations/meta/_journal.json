@@ -190,6 +190,13 @@
       "when": 1788429600000,
       "tag": "0026_x402_resources",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1788566400000,
+      "tag": "0027_merchant_accepted_assets_by_chain",
+      "breakpoints": true
     }
   ]
 }

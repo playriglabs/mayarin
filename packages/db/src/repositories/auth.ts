@@ -7,6 +7,7 @@
  */
 
 import type {
+  AcceptedAssetsByChain,
   ApiKey,
   ApiKeyRepository,
   Merchant,
@@ -21,6 +22,7 @@ import type {
   User,
   UserRepository,
 } from "@mayarin/auth";
+import { type ChainId, isChainId } from "@mayarin/chain";
 import type { MerchantAssetPolicy, MerchantAssetPolicySource } from "@mayarin/payment-intent";
 import {
   type AssetCode,
@@ -276,6 +278,7 @@ export class DrizzleMerchantAssetPolicySource implements MerchantAssetPolicySour
     return {
       settlementAsset: merchant.settlementAsset,
       acceptedAssets: merchant.acceptedAssets,
+      acceptedAssetsByChain: merchant.acceptedAssetsByChain ?? {},
       ...present("settlementAddress", merchant.settlementAddress ?? null),
     };
   }
@@ -287,6 +290,7 @@ function toMerchant(row: MerchantRow): Merchant {
     name: row.name,
     settlementAsset: assertAssetCode(row.settlementAsset, row.id),
     acceptedAssets: row.acceptedAssets.map((asset) => assertAssetCode(asset, row.id)),
+    acceptedAssetsByChain: toAcceptedByChain(row),
     ...present("settlementAddress", row.settlementAddress),
     ...present("city", row.city),
     ...present("countryCode", row.countryCode),
@@ -294,6 +298,24 @@ function toMerchant(row: MerchantRow): Merchant {
     updatedAt: row.updatedAt,
     version: row.version,
   };
+}
+
+/**
+ * The per-chain accept matrix, validated on the way out.
+ *
+ * A chain id Postgres does not know about is dropped rather than thrown on: the
+ * column is JSON, so a chain removed from `CHAIN_IDS` leaves rows behind that
+ * are stale rather than corrupt, and refusing to read the merchant at all would
+ * lock them out of the settings screen that fixes it. An unknown *asset* is
+ * still a throw, because that one reaches pricing.
+ */
+function toAcceptedByChain(row: MerchantRow): AcceptedAssetsByChain {
+  const byChain: Partial<Record<ChainId, readonly AssetCode[]>> = {};
+  for (const [chain, assets] of Object.entries(row.acceptedAssetsByChain)) {
+    if (!isChainId(chain) || assets.length === 0) continue;
+    byChain[chain] = assets.map((asset) => assertAssetCode(asset, row.id));
+  }
+  return byChain;
 }
 
 /**
@@ -316,6 +338,12 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
     name: merchant.name,
     settlementAsset: merchant.settlementAsset,
     acceptedAssets: [...merchant.acceptedAssets],
+    acceptedAssetsByChain: Object.fromEntries(
+      Object.entries(merchant.acceptedAssetsByChain ?? {}).map(([chain, assets]) => [
+        chain,
+        [...(assets ?? [])],
+      ]),
+    ),
     settlementAddress: merchant.settlementAddress ?? null,
     city: merchant.city ?? null,
     countryCode: merchant.countryCode ?? null,

@@ -78,6 +78,19 @@ export interface ChainClient extends SettlementSource {
 }
 
 /**
+ * Reads whether an address is a contract on a chain (#244).
+ *
+ * Its own port rather than a method on `ChainClient`: the watcher never asks
+ * this, and the surface that does — the rail catalog, deciding whether a
+ * merchant's settlement address exists on the chain a payer is about to be sent
+ * to — has no use for anything else `ChainClient` offers.
+ */
+export interface ContractCodeSource {
+  /** True when `address` has deployed code on `chain`. */
+  hasCode(chain: ChainId, address: string): Promise<boolean>;
+}
+
+/**
  * Derives a deposit address from a BIP-32 index.
  *
  * A port so that secp256k1 and BIP-32 stay out of `core`. The implementation

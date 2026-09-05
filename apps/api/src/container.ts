@@ -59,11 +59,17 @@ import {
   WebhookDispatcher,
   type WebhookEndpointRepository,
 } from "@mayarin/notifications";
-import { type MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
+import {
+  DerivedRailCatalog,
+  type MerchantAssetPolicySource,
+  PaymentIntentService,
+  type RailCatalog,
+} from "@mayarin/payment-intent";
 import {
   type ChainClients,
   Create2DepositAddressDeriver,
   EvmChainClient,
+  EvmContractCodeReader,
   EvmTreasuryExecutionPort,
   HdDepositAddressDeriver,
 } from "@mayarin/provider-evm";
@@ -101,6 +107,7 @@ import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./cont
 import { RuntimeMarket, RuntimePriceSource, RuntimeStablecoinRegistry } from "./market.ts";
 import type { ApiKeyVerifier } from "./middleware/api-key.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
+import { chainReceipts, RatePricingSource } from "./rails.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
@@ -156,6 +163,15 @@ export interface Container {
    * decided.
    */
   readonly merchantPolicies: MerchantAssetPolicySource;
+  /**
+   * Which `(chain, asset)` pairs a payer can actually be paid on (#244).
+   *
+   * One derivation serving the hosted checkout, the invoice page, the embed and
+   * the SDK. Before it, the chain was whichever key came first in `CHAIN_ASSETS`
+   * and the asset list was a union across every configured chain — so a payer on
+   * Arc was offered ETH, which does not exist there.
+   */
+  readonly rails: RailCatalog;
   /**
    * Market data held in the database rather than the environment (#95).
    *
@@ -587,6 +603,9 @@ export function createContainer({
   // the container as well as handed to the planner, because the same guard
   // answers the boot-time question: is a fee destination somebody's wallet?
   const merchantWallets = new DrizzleMerchantWalletRepository(handle.db);
+  // One resolver, two readers: the signer asks it where to pay, and the rail
+  // catalog asks it whether there is anywhere to pay at all on a chain.
+  const settlementAddresses = new SettlementAddressResolver({ wallets: merchantWallets });
   const walletGuard = new WalletGuard({
     wallets: merchantWallets,
     treasuryAddresses: config.treasuryAddress === undefined ? [] : [config.treasuryAddress],
@@ -605,7 +624,7 @@ export function createContainer({
           // A merchant who never named their provisioned Safe is still paid at
           // it, rather than finding out at their first payment that a settings
           // field nobody mentioned was load-bearing.
-          settlementAddresses: new SettlementAddressResolver({ wallets: merchantWallets }),
+          settlementAddresses,
           clock,
         })
       : undefined;
@@ -799,6 +818,35 @@ export function createContainer({
     });
   }
 
+  // Built after the watchers, because a rail is only real when something is
+  // scanning the chain it is on.
+  const railCatalog = new DerivedRailCatalog({
+    receipts: chainReceipts(config, new Set(watchers.keys())),
+    merchantPolicies,
+    // `effective` is exactly the port's question — where is this merchant paid
+    // on this chain, or nowhere — under the name the resolver gave it before
+    // the port existed. Adapted here rather than renamed there: the signer path
+    // reads it under that name too.
+    // Only where value actually lands on a chain. A deployment settling through
+    // an off-chain adapter has no on-chain destination to have, and requiring
+    // one there would offer a payer no rails at all.
+    ...(config.contract === undefined && treasuryExecutor === undefined
+      ? {}
+      : {
+          settlement: {
+            destinationFor: (merchantId: string, railChain: ChainId, configured?: string) =>
+              settlementAddresses.effective(merchantId, railChain, configured),
+          },
+        }),
+    pricing: new RatePricingSource(rates),
+    defaultSettlementAsset: config.settlementAsset,
+    // Absent with no RPC configured: a deployment settling off-chain cannot
+    // strand funds at a contract address that does not exist on a chain.
+    ...(Object.keys(config.chainRpcUrls).length === 0
+      ? {}
+      : { code: new EvmContractCodeReader({ rpcUrls: config.chainRpcUrls }) }),
+  });
+
   const x402 = createX402({
     config,
     handle,
@@ -827,6 +875,7 @@ export function createContainer({
     registry,
     market,
     merchantPolicies,
+    rails: railCatalog,
     walletGuard,
     watchers,
     indexers,

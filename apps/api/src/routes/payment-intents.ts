@@ -21,6 +21,7 @@ import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toPaymentDto } from "../dto/payment.ts";
 import { type CreateBody, createBodySchema, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { assertRailOffered } from "../dto/rails.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
 
 export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
@@ -46,6 +47,11 @@ export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(body.ttlSeconds === undefined ? {} : { ttlSeconds: body.ttlSeconds }),
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     };
+
+    // The rail is the caller's choice now that it is no longer read from
+    // configuration (#244), so it is checked against what this merchant can
+    // actually be paid on before anything is minted.
+    await assertRailOffered(container, command.merchant.id, command.payment);
 
     const intent = await container.intents.create(command);
     return c.json({ paymentIntent: toPaymentIntentDto(intent) }, 201);

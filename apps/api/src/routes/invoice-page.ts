@@ -14,11 +14,12 @@
  */
 
 import type { InvoiceView } from "@mayarin/invoicing";
+import type { OfferedRail } from "@mayarin/payment-intent";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
+import { toRailDto } from "../dto/rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
-import { defaultPayerAssets, depositChain } from "./checkout-page.ts";
 
 export function invoicePageRoutes(container: Container): Hono {
   const app = new Hono();
@@ -26,21 +27,14 @@ export function invoicePageRoutes(container: Container): Hono {
 
   app.get("/:id/view", async (c) => {
     const view = await container.invoices.viewInvoice(c.req.param("id"));
-    const policy = await container.merchantPolicies.policyFor(view.invoice.merchantId);
-    const accepted =
-      policy?.acceptedAssets.length !== undefined && policy.acceptedAssets.length > 0
-        ? policy.acceptedAssets
-        : defaultPayerAssets(container);
+    // The same rail catalog the hosted checkout reads (#244), so an invoice
+    // cannot offer a pair the link page would refuse.
+    const rails = await container.rails.railsFor(view.invoice.merchantId);
     const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
     return c.html(
       await renderShell(
         distDir,
-        invoiceBootstrap(
-          view,
-          `${origin}/v1/invoices/${view.invoice.id}/checkout`,
-          accepted,
-          depositChain(container),
-        ),
+        invoiceBootstrap(view, `${origin}/v1/invoices/${view.invoice.id}/checkout`, rails),
       ),
     );
   });
@@ -54,12 +48,7 @@ export function invoicePageRoutes(container: Container): Hono {
  * Line totals are computed here, not in the browser: money is bigint minor
  * units, and the SPA renders `display` strings without ever doing arithmetic.
  */
-function invoiceBootstrap(
-  view: InvoiceView,
-  checkoutUrl: string,
-  accepted: readonly string[],
-  chain: string,
-) {
+function invoiceBootstrap(view: InvoiceView, checkoutUrl: string, rails: readonly OfferedRail[]) {
   const { invoice, status, paid, outstanding } = view;
   return {
     page: "invoice",
@@ -89,8 +78,7 @@ function invoiceBootstrap(
     issuedAt: invoice.issuedAt?.toISOString() ?? null,
     dueAt: invoice.dueAt?.toISOString() ?? null,
     payable: status !== "void" && status !== "draft" && outstanding.amount > 0n,
-    accepted,
-    chain,
+    rails: rails.map(toRailDto),
     checkoutUrl,
   };
 }

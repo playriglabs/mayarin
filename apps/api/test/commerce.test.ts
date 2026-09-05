@@ -292,12 +292,18 @@ describe("hosted checkout", () => {
     expect(page.bootstrap.page).toBe("link");
     expect(page.bootstrap.title).toBe("Paket");
     expect(page.bootstrap.total.display).toBe("Rp 50.000,00");
-    // The SPA mints against this id and offers these assets on this chain —
-    // the whole checkout flow hangs off the bootstrap, not a second fetch.
+    // The SPA mints against this id and offers these rails — the whole checkout
+    // flow hangs off the bootstrap, not a second fetch. One entry per
+    // `(chain, asset)` pair, so the page never has to guess a chain (#244).
     expect(page.bootstrap.linkId).toBe(body.paymentLink.id);
     expect(page.bootstrap.payable).toBe(true);
-    expect(page.bootstrap.accepted).toEqual(["USDC"]);
-    expect(page.bootstrap.chain).toBe("base-sepolia");
+    expect(page.bootstrap.rails).toEqual([
+      {
+        chain: "base-sepolia",
+        asset: "USDC",
+        contract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      },
+    ]);
     // The lock note's figure: the price is not locked until the buyer acts.
     expect(page.bootstrap.lockMinutes).toBe(15);
   });

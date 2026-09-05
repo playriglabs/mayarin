@@ -1,5 +1,6 @@
 export * from "./aws-kms-order-signer.ts";
 export * from "./client.ts";
+export * from "./contract-code.ts";
 export * from "./deriver.ts";
 export * from "./errors.ts";
 export * from "./forwarder-deriver.ts";

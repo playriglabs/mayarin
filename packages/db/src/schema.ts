@@ -371,6 +371,14 @@ export const merchants = pgTable(
     settlementAsset: text("settlement_asset").notNull(),
     /** Assets a payer may pay this merchant with. Empty defers to the deployment. */
     acceptedAssets: text("accepted_assets").array().notNull(),
+    /**
+     * The same choice narrowed per chain (#244). A chain absent inherits
+     * `accepted_assets`; a chain present carries its own non-empty list.
+     */
+    acceptedAssetsByChain: jsonb("accepted_assets_by_chain")
+      .$type<Record<string, string[]>>()
+      .notNull()
+      .default({}),
     /** Where the merchant is paid on-chain — the order's `merchantSafe`. */
     settlementAddress: text("settlement_address"),
     /** Merchant profile, frozen into every intent's snapshot. */
