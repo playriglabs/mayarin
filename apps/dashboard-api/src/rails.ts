@@ -93,11 +93,15 @@ export class PaymentApiPricingSource implements RailPricingSource {
     return priceable;
   }
 
-  async #ask(settlementAsset: AssetCode, payerAsset: AssetCode): Promise<boolean> {
+  async #ask(_settlementAsset: AssetCode, payerAsset: AssetCode): Promise<boolean> {
     try {
-      const view = await this.#payments.quote({ amount: "1", asset: settlementAsset }, [
-        payerAsset,
-      ]);
+      // Probed in **fiat**, not in the settlement asset. `POST /v1/quotes`
+      // prices a merchant's own currency into what the payer sends, so a
+      // stablecoin price makes it refuse every non-stablecoin rail with "the
+      // fiat leg needs a fiat price" — which would silently delete the ETH rail
+      // from a deployment that offers it. One dollar is a fiat unit every
+      // deployment can read, and the leg it exercises is the rail's.
+      const view = await this.#payments.quote({ amount: "1", asset: "USD" }, [payerAsset]);
       return view.quotes.some((line) => line.asset === payerAsset && line.available);
     } catch {
       // The payment API being unreachable is not evidence that a pair cannot be

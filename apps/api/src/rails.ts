@@ -19,13 +19,12 @@ import {
   type AssetCode,
   assetDecimals,
   isAssetCode,
-  isPositive,
   money,
   ValidationError,
 } from "@mayarin/shared";
 import type { Config } from "./config.ts";
 import type { Container } from "./container.ts";
-import { type PricingContext, priceFor } from "./pricing.ts";
+import type { PricingContext } from "./pricing.ts";
 
 /**
  * What this deployment can receive, per chain.
@@ -73,16 +72,22 @@ export function chainReceipts(
 /**
  * Whether a rail can be priced into what the merchant settles in.
  *
- * Asked through `priceFor` — the same function the indicative quote and,
- * through it, the price lock use. Asking a different source would reproduce the
- * bug that function's own comment records: a preview that cannot fail where the
- * lock fails is not a preview, and a rail offered on a pair the lock refuses is
- * worse, because the payer has already chosen by then.
+ * **The swap leg, and only the swap leg.** A payment prices in two steps: the
+ * merchant's currency into their settlement asset, then that into whatever the
+ * payer holds. The first belongs to the payment, not to the rail — it is the
+ * same fiat leg on every rail, and a link priced in a currency the oracle
+ * cannot read fails identically everywhere. The second is what makes a rail
+ * payable, so it is what is asked here.
  *
- * One whole unit of the settlement asset is the probe, matching what the
- * contract path prices with. Every reason a pair might not price — no venue, no
- * oracle feed, a stale reference, a closed FX market — lives inside that call
- * rather than in a table this could read.
+ * Asking the whole thing instead is not a harmless over-check: probing
+ * `quoteFiatPrice` with the settlement asset as the price refuses every
+ * non-stablecoin rail with "the fiat leg needs a fiat price, got USDC", which
+ * silently deletes the ETH rail from a deployment that offers it.
+ *
+ * `compose` is the same guarded call the price lock and the contract path make,
+ * with the same one-whole-unit probe, so a rail that is offered is a rail whose
+ * quote the lock can reproduce. Without the quote layer the rate table is the
+ * only source there is, and it is what a non-executed deposit locks against.
  *
  * Answers are cached briefly. A payer loading a link asks about every rail at
  * once, and a merchant's dashboard asks again on every refresh; without the
@@ -121,9 +126,18 @@ export class QuotePricingSource implements RailPricingSource {
 
   async #quotes(settlementAsset: AssetCode, payerAsset: AssetCode): Promise<boolean> {
     try {
-      const probe = money(oneWholeUnit(settlementAsset), settlementAsset);
-      const quote = await priceFor(this.#context, probe, payerAsset);
-      return isPositive(quote.priced);
+      // One whole unit of the payer's asset, matching `contract-layer`: a probe
+      // of a different size prices different depth, and the offer would then
+      // disagree with the lock about a pair neither of them refused.
+      const probe = money(oneWholeUnit(payerAsset), payerAsset);
+      const quote = await this.#context.market.quote();
+      if (quote === undefined) {
+        const rate = await this.#context.rates.quote(payerAsset, settlementAsset, probe);
+        return rate.scaledRate > 0n;
+      }
+
+      const composed = await quote.engine.compose(payerAsset, settlementAsset, probe);
+      return composed.executable.scaledRate > 0n;
     } catch {
       // Every failure means the same thing here — this pair cannot be priced
       // right now — and the rail is dropped with that as the stated reason. The
