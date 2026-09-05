@@ -15,4 +15,5 @@ export * from "./invoice.ts";
 export * from "./money.ts";
 export * from "./payment.ts";
 export * from "./payment-intent.ts";
+export * from "./rails.ts";
 export * from "./refund.ts";

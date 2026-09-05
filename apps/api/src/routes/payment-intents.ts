@@ -21,8 +21,8 @@ import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toPaymentDto } from "../dto/payment.ts";
 import { type CreateBody, createBodySchema, toPaymentIntentDto } from "../dto/payment-intent.ts";
-import { assertRailOffered } from "../dto/rails.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
+import { assertRailOffered } from "../rails.ts";
 
 export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();

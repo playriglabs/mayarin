@@ -26,6 +26,7 @@
  * counter flow mints a payment first.
  */
 
+import { chainLabel } from "@mayarin/chain";
 import {
   CheckIcon,
   CopyIcon,
@@ -102,7 +103,7 @@ import {
   useQuoteLink,
 } from "@/hooks/catalog";
 import { useCursorPagination } from "@/hooks/cursor-pagination";
-import { useSettings } from "@/hooks/settings";
+import { useMerchantRails, useSettings } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
@@ -164,11 +165,23 @@ function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load payment links";
 }
 
+/** One rail in the counter's picker: the asset, with the network it is sent on. */
+function RailOption({ value }: { readonly value: string }) {
+  const [chain = "", asset = ""] = value.split(":");
+  return (
+    <span className="flex items-center gap-2">
+      <AssetLabel symbol={asset} />
+      <span className="text-muted-foreground text-xs">{chainLabel(chain)}</span>
+    </span>
+  );
+}
+
 function PaymentLinks() {
   const pagination = useCursorPagination();
   const links = usePaymentLinks(PAGE_SIZE, pagination.cursor);
   const products = useProductOptions();
   const settings = useSettings();
+  const rails = useMerchantRails();
   const create = useCreateLink();
   const charge = useChargeLink();
   const quote = useQuoteLink();
@@ -181,7 +194,8 @@ function PaymentLinks() {
   const [sharing, setSharing] = useState<PaymentLinkDto | null>(null);
   /** The sale being taken: the link, and the payment minted from it. */
   const [charging, setCharging] = useState<PaymentLinkDto | null>(null);
-  const [chargeAsset, setChargeAsset] = useState("");
+  /** The rail the counter is charging on, as `chain:asset` (#244). */
+  const [chargeRail, setChargeRail] = useState("");
   const [chargeAmount, setChargeAmount] = useState("");
   const [takenPaymentId, setTakenPaymentId] = useState<string | null>(null);
   /** What each accepted asset would take, for the amount on screen. */
@@ -190,6 +204,7 @@ function PaymentLinks() {
   const [copied, setCopied] = useState<string | null>(null);
 
   const rows = links.data?.paymentLinks ?? [];
+  const [chargeChain = "", chargeAsset = ""] = chargeRail.split(":");
   /** The priced line for the asset the counter has selected, once one exists. */
   const selectedQuote = quoted?.quotes.find((line) => line.asset === chargeAsset);
   const activeProducts = (products.data?.products ?? []).filter((p) => p.active);
@@ -204,14 +219,17 @@ function PaymentLinks() {
   const profileReady = settings.data?.settings.canCreateLinks ?? true;
 
   /**
-   * What the payer may send. The merchant's accepted assets, not their
-   * settlement asset: the payer decides what is in their wallet, and the
-   * clearing engine converts.
+   * What the payer may send, and where (#244).
+   *
+   * The rail catalog rather than the merchant's accepted-asset list: a pair is
+   * only chargeable when the network can receive it, the merchant has somewhere
+   * to be paid on it and it can be priced — and the counter finding that out at
+   * the price lock leaves a FAILED payment behind for every press of the button.
    */
-  const payerAssets = settings.data?.settings.acceptedAssets ?? [];
-  const assetOptions: readonly SelectOption[] = payerAssets.map((asset) => ({
-    value: asset,
-    label: asset,
+  const payerRails = rails.data?.rails ?? [];
+  const railOptions: readonly SelectOption[] = payerRails.map((rail) => ({
+    value: `${rail.chain}:${rail.asset}`,
+    label: `${rail.asset} · ${chainLabel(rail.chain)}`,
   }));
 
   const canCreate = match(draft.kind)
@@ -273,13 +291,13 @@ function PaymentLinks() {
     }
   }
 
-  /** Opens the counter sheet for a link, defaulting to the first payer asset. */
+  /** Opens the counter sheet for a link, defaulting to the first payable rail. */
   function openCharge(link: PaymentLinkDto) {
     setFailure("");
     setTakenPaymentId(null);
     setChargeAmount("");
     setQuoted(null);
-    setChargeAsset(payerAssets[0] ?? "");
+    setChargeRail(railOptions[0]?.value ?? "");
     setCharging(link);
     // A link that carries its own amount can be priced immediately. An open one
     // has nothing to price until the counter types a figure.
@@ -315,7 +333,7 @@ function PaymentLinks() {
    * can still move.
    */
   async function takePayment() {
-    if (charging === null || chargeAsset === "") return;
+    if (charging === null || chargeRail === "") return;
     setFailure("");
     const amount = chargeAmount.trim();
 
@@ -323,6 +341,7 @@ function PaymentLinks() {
       const { paymentIntentId } = await charge.mutateAsync({
         linkId: charging.id,
         asset: chargeAsset,
+        chain: chargeChain,
         // An open link is priced at the counter; the others price themselves,
         // and the payment API refuses an amount it did not ask for.
         ...(charging.kind === "open" && amount !== ""
@@ -677,34 +696,35 @@ function PaymentLinks() {
 
           {takenPaymentId === null ? (
             <div className="flex flex-col gap-3">
-              {payerAssets.length === 0 ? (
+              {payerRails.length === 0 ? (
                 <Alert role="status">
-                  No accepted payer assets yet — choose them in{" "}
-                  <a href="/settings" className="underline">
-                    settings
-                  </a>{" "}
-                  before taking a payment.
+                  No network can take a payment for you yet — see which ones and why in{" "}
+                  <a href="/wallets" className="underline">
+                    wallets
+                  </a>
+                  .
                 </Alert>
               ) : (
                 <Field>
-                  <FieldLabel htmlFor="charge-asset">Paying with</FieldLabel>
-                  <Select items={assetOptions} value={chargeAsset} onValueChange={setChargeAsset}>
-                    <SelectTrigger id="charge-asset">
+                  <FieldLabel htmlFor="charge-rail">Paying with</FieldLabel>
+                  <Select items={railOptions} value={chargeRail} onValueChange={setChargeRail}>
+                    <SelectTrigger id="charge-rail">
                       <SelectValue
-                        placeholder="Select an asset"
-                        renderValue={(option) => <AssetLabel symbol={option.value} />}
+                        placeholder="Select an asset and network"
+                        renderValue={(option) => <RailOption value={option.value} />}
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {assetOptions.map((option) => (
+                      {railOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                          <AssetLabel symbol={option.value} />
+                          <RailOption value={option.value} />
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <FieldDescription>
                     Whatever they send is converted to your settlement asset before it reaches you.
+                    The address they scan belongs to this network only.
                   </FieldDescription>
                 </Field>
               )}
@@ -794,7 +814,7 @@ function PaymentLinks() {
                 // the quote reads the same source the price lock reads, so
                 // starting anyway would mint a payment that fails on arrival.
                 disabled={
-                  chargeAsset === "" ||
+                  chargeRail === "" ||
                   charge.isPending ||
                   quote.isPending ||
                   (charging?.kind === "open" &&

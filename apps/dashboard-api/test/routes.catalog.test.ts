@@ -20,7 +20,21 @@ type Harness = Awaited<ReturnType<typeof createDashboardHarness>>;
 type Auth = { jar: Record<string, string>; csrf: string };
 
 async function seed() {
-  return createDashboardHarness({ adminEmail: ADMIN_EMAIL, adminPassword: ADMIN_PASSWORD });
+  const harness = await createDashboardHarness({
+    adminEmail: ADMIN_EMAIL,
+    adminPassword: ADMIN_PASSWORD,
+  });
+  // A merchant with nowhere to be paid has no rail at all, and the counter now
+  // says so before it mints anything (#244). These tests are about pricing and
+  // ownership, so the merchant is payable.
+  const merchant = await harness.merchants.findById(harness.merchantId);
+  if (merchant !== null) {
+    await harness.merchants.update(
+      { ...merchant, settlementAddress: `0x${"ab".repeat(20)}`, version: merchant.version + 1 },
+      merchant.version,
+    );
+  }
+  return harness;
 }
 
 async function loginAs(harness: Harness, email: string, password: string): Promise<Auth> {

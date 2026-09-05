@@ -11,6 +11,7 @@
  * is why this is not `settings:manage`.
  */
 
+import { CHAIN_IDS } from "@mayarin/chain";
 import {
   type AssetCode,
   assetCodeSchema,
@@ -38,6 +39,15 @@ import type { AuthVars } from "../middleware/types.ts";
 const chargeBodySchema = z
   .object({
     asset: assetCodeSchema,
+    /**
+     * Which network the payer sends on (#244).
+     *
+     * Optional, and an omitted chain takes the first rail this merchant can be
+     * paid on with that asset — never a deployment-wide constant, which is what
+     * this used to be: `DEPOSIT_CHAIN` sent every counter sale to one network no
+     * matter which one the merchant could actually be paid on.
+     */
+    chain: z.enum(CHAIN_IDS).optional(),
     amount: z.object({ amount: z.string(), asset: assetCodeSchema }).optional(),
     /** A customer this sale is taken for, stamped onto the intent as `metadata.customerId`. */
     customerId: z.string().min(1).optional(),
@@ -188,6 +198,26 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
     // every press of the button, none of which was ever a payment. The quote
     // reads the same source the lock reads, so a pair that cannot price is
     // refused here, before a record exists.
+    // The rail comes from the catalog, so a counter cannot start a sale on a
+    // pair a payer would be refused (#244).
+    const rails = await container.rails.railsFor(scope.merchantId);
+    const rail = rails.find(
+      (entry) =>
+        entry.asset === body.asset && (body.chain === undefined || entry.chain === body.chain),
+    );
+    if (rail === undefined) {
+      throw new ValidationError(
+        body.chain === undefined
+          ? `You cannot be paid in ${body.asset} on any network right now`
+          : `You cannot be paid in ${body.asset} on ${body.chain}`,
+        {
+          asset: body.asset,
+          ...(body.chain === undefined ? {} : { chain: body.chain }),
+          rails: rails.map((entry) => `${entry.chain}:${entry.asset}`),
+        },
+      );
+    }
+
     const charged = await chargeableAmount(container, scope, link.id, body.amount);
     const priceable = await container.paymentApi.quote(charged, [body.asset]);
     const line = priceable.quotes.find((quote) => quote.asset === body.asset);
@@ -200,7 +230,7 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
 
     const { paymentIntentId } = await container.paymentApi.charge({
       linkId: link.id,
-      payment: { asset: body.asset, chain: container.config.depositChain },
+      payment: { asset: rail.asset, chain: rail.chain },
       ...(body.amount === undefined ? {} : { amount: body.amount }),
       ...(body.customerId === undefined ? {} : { metadata: { customerId: body.customerId } }),
       ...(body.merchantReference === undefined

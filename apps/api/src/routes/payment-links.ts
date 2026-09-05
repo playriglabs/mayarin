@@ -16,8 +16,9 @@ import {
   toPaymentLinkDto,
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
-import { assertRailOffered, toRailDto } from "../dto/rails.ts";
+import { toRailDto } from "../dto/rails.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
+import { assertRailOffered } from "../rails.ts";
 
 export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();

@@ -116,6 +116,8 @@ export interface CreateLinkRequest {
 export interface ChargeLinkRequest {
   readonly linkId: string;
   readonly asset: string;
+  /** Which network the payer sends on (#244). The address they scan belongs to it. */
+  readonly chain: string;
   /** Required by an `open` link, refused by the others. */
   readonly amount?: DecimalMoneyRequest;
 }

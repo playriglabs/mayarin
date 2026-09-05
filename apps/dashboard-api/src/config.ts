@@ -78,15 +78,6 @@ const configSchema = z.object({
    * Server-to-server, so this is an internal address where the two differ.
    */
   paymentApiUrl: z.string().url().default("http://localhost:3000"),
-  /**
-   * The chain a counter payment is taken on.
-   *
-   * One chain, deployed and proven, like every other address-deriving surface
-   * here. Separate from `walletProvisionChain` on purpose: where a merchant's
-   * Safe lives and where a payer is asked to send funds are two decisions, and
-   * one key that answers both is one key that cannot express a difference.
-   */
-  depositChain: z.enum(CHAIN_IDS).default("base-sepolia"),
   checkoutBaseUrl: z
     .string()
     .url()
@@ -229,7 +220,6 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     paymentApiUrl: env.PAYMENT_API_URL ?? env.PUBLIC_BASE_URL,
     resendApiKey: env.RESEND_API_KEY,
     invoiceEmailFrom: env.RESEND_FROM_EMAIL,
-    depositChain: env.DEPOSIT_CHAIN,
     treasuryAddress: env.TREASURY_ADDRESS,
     walletProvisioningEnabled: env.WALLET_PROVISIONING_ENABLED,
     walletProvisionChain: env.WALLET_PROVISION_CHAIN,

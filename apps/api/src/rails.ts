@@ -14,9 +14,17 @@
  */
 
 import { type ChainId, isChainId } from "@mayarin/chain";
-import type { ChainReceipt, RailPricingSource } from "@mayarin/payment-intent";
-import { type AssetCode, assetDecimals, isAssetCode, isPositive, money } from "@mayarin/shared";
+import type { ChainReceipt, RailPricingSource, RailReport } from "@mayarin/payment-intent";
+import {
+  type AssetCode,
+  assetDecimals,
+  isAssetCode,
+  isPositive,
+  money,
+  ValidationError,
+} from "@mayarin/shared";
 import type { Config } from "./config.ts";
+import type { Container } from "./container.ts";
 import { type PricingContext, priceFor } from "./pricing.ts";
 
 /**
@@ -127,4 +135,54 @@ export class QuotePricingSource implements RailPricingSource {
 
 function oneWholeUnit(asset: AssetCode): bigint {
   return 10n ** BigInt(assetDecimals(asset));
+}
+
+/**
+ * Refuses a pair the catalog does not offer, with the reason it was dropped.
+ *
+ * Never a generic validation error: the catalog knows whether the chain has no
+ * settlement destination, whether the asset cannot be priced, or whether the
+ * merchant does not accept it there, and a payer or an integrator can act on
+ * exactly one of those.
+ */
+export async function assertRailOffered(
+  container: Container,
+  merchantId: string,
+  rail: { readonly asset: AssetCode; readonly chain: ChainId } | undefined,
+): Promise<void> {
+  if (rail === undefined) return;
+
+  const report = await container.rails.describe(merchantId);
+  if (
+    report.rails.some((offered) => offered.chain === rail.chain && offered.asset === rail.asset)
+  ) {
+    return;
+  }
+
+  throw new ValidationError(refusalFor(report, rail), {
+    asset: rail.asset,
+    chain: rail.chain,
+    rails: report.rails.map((offered) => `${offered.chain}:${offered.asset}`),
+  });
+}
+
+function refusalFor(
+  report: RailReport,
+  rail: { readonly asset: AssetCode; readonly chain: ChainId },
+): string {
+  // The most specific reason first: a pair-level exclusion says something about
+  // this exact rail, while a chain-level one says the chain was never on offer.
+  const exclusion =
+    report.unavailable.find(
+      (entry) => entry.chain === rail.chain && "asset" in entry && entry.asset === rail.asset,
+    ) ?? report.unavailable.find((entry) => entry.chain === rail.chain);
+
+  if (exclusion !== undefined) {
+    return `${rail.asset} on ${rail.chain} cannot be paid: ${exclusion.reason}`;
+  }
+
+  const offered = report.rails.map((entry) => `${entry.asset} on ${entry.chain}`).join(", ");
+  return offered.length === 0
+    ? `${rail.asset} on ${rail.chain} cannot be paid, and this merchant has no payment rail available`
+    : `${rail.asset} on ${rail.chain} cannot be paid; available rails are ${offered}`;
 }
