@@ -21,6 +21,7 @@
  */
 
 import type {
+  ChainId,
   DepositAddressDeriver,
   DepositAddressRepository,
   PaymentCompletion,
@@ -42,6 +43,7 @@ import {
   InvalidStateTransitionError,
   isMayarinError,
   isPositive,
+  type Money,
   NotFoundError,
   noopEventPublisher,
   ProviderError,
@@ -50,6 +52,7 @@ import {
   serializeMoney,
   subtract,
   ValidationError,
+  zero,
 } from "@mayarin/shared";
 import type { ContractPaymentPlanner } from "./contract-path.ts";
 import type { FeePolicy } from "./fees.ts";
@@ -88,6 +91,14 @@ interface ClearingSignals {
   readonly contractTxHash?: string;
   /** What `PaymentCompleted` reported, on the contract path (#12). */
   readonly onChain?: OnChainSettlement;
+  readonly facilitatorSettlement?: FacilitatorSettlement;
+}
+
+/** A direct token payment the caller has confirmed on the named chain. */
+export interface FacilitatorSettlement {
+  readonly chain: ChainId;
+  readonly txHash: string;
+  readonly amount: Money;
 }
 
 export interface ClearingEngineOptions {
@@ -285,11 +296,42 @@ export class ClearingEngine {
    */
   async recordAssetReceived(id: string): Promise<ClearingProgress> {
     const transaction = await this.getById(id);
+    if (awaitsFacilitatorSettlement(transaction.executionPath)) {
+      throw new ValidationError("x402 requires a confirmed facilitator settlement", { id });
+    }
     if (transaction.state !== "PAYMENT_PENDING") {
       // Already past this point: nothing to record, just keep going.
       return this.#advance(transaction);
     }
     return this.#advance(transaction, { assetReceived: true });
+  }
+
+  /** Records a direct payout, including its durable transaction reference. */
+  async recordFacilitatorSettlement(
+    id: string,
+    settlement: FacilitatorSettlement,
+  ): Promise<ClearingProgress> {
+    const transaction = await this.getById(id);
+    const intent = await this.#intents.getById(transaction.paymentIntentId);
+    const locked = requireAmount(transaction, "settlementAmount");
+    if (
+      !awaitsFacilitatorSettlement(transaction.executionPath) ||
+      intent.payment?.chain !== settlement.chain ||
+      intent.payment.asset !== settlement.amount.asset ||
+      locked.asset !== settlement.amount.asset ||
+      locked.amount !== settlement.amount.amount ||
+      !/^0x[\da-f]{64}$/i.test(settlement.txHash)
+    ) {
+      throw new ValidationError("Facilitator settlement disagrees with the payment lock", { id });
+    }
+    if (
+      transaction.providerReference !== undefined &&
+      transaction.providerReference !== settlement.txHash
+    ) {
+      throw new ValidationError("Payment already has a different settlement reference", { id });
+    }
+    if (transaction.state !== "PAYMENT_PENDING") return this.#advance(transaction);
+    return this.#advance(transaction, { facilitatorSettlement: settlement });
   }
 
   /**
@@ -434,6 +476,33 @@ export class ClearingEngine {
         return this.#apply(transition(transaction, "PAYMENT_PENDING", this.#clock.now()));
 
       case "PAYMENT_PENDING": {
+        if (awaitsFacilitatorSettlement(transaction.executionPath)) {
+          const settlement = signals.facilitatorSettlement;
+          if (settlement === undefined) return null;
+          const onChain: OnChainSettlement = {
+            settledAmount: settlement.amount,
+            fee: zero(settlement.amount.asset),
+            refundAmount: zero(settlement.amount.asset),
+          };
+          await this.#ledger.post(assetReceivedPosting(transaction));
+          return this.#apply(
+            transition(
+              transaction,
+              "ASSET_RECEIVED",
+              this.#clock.now(),
+              {
+                onChain,
+                providerReference: settlement.txHash,
+              },
+              {
+                txHash: settlement.txHash,
+                chain: settlement.chain,
+                settledAmount: serializeMoney(settlement.amount),
+                fee: serializeMoney(onChain.fee),
+              },
+            ),
+          );
+        }
         if (transaction.executionPath === "on-chain-contract") {
           // The contract path funds atomically on-chain, so auto-confirm
           // never applies here: only a recorded `PaymentCompleted` advances.
@@ -550,10 +619,14 @@ export class ClearingEngine {
       transaction.settlementAsset,
       quote.scaledRate,
     );
-    const fee = this.#fees.feeFor(settlementAmount, {
-      merchantId: transaction.merchant.id,
-      provider: transaction.provider,
-    });
+    // Exact/EIP-3009 sends the full amount directly to payTo. No fee leg
+    // exists on this rail, so applying the deposit fee invents revenue.
+    const fee = awaitsFacilitatorSettlement(transaction.executionPath)
+      ? zero(settlementAmount.asset)
+      : this.#fees.feeFor(settlementAmount, {
+          merchantId: transaction.merchant.id,
+          provider: transaction.provider,
+        });
     const netAmount = subtract(settlementAmount, fee);
 
     if (!isPositive(netAmount)) {
@@ -1064,6 +1137,24 @@ export class ClearingEngine {
 
   /** Hands the payout to the settlement adapter. */
   async #settle(transaction: ClearingTransaction): Promise<ClearingTransaction> {
+    if (awaitsFacilitatorSettlement(transaction.executionPath)) {
+      if (transaction.providerReference === undefined || transaction.onChain === undefined) {
+        throw new ValidationError("x402 settlement has no confirmed transfer", {
+          id: transaction.id,
+        });
+      }
+      return this.#apply(
+        transition(
+          transaction,
+          "SETTLING",
+          this.#clock.now(),
+          {},
+          {
+            providerReference: transaction.providerReference,
+          },
+        ),
+      );
+    }
     const adapter = this.#adapters.get(transaction.provider);
     const result = await adapter.settle(this.#settlementRequest(transaction));
 
@@ -1080,6 +1171,14 @@ export class ClearingEngine {
 
   /** Asks the provider whether the payout landed. */
   async #confirmSettlement(transaction: ClearingTransaction): Promise<ClearingTransaction | null> {
+    if (awaitsFacilitatorSettlement(transaction.executionPath)) {
+      if (transaction.onChain === undefined) {
+        throw new ValidationError("x402 settlement has no confirmed transfer", {
+          id: transaction.id,
+        });
+      }
+      return this.#confirmContract(transaction);
+    }
     const providerReference = transaction.providerReference;
     if (providerReference === undefined) {
       throw new ValidationError(

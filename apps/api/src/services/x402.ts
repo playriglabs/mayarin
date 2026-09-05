@@ -292,6 +292,20 @@ export class X402Service {
 
     const merchant = await this.#options.merchantSnapshot(resource.merchantId);
     const intent = await this.#intentFor(resource, requirements, merchant, payment);
+    const confirmed = await this.#options.intents.confirm(intent.id);
+    const transaction = await this.#options.engine.start(confirmed);
+    // The current rail transfers the settlement token directly. Refuse a
+    // cross-asset or changed quote before broadcasting money we cannot book.
+    if (
+      transaction.state !== "PAYMENT_PENDING" ||
+      intent.payment === undefined ||
+      intent.payment.asset !== transaction.settlementAsset ||
+      transaction.settlementAmount?.amount !== BigInt(requirements.amount)
+    ) {
+      throw new ValidationError("x402 payment does not match a pending same-asset lock", {
+        intentId: intent.id,
+      });
+    }
 
     const response = await this.#options.facilitators
       .for(requirements)
@@ -305,11 +319,18 @@ export class X402Service {
         network: requirements.network,
       });
     }
-    await confirmSettlement(response, requirements, confirmer);
-
-    const confirmed = await this.#options.intents.confirm(intent.id);
-    const transaction = await this.#options.engine.start(confirmed);
-    await this.#options.engine.recordAssetReceived(transaction.id);
+    const settlement = await confirmSettlement(response, requirements, confirmer);
+    const progress = await this.#options.engine.recordFacilitatorSettlement(transaction.id, {
+      chain: intent.payment.chain,
+      txHash: settlement.transaction,
+      amount: { amount: BigInt(settlement.transfer.value), asset: intent.payment.asset },
+    });
+    if (progress.transaction.state !== "SUCCESS") {
+      throw new ValidationError("x402 transfer confirmed but clearing did not complete", {
+        intentId: intent.id,
+        state: progress.transaction.state,
+      });
+    }
 
     return { response, intent: await this.#options.intents.getById(intent.id) };
   }
@@ -330,7 +351,9 @@ export class X402Service {
     payment: PaymentPayload,
   ): Promise<PaymentIntent> {
     const accept = resource.accepts.find(
-      (candidate) => candidate.contract.toLowerCase() === requirements.asset.toLowerCase(),
+      (candidate) =>
+        caip2Of(candidate.chain) === requirements.network &&
+        candidate.contract.toLowerCase() === requirements.asset.toLowerCase(),
     );
     if (accept === undefined) {
       throw new ValidationError(

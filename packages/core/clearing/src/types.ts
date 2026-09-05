@@ -103,8 +103,7 @@ export interface ClearingTransaction {
   /**
    * How the payer's rail is executed, copied from the intent at creation so
    * every step knows the path without reloading the intent (matching
-   * `provider`). Absent for a fiat-only transaction. Only `"deposit-match"` is
-   * implemented; `"on-chain-contract"` is a Phase 3 stub.
+   * `provider`). Absent for a fiat-only transaction.
    */
   readonly executionPath?: ExecutionPath;
 
@@ -128,7 +127,8 @@ export interface ClearingTransaction {
    * Recorded separately from the locked amounts rather than replacing them: a
    * payment where the two differ is the signal that a route behaved
    * unexpectedly, and overwriting the quote would erase the comparison. Present
-   * only on the contract path, once the indexer has read `PaymentCompleted`.
+   * on the contract path after `PaymentCompleted`, and on x402 after the
+   * facilitator's direct transfer has been independently confirmed.
    */
   readonly onChain?: OnChainSettlement;
 
