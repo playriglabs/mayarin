@@ -60,6 +60,17 @@ if (swept.length > 0) {
   console.log(`[api] swept ${swept.length} expired payment(s) on startup`);
 }
 
+// An x402 settlement that was broadcast and never confirmed cannot be finished
+// by `resumeStuck`: confirming means reading a chain, and the clearing engine
+// deliberately cannot. The service holding the confirmers does it instead.
+const x402 = container.x402;
+if (x402 !== undefined) {
+  const finished = await x402.recoverBroadcasts();
+  if (finished.length > 0) {
+    console.log(`[api] confirmed ${finished.length} broadcast x402 settlement(s) on startup`);
+  }
+}
+
 // The dispatcher runs on its own timer, in the watcher's shape: a failed pass
 // leaves the cursor and the due deliveries where they were, so the next pass
 // repeats them. The guard skips a beat rather than overlapping a slow one —
@@ -94,6 +105,18 @@ setInterval(() => {
     })
     .catch((error) => {
       console.error("[clearing] expiry sweep tick failed", error);
+    });
+  // On the same beat, because the two are opposites: one fails payments nobody
+  // made, the other finishes payments already made and not yet read back.
+  void x402
+    ?.recoverBroadcasts()
+    .then((finished) => {
+      if (finished.length > 0) {
+        console.log(`[x402] confirmed ${finished.length} broadcast settlement(s)`);
+      }
+    })
+    .catch((error) => {
+      console.error("[x402] broadcast recovery tick failed", error);
     });
 }, EXPIRY_SWEEP_INTERVAL_MS);
 console.log(`[clearing] sweeping expired payments every ${EXPIRY_SWEEP_INTERVAL_MS}ms`);

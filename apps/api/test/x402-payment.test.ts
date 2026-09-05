@@ -215,4 +215,50 @@ describe("paid FX resource with the real quote and clearing engines", () => {
     expect((await h.clearing.balance("FEE_REVENUE")).amount).toBe(0n);
     expect(response.headers.get(PAYMENT_RESPONSE_HEADER)).toBeNull();
   });
+
+  // The money moved and the confirmation threw. Before this, the hash existed
+  // only in the response nobody kept, and EIP-3009 had already recorded the
+  // nonce — so the payer could not retry and nothing could find the transfer.
+  test("keeps the broadcast hash when the confirmation fails", async () => {
+    const h = await harness();
+
+    await h.app.request(URL, { headers: h.headers });
+
+    const [stranded] = await h.clearing.engine.listResumable();
+    expect(stranded?.state).toBe("PAYMENT_PENDING");
+    expect(stranded?.providerReference).toBe(TX_HASH);
+    expect((await h.clearing.balance("TREASURY")).amount).toBe(0n);
+    expect((await h.clearing.balance("FEE_REVENUE")).amount).toBe(0n);
+  });
+
+  test("and finishes it from that hash once the chain answers", async () => {
+    const h = await harness();
+    await h.app.request(URL, { headers: h.headers });
+    h.confirmer.recordMatching(TX_HASH, h.accepted, EXAMPLE_EIP3009_PAYLOAD.authorization.from);
+
+    const recovered = await h.service.recoverBroadcasts();
+
+    expect(recovered).toHaveLength(1);
+    expect(await h.clearing.engine.listResumable()).toHaveLength(0);
+    const intents = await h.clearing.repositories.intents.findByIdempotencyKey(
+      `x402:eip155:84532:${h.accepted.asset.toLowerCase()}:${EXAMPLE_EIP3009_PAYLOAD.authorization.nonce}`,
+    );
+    expect(intents?.status).toBe("COMPLETED");
+    const transaction = await h.clearing.engine.findByPaymentIntentId(intents?.id ?? "");
+    expect(transaction?.state).toBe("SUCCESS");
+    expect(transaction?.providerReference).toBe(TX_HASH);
+    expect(transaction?.netAmount).toEqual(money(20_000n, "USDC"));
+    expect(transaction?.fee).toEqual(money(0n, "USDC"));
+    expect((await h.clearing.balance("TREASURY")).amount).toBe(0n);
+    expect((await h.clearing.balance("FEE_REVENUE")).amount).toBe(0n);
+  });
+
+  test("recovers nothing while the chain still has no transaction", async () => {
+    const h = await harness();
+    await h.app.request(URL, { headers: h.headers });
+
+    expect(await h.service.recoverBroadcasts()).toHaveLength(0);
+    const [stranded] = await h.clearing.engine.listResumable();
+    expect(stranded?.state).toBe("PAYMENT_PENDING");
+  });
 });

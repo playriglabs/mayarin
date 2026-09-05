@@ -70,6 +70,7 @@ import { canTransition, isTerminal } from "./state-machine.ts";
 import {
   createClearingTransaction,
   failTransaction,
+  recordSettlementBroadcast,
   type TransitionResult,
   transition,
 } from "./transaction.ts";
@@ -264,6 +265,17 @@ export class ClearingEngine {
   }
 
   /**
+   * The page `resumeStuck` works from.
+   *
+   * Exposed because recovery is not always something the engine can finish on
+   * its own: an x402 broadcast is confirmed by a chain reader that lives
+   * outside the domain, so the caller holding that reader needs the same list.
+   */
+  listResumable(limit = 100): Promise<ClearingTransaction[]> {
+    return this.#repository.listResumable(limit);
+  }
+
+  /**
    * Fails clearing transactions abandoned at `PAYMENT_PENDING` past their
    * intent's deadline. A payer who scanned the QR and walked away leaves the
    * transaction parked there forever: `isExpired` deliberately excludes
@@ -278,6 +290,11 @@ export class ClearingEngine {
     const failed: ClearingTransaction[] = [];
     for (const transaction of stuck) {
       if (transaction.state !== "PAYMENT_PENDING") continue;
+      // A reference at `PAYMENT_PENDING` means a settlement transaction has
+      // already gone out. Value may have moved on a chain that has not been
+      // read back yet, and failing the payment would bury it: expiry describes
+      // a payer who never paid, not one whose payment is still being confirmed.
+      if (transaction.providerReference !== undefined) continue;
       const intent = await this.#intents.getById(transaction.paymentIntentId);
       if (intent.expiresAt.getTime() <= now.getTime()) {
         failed.push(
@@ -304,6 +321,42 @@ export class ClearingEngine {
       return this.#advance(transaction);
     }
     return this.#advance(transaction, { assetReceived: true });
+  }
+
+  /**
+   * Records that a facilitator broadcast a settlement, before anyone has
+   * confirmed it.
+   *
+   * The transaction does not move: nothing is confirmed, so nothing has been
+   * received. Only the hash becomes durable, and that is the whole point. The
+   * order this exists to fix is broadcast-then-confirm, where a confirmation
+   * that throws leaves value moved on a chain, an intent parked at
+   * `PAYMENT_PENDING`, and no record of where the money went — unrecoverable,
+   * because EIP-3009 has recorded the nonce and the authorization cannot be
+   * sent again.
+   *
+   * Idempotent: the same hash twice is the resume case, not a conflict.
+   */
+  async recordFacilitatorBroadcast(id: string, txHash: string): Promise<ClearingTransaction> {
+    const transaction = await this.getById(id);
+    if (!awaitsFacilitatorSettlement(transaction.executionPath)) {
+      throw new ValidationError("Only an x402 payment records a facilitator broadcast", { id });
+    }
+    if (!/^0x[\da-f]{64}$/i.test(txHash)) {
+      throw new ValidationError("Facilitator broadcast is not a transaction hash", { id, txHash });
+    }
+    if (transaction.providerReference === txHash) return transaction;
+    if (transaction.providerReference !== undefined) {
+      throw new ValidationError("Payment already has a different settlement reference", { id });
+    }
+
+    const { transaction: next, event } = recordSettlementBroadcast(
+      transaction,
+      txHash,
+      this.#clock.now(),
+    );
+    await this.#repository.update(next, transaction.version, [event]);
+    return next;
   }
 
   /** Records a direct payout, including its durable transaction reference. */

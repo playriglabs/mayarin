@@ -225,17 +225,38 @@ Railway's Postgres proxy. Nothing local was involved.
 it was always asking for. Criterion 9 — the docs page and the OpenAPI paths —
 is still the only one open.
 
-**One payment was stranded on the way there, and the hole is still open.** The
+**One payment was stranded on the way there. The hole is now closed.** The
 run that hit the ambiguity moved 0.02 USDC on-chain
 ([`0x215371ed…`](https://testnet.arcscan.app/tx/0x215371edfa343c30083a32107f5cb147d238f43eb4d87a5434e4d3076827abcc))
 and left intent `pi_01M1QV9EHN2PH8KQ3QVAGW0E4H` at `PROCESSING` with its
-clearing at `PAYMENT_PENDING`. `X402Service.settle` broadcasts, then confirms,
-and records the hash only after confirmation succeeds — so a confirmation that
-throws loses the only pointer to money that has already moved. `resumeStuck`
-cannot recover it, because there is nothing persisted to resume from, and a
-retry cannot re-broadcast: EIP-3009 has recorded the nonce. Recording the
-broadcast before confirming it is the fix, and it is a change to what the
-clearing engine promises rather than a patch.
+clearing at `PAYMENT_PENDING`. `X402Service.settle` broadcast, then confirmed,
+and recorded the hash only after confirmation succeeded — so a confirmation that
+threw lost the only pointer to money that had already moved. `resumeStuck` could
+not recover it, because nothing was persisted to resume from, and a retry could
+not re-broadcast: EIP-3009 had recorded the nonce.
+
+The order is now broadcast, persist, confirm. `ClearingEngine.recordFacilitatorBroadcast`
+writes the hash and a `settlement.broadcast` event without moving the
+transaction — the one write in the engine that records something and changes no
+state, because nothing has been confirmed and a payment that has not been
+confirmed has not been received. Three consequences follow:
+
+- **The expiry sweep leaves it alone.** A `PAYMENT_PENDING` transaction holding
+  a reference has already had a settlement go out; failing it would bury the
+  money it moved. Expiry describes a payer who never paid.
+- **`X402Service.recoverBroadcasts` finishes it**, at boot and on the same
+  60-second beat as the sweep. The clearing engine cannot do this itself —
+  confirming means reading a chain — so the service holding the confirmers
+  rebuilds the requirements from what was locked, never from a fresh price, and
+  confirms the hash it already has. A pass that cannot confirm yet leaves the
+  payment where it is and repeats next time.
+- **A merchant is not told about it.** `settlement.broadcast` records no state
+  change, so `toWebhookEventType` returns nothing for it and the outbox filters
+  it in SQL — where `limit` counts only rows a merchant is told about, so a page
+  can never come back empty with later events waiting behind it.
+
+Nothing on the testnet deployment was in this state when the fix landed: the
+stranded payment was local, and its database is gone.
 
 **RFC #207 is closed; documentation and OpenAPI updates are deferred until the
 end.** The successful run used local code, not the public deployment. Deploy
@@ -571,22 +592,19 @@ The fixes are deployed, and the public endpoint has been paid on Arc. RFC #207
 is closed, with documentation deferred. Everything below is ordered by what
 unblocks the most.
 
-1. **Record the broadcast before confirming it**, so a refused confirmation
-   leaves a hash to resume from rather than stranded money. See the Arc
-   validation above for the payment this cost.
-2. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
+1. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
    the trace, the refusal run, and the no-signup `curl`. Two of the three now
    have something real to point at.
-3. **Exact-output swaps** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
+2. **Exact-output swaps** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
    Without it an agent holding only ETH cannot pay a USDC price at all, which is
    one of the pitch's own sentences.
-4. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
+3. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
    and the policy visibly refusing an over-limit payment. A spending policy
    nobody has watched refuse anything is a claim.
-5. **Decide Hedera's path** ([#209](https://github.com/playriglabs/mayarin/issues/209)):
+4. **Decide Hedera's path** ([#209](https://github.com/playriglabs/mayarin/issues/209)):
    Blocky402's facilitator, or building the permit2 scheme ourselves. Its USDC
    has no EIP-3009, so `exact`/EIP-3009 is not available there at all.
-6. **Documentation and OpenAPI updates at the end.** Add the x402 page and
+5. **Documentation and OpenAPI updates at the end.** Add the x402 page and
    expose its unversioned routes in the generated spec, then run
    `bun run docs:openapi:check`. This is deferred work, not a reason to reopen
    [#207](https://github.com/playriglabs/mayarin/issues/207).
