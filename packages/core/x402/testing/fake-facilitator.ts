@@ -116,7 +116,14 @@ export class FakeSettlementConfirmer implements SettlementConfirmer {
     });
   }
 
-  async confirm(transaction: string, network: string): Promise<ConfirmedTransfer | undefined> {
+  /**
+   * The recorded transfer, whatever token it names.
+   *
+   * `asset` is deliberately ignored: this fake stands in for the chain, and a
+   * settlement that moved the wrong token is a thing the chain would hand back
+   * for `confirmSettlement` to refuse — not a thing to hide here.
+   */
+  async confirm(transaction: string, network: string, _asset: string) {
     return this.#transfers.get(keyOf(transaction, network));
   }
 }

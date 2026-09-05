@@ -108,9 +108,19 @@ export interface ConfirmedTransfer {
  * `undefined` for a transaction that is not there — which is the case this
  * exists for, and is not an error condition: a facilitator reporting success
  * for a hash that does not exist is exactly the lie being guarded against.
+ *
+ * `asset` names the token the settlement was for, because a transaction can
+ * carry transfers of more than one. On Arc, whose own currency is USDC, a
+ * single payment emits a `Transfer` on the native view as well as on the ERC-20
+ * one — the same money twice, on two contracts. A confirmer that read every
+ * `Transfer` in the receipt would see two payments where there is one.
  */
 export interface SettlementConfirmer {
-  confirm(transaction: string, network: string): Promise<ConfirmedTransfer | undefined>;
+  confirm(
+    transaction: string,
+    network: string,
+    asset: string,
+  ): Promise<ConfirmedTransfer | undefined>;
 }
 
 /** A settlement that has been read back off the chain and matched. */
@@ -156,7 +166,11 @@ export async function confirmSettlement(
     );
   }
 
-  const transfer = await confirmer.confirm(response.transaction, requirements.network);
+  const transfer = await confirmer.confirm(
+    response.transaction,
+    requirements.network,
+    requirements.asset,
+  );
   if (transfer === undefined) {
     throw new ProviderError(
       `x402 settlement ${response.transaction} is not on ${requirements.network}`,

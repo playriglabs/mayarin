@@ -169,9 +169,51 @@ x402 clearing path requires confirmed chain evidence and records the direct
 merchant transfer without sending a second payout. Its fee is zero because
 this transfer has no fee leg; operator gas remains a separate cost.
 
-`scripts/e2e-x402.ts` is the repeatable Base Sepolia test runner. It requires an
-explicit verified `--pay-to` address, caps payment at 0.02 test USDC, and checks
-the HTTP response, chain receipt, and persisted ledger together.
+`scripts/e2e-x402.ts` is the repeatable test runner, on any chain `CHAIN_IDS`
+names: `--chain` picks the rail the resource must offer, `--check` stops before
+anything is signed. It requires an explicit verified `--pay-to` address, caps
+payment at 0.02 test USDC, and checks the HTTP response, chain receipt, and
+persisted ledger together.
+
+### The same run on Arc — 5 September
+
+Arc has its own way of failing, and the first Arc run found it. The payment
+broadcast fine and then the confirmation refused it: `x402 settlement … carries
+2 transfers; cannot tell which paid`. Both transfers were the same 0.02 USDC,
+from the same payer to the same merchant — Arc's own currency is USDC, so one
+movement writes a `Transfer` on the native view (`0xffff…fffe`, 18 decimals) and
+another on the ERC-20 view (`0x3600…`, 6). `EvmX402Reader.confirm` read every
+`Transfer` in the receipt, so every Arc settlement was ambiguous by
+construction; on Base Sepolia, where gas is ETH, there is only ever one.
+
+`SettlementConfirmer.confirm` now takes the asset it is confirming and considers
+only that contract's transfers. The ambiguity guard is unchanged and still means
+what it says — two transfers _of the settled token_.
+
+The retest, through the fixed local API against an isolated Postgres database:
+
+- [Confirmed transaction](https://testnet.arcscan.app/tx/0x2976f2fcd63900a37c01084088b3059b9c2fb2bb97fe58daff201e89c74ead81),
+  block `60519207`: HTTP 200, the USD/USDC FX quote, a successful
+  `PAYMENT-RESPONSE`, and the authorization nonce consumed on-chain.
+- Intent `pi_01M1QVHT2XA251W6NDZN3K2XV4` reached `COMPLETED` on `arc-testnet`
+  via the `x402` execution path; clearing `clr_01M1QVHT3GZH8MJS1VYNXFRS5V`
+  reached `SUCCESS` with zero fee and the transaction hash recorded.
+- All three postings balanced at 20000 USDC each. Both views of the Arc balance
+  agree with each other and with the payment: the payer lost the 0.02 USDC plus
+  0.002178825 USDC of gas it paid by broadcasting its own authorization, and the
+  merchant gained exactly 0.02 USDC.
+
+**One payment was stranded on the way there, and the hole is still open.** The
+run that hit the ambiguity moved 0.02 USDC on-chain
+([`0x215371ed…`](https://testnet.arcscan.app/tx/0x215371edfa343c30083a32107f5cb147d238f43eb4d87a5434e4d3076827abcc))
+and left intent `pi_01M1QV9EHN2PH8KQ3QVAGW0E4H` at `PROCESSING` with its
+clearing at `PAYMENT_PENDING`. `X402Service.settle` broadcasts, then confirms,
+and records the hash only after confirmation succeeds — so a confirmation that
+throws loses the only pointer to money that has already moved. `resumeStuck`
+cannot recover it, because there is nothing persisted to resume from, and a
+retry cannot re-broadcast: EIP-3009 has recorded the nonce. Recording the
+broadcast before confirming it is the fix, and it is a change to what the
+clearing engine promises rather than a patch.
 
 **RFC #207 is closed; documentation and OpenAPI updates are deferred until the
 end.** The successful run used local code, not the public deployment. Deploy
@@ -238,6 +280,7 @@ Read off the chains and registries on 3–4 September:
 | Arc EURC                        | `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a` — `eip3009` ✓ · domain `{EURC, 2}`                             |
 | Arc Permit2                     | deployed · `x402ExactPermit2Proxy` **not** deployed                                                         |
 | Arc decimals                    | native view 18, ERC-20 view 6 — **one balance**, factor 10^12                                               |
+| Arc `Transfer` logs             | one payment emits **two** — the native view `0xffff…fffe` and the ERC-20 view — same money, two contracts   |
 | The Graph: `base-sepolia`       | Subgraph Studio ✓ · Firehose ✓ · Substreams ✓                                                               |
 | The Graph: `arc-testnet`, `arc` | Subgraph Studio ✓                                                                                           |
 | The Graph: Hedera               | **absent from the registry entirely**                                                                       |
@@ -502,26 +545,30 @@ resource cannot be created advertising terms no payer could sign.
 
 ### Next, in order
 
-The paid flow and ledger reconciliation passed on Base Sepolia through the fixed
-local API. RFC #207 is closed, with documentation deferred. Everything below is
-ordered by what unblocks the most.
+The paid flow and ledger reconciliation passed on Base Sepolia and on Arc
+through the fixed local API. RFC #207 is closed, with documentation deferred.
+Everything below is ordered by what unblocks the most.
 
-1. **Deploy the paid-response and accounting fixes, then verify the public Arc
-   flow.** The public resource still advertises Arc only. Base Sepolia validation
-   does not establish that the fixed deployment serves a paid request on Arc.
-2. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
+1. **Deploy the paid-response, accounting and Arc-confirmation fixes, then
+   verify the public Arc flow.** Both rails now pass against a fixed local API;
+   the public deployment has none of the three fixes, so its Arc resource still
+   refuses every payment it broadcasts.
+2. **Record the broadcast before confirming it**, so a refused confirmation
+   leaves a hash to resume from rather than stranded money. See the Arc
+   validation above for the payment this cost.
+3. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
    the trace, the refusal run, and the no-signup `curl`. Two of the three now
    have something real to point at.
-3. **Exact-output swaps** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
+4. **Exact-output swaps** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
    Without it an agent holding only ETH cannot pay a USDC price at all, which is
    one of the pitch's own sentences.
-4. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
+5. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
    and the policy visibly refusing an over-limit payment. A spending policy
    nobody has watched refuse anything is a claim.
-5. **Decide Hedera's path** ([#209](https://github.com/playriglabs/mayarin/issues/209)):
+6. **Decide Hedera's path** ([#209](https://github.com/playriglabs/mayarin/issues/209)):
    Blocky402's facilitator, or building the permit2 scheme ourselves. Its USDC
    has no EIP-3009, so `exact`/EIP-3009 is not available there at all.
-6. **Documentation and OpenAPI updates at the end.** Add the x402 page and
+7. **Documentation and OpenAPI updates at the end.** Add the x402 page and
    expose its unversioned routes in the generated spec, then run
    `bun run docs:openapi:check`. This is deferred work, not a reason to reopen
    [#207](https://github.com/playriglabs/mayarin/issues/207).

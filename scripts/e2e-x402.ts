@@ -1,4 +1,13 @@
-/** A real x402 request, with receipt and persisted-ledger evidence (RFC #207). */
+/**
+ * A real x402 request, with receipt and persisted-ledger evidence (RFC #207).
+ *
+ * bun run scripts/e2e-x402.ts --pay-to 0x… [--chain arc-testnet] [--url …] [--check]
+ *
+ * `--chain` names the rail the resource must offer; the run refuses a header
+ * that does not advertise it. `--check` stops after the preflight, before an
+ * authorization is signed and before anything is spent.
+ */
+import { CHAIN_IDS, type ChainId, caip2Of, EVM_CHAIN_IDS } from "@mayarin/chain";
 import {
   decodePaymentRequired,
   decodeSettleResponse,
@@ -30,18 +39,27 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 const url = argument("url") ?? "https://api-testnet.mayarin.xyz/x402/fx/quote?from=USD&to=USDC";
+const chain = (argument("chain") ?? "base-sepolia") as ChainId;
+assert(CHAIN_IDS.includes(chain), `--chain must be one of ${CHAIN_IDS.join(", ")}, got ${chain}`);
+const chainId = Number(EVM_CHAIN_IDS[chain]);
+const network = caip2Of(chain);
+// Arc's own currency is USDC: its native view (18 decimals) and its ERC-20 view
+// (6) are one balance, so the payment and the gas come out of the same number.
+const nativeMirrorsAsset: readonly ChainId[] = ["arc-testnet"];
+const mirrored = nativeMirrorsAsset.includes(chain);
 const payTo = argument("pay-to");
 assert(payTo && /^0x[0-9a-f]{40}$/i.test(payTo), "Pass the verified merchant address as --pay-to");
 const output = argument("output") ?? "/tmp/mayarin-x402-evidence.json";
 const rpcUrls: Record<string, string> = JSON.parse(required("CHAIN_RPC_URLS"));
-const rpc = rpcUrls["base-sepolia"];
-assert(rpc, "CHAIN_RPC_URLS must contain base-sepolia");
+const rpc = rpcUrls[chain];
+assert(rpc, `CHAIN_RPC_URLS must contain ${chain}`);
 const client = createPublicClient({ transport: http(rpc) });
-assert((await client.getChainId()) === 84532, "This test only spends on Base Sepolia");
+assert((await client.getChainId()) === chainId, "RPC does not match the selected testnet");
 const payer = privateKeyToAccount(required("PAYER_PRIVATE_KEY") as Hex);
 const sql = postgres(required("DATABASE_URL"), { connect_timeout: 10, max: 1 });
 const abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
+  "function decimals() view returns (uint8)",
   "function authorizationState(address,bytes32) view returns (bool)",
   "event Transfer(address indexed from,address indexed to,uint256 value)",
 ]);
@@ -56,16 +74,16 @@ try {
   assert(header, "402 omitted PAYMENT-REQUIRED");
   const offeredAt = Math.floor(Date.now() / 1000);
   const offered = decodePaymentRequired(header);
-  const accepted = offered.accepts.find((rail) => rail.network === "eip155:84532");
-  assert(accepted, "The resource does not offer Base Sepolia");
+  const accepted = offered.accepts.find((rail) => rail.network === network);
+  assert(accepted, `The resource does not offer ${chain}`);
   assert(accepted.scheme === "exact", "Expected the exact scheme");
   assert(accepted.extra?.assetTransferMethod === "eip3009", "Expected EIP-3009");
   const configuredTokens: Record<string, Record<string, string>> = JSON.parse(
     required("CHAIN_ASSETS"),
   );
   assert(
-    accepted.asset.toLowerCase() === configuredTokens["base-sepolia"]?.USDC?.toLowerCase(),
-    "The resource asks for a token other than configured Base Sepolia USDC",
+    accepted.asset.toLowerCase() === configuredTokens[chain]?.USDC?.toLowerCase(),
+    "The resource asks for a token other than configured testnet USDC",
   );
   assert(accepted.payTo.toLowerCase() === payTo.toLowerCase(), "Unexpected payment recipient");
   const amount = BigInt(accepted.amount);
@@ -87,6 +105,19 @@ try {
     balanceOf(payer.address),
     balanceOf(recipient),
   ]);
+  // Capture the native view too, at native precision, so gas paid by a payer who
+  // also broadcasts is reconciled rather than mistaken for a short payment. The
+  // factor comes off the token, because that is the half of the pair that moves.
+  const nativeScale = mirrored
+    ? 10n **
+      (18n - BigInt(await client.readContract({ address: token, abi, functionName: "decimals" })))
+    : undefined;
+  const nativeBefore = mirrored
+    ? await Promise.all([
+        client.getBalance({ address: payer.address }),
+        client.getBalance({ address: recipient }),
+      ])
+    : undefined;
   assert(payerBefore >= amount, "Payer has insufficient test USDC");
   assert(
     payer.address.toLowerCase() !== recipient.toLowerCase(),
@@ -119,7 +150,7 @@ try {
       validBefore,
       nonce,
     };
-    const domain = domainOf(accepted, 84532);
+    const domain = domainOf(accepted, chainId);
     const signature = await payer.signTypedData({
       domain: { ...domain, verifyingContract: token },
       types: TRANSFER_WITH_AUTHORIZATION_TYPES,
@@ -216,6 +247,29 @@ try {
     assert(settlement?.success, "PAYMENT-RESPONSE did not confirm success");
     assert(settlement.network === accepted.network, "Settlement reported the wrong chain");
     const receipt = await client.getTransactionReceipt({ hash: settlement.transaction as Hex });
+    const gasCost = receipt.gasUsed * receipt.effectiveGasPrice;
+    const nativeAfter =
+      nativeBefore === undefined
+        ? undefined
+        : await Promise.all([
+            client.getBalance({ address: payer.address }),
+            client.getBalance({ address: recipient }),
+          ]);
+    const broadcaster = receipt.from.toLowerCase();
+    const gasPaidByPayer = broadcaster === payer.address.toLowerCase() ? gasCost : 0n;
+    const gasPaidByMerchant = broadcaster === recipient.toLowerCase() ? gasCost : 0n;
+    if (nativeBefore !== undefined && nativeAfter !== undefined && nativeScale !== undefined) {
+      evidence.nativeBalances = {
+        scale: nativeScale.toString(),
+        broadcaster,
+        payerBefore: nativeBefore[0].toString(),
+        payerAfter: nativeAfter[0].toString(),
+        merchantBefore: nativeBefore[1].toString(),
+        merchantAfter: nativeAfter[1].toString(),
+        gasPaidByPayer: gasPaidByPayer.toString(),
+        gasPaidByMerchant: gasPaidByMerchant.toString(),
+      };
+    }
     const transfers = parseEventLogs({ abi, eventName: "Transfer", logs: receipt.logs }).filter(
       (log) => log.address.toLowerCase() === token.toLowerCase(),
     );
@@ -231,7 +285,7 @@ try {
       status: receipt.status,
       blockNumber: receipt.blockNumber.toString(),
       delivered: delivered.toString(),
-      gasCostWei: (receipt.gasUsed * receipt.effectiveGasPrice).toString(),
+      gasCostWei: gasCost.toString(),
     };
     await save();
     assert(paid.status === 200, `Paid resource failed: HTTP ${paid.status}; evidence at ${output}`);
@@ -239,15 +293,33 @@ try {
       receipt.status === "success" && delivered === amount,
       "Receipt does not prove the exact transfer",
     );
+    assert(used, "Authorization was not consumed");
+    if (nativeBefore !== undefined && nativeAfter !== undefined && nativeScale !== undefined) {
+      // The payment is exact at native precision, and every unit the payer lost
+      // beyond it is gas it paid by broadcasting its own authorization.
+      assert(
+        nativeBefore[0] - nativeAfter[0] === amount * nativeScale + gasPaidByPayer &&
+          nativeAfter[1] - nativeBefore[1] === amount * nativeScale - gasPaidByMerchant,
+        "Native balances disagree with the payment and the gas it cost",
+      );
+      // One balance behind two views: the ERC-20 view is the native one scaled,
+      // so an accounting that reads either number reads the same money.
+      assert(
+        payerBefore === nativeBefore[0] / nativeScale &&
+          payerAfter === nativeAfter[0] / nativeScale &&
+          merchantBefore === nativeBefore[1] / nativeScale &&
+          merchantAfter === nativeAfter[1] / nativeScale,
+        "The ERC-20 view is not the native view scaled — two balances, not one",
+      );
+    } else {
+      assert(
+        payerBefore - payerAfter === amount && merchantAfter - merchantBefore === amount,
+        "On-chain balances disagree with the payment",
+      );
+    }
     assert(
-      used && payerBefore - payerAfter === amount && merchantAfter - merchantBefore === amount,
-      "On-chain balances or authorization state disagree with the payment",
-    );
-    assert(
-      intents.length === 1 &&
-        intent?.status === "COMPLETED" &&
-        intent.payment_chain === "base-sepolia",
-      "Expected one completed Base Sepolia intent",
+      intents.length === 1 && intent?.status === "COMPLETED" && intent.payment_chain === chain,
+      "Expected one completed intent on the selected testnet",
     );
     const totals = evidence.postingTotals as
       | readonly { debits: string; credits: string }[]

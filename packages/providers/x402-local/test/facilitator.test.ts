@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { FixedClock } from "@mayarin/shared";
 import { checkStatically, confirmSettlement } from "@mayarin/x402";
+import type { Address } from "viem";
 import {
   ASSET,
   CHAIN,
@@ -221,7 +222,7 @@ describe("confirm", () => {
       logs: [transferLog(PAYER.address, MERCHANT, 10_000n)],
     });
 
-    const transfer = await reader.confirm(hash, NETWORK);
+    const transfer = await reader.confirm(hash, NETWORK, ASSET);
 
     expect(transfer).toEqual({
       from: PAYER.address,
@@ -252,7 +253,7 @@ describe("confirm", () => {
   test("returns nothing for a transaction the chain does not have", async () => {
     const { reader } = facilitatorFor(chainState());
 
-    expect(await reader.confirm(`0x${"00".repeat(32)}`, NETWORK)).toBeUndefined();
+    expect(await reader.confirm(`0x${"00".repeat(32)}`, NETWORK, ASSET)).toBeUndefined();
   });
 
   // It exists and it moved nothing, which is the same answer as far as a
@@ -266,7 +267,7 @@ describe("confirm", () => {
       logs: [transferLog(PAYER.address, MERCHANT, 10_000n)],
     });
 
-    expect(await reader.confirm(hash, NETWORK)).toBeUndefined();
+    expect(await reader.confirm(hash, NETWORK, ASSET)).toBeUndefined();
   });
 
   // Picking the first would be a guess, and what is being guessed at is which
@@ -283,13 +284,41 @@ describe("confirm", () => {
       ],
     });
 
-    expect(reader.confirm(hash, NETWORK)).rejects.toThrow(/cannot tell which paid/);
+    expect(reader.confirm(hash, NETWORK, ASSET)).rejects.toThrow(/cannot tell which paid/);
+  });
+
+  // Arc's own currency is USDC: one payment writes a `Transfer` on the native
+  // view and another on the ERC-20 view. That is one movement described twice,
+  // and reading both as payments made every Arc settlement ambiguous.
+  test("reads past a second view of the same movement on another contract", async () => {
+    const state = chainState();
+    const { reader } = facilitatorFor(state);
+    const hash = `0x${"ab".repeat(32)}`;
+    const nativeView: Address = "0xFffFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfE";
+    state.receipts.set(hash, {
+      status: "success",
+      logs: [
+        transferLog(PAYER.address, MERCHANT, 10n ** 16n, nativeView),
+        transferLog(PAYER.address, MERCHANT, 10_000n),
+      ],
+    });
+
+    const transfer = await reader.confirm(hash, NETWORK, ASSET);
+
+    expect(transfer).toEqual({
+      from: PAYER.address,
+      to: MERCHANT,
+      value: "10000",
+      asset: ASSET,
+    });
   });
 
   test("refuses a network it does not read", async () => {
     const { reader } = facilitatorFor(chainState());
 
-    expect(reader.confirm(`0x${"cd".repeat(32)}`, "eip155:296")).rejects.toThrow(/was asked for/);
+    expect(reader.confirm(`0x${"cd".repeat(32)}`, "eip155:296", ASSET)).rejects.toThrow(
+      /was asked for/,
+    );
   });
 });
 

@@ -180,7 +180,11 @@ export class EvmX402Reader implements SettlementConfirmer {
    * A reverted transaction is also `undefined`. It exists, and it moved
    * nothing.
    */
-  async confirm(transaction: string, network: string): Promise<ConfirmedTransfer | undefined> {
+  async confirm(
+    transaction: string,
+    network: string,
+    asset: string,
+  ): Promise<ConfirmedTransfer | undefined> {
     if (network !== this.network) {
       throw new ValidationError(`this reader confirms ${this.network}, was asked for ${network}`, {
         expected: this.network,
@@ -195,6 +199,10 @@ export class EvmX402Reader implements SettlementConfirmer {
     if (receipt.status !== "success") return undefined;
 
     const transfers = receipt.logs.flatMap((log) => {
+      // Only the token being settled. Arc's own currency is USDC, so one
+      // payment emits a `Transfer` on the native view and another on the ERC-20
+      // view — one movement described twice, on two contracts.
+      if (log.address.toLowerCase() !== asset.toLowerCase()) return [];
       try {
         const decoded = decodeEventLog({ abi: eip3009Abi, data: log.data, topics: log.topics });
         if (decoded.eventName !== "Transfer") return [];
