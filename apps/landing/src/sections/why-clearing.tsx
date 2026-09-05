@@ -127,7 +127,7 @@ export function WhyClearing() {
       <div class="mt-12 grid gap-12 md:mt-16 md:grid-cols-2 md:gap-16 xl:grid-cols-4">
         {DIFFERENCES.map((difference, index) => (
           <Reveal key={difference.title} delay={index * 90}>
-            <h3 class="text-[22px] font-medium tracking-[-0.01em]">{difference.title}</h3>
+            <h3 class="text-[23.5px] font-medium tracking-[-0.01em]">{difference.title}</h3>
             <p class="mt-4 max-w-[40ch] text-sm leading-[1.75] text-slate">{difference.body}</p>
           </Reveal>
         ))}

@@ -327,7 +327,7 @@ export function HowItWorks() {
           stages, and only this choice differs. */}
       <div class="mt-14 border-t border-line-inverse pt-12 md:mt-20">
         <Reveal>
-          <h3 class="max-w-[24ch] text-[clamp(1.5rem,2.4vw,2rem)] leading-[1.1] tracking-normal text-white">
+          <h3 class="max-w-[24ch] text-[clamp(2rem,2.8vw,3rem)] leading-[1.1] tracking-normal text-white">
             Three execution paths, one clearing engine.
           </h3>
           <p class="mt-4 max-w-[54ch] text-[0.9375rem] leading-[1.7] text-slate-inverse">
@@ -339,8 +339,13 @@ export function HowItWorks() {
         <div class="mt-10 grid gap-px bg-line-inverse md:grid-cols-3">
           {PATHS.map((path, index) => (
             <Reveal key={path.name} delay={index * 80}>
-              <div class="flex h-full flex-col bg-void py-8 md:px-8 md:py-2 md:first:pl-0">
-                <h4 class="font-sans text-base font-medium tracking-[-0.01em] text-white">
+              <div
+                class={clsx(
+                  "flex h-full flex-col bg-void py-8 md:px-8 md:py-2",
+                  index === 0 && "md:pl-0",
+                )}
+              >
+                <h4 class="font-sans text-xl font-medium tracking-[-0.01em] text-white">
                   {path.name}
                 </h4>
                 <p class="mt-3 max-w-[40ch] flex-1 text-sm leading-[1.75] text-slate-inverse">

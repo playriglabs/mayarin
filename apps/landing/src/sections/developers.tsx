@@ -61,7 +61,7 @@ export function Developers() {
         <div
           role="tablist"
           aria-label="Code examples"
-          class="flex flex-wrap items-center gap-x-8 gap-y-2 border-b border-line-inverse"
+          class="flex items-center gap-x-8 overflow-x-auto border-b border-line-inverse scrollbar-none [&::-webkit-scrollbar]:hidden"
         >
           {snippets.map((item, index) => (
             <button
@@ -74,7 +74,7 @@ export function Developers() {
               tabIndex={index === active ? 0 : -1}
               onClick={() => setActive(index)}
               class={clsx(
-                "-mb-px cursor-pointer border-b py-3.5 text-sm transition-colors duration-200",
+                "-mb-px shrink-0 cursor-pointer whitespace-nowrap border-b py-3.5 text-sm transition-colors duration-200",
                 index === active
                   ? "border-accent text-white"
                   : "border-transparent text-slate-inverse hover:text-white",
@@ -100,7 +100,7 @@ export function Developers() {
         {PROMISES.map((promise, index) => (
           <div key={promise.title} class="bg-void md:px-8 md:first:pl-0 md:last:pr-0">
             <Reveal delay={index * 80} class="py-8">
-              <h3 class="font-display text-xl font-medium tracking-[-0.01em] text-white">
+              <h3 class="font-display text-2xl font-medium tracking-[-0.01em] text-white">
                 {promise.title}
               </h3>
               <p class="mt-3 max-w-[40ch] text-sm leading-[1.75] text-slate-inverse">

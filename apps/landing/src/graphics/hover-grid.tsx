@@ -54,8 +54,6 @@ export function HoverGrid({ tone = "light" }: HoverGridProps) {
   const gridAlpha = tone === "dark" ? 0.16 : 0.075;
 
   useEffect(() => {
-    if (!window.matchMedia("(min-width: 768px)").matches) return;
-
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
@@ -291,7 +289,7 @@ export function HoverGrid({ tone = "light" }: HoverGridProps) {
   }, [base, gridAlpha]);
 
   return (
-    <div aria-hidden="true" class="pointer-events-none absolute inset-0 hidden md:block">
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0 block">
       <canvas ref={canvasRef} class="wave-canvas h-full w-full" />
     </div>
   );

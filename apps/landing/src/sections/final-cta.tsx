@@ -13,7 +13,7 @@ export function FinalCta() {
         </Reveal>
 
         <Reveal delay={80}>
-          <h2 class="mt-8 max-w-[16ch] text-[clamp(2.5rem,6.4vw,5.5rem)] leading-none">
+          <h2 class="mt-8 max-w-[14ch] text-[clamp(3rem,6vw,5rem)] leading-none">
             Build payment infrastructure once. Move value <em class="italic">anywhere</em>.
           </h2>
         </Reveal>
@@ -29,7 +29,7 @@ export function FinalCta() {
         </Reveal>
 
         <Reveal delay={220}>
-          <p class="label mt-10 flex flex-wrap gap-x-6 gap-y-2 text-slate-inverse">
+          <p class="label mt-10 flex flex-wrap gap-x-6 gap-y-4 text-slate-inverse">
             <span>Sandbox in minutes</span>
             <span aria-hidden="true">·</span>
             <span>No rail rewrite</span>
