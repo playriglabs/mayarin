@@ -93,7 +93,7 @@ export function assetReceivedPosting(transaction: ClearingTransaction): DraftTra
     entries: [
       debit("TREASURY", settlementAmount),
       credit("MERCHANT_PAYABLE", netAmount),
-      credit("FEE_REVENUE", fee),
+      ...(fee.amount === 0n ? [] : [credit("FEE_REVENUE", fee)]),
     ],
   };
 }

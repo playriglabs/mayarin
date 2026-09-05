@@ -15,7 +15,8 @@
  * `X402Service`, and writes a header back.
  */
 
-import { isAssetCode, NotFoundError, ValidationError, zero } from "@mayarin/shared";
+import type { RateQuote } from "@mayarin/clearing";
+import { fromDecimalString, isAssetCode, NotFoundError, ValidationError } from "@mayarin/shared";
 import {
   decodePaymentPayload,
   encodePaymentRequired,
@@ -104,8 +105,10 @@ const facilitatorBodySchema = z
  */
 export const FX_QUOTE_RESOURCE_ID = "fx-quote";
 
-export function x402Routes(container: Container): Hono {
-  const app = new Hono();
+type X402Env = { Variables: { fxQuote: RateQuote } };
+
+export function x402Routes(container: Container): Hono<X402Env> {
+  const app = new Hono<X402Env>();
 
   /**
    * A resource an agent can actually buy (#209).
@@ -119,24 +122,35 @@ export function x402Routes(container: Container): Hono {
    * `requirePayment` answers `404` until the resource is registered, which is
    * the same shape as the rest of this file: absent rather than half-working.
    */
-  app.get("/fx/quote", requirePayment(container, FX_QUOTE_RESOURCE_ID), async (c) => {
-    const from = c.req.query("from");
-    const to = c.req.query("to");
-    if (!isAssetCode(from) || !isAssetCode(to)) {
-      throw new ValidationError("from and to must both be known asset codes", { from, to });
-    }
-
-    const quote = await container.rates.quote(from, to, zero(from));
-    return c.json({
-      from,
-      to,
-      // Minor units of `to` per one whole unit of `from`, the same integer the
-      // clearing engine locks. No float ever holds a rate.
-      scaledRate: quote.scaledRate.toString(),
-      source: quote.source,
-      ...(quote.expiresAt === undefined ? {} : { expiresAt: quote.expiresAt.toISOString() }),
-    });
-  });
+  app.get(
+    "/fx/quote",
+    async (c, next) => {
+      const from = c.req.query("from");
+      const to = c.req.query("to");
+      if (!isAssetCode(from) || !isAssetCode(to)) {
+        throw new ValidationError("from and to must both be known asset codes", { from, to });
+      }
+      if (c.req.header(PAYMENT_SIGNATURE_HEADER) !== undefined) {
+        // Prepare the resource before charging. A rejected or unavailable
+        // quote must not consume the payer's authorization.
+        c.set("fxQuote", await container.rates.quote(from, to, fromDecimalString("1", from)));
+      }
+      await next();
+    },
+    requirePayment(container, FX_QUOTE_RESOURCE_ID),
+    (c) => {
+      const quote = c.get("fxQuote");
+      return c.json({
+        from: quote.from,
+        to: quote.to,
+        // Minor units of `to` per one whole unit of `from`, the same integer the
+        // clearing engine locks. No float ever holds a rate.
+        scaledRate: quote.scaledRate.toString(),
+        source: quote.source,
+        ...(quote.expiresAt === undefined ? {} : { expiresAt: quote.expiresAt.toISOString() }),
+      });
+    },
+  );
 
   /**
    * What this deployment will sell, and on what rails.

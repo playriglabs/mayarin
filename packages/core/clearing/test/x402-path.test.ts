@@ -1,17 +1,17 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { awaitsFacilitatorSettlement, usesDepositAddress } from "@mayarin/payment-intent";
+import { ProviderError } from "@mayarin/shared";
+import type { ClearingTransaction } from "../src/types.ts";
 import { createHarness } from "./harness.ts";
 
-/**
- * The x402 path through the engine.
- *
- * There is almost no new code behind these tests, and that is the point. x402
- * reuses the deposit path's second half — receipt, clearing, settlement through
- * the adapter — and differs in exactly two places: it derives no deposit
- * address, and nothing but a confirmed settlement may advance it out of
- * `PAYMENT_PENDING`. Both are things a *third* variant could break silently in
- * a codebase whose branches were all written as "is this the contract path".
- */
+const TX_HASH = `0x${"ab".repeat(32)}`;
+
+function completion(transaction: ClearingTransaction) {
+  if (transaction.settlementAmount === undefined) throw new Error("Missing lock");
+  return { chain: "base-sepolia" as const, txHash: TX_HASH, amount: transaction.settlementAmount };
+}
+
+/** Direct payouts are booked from confirmed evidence and never paid again. */
 describe("x402 execution path", () => {
   test("reaches PAYMENT_PENDING and waits there", async () => {
     const harness = createHarness({
@@ -81,7 +81,7 @@ describe("x402 execution path", () => {
     expect(transaction.state).toBe("SUCCESS");
   });
 
-  test("settles through the adapter once receipt is recorded", async () => {
+  test("books the direct payout without a fee or a second settlement", async () => {
     const harness = createHarness({
       autoConfirmAssetReceipt: false,
       rates: { "IDR/USDC": 100n },
@@ -92,9 +92,31 @@ describe("x402 execution path", () => {
     });
     const started = await harness.engine.start(intent);
 
-    const { transaction } = await harness.engine.recordAssetReceived(started.id);
+    const settle = spyOn(harness.adapter, "settle");
+    const status = spyOn(harness.adapter, "status");
+    const { transaction } = await harness.engine.recordFacilitatorSettlement(
+      started.id,
+      completion(started),
+    );
 
     expect(transaction.state).toBe("SUCCESS");
+    expect(transaction.fee?.amount).toBe(0n);
+    expect(transaction.netAmount).toEqual(transaction.settlementAmount);
+    expect(transaction.onChain?.settledAmount).toEqual(transaction.settlementAmount);
+    expect(transaction.providerReference).toBe(TX_HASH);
+    expect(settle).not.toHaveBeenCalled();
+    expect(status).not.toHaveBeenCalled();
+    expect((await harness.balance("TREASURY")).amount).toBe(0n);
+    expect((await harness.balance("FEE_REVENUE")).amount).toBe(0n);
+    const postings = await harness.ledger.transactionsFor(started.id);
+    expect(postings).toHaveLength(3);
+    expect(
+      postings
+        .flatMap((posting) => posting.entries)
+        .some((entry) => entry.accountCode === "FEE_REVENUE:USDC"),
+    ).toBe(false);
+    settle.mockRestore();
+    status.mockRestore();
   });
 
   // The engine's existing rule, which x402 inherits rather than reimplements:
@@ -110,45 +132,94 @@ describe("x402 execution path", () => {
     });
     const started = await harness.engine.start(intent);
 
-    const first = await harness.engine.recordAssetReceived(started.id);
-    const second = await harness.engine.recordAssetReceived(started.id);
+    const first = await harness.engine.recordFacilitatorSettlement(started.id, completion(started));
+    const second = await harness.engine.recordFacilitatorSettlement(
+      started.id,
+      completion(started),
+    );
 
     expect(first.transaction.state).toBe("SUCCESS");
     expect(second.transaction.state).toBe("SUCCESS");
     expect(second.transaction.version).toBe(first.transaction.version);
   });
 
-  /**
-   * The crash the x402 service's ordering is designed around.
-   *
-   * `settle` broadcasts before the receipt is written, so a process that dies in
-   * between leaves an intent whose money has moved on-chain and whose engine
-   * knows nothing about it. The recovery is not an x402 mechanism — it is the
-   * engine's own `resumeStuck`, and the point of testing it here is that a path
-   * which derives no deposit address and is advanced by nothing but a
-   * facilitator could quietly fall outside it.
-   */
-  test("resumeStuck recovers an intent killed between settle and the receipt", async () => {
+  test("an internal adapter cannot turn a direct transfer into a merchant holding", async () => {
     const harness = createHarness({
+      mode: "internal",
+      behaviour: "fail",
       autoConfirmAssetReceipt: false,
-      behaviour: "pending",
-      rates: { "IDR/USDC": 100n },
     });
     const intent = await harness.confirmedIntent({
       payment: { asset: "USDC", chain: "base-sepolia" },
       executionPath: "x402",
     });
     const started = await harness.engine.start(intent);
+    const { transaction } = await harness.engine.recordFacilitatorSettlement(
+      started.id,
+      completion(started),
+    );
+    expect(transaction.state).toBe("SUCCESS");
+    expect((await harness.balance("MERCHANT_HOLDING")).amount).toBe(0n);
+  });
 
-    // The facilitator broadcast, and the process died before the receipt.
-    const settling = await harness.engine.recordAssetReceived(started.id);
-    expect(settling.transaction.state).toBe("SETTLING");
-    harness.adapter.complete(settling.transaction.providerReference as string);
+  test("a bare receipt signal cannot credit an x402 payment", async () => {
+    const harness = createHarness();
+    const intent = await harness.confirmedIntent({
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      executionPath: "x402",
+    });
+    const started = await harness.engine.start(intent);
+    await expect(harness.engine.recordAssetReceived(started.id)).rejects.toThrow(
+      "confirmed facilitator settlement",
+    );
+    expect(await harness.ledger.transactionsFor(started.id)).toHaveLength(0);
+  });
 
+  test("refuses a transfer on another chain or for another amount", async () => {
+    const harness = createHarness();
+    const intent = await harness.confirmedIntent({
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      executionPath: "x402",
+    });
+    const started = await harness.engine.start(intent);
+    const paid = completion(started);
+    await expect(
+      harness.engine.recordFacilitatorSettlement(started.id, { ...paid, chain: "arc-testnet" }),
+    ).rejects.toThrow("disagrees");
+    await expect(
+      harness.engine.recordFacilitatorSettlement(started.id, {
+        ...paid,
+        amount: { ...paid.amount, amount: 1n },
+      }),
+    ).rejects.toThrow("disagrees");
+    expect(await harness.ledger.transactionsFor(started.id)).toHaveLength(0);
+  });
+
+  test("resumeStuck finishes a confirmed payout after a posting failure without paying again", async () => {
+    const harness = createHarness({ autoConfirmAssetReceipt: false, behaviour: "fail" });
+    const intent = await harness.confirmedIntent({
+      payment: { asset: "USDC", chain: "base-sepolia" },
+      executionPath: "x402",
+    });
+    const started = await harness.engine.start(intent);
+    const post = harness.ledger.post.bind(harness.ledger);
+    const unavailable = spyOn(harness.ledger, "post").mockImplementation(async (draft) => {
+      if (draft.idempotencyKey?.endsWith(":CLEARING"))
+        throw new ProviderError("Database unavailable");
+      return post(draft);
+    });
+    await expect(
+      harness.engine.recordFacilitatorSettlement(started.id, completion(started)),
+    ).rejects.toThrow("Database unavailable");
+    unavailable.mockRestore();
+    const persisted = await harness.engine.getById(started.id);
+    expect(persisted.state).toBe("ASSET_RECEIVED");
+    expect(persisted.providerReference).toBe(TX_HASH);
+    expect(persisted.onChain?.fee.amount).toBe(0n);
     const [resumed] = await harness.engine.resumeStuck();
-
-    expect(resumed?.transaction.id).toBe(started.id);
     expect(resumed?.transaction.state).toBe("SUCCESS");
+    expect(resumed?.transaction.providerReference).toBe(TX_HASH);
+    expect(await harness.ledger.transactionsFor(started.id)).toHaveLength(3);
     expect(await harness.engine.resumeStuck()).toHaveLength(0);
   });
 });
