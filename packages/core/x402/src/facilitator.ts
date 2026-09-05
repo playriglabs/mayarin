@@ -133,6 +133,11 @@ export interface ConfirmedSettlement {
 
 const TX_HASH = /^0x[\da-f]{64}$/i;
 
+/** Whether a facilitator's `transaction` is a hash at all, before going to look for it. */
+export function isTransactionHash(value: string): boolean {
+  return TX_HASH.test(value);
+}
+
 /**
  * Turn a facilitator's claim into a settlement, or refuse.
  *
@@ -155,7 +160,7 @@ export async function confirmSettlement(
   }
   // A success carrying no hash, or a hash-shaped string that is not one, is not
   // a transaction to go looking for.
-  if (!TX_HASH.test(response.transaction)) {
+  if (!isTransactionHash(response.transaction)) {
     throw new ValidationError(
       `x402 facilitator reported success with transaction "${response.transaction}"`,
     );

@@ -109,13 +109,15 @@ export function toNotifiableEvent(
     readonly metadata?: Readonly<Record<string, string>>;
     readonly merchantReference?: string;
   },
-): NotifiableEvent {
+): NotifiableEvent | undefined {
+  const type = toWebhookEventType(event.type);
+  if (type === undefined) return undefined;
   return {
     id: event.id,
     merchantId: context.merchantId,
     paymentIntentId: context.paymentIntentId,
     clearingTransactionId: event.clearingTransactionId,
-    type: toWebhookEventType(event.type),
+    type,
     state: event.toState,
     sequence: event.sequence,
     metadata: context.metadata ?? {},
@@ -126,7 +128,15 @@ export function toNotifiableEvent(
   };
 }
 
-export function toWebhookEventType(type: ClearingEventType): WebhookEventType {
+/**
+ * The merchant-facing name for a clearing event, or nothing.
+ *
+ * Not every event in the log is news to a merchant. `settlement.broadcast`
+ * records that a settlement transaction went out and records no state change —
+ * projecting it would deliver a `payment.state_changed` whose state is the same
+ * one the merchant was told about last time.
+ */
+export function toWebhookEventType(type: ClearingEventType): WebhookEventType | undefined {
   switch (type) {
     case "transaction.created":
       return "payment.created";
@@ -134,5 +144,7 @@ export function toWebhookEventType(type: ClearingEventType): WebhookEventType {
       return "payment.state_changed";
     case "state.failed":
       return "payment.failed";
+    case "settlement.broadcast":
+      return undefined;
   }
 }

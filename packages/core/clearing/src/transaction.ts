@@ -99,6 +99,41 @@ export function transition(
   };
 }
 
+/**
+ * Records a broadcast settlement transaction without moving the state.
+ *
+ * Every other write here is a state change; this one deliberately is not. The
+ * transaction stays where it is because nothing has been confirmed — but the
+ * hash is durable from this moment, so a confirmation that fails afterwards
+ * leaves something to resume from rather than money nobody can find.
+ */
+export function recordSettlementBroadcast(
+  transaction: ClearingTransaction,
+  providerReference: string,
+  now: Date,
+): TransitionResult {
+  const updatedAt = new Date(now);
+  const next: ClearingTransaction = {
+    ...transaction,
+    providerReference,
+    updatedAt,
+    version: transaction.version + 1,
+  };
+
+  return {
+    transaction: next,
+    event: {
+      id: generateId("evt", updatedAt.getTime()),
+      clearingTransactionId: transaction.id,
+      sequence: next.version,
+      type: "settlement.broadcast",
+      toState: transaction.state,
+      payload: { providerReference },
+      occurredAt: updatedAt,
+    },
+  };
+}
+
 export function failTransaction(
   transaction: ClearingTransaction,
   failure: ClearingFailure,

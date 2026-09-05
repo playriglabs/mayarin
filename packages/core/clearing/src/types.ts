@@ -164,5 +164,14 @@ export const CLEARING_EVENT_TYPES = [
   "transaction.created",
   "state.changed",
   "state.failed",
+  /**
+   * A settlement transaction went out and has not been confirmed yet.
+   *
+   * The only event that records something without moving the transaction. It
+   * exists because the alternative loses money: a facilitator broadcast whose
+   * confirmation then throws leaves value moved on a chain and no pointer to it
+   * anywhere, and EIP-3009 will not let the same authorization be sent twice.
+   */
+  "settlement.broadcast",
 ] as const;
 export type ClearingEventType = (typeof CLEARING_EVENT_TYPES)[number];

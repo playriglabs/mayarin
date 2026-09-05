@@ -222,6 +222,122 @@ describe("x402 execution path", () => {
     expect(await harness.ledger.transactionsFor(started.id)).toHaveLength(3);
     expect(await harness.engine.resumeStuck()).toHaveLength(0);
   });
+
+  // The hole this closes: a facilitator broadcast whose confirmation then threw
+  // left value moved on a chain and no pointer to it anywhere — and EIP-3009
+  // will not let the same authorization be sent twice, so nothing could
+  // recover it.
+  describe("recordFacilitatorBroadcast", () => {
+    async function pending() {
+      const harness = createHarness({ autoConfirmAssetReceipt: false });
+      const intent = await harness.confirmedIntent({
+        payment: { asset: "USDC", chain: "base-sepolia" },
+        executionPath: "x402",
+      });
+      return { harness, started: await harness.engine.start(intent) };
+    }
+
+    test("keeps the hash without moving the payment", async () => {
+      const { harness, started } = await pending();
+
+      const recorded = await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+
+      expect(recorded.state).toBe("PAYMENT_PENDING");
+      expect(recorded.providerReference).toBe(TX_HASH);
+      const persisted = await harness.engine.getById(started.id);
+      expect(persisted.providerReference).toBe(TX_HASH);
+      expect(persisted.state).toBe("PAYMENT_PENDING");
+      const events = await harness.repositories.clearing.listEvents(started.id);
+      expect(events.at(-1)?.type).toBe("settlement.broadcast");
+    });
+
+    test("credits nothing on its own", async () => {
+      const { harness, started } = await pending();
+
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+
+      expect(await harness.ledger.transactionsFor(started.id)).toHaveLength(0);
+    });
+
+    // The resume case: the same broadcast reported twice is one broadcast.
+    test("is idempotent for the same hash", async () => {
+      const { harness, started } = await pending();
+
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+      const again = await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+
+      expect(again.providerReference).toBe(TX_HASH);
+      const events = await harness.repositories.clearing.listEvents(started.id);
+      expect(events.filter((event) => event.type === "settlement.broadcast")).toHaveLength(1);
+    });
+
+    test("refuses a second, different hash", async () => {
+      const { harness, started } = await pending();
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+
+      await expect(
+        harness.engine.recordFacilitatorBroadcast(started.id, `0x${"cd".repeat(32)}`),
+      ).rejects.toThrow(/already has a different settlement reference/);
+    });
+
+    test("refuses anything that is not a transaction hash", async () => {
+      const { harness, started } = await pending();
+
+      await expect(
+        harness.engine.recordFacilitatorBroadcast(started.id, "pending"),
+      ).rejects.toThrow(/not a transaction hash/);
+    });
+
+    test("refuses a payment that does not settle through a facilitator", async () => {
+      const harness = createHarness({ autoConfirmAssetReceipt: false });
+      const intent = await harness.confirmedIntent({
+        payment: { asset: "USDC", chain: "base-sepolia" },
+      });
+      const started = await harness.engine.start(intent);
+
+      await expect(harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH)).rejects.toThrow(
+        /Only an x402 payment/,
+      );
+    });
+
+    // Expiry describes a payer who never paid. A payment holding a broadcast
+    // hash was paid, and failing it would bury the money it moved.
+    test("keeps the expiry sweep off a payment that has been broadcast", async () => {
+      const { harness, started } = await pending();
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+      harness.clock.advance(60 * 60 * 1000);
+
+      expect(await harness.engine.sweepExpired()).toHaveLength(0);
+      expect((await harness.engine.getById(started.id)).state).toBe("PAYMENT_PENDING");
+    });
+
+    test("but still sweeps one nobody ever paid", async () => {
+      const { harness, started } = await pending();
+      harness.clock.advance(60 * 60 * 1000);
+
+      expect(await harness.engine.sweepExpired()).toHaveLength(1);
+      expect((await harness.engine.getById(started.id)).state).toBe("FAILED");
+    });
+
+    // The whole point: the hash survives the failure, so the payment can still
+    // be finished from it.
+    test("survives a confirmation that throws, and settles afterwards", async () => {
+      const { harness, started } = await pending();
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+
+      const stranded = await harness.engine.getById(started.id);
+      expect(stranded.providerReference).toBe(TX_HASH);
+
+      const progress = await harness.engine.recordFacilitatorSettlement(
+        started.id,
+        completion(stranded),
+      );
+
+      expect(progress.transaction.state).toBe("SUCCESS");
+      expect(progress.transaction.providerReference).toBe(TX_HASH);
+      expect(await harness.ledger.transactionsFor(started.id)).toHaveLength(3);
+    });
+  });
 });
 
 describe("execution path predicates", () => {

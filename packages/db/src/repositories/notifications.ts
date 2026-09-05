@@ -21,7 +21,7 @@ import {
   type WebhookEndpointRepository,
   type WebhookOutbox,
 } from "@mayarin/notifications";
-import { and, asc, desc, eq, gt, gte, ilike, lt, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, lt, lte, ne, or } from "drizzle-orm";
 import type { Database } from "../client.ts";
 import { present } from "../mapping.ts";
 import {
@@ -60,22 +60,40 @@ export class DrizzleWebhookOutbox implements WebhookOutbox {
         eq(clearingEvents.clearingTransactionId, clearingTransactions.id),
       )
       .innerJoin(paymentIntents, eq(clearingTransactions.paymentIntentId, paymentIntents.id))
-      .where(cursor === undefined ? undefined : gt(clearingEvents.id, cursor))
+      // Filtered in SQL rather than after the fact, so `limit` counts only rows
+      // a merchant is actually told about. Dropping them afterwards would let a
+      // page come back empty while later events waited behind it, and the
+      // cursor — the last row returned — would never move past them.
+      .where(
+        and(
+          ne(clearingEvents.type, "settlement.broadcast" satisfies ClearingEventType),
+          cursor === undefined ? undefined : gt(clearingEvents.id, cursor),
+        ),
+      )
       .orderBy(asc(clearingEvents.id))
       .limit(limit);
 
-    return rows.map((row) => ({
-      id: row.id,
-      merchantId: row.merchantId,
-      paymentIntentId: row.paymentIntentId,
-      clearingTransactionId: row.clearingTransactionId,
-      type: toWebhookEventType(row.type as ClearingEventType),
-      state: row.toState as ClearingState,
-      sequence: row.sequence,
-      metadata: row.metadata,
-      ...present("merchantReference", row.merchantReference),
-      occurredAt: row.occurredAt,
-    }));
+    // The query already excluded the events with no merchant-facing name; this
+    // is the type-level half of the same statement.
+    return rows.flatMap((row) => {
+      const type = toWebhookEventType(row.type as ClearingEventType);
+      if (type === undefined) return [];
+
+      return [
+        {
+          id: row.id,
+          merchantId: row.merchantId,
+          paymentIntentId: row.paymentIntentId,
+          clearingTransactionId: row.clearingTransactionId,
+          type,
+          state: row.toState as ClearingState,
+          sequence: row.sequence,
+          metadata: row.metadata,
+          ...present("merchantReference", row.merchantReference),
+          occurredAt: row.occurredAt,
+        },
+      ];
+    });
   }
 }
 

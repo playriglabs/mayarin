@@ -16,10 +16,11 @@
 
 import { caip2Of } from "@mayarin/chain";
 import type { ClearingEngine, RateProvider } from "@mayarin/clearing";
-import type {
-  MerchantSnapshot,
-  PaymentIntent,
-  PaymentIntentService,
+import {
+  awaitsFacilitatorSettlement,
+  type MerchantSnapshot,
+  type PaymentIntent,
+  type PaymentIntentService,
 } from "@mayarin/payment-intent";
 import {
   type Clock,
@@ -47,6 +48,7 @@ import {
   confirmSettlement,
   eip3009PayloadOf,
   idempotencyKeyOf,
+  isTransactionHash,
   parseUnixSeconds,
   selectRequirements,
 } from "@mayarin/x402";
@@ -319,6 +321,14 @@ export class X402Service {
         network: requirements.network,
       });
     }
+    // Persisted before it is trusted. The hash is not evidence of anything yet
+    // — confirmation is still the only thing that credits a merchant — but a
+    // confirmation that throws after a successful broadcast used to lose the
+    // only pointer to money that had already moved, and EIP-3009 will not let
+    // the same authorization be sent again.
+    if (response.success && isTransactionHash(response.transaction)) {
+      await this.#options.engine.recordFacilitatorBroadcast(transaction.id, response.transaction);
+    }
     const settlement = await confirmSettlement(response, requirements, confirmer);
     const progress = await this.#options.engine.recordFacilitatorSettlement(transaction.id, {
       chain: intent.payment.chain,
@@ -333,6 +343,73 @@ export class X402Service {
     }
 
     return { response, intent: await this.#options.intents.getById(intent.id) };
+  }
+
+  /**
+   * Finishes payments whose settlement went out and was never confirmed.
+   *
+   * The recovery half of recording a broadcast before trusting it. A
+   * confirmation can fail for reasons that pass — the transaction is not mined
+   * yet, an RPC is down — and the payment is left at `PAYMENT_PENDING` holding
+   * the hash of money that has already moved. `ClearingEngine.resumeStuck`
+   * cannot finish these itself: confirming means reading a chain, which the
+   * domain deliberately cannot do.
+   *
+   * Each transaction is attempted on its own. A failure is left where it is
+   * rather than raised, because the next pass repeats it — the same shape as
+   * the expiry sweep and the webhook dispatcher.
+   */
+  async recoverBroadcasts(limit = 100): Promise<readonly string[]> {
+    const recovered: string[] = [];
+    for (const transaction of await this.#options.engine.listResumable(limit)) {
+      const txHash = transaction.providerReference;
+      if (
+        transaction.state !== "PAYMENT_PENDING" ||
+        !awaitsFacilitatorSettlement(transaction.executionPath) ||
+        txHash === undefined ||
+        transaction.settlementAmount === undefined
+      ) {
+        continue;
+      }
+
+      try {
+        const intent = await this.#options.intents.getById(transaction.paymentIntentId);
+        const chain = intent.payment?.chain;
+        if (chain === undefined) continue;
+        const resource = await this.resourceById(intent.metadata.x402Resource ?? "");
+        const accept = resource.accepts.find((candidate) => candidate.chain === chain);
+        const confirmer = this.#options.confirmers.get(caip2Of(chain));
+        if (accept === undefined || confirmer === undefined) continue;
+
+        // Rebuilt from what was locked, never re-priced. The payer signed for
+        // this amount, and a quote that has moved since says nothing about the
+        // transfer already on the chain.
+        const settlement = await confirmSettlement(
+          { success: true, transaction: txHash, network: caip2Of(chain) },
+          {
+            scheme: "exact",
+            network: caip2Of(chain),
+            amount: transaction.settlementAmount.amount.toString(),
+            asset: accept.contract,
+            payTo: accept.payTo,
+            maxTimeoutSeconds: resource.maxTimeoutSeconds,
+          },
+          confirmer,
+        );
+        await this.#options.engine.recordFacilitatorSettlement(transaction.id, {
+          chain,
+          txHash: settlement.transaction,
+          amount: {
+            amount: BigInt(settlement.transfer.value),
+            asset: transaction.settlementAmount.asset,
+          },
+        });
+        recovered.push(transaction.id);
+      } catch {
+        // Left for the next pass, which is what a sweep is for.
+      }
+    }
+    return recovered;
   }
 
   /**
