@@ -23,7 +23,12 @@ import {
   type PaymentLinkRepository,
   type ProductRepository,
 } from "@mayarin/catalog";
-import type { ChainId, DepositRepository, SettlementEventRepository } from "@mayarin/chain";
+import type {
+  ChainId,
+  ContractCodeSource,
+  DepositRepository,
+  SettlementEventRepository,
+} from "@mayarin/chain";
 import type { ClearingRepository } from "@mayarin/clearing";
 import {
   type AuditQueryRepository,
@@ -41,6 +46,7 @@ import {
   DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
   DrizzleMerchantAccountRepository,
+  DrizzleMerchantAssetPolicySource,
   DrizzleMerchantEventRepository,
   DrizzleMerchantRepository,
   DrizzleMerchantSettingChangeRepository,
@@ -59,9 +65,17 @@ import {
 import { type InvoiceRepository, InvoiceService } from "@mayarin/invoicing";
 import type { LedgerRepository } from "@mayarin/ledger";
 import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
-import type { PaymentIntentRepository } from "@mayarin/payment-intent";
+import {
+  DerivedRailCatalog,
+  type PaymentIntentRepository,
+  type RailCatalog,
+} from "@mayarin/payment-intent";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
-import { EvmWalletBalanceReader, ViemSignatureVerifier } from "@mayarin/provider-evm";
+import {
+  EvmContractCodeReader,
+  EvmWalletBalanceReader,
+  ViemSignatureVerifier,
+} from "@mayarin/provider-evm";
 import {
   ApiKeyStamper,
   safeDeploymentFor,
@@ -81,6 +95,7 @@ import {
   type WalletWithdrawalRepository,
 } from "@mayarin/wallet";
 import type { Config } from "./config.ts";
+import { chainReceipts, PaymentApiPricingSource, settlementChains } from "./rails.ts";
 import {
   ApiKeyService,
   type SecretGenerator,
@@ -162,6 +177,24 @@ export interface Container {
    * "nowhere", and a merchant should be able to read the answer.
    */
   readonly settlementAddresses: SettlementAddressResolver;
+  /**
+   * Which `(chain, asset)` pairs this merchant can be paid on, and why not the
+   * others (#244).
+   *
+   * The same derivation the payment API runs for a payer, read here for the
+   * merchant: the reasons are what turn "my link does not work on Arc" into a
+   * settings change they can make themselves.
+   */
+  readonly rails: RailCatalog;
+  /**
+   * Reads deployed code, for the settings guard (#244).
+   *
+   * A merchant saving a Safe address that exists on one chain and not another
+   * is saving an address that will be paid into on a chain where nothing can
+   * spend from it. Absent on a deployment with no RPC access, where the save is
+   * accepted unchecked because there is no chain to strand funds on.
+   */
+  readonly contractCode?: ContractCodeSource;
   close(): Promise<void>;
 }
 
@@ -396,7 +429,7 @@ export function createContainer(options: CreateContainerOptions): Container {
   const keyProvider = options.merchantKeyProvider ?? createMerchantKeyProvider(config);
   const settlementAddresses = new SettlementAddressResolver({ wallets: walletRepository });
   const balanceReader = options.walletBalances ?? createBalanceReader(config);
-  const nativeAsset = config.chainNativeAssets[config.walletProvisionChain];
+  const chains = settlementChains(config);
   const wallets = new WalletService({
     wallets: walletRepository,
     withdrawals:
@@ -409,11 +442,11 @@ export function createContainer(options: CreateContainerOptions): Container {
     clock,
     treasuryAddresses,
     merchants,
-    chain: config.walletProvisionChain,
+    chains,
     settlementAddresses,
     ...(balanceReader === undefined ? {} : { balances: balanceReader }),
     ...(walletProvider === undefined ? {} : { walletProvider }),
-    ...(nativeAsset === undefined ? {} : { nativeAsset }),
+    nativeAssets: config.chainNativeAssets,
     ...(keyProvider === undefined ? {} : { keyProvider }),
     ...(walletProvider === undefined
       ? {}
@@ -425,6 +458,25 @@ export function createContainer(options: CreateContainerOptions): Container {
             treasuryAddresses,
           }),
         }),
+  });
+
+  const paymentApi = options.paymentApi ?? new PaymentApiClient({ baseUrl: config.paymentApiUrl });
+
+  const contractCode =
+    Object.keys(config.chainRpcUrls).length === 0
+      ? undefined
+      : new EvmContractCodeReader({ rpcUrls: config.chainRpcUrls });
+
+  const rails = new DerivedRailCatalog({
+    receipts: chainReceipts(config),
+    merchantPolicies: new DrizzleMerchantAssetPolicySource(merchants),
+    settlement: {
+      destinationFor: (merchantId, chain, configured) =>
+        settlementAddresses.effective(merchantId, chain, configured),
+    },
+    pricing: new PaymentApiPricingSource(paymentApi),
+    defaultSettlementAsset: config.settlementAsset,
+    ...(contractCode === undefined ? {} : { code: contractCode }),
   });
 
   return {
@@ -443,11 +495,13 @@ export function createContainer(options: CreateContainerOptions): Container {
     apiKeys,
     settlements,
     eventLogs,
-    paymentApi: options.paymentApi ?? new PaymentApiClient({ baseUrl: config.paymentApiUrl }),
+    paymentApi,
     webhooks,
     wallets,
     merchantWallets: walletRepository,
     settlementAddresses,
+    rails,
+    ...(contractCode === undefined ? {} : { contractCode }),
     close: () => (handle === undefined ? Promise.resolve() : handle.close()),
   };
 }

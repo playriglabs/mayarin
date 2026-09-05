@@ -7,7 +7,7 @@
 
 import type { ChainId } from "@mayarin/chain";
 import { CHAIN_IDS } from "@mayarin/chain";
-import { type AssetCode, ConfigurationError } from "@mayarin/shared";
+import { type AssetCode, assetCodeSchema, ConfigurationError } from "@mayarin/shared";
 import { z } from "zod";
 
 /** Same shape the payment API parses these from, so one `.env` serves both. */
@@ -170,6 +170,14 @@ const configSchema = z.object({
    * this deployment will not report a balance for and will not move — both
    * refusals are better than a guessed token address.
    */
+  /**
+   * What a merchant who has chosen nothing is paid in.
+   *
+   * The same value the payment API boots with, and it has to match: the rail
+   * catalog prices every rail into it, so a dashboard naming a different
+   * default would report rails a payer is never offered.
+   */
+  settlementAsset: assetCodeSchema.default("USDC"),
   chainAssets: jsonObject<Partial<Record<ChainId, Partial<Record<AssetCode, string>>>>>(
     "CHAIN_ASSETS",
     "{}",
@@ -232,6 +240,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     turnkeyApiPublicKey: env.TURNKEY_API_PUBLIC_KEY,
     turnkeyApiPrivateKey: env.TURNKEY_API_PRIVATE_KEY,
     turnkeySignerApiPublicKey: env.TURNKEY_SIGNER_API_PUBLIC_KEY,
+    settlementAsset: env.SETTLEMENT_ASSET,
     chainAssets: env.CHAIN_ASSETS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainRpcUrls: env.CHAIN_RPC_URLS,

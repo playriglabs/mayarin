@@ -380,4 +380,34 @@ describe("cross-tenant isolation", () => {
     expect(body?.changes).toEqual([]);
     expect(otherSeed.user.merchantId).not.toBe(harness.merchantId);
   });
+
+  test("refuses a settlement address deployed on one chain and not the other", async () => {
+    // `merchants.settlement_address` wins on every chain, so a Safe deployed on
+    // Base would otherwise be paid into on Arc, where it has no code — the
+    // payment settles and the money is somewhere nobody can spend from (#244).
+    const harness = await createDashboardHarness({
+      adminEmail: ADMIN_EMAIL,
+      adminPassword: ADMIN_PASSWORD,
+      contractsOn: ["base-sepolia"],
+    });
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const { status, body } = await patch(harness, auth, { settlementAddress: ADDRESS });
+
+    expect(status).toBe(400);
+    expect(body?.error?.message).toContain("has no code on arc-testnet");
+  });
+
+  test("accepts an address with code nowhere, which is an EOA everywhere", async () => {
+    const harness = await createDashboardHarness({
+      adminEmail: ADMIN_EMAIL,
+      adminPassword: ADMIN_PASSWORD,
+      contractsOn: [],
+    });
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const { status } = await patch(harness, auth, { settlementAddress: ADDRESS });
+
+    expect(status).toBe(200);
+  });
 });

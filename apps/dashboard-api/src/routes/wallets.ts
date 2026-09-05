@@ -56,6 +56,8 @@ const verifyBodySchema = z
  */
 const withdrawBodySchema = z
   .object({
+    /** Which chain's wallet to move from. A merchant has one per chain (#244). */
+    chain: z.enum(CHAIN_IDS),
     asset: z.string().refine(isAssetCode, "unknown asset"),
     amount: z.string().regex(/^[0-9]+$/, "amount must be minor units"),
     to: z.string(),
@@ -134,12 +136,45 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
    * can move it is one of these wallets.
    */
   app.get("/balance", async (c) => {
-    const balance = await container.wallets.balance(scopeOf(c));
+    // One entry per chain this deployment settles on (#244), including the
+    // chains where this merchant has no address yet — a row that is absent and
+    // a row that is empty read the same to a merchant, and only one of them
+    // tells them there is something to do.
+    const balances = await container.wallets.balances(scopeOf(c));
     return c.json({
-      chain: balance.chain,
-      address: balance.address ?? null,
-      withdrawable: balance.withdrawable,
-      balances: balance.balances.map(toMoneyDto),
+      balances: balances.map((balance) => ({
+        chain: balance.chain,
+        address: balance.address ?? null,
+        withdrawable: balance.withdrawable,
+        balances: balance.balances.map(toMoneyDto),
+      })),
+    });
+  });
+
+  /**
+   * Which networks this merchant can be paid on, and why not the others (#244).
+   *
+   * The reasons are the reason this endpoint exists. A merchant whose Arc link
+   * fails can read here that they have no settlement address on Arc, which is a
+   * settings change; before this, the same fact arrived as a payment that
+   * refused to lock, naming a field they had never been shown.
+   */
+  app.get("/rails", async (c) => {
+    const report = await container.rails.describe(scopeOf(c).merchantId);
+    return c.json({
+      settlementAsset: report.settlementAsset,
+      rails: report.rails.map((rail) => ({
+        chain: rail.chain,
+        asset: rail.asset,
+        contract: rail.contract ?? null,
+        payTo: rail.payTo ?? null,
+      })),
+      unavailable: report.unavailable.map((entry) => ({
+        kind: entry.kind,
+        chain: entry.chain,
+        asset: "asset" in entry ? entry.asset : null,
+        reason: entry.reason,
+      })),
     });
   });
 
@@ -158,6 +193,7 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
   app.post("/withdraw", csrfMiddleware(), async (c) => {
     const body = withdrawBodySchema.parse(await c.req.json());
     const result = await container.wallets.withdraw(scopeOf(c), {
+      chain: body.chain,
       asset: body.asset,
       amount: BigInt(body.amount),
       to: body.to,

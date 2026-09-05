@@ -6,7 +6,8 @@
  * here takes a merchant id, so there is nothing to tamper with.
  */
 
-import { UnauthorizedError } from "@mayarin/shared";
+import type { ChainId } from "@mayarin/chain";
+import { UnauthorizedError, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import {
@@ -17,6 +18,7 @@ import {
 } from "../dto/settings.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
+import { settlementChains } from "../rails.ts";
 
 export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
@@ -34,6 +36,40 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
       container.config.walletProvisionChain,
       configured,
     );
+
+  /**
+   * Refuses a settlement address that exists on some chains and not others (#244).
+   *
+   * `merchants.settlement_address` is one value that wins on **every** chain, so
+   * a Safe deployed on Base is otherwise paid to the same address on Arc, where
+   * it has no code: the payment settles, and the money is at an address nobody
+   * can spend from. An address with code nowhere is an EOA — the same key
+   * controls it everywhere — and passes.
+   *
+   * Checked at the save rather than only at the payment, because a payout
+   * address discovered to be wrong months later is a mistake with nothing left
+   * to point at the person who made it.
+   */
+  async function assertAddressExistsEverywhere(address: string): Promise<void> {
+    const code = container.contractCode;
+    if (code === undefined) return;
+
+    const chains = settlementChains(container.config);
+    const withCode: ChainId[] = [];
+    const withoutCode: ChainId[] = [];
+    for (const chain of chains) {
+      ((await code.hasCode(chain, address)) ? withCode : withoutCode).push(chain);
+    }
+
+    if (withCode.length === 0 || withoutCode.length === 0) return;
+
+    throw new ValidationError(
+      `${address} is a contract on ${withCode.join(", ")} and has no code on ${withoutCode.join(", ")}. ` +
+        "A contract does not exist on a chain it was not deployed to, so paying it there would strand the funds. " +
+        "Deploy it on every network you take payment on, or use an address you hold the key to.",
+      { settlementAddress: address, deployedOn: withCode, missingOn: withoutCode },
+    );
+  }
 
   app.get("/", async (c) => {
     const scope = c.get("scope");
@@ -53,9 +89,16 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
     }
 
     const body = updateSettingsBodySchema.parse(await c.req.json());
+    if (typeof body.settlementAddress === "string") {
+      await assertAddressExistsEverywhere(body.settlementAddress.trim().toLowerCase());
+    }
+
     const { merchant, changes } = await container.settings.update(scope, session.user.id, {
       ...(body.settlementAsset === undefined ? {} : { settlementAsset: body.settlementAsset }),
       ...(body.acceptedAssets === undefined ? {} : { acceptedAssets: body.acceptedAssets }),
+      ...(body.acceptedAssetsByChain === undefined
+        ? {}
+        : { acceptedAssetsByChain: body.acceptedAssetsByChain }),
       ...(body.settlementAddress === undefined
         ? {}
         : { settlementAddress: body.settlementAddress }),
