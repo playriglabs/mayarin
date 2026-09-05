@@ -110,9 +110,10 @@ no). A spending policy nobody has watched refuse anything is a claim.
 
 ## Shipped
 
-The original spine landed in twelve PRs. RFC #207 is now closed after a real
-Base Sepolia payment verified the paid response and accounting fixes. Those
-fixes still need deployment; documentation is deferred until the end.
+The original spine landed in twelve PRs. RFC #207 is now closed: the paid
+response and accounting fixes were verified by a real Base Sepolia payment, the
+Arc confirmation fix by a real Arc one, and all three are deployed and paid for
+on the public endpoint. Documentation is deferred until the end.
 
 | PR                                                      | What landed                                                          |
 | ------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -202,6 +203,27 @@ The retest, through the fixed local API against an isolated Postgres database:
   agree with each other and with the payment: the payer lost the 0.02 USDC plus
   0.002178825 USDC of gas it paid by broadcasting its own authorization, and the
   merchant gained exactly 0.02 USDC.
+
+### The public deployment, on Arc — 5 September
+
+`core-api`, `dashboard-api` and `chain-worker` deployed from `5a1cb30`, and the
+same runner was pointed at the public endpoint with its ledger read through
+Railway's Postgres proxy. Nothing local was involved.
+
+- `https://api-testnet.mayarin.xyz/x402/fx/quote` answered `402`, then `200`
+  against a signed authorization and no API key.
+- [`0xf51d9d71…`](https://testnet.arcscan.app/tx/0xf51d9d7171ba01b21df42ca541edc3c29e2e392de9492a482402a0ca29cc10b9),
+  block `60521893`: 20000 USDC delivered, receipt `success`.
+- Intent `pi_01M1QWW6PZ432ME8FF2J15HD7R` `COMPLETED` on `arc-testnet` via the
+  `x402` path; clearing `clr_01M1QWW6QWDANQRS85XJRG6AAP` `SUCCESS`, zero fee,
+  net 20000.
+- `ASSET_RECEIVED`, `CLEARING` and `SETTLED` each balanced at 20000 USDC. The
+  merchant went from 0.06 to 0.08 USDC; the payer paid the 0.02 plus
+  0.002178325 USDC of gas for broadcasting its own authorization.
+
+**#207 criterion 6 is now satisfied on a live public rail**, which is the form
+it was always asking for. Criterion 9 — the docs page and the OpenAPI paths —
+is still the only one open.
 
 **One payment was stranded on the way there, and the hole is still open.** The
 run that hit the ambiguity moved 0.02 USDC on-chain
@@ -545,30 +567,26 @@ resource cannot be created advertising terms no payer could sign.
 
 ### Next, in order
 
-The paid flow and ledger reconciliation passed on Base Sepolia and on Arc
-through the fixed local API. RFC #207 is closed, with documentation deferred.
-Everything below is ordered by what unblocks the most.
+The fixes are deployed, and the public endpoint has been paid on Arc. RFC #207
+is closed, with documentation deferred. Everything below is ordered by what
+unblocks the most.
 
-1. **Deploy the paid-response, accounting and Arc-confirmation fixes, then
-   verify the public Arc flow.** Both rails now pass against a fixed local API;
-   the public deployment has none of the three fixes, so its Arc resource still
-   refuses every payment it broadcasts.
-2. **Record the broadcast before confirming it**, so a refused confirmation
+1. **Record the broadcast before confirming it**, so a refused confirmation
    leaves a hash to resume from rather than stranded money. See the Arc
    validation above for the payment this cost.
-3. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
+2. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
    the trace, the refusal run, and the no-signup `curl`. Two of the three now
    have something real to point at.
-4. **Exact-output swaps** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
+3. **Exact-output swaps** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
    Without it an agent holding only ETH cannot pay a USDC price at all, which is
    one of the pitch's own sentences.
-5. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
+4. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
    and the policy visibly refusing an over-limit payment. A spending policy
    nobody has watched refuse anything is a claim.
-6. **Decide Hedera's path** ([#209](https://github.com/playriglabs/mayarin/issues/209)):
+5. **Decide Hedera's path** ([#209](https://github.com/playriglabs/mayarin/issues/209)):
    Blocky402's facilitator, or building the permit2 scheme ourselves. Its USDC
    has no EIP-3009, so `exact`/EIP-3009 is not available there at all.
-7. **Documentation and OpenAPI updates at the end.** Add the x402 page and
+6. **Documentation and OpenAPI updates at the end.** Add the x402 page and
    expose its unversioned routes in the generated spec, then run
    `bun run docs:openapi:check`. This is deferred work, not a reason to reopen
    [#207](https://github.com/playriglabs/mayarin/issues/207).
