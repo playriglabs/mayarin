@@ -38,8 +38,10 @@ const linkBootstrap: LinkBootstrap = {
   currency: "IDR",
   total: idr("Rp 50.000,00"),
   lines: null,
-  accepted: ["USDC", "ETH"],
-  chain: "base-sepolia",
+  rails: [
+    { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
+    { chain: "base-sepolia", asset: "ETH", contract: null },
+  ],
   lockMinutes: 15,
 };
 
@@ -79,8 +81,10 @@ const invoiceBootstrap: InvoiceBootstrap = {
   issuedAt: "2026-01-01T00:00:00.000Z",
   dueAt: "2026-02-01T00:00:00.000Z",
   payable: true,
-  accepted: ["USDC", "ETH"],
-  chain: "base-sepolia",
+  rails: [
+    { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
+    { chain: "arc-testnet", asset: "USDC", contract: "0x360000" },
+  ],
   checkoutUrl: "http://localhost:3000/v1/invoices/inv_1/checkout",
 };
 
@@ -91,6 +95,9 @@ describe("link page", () => {
     expect(html).toContain("Paket");
     expect(html).toContain("Warung Kopi — Jakarta");
     expect(html).toContain('alt="Mayarin"');
+    // One network carrying two assets: the asset is the only question left to
+    // ask, so the network row is not rendered (#244).
+    expect(html).not.toContain("Network");
     expect(html).toContain("Pay with");
     expect(html).toContain("USDC");
     expect(html).toContain("Prices are locked for 15 minutes");
@@ -107,6 +114,48 @@ describe("link page", () => {
     expect(html).toContain("Amount");
     expect(html).toContain("S$ 0");
     expect(html).toContain('inputMode="decimal"');
+  });
+
+  test("offers the network first when a deployment has more than one", () => {
+    const html = renderToStaticMarkup(
+      <LinkPage
+        bootstrap={{
+          ...linkBootstrap,
+          rails: [
+            { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
+            { chain: "base-sepolia", asset: "ETH", contract: null },
+            { chain: "arc-testnet", asset: "USDC", contract: "0x360000" },
+          ],
+        }}
+      />,
+    );
+    expect(html).toContain("Network");
+    expect(html).toContain("Base Sepolia");
+    expect(html).toContain("Arc Testnet");
+    // Assets belong to the selected network, never unioned across them (#244):
+    // the default selection is Base, which has both.
+    expect(html).toContain("USDC");
+    expect(html).toContain("ETH");
+    expect(html).toContain("Send USDC on Base Sepolia only");
+  });
+
+  test("a single rail renders no chooser at all", () => {
+    const html = renderToStaticMarkup(
+      <LinkPage
+        bootstrap={{
+          ...linkBootstrap,
+          rails: [{ chain: "arc-testnet", asset: "USDC", contract: "0x360000" }],
+        }}
+      />,
+    );
+    expect(html).not.toContain("Network");
+    expect(html).not.toContain("Pay with");
+    expect(html).toContain("with USDC on Arc Testnet");
+  });
+
+  test("a merchant with no rail is told so rather than shown a button that fails", () => {
+    const html = renderToStaticMarkup(<LinkPage bootstrap={{ ...linkBootstrap, rails: [] }} />);
+    expect(html).toContain("This merchant has no payment method available");
   });
 
   test("a dead link says so and offers no button", () => {
@@ -243,8 +292,10 @@ describe("invoice page", () => {
     expect(html).toContain("Amount due");
     expect(html).toContain("Rp 125.000,00");
     expect(html).toContain("Powered by <strong>mayarin.xyz</strong>");
-    expect(html).toContain("Pay with");
-    expect(html).toContain("USDC");
+    // Two networks carrying one asset each: the network is the only question
+    // left to ask, so the asset row is not rendered (#244).
+    expect(html).toContain("Network");
+    expect(html).toContain("Arc Testnet");
     expect(html).toContain("Pay Rp 125.000,00");
   });
 

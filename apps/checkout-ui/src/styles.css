@@ -184,6 +184,21 @@
   .assets {
     @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2;
   }
+  .networks {
+    @apply flex flex-wrap gap-2;
+  }
+  .network {
+    @apply min-h-10 rounded-xs border border-field bg-transparent px-3.5 py-2 text-xs font-medium text-ink transition-[border-color,background-color,box-shadow] duration-200;
+  }
+  .network:hover {
+    @apply border-muted;
+  }
+  .network[aria-pressed="true"] {
+    @apply border-brand bg-brand/10 shadow-[0_0_0_1px_var(--color-brand)];
+  }
+  .rail-note {
+    @apply mt-5 mb-0 text-xs leading-relaxed text-muted;
+  }
   .asset {
     @apply flex min-h-13 items-center justify-start gap-2.5 rounded-xs border border-field bg-transparent px-3.5 py-2.5 text-ink transition-[border-color,background-color,box-shadow] duration-200;
   }

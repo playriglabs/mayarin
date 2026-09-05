@@ -47,7 +47,7 @@ import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 import { RuntimeMarket } from "../src/market.ts";
-import { chainReceipts, RatePricingSource } from "../src/rails.ts";
+import { chainReceipts, QuotePricingSource } from "../src/rails.ts";
 import { createApiKeyVerifier } from "../src/services/api-key-verifier.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 import { PaymentStream } from "../src/services/payment-stream.ts";
@@ -202,7 +202,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   const rails = new DerivedRailCatalog({
     receipts: chainReceipts(config, new Set()),
     merchantPolicies,
-    pricing: new RatePricingSource(rates),
+    pricing: new QuotePricingSource({ market, rates, config }),
     defaultSettlementAsset: config.settlementAsset,
   });
 

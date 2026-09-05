@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { AssetPicker } from "../../shared/asset-picker.tsx";
 import { Brand } from "../../shared/brand.tsx";
 import { PoweredBy } from "../../shared/powered-by.tsx";
+import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
 import { dateLine, STATUS_LABEL, STATUS_TONE } from "./invoice-status.ts";
 import type { InvoiceBootstrap } from "./types.ts";
 
@@ -15,17 +15,17 @@ import type { InvoiceBootstrap } from "./types.ts";
 export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstrap }) {
   const { status, buyer, lines, payable } = bootstrap;
   const [busy, setBusy] = useState(false);
-  const [asset, setAsset] = useState<string | undefined>(bootstrap.accepted[0]);
+  const [rail, setRail] = useState(bootstrap.rails[0]);
 
   async function pay() {
-    if (asset === undefined) return;
+    if (rail === undefined) return;
     setBusy(true);
     try {
       const response = await fetch(bootstrap.checkoutUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          payment: { asset, chain: bootstrap.chain },
+          payment: { asset: rail.asset, chain: rail.chain },
           executionPath: "deposit-match",
         }),
       });
@@ -117,18 +117,24 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       {bootstrap.notes !== null && <p className="notes muted">{bootstrap.notes}</p>}
 
       {payable && (
-        <AssetPicker
-          accepted={bootstrap.accepted}
-          selected={asset}
-          onSelect={setAsset}
-          className="screen-only"
-        />
+        <>
+          <RailPicker
+            rails={bootstrap.rails}
+            selected={rail}
+            onSelect={setRail}
+            className="screen-only"
+          />
+          {/* One rail asks nothing, so the page states it instead of hiding it. */}
+          {bootstrap.rails.length === 1 && (
+            <p className="rail-note screen-only">Payable with {railSummary(rail)}.</p>
+          )}
+        </>
       )}
 
       <button
         type="button"
         className="primary"
-        disabled={!payable || busy || asset === undefined}
+        disabled={!payable || busy || rail === undefined}
         onClick={() => void pay()}
       >
         {payable ? `Pay ${bootstrap.outstanding.display}` : STATUS_LABEL[status]}

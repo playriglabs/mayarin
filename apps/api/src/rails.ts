@@ -14,10 +14,10 @@
  */
 
 import { type ChainId, isChainId } from "@mayarin/chain";
-import type { RateProvider } from "@mayarin/clearing";
 import type { ChainReceipt, RailPricingSource } from "@mayarin/payment-intent";
-import { type AssetCode, assetDecimals, isAssetCode, money } from "@mayarin/shared";
+import { type AssetCode, assetDecimals, isAssetCode, isPositive, money } from "@mayarin/shared";
 import type { Config } from "./config.ts";
+import { type PricingContext, priceFor } from "./pricing.ts";
 
 /**
  * What this deployment can receive, per chain.
@@ -63,26 +63,32 @@ export function chainReceipts(
 }
 
 /**
- * Whether the rate provider can price a rail into what the merchant settles in.
+ * Whether a rail can be priced into what the merchant settles in.
  *
- * Asked by quoting one whole unit, because that is the only honest way to know:
- * a pair is priceable when the provider prices it, and every reason it might
- * not — no venue, no oracle feed, a stale reference, a closed FX market — lives
- * inside the provider rather than in a table this could read.
+ * Asked through `priceFor` — the same function the indicative quote and,
+ * through it, the price lock use. Asking a different source would reproduce the
+ * bug that function's own comment records: a preview that cannot fail where the
+ * lock fails is not a preview, and a rail offered on a pair the lock refuses is
+ * worse, because the payer has already chosen by then.
+ *
+ * One whole unit of the settlement asset is the probe, matching what the
+ * contract path prices with. Every reason a pair might not price — no venue, no
+ * oracle feed, a stale reference, a closed FX market — lives inside that call
+ * rather than in a table this could read.
  *
  * Answers are cached briefly. A payer loading a link asks about every rail at
  * once, and a merchant's dashboard asks again on every refresh; without the
  * cache that is one oracle round trip per rail per page. The window is short
  * enough that a feed going stale is reflected within it, and nothing here locks
- * a price — the lock re-asks the same provider.
+ * a price — the lock re-asks the same source.
  */
-export class RatePricingSource implements RailPricingSource {
-  readonly #rates: RateProvider;
+export class QuotePricingSource implements RailPricingSource {
+  readonly #context: PricingContext;
   readonly #ttlMs: number;
   readonly #answers = new Map<string, { readonly at: number; readonly priceable: boolean }>();
 
-  constructor(rates: RateProvider, ttlMs = 30_000) {
-    this.#rates = rates;
+  constructor(context: PricingContext, ttlMs = 30_000) {
+    this.#context = context;
     this.#ttlMs = ttlMs;
   }
 
@@ -100,15 +106,16 @@ export class RatePricingSource implements RailPricingSource {
     const now = Date.now();
     if (cached !== undefined && now - cached.at < this.#ttlMs) return cached.priceable;
 
-    const priceable = await this.#quotes(rail.asset, rail.settlementAsset);
+    const priceable = await this.#quotes(rail.settlementAsset, rail.asset);
     this.#answers.set(key, { at: now, priceable });
     return priceable;
   }
 
-  async #quotes(from: AssetCode, to: AssetCode): Promise<boolean> {
+  async #quotes(settlementAsset: AssetCode, payerAsset: AssetCode): Promise<boolean> {
     try {
-      const quote = await this.#rates.quote(from, to, money(oneWholeUnit(from), from));
-      return quote.scaledRate > 0n;
+      const probe = money(oneWholeUnit(settlementAsset), settlementAsset);
+      const quote = await priceFor(this.#context, probe, payerAsset);
+      return isPositive(quote.priced);
     } catch {
       // Every failure means the same thing here — this pair cannot be priced
       // right now — and the rail is dropped with that as the stated reason. The

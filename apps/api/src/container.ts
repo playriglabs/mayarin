@@ -107,7 +107,7 @@ import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./cont
 import { RuntimeMarket, RuntimePriceSource, RuntimeStablecoinRegistry } from "./market.ts";
 import type { ApiKeyVerifier } from "./middleware/api-key.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
-import { chainReceipts, RatePricingSource } from "./rails.ts";
+import { chainReceipts, QuotePricingSource } from "./rails.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
@@ -838,7 +838,7 @@ export function createContainer({
               settlementAddresses.effective(merchantId, railChain, configured),
           },
         }),
-    pricing: new RatePricingSource(rates),
+    pricing: new QuotePricingSource({ market, rates, config }),
     defaultSettlementAsset: config.settlementAsset,
     // Absent with no RPC configured: a deployment settling off-chain cannot
     // strand funds at a contract address that does not exist on a chain.

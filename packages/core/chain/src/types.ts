@@ -47,6 +47,30 @@ export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
 };
 
 /**
+ * What a chain is called when a person reads it.
+ *
+ * A chain fact like `EVM_CHAIN_IDS`, for the same reason: "base-sepolia" is an
+ * identifier, and a payer choosing which network to send funds on is entitled
+ * to see the name the network calls itself. Every surface that shows a chain to
+ * a human reads this, so a chain cannot be labelled two ways in two places.
+ */
+export const CHAIN_LABELS: Readonly<Record<ChainId, string>> = {
+  base: "Base",
+  "base-sepolia": "Base Sepolia",
+  arbitrum: "Arbitrum One",
+  "arbitrum-sepolia": "Arbitrum Sepolia",
+  "robinhood-testnet": "Robinhood Testnet",
+  "arc-testnet": "Arc Testnet",
+  hedera: "Hedera",
+  "hedera-testnet": "Hedera Testnet",
+};
+
+/** The label for a chain, falling back to the identifier for an unknown one. */
+export function chainLabel(chain: string): string {
+  return isChainId(chain) ? CHAIN_LABELS[chain] : chain;
+}
+
+/**
  * Which chains carry real value. Also a chain fact rather than configuration:
  * a deployment can choose which chains it enables, but not whether Arbitrum One
  * is a mainnet.
