@@ -40,6 +40,7 @@ import {
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
 import { DepositQr } from "@/components/deposit-qr";
 import { Alert } from "@/components/ui/alert";
 import {
@@ -171,7 +172,7 @@ function RailOption({ value }: { readonly value: string }) {
   return (
     <span className="flex items-center gap-2">
       <AssetLabel symbol={asset} />
-      <span className="text-muted-foreground text-xs">{chainLabel(chain)}</span>
+      <ChainLabel chain={chain} size={18} className="text-muted-foreground text-xs" />
     </span>
   );
 }

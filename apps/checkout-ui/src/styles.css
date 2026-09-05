@@ -188,7 +188,7 @@
     @apply flex flex-wrap gap-2;
   }
   .network {
-    @apply min-h-10 rounded-xs border border-field bg-transparent px-3.5 py-2 text-xs font-medium text-ink transition-[border-color,background-color,box-shadow] duration-200;
+    @apply inline-flex min-h-10 items-center rounded-xs border border-field bg-transparent px-3.5 py-2 text-xs font-medium text-ink transition-[border-color,background-color,box-shadow] duration-200;
   }
   .network:hover {
     @apply border-muted;
@@ -210,6 +210,15 @@
   }
   .asset-logo {
     @apply shrink-0 rounded-full object-contain;
+  }
+  .asset-logo-fallback {
+    @apply inline-grid place-items-center border border-line bg-surface font-semibold text-[10px] text-muted;
+  }
+  .chain-logo {
+    @apply shrink-0 rounded-full object-contain;
+  }
+  .chain-label {
+    @apply inline-flex items-center gap-2 align-middle;
   }
   .payment-estimate {
     @apply mt-6 flex items-baseline justify-between gap-4 border-y border-line py-4;

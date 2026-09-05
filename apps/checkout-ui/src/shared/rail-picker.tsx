@@ -1,5 +1,6 @@
 import { chainLabel } from "@mayarin/chain";
 import { AssetLogo } from "./asset-logo.tsx";
+import { ChainLabel } from "./chain-logo.tsx";
 import type { Rail } from "./types.ts";
 
 /**
@@ -61,7 +62,7 @@ export function RailPicker({
                   if (first !== undefined) onSelect(first);
                 }}
               >
-                {chainLabel(choice)}
+                <ChainLabel chain={choice} />
               </button>
             ))}
           </div>

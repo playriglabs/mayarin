@@ -29,6 +29,7 @@ import {
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -528,7 +529,9 @@ function Wallets() {
                   <Card key={row.chain} className="flex flex-col gap-4 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex flex-col gap-1">
-                        <h3 className="font-medium text-sm">{chainLabel(row.chain)}</h3>
+                        <h3 className="font-medium text-sm">
+                          <ChainLabel chain={row.chain} />
+                        </h3>
                         <p className="break-all font-mono text-subtle-foreground text-sm">
                           {row.address ?? "No settlement address on this network yet"}
                         </p>
@@ -656,7 +659,9 @@ function Wallets() {
                         aria-label={`${chainLabel(network.chain)} payment availability`}
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <h3 className="font-medium text-sm">{chainLabel(network.chain)}</h3>
+                          <h3 className="font-medium text-sm">
+                            <ChainLabel chain={network.chain} />
+                          </h3>
                           <Badge variant={hasRails && !partiallyAvailable ? "success" : "warning"}>
                             {partiallyAvailable
                               ? "Partially available"
@@ -748,7 +753,7 @@ function Wallets() {
                         worse than one they have to scroll. */}
                     <TableCell className="break-all font-mono text-xs">{wallet.address}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {chainLabel(wallet.chain)}
+                      <ChainLabel chain={wallet.chain} size={18} />
                     </TableCell>
                     <TableCell>
                       <Badge>{PROVENANCE_LABEL[wallet.provenance]}</Badge>
@@ -931,12 +936,15 @@ function Wallets() {
                   onValueChange={setConnectChain}
                 >
                   <SelectTrigger id="wallet-chain">
-                    <SelectValue placeholder="Select a network" />
+                    <SelectValue
+                      placeholder="Select a network"
+                      renderValue={(option) => <ChainLabel chain={option.value} />}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {chainBalances.map((row) => (
                       <SelectItem key={row.chain} value={row.chain}>
-                        {chainLabel(row.chain)}
+                        <ChainLabel chain={row.chain} />
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   CHAIN_IDS,
   caip2Of,
+  chainLogoUrl,
   chainOfCaip2,
   EVM_CHAIN_IDS,
   isChainId,
@@ -32,6 +33,15 @@ describe("chain facts", () => {
   // be read off an endpoint. A chain fact nobody can check is worse than none.
   test("does not claim a chain it cannot verify", () => {
     expect(isChainId("arc")).toBe(false);
+  });
+
+  test("provides the same network mark for mainnet and testnet variants", () => {
+    expect(chainLogoUrl("base")).toBe(
+      "https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png",
+    );
+    expect(chainLogoUrl("base-sepolia")).toBe(chainLogoUrl("base"));
+    expect(chainLogoUrl("arc-testnet", "/arc.svg")).toBe("/arc.svg");
+    expect(chainLogoUrl("robinhood-testnet")).toBeUndefined();
   });
 });
 

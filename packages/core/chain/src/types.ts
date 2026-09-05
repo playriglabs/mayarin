@@ -70,6 +70,20 @@ export function chainLabel(chain: string): string {
   return isChainId(chain) ? CHAIN_LABELS[chain] : chain;
 }
 
+const BASE_LOGO = "https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png";
+
+/**
+ * The network mark shown beside a chain name.
+ *
+ * Arc is local because it is not in Trust Wallet's registry yet. Its argument
+ * lets each frontend hand Vite or Astro the public URL it actually serves.
+ */
+export function chainLogoUrl(chain: string, arcLogo = "/chains/arc.svg"): string | undefined {
+  if (chain === "base" || chain === "base-sepolia") return BASE_LOGO;
+  if (chain === "arc-testnet") return arcLogo;
+  return undefined;
+}
+
 /**
  * Which chains carry real value. Also a chain fact rather than configuration:
  * a deployment can choose which chains it enables, but not whether Arbitrum One

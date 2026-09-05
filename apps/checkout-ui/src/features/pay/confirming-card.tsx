@@ -1,3 +1,4 @@
+import { ChainLabel } from "../../shared/chain-logo.tsx";
 import { walletAmount } from "../../shared/money.ts";
 import type { Deposit } from "./types.ts";
 
@@ -17,8 +18,8 @@ export function ConfirmingCard({ deposit }: { readonly deposit: Deposit }) {
       <div>
         <h3>Payment detected</h3>
         <p>
-          Your {deposit.amount.asset} arrived on {deposit.chain} and is being confirmed. This takes
-          a moment.
+          Your {deposit.amount.asset} arrived on <ChainLabel chain={deposit.chain} size={18} /> and
+          is being confirmed. This takes a moment.
         </p>
         {deposit.received.amount !== "0" && (
           <p className="received-note">

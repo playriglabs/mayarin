@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Brand } from "../../shared/brand.tsx";
+import { ChainLabel } from "../../shared/chain-logo.tsx";
 import { PoweredBy } from "../../shared/powered-by.tsx";
-import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import { RailPicker } from "../../shared/rail-picker.tsx";
 import { dateLine, STATUS_LABEL, STATUS_TONE } from "./invoice-status.ts";
 import type { InvoiceBootstrap } from "./types.ts";
 
@@ -126,7 +127,9 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
           />
           {/* One rail asks nothing, so the page states it instead of hiding it. */}
           {bootstrap.rails.length === 1 && (
-            <p className="rail-note screen-only">Payable with {railSummary(rail)}.</p>
+            <p className="rail-note screen-only">
+              Payable with {rail?.asset} on <ChainLabel chain={rail?.chain ?? ""} size={18} />.
+            </p>
           )}
         </>
       )}

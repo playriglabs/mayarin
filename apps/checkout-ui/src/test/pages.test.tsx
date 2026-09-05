@@ -136,7 +136,9 @@ describe("link page", () => {
     // the default selection is Base, which has both.
     expect(html).toContain("USDC");
     expect(html).toContain("ETH");
-    expect(html).toContain("Send USDC on Base Sepolia only");
+    expect(html).toContain("Send USDC on");
+    expect(html).toContain("Base Sepolia</span></span> only");
+    expect(html).toContain("https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png");
   });
 
   test("a single rail renders no chooser at all", () => {

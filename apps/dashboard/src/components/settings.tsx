@@ -17,11 +17,11 @@
  */
 
 import { Tabs } from "@base-ui-components/react/tabs";
-import { chainLabel } from "@mayarin/chain";
 import { BankIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -382,7 +382,9 @@ function Settings() {
                                 className="flex flex-col gap-3 border border-border bg-muted/30 p-3"
                               >
                                 <div className="flex items-center justify-between gap-3">
-                                  <p className="font-medium text-sm">{chainLabel(entry.chain)}</p>
+                                  <p className="font-medium text-sm">
+                                    <ChainLabel chain={entry.chain} />
+                                  </p>
                                   <span className="flex items-center gap-2">
                                     <Badge variant={customized ? "brand" : "default"}>
                                       {customized ? "Custom" : "Default"}
