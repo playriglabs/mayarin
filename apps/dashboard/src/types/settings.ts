@@ -12,6 +12,11 @@ export interface SettingsDto {
   readonly name: string;
   readonly settlementAsset: string;
   readonly acceptedAssets: readonly string[];
+  /**
+   * Accepted assets narrowed per chain (#244). A chain absent inherits
+   * `acceptedAssets`, which is where every merchant starts.
+   */
+  readonly acceptedAssetsByChain: Readonly<Record<string, readonly string[]>>;
   /** What the merchant chose. `null` is "not chosen", not "nowhere to pay". */
   readonly settlementAddress: string | null;
   /** Where the money actually goes: the choice, or the managed wallet. */
@@ -45,6 +50,8 @@ export interface SettingsHistoryResponse {
 export interface UpdateSettingsRequest {
   readonly settlementAsset?: string;
   readonly acceptedAssets?: readonly string[];
+  /** The whole per-chain matrix, replaced as one (#244). */
+  readonly acceptedAssetsByChain?: Readonly<Record<string, readonly string[]>>;
   /** `null` clears it; an absent field leaves it alone. */
   readonly settlementAddress?: string | null;
   readonly city?: string | null;
@@ -75,16 +82,18 @@ export interface WalletDto {
 
 export interface WalletListResponse {
   readonly wallets: readonly WalletDto[];
-  /** The chain this deployment links, provisions and settles on. */
+  /** The chain this deployment links, provisions and settles on by default. */
   readonly chain: string;
+  /** Every chain it can provision on (#244) — a merchant needs one wallet per chain. */
+  readonly chains: readonly string[];
 }
 
 export interface WalletResponse {
   readonly wallet: WalletDto;
 }
 
-/** What the merchant's settlement address holds on-chain, per asset. */
-export interface WalletBalanceResponse {
+/** What the merchant's settlement address holds on one chain, per asset. */
+export interface ChainBalanceDto {
   readonly chain: string;
   /** `null` when the merchant has neither configured an address nor been provisioned one. */
   readonly address: string | null;
@@ -93,7 +102,50 @@ export interface WalletBalanceResponse {
   readonly balances: readonly MoneyDto[];
 }
 
+/**
+ * One row per chain this deployment settles on (#244).
+ *
+ * Chains the merchant has no address on are present with a `null` address
+ * rather than omitted: a missing row and an empty one read the same, and only
+ * one of them says there is something to do.
+ */
+export interface WalletBalanceResponse {
+  readonly balances: readonly ChainBalanceDto[];
+}
+
+/** One rail this merchant can be paid on. */
+export interface MerchantRailDto {
+  readonly chain: string;
+  readonly asset: string;
+  readonly contract: string | null;
+  readonly payTo: string | null;
+}
+
+/** Why a chain, or a pair on it, is not offered to a payer. */
+export interface RailExclusionDto {
+  readonly kind: string;
+  readonly chain: string;
+  readonly asset: string | null;
+  readonly reason: string;
+}
+
+/** What one chain can receive at all, before the merchant's own choices narrow it. */
+export interface SupportedChainDto {
+  readonly chain: string;
+  readonly assets: readonly string[];
+}
+
+export interface MerchantRailsResponse {
+  readonly settlementAsset: string;
+  /** The matrix the settings screen is drawn from: assets per chain, not unioned. */
+  readonly supported: readonly SupportedChainDto[];
+  readonly rails: readonly MerchantRailDto[];
+  readonly unavailable: readonly RailExclusionDto[];
+}
+
 export interface WithdrawRequest {
+  /** Which chain's wallet to move from. A merchant has one per chain. */
+  readonly chain: string;
   readonly asset: string;
   /** Minor units as a decimal string. Never a float: an ETH amount loses wei. */
   readonly amount: string;

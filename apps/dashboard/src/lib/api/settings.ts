@@ -11,6 +11,7 @@ import { type ApiError, request } from "@/lib/api/client";
 import { listPath } from "@/lib/api/list-path";
 import type {
   ChallengeResponse,
+  MerchantRailsResponse,
   SettingsHistoryResponse,
   SettingsResponse,
   UpdateSettingsRequest,
@@ -72,9 +73,13 @@ export const walletsApi = {
       body,
     }),
 
-  /** What the settlement address holds, read from the chain rather than the ledger. */
+  /** What the settlement address holds on every chain, read from the chain rather than the ledger. */
   balance: (): Effect.Effect<WalletBalanceResponse, ApiError> =>
     request<WalletBalanceResponse>("/wallets/balance"),
+
+  /** Which networks this merchant can be paid on, and why not the rest (#244). */
+  rails: (): Effect.Effect<MerchantRailsResponse, ApiError> =>
+    request<MerchantRailsResponse>("/wallets/rails"),
 
   /** Recent successful managed-wallet withdrawals, newest first. */
   withdrawalHistory: (): Effect.Effect<WalletWithdrawalHistoryResponse, ApiError> =>

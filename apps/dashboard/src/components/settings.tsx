@@ -17,6 +17,7 @@
  */
 
 import { Tabs } from "@base-ui-components/react/tabs";
+import { chainLabel } from "@mayarin/chain";
 import { BankIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
@@ -56,7 +57,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useSettings, useSettingsHistory, useUpdateSettings } from "@/hooks/settings";
+import {
+  useMerchantRails,
+  useSettings,
+  useSettingsHistory,
+  useUpdateSettings,
+} from "@/hooks/settings";
 import { useUrlTab } from "@/hooks/url-tab";
 import { ApiError } from "@/lib/api/client";
 import { COUNTRIES } from "@/lib/countries";
@@ -89,6 +95,13 @@ const COUNTRY_OPTIONS: readonly ComboboxOption[] = COUNTRIES.map((country) => ({
 interface Draft {
   readonly settlementAsset: string;
   readonly acceptedAssets: readonly string[];
+  /**
+   * Accepted assets narrowed per chain (#244).
+   *
+   * A chain absent inherits `acceptedAssets`, which is where every merchant
+   * starts and where a merchant who never touches the matrix stays.
+   */
+  readonly acceptedAssetsByChain: Readonly<Record<string, readonly string[]>>;
   readonly settlementAddress: string;
   readonly city: string;
   readonly countryCode: string;
@@ -101,6 +114,7 @@ function draftOf(settings: SettingsDto): Draft {
   return {
     settlementAsset: settings.settlementAsset,
     acceptedAssets: settings.acceptedAssets,
+    acceptedAssetsByChain: settings.acceptedAssetsByChain,
     settlementAddress: settings.settlementAddress ?? "",
     city: settings.city ?? "",
     countryCode: settings.countryCode ?? "",
@@ -120,6 +134,7 @@ function orNull(value: string): string | null {
 function Settings() {
   const settings = useSettings();
   const history = useSettingsHistory();
+  const rails = useMerchantRails();
   const update = useUpdateSettings();
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -133,6 +148,8 @@ function Settings() {
   // typed. Reset when the loaded settings change so a successful save leaves
   // the form showing what was actually stored, not what was submitted.
   const loaded = settings.data?.settings;
+  /** What each network can receive, so the matrix lists nothing a chain has no address for. */
+  const supportedChains = rails.data?.supported ?? [];
   useEffect(() => {
     if (loaded !== undefined) setDraft(draftOf(loaded));
   }, [loaded]);
@@ -144,6 +161,7 @@ function Settings() {
       await update.mutateAsync({
         settlementAsset: draft.settlementAsset,
         acceptedAssets: draft.acceptedAssets,
+        acceptedAssetsByChain: draft.acceptedAssetsByChain,
         settlementAddress: orNull(draft.settlementAddress),
         city: orNull(draft.city),
         countryCode: orNull(draft.countryCode),
@@ -160,6 +178,55 @@ function Settings() {
       ? [...draft.acceptedAssets, asset]
       : draft.acceptedAssets.filter((a) => a !== asset);
     setDraft({ ...draft, acceptedAssets: next });
+  }
+
+  /**
+   * What this merchant accepts on one chain: their row if they have written
+   * one, the merchant-wide list otherwise.
+   */
+  function acceptedOn(
+    current: Draft,
+    chain: string,
+    supported: readonly string[],
+  ): readonly string[] {
+    const row = current.acceptedAssetsByChain[chain];
+    if (row !== undefined && row.length > 0) return row;
+    // An empty merchant-wide list means "no preference", which the catalog
+    // reads as everything this chain can receive — so the boxes are ticked.
+    return current.acceptedAssets.length === 0 ? supported : current.acceptedAssets;
+  }
+
+  /**
+   * Ticks or unticks one `(chain, asset)` box.
+   *
+   * Writing a row is what turns an inherited chain into an explicit one, so the
+   * first tick materialises the row from what was inherited — otherwise
+   * unticking ETH on Base would silently drop USDC with it. Unticking back to
+   * the inherited set removes the row again, so "inherit" keeps exactly one
+   * representation.
+   */
+  function toggleChainAsset(
+    chain: string,
+    asset: string,
+    checked: boolean,
+    supported: readonly string[],
+  ) {
+    if (draft === null) return;
+    const current = acceptedOn(draft, chain, supported);
+    const next = checked
+      ? [...new Set([...current, asset])]
+      : current.filter((entry) => entry !== asset);
+
+    const byChain = { ...draft.acceptedAssetsByChain };
+    if (next.length === 0) {
+      // Never stored: "accept nothing here" and "inherit" would be one value
+      // with two meanings. A chain a merchant does not want is a chain they
+      // have no settlement address on.
+      delete byChain[chain];
+    } else {
+      byChain[chain] = next;
+    }
+    setDraft({ ...draft, acceptedAssetsByChain: byChain });
   }
 
   return (
@@ -258,6 +325,57 @@ function Settings() {
                         kept in the set whether you tick it or not.
                       </FieldDescription>
                     </Field>
+
+                    {/* Per network, because one list stopped describing either
+                        the moment there were two: Base can receive ETH and Arc
+                        cannot, so a merchant who accepts ETH is not saying they
+                        accept it everywhere (#244). */}
+                    {supportedChains.length > 1 && (
+                      <Field>
+                        <FieldLabel>Accepted assets per network</FieldLabel>
+                        <div className="flex flex-col gap-4 pt-1">
+                          {supportedChains.map((entry) => (
+                            <div key={entry.chain} className="flex flex-col gap-2">
+                              <p className="text-muted-foreground text-xs uppercase">
+                                {chainLabel(entry.chain)}
+                              </p>
+                              <div className="flex flex-wrap gap-4">
+                                {entry.assets.map((asset) => (
+                                  <span key={asset} className="flex items-center gap-2 text-sm">
+                                    <Checkbox
+                                      id={`accepted-${entry.chain}-${asset}`}
+                                      checked={acceptedOn(
+                                        draft,
+                                        entry.chain,
+                                        entry.assets,
+                                      ).includes(asset)}
+                                      onCheckedChange={(checked) =>
+                                        toggleChainAsset(
+                                          entry.chain,
+                                          asset,
+                                          checked === true,
+                                          entry.assets,
+                                        )
+                                      }
+                                    />
+                                    <label
+                                      htmlFor={`accepted-${entry.chain}-${asset}`}
+                                      className="mt-1"
+                                    >
+                                      <AssetLabel symbol={asset} size={18} />
+                                    </label>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <FieldDescription>
+                          Only what each network can actually receive is listed. A network you have
+                          not touched follows the list above.
+                        </FieldDescription>
+                      </Field>
+                    )}
 
                     <Field>
                       <FieldLabel htmlFor="settlement-address">Settlement address</FieldLabel>

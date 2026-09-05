@@ -14,6 +14,7 @@ import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
+import { chainReceipts } from "../rails.ts";
 
 const linkBodySchema = z.object({ chain: z.enum(CHAIN_IDS), address: z.string() }).strict();
 
@@ -125,6 +126,11 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
     return c.json({
       wallets: wallets.map(toWalletDto),
       chain: container.config.walletProvisionChain,
+      // Every chain this deployment can provision on (#244). A merchant who
+      // joined when there was one chain has to be able to get a wallet on the
+      // next one without anybody running a script for them, and the browser
+      // must not invent a chain name of its own to ask for it.
+      chains: container.config.walletProvisionChains,
     });
   });
 
@@ -163,6 +169,19 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
     const report = await container.rails.describe(scopeOf(c).merchantId);
     return c.json({
       settlementAsset: report.settlementAsset,
+      // What each chain *can* receive, before this merchant's own choices
+      // narrow it. The settings matrix is drawn from this: a merchant cannot
+      // usefully tick ETH on a chain that has none, and the deployment is the
+      // only thing that knows which chain that is.
+      supported: chainReceipts(container.config).map((receipt) => ({
+        chain: receipt.chain,
+        assets: [
+          ...new Set([
+            ...Object.keys(receipt.tokens),
+            ...(receipt.nativeAsset === undefined ? [] : [receipt.nativeAsset]),
+          ]),
+        ],
+      })),
       rails: report.rails.map((rail) => ({
         chain: rail.chain,
         asset: rail.asset,

@@ -16,6 +16,7 @@
  * in their own wallet and pastes the result, which moves no funds.
  */
 
+import { chainLabel } from "@mayarin/chain";
 import { isAssetCode } from "@mayarin/shared/asset";
 import {
   ArrowLineUpRightIcon,
@@ -72,6 +73,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   useLinkWallet,
+  useMerchantRails,
   useProvisionWallet,
   useVerifyWallet,
   useWalletBalance,
@@ -93,7 +95,7 @@ import {
   walletErrorMessage,
 } from "@/lib/wallet";
 import { withQuery } from "@/lib/with-query";
-import type { WalletDto, WalletProvenance } from "@/types/settings";
+import type { ChainBalanceDto, WalletDto, WalletProvenance } from "@/types/settings";
 
 const PROVENANCE_LABEL: Readonly<Record<WalletProvenance, string>> = {
   linked: "Connected",
@@ -141,6 +143,7 @@ function shortHash(hash: string): string {
 function Wallets() {
   const wallets = useWallets();
   const balance = useWalletBalance();
+  const rails = useMerchantRails();
   const withdrawalHistory = useWalletWithdrawalHistory();
   const withdraw = useWithdraw();
   const link = useLinkWallet();
@@ -155,6 +158,8 @@ function Wallets() {
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
+  /** Which chain's wallet the open dialog moves from. A merchant has one per chain. */
+  const [withdrawChain, setWithdrawChain] = useState("");
   const [withdrawAsset, setWithdrawAsset] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawTo, setWithdrawTo] = useState("");
@@ -210,8 +215,13 @@ function Wallets() {
    * which is also before any of these actions can be reached.
    */
   const chain = wallets.data?.chain;
+  /** Every chain this deployment can provision on, named by the API rather than assumed. */
+  const provisionChains = wallets.data?.chains ?? [];
   const hasConnectedWallet = rows.some((wallet) => wallet.provenance !== "provisioned");
-  const balances = balance.data?.balances ?? [];
+  /** One row per chain this deployment settles on, in the API's order (#244). */
+  const chainBalances = balance.data?.balances ?? [];
+  /** The assets in the open withdraw dialog: the chosen chain's, never another's. */
+  const balances = chainBalances.find((row) => row.chain === withdrawChain)?.balances ?? [];
   const withdrawalRows = withdrawalHistory.data?.withdrawals ?? [];
   /**
    * Where a withdrawal may go: the merchant's own verified wallets, and never
@@ -221,11 +231,15 @@ function Wallets() {
     (wallet) => wallet.verified && wallet.provenance !== "provisioned",
   );
 
-  function openWithdraw() {
+  function openWithdraw(row: ChainBalanceDto) {
     setWithdrawFailure("");
     setWithdrawAmount("");
-    setWithdrawAsset(balances[0]?.asset ?? "");
-    setWithdrawTo(destinations[0]?.address ?? "");
+    setWithdrawChain(row.chain);
+    setWithdrawAsset(row.balances[0]?.asset ?? "");
+    // A destination has to be on the chain being moved from: the same key
+    // controls an EOA everywhere, but the service checks the wallet row, and a
+    // wallet row belongs to one chain.
+    setWithdrawTo(destinations.find((wallet) => wallet.chain === row.chain)?.address ?? "");
     setWithdrawing(true);
   }
 
@@ -247,6 +261,7 @@ function Wallets() {
 
     try {
       const { txHash } = await withdraw.mutateAsync({
+        chain: withdrawChain,
         asset: withdrawAsset,
         amount: minorUnits.toString(),
         to: withdrawTo,
@@ -355,10 +370,22 @@ function Wallets() {
 
   async function provisionManaged() {
     if (chain === undefined) return;
+    await provisionOn(chain);
+  }
+
+  /**
+   * Provisions a managed wallet on one chain (#244).
+   *
+   * Named per chain rather than "the" chain, because a merchant who joined when
+   * this deployment ran on one network needs a wallet on the next one without
+   * anybody running a script for them — and a Safe's address is derived from a
+   * salt carrying the chain, so the second wallet is a different address.
+   */
+  async function provisionOn(target: string) {
     setFailure("");
     try {
-      await provision.mutateAsync(chain);
-      setNotice("Managed wallet ready.");
+      await provision.mutateAsync(target);
+      setNotice(`Managed wallet ready on ${chainLabel(target)}.`);
     } catch (error) {
       setFailure(error instanceof ApiError ? error.message : "Could not provision a wallet");
     }
@@ -438,56 +465,145 @@ function Wallets() {
             retrying={balance.isFetching}
           />
         ))
+        .otherwise(() => (
+          <div className="flex flex-col gap-3">
+            <h2 className="font-medium text-sm">Settlement balances</h2>
+            {/* One card per chain. A merchant's Safe address is derived per
+                chain — the salt carries it — so a merchant paid on two chains
+                holds two addresses and two balances (#244). Showing one of them
+                made the other chain's money invisible. */}
+            {chainBalances.map((row) => {
+              const provisionable = provisionChains.includes(row.chain);
+              return (
+                <Card key={row.chain} className="flex flex-col gap-4 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-col gap-1">
+                      <h3 className="font-medium text-sm">{chainLabel(row.chain)}</h3>
+                      <p className="break-all font-mono text-subtle-foreground text-sm">
+                        {row.address ?? "No settlement address on this network yet"}
+                      </p>
+                    </div>
+                    <span className="flex flex-wrap gap-2">
+                      {row.address === null && hasConnectedWallet && provisionable && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => void provisionOn(row.chain)}
+                          disabled={provision.isPending}
+                        >
+                          <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          Create wallet on {chainLabel(row.chain)}
+                        </Button>
+                      )}
+                      {row.withdrawable && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => openWithdraw(row)}
+                          disabled={row.balances.length === 0 || destinations.length === 0}
+                        >
+                          <ArrowLineUpRightIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          Withdraw
+                        </Button>
+                      )}
+                    </span>
+                  </div>
+
+                  {row.balances.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                      {row.address === null
+                        ? "Nothing can be paid to you on this network until you have an address here."
+                        : "Nothing here yet."}
+                    </p>
+                  ) : (
+                    <dl className="flex flex-wrap gap-6">
+                      {row.balances.map((amount) => (
+                        <div key={amount.asset} className="flex flex-col gap-1">
+                          <dt className="text-muted-foreground text-xs uppercase">
+                            <AssetLabel symbol={amount.asset} size={18} />
+                          </dt>
+                          <dd className="font-mono text-lg tabular-nums">{amount.display}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+
+                  {row.address !== null && !row.withdrawable && (
+                    <p className="text-muted-foreground text-xs">
+                      This address is yours, not one Mayarin provisioned — withdraw from it in your
+                      own wallet.
+                    </p>
+                  )}
+                  {row.withdrawable && destinations.length === 0 && (
+                    <p className="text-muted-foreground text-xs">
+                      Connect and verify an address you control to withdraw to it.
+                    </p>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        ))}
+
+      {/* Why a payer is, or is not, offered each network. The reason is the
+          part that only exists here: before it, "my Arc link does not work"
+          arrived as a payment that refused to lock, naming a settings field the
+          merchant had never been shown (#244). */}
+      {match(rails)
+        .with({ isPending: true }, () => <PanelSkeleton lines={2} />)
+        .with({ isError: true }, ({ error }) => (
+          <QueryError
+            message={reasonOf(error)}
+            retry={() => void rails.refetch()}
+            retrying={rails.isFetching}
+          />
+        ))
         .otherwise(({ data }) => (
           <Card className="flex flex-col gap-4 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <h2 className="font-medium text-sm">Settlement balance</h2>
-                <p className="break-all font-mono text-subtle-foreground text-sm">
-                  {data?.address ?? "No settlement address yet"}
-                </p>
-              </div>
-              {data?.withdrawable === true && (
-                <Button
-                  variant="secondary"
-                  onClick={openWithdraw}
-                  disabled={balances.length === 0 || destinations.length === 0}
-                >
-                  <ArrowLineUpRightIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                  Withdraw
-                </Button>
-              )}
+            <div className="flex flex-col gap-1">
+              <h2 className="font-medium text-sm">Where payers can pay you</h2>
+              <p className="text-muted-foreground text-xs">
+                One payment link, every network below. Priced into{" "}
+                {data?.settlementAsset ?? "your settlement asset"}.
+              </p>
             </div>
 
-            {balances.length === 0 ? (
+            {(data?.rails.length ?? 0) === 0 ? (
               <p className="text-muted-foreground text-sm">
-                {data?.address == null
-                  ? "Connect an address you control or set a settlement address to be paid."
-                  : "Nothing here yet."}
+                No network can take a payment for you yet.
               </p>
             ) : (
               <dl className="flex flex-wrap gap-6">
-                {balances.map((amount) => (
-                  <div key={amount.asset} className="flex flex-col gap-1">
+                {[...new Set(data?.rails.map((rail) => rail.chain))].map((chainId) => (
+                  <div key={chainId} className="flex flex-col gap-1">
                     <dt className="text-muted-foreground text-xs uppercase">
-                      <AssetLabel symbol={amount.asset} size={18} />
+                      {chainLabel(chainId)}
                     </dt>
-                    <dd className="font-mono text-lg tabular-nums">{amount.display}</dd>
+                    <dd className="flex flex-wrap gap-3">
+                      {data?.rails
+                        .filter((rail) => rail.chain === chainId)
+                        .map((rail) => (
+                          <AssetLabel key={rail.asset} symbol={rail.asset} size={18} />
+                        ))}
+                    </dd>
                   </div>
                 ))}
               </dl>
             )}
 
-            {data?.address != null && data.withdrawable === false && (
-              <p className="text-muted-foreground text-xs">
-                This address is yours, not one Mayarin provisioned — withdraw from it in your own
-                wallet.
-              </p>
-            )}
-            {data?.withdrawable === true && destinations.length === 0 && (
-              <p className="text-muted-foreground text-xs">
-                Connect and verify an address you control to withdraw to it.
-              </p>
+            {(data?.unavailable.length ?? 0) > 0 && (
+              <ul className="flex flex-col gap-2 border-t pt-3">
+                {data?.unavailable.map((entry) => (
+                  <li
+                    key={`${entry.kind}:${entry.chain}:${entry.asset ?? ""}`}
+                    className="text-muted-foreground text-xs"
+                  >
+                    <span className="font-medium">
+                      {chainLabel(entry.chain)}
+                      {entry.asset === null ? "" : ` · ${entry.asset}`}
+                    </span>{" "}
+                    — {entry.reason}
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
         ))}
