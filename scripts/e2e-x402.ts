@@ -62,6 +62,7 @@
  *    here: the operator broadcasts the authorization and then the swap.
  */
 import { CHAIN_IDS, type ChainId, caip2Of, EVM_CHAIN_IDS } from "@mayarin/chain";
+import { type AssetCode, fromDecimalString } from "@mayarin/shared";
 import {
   decodePaymentRequired,
   decodeSettleResponse,
@@ -167,10 +168,18 @@ try {
   const amount = BigInt(accepted.amount);
   // A cross-asset authorization is the invoice grossed up by slippage, so the
   // ceiling is a little above the same-asset one and still small enough that a
-  // mistake costs cents.
+  // mistake costs cents. `--ceiling` raises it for a run that deliberately
+  // prices higher — a decimal amount of the payer's asset, typed once, so the
+  // guard is relaxed on purpose rather than edited away.
+  const ceiling = argument("ceiling");
+  const maximum = ceiling
+    ? fromDecimalString(ceiling, payWith as AssetCode).amount
+    : crossAsset
+      ? 30_000n
+      : 20_000n;
   assert(
-    amount > 0n && amount <= (crossAsset ? 30_000n : 20_000n),
-    `Test payment must be at most ${crossAsset ? "0.03" : "0.02"} ${payWith}`,
+    amount > 0n && amount <= maximum,
+    `Test payment must be at most ${ceiling ?? (crossAsset ? "0.03" : "0.02")} ${payWith}`,
   );
   assert(
     Number.isSafeInteger(accepted.maxTimeoutSeconds) && accepted.maxTimeoutSeconds > 10,
