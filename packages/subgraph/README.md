@@ -55,6 +55,25 @@ network entry.
 serve `SubgraphSettlementSource` — the query names fields it does not have.
 Deploy `v0.0.2` before putting an endpoint in `SUBGRAPH_ENDPOINTS`.
 
+## A Studio query URL is a development endpoint, and it is metered
+
+`api.studio.thegraph.com/query/...` is rate limited and capped per day. The
+settlement indexer polls it forever, so the arithmetic decides whether a
+deployment survives the day: one pass costs at most two queries — `_meta`, then
+the logs — and `_meta` rides along with the logs whenever a pass scans, so a
+steady-state pass averages one. At `INDEXER_INTERVAL_MS=60000` that is ~1.4k
+queries per chain per day, and every extra environment pointed at the same
+endpoint (a laptop running the worker alongside Railway) adds its own.
+
+Two guards, both already in the code: a 429 answer carries its `Retry-After` in
+`ProviderError.details.retryAfterMs`, and `startIndexerLoops` doubles its delay
+up to `INDEXER_MAX_BACKOFF_MS` on any failure — an early retry is another
+counted query, which is how a throttled worker keeps itself throttled.
+
+**Anything continuous belongs on a Graph Network endpoint**, published from
+Studio and queried with an API key. Slowing the poll buys time; it does not
+refill a spent day.
+
 The deploy scripts pass `--node https://api.studio.thegraph.com/deploy/`
 explicitly. Studio is not the CLI's default node, and without it the failure
 names IPFS rather than the node it could not reach.

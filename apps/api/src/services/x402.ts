@@ -44,6 +44,9 @@ import type {
   PaymentPayload,
   PaymentRequired,
   PricedAsset,
+  RailChoice,
+  RailObservation,
+  RailObservationSource,
   SettlementConfirmer,
   SettleResponse,
   X402Resource,
@@ -52,6 +55,7 @@ import type {
 import {
   authorizationWithinLock,
   buildPaymentRequired,
+  chooseRail,
   confirmSettlement,
   eip3009PayloadOf,
   idempotencyKeyOf,
@@ -82,6 +86,14 @@ export interface X402ServiceOptions {
   readonly clock: Clock;
   /** How long a price offered in a `402` is honoured. Seconds. */
   readonly quoteTtlSeconds: number;
+  /**
+   * What the rails have been doing, when this deployment can see it.
+   *
+   * Absent means the `402` lists its rails in the order the resource registered
+   * them, which is what it did before anything measured them. Present, the
+   * best-behaved rail is listed first — see `#ordered`.
+   */
+  readonly rails?: RailObservationSource;
   /**
    * The merchant, as the intent records them.
    *
@@ -281,9 +293,52 @@ export class X402Service {
       });
     }
 
+    const ordered = await this.#ordered(priced);
     return error === undefined
-      ? buildPaymentRequired(resource, priced, now)
-      : buildPaymentRequired(resource, priced, now, error);
+      ? buildPaymentRequired(resource, ordered, now)
+      : buildPaymentRequired(resource, ordered, now, error);
+  }
+
+  /**
+   * Which rail this resource should be paid on, and why.
+   *
+   * Exposed because the ordering below is a decision made on live data, and a
+   * decision an agent cannot see the reasoning for is one it has to take on
+   * trust. Also what makes `unobserved` legible: the choice says out loud when
+   * it is really just the first accepted rail.
+   */
+  async railChoice(resource: X402Resource): Promise<RailChoice> {
+    const chains = distinct(resource.accepts.map((accept) => accept.chain));
+    return chooseRail(chains, await this.#observe(chains));
+  }
+
+  /**
+   * The priced rails, best first.
+   *
+   * The specification lets a payer pick any entry in `accepts`, and a client
+   * with no opinion takes the first — so ordering is the whole mechanism by
+   * which a measurement reaches a payer. Ranked on median headroom, because a
+   * rail that has been settling with seconds to spare is the one an agent
+   * should not be steered onto by accident.
+   *
+   * Only the chosen rail moves. The rest keep the order the resource declared,
+   * so a deployment that observes nothing behaves exactly as it did before any
+   * of this existed.
+   */
+  async #ordered(priced: readonly PricedAsset[]): Promise<readonly PricedAsset[]> {
+    if (this.#options.rails === undefined || priced.length < 2) return priced;
+
+    const chains = distinct(priced.map((entry) => entry.accept.chain));
+    const choice = chooseRail(chains, await this.#observe(chains));
+    if (choice.unobserved) return priced;
+
+    const chosen = priced.filter((entry) => entry.accept.chain === choice.chain);
+    const rest = priced.filter((entry) => entry.accept.chain !== choice.chain);
+    return [...chosen, ...rest];
+  }
+
+  async #observe(chains: readonly ChainId[]): Promise<readonly RailObservation[]> {
+    return this.#options.rails === undefined ? [] : await this.#options.rails.observe(chains);
   }
 
   /**
@@ -736,4 +791,9 @@ function requirementsProbe(accept: AcceptedAsset) {
     payTo: accept.payTo,
     maxTimeoutSeconds: 0,
   };
+}
+
+/** Chains in the order first seen, without repeating one a resource lists twice. */
+function distinct(chains: readonly ChainId[]): ChainId[] {
+  return [...new Set(chains)];
 }

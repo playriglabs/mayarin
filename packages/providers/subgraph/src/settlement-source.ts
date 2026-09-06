@@ -46,9 +46,17 @@ const SETTLEMENTS_QUERY = `query Settlements($from: BigInt!, $to: BigInt!, $firs
     logIndex
     transactionHash
   }
+  _meta { block { number } hasIndexingErrors }
 }`;
 
 const META_QUERY = `{ _meta { block { number } hasIndexingErrors } }`;
+
+const metaFields = z
+  .object({
+    block: z.object({ number: z.number() }),
+    hasIndexingErrors: z.boolean(),
+  })
+  .nullable();
 
 const settlementsSchema = z.object({
   settlements: z.array(
@@ -64,16 +72,10 @@ const settlementsSchema = z.object({
       transactionHash: z.string(),
     }),
   ),
+  _meta: metaFields,
 });
 
-const metaSchema = z.object({
-  _meta: z
-    .object({
-      block: z.object({ number: z.number() }),
-      hasIndexingErrors: z.boolean(),
-    })
-    .nullable(),
-});
+const metaSchema = z.object({ _meta: metaFields });
 
 export interface SubgraphSettlementSourceOptions {
   /** One query URL per chain. A chain with no entry cannot be served. */
@@ -87,6 +89,8 @@ export interface SubgraphSettlementSourceOptions {
    * cleanly against nothing.
    */
   readonly routers: Readonly<Partial<Record<ChainId, string>>>;
+  /** Studio or gateway API key, sent as a bearer token on every query. */
+  readonly apiKey?: string;
   readonly fetch?: FetchLike;
 }
 
@@ -94,11 +98,27 @@ export class SubgraphSettlementSource implements SettlementSource {
   readonly #endpoints: Readonly<Partial<Record<ChainId, string>>>;
   readonly #routers: Readonly<Partial<Record<ChainId, string>>>;
   readonly #fetch: FetchLike | undefined;
+  readonly #apiKey: string | undefined;
+  /**
+   * The head a scan already paid for, waiting for the next `indexedHead`.
+   *
+   * Every pass asks for the head and then asks for the logs, which is two
+   * billed queries where the second answer already carries the first: `_meta`
+   * rides along in the settlements query. Consumed once rather than cached with
+   * a lifetime, because a value that stayed would freeze the cursor — the
+   * indexer would keep clamping to a height it has already scanned, never scan
+   * again, and so never refresh the value it is clamping to.
+   *
+   * A consumed head is one pass old, which is only ever *lower* than the truth,
+   * and the whole point of clamping is to stop early.
+   */
+  readonly #observedHead = new Map<ChainId, bigint>();
 
   constructor(options: SubgraphSettlementSourceOptions) {
     this.#endpoints = options.endpoints;
     this.#routers = options.routers;
     this.#fetch = options.fetch;
+    this.#apiKey = options.apiKey;
   }
 
   async settlements(query: SettlementQuery): Promise<SettlementLog[]> {
@@ -114,13 +134,21 @@ export class SubgraphSettlementSource implements SettlementSource {
     const logs: SettlementLog[] = [];
     for (let skip = 0; ; skip += PAGE_SIZE) {
       const page = settlementsSchema.parse(
-        await postGraphql(endpoint, SETTLEMENTS_QUERY, this.#fetch, {
-          from: query.fromBlock.toString(),
-          to: query.toBlock.toString(),
-          first: PAGE_SIZE,
-          skip,
-        }),
+        await postGraphql(
+          endpoint,
+          SETTLEMENTS_QUERY,
+          this.#fetch,
+          {
+            from: query.fromBlock.toString(),
+            to: query.toBlock.toString(),
+            first: PAGE_SIZE,
+            skip,
+          },
+          this.#apiKey,
+        ),
       );
+
+      this.#observedHead.set(query.chain, this.#headOf(query.chain, endpoint, page._meta));
 
       for (const row of page.settlements) {
         logs.push({
@@ -142,24 +170,35 @@ export class SubgraphSettlementSource implements SettlementSource {
   }
 
   async indexedHead(chain: ChainId): Promise<bigint | undefined> {
-    const endpoint = this.#endpointFor(chain);
-    const { _meta } = metaSchema.parse(await postGraphql(endpoint, META_QUERY, this.#fetch));
+    const observed = this.#observedHead.get(chain);
+    if (observed !== undefined) {
+      this.#observedHead.delete(chain);
+      return observed;
+    }
 
+    const endpoint = this.#endpointFor(chain);
+    const { _meta } = metaSchema.parse(
+      await postGraphql(endpoint, META_QUERY, this.#fetch, undefined, this.#apiKey),
+    );
+    return this.#headOf(chain, endpoint, _meta);
+  }
+
+  #headOf(chain: ChainId, endpoint: string, meta: z.infer<typeof metaFields>): bigint {
     // No `_meta` means the deployment exists but has indexed nothing yet, which
     // is a head of zero rather than an unknown one.
-    if (_meta === null) return 0n;
+    if (meta === null) return 0n;
 
     // An indexing error freezes the deployment where it broke. Serving that
     // height as if it were progress would let the cursor walk past blocks this
     // subgraph will never index.
-    if (_meta.hasIndexingErrors) {
+    if (meta.hasIndexingErrors) {
       throw new ProviderError(`subgraph for ${chain} has indexing errors and cannot be trusted`, {
         chain,
         endpoint,
       });
     }
 
-    return BigInt(_meta.block.number);
+    return BigInt(meta.block.number);
   }
 
   #endpointFor(chain: ChainId): string {

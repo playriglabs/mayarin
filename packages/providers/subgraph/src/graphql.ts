@@ -24,12 +24,20 @@ const envelopeSchema = z.object({
   errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
-/** The `data` of a successful query, for the caller's own schema to parse. */
+/**
+ * The `data` of a successful query, for the caller's own schema to parse.
+ *
+ * `apiKey` is sent as a bearer token, which is how both Graph endpoints
+ * authenticate: a Studio development URL and a gateway production URL take the
+ * same header. It never reaches an error's `details` — an endpoint is worth
+ * naming in a log, a credential is not.
+ */
 export async function postGraphql(
   endpoint: string,
   query: string,
   fetchImpl: FetchLike | undefined,
   variables?: Readonly<Record<string, unknown>>,
+  apiKey?: string,
 ): Promise<unknown> {
   const send = fetchImpl ?? globalThis.fetch;
 
@@ -37,7 +45,10 @@ export async function postGraphql(
   try {
     response = await send(endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` }),
+      },
       body: JSON.stringify(variables === undefined ? { query } : { query, variables }),
     });
   } catch (error) {
@@ -49,9 +60,15 @@ export async function postGraphql(
   }
 
   if (!response.ok) {
+    // A rate limiter says when to come back, and a caller that ignores it keeps
+    // its own ban alive: every early retry is another counted request. The hint
+    // travels in `details` because the loop that schedules the next pass is the
+    // only thing that can act on it.
+    const retryAfterMs = response.status === 429 ? retryAfterOf(response) : undefined;
     throw new ProviderError(`subgraph at ${endpoint} answered ${response.status}`, {
       endpoint,
       status: response.status,
+      ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
     });
   }
 
@@ -64,4 +81,21 @@ export async function postGraphql(
     );
   }
   return body.data;
+}
+
+/**
+ * `Retry-After`, in milliseconds, in either of the two forms RFC 9110 allows:
+ * a delay in seconds, or an HTTP date.
+ */
+function retryAfterOf(response: Response): number | undefined {
+  const header = response.headers.get("retry-after")?.trim();
+  if (header === undefined || header === "") return undefined;
+
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return seconds <= 0 ? 0 : Math.round(seconds * 1000);
+
+  const at = Date.parse(header);
+  if (Number.isNaN(at)) return undefined;
+  const delay = at - Date.now();
+  return delay <= 0 ? 0 : delay;
 }
