@@ -194,6 +194,20 @@ export function x402Routes(container: Container): Hono<X402Env> {
   });
 
   /**
+   * `GET /x402/resources/:id/rail` — which rail, and why.
+   *
+   * The ordering inside a `402` already carries the answer, but an agent
+   * reading `accepts[0]` cannot see what the order was based on. This is the
+   * reasoning in the open: median headroom, how many settlements it is over,
+   * and whether the choice was a choice at all.
+   */
+  app.get("/resources/:id/rail", async (c) => {
+    const service = requireX402(container);
+    const resource = await service.resourceById(c.req.param("id"));
+    return c.json(await service.railChoice(resource));
+  });
+
+  /**
    * `POST /x402/verify` — would this authorization go through?
    *
    * Mayarin acting as a facilitator for its own resources. The body carries a

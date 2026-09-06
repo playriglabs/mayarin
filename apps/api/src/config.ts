@@ -118,6 +118,16 @@ const configSchema = z.object({
    * own examples send it, and a gateway production URL requires it.
    */
   subgraphApiKey: z.string().min(1).optional(),
+  /**
+   * How long one read of the rails is reused.
+   *
+   * `paymentRequired` asks once per `402`, and the answer is a median over the
+   * last hundred settlements — it does not move between two requests a second
+   * apart. Five minutes bounds the cost at 288 queries a day per chain against
+   * a 3,000-a-day development URL, and still reflects a rail that degrades
+   * within one demo.
+   */
+  railObservationTtlSeconds: z.coerce.number().int().positive().default(300),
   chainStartBlocks: jsonObject<StartBlockMap>("CHAIN_START_BLOCKS", "{}"),
   depositXpub: z.string().min(1).optional(),
   watcherIntervalMs: z.coerce.number().int().min(0).default(15_000),
@@ -913,6 +923,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainAssets: env.CHAIN_ASSETS,
     subgraphEndpoints: env.SUBGRAPH_ENDPOINTS,
     subgraphApiKey: env.SUBGRAPH_API_KEY,
+    railObservationTtlSeconds: env.RAIL_OBSERVATION_TTL_SECONDS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainConfirmations: env.CHAIN_CONFIRMATIONS,
     chainStartBlocks: env.CHAIN_START_BLOCKS,
