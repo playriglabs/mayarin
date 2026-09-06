@@ -63,16 +63,15 @@ export function Principles() {
       {/* Keep phone-landscape, tablet and compact-laptop cards comfortably
           readable in two columns. The denser three-over-four bento only starts
           once the viewport is wide enough to preserve that reading measure. */}
-      <div class="mt-12 grid gap-px border-y border-line bg-line sm:grid-cols-2 md:mt-16 2xl:grid-cols-12">
+      <div class="ornament-grid mt-12 grid border-l border-t sm:grid-cols-2 md:mt-16 2xl:grid-cols-12">
         {PRINCIPLES.map((principle, index) => (
           <Reveal
             key={principle.title}
             delay={(index % 4) * 70}
             class={clsx(
-              "group flex h-full flex-col bg-paper px-6 py-9 md:p-10",
+              "ornament-card group relative flex h-full flex-col border-b border-r bg-paper px-6 py-9 md:p-10",
               index < 3 ? "2xl:col-span-4" : "2xl:col-span-3",
-              // Seven cells over two columns leaves a hole in the last row, and
-              // the hole would show the grid's hairline colour as a block.
+              // Let the seventh card fill the final row in the two-column layout.
               index === PRINCIPLES.length - 1 && "sm:col-span-2 2xl:col-span-3",
             )}
           >

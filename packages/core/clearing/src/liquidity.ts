@@ -14,6 +14,7 @@
  * `PriceSource`, keeping the network boundary out of core.
  */
 
+import type { ChainId } from "@mayarin/chain";
 import {
   type AssetCode,
   assetDecimals,
@@ -41,8 +42,106 @@ export interface PriceQuote {
  * job, since one whole unit of X is one whole unit of X regardless of source.
  */
 export interface PriceSource {
-  /** Price `amount` of `from` into `to`, or throw if this source cannot. */
-  price(from: AssetCode, to: AssetCode, amount: Money): Promise<PriceQuote>;
+  /**
+   * Price `amount` of `from` into `to`, or throw if this source cannot.
+   *
+   * `chain` is the chain the payment runs on, when there is one. A venue whose
+   * pool is on another chain must refuse with a `ConfigurationError` rather
+   * than answer, because the price it would give is a different pool's — and
+   * the swap will execute against the pool on `chain`. A source with nothing
+   * chain-specific to say (the table, an FX rate) ignores it.
+   */
+  price(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<PriceQuote>;
+
+  /**
+   * Price backwards: what rate holds when the swap must deliver exactly
+   * `exactOut`?
+   *
+   * `price` answers at a size the caller has to guess, and a payment's size is
+   * not known until the fiat leg is priced — so the contract path probed one
+   * whole unit and locked a `minOut` derived from it. On a deep pool that is a
+   * fair approximation; on a thin one it is not. Measured on Base Sepolia: one
+   * EURC quoted 0.817981 USDC, and the 4.885472 EURC the payer was then asked
+   * for delivered only 0.752620 each — the swap reverted `STF` against a
+   * `minOut` the pool could never fill, after the payer had already paid.
+   *
+   * The settlement amount is known *before* the swap leg is priced, so asking
+   * in this direction removes the guess rather than refining it.
+   *
+   * Optional, because a source with no depth prices the same at every size: a
+   * rate table and an oracle are already exact, and `price` is their answer.
+   */
+  priceExactOutput?(
+    from: AssetCode,
+    to: AssetCode,
+    exactOut: Money,
+    chain?: ChainId,
+  ): Promise<PriceQuote>;
+}
+
+/**
+ * The first configured source that can price this chain.
+ *
+ * The pricing-side twin of `FallbackRouteSource`. A quote engine holds one
+ * `PriceSource`, so a deployment with a V3 pool on one chain and a V2 pool on
+ * another priced every payment against whichever venue was configured first —
+ * including payments on the chain that venue has no pool on. The lock then
+ * carried a price from a pool the swap would never touch.
+ *
+ * Only a `ConfigurationError` is routed around: a real venue or RPC fault is
+ * rethrown rather than reported as "no source".
+ */
+export class FallbackPriceSource implements PriceSource {
+  readonly #sources: readonly PriceSource[];
+
+  constructor(sources: readonly PriceSource[]) {
+    this.#sources = sources;
+  }
+
+  async price(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<PriceQuote> {
+    return this.#first(from, to, chain, (source) => source.price(from, to, amount, chain));
+  }
+
+  async priceExactOutput(
+    from: AssetCode,
+    to: AssetCode,
+    exactOut: Money,
+    chain?: ChainId,
+  ): Promise<PriceQuote> {
+    return this.#first(from, to, chain, (source) =>
+      source.priceExactOutput === undefined
+        ? Promise.reject(
+            new ConfigurationError(`${from} -> ${to} cannot be priced by exact output here`, {
+              from,
+              to,
+            }),
+          )
+        : source.priceExactOutput(from, to, exactOut, chain),
+    );
+  }
+
+  async #first(
+    from: AssetCode,
+    to: AssetCode,
+    chain: ChainId | undefined,
+    ask: (source: PriceSource) => Promise<PriceQuote>,
+  ): Promise<PriceQuote> {
+    let lastError: unknown;
+    for (const source of this.#sources) {
+      try {
+        return await ask(source);
+      } catch (error) {
+        if (!(error instanceof ConfigurationError)) throw error;
+        lastError = error;
+      }
+    }
+    if (lastError !== undefined) throw lastError;
+    throw new ConfigurationError(`No price source is configured for ${from} -> ${to}`, {
+      from,
+      to,
+      ...(chain === undefined ? {} : { chain }),
+    });
+  }
 }
 
 /**
@@ -189,7 +288,7 @@ export class LiquidityRouter implements RateProvider {
     this.#source = options.source;
   }
 
-  async quote(from: AssetCode, to: AssetCode, amount: Money): Promise<RateQuote> {
+  async quote(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<RateQuote> {
     if (from === to) {
       return {
         from,
@@ -198,7 +297,7 @@ export class LiquidityRouter implements RateProvider {
         source: "identity",
       };
     }
-    const priced = await this.#source.price(from, to, amount);
+    const priced = await this.#source.price(from, to, amount, chain);
     return {
       from: priced.from,
       to: priced.to,

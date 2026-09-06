@@ -83,8 +83,19 @@ export interface WalletServiceOptions {
   readonly treasuryAddresses?: readonly string[];
   /** The merchant record, for the settlement asset and the address they configured. */
   readonly merchants: MerchantRepository;
-  /** Where a merchant's Safe lives, and therefore where a balance is read. */
-  readonly chain: ChainId;
+  /**
+   * Every chain this deployment settles on, and therefore every chain a
+   * merchant has a balance to look at (#244).
+   *
+   * A list rather than one chain because a merchant's Safe address is derived
+   * per chain — the salt carries it — so a merchant paid on Base and on Arc has
+   * two addresses holding two balances. Reporting one of them was correct while
+   * there was one chain and silently wrong the moment there were two: the money
+   * on the other chain simply did not appear anywhere in the product.
+   *
+   * The first entry is the default for a surface that still names one chain.
+   */
+  readonly chains: readonly ChainId[];
   /**
    * Reads what the settlement address holds. Absent on a deployment with no
    * chain access — the balance endpoint then reports the address and no
@@ -97,8 +108,8 @@ export interface WalletServiceOptions {
   readonly walletProvider?: WalletProvider;
   /** Append-only record of successful managed-wallet withdrawals. */
   readonly withdrawals: WalletWithdrawalRepository;
-  /** The chain's own currency, reported alongside the settlement asset. */
-  readonly nativeAsset?: AssetCode;
+  /** The chain's own currency per chain, reported alongside the settlement asset. */
+  readonly nativeAssets?: Readonly<Partial<Record<ChainId, AssetCode>>>;
 }
 
 /** What a merchant's payout address holds right now. */
@@ -112,6 +123,8 @@ export interface SettlementBalance {
 }
 
 export interface WithdrawRequest {
+  /** Which chain's wallet to move from (#244). A merchant has one per chain. */
+  readonly chain: ChainId;
   readonly asset: AssetCode;
   /** Minor units, exactly as the balance reports them. */
   readonly amount: bigint;
@@ -131,12 +144,12 @@ export class WalletService {
   readonly #keyProvider: MerchantKeyProvider | undefined;
   readonly #treasury: ReadonlySet<string>;
   readonly #merchants: MerchantRepository;
-  readonly #chain: ChainId;
+  readonly #chains: readonly ChainId[];
   readonly #balances: WalletBalanceReader | undefined;
   readonly #settlementAddresses: SettlementAddressResolver;
   readonly #walletProvider: WalletProvider | undefined;
   readonly #withdrawals: WalletWithdrawalRepository;
-  readonly #nativeAsset: AssetCode | undefined;
+  readonly #nativeAssets: Readonly<Partial<Record<ChainId, AssetCode>>>;
 
   constructor(options: WalletServiceOptions) {
     this.#wallets = options.wallets;
@@ -150,42 +163,56 @@ export class WalletService {
       (options.treasuryAddresses ?? []).map((address) => address.toLowerCase()),
     );
     this.#merchants = options.merchants;
-    this.#chain = options.chain;
+    this.#chains = options.chains;
     this.#balances = options.balances;
     this.#settlementAddresses = options.settlementAddresses;
     this.#walletProvider = options.walletProvider;
     this.#withdrawals = options.withdrawals;
-    this.#nativeAsset = options.nativeAsset;
+    this.#nativeAssets = options.nativeAssets ?? {};
   }
 
   /**
-   * What the merchant's payout address holds on-chain.
+   * What the merchant's payout address holds, on every chain they settle on.
    *
    * Read from the chain rather than from the ledger, because after an on-chain
    * settlement the money is not Mayarin's to account for: the ledger's last word
    * on it is that it left. The gas asset comes back alongside the settlement
    * asset — a Safe with a balance and no way to pay for moving it is the state
    * a merchant needs to see before they try.
+   *
+   * One entry per configured chain, including the chains where the merchant has
+   * no address at all (#244). A chain omitted because there is nothing there
+   * looks the same as a chain that does not exist, and the merchant's next
+   * question — why can I not be paid on Arc — is answerable only if the row is
+   * present to answer it.
    */
-  async balance(scope: Scope): Promise<SettlementBalance> {
+  async balances(scope: Scope): Promise<readonly SettlementBalance[]> {
     const merchant = await this.#merchant(scope);
+    return Promise.all(this.#chains.map((chain) => this.#balanceOn(scope, merchant, chain)));
+  }
+
+  async #balanceOn(
+    scope: Scope,
+    merchant: { readonly settlementAsset: AssetCode; readonly settlementAddress?: string },
+    chain: ChainId,
+  ): Promise<SettlementBalance> {
     const address = await this.#settlementAddresses.effective(
       scope.merchantId,
-      this.#chain,
+      chain,
       merchant.settlementAddress,
     );
 
     if (address === undefined || this.#balances === undefined) {
-      return { chain: this.#chain, address, withdrawable: false, balances: [] };
+      return { chain, address, withdrawable: false, balances: [] };
     }
 
-    const assets = [merchant.settlementAsset, this.#nativeAsset].filter(
+    const assets = [merchant.settlementAsset, this.#nativeAssets[chain]].filter(
       (asset): asset is AssetCode => asset !== undefined,
     );
-    const managed = await this.#wallets.findManaged(scope.merchantId, this.#chain);
+    const managed = await this.#wallets.findManaged(scope.merchantId, chain);
 
     return {
-      chain: this.#chain,
+      chain,
       address,
       // Only a wallet Mayarin provisioned can be moved from here. A merchant who
       // pointed settlement at an address they hold themselves withdraws from it
@@ -196,7 +223,7 @@ export class WalletService {
         isVerified(managed) &&
         managed.address === address,
       balances: await this.#balances.balances({
-        chain: this.#chain,
+        chain,
         address,
         assets: [...new Set(assets)],
       }),
@@ -227,10 +254,15 @@ export class WalletService {
       });
     }
 
-    const managed = await this.#wallets.findManaged(scope.merchantId, this.#chain);
+    const chain = request.chain;
+    if (!this.#chains.includes(chain)) {
+      throw new ValidationError(`This deployment does not settle on ${chain}`, { chain });
+    }
+
+    const managed = await this.#wallets.findManaged(scope.merchantId, chain);
     if (managed === null || !isVerified(managed)) {
       throw new NotFoundError("This merchant has no provisioned wallet to withdraw from", {
-        chain: this.#chain,
+        chain,
       });
     }
 
@@ -239,14 +271,14 @@ export class WalletService {
     const destination = destinations.find(
       (wallet) =>
         wallet.address === to &&
-        wallet.chain === this.#chain &&
+        wallet.chain === chain &&
         isMerchantHeld(wallet) &&
         isVerified(wallet),
     );
     if (destination === undefined) {
       throw new ValidationError(
         "A withdrawal may only go to one of your own verified wallets; link and verify the address first",
-        { to, chain: this.#chain },
+        { to, chain },
       );
     }
 
@@ -261,7 +293,7 @@ export class WalletService {
     const withdrawal: WalletWithdrawal = {
       id: generateId("wdr", completedAt.getTime()),
       merchantId: scope.merchantId,
-      chain: this.#chain,
+      chain,
       walletAddress: managed.address,
       destinationAddress: destination.address,
       amount,

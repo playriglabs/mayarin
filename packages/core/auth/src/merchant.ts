@@ -11,8 +11,12 @@
  * core (`packages/db`).
  */
 
+import type { ChainId } from "@mayarin/chain";
 import { type AssetCode, getAsset, ValidationError } from "@mayarin/shared";
 import type { User } from "./types.ts";
+
+/** Accepted payer assets narrowed to one chain. A chain absent inherits the merchant-wide set. */
+export type AcceptedAssetsByChain = Readonly<Partial<Record<ChainId, readonly AssetCode[]>>>;
 
 export interface Merchant {
   readonly id: string;
@@ -29,6 +33,23 @@ export interface Merchant {
    * the way in. Empty means the deployment default applies.
    */
   readonly acceptedAssets: readonly AssetCode[];
+  /**
+   * The same choice, narrowed per chain (#244).
+   *
+   * `acceptedAssets` is one list for a merchant who is paid on one chain. With
+   * two, the list stops describing either: Base can take ETH and Arc cannot, so
+   * a merchant who accepts ETH is not saying they accept it everywhere.
+   *
+   * A chain **absent** here inherits `acceptedAssets`, which is the state every
+   * existing merchant is in and the state a merchant who never opens the matrix
+   * stays in. A chain **present** carries its own non-empty list, and an empty
+   * list is never stored — clearing a chain's row removes it, which restores
+   * the inherited set rather than accepting nothing.
+   *
+   * Optional, and absent is the same answer as empty: every chain inherits.
+   * Read it through `acceptedAssetsOn` rather than indexing it.
+   */
+  readonly acceptedAssetsByChain?: AcceptedAssetsByChain;
   /**
    * Where this merchant is paid on-chain — the signed order's `merchantSafe`.
    *
@@ -103,6 +124,7 @@ export interface MerchantSettingChange {
 export const MERCHANT_SETTING_FIELDS = [
   "settlementAsset",
   "acceptedAssets",
+  "acceptedAssetsByChain",
   "settlementAddress",
   "city",
   "countryCode",
@@ -120,6 +142,14 @@ export interface MerchantSettingChangeRepository {
 export interface MerchantSettingsPatch {
   readonly settlementAsset?: AssetCode;
   readonly acceptedAssets?: readonly AssetCode[];
+  /**
+   * Per-chain overrides, replacing the whole map when present.
+   *
+   * A whole-map replace rather than a per-chain merge: the settings screen
+   * edits the matrix as one thing, and a merge gives a merchant no way to
+   * remove a chain's override at all.
+   */
+  readonly acceptedAssetsByChain?: AcceptedAssetsByChain;
   /**
    * `null` clears the address; absent leaves it alone. The two are different
    * requests and a merchant making the first should not be told they made the
@@ -156,6 +186,11 @@ export function updateMerchantSettings(
       ? merchant.acceptedAssets
       : dedupe(patch.acceptedAssets, settlementAsset);
 
+  const acceptedAssetsByChain =
+    patch.acceptedAssetsByChain === undefined
+      ? (merchant.acceptedAssetsByChain ?? {})
+      : narrowPerChain(patch.acceptedAssetsByChain, settlementAsset);
+
   const settlementAddress =
     patch.settlementAddress === undefined
       ? merchant.settlementAddress
@@ -174,6 +209,7 @@ export function updateMerchantSettings(
     ...rest,
     settlementAsset,
     acceptedAssets,
+    acceptedAssetsByChain,
     ...(settlementAddress === undefined ? {} : { settlementAddress }),
     ...(city === undefined ? {} : { city }),
     ...(countryCode === undefined ? {} : { countryCode }),
@@ -212,6 +248,16 @@ export function diffMerchantSettings(
   const afterAccepted = after.acceptedAssets.join(",");
   if (beforeAccepted !== afterAccepted) {
     changes.push({ field: "acceptedAssets", previous: beforeAccepted, next: afterAccepted });
+  }
+
+  const beforeByChain = renderPerChain(before.acceptedAssetsByChain ?? {});
+  const afterByChain = renderPerChain(after.acceptedAssetsByChain ?? {});
+  if (beforeByChain !== afterByChain) {
+    changes.push({
+      field: "acceptedAssetsByChain",
+      previous: beforeByChain,
+      next: afterByChain,
+    });
   }
 
   for (const field of ["settlementAddress", "city", "countryCode"] as const) {
@@ -281,6 +327,47 @@ function normaliseCountryCode(value: string): string {
 function dedupe(assets: readonly AssetCode[], settlementAsset: AssetCode): readonly AssetCode[] {
   if (assets.length === 0) return [];
   return [...new Set([settlementAsset, ...assets])];
+}
+
+/**
+ * Normalises the per-chain matrix: same dedupe rule, and no empty rows.
+ *
+ * An empty row is dropped rather than stored, because "accept nothing on this
+ * chain" and "inherit the merchant-wide set" would otherwise be the same value
+ * with two meanings. A merchant who wants a chain off turns the chain off —
+ * that is the settlement destination, not this list.
+ */
+function narrowPerChain(
+  byChain: AcceptedAssetsByChain,
+  settlementAsset: AssetCode,
+): AcceptedAssetsByChain {
+  const narrowed: Partial<Record<ChainId, readonly AssetCode[]>> = {};
+  for (const [chain, assets] of Object.entries(byChain) as [ChainId, readonly AssetCode[]][]) {
+    if (assets === undefined || assets.length === 0) continue;
+    narrowed[chain] = dedupe(assets, settlementAsset);
+  }
+  return narrowed;
+}
+
+/** One stable line per matrix, so the audit record compares like with like. */
+function renderPerChain(byChain: AcceptedAssetsByChain): string {
+  return (Object.entries(byChain) as [ChainId, readonly AssetCode[]][])
+    .filter(([, assets]) => assets !== undefined && assets.length > 0)
+    .map(([chain, assets]) => `${chain}=${[...assets].join("+")}`)
+    .sort()
+    .join(",");
+}
+
+/**
+ * The assets a payer may send this merchant on one chain (#244).
+ *
+ * The per-chain row when there is one, the merchant-wide list otherwise, and
+ * empty when the merchant has expressed no preference at all — which the
+ * caller reads as "whatever this chain can receive", never as "nothing".
+ */
+export function acceptedAssetsOn(merchant: Merchant, chain: ChainId): readonly AssetCode[] {
+  const perChain = merchant.acceptedAssetsByChain?.[chain];
+  return perChain !== undefined && perChain.length > 0 ? perChain : merchant.acceptedAssets;
 }
 
 /**

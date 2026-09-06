@@ -17,6 +17,7 @@ import {
 import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
   ChallengeResponse,
+  MerchantRailsResponse,
   SettingsHistoryResponse,
   SettingsResponse,
   UpdateSettingsRequest,
@@ -38,6 +39,7 @@ const SETTINGS_KEY = ["settings"];
 const SETTINGS_HISTORY_KEY = ["settings", "history"];
 const WALLETS_KEY = ["wallets"];
 const WALLET_BALANCE_KEY = ["wallets", "balance"];
+const WALLET_RAILS_KEY = ["wallets", "rails"];
 const WALLET_WITHDRAWALS_KEY = ["wallets", "withdrawals"];
 const ENDPOINTS_KEY = ["webhooks", "endpoints"];
 const DELIVERIES_KEY = ["webhooks", "deliveries"];
@@ -118,6 +120,20 @@ export function useWalletBalance() {
     queryKey: WALLET_BALANCE_KEY,
     query: () => walletsApi.balance(),
     refetchInterval: WALLET_BALANCE_POLL_MS,
+  });
+}
+
+/**
+ * Which networks this merchant can be paid on, and why not the rest (#244).
+ *
+ * Read alongside the balances rather than derived from them: a chain with a
+ * settlement address can still be unpayable — an asset nothing can price, or an
+ * address that is a contract somewhere else — and only the API knows which.
+ */
+export function useMerchantRails() {
+  return useEffectQuery<MerchantRailsResponse, ApiError>({
+    queryKey: WALLET_RAILS_KEY,
+    query: () => walletsApi.rails(),
   });
 }
 

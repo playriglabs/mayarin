@@ -1,4 +1,4 @@
-import type { LineItem, MerchantRef, MoneyDto } from "../../shared/types.ts";
+import type { LineItem, MerchantRef, MoneyDto, Rail } from "../../shared/types.ts";
 
 /** The link page: what is being sold, in what asset, and one button. */
 export interface LinkBootstrap {
@@ -14,8 +14,14 @@ export interface LinkBootstrap {
   readonly total: MoneyDto | null;
   /** Catalog lines, so a buyer can check what they are paying for. */
   readonly lines: readonly LineItem[] | null;
-  readonly accepted: readonly string[];
-  /** Where the payer sends funds — the chain the minted intent will be watched on. */
-  readonly chain: string;
+  /**
+   * Every rail this merchant can be paid on (#244).
+   *
+   * The payer's choice is what mints the intent, so the deposit address and the
+   * price lock belong to the rail they chose. Empty means the merchant has no
+   * payable rail at all, which the page states rather than hiding behind a
+   * button that would fail.
+   */
+  readonly rails: readonly Rail[];
   readonly lockMinutes: number;
 }

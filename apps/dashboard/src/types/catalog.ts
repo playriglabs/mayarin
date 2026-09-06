@@ -116,6 +116,8 @@ export interface CreateLinkRequest {
 export interface ChargeLinkRequest {
   readonly linkId: string;
   readonly asset: string;
+  /** Which network the payer sends on (#244). The address they scan belongs to it. */
+  readonly chain: string;
   /** Required by an `open` link, refused by the others. */
   readonly amount?: DecimalMoneyRequest;
 }
@@ -144,4 +146,9 @@ export interface QuoteRequest {
   readonly linkId: string;
   /** Required by an `open` link; the others carry their own amount. */
   readonly amount?: DecimalMoneyRequest;
+  /**
+   * The network the counter has selected. The accepted set is per-chain (#244),
+   * so an asset accepted only here is missing from the quote without it.
+   */
+  readonly chain?: string;
 }

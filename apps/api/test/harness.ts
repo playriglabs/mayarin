@@ -29,7 +29,11 @@ import { InvoiceService } from "@mayarin/invoicing";
 import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
 import { LedgerService } from "@mayarin/ledger";
 import { InMemoryLedgerRepository } from "@mayarin/ledger/testing";
-import { type MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
+import {
+  DerivedRailCatalog,
+  type MerchantAssetPolicySource,
+  PaymentIntentService,
+} from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
@@ -43,6 +47,7 @@ import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
 import { RuntimeMarket } from "../src/market.ts";
+import { chainReceipts, QuotePricingSource } from "../src/rails.ts";
 import { createApiKeyVerifier } from "../src/services/api-key-verifier.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 import { PaymentStream } from "../src/services/payment-stream.ts";
@@ -191,11 +196,22 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   // stands and the checkout offers what this deployment can receive.
   const merchantPolicies: MerchantAssetPolicySource = { policyFor: async () => undefined };
 
+  // The same derivation production runs, over the harness's own configuration:
+  // no watchers (the chain layer is off, so every configured chain counts) and
+  // no on-chain settlement, so a destination is not a precondition here.
+  const rails = new DerivedRailCatalog({
+    receipts: chainReceipts(config, new Set()),
+    merchantPolicies,
+    pricing: new QuotePricingSource({ market, rates, config }),
+    defaultSettlementAsset: config.settlementAsset,
+  });
+
   const container: Container = {
     config,
     verifyApiKey: createApiKeyVerifier({ keys: apiKeys, clock }),
     intents,
     merchantPolicies,
+    rails,
     catalog: new CatalogService({ products, links, clock }),
     commerce,
     invoices: new InvoiceService({

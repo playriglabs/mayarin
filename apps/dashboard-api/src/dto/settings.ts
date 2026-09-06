@@ -6,6 +6,7 @@
  */
 
 import type { Merchant, MerchantSettingChange } from "@mayarin/auth";
+import { CHAIN_IDS } from "@mayarin/chain";
 import { assetCodeSchema } from "@mayarin/shared";
 import { z } from "zod";
 
@@ -14,11 +15,44 @@ export const updateSettingsBodySchema = z
     settlementAsset: assetCodeSchema.optional(),
     acceptedAssets: z.array(assetCodeSchema).max(32).optional(),
     /**
+     * Accepted payer assets narrowed per chain (#244).
+     *
+     * Sent as a whole map, because the settings screen edits the matrix as one
+     * thing and a per-chain merge would leave a merchant no way to remove a
+     * chain's row at all. A chain absent inherits `acceptedAssets`; a chain
+     * present with an empty list is stored as absent, so "inherit" keeps one
+     * representation.
+     */
+    acceptedAssetsByChain: z.record(z.enum(CHAIN_IDS), z.array(assetCodeSchema).max(32)).optional(),
+    /**
      * `null` clears the address, an absent field leaves it alone. Two different
      * requests, and a merchant making the first should not be told they made
      * the second.
+     *
+     * The shape is checked *here* rather than only in the domain because the
+     * route probes every chain for contract code before the domain ever sees
+     * the value. An unparseable address made that probe fail at the RPC, and a
+     * merchant who typed one character got "A connected service could not
+     * complete this request" — a provider fault for what is plainly their typo.
+     * Checksum case is deliberately not enforced: EIP-55 is a hint, and an
+     * all-lowercase address copied from an explorer is correct.
      */
-    settlementAddress: z.string().nullable().optional(),
+    settlementAddress: z
+      .union([
+        // An emptied text field is a merchant saying "pay me at the managed
+        // wallet", which is the same request as `null` — so it lands on the
+        // clear path rather than being told a blank box is a malformed
+        // address. Listed first so it never reaches the pattern below.
+        z.literal("").transform(() => null),
+        z
+          .string()
+          .regex(
+            /^0x[0-9a-fA-F]{40}$/,
+            "A settlement address must be a 20-byte hex address, e.g. 0x1234…abcd",
+          ),
+        z.null(),
+      ])
+      .optional(),
     /**
      * Merchant profile (#15). Frozen into the snapshot every payment link and
      * intent carries, so it is edited here and nowhere a buyer can reach.
@@ -53,6 +87,8 @@ export function toSettingsDto(merchant: Merchant, effectiveSettlementAddress?: s
     name: merchant.name,
     settlementAsset: merchant.settlementAsset,
     acceptedAssets: merchant.acceptedAssets,
+    /** Per-chain narrowing (#244). A chain absent here inherits `acceptedAssets`. */
+    acceptedAssetsByChain: merchant.acceptedAssetsByChain ?? {},
     /** What the merchant chose. `null` is "not chosen", not "nowhere to pay". */
     settlementAddress: merchant.settlementAddress ?? null,
     city: merchant.city ?? null,

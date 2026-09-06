@@ -11,6 +11,7 @@ import type {
   IssueInvoiceBodyDto,
   PaymentIntentDto,
   PaymentLinkDto,
+  PaymentRailsDto,
   ProductDto,
   UpdateProductBody,
 } from "@mayarin/api/dto";
@@ -50,6 +51,17 @@ export interface CommerceModule {
       options?: RequestOptions,
     ) => Promise<readonly PaymentLinkDto[]>;
     readonly get: (id: string, options?: RequestOptions) => Promise<PaymentLinkDto>;
+    /**
+     * `GET /payment-links/:id/rails` — every `(chain, asset)` pair this link
+     * can be paid on (#244).
+     *
+     * The same list the hosted checkout renders, from the same derivation, so
+     * an integration cannot offer a rail the hosted page would refuse. Assets
+     * are filtered per chain rather than unioned across them: Base offers ETH
+     * where Arc does not, and a payer offered ETH on Arc has been offered an
+     * asset that does not exist there.
+     */
+    readonly rails: (id: string, options?: RequestOptions) => Promise<PaymentRailsDto>;
     readonly disable: (id: string, options?: RequestOptions) => Promise<PaymentLinkDto>;
     readonly checkout: (
       id: string,
@@ -141,6 +153,8 @@ export function createCommerceModule(transport: Transport): CommerceModule {
             merchantQuery(merchantId, options),
           )
         ).paymentLinks,
+      rails: async (id, options) =>
+        transport.get<PaymentRailsDto>(`${itemPath("/payment-links", id)}/rails`, options),
       get: async (id, options) =>
         (
           await transport.get<{ paymentLink: PaymentLinkDto }>(

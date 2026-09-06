@@ -1,4 +1,5 @@
 import { AssetLogo } from "../../shared/asset-logo.tsx";
+import { ChainLabel } from "../../shared/chain-logo.tsx";
 import { walletAmount } from "../../shared/money.ts";
 import type { Deposit } from "./types.ts";
 import type { CopyTarget } from "./use-copy.ts";
@@ -96,7 +97,9 @@ export function DepositCard({
         </div>
         <div>
           <dt>Network</dt>
-          <dd>{deposit.chain}</dd>
+          <dd>
+            <ChainLabel chain={deposit.chain} />
+          </dd>
         </div>
         <div className="address-row">
           <dt>Address</dt>
@@ -126,8 +129,11 @@ export function DepositCard({
         {copied === "address" ? "Address copied" : "Copy payment address"}
       </button>
       <p className="estimate-note">
-        Send only {deposit.amount.asset} on {deposit.chain}. A smaller amount or an asset on another
-        network will not complete this payment.
+        Send only {deposit.amount.asset} on{" "}
+        <span className="pl-1">
+          <ChainLabel chain={deposit.chain} size={18} />
+        </span>
+        . A smaller amount or an asset on another network will not complete this payment.
       </p>
     </>
   );

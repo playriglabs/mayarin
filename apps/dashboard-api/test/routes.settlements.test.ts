@@ -136,6 +136,32 @@ describe("GET /settlements", () => {
     expect(row.netAmount.amount).toBe("2990000");
   });
 
+  // A deposit-match settlement emits no `PaymentCompleted`, so the indexer has
+  // no log and `chain` stays null — but the payment still ran on a network, and
+  // reading only the log left every such row blank in the merchant's table.
+  test("reports the payer's rail for a settlement with no on-chain log", async () => {
+    const harness = await createDashboardHarness();
+    await makeUser(harness, "mch_a", "warung-a@mayarin.local", "pw-a");
+    const intent = await harness.intentService.create({
+      merchant: { id: "mch_a", name: "Warung A", city: "Jakarta", countryCode: "ID" },
+      amount: { amount: 50_000n, asset: "IDR" },
+      source: { type: "manual" },
+      payment: { asset: "USDC", chain: "arc-testnet" },
+      executionPath: "deposit-match",
+    });
+    await harness.clearing.insert(
+      transaction("mch_a", "clr_a", intent.id, new Date("2026-01-15T00:00:00.000Z")),
+      [],
+    );
+    const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
+
+    const res = await harness.request("GET", "/v1/settlements", { cookies: jar });
+    const row = res.body?.settlements[0];
+
+    expect(row.chain).toBeNull();
+    expect(row.payment).toEqual({ asset: "USDC", chain: "arc-testnet" });
+  });
+
   test("summary covers every settlement when the table page is limited to seven", async () => {
     const { harness } = await seed();
     const intents = await Promise.all(

@@ -79,6 +79,15 @@ export class UniswapRouteSource implements SwapRouteSource {
         configured: [...this.#pools.keys()],
       });
     }
+    // A V3 pool lives on one chain. Routing it from another chain's
+    // PaymentRouter would call a router that has no code there, so refuse here
+    // and let the caller fall back to a venue whose pool is on this chain.
+    if (pool.chain !== request.chain) {
+      throw new ConfigurationError(
+        `Uniswap pool for ${key} is on ${pool.chain}, not ${request.chain}`,
+        { pair: key, poolChain: pool.chain, chain: request.chain },
+      );
+    }
     const router = this.#swapRouters[pool.chain];
     if (router === undefined) {
       throw new ConfigurationError(`No SwapRouter02 address configured for ${pool.chain}`, {

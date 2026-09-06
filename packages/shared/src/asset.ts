@@ -70,6 +70,14 @@ const DEFINITIONS = {
   // Settlement assets
   USDC: { kind: "stablecoin", decimals: 6, name: "USD Coin" },
   USDT: { kind: "stablecoin", decimals: 6, name: "Tether USD" },
+  /**
+   * Euro-denominated, which makes it the one stablecoin here that is NOT a
+   * dollar in another representation. `EURC/USDC` is a real exchange rate — the
+   * EUR/USD one — so it must never be declared in `QUOTE_PEGGED_PAIRS`: a
+   * pegged pair reads no price at all and would settle euros as dollars, an
+   * error of whatever the pair happens to be worth that day.
+   */
+  EURC: { kind: "stablecoin", decimals: 6, name: "Euro Coin" },
 
   // Native crypto
   ETH: {
@@ -87,6 +95,36 @@ const DEFINITIONS = {
 export type AssetCode = keyof typeof DEFINITIONS;
 
 export const ASSET_CODES = Object.keys(DEFINITIONS) as readonly AssetCode[];
+
+/**
+ * Token artwork from Trust Wallet's public asset registry.
+ *
+ * The components accept strings from API responses, so EURC is kept ready here
+ * even before it joins Mayarin's settlement registry. Fiat values deliberately
+ * have no remote logo and render as a compact monogram in the UI.
+ *
+ * USDT is the one Trust Wallet logo that ships without an alpha channel — a flat
+ * white square — so it is overridden with a self-hosted transparent mark. The
+ * argument lets each frontend hand Vite or Astro the public URL it serves, the
+ * same way `chainLogoUrl` handles the local Arc logo.
+ */
+const TRUST_WALLET_ASSET_LOGOS: Readonly<Record<string, string>> = {
+  BTC: "https://assets-cdn.trustwallet.com/blockchains/bitcoin/info/logo.png",
+  ETH: "https://assets-cdn.trustwallet.com/blockchains/ethereum/info/logo.png",
+  EURC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
+  USDC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",
+};
+
+/**
+ * The canonical token logo, or undefined when a value is not an on-chain token.
+ *
+ * USDT resolves to `usdtLogo` (default `/tokens/usdt.svg`) rather than the
+ * white-background Trust Wallet PNG.
+ */
+export function assetLogoUrl(symbol: string, usdtLogo = "/tokens/usdt.svg"): string | undefined {
+  if (symbol.toUpperCase() === "USDT") return usdtLogo;
+  return TRUST_WALLET_ASSET_LOGOS[symbol.toUpperCase()];
+}
 
 const REGISTRY: Readonly<Record<AssetCode, AssetDefinition>> = Object.fromEntries(
   Object.entries(DEFINITIONS).map(([code, definition]) => [code, { code, ...definition }]),

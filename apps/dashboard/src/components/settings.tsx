@@ -21,6 +21,7 @@ import { BankIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ import {
   ComboboxList,
   type ComboboxOption,
 } from "@/components/ui/combobox";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
@@ -56,7 +57,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useSettings, useSettingsHistory, useUpdateSettings } from "@/hooks/settings";
+import {
+  useMerchantRails,
+  useSettings,
+  useSettingsHistory,
+  useUpdateSettings,
+} from "@/hooks/settings";
 import { useUrlTab } from "@/hooks/url-tab";
 import { ApiError } from "@/lib/api/client";
 import { COUNTRIES } from "@/lib/countries";
@@ -70,9 +76,6 @@ const SETTLEMENT_OPTIONS: readonly SelectOption[] = [
   { value: "USDC", label: "USDC" },
   { value: "USDT", label: "USDT" },
 ];
-
-/** What a payer may pay with. The settlement asset itself is the no-swap path. */
-const PAYABLE_ASSETS: readonly string[] = ["USDC", "USDT", "ETH"];
 
 /**
  * Every country, with the unsupported ones disabled rather than hidden.
@@ -89,6 +92,13 @@ const COUNTRY_OPTIONS: readonly ComboboxOption[] = COUNTRIES.map((country) => ({
 interface Draft {
   readonly settlementAsset: string;
   readonly acceptedAssets: readonly string[];
+  /**
+   * Accepted assets narrowed per chain (#244).
+   *
+   * A chain absent inherits `acceptedAssets`, which is where every merchant
+   * starts and where a merchant who never touches the matrix stays.
+   */
+  readonly acceptedAssetsByChain: Readonly<Record<string, readonly string[]>>;
   readonly settlementAddress: string;
   readonly city: string;
   readonly countryCode: string;
@@ -101,6 +111,7 @@ function draftOf(settings: SettingsDto): Draft {
   return {
     settlementAsset: settings.settlementAsset,
     acceptedAssets: settings.acceptedAssets,
+    acceptedAssetsByChain: settings.acceptedAssetsByChain,
     settlementAddress: settings.settlementAddress ?? "",
     city: settings.city ?? "",
     countryCode: settings.countryCode ?? "",
@@ -111,15 +122,36 @@ function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load settings";
 }
 
+function networkReasonOf(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Failed to load payment networks";
+}
+
 /** Empty means "clear it", which the API spells `null` — absent would mean "leave it". */
 function orNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
 }
 
+function sameAssets(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((asset) => right.includes(asset));
+}
+
+/**
+ * Whether a typed settlement address is one the API will accept.
+ *
+ * Blank is valid — it means "pay me at my managed wallet". Checksum case is not
+ * enforced, matching the domain: EIP-55 mixed case is a hint, and an
+ * all-lowercase address copied from a block explorer is a correct address.
+ */
+function isValidSettlementAddress(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed === "" || /^0x[0-9a-fA-F]{40}$/.test(trimmed);
+}
+
 function Settings() {
   const settings = useSettings();
   const history = useSettingsHistory();
+  const rails = useMerchantRails();
   const update = useUpdateSettings();
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -133,6 +165,12 @@ function Settings() {
   // typed. Reset when the loaded settings change so a successful save leaves
   // the form showing what was actually stored, not what was submitted.
   const loaded = settings.data?.settings;
+  /** What each network can receive, so the matrix lists nothing a chain has no address for. */
+  const supportedChains = rails.data?.supported ?? [];
+  // Blocks the save rather than only colouring the field: the API probes every
+  // chain for contract code before it validates, so a malformed address came
+  // back as a provider fault instead of as the typo it is.
+  const addressInvalid = draft !== null && !isValidSettlementAddress(draft.settlementAddress);
   useEffect(() => {
     if (loaded !== undefined) setDraft(draftOf(loaded));
   }, [loaded]);
@@ -140,10 +178,12 @@ function Settings() {
   async function save() {
     if (draft === null) return;
     setFailure("");
+    setNotice("");
     try {
       await update.mutateAsync({
         settlementAsset: draft.settlementAsset,
         acceptedAssets: draft.acceptedAssets,
+        acceptedAssetsByChain: draft.acceptedAssetsByChain,
         settlementAddress: orNull(draft.settlementAddress),
         city: orNull(draft.city),
         countryCode: orNull(draft.countryCode),
@@ -154,20 +194,77 @@ function Settings() {
     }
   }
 
-  function toggleAsset(asset: string, checked: boolean) {
+  function edit(next: Draft) {
+    setFailure("");
+    setNotice("");
+    setDraft(next);
+  }
+
+  /**
+   * What this merchant accepts on one chain: their row if they have written
+   * one, the merchant-wide list otherwise.
+   */
+  function acceptedOn(
+    current: Draft,
+    chain: string,
+    supported: readonly string[],
+  ): readonly string[] {
+    const row = current.acceptedAssetsByChain[chain];
+    if (row !== undefined && row.length > 0) {
+      return row.filter((asset) => supported.includes(asset));
+    }
+    // An empty merchant-wide list means "no preference", which the catalog
+    // reads as everything this chain can receive — so the boxes are ticked.
+    return current.acceptedAssets.length === 0
+      ? supported
+      : supported.filter((asset) => current.acceptedAssets.includes(asset));
+  }
+
+  /**
+   * Ticks or unticks one `(chain, asset)` box.
+   *
+   * Writing a row is what turns an inherited chain into an explicit one, so the
+   * first tick materialises the row from what was inherited — otherwise
+   * unticking ETH on Base would silently drop USDC with it. Unticking back to
+   * the inherited set removes the row again, so "inherit" keeps exactly one
+   * representation.
+   */
+  function toggleChainAsset(
+    chain: string,
+    asset: string,
+    checked: boolean,
+    supported: readonly string[],
+  ) {
     if (draft === null) return;
+    const current = acceptedOn(draft, chain, supported);
     const next = checked
-      ? [...draft.acceptedAssets, asset]
-      : draft.acceptedAssets.filter((a) => a !== asset);
-    setDraft({ ...draft, acceptedAssets: next });
+      ? [...new Set([...current, asset])]
+      : current.filter((entry) => entry !== asset);
+
+    const byChain = { ...draft.acceptedAssetsByChain };
+    const inherited =
+      draft.acceptedAssets.length === 0
+        ? supported
+        : supported.filter((entry) => draft.acceptedAssets.includes(entry));
+    if (sameAssets(next, inherited)) {
+      // Matching the merchant-wide choice is inheritance, so keep one
+      // representation rather than persisting a redundant override.
+      delete byChain[chain];
+    } else {
+      byChain[chain] = next;
+    }
+    edit({ ...draft, acceptedAssetsByChain: byChain });
+  }
+
+  function resetChainAssets(chain: string) {
+    if (draft === null) return;
+    const byChain = { ...draft.acceptedAssetsByChain };
+    delete byChain[chain];
+    edit({ ...draft, acceptedAssetsByChain: byChain });
   }
 
   return (
     <section className="flex flex-col gap-8">
-      <p aria-live="polite" className="sr-only">
-        {notice}
-      </p>
-
       {match(settings)
         .with({ isPending: true }, () => <PageLoader label="Loading settings" />)
         .with({ isError: true }, ({ error }) => (
@@ -182,6 +279,7 @@ function Settings() {
           return (
             <>
               {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
+              {notice !== "" && <Alert role="status">{notice}</Alert>}
 
               <Tabs.Root
                 value={activeTab}
@@ -215,7 +313,7 @@ function Settings() {
                       <Select
                         items={SETTLEMENT_OPTIONS}
                         value={draft.settlementAsset}
-                        onValueChange={(next) => setDraft({ ...draft, settlementAsset: next })}
+                        onValueChange={(next) => edit({ ...draft, settlementAsset: next })}
                       >
                         <SelectTrigger id="settlement-asset">
                           <SelectValue
@@ -237,42 +335,117 @@ function Settings() {
                       </FieldDescription>
                     </Field>
 
-                    <Field>
-                      <FieldLabel>Accepted payer assets</FieldLabel>
-                      <div className="flex flex-wrap gap-4 pt-1">
-                        {PAYABLE_ASSETS.map((asset) => (
-                          <span key={asset} className="flex items-center gap-2 text-sm">
-                            <Checkbox
-                              id={`accepted-${asset}`}
-                              checked={draft.acceptedAssets.includes(asset)}
-                              onCheckedChange={(checked) => toggleAsset(asset, checked === true)}
-                            />
-                            <label htmlFor={`accepted-${asset}`} className="mt-1">
-                              <AssetLabel symbol={asset} size={18} />
-                            </label>
-                          </span>
-                        ))}
-                      </div>
-                      <FieldDescription>
-                        Accepting the asset you settle in is what enables the no-swap path. It is
-                        kept in the set whether you tick it or not.
-                      </FieldDescription>
-                    </Field>
+                    {/* Per network and nowhere else. One merchant-wide list
+                        stopped describing anything the moment there were two
+                        chains — Base can receive ETH and Arc cannot — so a
+                        merchant ticking ETH was never saying they accept it
+                        everywhere (#244). Showing both a global list and a
+                        per-network one asked them to answer the same question
+                        twice, so only the network cards remain. */}
+                    {rails.isPending && (
+                      <p role="status" className="text-muted-foreground text-sm">
+                        Loading per-network asset options…
+                      </p>
+                    )}
+                    {rails.isError && (
+                      <QueryError
+                        message={networkReasonOf(rails.error)}
+                        retry={() => void rails.refetch()}
+                        retrying={rails.isFetching}
+                      />
+                    )}
+                    {/* Rendered for a single chain too, now that this is the
+                        only place a payer asset can be chosen at all. */}
+                    {!rails.isPending && !rails.isError && supportedChains.length > 0 && (
+                      <Field>
+                        <FieldLabel>Accepted assets per network</FieldLabel>
+                        <div className="grid gap-3 pt-1 sm:grid-cols-2">
+                          {supportedChains.map((entry) => {
+                            const accepted = acceptedOn(draft, entry.chain, entry.assets);
+                            const customized =
+                              draft.acceptedAssetsByChain[entry.chain] !== undefined;
+                            return (
+                              <div
+                                key={entry.chain}
+                                className="flex flex-col gap-3 border border-border bg-muted/30 p-3"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="font-medium text-sm">
+                                    <ChainLabel chain={entry.chain} />
+                                  </p>
+                                  <span className="flex items-center gap-2">
+                                    <Badge variant={customized ? "brand" : "default"}>
+                                      {customized ? "Custom" : "Default"}
+                                    </Badge>
+                                    {customized && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => resetChainAssets(entry.chain)}
+                                      >
+                                        Reset
+                                      </Button>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-4">
+                                  {entry.assets.map((asset) => (
+                                    <span key={asset} className="flex items-center gap-2 text-sm">
+                                      <Checkbox
+                                        id={`accepted-${entry.chain}-${asset}`}
+                                        checked={accepted.includes(asset)}
+                                        disabled={accepted.length === 1 && accepted.includes(asset)}
+                                        onCheckedChange={(checked) =>
+                                          toggleChainAsset(
+                                            entry.chain,
+                                            asset,
+                                            checked === true,
+                                            entry.assets,
+                                          )
+                                        }
+                                      />
+                                      <label
+                                        htmlFor={`accepted-${entry.chain}-${asset}`}
+                                        className="mt-1"
+                                      >
+                                        <AssetLabel symbol={asset} size={18} />
+                                      </label>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <FieldDescription>
+                          Choose what payers can send on each network. Only assets a network can
+                          receive are listed, and each keeps at least one.
+                        </FieldDescription>
+                      </Field>
+                    )}
 
                     <Field>
                       <FieldLabel htmlFor="settlement-address">Settlement address</FieldLabel>
                       <Input
                         id="settlement-address"
                         value={draft.settlementAddress}
-                        onChange={(e) => setDraft({ ...draft, settlementAddress: e.target.value })}
+                        onChange={(e) => edit({ ...draft, settlementAddress: e.target.value })}
                         placeholder="0x…"
+                        aria-invalid={addressInvalid}
+                        aria-describedby="settlement-address-hint"
                         className="font-mono text-xs"
                       />
-                      <FieldDescription>
+                      <FieldDescription id="settlement-address-hint">
                         Leave it blank to be paid at your managed wallet. There is no shared
                         default: one address for every merchant would pay every merchant into the
                         same wallet.
                       </FieldDescription>
+                      {addressInvalid && (
+                        <FieldError>
+                          Enter a 20-byte hex address, e.g. 0x1234…abcd, or leave it blank.
+                        </FieldError>
+                      )}
                     </Field>
 
                     {/* Shown in full and never truncated in the DOM: an address a
@@ -304,7 +477,7 @@ function Settings() {
                         <Input
                           id="merchant-city"
                           value={draft.city}
-                          onChange={(e) => setDraft({ ...draft, city: e.target.value })}
+                          onChange={(e) => edit({ ...draft, city: e.target.value })}
                           placeholder="Jakarta"
                         />
                       </Field>
@@ -314,7 +487,7 @@ function Settings() {
                         <Combobox
                           items={COUNTRY_OPTIONS}
                           value={draft.countryCode}
-                          onValueChange={(next) => setDraft({ ...draft, countryCode: next })}
+                          onValueChange={(next) => edit({ ...draft, countryCode: next })}
                         >
                           <ComboboxInput id="merchant-country" placeholder="Search a country" />
                           <ComboboxContent>
@@ -396,8 +569,15 @@ function Settings() {
 
               {activeTab !== "history" && (
                 <div className="flex justify-end">
-                  <Button onClick={save} disabled={update.isPending}>
-                    Save settings
+                  <Button
+                    onClick={save}
+                    disabled={
+                      update.isPending ||
+                      addressInvalid ||
+                      JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
+                    }
+                  >
+                    {update.isPending ? "Saving…" : "Save settings"}
                   </Button>
                 </div>
               )}

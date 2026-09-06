@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
+import { PythPriceOracle } from "@mayarin/provider-pyth";
+import { FallbackPriceOracle } from "@mayarin/quote";
 import { FixedClock } from "@mayarin/shared";
 import { loadConfig } from "../src/config.ts";
 import { createQuoteLayer } from "../src/quote-layer.ts";
 
-const BASE = { DATABASE_URL: "postgres://localhost:5433/mayarin" } as const;
+const BASE = {
+  DATABASE_URL: "postgres://localhost:5433/mayarin",
+  PYTH_API_KEY: "test-key",
+} as const;
 const PYTH_FEEDS =
   '{"ETH/USDC":"ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace"}';
 const DEV_SIGNER = {
@@ -59,6 +64,67 @@ describe("createQuoteLayer", () => {
 
     expect(layer?.slippageBps).toBe(25);
     expect(layer?.ttlSeconds).toBe(90);
+  });
+
+  test("a single oracle is used directly, with no failover wrapper", () => {
+    const layer = createQuoteLayer(
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        ...DEV_SIGNER,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+      }),
+      clock,
+    );
+
+    expect(layer?.oracle).toBeInstanceOf(PythPriceOracle);
+  });
+
+  // The fiat leg is oracle-only — no venue quotes rupiah — and Pyth's FX feeds
+  // need a paid grant, so a deployment pricing IDR reads two sources at once.
+  // Composing them is what lets each oracle carry only the pairs it can serve:
+  // a source with no series for a pair drops out of that read instead of
+  // failing it.
+  test("composes the crypto and fiat oracles into one reference", () => {
+    const layer = createQuoteLayer(
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        ...DEV_SIGNER,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_ORACLE_FALLBACKS: '["fx"]',
+        FX_FEEDS: '{"IDR/USDC":{"symbol":"USD/IDR","invert":true}}',
+      }),
+      clock,
+    );
+
+    expect(layer?.oracle).toBeInstanceOf(FallbackPriceOracle);
+  });
+
+  // Three partial sources covering a matrix none of them covers alone: Pyth's
+  // grant is a per-feed allowlist, the FX API serves the fiat leg it denies, and
+  // Coinbase covers the crypto feeds it denies.
+  test("composes every configured source into one reference", () => {
+    const layer = createQuoteLayer(
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        ...DEV_SIGNER,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_ORACLE_FALLBACKS: '["fx","coinbase"]',
+        FX_FEEDS: '{"IDR/USDC":{"symbol":"USD/IDR","invert":true}}',
+        COINBASE_PRODUCTS: '{"ETH/USDC":"ETH-USD"}',
+      }),
+      clock,
+    );
+
+    expect(layer?.oracle).toBeInstanceOf(FallbackPriceOracle);
   });
 
   test("the signer it builds is the one that signs orders", async () => {

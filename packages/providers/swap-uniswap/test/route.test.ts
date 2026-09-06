@@ -20,6 +20,7 @@ const request: RouteRequest = {
   exactOut: money(2_135_000n, "USDC"),
   maxIn: money(600_000_000_000_000n, "ETH"),
   recipient: PAYMENT_ROUTER,
+  chain: "base",
 };
 
 describe("UniswapRouteSource", () => {

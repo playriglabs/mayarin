@@ -26,6 +26,7 @@ import {
   InMemoryPaymentLinkRepository,
   InMemoryProductRepository,
 } from "@mayarin/catalog/testing";
+import type { ChainId } from "@mayarin/chain";
 import {
   InMemoryDepositRepository,
   InMemorySettlementEventRepository,
@@ -44,7 +45,7 @@ import {
   InMemoryWebhookDeliveryRepository,
   InMemoryWebhookEndpointRepository,
 } from "@mayarin/notifications/testing";
-import { PaymentIntentService } from "@mayarin/payment-intent";
+import { DerivedRailCatalog, PaymentIntentService } from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
@@ -60,6 +61,7 @@ import {
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
+import { chainReceipts } from "../src/rails.ts";
 import { ApiKeyService } from "../src/services/api-key-service.ts";
 import { AuthService } from "../src/services/auth-service.ts";
 import { CustomerService } from "../src/services/customer-service.ts";
@@ -96,6 +98,13 @@ class PlainPasswordHasher implements PasswordHasher {
 
 export interface DashboardHarnessOptions {
   readonly cookieSecure?: boolean;
+  /**
+   * Chains the merchant's settlement address has deployed code on (#244).
+   *
+   * Absent means no code reader at all, which is a deployment with no RPC
+   * access — the settings guard is then skipped, as it is in production.
+   */
+  readonly contractsOn?: readonly ChainId[];
   readonly rateLimitRequests?: number;
   readonly rateLimitBlockSeconds?: number;
   readonly loginRateLimitRequests?: number;
@@ -122,6 +131,12 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     RATE_LIMIT_BLOCK_SECONDS: String(options.rateLimitBlockSeconds ?? 300),
     DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS: String(options.loginRateLimitRequests ?? 5),
     PAYMENTS_PAGE_SIZE: "7",
+    // Two chains with different assets, which is the shape #244 exists for:
+    // Base takes ETH and USDC, Arc takes only USDC.
+    CHAIN_ASSETS:
+      '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"},"arc-testnet":{"USDC":"0x3600000000000000000000000000000000000000"}}',
+    CHAIN_NATIVE_ASSETS: '{"base-sepolia":"ETH"}',
+    WALLET_PROVISION_CHAINS: "base-sepolia,arc-testnet",
   });
 
   const users = new InMemoryUserRepository();
@@ -202,6 +217,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   const merchantKeyProvider = new FakeMerchantKeyProvider();
   const treasuryAddresses = [TREASURY_ADDRESS];
   const walletBalances = new InMemoryWalletBalanceReader();
+  const settlementAddressResolver = new SettlementAddressResolver({ wallets: merchantWallets });
+
   const wallets = new WalletService({
     wallets: merchantWallets,
     withdrawals: walletWithdrawals,
@@ -212,11 +229,14 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     clock,
     treasuryAddresses,
     merchants,
-    chain: "base-sepolia",
-    settlementAddresses: new SettlementAddressResolver({ wallets: merchantWallets }),
+    // Two chains, because the interesting cases only exist with more than one:
+    // a merchant provisioned on Base and not on Arc, and a balance that has to
+    // be reported per chain rather than for whichever one came first (#244).
+    chains: ["base-sepolia", "arc-testnet"],
+    settlementAddresses: settlementAddressResolver,
     balances: walletBalances,
     walletProvider,
-    nativeAsset: "ETH",
+    nativeAssets: { "base-sepolia": "ETH" },
     keyProvider: merchantKeyProvider,
     provisioner: new ManagedWalletProvisioner({
       wallets: merchantWallets,
@@ -358,6 +378,35 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     settlements,
   });
 
+  // The same derivation production runs, over the harness's own configuration.
+  const rails = new DerivedRailCatalog({
+    receipts: chainReceipts(config),
+    merchantPolicies: {
+      policyFor: async (merchantId: string) => {
+        const merchant = await merchants.findById(merchantId);
+        return merchant === null
+          ? undefined
+          : {
+              settlementAsset: merchant.settlementAsset,
+              acceptedAssets: merchant.acceptedAssets,
+              acceptedAssetsByChain: merchant.acceptedAssetsByChain ?? {},
+              ...(merchant.settlementAddress === undefined
+                ? {}
+                : { settlementAddress: merchant.settlementAddress }),
+            };
+      },
+    },
+    settlement: {
+      destinationFor: (merchantId, chain, configured) =>
+        settlementAddressResolver.effective(merchantId, chain, configured),
+    },
+    // Priceability is the payment API's answer, and the harness does not run
+    // one: every configured pair is treated as priceable so these tests exercise
+    // the destination and accept-list rules, which are this service's own.
+    pricing: { canPrice: async () => true },
+    defaultSettlementAsset: config.settlementAsset,
+  });
+
   const container: Container = {
     config,
     auth: authService,
@@ -378,7 +427,15 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     webhooks,
     wallets,
     merchantWallets,
-    settlementAddresses: new SettlementAddressResolver({ wallets: merchantWallets }),
+    settlementAddresses: settlementAddressResolver,
+    rails,
+    ...(options.contractsOn === undefined
+      ? {}
+      : {
+          contractCode: {
+            hasCode: async (chain: ChainId) => options.contractsOn?.includes(chain) === true,
+          },
+        }),
     close: async () => {},
   };
 

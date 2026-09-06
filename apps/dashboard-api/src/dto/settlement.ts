@@ -47,6 +47,18 @@ export function toSettlementDto(row: SettlementRow) {
             refundAmount: toMoneyDto(transaction.onChain.refundAmount),
           },
     /**
+     * The rail the payer actually paid on.
+     *
+     * Carried because `chain` below only exists for a settlement the indexer
+     * saw a `PaymentCompleted` log for — the contract path. A deposit-match
+     * payment settles through the adapter with no such log, so its network was
+     * unreportable even though the payment plainly ran on one.
+     */
+    payment:
+      intent.payment === undefined
+        ? null
+        : { asset: intent.payment.asset, chain: intent.payment.chain },
+    /**
      * The chain's own record of the settlement log, when there is one. Carries
      * the confirmation depth story the clearing row cannot: a settlement that
      * was acted on and then reorged away is visible here and nowhere else.

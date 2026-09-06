@@ -1,4 +1,4 @@
-import type { MerchantRef, MoneyDto } from "../../shared/types.ts";
+import type { MerchantRef, MoneyDto, Rail } from "../../shared/types.ts";
 
 export interface InvoiceLine {
   readonly name: string;
@@ -32,7 +32,7 @@ export interface InvoiceBootstrap {
   readonly issuedAt: string | null;
   readonly dueAt: string | null;
   readonly payable: boolean;
-  readonly accepted: readonly string[];
-  readonly chain: string;
+  /** Every rail this invoice can be paid on (#244), from the same catalog the link page reads. */
+  readonly rails: readonly Rail[];
   readonly checkoutUrl: string;
 }

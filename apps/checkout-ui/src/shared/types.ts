@@ -15,6 +15,20 @@ export interface MoneyDto {
   readonly display: string;
 }
 
+/**
+ * One `(chain, asset)` pair the payer may choose (#244).
+ *
+ * The page never picks a chain of its own: the rails it is given are the pairs
+ * this merchant can actually be paid on, filtered per chain rather than unioned
+ * across them, so a payer on Arc is never offered ETH.
+ */
+export interface Rail {
+  readonly chain: string;
+  readonly asset: string;
+  /** The token contract on that chain. `null` for the chain's own currency. */
+  readonly contract: string | null;
+}
+
 export interface MerchantRef {
   readonly name: string;
   readonly city: string;

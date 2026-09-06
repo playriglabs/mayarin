@@ -1,4 +1,4 @@
-import { cryptoLogoUrl } from "@/lib/logo-dev";
+import { assetLogoUrl } from "@mayarin/shared";
 import { cn } from "@/lib/utils";
 
 function AssetLogo({
@@ -10,9 +10,25 @@ function AssetLogo({
   size?: number;
   className?: string;
 }) {
+  const source = assetLogoUrl(symbol);
+  if (source === undefined) {
+    return (
+      <span
+        aria-hidden="true"
+        style={{ width: size, height: size }}
+        className={cn(
+          "inline-grid shrink-0 place-items-center rounded-full bg-muted font-medium text-[0.6em] text-muted-foreground",
+          className,
+        )}
+      >
+        {symbol.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+
   return (
     <img
-      src={cryptoLogoUrl(symbol, size)}
+      src={source}
       alt=""
       aria-hidden="true"
       width={size}

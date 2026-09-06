@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { AssetPicker } from "../../shared/asset-picker.tsx";
+import { ChainLabel } from "../../shared/chain-logo.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import { currencySymbol } from "../../shared/currency.ts";
+import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
 import { checkoutBody } from "./checkout-body.ts";
 import type { LinkBootstrap } from "./types.ts";
 import { useQuoteEstimate } from "./use-quote-estimate.ts";
 
 /**
- * The link page: what is being bought, in what asset, and one button.
+ * The link page: what is being bought, on which rail, and one button.
  *
  * Three things it deliberately does *not* do, carried over from the
  * server-rendered page it replaces:
@@ -18,17 +19,26 @@ import { useQuoteEstimate } from "./use-quote-estimate.ts";
  *   while the buyer typed, and burn a deposit address per curious click.
  * - **No price it cannot honour.** The estimate reads `POST /v1/quotes` — the
  *   same rate provider the lock will read — and is labelled an estimate.
+ *
+ * The rail is the payer's choice now (#244), network and asset both. It used to
+ * be one asset list unioned across every configured chain, on a chain the
+ * deployment picked — so a payer on Arc was offered ETH, which does not exist
+ * there. A deployment with one rail renders exactly what it rendered before:
+ * `RailPicker` asks nothing when there is nothing to ask.
  */
 export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
-  const { payable, currency, total, lines, accepted, lockMinutes } = bootstrap;
-  const [asset, setAsset] = useState<string | undefined>(accepted[0]);
+  const { payable, currency, total, lines, rails, lockMinutes } = bootstrap;
+  const [rail, setRail] = useState(rails[0]);
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const typedAmount = total === null ? amount : total.formatted;
   const displayCurrency = currencySymbol(currency);
-  const estimate = useQuoteEstimate(typedAmount, currency, asset);
+  const estimate = useQuoteEstimate(typedAmount, currency, rail?.asset);
+  // A merchant with no rail cannot be paid at all — say so, rather than
+  // offering a button whose only outcome is a refusal.
+  const payableNow = payable && rail !== undefined;
 
   async function pay() {
     if (total === null && Number(amount) <= 0) {
@@ -42,7 +52,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       const response = await fetch(`/v1/payment-links/${bootstrap.linkId}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(checkoutBody(bootstrap, amount, asset)),
+        body: JSON.stringify(checkoutBody(bootstrap, amount, rail)),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -90,7 +100,11 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
           <p className="section-kicker">Secure checkout</p>
           <h2>Choose how to pay</h2>
           <p className="panel-intro">
-            Pay {bootstrap.merchant.name} on the {bootstrap.chain} network.
+            {rail === undefined
+              ? `Pay ${bootstrap.merchant.name}.`
+              : rails.length === 1
+                ? `Pay ${bootstrap.merchant.name} with ${railSummary(rail)}.`
+                : `Pay ${bootstrap.merchant.name} on any network below.`}
           </p>
 
           {total === null && (
@@ -114,27 +128,37 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
             </div>
           )}
 
-          {payable ? (
+          {payableNow ? (
             <>
-              <AssetPicker accepted={accepted} selected={asset} onSelect={setAsset} />
+              <RailPicker rails={rails} selected={rail} onSelect={setRail} />
 
               <div className="payment-estimate" aria-live="polite">
-                <span>Estimated total in {asset ?? "selected asset"}</span>
+                <span>Estimated total in {rail.asset}</span>
                 <strong>{estimate}</strong>
               </div>
 
               <ol className="payment-steps">
-                <li>Choose the asset you want to send.</li>
+                {rails.length > 1 && <li>Pick the network and asset you want to send.</li>}
                 <li>Continue to lock the price for {lockMinutes} minutes.</li>
                 <li>Scan the QR code or copy the address, then wait for confirmation.</li>
               </ol>
+
+              {/* True of a choice the payer made, not one the deployment made
+                  for them — which is what makes it worth stating twice. */}
+              <p className="rail-note">
+                Send {rail.asset} on{" "}
+                <span className="pl-1">
+                  <ChainLabel chain={rail.chain} size={18} />
+                </span>{" "}
+                only. Anything else, or the same asset on another network, cannot be recovered.
+              </p>
 
               <p className="estimate-note">
                 Estimated, final price may change. Prices are locked for {lockMinutes} minutes once
                 you press the button below.
               </p>
               <button type="button" className="primary" disabled={busy} onClick={() => void pay()}>
-                {busy ? "Preparing payment…" : `Continue with ${asset ?? "asset"}`}
+                {busy ? "Preparing payment…" : `Continue with ${rail.asset}`}
               </button>
               {error !== "" && (
                 <p className="error" role="alert">
@@ -144,7 +168,11 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
             </>
           ) : (
             <div className="unavailable">
-              <h3>This payment link is no longer available</h3>
+              <h3>
+                {payable
+                  ? "This merchant has no payment method available"
+                  : "This payment link is no longer available"}
+              </h3>
               <p>Contact the merchant for a new payment link.</p>
             </div>
           )}

@@ -462,9 +462,17 @@ describe("the settlement balance", () => {
     const res = await harness.request("GET", "/v1/wallets/balance", { cookies: auth.jar });
 
     expect(res.status).toBe(200);
-    expect(res.body?.address).toBe(configured);
-    expect(res.body?.withdrawable).toBe(false);
-    expect(res.body?.balances).toEqual([
+    // One row per configured chain: a merchant paid on Base and on Arc has two
+    // addresses holding two balances, and reporting one of them made the other
+    // chain's money invisible (#244).
+    expect(res.body?.balances.map((row: { chain: string }) => row.chain)).toEqual([
+      "base-sepolia",
+      "arc-testnet",
+    ]);
+    const base = res.body?.balances[0];
+    expect(base.address).toBe(configured);
+    expect(base.withdrawable).toBe(false);
+    expect(base.balances).toEqual([
       { amount: "1500000", asset: "USDC", formatted: "1.500000", display: "1,50 USDC" },
       {
         amount: "3000000000000000",
@@ -485,9 +493,17 @@ describe("the settlement balance", () => {
 
     const res = await harness.request("GET", "/v1/wallets/balance", { cookies: auth.jar });
 
-    expect(res.body?.address).toBe(address);
-    expect(res.body?.withdrawable).toBe(true);
-    expect(res.body?.balances[0].amount).toBe("42");
+    const base = res.body?.balances[0];
+    expect(base.address).toBe(address);
+    expect(base.withdrawable).toBe(true);
+    expect(base.balances[0].amount).toBe("42");
+
+    // Provisioned on Base only, so Arc has an address of nowhere — reported as
+    // a row rather than omitted, because a missing row and an empty one read
+    // the same and only one of them says there is something to do.
+    const arc = res.body?.balances[1];
+    expect(arc.chain).toBe("arc-testnet");
+    expect(arc.address).toBeNull();
   });
 
   test("an asset this deployment has no token address for is omitted, not zeroed", async () => {
@@ -504,7 +520,34 @@ describe("the settlement balance", () => {
 
     const res = await harness.request("GET", "/v1/wallets/balance", { cookies: auth.jar });
 
-    expect(res.body?.balances).toEqual([]);
+    expect(res.body?.balances[0].balances).toEqual([]);
+  });
+
+  test("reports which networks this merchant can be paid on, and why not the rest", async () => {
+    // The reason is the point: "no settlement address on Arc" is a settings
+    // change the merchant can make, where a payment that refuses to lock three
+    // days later is not (#244).
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await linkAndVerify(harness, auth);
+    await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
+
+    const res = await harness.request("GET", "/v1/wallets/rails", { cookies: auth.jar });
+
+    expect(res.status).toBe(200);
+    // Base offers both of its assets; Arc offers nothing, because there is
+    // nowhere to pay this merchant there.
+    expect(
+      res.body?.rails.map(
+        (rail: { chain: string; asset: string }) => `${rail.chain}:${rail.asset}`,
+      ),
+    ).toEqual(["base-sepolia:USDC", "base-sepolia:ETH"]);
+    expect(res.body?.unavailable).toContainEqual({
+      kind: "no-settlement-destination",
+      chain: "arc-testnet",
+      asset: null,
+      reason: expect.stringContaining("provision a managed wallet"),
+    });
   });
 });
 
@@ -522,6 +565,7 @@ describe("withdrawing", () => {
     const { destination, safe } = await withdrawable(harness, auth);
 
     const res = await post(harness, auth, "/v1/wallets/withdraw", {
+      chain: "base-sepolia",
       asset: "USDC",
       amount: "2500000",
       to: destination,
@@ -569,6 +613,7 @@ describe("withdrawing", () => {
     await withdrawable(harness, auth);
 
     const res = await post(harness, auth, "/v1/wallets/withdraw", {
+      chain: "base-sepolia",
       asset: "USDC",
       amount: "1",
       to: `0x${"ee".repeat(20)}`,
@@ -589,6 +634,7 @@ describe("withdrawing", () => {
     });
 
     const res = await post(harness, auth, "/v1/wallets/withdraw", {
+      chain: "base-sepolia",
       asset: "USDC",
       amount: "1",
       to: unverified.address,
@@ -604,6 +650,7 @@ describe("withdrawing", () => {
     const { account } = await linkAndVerify(harness, auth);
 
     const res = await post(harness, auth, "/v1/wallets/withdraw", {
+      chain: "base-sepolia",
       asset: "USDC",
       amount: "1",
       to: account.address,
@@ -618,6 +665,7 @@ describe("withdrawing", () => {
     const { destination } = await withdrawable(harness, auth);
 
     const res = await post(harness, auth, "/v1/wallets/withdraw", {
+      chain: "base-sepolia",
       asset: "USDC",
       amount: "0",
       to: destination,

@@ -61,8 +61,7 @@ function linkBootstrap(overrides: Partial<LinkBootstrap> = {}): LinkBootstrap {
       display: "Rp 50.000,00",
     },
     lines: null,
-    accepted: ["USDC"],
-    chain: "base-sepolia",
+    rails: [{ chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" }],
     lockMinutes: 15,
     ...overrides,
   };
@@ -122,13 +121,15 @@ describe("payment stage", () => {
   });
 });
 
+const USDC_ON_BASE = { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" } as const;
+
 describe("checkout body", () => {
   test("asks for the deposit path, whatever the deployment default is", () => {
     // The page renders an address and a QR. The contract path needs the
     // payer's own wallet to sign the router call, and there is no wallet to
     // connect here, so a deployment defaulting to it would fail every hosted
     // checkout.
-    const body = checkoutBody(linkBootstrap(), "", "USDC");
+    const body = checkoutBody(linkBootstrap(), "", USDC_ON_BASE);
     expect(body).toEqual({
       payment: { asset: "USDC", chain: "base-sepolia" },
       executionPath: "deposit-match",
@@ -136,12 +137,16 @@ describe("checkout body", () => {
   });
 
   test("an open link sends the typed amount in the link's currency", () => {
-    const body = checkoutBody(linkBootstrap({ kind: "open", total: null }), " 25000 ", "USDC");
+    const body = checkoutBody(
+      linkBootstrap({ kind: "open", total: null }),
+      " 25000 ",
+      USDC_ON_BASE,
+    );
     expect(body["amount"]).toEqual({ amount: "25000", asset: "IDR" });
   });
 
   test("a priced link never sends an amount of its own", () => {
-    const body = checkoutBody(linkBootstrap(), "999", "USDC");
+    const body = checkoutBody(linkBootstrap(), "999", USDC_ON_BASE);
     expect(body["amount"]).toBeUndefined();
   });
 });

@@ -16,7 +16,9 @@ import {
   toPaymentLinkDto,
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { toRailDto } from "../dto/rails.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
+import { assertRailOffered } from "../rails.ts";
 
 export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
@@ -63,6 +65,26 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()) });
   });
 
+  /**
+   * The rails this link can be paid on (#244).
+   *
+   * Public, like `GET /:id`: it describes a link anyone holding the URL may
+   * pay, and says nothing about the merchant beyond what the checkout page
+   * built from the same list already shows.
+   *
+   * The same list the hosted checkout inlines — one implementation serving the
+   * page, the embed and the SDK, so an embed cannot offer a rail the hosted
+   * page would refuse.
+   */
+  app.get("/:id/rails", async (c) => {
+    const link = await container.catalog.getLink(c.req.param("id"));
+    const report = await container.rails.describe(link.merchant.id);
+    return c.json({
+      rails: report.rails.map(toRailDto),
+      settlementAsset: report.settlementAsset,
+    });
+  });
+
   app.post("/:id/disable", manage, async (c) => {
     // A foreign link answers 404 before the disable runs — the id was not the
     // caller's to know, so the response does not say whether it exists.
@@ -81,6 +103,12 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     const body = checkoutLinkBodySchema.parse(raw);
     const idempotencyKey = c.req.header("Idempotency-Key");
     const { amount, ...options } = body;
+
+    // Refused here rather than at price-lock: by then the payer has chosen, a
+    // deposit address has been issued, and the message names a merchant
+    // setting they have never seen.
+    const link = await container.catalog.getLink(c.req.param("id"));
+    await assertRailOffered(container, link.merchant.id, options.payment);
 
     const intent = await container.commerce.checkoutLink(c.req.param("id"), {
       ...toIntentOptions(options),

@@ -29,6 +29,7 @@ import type { MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/p
 import { buildPayEthCall, deriveIntentId, type RouterCall } from "@mayarin/provider-evm";
 import { ZeroExRouteSource } from "@mayarin/provider-swap-0x";
 import { UniswapRouteSource } from "@mayarin/provider-swap-uniswap";
+import { UniswapV2RouteSource } from "@mayarin/provider-swap-uniswap-v2";
 import {
   assembleOrder,
   type LockedQuote,
@@ -162,6 +163,10 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       settlementAsset: request.settlementAsset,
       payerAsset: request.payerAsset,
       probe,
+      // The swap leg executes here, so it is priced here. Without this the lock
+      // took whichever venue was configured first, on whatever chain its pool
+      // happened to be.
+      chain: request.chain,
     });
 
     const settlementAmount = fiat.settlement.settlementAmount;
@@ -381,6 +386,7 @@ export class ContractCheckout {
           transaction.settlementAsset,
           lock,
           paymentRouter,
+          rail.chain,
           transaction.rate?.source,
         );
 
@@ -413,23 +419,36 @@ export class ContractCheckout {
     settlementAsset: Money["asset"],
     lock: ClearingContract,
     recipient: string,
+    chain: ChainId,
     pricedBy: string | undefined,
   ): Promise<ExecutableRoute> {
     // Prefer the venue that priced the lock (LiFi prices but cannot route, so
-    // it is never in the map); fall back to any route-capable venue.
+    // it is never in the map); fall back to the others in order. A venue whose
+    // pool is on another chain refuses with a `ConfigurationError` here — its
+    // router has no code on this chain — so the fallback reaches a venue whose
+    // pool is on this chain. A non-configuration failure (a real RPC or venue
+    // fault) is not something to route around: it is rethrown so the caller
+    // sees the failure rather than a misleading "no venue" after the fact.
     const routeSources = await this.#options.routeSources();
-    const preferred = pricedBy === undefined ? undefined : routeSources.get(pricedBy);
-    const source = preferred ?? routeSources.values().next().value ?? undefined;
-    if (source === undefined) {
-      throw new ConfigurationError("No route-capable venue is configured", {});
+    const ordered = orderRouteSources(routeSources, pricedBy);
+    let lastError: unknown;
+    for (const source of ordered) {
+      try {
+        return await source.route({
+          payerAsset,
+          settlementAsset,
+          exactOut: money(lock.order.minOut, settlementAsset),
+          maxIn: lock.payerEstimate,
+          recipient,
+          chain,
+        });
+      } catch (error) {
+        if (!(error instanceof ConfigurationError)) throw error;
+        lastError = error;
+      }
     }
-    return source.route({
-      payerAsset,
-      settlementAsset,
-      exactOut: money(lock.order.minOut, settlementAsset),
-      maxIn: lock.payerEstimate,
-      recipient,
-    });
+    if (lastError !== undefined) throw lastError;
+    throw new ConfigurationError(`No route-capable venue is configured for ${chain}`, { chain });
   }
 }
 
@@ -443,6 +462,24 @@ function toQuoteOrder(order: ClearingContract["order"]): Order {
     refundTo: order.refundTo as Hex,
     deadline: order.deadline,
   };
+}
+
+/**
+ * The priced venue first, then the rest in configuration order. A venue that
+ * priced the lock is the one whose rate the `minOut` was guarded against, so it
+ * is the first choice to route; the fallbacks are only reached when it cannot
+ * route this chain.
+ */
+function orderRouteSources(
+  sources: ReadonlyMap<string, SwapRouteSource>,
+  pricedBy: string | undefined,
+): readonly SwapRouteSource[] {
+  const preferred = pricedBy === undefined ? undefined : sources.get(pricedBy);
+  if (preferred === undefined) return [...sources.values()];
+  const rest = [...sources.entries()]
+    .filter(([name]) => name !== pricedBy)
+    .map(([, source]) => source);
+  return [preferred, ...rest];
 }
 
 /** Builds the route sources the checkout fetches from, keyed by venue name. */
@@ -469,6 +506,15 @@ export function createRouteSources(
         new UniswapRouteSource({
           swapRouters: config.uniswapSwapRouters,
           pools: pools as never,
+        }),
+      );
+    }
+    if (name === "uniswap-v2") {
+      sources.set(
+        "uniswap-v2",
+        new UniswapV2RouteSource({
+          routers: config.uniswapV2Routers,
+          pairs: config.uniswapV2Pairs as never,
         }),
       );
     }

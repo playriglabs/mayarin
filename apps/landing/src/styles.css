@@ -18,6 +18,7 @@
   --color-slate: #666666;
   --color-line: #eaeaea;
   --color-void: #050505;
+  --color-code-panel: #141414;
   --color-accent: #0eeb2e;
   --color-forest: #1f6f54;
   /* The illustration plate on dark sections: forest pushed almost to the void. */
@@ -163,99 +164,49 @@ h3 {
   transform: none;
 }
 
-/* A single green pulse travelling a routing path. One shared 6s cycle runs the
-   whole topology: a pulse takes a full cycle to cross, so an inbound and an
-   outbound lane on the same delay hand over at the node — what arrives is what
-   leaves, instead of two conveyor belts running past each other. */
-.flow-line {
-  stroke-dasharray: 14 182;
-  animation: flow 6s linear infinite;
-  animation-delay: var(--flow-delay, 0s);
+/* Routing illustration: quiet surfaces, fluid paths and a shared clearing hub. */
+.topology {
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 46%, #eaf6ed, #fafcfb 48%, white 85%);
 }
 
-@keyframes flow {
-  from {
-    stroke-dashoffset: 196;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
+.topology-track { stroke: #cadfd2; }
+.topology-card { fill: white; stroke: #d4e3d9; stroke-width: 1; }
+.topology-icon-disc { fill: #f0f7f2; }
+.topology-label { font: 15px var(--font-sans); fill: var(--color-ink); }
+.topology-endpoint .topology-label { font-size: 13px; }
+.topology-detail { font: 11px var(--font-sans); fill: var(--color-slate); }
+.topology-caption { font: 10px var(--font-mono); letter-spacing: 1.5px; fill: var(--color-forest); }
+.topology-hub-label { font: 10px var(--font-mono); letter-spacing: 2px; fill: var(--color-forest); }
+.topology-hub { fill: white; stroke: #b7d5c2; filter: drop-shadow(0 8px 12px #1f6f5414); }
+.topology-orbit { fill: none; stroke: #c5dfce; stroke-width: 1; }
+.topology-halo { fill: #dff2e5; opacity: 0.55; transform-origin: 0 0; animation: topology-breathe 6s ease-in-out infinite; }
+.topology-stream { stroke: var(--color-forest); stroke-dasharray: 5 95; animation: topology-travel 9s cubic-bezier(0.35, 0, 0.65, 1) infinite; animation-delay: var(--route-delay); }
+.topology-stream-glow { stroke: var(--color-accent); stroke-opacity: 0.18; }
+.topology[data-paused="true"] .topology-stream,
+.topology[data-paused="true"] .topology-halo { animation-play-state: paused; }
+
+@keyframes topology-travel {
+  0% { stroke-dashoffset: 5; opacity: 0; }
+  8% { opacity: 1; }
+  72% { opacity: 1; }
+  85%, 100% { stroke-dashoffset: -100; opacity: 0; }
 }
 
-/* An endpoint fires as its own lane departs, and again as one lands on it. */
-.route-pulse {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: route-pulse 6s linear infinite;
-  animation-delay: var(--flow-delay, 0s);
+@keyframes topology-breathe {
+  0%, 100% { transform: scale(0.94); opacity: 0.35; }
+  50% { transform: scale(1.08); opacity: 0.65; }
 }
 
-@keyframes route-pulse {
-  0% {
-    opacity: 1;
-    transform: scale(1.55);
-  }
-  14%,
-  100% {
-    opacity: 0.75;
-    transform: scale(1);
-  }
+@media (width < 48rem) {
+  .topology-label { font-size: 12px; }
 }
 
-/* Three handovers per cycle, on the three lane delays — the node beats when
-   value actually reaches it, not on a decorative loop of its own. */
-.flow-dot {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: node-flash 6s linear infinite;
+@media (prefers-reduced-motion: reduce) {
+  .topology-stream, .topology-halo { animation: none; }
+  .topology-stream, .topology-pause { display: none; }
 }
 
-@keyframes node-flash {
-  0%,
-  11.7%,
-  23.3% {
-    opacity: 1;
-    transform: scale(1.75);
-  }
-  7%,
-  19%,
-  30%,
-  100% {
-    opacity: 0.8;
-    transform: scale(1);
-  }
-}
-
-.node-ripple {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: node-ripple 6s ease-out infinite;
-}
-
-@keyframes node-ripple {
-  0% {
-    opacity: 0.5;
-    transform: scale(0.7);
-  }
-  45%,
-  100% {
-    opacity: 0;
-    transform: scale(1.9);
-  }
-}
-
-/* The node's outer ring turns: the clearing layer is never idle. */
-.node-ring {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: node-ring 30s linear infinite;
-}
-
-@keyframes node-ring {
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 @keyframes pulse {
   0%,
@@ -610,11 +561,6 @@ h3 {
     transition: none;
   }
 
-  .flow-line,
-  .flow-dot,
-  .route-pulse,
-  .node-ripple,
-  .node-ring,
   .marquee,
   .stage-fill,
   .stage-enter,
@@ -717,6 +663,43 @@ h3 {
   [data-visual]
   [data-reveal] {
   opacity: 0;
+}
+
+/* Corner brackets meet as crosses at the responsive grid's intersections. */
+.ornament-grid {
+  --grid-line: color-mix(in srgb, var(--color-forest) 25%, var(--color-paper));
+  --grid-ornament: color-mix(in srgb, var(--color-forest) 45%, var(--color-paper));
+  border-color: var(--grid-line);
+}
+
+.ornament-card {
+  border-color: var(--grid-line);
+}
+
+.ornament-card::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  --horizontal-brackets: linear-gradient(
+    to right,
+    var(--grid-ornament) 16px,
+    transparent 16px,
+    transparent calc(100% - 16px),
+    var(--grid-ornament) calc(100% - 16px)
+  );
+  --vertical-brackets: linear-gradient(
+    to bottom,
+    var(--grid-ornament) 16px,
+    transparent 16px,
+    transparent calc(100% - 16px),
+    var(--grid-ornament) calc(100% - 16px)
+  );
+  background:
+    var(--horizontal-brackets) top / 100% 2px no-repeat,
+    var(--horizontal-brackets) bottom / 100% 2px no-repeat,
+    var(--vertical-brackets) left / 2px 100% no-repeat,
+    var(--vertical-brackets) right / 2px 100% no-repeat;
 }
 
 @media print {

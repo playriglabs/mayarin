@@ -129,12 +129,7 @@ export const glyphs = {
 
 export type GlyphName = keyof typeof glyphs;
 
-/**
- * Marks for the principles list. Heavier and squarer than the small line
- * glyphs above: at 36px beside a serif heading, a hairline squiggle reads as
- * lint, and the page's motif is a pixel square — the hero packets, the
- * topology endpoints and the clearing node are all squares.
- */
+/** Familiar outline symbols for principles, matching the use-case illustrations. */
 function PrincipleGlyph({ children, ...rest }: GlyphProps) {
   return (
     <svg
@@ -144,8 +139,8 @@ function PrincipleGlyph({ children, ...rest }: GlyphProps) {
       fill="none"
       stroke="currentColor"
       stroke-width="1.6"
-      stroke-linecap="square"
-      stroke-linejoin="miter"
+      stroke-linecap="round"
+      stroke-linejoin="round"
       aria-hidden="true"
       {...rest}
     >
@@ -155,80 +150,58 @@ function PrincipleGlyph({ children, ...rest }: GlyphProps) {
 }
 
 export const principleGlyphs = {
-  /** Many rails in, one intent out: the caller never names the rail. */
+  /** A route between endpoints: infrastructure handles the journey. */
   abstractRail: (
     <PrincipleGlyph>
-      <path d="M2 8h9M2 16h9M2 24h9" />
-      <rect x="11" y="11" width="10" height="10" />
-      <rect x="14" y="14" width="4" height="4" fill="var(--color-accent)" stroke="none" />
-      <path d="M21 16h9" />
+      <circle cx="6" cy="7" r="3" />
+      <circle cx="26" cy="25" r="3" />
+      <path d="M9 7h11a4.5 4.5 0 0 1 0 9h-8a4.5 4.5 0 0 0 0 9h11" />
     </PrincipleGlyph>
   ),
-  /** One port, two providers behind it — one wired, one swappable. */
+  /** Detachable plugs: a provider can be replaced at the connection. */
   providerAgnostic: (
     <PrincipleGlyph>
-      <rect x="2" y="11" width="10" height="10" />
-      {/* One port, forking to both providers — neither is wired in by name. */}
-      <path d="M12 16h4M16 8v16M16 8h2M16 24h2" />
-      <rect x="18" y="3" width="11" height="10" stroke-dasharray="2 2.5" />
-      <rect x="18" y="19" width="11" height="10" />
-      <rect x="21" y="22" width="5" height="4" fill="var(--color-accent)" stroke="none" />
+      <path d="m3 29 5-5m16-16 5-5" />
+      <path d="m5 19 8 8 3-3a5.7 5.7 0 0 0-8-8Zm11-11 3-3 8 8-3 3a5.7 5.7 0 0 1-8-8Z" />
+      <path d="m12 16 3-3m1 7 3-3" />
     </PrincipleGlyph>
   ),
-  /** A gate you program: the condition picks the branch, in code. */
+  /** Sliders: settlement conditions are configurable. */
   programmable: (
     <PrincipleGlyph>
-      <path d="M2 16h7" />
-      <rect x="9" y="11" width="10" height="10" />
-      {/* The condition resolves and exactly one branch is taken. */}
-      <path d="M19 16h4M23 16V8h4" />
-      <path d="M23 16v8h4" stroke-dasharray="2 2.5" />
-      <rect x="27" y="6" width="4" height="4" fill="var(--color-accent)" stroke="none" />
-      <rect x="27" y="22" width="4" height="4" stroke-dasharray="2 2.5" />
+      <path d="M4 7h5m6 0h13M4 16h15m6 0h3M4 25h5m6 0h13" />
+      <circle cx="12" cy="7" r="3" />
+      <circle cx="22" cy="16" r="3" />
+      <circle cx="12" cy="25" r="3" />
     </PrincipleGlyph>
   ),
   /** Two sides of one book: every posting lands on both, or on neither. */
   oneLedger: (
     <PrincipleGlyph>
-      <path d="M16 3v26" />
-      <rect x="4" y="8" width="8" height="6" />
-      <rect x="4" y="19" width="8" height="6" />
-      <rect x="20" y="8" width="8" height="6" />
-      <rect x="20" y="19" width="8" height="6" />
-      <rect x="14" y="14" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+      <path d="M16 8c-4-3-8-3-13-2v21c5-1 9-1 13 2 4-3 8-3 13-2V6c-5-1-9-1-13 2Z" />
+      <path d="M16 8v21M7 12c2-.3 4 0 5 1m-5 5c2-.3 4 0 5 1m8-6c1-1 3-1.3 5-1m-5 7c1-1 3-1.3 5-1" />
     </PrincipleGlyph>
   ),
-  /** A claim, unconfirmed, above the chain that is allowed to settle it. */
+  /** A chain link with a check: settlement requires verified chain evidence. */
   onChainTruth: (
     <PrincipleGlyph>
-      {/* What a webhook or a facilitator says. Dashed: it settles nothing. */}
-      <rect x="11" y="3" width="10" height="7" stroke-dasharray="2 2.5" />
-      <path d="M16 10v4" stroke-dasharray="2 2.5" />
-      {/* What the chain says. */}
-      <rect x="2" y="19" width="8" height="8" />
-      <rect x="12" y="19" width="8" height="8" />
-      <rect x="22" y="19" width="8" height="8" />
-      <path d="M10 23h2M20 23h2" />
-      <rect x="14" y="21" width="4" height="4" fill="var(--color-accent)" stroke="none" />
+      <path d="m13 10 4-4a6 6 0 0 1 8.5 8.5L22 18M18 15l-4 4M19 22l-4 4A6 6 0 0 1 6.5 17.5L10 14" />
+      <path d="m22 25 3 3 5-6" />
     </PrincipleGlyph>
   ),
-  /** A boundary drawn on purpose, with the value on one declared side of it. */
+  /** A shield and lock: an explicit perimeter around custody. */
   explicitCustody: (
     <PrincipleGlyph>
-      <rect x="2" y="6" width="12" height="20" />
-      <rect x="4" y="14" width="4" height="4" fill="var(--color-accent)" stroke="none" />
-      <path d="M16 2v28" stroke-dasharray="2 2.5" />
-      <rect x="18" y="6" width="12" height="20" stroke-dasharray="2 2.5" />
+      <path d="M16 3c3 3 7 4 11 5v8c0 6-5 10-11 13C10 26 5 22 5 16V8c4-1 8-2 11-5Z" />
+      <rect x="11" y="14" width="10" height="8" rx="1.5" />
+      <path d="M13 14v-3a3 3 0 0 1 6 0v3m-3 4v1" />
     </PrincipleGlyph>
   ),
-  /** Four pieces that stand alone and still snap together. */
+  /** Puzzle pieces: independent parts fit together through defined interfaces. */
   compose: (
     <PrincipleGlyph>
-      <rect x="3" y="3" width="9" height="9" />
-      <rect x="20" y="3" width="9" height="9" />
-      <rect x="3" y="20" width="9" height="9" />
-      <rect x="20" y="20" width="9" height="9" fill="var(--color-accent)" stroke="none" />
-      <path d="M12 7.5h8M12 24.5h8M7.5 12v8M24.5 12v8" />
+      <path d="M4 7h8V5a3 3 0 0 1 6 0v2h10v9h-2a3 3 0 0 0 0 6h2v6H4v-8h2a3 3 0 0 0 0-6H4Z" />
+      <path d="M16 7v7h2a3 3 0 0 1 0 6h-2v8" />
     </PrincipleGlyph>
   ),
 } as const;

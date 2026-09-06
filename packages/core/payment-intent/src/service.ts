@@ -30,7 +30,7 @@ import {
   markFailed as markIntentFailed,
   markProcessing as markIntentProcessing,
 } from "./intent.ts";
-import type { MerchantAssetPolicySource } from "./merchant-policy.ts";
+import { acceptedPayerAssets, type MerchantAssetPolicySource } from "./merchant-policy.ts";
 import type { ListPaymentIntentsOptions, PaymentIntentRepository } from "./repository.ts";
 import type {
   ExecutionPath,
@@ -115,14 +115,18 @@ export class PaymentIntentService {
       command.settlementAsset ?? policy?.settlementAsset ?? this.#defaults.settlementAsset;
     const provider = command.provider ?? this.#defaults.provider;
 
-    if (policy !== undefined && command.payment !== undefined && policy.acceptedAssets.length > 0) {
-      if (!policy.acceptedAssets.includes(command.payment.asset)) {
+    // Read on the rail's own chain (#244): a merchant who accepts ETH accepts
+    // it where ETH exists, not on a chain that has none.
+    if (policy !== undefined && command.payment !== undefined) {
+      const accepted = acceptedPayerAssets(policy, command.payment.chain);
+      if (accepted.length > 0 && !accepted.includes(command.payment.asset)) {
         throw new ValidationError(
-          `Merchant ${command.merchant.id} does not accept ${command.payment.asset}`,
+          `Merchant ${command.merchant.id} does not accept ${command.payment.asset} on ${command.payment.chain}`,
           {
             merchantId: command.merchant.id,
             asset: command.payment.asset,
-            acceptedAssets: [...policy.acceptedAssets],
+            chain: command.payment.chain,
+            acceptedAssets: [...accepted],
           },
         );
       }

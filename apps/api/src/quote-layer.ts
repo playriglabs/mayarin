@@ -12,18 +12,21 @@
  * below it does.
  */
 
-import type { PriceOracle, PriceSource } from "@mayarin/clearing";
+import { FallbackPriceSource, type PriceOracle, type PriceSource } from "@mayarin/clearing";
 import { priceSourceOf, type SwapVenue } from "@mayarin/execution";
 import { ChainlinkPriceOracle } from "@mayarin/provider-chainlink";
+import { CoinbasePriceOracle } from "@mayarin/provider-coinbase";
 import { AwsKmsOrderSigner, LocalOrderSigner } from "@mayarin/provider-evm";
+import { FxRatesPriceOracle } from "@mayarin/provider-fx";
 import { PythPriceOracle } from "@mayarin/provider-pyth";
 import { ZeroExSwapVenue } from "@mayarin/provider-swap-0x";
 import { LifiSwapVenue } from "@mayarin/provider-swap-lifi";
 import { UniswapSwapVenue } from "@mayarin/provider-swap-uniswap";
+import { UniswapV2SwapVenue } from "@mayarin/provider-swap-uniswap-v2";
 import { ApiKeyStamper, TurnkeyOrderSigner } from "@mayarin/provider-turnkey";
 import { FallbackPriceOracle, isFxMarketOpen, type OrderSigner, QuoteEngine } from "@mayarin/quote";
 import { type AssetCode, type Clock, ConfigurationError, getAsset } from "@mayarin/shared";
-import type { Config } from "./config.ts";
+import type { Config, OracleName } from "./config.ts";
 
 export interface QuoteLayer {
   readonly engine: QuoteEngine;
@@ -46,12 +49,14 @@ export function createQuoteLayer(config: Config, clock: Clock): QuoteLayer | und
   const oracle = createOracle(config, clock);
 
   return {
-    // The engine prices against the *first* venue rather than the selected one:
-    // `selectVenue` (#48) picks a venue per payment, and threading that through
-    // is the calldata builder's job (#49/#57), not the engine's. Composing here
-    // gives the deviation guard a live source instead of the static table.
+    // The engine prices against the venues in configured order, taking the
+    // first that can price the payment's chain. Pricing against the first venue
+    // full stop was wrong the moment a second chain existed: a V3 pool on Base
+    // priced payments on Arc, and the lock carried a rate from a pool the swap
+    // would never touch. `selectVenue` (#48) still picks the execution venue
+    // per payment; this only decides who is allowed to price.
     engine: new QuoteEngine({
-      venue: firstVenueAsPriceSource(venues),
+      venue: venuesAsPriceSource(venues),
       oracle,
       policy: {
         maxDeviationBps: quote.deviationBps,
@@ -73,14 +78,13 @@ export function createQuoteLayer(config: Config, clock: Clock): QuoteLayer | und
   };
 }
 
-function firstVenueAsPriceSource(venues: readonly SwapVenue[]): PriceSource {
-  const venue = venues[0];
-  if (venue === undefined) {
+function venuesAsPriceSource(venues: readonly SwapVenue[]): PriceSource {
+  if (venues.length === 0) {
     // Unreachable: `resolveQuote` rejects an empty venue list at boot. Kept as a
     // type-level narrowing rather than a non-null assertion, which Biome bans.
     throw new ConfigurationError("The quote layer needs at least one venue", {});
   }
-  return priceSourceOf(venue);
+  return new FallbackPriceSource(venues.map(priceSourceOf));
 }
 
 function createVenue(name: string, config: Config): SwapVenue {
@@ -96,6 +100,12 @@ function createVenue(name: string, config: Config): SwapVenue {
         rpcUrls: config.chainRpcUrls,
         quoters: config.uniswapQuoters,
         pools: config.uniswapPools as never,
+      });
+    case "uniswap-v2":
+      return new UniswapV2SwapVenue({
+        rpcUrls: config.chainRpcUrls,
+        routers: config.uniswapV2Routers,
+        pairs: config.uniswapV2Pairs as never,
       });
     case "lifi":
       return new LifiSwapVenue({
@@ -115,7 +125,7 @@ function createOracle(config: Config, clock: Clock): PriceOracle {
   }
 
   const names = [quote.oracle, ...quote.fallbackOracles];
-  const sources = names.map((name) => ({ name, oracle: createOracleSource(name, config) }));
+  const sources = names.map((name) => ({ name, oracle: createOracleSource(name, config, clock) }));
   const only = sources.length === 1 ? sources[0] : undefined;
   if (only !== undefined) return only.oracle;
 
@@ -123,14 +133,32 @@ function createOracle(config: Config, clock: Clock): PriceOracle {
     sources,
     clock,
     maxAgeMs: (from, _to, now) => referenceMaxAgeMs(from, now, quote),
-    maxDeviationBps: quote.deviationBps,
+    // The oracle-agreement bound, not the venue one: see `quoteOracleAgreementBps`.
+    maxDeviationBps: quote.oracleAgreementBps,
   });
 }
 
-function createOracleSource(name: "pyth" | "chainlink", config: Config): PriceOracle {
+function createOracleSource(name: OracleName, config: Config, clock: Clock): PriceOracle {
   switch (name) {
     case "pyth":
-      return new PythPriceOracle({ feeds: config.pythFeeds });
+      return new PythPriceOracle({
+        feeds: config.pythFeeds,
+        ...(config.pythHermesEndpoint !== undefined && { endpoint: config.pythHermesEndpoint }),
+        ...(config.pythApiKey !== undefined && { apiKey: config.pythApiKey }),
+      });
+    case "fx":
+      return new FxRatesPriceOracle({
+        feeds: config.fxFeeds,
+        clock,
+        ...(config.fxEndpoint !== undefined && { endpoint: config.fxEndpoint }),
+        ...(config.fxApiKey !== undefined && { apiKey: config.fxApiKey }),
+      });
+    case "coinbase":
+      return new CoinbasePriceOracle({
+        feeds: config.coinbaseProducts,
+        clock,
+        ...(config.coinbaseEndpoint !== undefined && { endpoint: config.coinbaseEndpoint }),
+      });
     case "chainlink":
       return new ChainlinkPriceOracle({
         rpcUrls: config.chainRpcUrls,

@@ -1,0 +1,21 @@
+-- Accepted payer assets, narrowed per chain (#244).
+--
+-- `accepted_assets` is one list, which described a merchant correctly while a
+-- deployment took payment on one chain. With two it describes neither: Base can
+-- receive ETH and Arc cannot, so a merchant who accepts ETH is not saying they
+-- accept it everywhere.
+--
+-- JSON rather than a child table for the same reason `x402_resources.accepts`
+-- is: the matrix is read and written whole by one settings form, never one
+-- chain at a time, so a table would buy joins nobody makes.
+--
+-- Defaults to `{}`, which means every existing merchant keeps inheriting
+-- `accepted_assets` on every chain — the behaviour they have today. A chain
+-- present here carries its own non-empty list; an empty list is never stored,
+-- because "accept nothing here" and "inherit" would otherwise be one value with
+-- two meanings.
+--
+-- Written by hand like every migration since 0009: drizzle-kit's snapshot chain
+-- ends at 0008 and otherwise re-proposes 0009's settled rate rename.
+ALTER TABLE "merchants"
+	ADD COLUMN IF NOT EXISTS "accepted_assets_by_chain" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -14,6 +14,7 @@ import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
+import { chainReceipts } from "../rails.ts";
 
 const linkBodySchema = z.object({ chain: z.enum(CHAIN_IDS), address: z.string() }).strict();
 
@@ -56,6 +57,8 @@ const verifyBodySchema = z
  */
 const withdrawBodySchema = z
   .object({
+    /** Which chain's wallet to move from. A merchant has one per chain (#244). */
+    chain: z.enum(CHAIN_IDS),
     asset: z.string().refine(isAssetCode, "unknown asset"),
     amount: z.string().regex(/^[0-9]+$/, "amount must be minor units"),
     to: z.string(),
@@ -123,6 +126,11 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
     return c.json({
       wallets: wallets.map(toWalletDto),
       chain: container.config.walletProvisionChain,
+      // Every chain this deployment can provision on (#244). A merchant who
+      // joined when there was one chain has to be able to get a wallet on the
+      // next one without anybody running a script for them, and the browser
+      // must not invent a chain name of its own to ask for it.
+      chains: container.config.walletProvisionChains,
     });
   });
 
@@ -134,12 +142,58 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
    * can move it is one of these wallets.
    */
   app.get("/balance", async (c) => {
-    const balance = await container.wallets.balance(scopeOf(c));
+    // One entry per chain this deployment settles on (#244), including the
+    // chains where this merchant has no address yet — a row that is absent and
+    // a row that is empty read the same to a merchant, and only one of them
+    // tells them there is something to do.
+    const balances = await container.wallets.balances(scopeOf(c));
     return c.json({
-      chain: balance.chain,
-      address: balance.address ?? null,
-      withdrawable: balance.withdrawable,
-      balances: balance.balances.map(toMoneyDto),
+      balances: balances.map((balance) => ({
+        chain: balance.chain,
+        address: balance.address ?? null,
+        withdrawable: balance.withdrawable,
+        balances: balance.balances.map(toMoneyDto),
+      })),
+    });
+  });
+
+  /**
+   * Which networks this merchant can be paid on, and why not the others (#244).
+   *
+   * The reasons are the reason this endpoint exists. A merchant whose Arc link
+   * fails can read here that they have no settlement address on Arc, which is a
+   * settings change; before this, the same fact arrived as a payment that
+   * refused to lock, naming a field they had never been shown.
+   */
+  app.get("/rails", async (c) => {
+    const report = await container.rails.describe(scopeOf(c).merchantId);
+    return c.json({
+      settlementAsset: report.settlementAsset,
+      // What each chain *can* receive, before this merchant's own choices
+      // narrow it. The settings matrix is drawn from this: a merchant cannot
+      // usefully tick ETH on a chain that has none, and the deployment is the
+      // only thing that knows which chain that is.
+      supported: chainReceipts(container.config).map((receipt) => ({
+        chain: receipt.chain,
+        assets: [
+          ...new Set([
+            ...Object.keys(receipt.tokens),
+            ...(receipt.nativeAsset === undefined ? [] : [receipt.nativeAsset]),
+          ]),
+        ],
+      })),
+      rails: report.rails.map((rail) => ({
+        chain: rail.chain,
+        asset: rail.asset,
+        contract: rail.contract ?? null,
+        payTo: rail.payTo ?? null,
+      })),
+      unavailable: report.unavailable.map((entry) => ({
+        kind: entry.kind,
+        chain: entry.chain,
+        asset: "asset" in entry ? entry.asset : null,
+        reason: entry.reason,
+      })),
     });
   });
 
@@ -158,6 +212,7 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
   app.post("/withdraw", csrfMiddleware(), async (c) => {
     const body = withdrawBodySchema.parse(await c.req.json());
     const result = await container.wallets.withdraw(scopeOf(c), {
+      chain: body.chain,
       asset: body.asset,
       amount: BigInt(body.amount),
       to: body.to,

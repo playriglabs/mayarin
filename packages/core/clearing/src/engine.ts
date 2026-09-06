@@ -660,10 +660,12 @@ export class ClearingEngine {
     if (await this.#plansExecutableDeposit(transaction)) {
       return this.#lockExecutableDeposit(transaction);
     }
+    const rail = (await this.#intents.getById(transaction.paymentIntentId)).payment;
     const quote = await this.#rates.quote(
       transaction.sourceAmount.asset,
       transaction.settlementAsset,
       transaction.sourceAmount,
+      rail?.chain,
     );
 
     const now = this.#clock.now();
@@ -915,6 +917,7 @@ export class ClearingEngine {
       transaction.sourceAmount.asset,
       rail.asset,
       transaction.sourceAmount,
+      rail.chain,
     );
     // Rounded up to what a payer can actually type. ETH converts to eighteen
     // decimals, and an amount written out that far is one no wallet field

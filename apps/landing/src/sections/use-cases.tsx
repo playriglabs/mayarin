@@ -207,12 +207,12 @@ export function UseCases() {
         <SectionHeading>Wherever value has to cross a boundary.</SectionHeading>
       </Reveal>
 
-      <div class="mt-12 grid grid-cols-1 border-l border-t border-line sm:grid-cols-2 xl:grid-cols-4 md:mt-16">
+      <div class="ornament-grid mt-12 grid grid-cols-1 border-l border-t sm:grid-cols-2 xl:grid-cols-4 md:mt-16">
         {USE_CASES.map((useCase, index) => (
           <Reveal
             key={useCase.title}
             delay={(index % 2) * 80}
-            class="group flex min-h-72 flex-col border-b border-r border-line p-6 transition-colors duration-300 hover:bg-[#fafafa] md:p-7 xl:p-8"
+            class="ornament-card group relative flex min-h-72 flex-col border-b border-r p-6 transition-colors duration-300 hover:bg-[#fafafa] md:p-7 xl:p-8"
           >
             <div class="flex items-start justify-between">
               <span class="label text-slate">{String(index + 1).padStart(2, "0")}</span>

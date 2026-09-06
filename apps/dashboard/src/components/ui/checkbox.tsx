@@ -31,7 +31,11 @@ function Checkbox({
       className={cn(
         "flex size-4 shrink-0 cursor-pointer items-center justify-center border border-input bg-card transition-colors duration-150",
         "data-checked:border-primary data-checked:bg-primary",
-        "data-disabled:cursor-not-allowed data-disabled:bg-muted",
+        // Disabled is dimmed, never repainted. A `bg-muted` here also won the
+        // background on a box that was checked AND disabled, drawing a ticked
+        // box as an empty one — which is how "USDC is the only asset this
+        // network can receive, so it cannot be unticked" read as "USDC is off".
+        "data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className,
       )}
       {...props}

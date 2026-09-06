@@ -45,6 +45,7 @@
  *   OPERATOR_PRIVATE_KEY              pays gas for the sweep and the router call
  */
 
+import { acceptedAssetsOn } from "@mayarin/auth";
 import { CHAIN_IDS, type ChainId } from "@mayarin/chain";
 import {
   createDatabase,
@@ -55,7 +56,7 @@ import {
   merchants as merchantsTable,
   merchantWallets as merchantWalletsTable,
 } from "@mayarin/db/schema";
-import { generateId, isMayarinError } from "@mayarin/shared";
+import { assetDecimals, generateId, getAsset, isAssetCode, isMayarinError } from "@mayarin/shared";
 import { eq } from "drizzle-orm";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -110,12 +111,12 @@ if (settlementAddress !== undefined && !/^0x[0-9a-fA-F]{40}$/.test(settlementAdd
   process.exit(1);
 }
 
-if (asset !== "USDC" && asset !== "ETH") {
-  console.error(`--asset must be USDC or ETH, got ${asset}`);
+if (!isAssetCode(asset) || getAsset(asset).kind === "fiat") {
+  console.error(`--asset must be a payable asset code, got ${asset}`);
   process.exit(1);
 }
-if (currency !== "USD" && currency !== "IDR") {
-  console.error(`--currency must be USD or IDR, got ${currency}`);
+if (!isAssetCode(currency) || getAsset(currency).kind !== "fiat") {
+  console.error(`--currency must be a fiat asset code, got ${currency}`);
   process.exit(1);
 }
 if (!Number.isFinite(price) || price <= 0) {
@@ -192,7 +193,7 @@ if (asset !== "ETH" && tokenAddress === undefined) {
   process.exit(1);
 }
 
-const decimals = asset === "ETH" ? 18 : 6;
+const decimals = assetDecimals(asset);
 const show = (raw: bigint) =>
   `${(Number(raw) / 10 ** decimals).toFixed(decimals === 18 ? 9 : 6)} ${asset}`;
 
@@ -301,10 +302,13 @@ if (merchant === null || merchant.settlementAddress === undefined) {
   process.exit(1);
 }
 
-if (!merchant.acceptedAssets.includes(asset)) {
+// Per-chain first (#244): a merchant may accept EURC on one chain and not on
+// another, and the merchant-wide list is only the fallback.
+const acceptedHere = acceptedAssetsOn(merchant, chain);
+if (!acceptedHere.includes(asset)) {
   console.error(
-    `\nMerchant ${merchantId} does not accept ${asset}.` +
-      `\nIt accepts: ${merchant.acceptedAssets.join(", ")}`,
+    `\nMerchant ${merchantId} does not accept ${asset} on ${chain}.` +
+      `\nIt accepts: ${acceptedHere.join(", ")}`,
   );
   process.exit(1);
 }

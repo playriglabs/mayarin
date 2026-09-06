@@ -15,6 +15,8 @@ export interface RecordedVenueCall {
   readonly from: AssetCode;
   readonly to: AssetCode;
   readonly amount: bigint;
+  /** Which direction was asked: a size to spend, or a size to deliver. */
+  readonly direction: "exact-input" | "exact-output";
 }
 
 export class FixedSwapVenue implements SwapVenue {
@@ -28,7 +30,27 @@ export class FixedSwapVenue implements SwapVenue {
   }
 
   async quote(from: AssetCode, to: AssetCode, amount: Money): Promise<PriceQuote> {
-    this.calls.push({ from, to, amount: amount.amount });
+    return this.#served(from, to, amount, "exact-input");
+  }
+
+  /**
+   * The same configured rate, whichever direction is asked.
+   *
+   * A fake has no depth, so it cannot show the gap between the two that the
+   * real venues exist to close — what it can prove is which direction the
+   * caller asked in, which is what `calls` records.
+   */
+  async quoteExactOutput(from: AssetCode, to: AssetCode, exactOut: Money): Promise<PriceQuote> {
+    return this.#served(from, to, exactOut, "exact-output");
+  }
+
+  #served(
+    from: AssetCode,
+    to: AssetCode,
+    amount: Money,
+    direction: RecordedVenueCall["direction"],
+  ): PriceQuote {
+    this.calls.push({ from, to, amount: amount.amount, direction });
     const quote = this.#quotes.get(rateKey(from, to));
     if (quote === undefined) {
       throw new ConfigurationError(`No quote configured for ${from} -> ${to}`, { from, to });

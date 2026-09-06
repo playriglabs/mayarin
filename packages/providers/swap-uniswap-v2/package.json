@@ -1,0 +1,20 @@
+{
+  "name": "@mayarin/provider-swap-uniswap-v2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/chain": "workspace:*",
+    "@mayarin/clearing": "workspace:*",
+    "@mayarin/execution": "workspace:*",
+    "@mayarin/provider-viem-chains": "workspace:*",
+    "@mayarin/shared": "workspace:*",
+    "viem": "^2.21.0"
+  }
+}

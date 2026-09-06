@@ -1,16 +1,5 @@
-const LOGO_DEV_TOKEN = "pk_aZrjrKFiSZWx7V4DeoMlwQ";
-
-function logoUrl(symbol: string, size: number): string {
-  const params = new URLSearchParams({
-    token: LOGO_DEV_TOKEN,
-    size: String(size),
-    format: "png",
-    theme: "auto",
-    retina: "true",
-    fallback: "monogram",
-  });
-  return `https://img.logo.dev/crypto/${encodeURIComponent(symbol.toLowerCase())}?${params.toString()}`;
-}
+import { assetLogoUrl } from "@mayarin/shared";
+import usdtLogo from "./usdt.svg";
 
 export function AssetLogo({
   symbol,
@@ -19,10 +8,23 @@ export function AssetLogo({
   readonly symbol: string;
   readonly size?: number;
 }) {
+  const source = assetLogoUrl(symbol, usdtLogo);
+  if (source === undefined) {
+    return (
+      <span
+        className="asset-logo asset-logo-fallback"
+        style={{ width: size, height: size }}
+        aria-hidden="true"
+      >
+        {symbol.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+
   return (
     <img
       className="asset-logo"
-      src={logoUrl(symbol, size)}
+      src={source}
       alt=""
       aria-hidden="true"
       width={size}

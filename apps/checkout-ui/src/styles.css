@@ -14,6 +14,23 @@
   --color-electric: #0eeb2e;
   --color-warning: #8a6100;
   --color-danger: #b3261e;
+
+  /*
+   * Corner radius, as two roles rather than a scale.
+   *
+   * The dashboard zeroes every radius on purpose — it is a dense operator tool
+   * and square corners keep its tables reading as a grid. Checkout is the one
+   * surface a stranger meets, usually on a phone, deciding whether to hand over
+   * money; the softer corner is the cheapest thing that makes it look like a
+   * payment page rather than a form. The divergence is deliberate, so it is
+   * stated here instead of being a per-rule literal nobody can grep for.
+   *
+   * `control` is anything you press or type into, `panel` anything that holds
+   * content. Two values, so a control never sits inside a panel with a corner
+   * rounder than its parent's.
+   */
+  --radius-control: 0.625rem;
+  --radius-panel: 0.875rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -102,7 +119,7 @@
   }
   .product-image,
   .product-placeholder {
-    @apply size-18 rounded-xs border border-line bg-paper;
+    @apply size-18 rounded-panel border border-line bg-paper;
   }
   .product-image {
     @apply object-cover;
@@ -169,8 +186,10 @@
   .label {
     @apply mb-2 block text-xs font-medium text-ink;
   }
+  /* The currency prefix inside draws only a right border, no ground of its
+     own, so rounding the group needs no clipping to keep the seam straight. */
   .field {
-    @apply flex items-stretch border border-field;
+    @apply flex items-stretch rounded-control border border-field;
   }
   .field:focus-within {
     @apply outline-2 -outline-offset-1 outline-brand;
@@ -184,8 +203,23 @@
   .assets {
     @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2;
   }
+  .networks {
+    @apply flex flex-wrap gap-2;
+  }
+  .network {
+    @apply inline-flex min-h-10 items-center rounded-control border border-field bg-transparent px-3.5 py-2 text-xs font-medium text-ink transition-[border-color,background-color,box-shadow] duration-200;
+  }
+  .network:hover {
+    @apply border-muted;
+  }
+  .network[aria-pressed="true"] {
+    @apply border-brand bg-brand/10 shadow-[0_0_0_1px_var(--color-brand)];
+  }
+  .rail-note {
+    @apply mt-5 mb-0 text-xs leading-relaxed text-muted;
+  }
   .asset {
-    @apply flex min-h-13 items-center justify-start gap-2.5 rounded-xs border border-field bg-transparent px-3.5 py-2.5 text-ink transition-[border-color,background-color,box-shadow] duration-200;
+    @apply flex min-h-13 items-center justify-start gap-2.5 rounded-control border border-field bg-transparent px-3.5 py-2.5 text-ink transition-[border-color,background-color,box-shadow] duration-200;
   }
   .asset:hover {
     @apply border-muted;
@@ -195,6 +229,22 @@
   }
   .asset-logo {
     @apply shrink-0 rounded-full object-contain;
+  }
+  .asset-logo-fallback {
+    @apply inline-grid place-items-center rounded-full border border-line bg-surface font-semibold text-[10px] text-muted;
+  }
+  /* Sized in `em`, not pixels, because the same label appears standalone in a
+     rail row and inline inside `text-xs` prose. A fixed 18px mark is larger
+     than a 12px line box, which inflates the leading and reads as uncentred. */
+  .chain-logo {
+    @apply size-[1.15em] shrink-0 rounded-full object-contain;
+  }
+  /* `align-middle` puts an inline box's centre on the baseline plus half an
+     x-height, which sits high for a mark taller than the text; the negative
+     offset drops it back onto the sentence. The gap is `em` for the same
+     reason as the size, and the label never wraps away from its own mark. */
+  .chain-label {
+    @apply inline-flex items-center gap-[0.35em] align-[-0.25em] whitespace-nowrap;
   }
   .payment-estimate {
     @apply mt-6 flex items-baseline justify-between gap-4 border-y border-line py-4;
@@ -221,7 +271,7 @@
     @apply mt-5.5 mb-0 text-xs leading-relaxed text-muted;
   }
   button.primary {
-    @apply mt-5 min-h-12 w-full rounded-xs border-0 bg-ink px-4 py-3 font-medium text-paper transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-45;
+    @apply mt-5 min-h-12 w-full rounded-control border-0 bg-ink px-4 py-3 font-medium text-paper transition-opacity duration-200 disabled:cursor-not-allowed disabled:opacity-45;
   }
   button.primary:not([disabled]):hover {
     @apply opacity-85;
@@ -230,7 +280,7 @@
     @apply mt-3 mb-0 text-xs text-danger;
   }
   .unavailable {
-    @apply mt-7 rounded-xs border border-line p-4.5;
+    @apply mt-7 rounded-panel border border-line p-4.5;
   }
   .unavailable p {
     @apply mt-1.5 mb-0 text-muted;
@@ -252,7 +302,7 @@
     @apply text-danger;
   }
   .live-status {
-    @apply mt-6 flex items-center gap-3 rounded-xs border border-line bg-surface px-4 py-3.5;
+    @apply mt-6 flex items-center gap-3 rounded-panel border border-line bg-surface px-4 py-3.5;
   }
   .live-status span,
   .live-status strong {
@@ -307,7 +357,7 @@
     @apply motion-safe:animate-pulse;
   }
   .preparing {
-    @apply flex min-h-40 items-center justify-center gap-3.5 rounded-xs border border-dashed border-field px-4.5;
+    @apply flex min-h-40 items-center justify-center gap-3.5 rounded-panel border border-dashed border-field px-4.5;
   }
   .preparing p {
     @apply mt-1 mb-0 text-xs text-muted;
@@ -319,7 +369,7 @@
     @apply size-5.5 animate-spin rounded-full border-2 border-line border-t-brand motion-reduce:animate-none;
   }
   .send-amount {
-    @apply rounded-xs border border-line p-4.5 text-center;
+    @apply rounded-panel border border-line p-4.5 text-center;
   }
   .send-amount > span {
     @apply block text-xs text-muted;
@@ -334,7 +384,7 @@
     @apply mt-6 flex justify-center bg-white p-3;
   }
   .pay-detail .qr {
-    @apply mx-auto my-4.5 w-full max-w-60 rounded-xs border border-line;
+    @apply mx-auto my-4.5 w-full max-w-60 rounded-panel border border-line;
   }
   .qr img,
   .qr svg {
@@ -359,7 +409,7 @@
     @apply flex items-center justify-end gap-2;
   }
   .copy {
-    @apply mt-3.5 min-h-11 w-full rounded-xs border border-field bg-transparent px-3 py-2 text-xs font-medium text-ink;
+    @apply mt-3.5 min-h-11 w-full rounded-control border border-field bg-transparent px-3 py-2 text-xs font-medium text-ink;
   }
   /* The amount's copy sits beside the figure as an icon, so it drops the block
      layout the address button below the details still uses. */
@@ -374,7 +424,7 @@
     @apply mt-3.5 mb-0 text-center text-[11px] text-subtle;
   }
   .outcome-wrap {
-    @apply rounded-xs border border-line p-5.5;
+    @apply rounded-panel border border-line p-5.5;
   }
   .outcome {
     @apply py-3 text-center;

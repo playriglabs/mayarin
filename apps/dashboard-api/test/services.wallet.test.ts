@@ -41,7 +41,7 @@ function service() {
     verifier: new ViemSignatureVerifier(),
     clock: new FixedClock(NOW),
     merchants: new InMemoryMerchantRepository(),
-    chain: "base-sepolia",
+    chains: ["base-sepolia"],
     settlementAddresses: new SettlementAddressResolver({ wallets }),
   });
 }

@@ -21,21 +21,14 @@ import {
   type Product,
   parseCartSnapshot,
 } from "@mayarin/catalog";
-import type { ChainId } from "@mayarin/chain";
-import {
-  type AssetCode,
-  ConfigurationError,
-  isAssetCode,
-  money,
-  NotFoundError,
-  ValidationError,
-  zero,
-} from "@mayarin/shared";
+import type { OfferedRail } from "@mayarin/payment-intent";
+import { money, NotFoundError, ValidationError, zero } from "@mayarin/shared";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { toString as qrToString } from "qrcode";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
+import { toRailDto } from "../dto/rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
 
 /**
@@ -188,11 +181,9 @@ export function checkoutPageRoutes(container: Container): Hono {
         ? undefined
         : await container.commerce.previewLink(link.id).catch(() => undefined);
 
-    const policy = await container.merchantPolicies.policyFor(link.merchant.id);
-    const accepted =
-      policy?.acceptedAssets.length !== undefined && policy.acceptedAssets.length > 0
-        ? policy.acceptedAssets
-        : defaultPayerAssets(container);
+    // The rails, not a chain and a union of assets (#244): this merchant on
+    // this deployment, filtered per chain, with the reasons already applied.
+    const rails = await container.rails.railsFor(link.merchant.id);
 
     return c.html(
       await renderShell(
@@ -201,8 +192,7 @@ export function checkoutPageRoutes(container: Container): Hono {
           link,
           payable,
           preview,
-          accepted,
-          chain: depositChain(container),
+          rails,
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
         }),
@@ -215,43 +205,6 @@ export function checkoutPageRoutes(container: Container): Hono {
 
 async function qrSvg(value: string): Promise<string> {
   return qrToString(value, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
-}
-
-/**
- * Where a payer is asked to send funds.
- *
- * One chain, taken from what this deployment configured tokens for. A page that
- * guessed would hand the payer an address on a chain nothing watches.
- */
-export function depositChain(container: Container): ChainId {
-  const [first] = Object.keys(container.config.chainAssets) as ChainId[];
-  const [native] = Object.keys(container.config.chainNativeAssets) as ChainId[];
-  const chain = first ?? native;
-  if (chain === undefined) {
-    throw new ConfigurationError("This deployment has no chain configured to take payment on", {});
-  }
-  return chain;
-}
-
-/**
- * Payer assets for a merchant who has named none.
- *
- * Read from what this deployment can actually receive — the tokens it knows an
- * address for, plus each chain's own currency — rather than a hardcoded list.
- * An asset offered here that no watcher scans is a payer sending funds nothing
- * will ever notice.
- */
-export function defaultPayerAssets(container: Container): readonly AssetCode[] {
-  const assets = new Set<AssetCode>();
-  for (const tokens of Object.values(container.config.chainAssets)) {
-    for (const asset of Object.keys(tokens ?? {})) {
-      if (isAssetCode(asset)) assets.add(asset);
-    }
-  }
-  for (const native of Object.values(container.config.chainNativeAssets)) {
-    if (native !== undefined) assets.add(native);
-  }
-  return [...assets];
 }
 
 export function checkoutSuccessUrl(base: string | undefined, intentId: string): string | undefined {
@@ -269,9 +222,14 @@ interface LinkBootstrapOptions {
   readonly payable: boolean;
   /** Priced lines and total, for a link that prices itself. Absent for `open`. */
   readonly preview: LinkPreview | undefined;
-  readonly accepted: readonly AssetCode[];
-  /** Where the payer sends funds. Named here so the intent is minted on the rail it will be watched on. */
-  readonly chain: ChainId;
+  /**
+   * Every `(chain, asset)` pair this merchant can be paid on (#244).
+   *
+   * The payer picks one, and that choice mints the intent — so the deposit
+   * address and the price lock belong to the rail they chose rather than to one
+   * the deployment picked for them.
+   */
+  readonly rails: readonly OfferedRail[];
   readonly ttlSeconds: number;
   readonly products: Pick<Container["catalog"], "getProduct">;
 }
@@ -289,7 +247,7 @@ interface LinkBootstrapOptions {
  *   `POST /v1/quotes` — the same rate provider the lock will read.
  */
 async function linkBootstrap(options: LinkBootstrapOptions) {
-  const { link, payable, preview, accepted, chain, ttlSeconds, products } = options;
+  const { link, payable, preview, rails, ttlSeconds, products } = options;
   const currency = link.currency ?? link.amount?.asset;
 
   // An open link has no total until the buyer types one; everything else shows
@@ -332,8 +290,7 @@ async function linkBootstrap(options: LinkBootstrapOptions) {
     currency: currency ?? null,
     total,
     lines,
-    accepted,
-    chain,
+    rails: rails.map(toRailDto),
     lockMinutes: Math.max(1, Math.round(ttlSeconds / 60)),
   };
 }

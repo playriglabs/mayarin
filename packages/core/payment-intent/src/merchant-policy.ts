@@ -13,6 +13,7 @@
  * still a swap.
  */
 
+import type { ChainId } from "@mayarin/chain";
 import type { AssetCode } from "@mayarin/shared";
 
 /** What one merchant will be paid in, and what they will take payment in. */
@@ -24,6 +25,15 @@ export interface MerchantAssetPolicy {
    * preference and the deployment default stands.
    */
   readonly acceptedAssets: readonly AssetCode[];
+  /**
+   * The same choice narrowed per chain (#244), for a deployment that takes
+   * payment on more than one.
+   *
+   * A chain absent inherits `acceptedAssets`; a chain present carries its own
+   * non-empty list. Read it through `acceptedPayerAssets` rather than indexing
+   * it, so the inheritance rule lives in one place.
+   */
+  readonly acceptedAssetsByChain?: Readonly<Partial<Record<ChainId, readonly AssetCode[]>>>;
   /**
    * Where the merchant is paid on-chain — the signed order's `merchantSafe`.
    *
@@ -38,6 +48,20 @@ export interface MerchantAssetPolicy {
 export interface MerchantAssetPolicySource {
   /** The policy for a merchant, or `undefined` when the merchant has none. */
   policyFor(merchantId: string): Promise<MerchantAssetPolicy | undefined>;
+}
+
+/**
+ * What a payer may send this merchant on one chain.
+ *
+ * Empty means the merchant expressed no preference, which the rail catalog
+ * reads as "whatever this chain can receive" — never as "nothing".
+ */
+export function acceptedPayerAssets(
+  policy: MerchantAssetPolicy,
+  chain: ChainId,
+): readonly AssetCode[] {
+  const perChain = policy.acceptedAssetsByChain?.[chain];
+  return perChain !== undefined && perChain.length > 0 ? perChain : policy.acceptedAssets;
 }
 
 /** True when the payer sends exactly what the merchant settles in — no swap. */

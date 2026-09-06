@@ -1,347 +1,232 @@
-const SOURCES = ["Digital assets", "Stablecoins", "Wallets"];
+import { useState } from "preact/hooks";
 
-/**
- * The right-hand side is settlement, not acceptance. The merchant is paid in a
- * stablecoin — the variation is custody, not rail: a self-custody wallet payout
- * or a treasury sweep (both external, value leaves Mayarin) or an internal
- * merchant balance. Fiat off-ramps are a later phase, not baked into the core.
- */
-const RAILS = [
-  { label: "Self-custody wallet", mode: "external" },
-  { label: "Treasury sweep", mode: "external" },
-  { label: "Merchant balance", mode: "internal" },
-];
+const SOURCES = [
+  { label: "Digital assets", detail: "Across supported chains", icon: "assets" },
+  { label: "Stablecoins", detail: "Stable value assets", icon: "coins" },
+  { label: "Wallets", detail: "Bring the wallet you use", icon: "wallet" },
+] as const;
 
-const inbound = [
-  "M104 140 H316 C436 140 480 280 600 280",
-  "M104 280 H600",
-  "M104 420 H316 C436 420 480 280 600 280",
-];
+// Settlement varies by custody; these are not fiat off-ramps.
+const DESTINATIONS = [
+  { label: "Self-custody wallet", detail: "External settlement", icon: "wallet" },
+  { label: "Treasury sweep", detail: "External settlement", icon: "treasury" },
+  { label: "Merchant balance", detail: "Internal ledger", icon: "ledger" },
+] as const;
 
-const outbound = [
-  "M600 280 C724 280 764 140 884 140 H1096",
-  "M600 280 H1096",
-  "M600 280 C724 280 764 420 884 420 H1096",
-];
+type Endpoint = (typeof SOURCES)[number] | (typeof DESTINATIONS)[number];
 
-const inboundY = [140, 280, 420];
-const outboundY = [140, 280, 420];
+function EndpointIcon({ name }: { name: Endpoint["icon"] }) {
+  switch (name) {
+    case "assets":
+      return <path d="m12 2 8 10-8 10L4 12Zm-8 10 8 4 8-4M12 2v20" />;
+    case "coins":
+      return (
+        <>
+          <circle cx="9" cy="14" r="7" />
+          <path d="M9 4a7 7 0 1 1 12 9M7 12h4m-4 4h4m-2-6v8" />
+        </>
+      );
+    case "wallet":
+      return (
+        <>
+          <path d="M20 8V5a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h16v12H5a3 3 0 0 1-3-3V6" />
+          <path d="M21 12h-5a3 3 0 0 0 0 6h5m-5-3h.01" />
+        </>
+      );
+    case "treasury":
+      return <path d="m2 8 10-6 10 6ZM5 11v8m7-8v8m7-8v8M2 22h20" />;
+    case "ledger":
+      return (
+        <>
+          <rect x="4" y="2" width="17" height="20" rx="2" />
+          <path d="M9 2v20m4-14h4m-4 5h4m-4 5h4M2 7h4m-4 5h4m-4 5h4" />
+        </>
+      );
+  }
+}
 
-/**
- * One lane clock, shared by both halves. A pulse takes a whole cycle to cross,
- * so an outbound lane on the same delay as an inbound one leaves the node at
- * the exact moment the inbound arrives.
- */
-const laneDelay = (index: number) => `--flow-delay:${(index * 0.7).toFixed(1)}s`;
+function Route({ d, index }: { d: string; index: number }) {
+  return (
+    <g fill="none" stroke-linecap="round" style={`--route-delay:${-index * 3}s`}>
+      <path d={d} class="topology-track" stroke-width="1.5" />
+      <path d={d} pathLength="100" class="topology-stream topology-stream-glow" stroke-width="8" />
+      <path d={d} pathLength="100" class="topology-stream" stroke-width="2.5" />
+    </g>
+  );
+}
 
-/**
- * Wide routing topology: many sources of value collapse into a single clearing
- * node, then fan back out to the rails a merchant actually gets paid on.
- */
+function Hub({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <circle r="84" class="topology-halo" />
+      <circle r="70" class="topology-orbit" />
+      <circle r="57" class="topology-hub" />
+      <g
+        transform="translate(-24 -24)"
+        fill="none"
+        stroke="var(--color-forest)"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M4 8h7c9 0 9 16 19 16h14M4 24h40M4 40h7c9 0 9-16 19-16" />
+        <path d="m37 17 7 7-7 7" />
+      </g>
+    </g>
+  );
+}
+
+function EndpointCard({ item, x, y }: { item: Endpoint; x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`} class="topology-endpoint">
+      <rect width="242" height="76" class="topology-card" />
+      <path
+        d="M0 8V0h8M234 0h8v8M242 68v8h-8M8 76H0v-8"
+        fill="none"
+        stroke="color-mix(in srgb, var(--color-forest) 45%, var(--color-paper))"
+        stroke-width="1.5"
+      />
+      <circle cx="36" cy="38" r="21" class="topology-icon-disc" />
+      <g
+        transform="translate(24 26)"
+        fill="none"
+        stroke="var(--color-forest)"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <EndpointIcon name={item.icon} />
+      </g>
+      <text x="70" y="33" class="topology-label">
+        {item.label}
+      </text>
+      <text x="70" y="52" class="topology-detail">
+        {item.detail}
+      </text>
+    </g>
+  );
+}
+
 function TopologyWide() {
   return (
     <svg
-      viewBox="0 0 1200 560"
+      viewBox="0 0 1120 420"
       class="hidden h-auto w-full md:block"
       role="img"
-      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node, then settled out as a self-custody wallet payout, a treasury sweep, or an internal merchant balance."
+      aria-label="Digital assets, stablecoins and wallets flow through Mayarin clearing to external self-custody wallets, external treasury sweeps, or internal merchant balances."
     >
-      <title>Mayarin routing topology</title>
-
-      {inbound.map((d, index) => (
-        <g key={d}>
-          <path d={d} pathLength={196} fill="none" stroke="var(--color-line)" stroke-width="1" />
-          <path
-            d={d}
-            pathLength={196}
-            fill="none"
-            stroke="var(--color-accent)"
-            stroke-width="1.5"
-            class="flow-line"
-            style={laneDelay(index)}
-          />
-        </g>
-      ))}
-
-      {outbound.map((d, index) => (
-        <g key={d}>
-          <path d={d} pathLength={196} fill="none" stroke="var(--color-line)" stroke-width="1" />
-          <path
-            d={d}
-            pathLength={196}
-            fill="none"
-            stroke="var(--color-accent)"
-            stroke-width="1.5"
-            class="flow-line"
-            style={laneDelay(index)}
-          />
-        </g>
-      ))}
-
-      {inboundY.map((y, index) => (
-        <g key={y}>
-          <rect
-            class="route-pulse"
-            style={laneDelay(index)}
-            x="100"
-            y={y - 4}
-            width="8"
-            height="8"
-            fill="var(--color-ink)"
-          />
-          <text
-            x="104"
-            y={y - 22}
-            fill="var(--color-slate)"
-            font-family="var(--font-mono)"
-            font-size="12"
-            letter-spacing="1.6"
-          >
-            {SOURCES[index]?.toUpperCase()}
-          </text>
-        </g>
-      ))}
-
-      {outboundY.map((y, index) => (
-        <g key={y}>
-          <rect
-            class="route-pulse"
-            style={laneDelay(index)}
-            x="1092"
-            y={y - 4}
-            width="8"
-            height="8"
-            fill="var(--color-ink)"
-          />
-          <text
-            x="1096"
-            y={y - 34}
-            text-anchor="end"
-            fill="var(--color-slate)"
-            font-family="var(--font-mono)"
-            font-size="12"
-            letter-spacing="1.6"
-          >
-            {RAILS[index]?.label.toUpperCase()}
-          </text>
-          <text
-            x="1096"
-            y={y - 16}
-            text-anchor="end"
-            fill="var(--color-slate)"
-            opacity="0.55"
-            font-family="var(--font-mono)"
-            font-size="10"
-            letter-spacing="1.2"
-          >
-            {RAILS[index]?.mode.toUpperCase()}
-          </text>
-        </g>
-      ))}
-
-      {/* Clearing node */}
-      <rect
-        class="node-ring"
-        x="574"
-        y="254"
-        width="52"
-        height="52"
-        fill="none"
-        stroke="var(--color-line)"
-        stroke-dasharray="2 5"
-      />
-      <rect
-        class="node-ripple"
-        x="574"
-        y="254"
-        width="52"
-        height="52"
-        fill="none"
-        stroke="var(--color-accent)"
-      />
-      <rect
-        x="589"
-        y="269"
-        width="22"
-        height="22"
-        fill="var(--color-paper)"
-        stroke="var(--color-ink)"
-      />
-      <rect class="flow-dot" x="596" y="276" width="8" height="8" fill="var(--color-accent)" />
-      <text
-        x="600"
-        y="222"
-        text-anchor="middle"
-        fill="var(--color-ink)"
-        font-family="var(--font-mono)"
-        font-size="12"
-        letter-spacing="1.8"
-      >
-        CLEARING
+      <text x="36" y="38" class="topology-caption">
+        SOURCES OF VALUE
       </text>
-      <line
-        class="iso-flow"
-        x1="600"
-        y1="326"
-        x2="600"
-        y2="352"
-        stroke="var(--color-line)"
-        stroke-dasharray="2 4"
-      />
-      <text
-        x="600"
-        y="372"
-        text-anchor="middle"
-        fill="var(--color-slate)"
-        font-family="var(--font-mono)"
-        font-size="11"
-        letter-spacing="1.4"
-      >
-        LEDGER · SETTLEMENT
+      <text x="842" y="38" class="topology-caption">
+        SETTLEMENT DESTINATIONS
+      </text>
+      {[108, 210, 312].map((y, index) => (
+        <Route
+          key={y}
+          index={index}
+          d={`M278 ${y} C414 ${y} 426 210 560 210 C694 210 706 ${y} 842 ${y}`}
+        />
+      ))}
+      {SOURCES.map((item, index) => (
+        <EndpointCard key={item.label} item={item} x={36} y={70 + index * 102} />
+      ))}
+      {DESTINATIONS.map((item, index) => (
+        <EndpointCard key={item.label} item={item} x={842} y={70 + index * 102} />
+      ))}
+      <Hub x={560} y={210} />
+      <text x="560" y="333" text-anchor="middle" class="topology-label">
+        One clearing layer.
+      </text>
+      <text x="560" y="355" text-anchor="middle" class="topology-detail">
+        Ledger · Routing · Settlement
       </text>
     </svg>
   );
 }
 
-const mobileIn = [
-  "M60 96 C60 150 170 150 170 196",
-  "M170 96 V196",
-  "M280 96 C280 150 170 150 170 196",
-];
-
-const mobileOut = [
-  "M170 244 C170 300 60 300 60 356",
-  "M170 244 V356",
-  "M170 244 C170 300 280 300 280 356",
-];
-
-const mobileSources = ["ASSETS", "STABLES", "WALLETS"];
-const mobileRails = ["WALLET", "TREASURY", "BALANCE"];
-
 function TopologyCompact() {
   return (
     <svg
-      viewBox="0 0 340 400"
-      class="h-auto w-full"
+      viewBox="0 0 360 510"
+      class="h-auto w-full md:hidden"
       role="img"
-      aria-label="Digital assets, stablecoins and wallets routed through a single clearing node, then settled out as a self-custody wallet payout, a treasury sweep, or a merchant balance."
+      aria-label="Digital assets, stablecoins and wallets flow through clearing to self-custody wallets, treasury sweeps, or merchant balances. Wallet and treasury settlement is external; merchant balances are internal."
     >
-      <title>Mayarin routing topology</title>
-
-      {[...mobileIn, ...mobileOut].map((d, index) => (
-        <g key={d}>
-          <path d={d} pathLength={196} fill="none" stroke="var(--color-line)" stroke-width="1" />
-          <path
-            d={d}
-            pathLength={196}
-            fill="none"
-            stroke="var(--color-accent)"
-            stroke-width="1.5"
-            class="flow-line"
-            style={laneDelay(index % 3)}
-          />
-        </g>
-      ))}
-
-      {[60, 170, 280].map((x, index) => (
-        <g key={x}>
-          <rect
-            class="route-pulse"
-            style={laneDelay(index)}
-            x={x - 3.5}
-            y="92.5"
-            width="7"
-            height="7"
-            fill="var(--color-ink)"
-          />
-          <text
-            x={x}
-            y="74"
-            text-anchor="middle"
-            fill="var(--color-slate)"
-            font-family="var(--font-mono)"
-            font-size="10"
-            letter-spacing="1"
-          >
-            {mobileSources[index]}
-          </text>
-        </g>
-      ))}
-
-      {[60, 170, 280].map((x, index) => (
-        <g key={x}>
-          <rect
-            class="route-pulse"
-            style={laneDelay(index)}
-            x={x - 3.5}
-            y="352"
-            width="7"
-            height="7"
-            fill="var(--color-ink)"
-          />
-          <text
-            x={x}
-            y="380"
-            text-anchor="middle"
-            fill="var(--color-slate)"
-            font-family="var(--font-mono)"
-            font-size="10"
-            letter-spacing="0.6"
-          >
-            {mobileRails[index]}
-          </text>
-        </g>
-      ))}
-
-      <rect
-        class="node-ring"
-        x="148"
-        y="198"
-        width="44"
-        height="44"
-        fill="none"
-        stroke="var(--color-line)"
-        stroke-dasharray="2 5"
-      />
-      <rect
-        class="node-ripple"
-        x="148"
-        y="198"
-        width="44"
-        height="44"
-        fill="none"
-        stroke="var(--color-accent)"
-      />
-      <rect
-        x="160"
-        y="210"
-        width="20"
-        height="20"
-        fill="var(--color-paper)"
-        stroke="var(--color-ink)"
-      />
-      <rect class="flow-dot" x="166.5" y="216.5" width="7" height="7" fill="var(--color-accent)" />
-      <text
-        x="170"
-        y="180"
-        text-anchor="middle"
-        fill="var(--color-ink)"
-        font-family="var(--font-mono)"
-        font-size="10"
-        letter-spacing="1.4"
-      >
-        CLEARING
+      <text x="180" y="24" text-anchor="middle" class="topology-caption">
+        SOURCES OF VALUE
       </text>
+      {[60, 180, 300].map((x, index) => (
+        <Route
+          key={x}
+          index={index}
+          d={`M${x} 96 C${x} 165 180 160 180 246 C180 330 ${x} 325 ${x} 398`}
+        />
+      ))}
+      {SOURCES.map((item, index) => (
+        <g key={item.label} transform={`translate(${60 + index * 120} 74)`}>
+          <circle r="26" class="topology-card" />
+          <g
+            transform="translate(-12 -12)"
+            fill="none"
+            stroke="var(--color-forest)"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <EndpointIcon name={item.icon} />
+          </g>
+          <text y="48" text-anchor="middle" class="topology-label">
+            {item.label}
+          </text>
+        </g>
+      ))}
+      <Hub x={180} y={246} />
+      {DESTINATIONS.map((item, index) => (
+        <g key={item.label} transform={`translate(${60 + index * 120} 418)`}>
+          <circle r="26" class="topology-card" />
+          <g
+            transform="translate(-12 -12)"
+            fill="none"
+            stroke="var(--color-forest)"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <EndpointIcon name={item.icon} />
+          </g>
+          <text y="46" text-anchor="middle" class="topology-label">
+            {["Self-custody", "Treasury", "Balance"][index]}
+          </text>
+          <text y="64" text-anchor="middle" class="topology-detail">
+            {index === 2 ? "Internal" : "External"}
+          </text>
+        </g>
+      ))}
     </svg>
   );
 }
 
 export function RoutingTopology() {
+  const [paused, setPaused] = useState(false);
+
   return (
-    <div class="w-full">
+    <div class="topology" data-paused={paused}>
       <TopologyWide />
-      <div class="mx-auto max-w-104 md:hidden">
-        <TopologyCompact />
+      <TopologyCompact />
+      <div class="flex items-center justify-between gap-4 border-t border-forest/10 px-5 py-3 md:px-9">
+        <p class="text-xs text-slate">Many sources. One path to settlement.</p>
+        <button
+          type="button"
+          aria-pressed={paused}
+          onClick={() => setPaused(!paused)}
+          class="topology-pause flex min-h-11 shrink-0 cursor-pointer items-center gap-2 text-xs text-forest"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+            {paused ? <path d="m3 1 8 5-8 5Z" /> : <path d="M2 1h3v10H2zm5 0h3v10H7z" />}
+          </svg>
+          {paused ? "Resume motion" : "Pause motion"}
+        </button>
       </div>
     </div>
   );

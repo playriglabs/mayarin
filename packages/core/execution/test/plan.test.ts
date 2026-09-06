@@ -40,7 +40,9 @@ describe("planSwap", () => {
     const v = venue();
     await planSwap(v, "ETH", "USDC", money(5n * 10n ** 17n, "ETH"));
 
-    expect(v.calls).toEqual([{ from: "ETH", to: "USDC", amount: 5n * 10n ** 17n }]);
+    expect(v.calls).toEqual([
+      { from: "ETH", to: "USDC", amount: 5n * 10n ** 17n, direction: "exact-input" },
+    ]);
   });
 
   test("an amount in a different asset than the payer asset is refused", async () => {

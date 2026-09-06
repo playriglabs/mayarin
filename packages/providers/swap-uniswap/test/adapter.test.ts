@@ -101,3 +101,54 @@ describe.skipIf(parsedUrls.base === undefined)("UniswapSwapVenue live", () => {
     expect(quote.source).toBe("uniswap");
   });
 });
+
+describe("UniswapSwapVenue chain", () => {
+  // The pricing twin of the route source's refusal. A Base pool priced an Arc
+  // payment before this, and the lock carried a rate from a pool the swap would
+  // never touch.
+  test("a pool on another chain refuses rather than pricing", async () => {
+    const venue = new UniswapSwapVenue({
+      rpcUrls: { base: "https://mainnet.base.org" },
+      quoters: { base: QUOTER },
+      pools: ETH_USDC_POOL,
+    });
+
+    expect(venue.quote("ETH", "USDC", ONE_ETH, "arc-testnet")).rejects.toThrow(
+      /is on base, not arc-testnet/i,
+    );
+  });
+});
+
+describe("UniswapSwapVenue.quoteExactOutput", () => {
+  test("a pair with no configured pool throws ConfigurationError", async () => {
+    const venue = new UniswapSwapVenue({ rpcUrls: {}, quoters: {}, pools: {} });
+
+    expect(venue.quoteExactOutput("ETH", "USDC", money(50_000_000n, "USDC"))).rejects.toThrow(
+      /No Uniswap pool/i,
+    );
+  });
+
+  test("a pool on another chain refuses rather than pricing", async () => {
+    const venue = new UniswapSwapVenue({
+      rpcUrls: { base: "https://mainnet.base.org" },
+      quoters: { base: QUOTER },
+      pools: ETH_USDC_POOL,
+    });
+
+    expect(
+      venue.quoteExactOutput("ETH", "USDC", money(50_000_000n, "USDC"), "arc-testnet"),
+    ).rejects.toThrow(/is on base, not arc-testnet/i);
+  });
+
+  test("the exact output must be in the buy asset", async () => {
+    const venue = new UniswapSwapVenue({
+      rpcUrls: { base: "https://mainnet.base.org" },
+      quoters: { base: QUOTER },
+      pools: ETH_USDC_POOL,
+    });
+
+    expect(venue.quoteExactOutput("ETH", "USDC", money(10n ** 18n, "ETH"))).rejects.toThrow(
+      ValidationError,
+    );
+  });
+});

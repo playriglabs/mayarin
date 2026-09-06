@@ -105,9 +105,28 @@ environment string:
 | ---------------- | ----------------------------------------------- |
 | `stablecoins`    | admissible assets and their on-chain identities |
 | `exchangeRates`  | the static rate table (development stand-in)    |
-| `pythFeeds`      | pair → Hermes feed                              |
+| `pythFeeds`      | crypto pair → Hermes feed                       |
+| `fxFeeds`        | fiat pair → FX API series                       |
 | `chainlinkFeeds` | pair → on-chain aggregator                      |
 | `uniswapPools`   | pair → pool                                     |
+
+These split along the two legs a payment has, not along provider preference.
+`QuoteEngine` prices fiat → settlement through the oracle alone (no venue quotes
+rupiah) and payer asset → settlement through the venue under an oracle guard, so
+a deployment needs a reference for each leg and no cross rate between them.
+
+Which oracle serves which pair is not a property of the asset class. Pyth Core's
+2026-08-26 upgrade put Hermes behind an API key and a grant, and a default key's
+grant is a per-feed allowlist of majors: measured on one, `Crypto.ETH/USD`,
+`BTC`, `SOL`, `USDT`, `USDC` and `FX.EUR/USD` are granted, while
+`Crypto.SUI/USD`, `Crypto.ARB/USD`, `Crypto.EURC/USD` and every
+`FX.USD/{IDR,SGD,THB,MYR}` answer `403 Not entitled`. A denied Crypto feed sits
+beside a granted FX one. **Probe a feed against the deployment's own key before
+configuring it.**
+
+Name every source in `QUOTE_ORACLE` and `QUOTE_ORACLE_FALLBACKS`; one with no
+feed for a pair drops out of that read rather than failing it, which is what
+lets three partial sources cover a matrix none of them covers alone.
 
 Read with `GET /admin/market-config`, written with
 `PUT /admin/market-config/:key`, both behind `ADMIN_TOKEN`. **A writable feed

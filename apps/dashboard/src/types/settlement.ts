@@ -42,6 +42,11 @@ export interface SettlementDto {
   readonly provider: string;
   readonly executionPath: string | null;
   readonly onChain: OnChainAmounts | null;
+  /**
+   * The rail the payer paid on. Present whenever a rail was chosen, unlike
+   * `chain`, which exists only for a settlement with an on-chain log.
+   */
+  readonly payment: { readonly asset: string; readonly chain: string } | null;
   readonly chain: SettlementChainRecord | null;
   readonly createdAt: string;
   readonly updatedAt: string;

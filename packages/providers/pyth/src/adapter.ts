@@ -24,7 +24,13 @@ import {
   scalePythPrice,
 } from "./hermes.ts";
 
-export const DEFAULT_HERMES_ENDPOINT = "https://hermes.pyth.network";
+/**
+ * Pyth Core upgraded on 2026-08-26: the legacy open `hermes.pyth.network`
+ * endpoint was sunset and every Hermes request now requires a Pyth API key.
+ * The upgraded endpoint is a drop-in replacement — same routes, same response
+ * shape — but needs an `Authorization: Bearer <key>` header.
+ */
+export const DEFAULT_HERMES_ENDPOINT = "https://pyth.dourolabs.app/hermes";
 
 /**
  * A feed for one pair.
@@ -43,6 +49,8 @@ export interface PythPriceOracleOptions {
   /** Pair (`rateKey(from, to)`) to Hermes feed, e.g. `"ETH/USDC": "ff61…"`. */
   readonly feeds: Readonly<Record<string, PythFeed>>;
   readonly endpoint?: string;
+  /** Pyth API key, sent as `Authorization: Bearer <key>`. Required since the 2026-08-26 Pyth Core upgrade. */
+  readonly apiKey?: string;
   /** Injected for tests; defaults to the global `fetch`. */
   readonly fetchFn?: typeof fetch;
 }
@@ -50,11 +58,13 @@ export interface PythPriceOracleOptions {
 export class PythPriceOracle implements PriceOracle {
   readonly #feeds: ReadonlyMap<string, PythFeed>;
   readonly #endpoint: string;
+  readonly #apiKey: string | undefined;
   readonly #fetchFn: typeof fetch;
 
   constructor(options: PythPriceOracleOptions) {
     this.#feeds = new Map(Object.entries(options.feeds));
     this.#endpoint = options.endpoint ?? DEFAULT_HERMES_ENDPOINT;
+    this.#apiKey = options.apiKey;
     this.#fetchFn = options.fetchFn ?? fetch;
   }
 
@@ -109,10 +119,14 @@ export class PythPriceOracle implements PriceOracle {
 
   async #latest(feedId: string, from: AssetCode, to: AssetCode) {
     const url = `${this.#endpoint}/v2/updates/price/latest?ids[]=${encodeURIComponent(feedId)}`;
+    const init: RequestInit = {};
+    if (this.#apiKey !== undefined) {
+      init.headers = { Authorization: `Bearer ${this.#apiKey}` };
+    }
 
     let response: Response;
     try {
-      response = await this.#fetchFn(url);
+      response = await this.#fetchFn(url, init);
     } catch (error) {
       throw new ProviderError(
         `Hermes request for ${from} -> ${to} failed`,
@@ -122,12 +136,15 @@ export class PythPriceOracle implements PriceOracle {
     }
 
     if (!response.ok) {
-      throw new ProviderError(`Hermes responded ${response.status} for ${from} -> ${to}`, {
-        from,
-        to,
-        feedId,
-        status: response.status,
-      });
+      // 401/403/404 are auth/entitlement/config errors, not transient faults:
+      // retrying them just loops forever, so mark them non-retryable and let
+      // the clearing engine fail the payment instead of hammering Hermes.
+      const transient = response.status === 429 || response.status >= 500;
+      throw new ProviderError(
+        `Hermes responded ${response.status} for ${from} -> ${to}`,
+        { from, to, feedId, status: response.status },
+        { retryable: transient },
+      );
     }
 
     let json: unknown;

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { ChainId } from "@mayarin/chain";
 import {
   type AssetCode,
   assetDecimals,
@@ -8,6 +9,7 @@ import {
 } from "@mayarin/shared";
 import {
   ConstantProductPriceSource,
+  FallbackPriceSource,
   LiquidityRouter,
   type PriceQuote,
   type PriceSource,
@@ -162,5 +164,112 @@ describe("LiquidityRouter", () => {
     await expect(router.quote("USDC", "USDT", money(1_000_000n, "USDC"))).rejects.toBeInstanceOf(
       ConfigurationError,
     );
+  });
+});
+
+/** A source that only prices one chain, as a chain-specific venue does. */
+class OneChainSource implements PriceSource {
+  readonly calls: ChainId[] = [];
+
+  constructor(
+    private readonly chain: ChainId,
+    private readonly rate: bigint,
+  ) {}
+
+  async price(from: AssetCode, to: AssetCode, _amount: unknown, chain?: ChainId) {
+    if (chain !== undefined) this.calls.push(chain);
+    if (chain !== undefined && chain !== this.chain) {
+      throw new ConfigurationError(`pool is on ${this.chain}, not ${chain}`, { chain });
+    }
+    return { from, to, scaledRate: this.rate, source: this.chain };
+  }
+}
+
+describe("FallbackPriceSource", () => {
+  test("prices through the venue whose pool is on the payment's chain", async () => {
+    const base = new OneChainSource("base-sepolia", 742_458n);
+    const arc = new OneChainSource("arc-testnet", 1_408_170n);
+
+    const quote = await new FallbackPriceSource([base, arc]).price(
+      "EURC",
+      "USDC",
+      money(1_000_000n, "EURC"),
+      "arc-testnet",
+    );
+
+    // The bug this exists for: without the fallback the Base pool priced an
+    // Arc payment, and the lock carried a rate the swap could never reproduce.
+    expect(quote.scaledRate).toBe(1_408_170n);
+    expect(quote.source).toBe("arc-testnet");
+    expect(base.calls).toEqual(["arc-testnet"]);
+  });
+
+  test("stops at the first source that can price", async () => {
+    const base = new OneChainSource("base-sepolia", 742_458n);
+    const arc = new OneChainSource("arc-testnet", 1_408_170n);
+
+    await new FallbackPriceSource([base, arc]).price(
+      "EURC",
+      "USDC",
+      money(1_000_000n, "EURC"),
+      "base-sepolia",
+    );
+
+    expect(arc.calls).toEqual([]);
+  });
+
+  test("with no chain named, the first source prices", async () => {
+    const base = new OneChainSource("base-sepolia", 742_458n);
+    const arc = new OneChainSource("arc-testnet", 1_408_170n);
+
+    const quote = await new FallbackPriceSource([base, arc]).price(
+      "EURC",
+      "USDC",
+      money(1_000_000n, "EURC"),
+    );
+
+    expect(quote.scaledRate).toBe(742_458n);
+  });
+
+  // A venue outage is not a reason to price against a different chain's pool.
+  test("rethrows a non-configuration failure", async () => {
+    const broken: PriceSource = {
+      price: () => Promise.reject(new Error("RPC timeout")),
+    };
+    const arc = new OneChainSource("arc-testnet", 1_408_170n);
+
+    expect(
+      new FallbackPriceSource([broken, arc]).price(
+        "EURC",
+        "USDC",
+        money(1_000_000n, "EURC"),
+        "arc-testnet",
+      ),
+    ).rejects.toThrow("RPC timeout");
+  });
+
+  test("no source can price the chain — the last refusal stands", async () => {
+    const base = new OneChainSource("base-sepolia", 742_458n);
+
+    expect(
+      new FallbackPriceSource([base]).price("EURC", "USDC", money(1n, "EURC"), "arc-testnet"),
+    ).rejects.toThrow(ConfigurationError);
+  });
+
+  test("no sources at all throws ConfigurationError", async () => {
+    expect(
+      new FallbackPriceSource([]).price("EURC", "USDC", money(1n, "EURC"), "arc-testnet"),
+    ).rejects.toThrow(ConfigurationError);
+  });
+});
+
+describe("LiquidityRouter chain", () => {
+  test("passes the payment's chain to the source", async () => {
+    const arc = new OneChainSource("arc-testnet", 1_408_170n);
+    const router = new LiquidityRouter({ source: arc });
+
+    await router.quote("EURC", "USDC", money(1_000_000n, "EURC"), "arc-testnet");
+
+    expect(arc.calls).toEqual(["arc-testnet"]);
   });
 });

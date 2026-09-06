@@ -3,9 +3,11 @@ import type { DeviationPolicy, OraclePrice } from "@mayarin/clearing";
 import { ConstantProductPriceSource, TablePriceSource } from "@mayarin/clearing";
 import { FixedPriceOracle } from "@mayarin/clearing/testing";
 import {
+  type AssetCode,
   ConfigurationError,
   FixedClock,
   isMayarinError,
+  type Money,
   money,
   ProviderError,
   RATE_SCALE,
@@ -199,5 +201,198 @@ describe("quoteFiatPrice — both legs", () => {
         probe: money(10n ** 15n, "ETH"),
       }),
     ).rejects.toThrow(ProviderError);
+  });
+});
+
+describe("QuoteEngine chain", () => {
+  // The engine holds one `PriceSource`; whether that source can serve the chain
+  // is its business. What the engine owes is to say which chain is being priced.
+  test("compose passes the chain through to the venue", async () => {
+    const seen: Array<string | undefined> = [];
+    const composed = await engine({
+      venue: {
+        price: async (from, to, _amount, chain) => {
+          seen.push(chain);
+          return { from, to, scaledRate: 3_700_000_000n * RATE_SCALE, source: "venue" };
+        },
+      },
+    }).compose("ETH", "USDC", money(10n ** 18n, "ETH"), "base-sepolia");
+
+    expect(seen).toEqual(["base-sepolia"]);
+    expect(composed.executable.source).toBe("venue");
+  });
+
+  test("quoteFiatPrice passes the chain down to the swap leg", async () => {
+    const seen: Array<string | undefined> = [];
+    await engine({
+      venue: {
+        price: async (from, to, _amount, chain) => {
+          seen.push(chain);
+          return { from, to, scaledRate: 3_700_000_000n * RATE_SCALE, source: "venue" };
+        },
+      },
+    }).quoteFiatPrice({
+      price: money(5_000n, "USD"),
+      settlementAsset: "USDC",
+      payerAsset: "ETH",
+      probe: money(10n ** 18n, "ETH"),
+      chain: "arc-testnet",
+    });
+
+    expect(seen).toEqual(["arc-testnet"]);
+  });
+});
+
+/**
+ * The Base Sepolia EURC/USDC pool, as measured on 2026-09-05. Thin enough that
+ * the rate falls apart with size, which is the whole reason exact-output
+ * pricing exists:
+ *
+ *   1.000000 EURC -> 0.817981 USDC   (rate 0.817981)
+ *   4.885472 EURC -> 3.676905 USDC   (rate 0.752620)
+ *
+ * and 3.976241 USDC out needs 5.331676 EURC in.
+ */
+const THIN_POOL = {
+  probeRate: 817_981n * RATE_SCALE,
+  exactOutRate: 745_774n * RATE_SCALE,
+};
+
+describe("QuoteEngine exact-output pricing", () => {
+  function venueWith(seen: string[]) {
+    return {
+      price: async (from: AssetCode, to: AssetCode) => {
+        seen.push("exact-input");
+        return { from, to, scaledRate: THIN_POOL.probeRate, source: "uniswap" };
+      },
+      priceExactOutput: async (from: AssetCode, to: AssetCode, exactOut: Money) => {
+        seen.push(`exact-output:${exactOut.amount}`);
+        return { from, to, scaledRate: THIN_POOL.exactOutRate, source: "uniswap" };
+      },
+    };
+  }
+
+  // The bug: the swap leg was priced at one whole unit, so `minOut` was set
+  // 9% above what the pool could fill and the swap reverted `STF` — after the
+  // payer had already sent their funds.
+  test("prices the swap leg at the settlement amount, not at the probe", async () => {
+    const seen: string[] = [];
+    const quoted = await engine({
+      venue: venueWith(seen),
+      oracle: new FixedPriceOracle([
+        reference({ from: "EURC", scaledRate: THIN_POOL.exactOutRate }),
+      ]),
+    }).quoteFiatPrice({
+      price: money(500n, "USD"),
+      settlementAsset: "USDC",
+      payerAsset: "EURC",
+      probe: money(1_000_000n, "EURC"),
+    });
+
+    // The settlement amount, in USDC minor units — never the one-unit probe.
+    expect(seen).toEqual(["exact-output:5000000"]);
+    expect("composed" in quoted && quoted.composed.executable.scaledRate).toBe(
+      THIN_POOL.exactOutRate,
+    );
+  });
+
+  test("the chain travels with the exact-output ask", async () => {
+    const seen: string[] = [];
+    const chains: (string | undefined)[] = [];
+    await engine({
+      venue: {
+        price: async (from: AssetCode, to: AssetCode) => ({
+          from,
+          to,
+          scaledRate: THIN_POOL.probeRate,
+          source: "uniswap",
+        }),
+        priceExactOutput: async (
+          from: AssetCode,
+          to: AssetCode,
+          _exactOut: Money,
+          chain?: string,
+        ) => {
+          chains.push(chain);
+          seen.push("exact-output");
+          return { from, to, scaledRate: THIN_POOL.exactOutRate, source: "uniswap" };
+        },
+      },
+      oracle: new FixedPriceOracle([
+        reference({ from: "EURC", scaledRate: THIN_POOL.exactOutRate }),
+      ]),
+    }).quoteFiatPrice({
+      price: money(500n, "USD"),
+      settlementAsset: "USDC",
+      payerAsset: "EURC",
+      probe: money(1_000_000n, "EURC"),
+      chain: "base-sepolia",
+    });
+
+    expect(chains).toEqual(["base-sepolia"]);
+  });
+
+  // A rate table has no depth, so its forward price is already exact — there
+  // is nothing to fall back *from*.
+  test("a source that cannot price backwards still gets the probe", async () => {
+    const seen: string[] = [];
+    const quoted = await engine({
+      venue: {
+        price: async (from: AssetCode, to: AssetCode) => {
+          seen.push("exact-input");
+          return { from, to, scaledRate: THIN_POOL.probeRate, source: "table" };
+        },
+      },
+      oracle: new FixedPriceOracle([reference({ from: "EURC", scaledRate: THIN_POOL.probeRate })]),
+    }).quoteFiatPrice({
+      price: money(500n, "USD"),
+      settlementAsset: "USDC",
+      payerAsset: "EURC",
+      probe: money(1_000_000n, "EURC"),
+    });
+
+    expect(seen).toEqual(["exact-input"]);
+    expect("composed" in quoted).toBe(true);
+  });
+
+  // A venue outage must not quietly downgrade the quote to the less accurate
+  // direction — that is how the bug would come back without anyone noticing.
+  test("a venue fault on the exact-output ask is not swallowed", async () => {
+    const failing = {
+      price: async (from: AssetCode, to: AssetCode) => ({
+        from,
+        to,
+        scaledRate: THIN_POOL.probeRate,
+        source: "uniswap",
+      }),
+      priceExactOutput: () => Promise.reject(new ProviderError("quoter reverted", {})),
+    };
+
+    expect(
+      engine({
+        venue: failing,
+        oracle: new FixedPriceOracle([
+          reference({ from: "EURC", scaledRate: THIN_POOL.exactOutRate }),
+        ]),
+      }).quoteFiatPrice({
+        price: money(500n, "USD"),
+        settlementAsset: "USDC",
+        payerAsset: "EURC",
+        probe: money(1_000_000n, "EURC"),
+      }),
+    ).rejects.toThrow(ProviderError);
+  });
+
+  test("a same-asset payment still needs no venue at all", async () => {
+    const seen: string[] = [];
+    const quoted = await engine({ venue: venueWith(seen) }).quoteFiatPrice({
+      price: money(500n, "USD"),
+      settlementAsset: "USDC",
+      payerAsset: "USDC",
+      probe: money(1_000_000n, "USDC"),
+    });
+
+    expect(seen).toEqual([]);
+    expect("composed" in quoted).toBe(false);
   });
 });
