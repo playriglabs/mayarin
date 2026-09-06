@@ -12,19 +12,13 @@
  * that rail somewhere nobody controls, and it cannot be taken back.
  */
 
-import {
-  CheckIcon,
-  CopyIcon,
-  GlobeIcon,
-  PlusIcon,
-  TerminalWindowIcon,
-} from "@phosphor-icons/react";
+import { ArrowSquareOutIcon, GlobeIcon, PlusIcon, TerminalWindowIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { ChainLabel } from "@/components/chain-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -68,56 +62,13 @@ function reasonOf(error: unknown): string {
 }
 
 /**
- * The gate, as the merchant's own server has to implement it.
+ * The documentation, which is where the full gate implementation lives.
  *
- * Written against `fetch` and the two header names from the specification, so it
- * ports to any framework by changing how the request and response are spelled.
- * The ids and the base URL are the real ones for this resource: a guide a
- * developer has to fill in by hand is a guide they get wrong.
+ * A constant rather than configuration: the docs site is the same for every
+ * deployment of this dashboard, and a broken link here is worse than a
+ * hard-coded one.
  */
-function snippetFor(resource: X402ResourceDto, baseUrl: string): string {
-  const api = baseUrl === "" ? "https://your-mayarin-api" : baseUrl.replace(/\/$/, "");
-  const id = resource.id;
-  return `const MAYARIN = ${JSON.stringify(api)};
-const RESOURCE = ${JSON.stringify(id)};
-
-export async function handle(request) {
-  const signature = request.headers.get("PAYMENT-SIGNATURE");
-
-  // 1. Nothing paid yet: answer 402 with the price Mayarin quotes.
-  if (!signature) {
-    const required = await fetch(
-      \`\${MAYARIN}/x402/resources/\${RESOURCE}/payment-required\`,
-    ).then((r) => r.json());
-
-    return new Response(null, {
-      status: 402,
-      headers: { "PAYMENT-REQUIRED": btoa(JSON.stringify(required)) },
-    });
-  }
-
-  // 2. Verify, then settle. Never serve first.
-  const paymentPayload = JSON.parse(atob(signature));
-  const body = { x402Version: 2, paymentPayload, paymentRequirements: paymentPayload.accepted };
-  const call = (step) =>
-    fetch(\`\${MAYARIN}/x402/resources/\${RESOURCE}/\${step}\`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((r) => r.json());
-
-  const verified = await call("verify");
-  if (!verified.isValid) return new Response(null, { status: 402 });
-
-  const settled = await call("settle");
-  if (!settled.success) return new Response(null, { status: 402 });
-
-  // 3. Paid. Serve it, and say which transaction paid for it.
-  return new Response(yourContent, {
-    headers: { "PAYMENT-RESPONSE": btoa(JSON.stringify(settled)) },
-  });
-}`;
-}
+const DOCS_URL = "https://docs.mayarin.xyz";
 
 function X402Resources() {
   const resources = useX402Resources();
@@ -132,10 +83,8 @@ function X402Resources() {
   const [chains, setChains] = useState<Set<string>>(new Set());
   const [failure, setFailure] = useState("");
   const [guide, setGuide] = useState<X402ResourceDto | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const offered = rails.data?.rails ?? [];
-  const facilitator = resources.data?.facilitatorBaseUrl ?? "";
   const rows = resources.data?.resources ?? [];
   const canCreate =
     id.trim() !== "" && url.trim() !== "" && amount.trim() !== "" && chains.size > 0;
@@ -271,10 +220,7 @@ function X402Resources() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          setCopied(false);
-                          setGuide(resource);
-                        }}
+                        onClick={() => setGuide(resource)}
                         aria-label={`How to gate ${resource.id}`}
                       >
                         <TerminalWindowIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
@@ -426,15 +372,7 @@ function X402Resources() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog
-        open={guide !== null}
-        onOpenChange={(next) => {
-          if (!next) {
-            setGuide(null);
-            setCopied(false);
-          }
-        }}
-      >
+      <Dialog open={guide !== null} onOpenChange={(next) => !next && setGuide(null)}>
         <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Make your server ask for payment</DialogTitle>
@@ -458,37 +396,19 @@ function X402Resources() {
             <li>Only then serve the content.</li>
           </ol>
 
-          <div className="relative">
-            <pre className="overflow-x-auto border border-border bg-muted p-3 font-mono text-foreground text-xs">
-              <code>{guide === null ? "" : snippetFor(guide, facilitator)}</code>
-            </pre>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute top-2 right-2"
-              onClick={() => {
-                if (guide === null) return;
-                void navigator.clipboard.writeText(snippetFor(guide, facilitator));
-                setCopied(true);
-              }}
-            >
-              {copied ? (
-                <CheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-              ) : (
-                <CopyIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-              )}
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-
-          <p className="text-subtle-foreground text-xs">
-            No key and no chain code run on your server: it never holds the payer’s signature for
-            longer than the request, and Mayarin does the verifying, broadcasting and bookkeeping.
-            The URL you registered must be exactly the one an agent calls.
-          </p>
-
           <DialogFooter>
-            <Button onClick={() => setGuide(null)}>Done</Button>
+            <Button variant="secondary" onClick={() => setGuide(null)}>
+              Done
+            </Button>
+            <a
+              href={`${DOCS_URL}/guides/x402`}
+              target="_blank"
+              rel="noreferrer noopener"
+              className={buttonVariants()}
+            >
+              Go to documentation
+              <ArrowSquareOutIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+            </a>
           </DialogFooter>
         </DialogContent>
       </Dialog>

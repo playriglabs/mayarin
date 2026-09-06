@@ -1,0 +1,92 @@
+---
+title: Sell an endpoint to an agent
+description: Gate your own URL behind x402 so an autonomous payer is charged per request.
+---
+
+An autonomous agent cannot open an account, hold a card, or be asked to understand gas. x402 gives it one thing to sign: an authorization for exactly this request, at exactly this price.
+
+Register the endpoint in the dashboard under **Agent endpoints** first. That prices it and records where you are paid — it does not change your server, which still answers every request for free. This page is the part that closes the gate.
+
+## What your server does
+
+Three steps, in this order:
+
+1. A request with no payment: fetch the price from Mayarin and return `402` carrying it.
+2. A request carrying `PAYMENT-SIGNATURE`: verify it, then settle it.
+3. Only then serve the content.
+
+The order is not stylistic. A response cannot be un-served, so a handler that ran first would have to be undone if the settlement failed — and there is no undo for bytes already on the wire.
+
+## The gate
+
+Written against `fetch` and the two header names from the specification, so it ports to any framework by changing how a request and a response are spelled.
+
+```js
+const MAYARIN = "https://api.mayarin.xyz";
+const RESOURCE = "your-resource-id";
+
+export async function handle(request) {
+  const signature = request.headers.get("PAYMENT-SIGNATURE");
+
+  // 1. Nothing paid yet: answer 402 with the price Mayarin quotes.
+  if (!signature) {
+    const required = await fetch(
+      `${MAYARIN}/x402/resources/${RESOURCE}/payment-required`,
+    ).then((r) => r.json());
+
+    return new Response(null, {
+      status: 402,
+      headers: { "PAYMENT-REQUIRED": btoa(JSON.stringify(required)) },
+    });
+  }
+
+  // 2. Verify, then settle. Never serve first.
+  const paymentPayload = JSON.parse(atob(signature));
+  const body = { x402Version: 2, paymentPayload, paymentRequirements: paymentPayload.accepted };
+  const call = (step) =>
+    fetch(`${MAYARIN}/x402/resources/${RESOURCE}/${step}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+
+  const verified = await call("verify");
+  if (!verified.isValid) return new Response(null, { status: 402 });
+
+  const settled = await call("settle");
+  if (!settled.success) return new Response(null, { status: 402 });
+
+  // 3. Paid. Serve it, and say which transaction paid for it.
+  return new Response(yourContent, {
+    headers: { "PAYMENT-RESPONSE": btoa(JSON.stringify(settled)) },
+  });
+}
+```
+
+## What Mayarin does, so your server does not
+
+No key and no chain code run on your side. Mayarin rebuilds the payment requirements from the registered resource rather than trusting the copy the payer sent, checks the signature against the chain, broadcasts the transfer, and posts the double-entry records that credit you.
+
+That last point is worth stating plainly: the facilitator verifies against **its own** requirements. A facilitator that verified a payment against the requirements handed to it would be verifying a payment against its own claims.
+
+## Endpoints
+
+Both are public and unauthenticated. An agent that has never met Mayarin is the entire point, and a price is not a secret.
+
+| Endpoint | What it answers |
+| --- | --- |
+| `GET /x402/resources/:id/payment-required` | The price and rails, without making the call you are deciding about |
+| `GET /x402/resources/:id/rail` | Which rail was listed first, and the measurements behind that ordering |
+| `POST /x402/resources/:id/verify` | Would this authorization go through? |
+| `POST /x402/resources/:id/settle` | Broadcast it, and credit the merchant |
+| `GET /x402/resources?merchant=<id>` | What one merchant sells, for an agent shopping |
+
+## Things that will cost you an afternoon
+
+**The registered URL must be exactly the one an agent calls.** A resource is looked up by URL — scheme, host and path all count.
+
+**A `402` is a price, not a promise.** It is honoured for `maxTimeoutSeconds`, and the quote lock can be shorter. An agent that signs a stale authorization gets it refused.
+
+**Cross-asset rails pay the operator, not you.** `transferWithAuthorization` names one recipient, chosen before the payer signs, so a payer holding an asset you do not settle in sends it somewhere Mayarin can swap from. You are still paid your own asset, in full, and the difference is booked as the payer's surplus.
+
+**A contract account is a valid payer.** An agent wallet from a provider like Circle is a smart account: its signature validates through EIP-1271 and recovers to its signer rather than to itself. Mayarin asks the chain rather than recovering locally, so these payments verify — but a gate of your own that tried to check the signature would reject every one of them as forged. Do not check it; that is what `verify` is for.

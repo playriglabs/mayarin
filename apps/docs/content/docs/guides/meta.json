@@ -1,4 +1,4 @@
 {
   "title": "Guides",
-  "pages": ["api-quickstart", "authentication", "webhooks", "woocommerce"]
+  "pages": ["api-quickstart", "authentication", "x402", "webhooks", "woocommerce"]
 }
