@@ -1,4 +1,5 @@
 import { assetLogoUrl } from "@mayarin/shared";
+import usdtLogo from "./usdt.svg";
 
 export function AssetLogo({
   symbol,
@@ -7,7 +8,7 @@ export function AssetLogo({
   readonly symbol: string;
   readonly size?: number;
 }) {
-  const source = assetLogoUrl(symbol);
+  const source = assetLogoUrl(symbol, usdtLogo);
   if (source === undefined) {
     return (
       <span
