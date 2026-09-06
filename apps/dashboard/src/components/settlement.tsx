@@ -25,6 +25,7 @@ import {
 } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -61,6 +62,7 @@ import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
 import { PAGE_SIZE } from "@/lib/pagination";
 import { withQuery } from "@/lib/with-query";
+import type { SettlementDto } from "@/types/settlement";
 
 /** Shortened for display only — the full value stays in the `title`. */
 function shortHash(hash: string): string {
@@ -78,6 +80,21 @@ function reasonOf(error: unknown): string {
 
 function settingsReasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load settlement destination";
+}
+
+/**
+ * The network a settlement ran on.
+ *
+ * The settlement log's chain when the indexer saw one, the payer's rail
+ * otherwise. Reading only the log left every deposit-match payment blank: that
+ * path settles through the adapter and emits no `PaymentCompleted` to index,
+ * so there is no log — but the payment plainly still ran on a network. Neither
+ * present is a payment that never chose a rail, and stays a dash.
+ */
+function NetworkCell({ row }: { readonly row: SettlementDto }) {
+  const network = row.chain?.chain ?? row.payment?.chain ?? null;
+  if (network === null) return <span className="text-subtle-foreground">—</span>;
+  return <ChainLabel chain={network} size={18} className="text-sm" />;
 }
 
 function Settlement() {
@@ -221,6 +238,11 @@ function Settlement() {
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Net</TableHead>
                         <TableHead className="text-right">Fee</TableHead>
+                        {/* Beside the reference rather than beside the state:
+                            the network and the transaction that settled on it
+                            are one fact, and a reference means little without
+                            knowing which explorer it belongs to. */}
+                        <TableHead>Network</TableHead>
                         <TableHead>Reference</TableHead>
                         <TableHead>Updated</TableHead>
                       </TableRow>
@@ -262,6 +284,9 @@ function Settlement() {
                             ) : (
                               <AssetAmount asset={row.fee.asset} display={row.fee.display} />
                             )}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            <NetworkCell row={row} />
                           </TableCell>
                           <TableCell>
                             {row.reference === null ? (
