@@ -14,6 +14,7 @@ import { ArrowLeftIcon, ArrowSquareOutIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { match, P } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
 import { DepositQr } from "@/components/deposit-qr";
 import PaymentTimeline from "@/components/payment-timeline";
 import { Badge } from "@/components/ui/badge";
@@ -250,7 +251,8 @@ function PaymentDetail({ id }: { id: string }) {
                         ) : (
                           <span className="inline-flex items-center gap-1.5">
                             <AssetLabel symbol={intent.payment.asset} size={18} />
-                            <span>on {intent.payment.chain}</span>
+                            <span>on</span>
+                            <ChainLabel chain={intent.payment.chain} size={18} />
                           </span>
                         )}
                       </Row>
