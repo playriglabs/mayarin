@@ -51,6 +51,21 @@ describe("verify", () => {
     expect(result).toMatchObject({ isValid: false, invalidReason: "invalid_signature" });
   });
 
+  // A Circle Agent Stack agent wallet is a contract account: the CLI hands back
+  // its signer's ECDSA signature, which recovers to the signer and never to the
+  // payer, and Arc's USDC accepts it by calling the account's EIP-1271
+  // `isValidSignature`. Recovering locally rejected the payment as forged while
+  // the token would have taken it — verified by simulation against Arc testnet,
+  // 6 September.
+  test("accepts an authorization a contract account signed, which recovers to nobody", async () => {
+    const { facilitator } = facilitatorFor(chainState({ contractSignature: true }));
+    const forged = await forgedPayment();
+
+    const result = await facilitator.verify(forged, REQUIREMENTS);
+
+    expect(result).toEqual({ isValid: true, payer: PAYER.address });
+  });
+
   // A single flipped byte in the signature recovers to some other address
   // rather than failing to parse, so this is the same check, reached a
   // different way.

@@ -29,7 +29,7 @@ import {
   parseUnixSeconds,
   TRANSFER_WITH_AUTHORIZATION_TYPES,
 } from "@mayarin/x402";
-import { type Address, decodeEventLog, type Hex, type PublicClient, verifyTypedData } from "viem";
+import { type Address, decodeEventLog, type Hex, type PublicClient } from "viem";
 import { eip3009Abi } from "./abi.ts";
 
 /**
@@ -89,7 +89,14 @@ export class EvmX402Reader implements SettlementConfirmer {
     const from = authorization.from as Address;
 
     const domain = domainOf(requirements, Number(EVM_CHAIN_IDS[this.chain]));
-    const recovered = await verifyTypedData({
+    // Asked of the chain rather than recovered locally, because a payer is not
+    // always a key. A Circle agent wallet is a contract account: what it returns
+    // is its signer's ECDSA signature, which recovers to the signer and never to
+    // the payer, and the token accepts it by calling the account's EIP-1271
+    // `isValidSignature`. Recovering here would reject every such payment as
+    // forged while the token itself would have taken it. viem still recovers
+    // first, so an EOA payer costs no call.
+    const recovered = await this.#client.verifyTypedData({
       address: from,
       domain: { ...domain, verifyingContract: domain.verifyingContract as Address },
       types: TRANSFER_WITH_AUTHORIZATION_TYPES,

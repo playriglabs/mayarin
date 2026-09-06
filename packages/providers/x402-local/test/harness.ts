@@ -13,7 +13,13 @@ import type { Clock } from "@mayarin/shared";
 import { FixedClock } from "@mayarin/shared";
 import type { Authorization, PaymentPayload, PaymentRequirements } from "@mayarin/x402";
 import { TRANSFER_WITH_AUTHORIZATION_TYPES, X402_VERSION } from "@mayarin/x402";
-import type { Address, Hex, PublicClient, WalletClient } from "viem";
+import {
+  type Address,
+  type Hex,
+  type PublicClient,
+  verifyTypedData,
+  type WalletClient,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { LocalX402Facilitator } from "../src/facilitator.ts";
 import { EvmX402Reader } from "../src/reader.ts";
@@ -127,6 +133,8 @@ export interface ChainState {
   broadcasts: string[];
   /** Milliseconds each broadcast takes to return, so a race can be provoked. */
   broadcastDelayMs: number;
+  /** A payer that is a contract account: valid to the chain, forged to `ecrecover`. */
+  contractSignature: boolean;
   nextHash: () => Hex;
 }
 
@@ -139,6 +147,7 @@ export function chainState(overrides: Partial<ChainState> = {}): ChainState {
     receipts: new Map(),
     broadcasts: [],
     broadcastDelayMs: 0,
+    contractSignature: false,
     nextHash: () => `0x${(++counter).toString(16).padStart(64, "0")}` as Hex,
     ...overrides,
   };
@@ -165,6 +174,13 @@ export function transferLog(
 
 export function publicClientFor(state: ChainState): PublicClient {
   return {
+    // The chain's answer about a signature, which for an EOA is the recovery
+    // viem would have done offline anyway. `state.contractSignature` is the
+    // other kind of payer: a contract account whose signature validates through
+    // EIP-1271 and recovers to nobody.
+    async verifyTypedData(parameters: Parameters<typeof verifyTypedData>[0]) {
+      return state.contractSignature || (await verifyTypedData(parameters));
+    },
     async readContract({ functionName }: { functionName: string }) {
       if (functionName === "balanceOf") return state.balance;
       if (functionName === "authorizationState") return state.authorizationUsed;

@@ -11,6 +11,27 @@
  * The payer signs an EIP-3009 `transferWithAuthorization` and never broadcasts,
  * so the agent wallet needs no gas and Circle's gas sponsorship is not involved.
  *
+ * ## An agent wallet is a contract account, and that changes the signature
+ *
+ * Measured on Arc testnet, 6 September, because none of it is in the docs:
+ *
+ * - The wallet address is counterfactual until its first transaction. Signing
+ *   before then fails with "This wallet isn't deployed on-chain yet" — one
+ *   `circle wallet transfer` of any size deploys it.
+ * - What the CLI returns is a 65-byte ECDSA signature belonging to the wallet's
+ *   **signer**, not to the wallet. It recovers to the signer's address, so a
+ *   payer that recovers a signature locally rejects every agent payment as
+ *   forged.
+ * - The deployed wallet answers `isValidSignature` with `0x1626ba7e`, and Arc's
+ *   USDC validates through EIP-1271 rather than `ecrecover`: a simulated
+ *   `transferWithAuthorization` from the wallet, with that signature, succeeds.
+ *   Reading the token's bytecode for the EIP-1271 magic value says otherwise
+ *   and is wrong — the simulation is what settles it.
+ *
+ * `EvmX402Reader` therefore asks the chain to verify rather than recovering,
+ * and `packages/providers/x402-local/test/facilitator.test.ts` holds that as a
+ * regression.
+ *
  * ## What is not demonstrable on Arc
  *
  * `circle wallet limit set` — the Circle-enforced spending policy — takes a
@@ -31,7 +52,9 @@
  *    `--init` returns a request id, then `--request <id> --otp <code>`.
  * 3. Fund the wallet with Arc testnet USDC and read its address from
  *    `circle wallet list --chain ARC-TESTNET --output json`.
- * 4. Export `CIRCLE_AGENT_WALLET=0x…` and run the x402 script with
+ * 4. Deploy it, if this is the wallet's first use: `circle wallet transfer
+ *    <any address> --amount 0.01 --address <wallet> --chain ARC-TESTNET`.
+ * 5. Export `CIRCLE_AGENT_WALLET=0x…` and run the x402 script with
  *    `--payer circle`.
  */
 import type { ChainId } from "@mayarin/chain";
