@@ -19,6 +19,7 @@ import {
   type AssetCode,
   assetDecimals,
   isAssetCode,
+  isMayarinError,
   money,
   ValidationError,
 } from "@mayarin/shared";
@@ -119,12 +120,28 @@ export class QuotePricingSource implements RailPricingSource {
     const now = Date.now();
     if (cached !== undefined && now - cached.at < this.#ttlMs) return cached.priceable;
 
-    const priceable = await this.#quotes(rail.settlementAsset, rail.asset);
-    this.#answers.set(key, { at: now, priceable });
+    const { priceable, settled } = await this.#quotes(rail.settlementAsset, rail.asset, rail.chain);
+    // A retryable failure is not an answer, it is the absence of one. Caching
+    // it hid the rail for the whole TTL after a moment's rate limit or RPC
+    // blip — the merchant saw an asset they accept quietly disappear from the
+    // counter with nothing to act on. Settled answers still cache.
+    if (settled) this.#answers.set(key, { at: now, priceable });
     return priceable;
   }
 
-  async #quotes(settlementAsset: AssetCode, payerAsset: AssetCode): Promise<boolean> {
+  /**
+   * Whether this pair prices, and whether that answer is worth remembering.
+   *
+   * `settled` separates "this venue cannot serve this pair" — configuration,
+   * true until someone changes it — from "the oracle is rate limited right
+   * now", which is true for seconds and must not be cached as though it were
+   * the first.
+   */
+  async #quotes(
+    settlementAsset: AssetCode,
+    payerAsset: AssetCode,
+    chain: ChainId,
+  ): Promise<{ priceable: boolean; settled: boolean }> {
     try {
       // One whole unit of the payer's asset, matching `contract-layer`: a probe
       // of a different size prices different depth, and the offer would then
@@ -132,17 +149,20 @@ export class QuotePricingSource implements RailPricingSource {
       const probe = money(oneWholeUnit(payerAsset), payerAsset);
       const quote = await this.#context.market.quote();
       if (quote === undefined) {
-        const rate = await this.#context.rates.quote(payerAsset, settlementAsset, probe);
-        return rate.scaledRate > 0n;
+        const rate = await this.#context.rates.quote(payerAsset, settlementAsset, probe, chain);
+        return { priceable: rate.scaledRate > 0n, settled: true };
       }
 
-      const composed = await quote.engine.compose(payerAsset, settlementAsset, probe);
-      return composed.executable.scaledRate > 0n;
-    } catch {
-      // Every failure means the same thing here — this pair cannot be priced
-      // right now — and the rail is dropped with that as the stated reason. The
-      // payer never sees the exception, because they are never offered the rail.
-      return false;
+      // With the chain, so a rail is offered only where a venue can price it
+      // *here*. Without it the catalog offered an Arc rail on the strength of a
+      // Base pool, and the lock then priced against that same absent pool.
+      const composed = await quote.engine.compose(payerAsset, settlementAsset, probe, chain);
+      return { priceable: composed.executable.scaledRate > 0n, settled: true };
+    } catch (error) {
+      // The rail is dropped either way — the payer is never offered a pair the
+      // lock would refuse — but a retryable failure is re-asked next time
+      // rather than remembered.
+      return { priceable: false, settled: !(isMayarinError(error) && error.retryable) };
     }
   }
 }
