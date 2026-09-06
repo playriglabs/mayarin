@@ -110,9 +110,38 @@ const configSchema = z.object({
    * ten blocks, which is five seconds of chain per call.
    */
   subgraphEndpoints: jsonObject<Partial<Record<ChainId, string>>>("SUBGRAPH_ENDPOINTS", "{}"),
+  /**
+   * Bearer token for every subgraph query, Studio and gateway alike.
+   *
+   * Optional: a Studio development URL answers without one. It does not raise
+   * that URL's 3,000-queries-a-day ceiling — only publishing does — but Studio's
+   * own examples send it, and a gateway production URL requires it.
+   */
+  subgraphApiKey: z.string().min(1).optional(),
+  /**
+   * How long one read of the rails is reused.
+   *
+   * `paymentRequired` asks once per `402`, and the answer is a median over the
+   * last hundred settlements — it does not move between two requests a second
+   * apart. Five minutes bounds the cost at 288 queries a day per chain against
+   * a 3,000-a-day development URL, and still reflects a rail that degrades
+   * within one demo.
+   */
+  railObservationTtlSeconds: z.coerce.number().int().positive().default(300),
   chainStartBlocks: jsonObject<StartBlockMap>("CHAIN_START_BLOCKS", "{}"),
   depositXpub: z.string().min(1).optional(),
   watcherIntervalMs: z.coerce.number().int().min(0).default(15_000),
+  /**
+   * Delay between settlement-indexer passes, separate from the watcher's.
+   *
+   * The watcher polls our own RPC; the indexer polls a hosted subgraph that
+   * counts every query against a quota. One number for both means either the
+   * watcher crawls or the subgraph tier is spent before the day is over — a
+   * pass costs up to two queries, so 15s on two chains is ~23k queries a day.
+   */
+  indexerIntervalMs: z.coerce.number().int().min(0).default(60_000),
+  /** Ceiling for the indexer's backoff after a failing pass. */
+  indexerMaxBackoffMs: z.coerce.number().int().min(0).default(300_000),
   /** Delay between passes while a watcher is catching up to the chain head. */
   watcherCatchUpIntervalMs: z.coerce.number().int().min(0).default(1_000),
   watcherBlockRange: z.coerce.number().int().positive().default(2_000),
@@ -400,6 +429,9 @@ export interface ChainConfig {
   readonly xpub: string;
   readonly intervalMs: number;
   readonly catchUpIntervalMs: number;
+  /** Settlement-indexer pass interval. Separate: the indexer polls a metered subgraph. */
+  readonly indexerIntervalMs: number;
+  readonly indexerMaxBackoffMs: number;
   readonly blockRange: number;
   readonly nativeBlockRange: number;
   readonly tokenBalanceCatchUp: boolean;
@@ -785,6 +817,8 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
     xpub: data.depositXpub ?? "",
     intervalMs: data.watcherIntervalMs,
     catchUpIntervalMs: data.watcherCatchUpIntervalMs,
+    indexerIntervalMs: data.indexerIntervalMs,
+    indexerMaxBackoffMs: data.indexerMaxBackoffMs,
     blockRange: data.watcherBlockRange,
     nativeBlockRange: data.watcherNativeBlockRange,
     tokenBalanceCatchUp: data.watcherTokenBalanceCatchUp,
@@ -888,11 +922,15 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainRpcUrls: env.CHAIN_RPC_URLS,
     chainAssets: env.CHAIN_ASSETS,
     subgraphEndpoints: env.SUBGRAPH_ENDPOINTS,
+    subgraphApiKey: env.SUBGRAPH_API_KEY,
+    railObservationTtlSeconds: env.RAIL_OBSERVATION_TTL_SECONDS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainConfirmations: env.CHAIN_CONFIRMATIONS,
     chainStartBlocks: env.CHAIN_START_BLOCKS,
     depositXpub: env.DEPOSIT_XPUB,
     watcherIntervalMs: env.WATCHER_INTERVAL_MS,
+    indexerIntervalMs: env.INDEXER_INTERVAL_MS,
+    indexerMaxBackoffMs: env.INDEXER_MAX_BACKOFF_MS,
     watcherCatchUpIntervalMs: env.WATCHER_CATCH_UP_INTERVAL_MS,
     watcherBlockRange: env.WATCHER_BLOCK_RANGE,
     watcherNativeBlockRange: env.WATCHER_NATIVE_BLOCK_RANGE,

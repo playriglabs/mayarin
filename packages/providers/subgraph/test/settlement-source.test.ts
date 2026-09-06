@@ -21,13 +21,21 @@ function settlementRow(blockNumber: number, logIndex: number) {
   };
 }
 
-/** Answers each query by its operation, and records the variables it was given. */
+const HEALTHY_META = { block: { number: 46374607 }, hasIndexingErrors: false };
+
+/**
+ * Answers each query by its operation, and records what it was asked.
+ *
+ * Both queries select `_meta` now, so the settlements query is told apart by
+ * the entity it selects, not by the field they share.
+ */
 function fetchAnswering(answers: {
   settlements?: readonly (readonly unknown[])[];
   meta?: unknown;
   status?: number;
 }) {
   const variables: Record<string, unknown>[] = [];
+  const operations: string[] = [];
   let page = 0;
   const fetch: FetchLike = async (_url, init) => {
     const body = JSON.parse(String(init.body)) as {
@@ -36,16 +44,20 @@ function fetchAnswering(answers: {
     };
     if (body.variables !== undefined) variables.push(body.variables);
 
-    const data = body.query.includes("_meta")
-      ? { _meta: answers.meta }
-      : { settlements: answers.settlements?.[page++] ?? [] };
+    const isSettlements = body.query.includes("settlements(");
+    operations.push(isSettlements ? "settlements" : "meta");
+
+    const meta = "meta" in answers ? answers.meta : HEALTHY_META;
+    const data = isSettlements
+      ? { settlements: answers.settlements?.[page++] ?? [], _meta: meta }
+      : { _meta: meta };
 
     return new Response(JSON.stringify({ data }), {
       status: answers.status ?? 200,
       headers: { "content-type": "application/json" },
     });
   };
-  return { fetch, variables };
+  return { fetch, variables, operations };
 }
 
 function sourceWith(fetch: FetchLike, router = ROUTER) {
@@ -145,5 +157,32 @@ describe("SubgraphSettlementSource", () => {
 
     expect(logs).toHaveLength(1001);
     expect(variables.map((one) => one.skip)).toEqual([0, 1000]);
+  });
+
+  test("reuses the head the scan already paid for, then asks again", async () => {
+    const { fetch, operations } = fetchAnswering({ settlements: [[]] });
+    const source = sourceWith(fetch);
+    const range = { chain: CHAIN, router: ROUTER, fromBlock: 1n, toBlock: 2n } as const;
+
+    await source.settlements(range);
+    // The `_meta` that rode along with the logs, not a second billed query.
+    await expect(source.indexedHead(CHAIN)).resolves.toBe(46374607n);
+    expect(operations).toEqual(["settlements"]);
+
+    // Consumed once: a head that stayed would freeze the indexer's cursor at a
+    // height it has already scanned.
+    await expect(source.indexedHead(CHAIN)).resolves.toBe(46374607n);
+    expect(operations).toEqual(["settlements", "meta"]);
+  });
+
+  test("a scan onto a broken deployment fails rather than banking its head", async () => {
+    const { fetch } = fetchAnswering({
+      settlements: [[]],
+      meta: { block: { number: 100 }, hasIndexingErrors: true },
+    });
+
+    await expect(
+      sourceWith(fetch).settlements({ chain: CHAIN, router: ROUTER, fromBlock: 1n, toBlock: 2n }),
+    ).rejects.toThrow(/indexing errors/);
   });
 });

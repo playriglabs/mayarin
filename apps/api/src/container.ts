@@ -77,7 +77,7 @@ import {
 } from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
-import { SubgraphSettlementSource } from "@mayarin/provider-subgraph";
+import { SubgraphRailObservations, SubgraphSettlementSource } from "@mayarin/provider-subgraph";
 import {
   EvmAssetCapabilityProbe,
   EvmX402Reader,
@@ -98,6 +98,7 @@ import { SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
 import type {
   AssetCapabilityProbe,
   AssetPair,
+  RailObservationSource,
   SettlementConfirmer,
   X402Facilitator,
 } from "@mayarin/x402";
@@ -113,6 +114,7 @@ import { chainReceipts, QuotePricingSource } from "./rails.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
+import { CachedRailObservations } from "./services/rail-observations.ts";
 import { FetchWebhookTransport } from "./services/webhook-transport.ts";
 import { X402Service } from "./services/x402.ts";
 
@@ -342,8 +344,11 @@ function createX402(deps: {
     );
   }
 
+  const rails = createRailObservations(config, clock);
+
   return new X402Service({
     resources: new DrizzleX402ResourceRepository(handle.db),
+    ...(rails === undefined ? {} : { rails }),
     facilitators: facilitatorRegistry(facilitators),
     capabilities: new AssetCapabilities({
       probes,
@@ -402,6 +407,33 @@ function createX402(deps: {
 }
 
 /**
+ * What the rails have been doing, read from the same subgraphs.
+ *
+ * Absent unless `SUBGRAPH_ENDPOINTS` names at least one chain, and that is the
+ * honest default: the observation is a median over settlements the subgraph
+ * recorded, so a deployment without one has not measured its rails and the
+ * `402` should keep listing them in the order the resource declared.
+ *
+ * Cached here rather than inside the adapter. The adapter's job is to answer
+ * the question; how often it is worth asking is a property of this deployment
+ * — a Studio development URL allows 3,000 queries a day, and `paymentRequired`
+ * runs once per `402`.
+ */
+function createRailObservations(config: Config, clock: Clock): RailObservationSource | undefined {
+  const endpoints = config.subgraphEndpoints;
+  if (Object.keys(endpoints).length === 0) return undefined;
+
+  return new CachedRailObservations({
+    source: new SubgraphRailObservations({
+      endpoints,
+      ...(config.subgraphApiKey === undefined ? {} : { apiKey: config.subgraphApiKey }),
+    }),
+    ttlMs: config.railObservationTtlSeconds * 1000,
+    now: () => clock.now(),
+  });
+}
+
+/**
  * Where each chain's settlements are read from.
  *
  * Per chain, and composed here rather than inside an adapter, because the two
@@ -418,11 +450,16 @@ function createSettlementSource(deps: {
   client: ChainClient;
   endpoints: Readonly<Partial<Record<ChainId, string>>>;
   routers: Readonly<Partial<Record<ChainId, string>>>;
+  apiKey: string | undefined;
 }): SettlementSource {
-  const { client, endpoints, routers } = deps;
+  const { client, endpoints, routers, apiKey } = deps;
   if (Object.keys(endpoints).length === 0) return client;
 
-  const subgraph = new SubgraphSettlementSource({ endpoints, routers });
+  const subgraph = new SubgraphSettlementSource({
+    endpoints,
+    routers,
+    ...(apiKey === undefined ? {} : { apiKey }),
+  });
   const servesSubgraph = (chain: ChainId): boolean => endpoints[chain] !== undefined;
 
   return {
@@ -813,6 +850,7 @@ export function createContainer({
     const settlementSource = createSettlementSource({
       client: indexerClient,
       endpoints: config.subgraphEndpoints,
+      apiKey: config.subgraphApiKey,
       routers: config.contract.paymentRouters,
     });
 

@@ -45,6 +45,8 @@ export interface SubgraphRailObservationsOptions {
   readonly endpoints: Readonly<Partial<Record<ChainId, string>>>;
   /** Settlements read per chain, newest first. */
   readonly sampleSize?: number;
+  /** Studio or gateway API key, sent as a bearer token on every query. */
+  readonly apiKey?: string;
   /** Injected so the port is testable without a network. */
   readonly fetch?: FetchLike;
 }
@@ -55,11 +57,13 @@ export class SubgraphRailObservations implements RailObservationSource {
   readonly #endpoints: Readonly<Partial<Record<ChainId, string>>>;
   readonly #sampleSize: number;
   readonly #fetch: FetchLike | undefined;
+  readonly #apiKey: string | undefined;
 
   constructor(options: SubgraphRailObservationsOptions) {
     this.#endpoints = options.endpoints;
     this.#sampleSize = options.sampleSize ?? DEFAULT_SAMPLE_SIZE;
     this.#fetch = options.fetch;
+    this.#apiKey = options.apiKey;
   }
 
   async observe(chains: readonly ChainId[]): Promise<readonly RailObservation[]> {
@@ -73,7 +77,13 @@ export class SubgraphRailObservations implements RailObservationSource {
 
   async #observeOne(chain: ChainId, endpoint: string): Promise<RailObservation> {
     const data = settlementsSchema.parse(
-      await postGraphql(endpoint, OBSERVE_QUERY, this.#fetch, { first: this.#sampleSize }),
+      await postGraphql(
+        endpoint,
+        OBSERVE_QUERY,
+        this.#fetch,
+        { first: this.#sampleSize },
+        this.#apiKey,
+      ),
     );
 
     return {

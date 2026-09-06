@@ -25,7 +25,6 @@ describe("chain facts", () => {
     expect(isChainId("arbitrum-sepolia")).toBe(true);
     expect(isChainId("robinhood-testnet")).toBe(true);
     expect(isChainId("arc-testnet")).toBe(true);
-    expect(isChainId("hedera-testnet")).toBe(true);
     expect(isChainId("ethereum")).toBe(false);
   });
 
@@ -52,7 +51,6 @@ describe("isMainnetChain", () => {
   test("treats every chain carrying real value as a mainnet", () => {
     expect(isMainnetChain("base")).toBe(true);
     expect(isMainnetChain("arbitrum")).toBe(true);
-    expect(isMainnetChain("hedera")).toBe(true);
   });
 
   test("treats the test networks as testnets", () => {
@@ -60,7 +58,6 @@ describe("isMainnetChain", () => {
     expect(isMainnetChain("arbitrum-sepolia")).toBe(false);
     expect(isMainnetChain("robinhood-testnet")).toBe(false);
     expect(isMainnetChain("arc-testnet")).toBe(false);
-    expect(isMainnetChain("hedera-testnet")).toBe(false);
   });
 });
 
@@ -68,7 +65,6 @@ describe("CAIP-2", () => {
   test("derives the identifier from the EIP-155 id rather than a second table", () => {
     expect(caip2Of("base-sepolia")).toBe("eip155:84532");
     expect(caip2Of("arc-testnet")).toBe("eip155:5042002");
-    expect(caip2Of("hedera-testnet")).toBe("eip155:296");
   });
 
   test("round-trips every supported chain", () => {
