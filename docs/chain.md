@@ -350,6 +350,15 @@ Enabling the layer while `ASSET_RECEIPT_MODE=auto` is also a boot failure —
 auto confirmation alongside a live watcher would fund payments nobody paid.
 `WATCHER_INTERVAL_MS=0` disables the timer, leaving only the admin route.
 
+The settlement indexer runs on its own clock, `INDEXER_INTERVAL_MS` (60s by
+default), because it polls a hosted subgraph that bills per query rather than
+our own RPC — sharing the watcher's 15s spends a Subgraph Studio day before it
+is over. A failing pass doubles its delay up to `INDEXER_MAX_BACKOFF_MS`, and a
+429 that carries `Retry-After` wins when it asks for longer.
+`INDEXER_INTERVAL_MS=0` turns settlement indexing off and starts no loop at all. See
+`packages/subgraph/README.md` for the query arithmetic and why a continuous
+deployment belongs on a Graph Network endpoint.
+
 ---
 
 ## Treasury execution

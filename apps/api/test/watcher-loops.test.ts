@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { TickResult } from "@mayarin/chain";
-import type { AssetCode } from "@mayarin/shared";
+import { type AssetCode, ProviderError } from "@mayarin/shared";
 import {
   startIndexerLoops,
   startWatcherLoops,
@@ -185,5 +185,90 @@ describe("indexer loops", () => {
 
     stop();
     expect(timers.scheduled).toHaveLength(0);
+  });
+
+  test("backs off while passes fail, and resets once one succeeds", async () => {
+    const timers = fakeTimers();
+    const outcomes: (Error | undefined)[] = [
+      new Error("boom"),
+      new Error("boom"),
+      new Error("boom"),
+      undefined,
+    ];
+    let calls = 0;
+    const indexer = {
+      tick: async () => {
+        const outcome = outcomes[calls];
+        calls += 1;
+        if (outcome !== undefined) throw outcome;
+      },
+    };
+
+    const stop = startIndexerLoops({
+      indexers: new Map([[CHAIN, indexer]]),
+      intervalMs: 15_000,
+      maxBackoffMs: 45_000,
+      timers: timers.port,
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    const delays: number[] = [];
+    for (let pass = 0; pass < 4; pass++) {
+      await flush();
+      const scheduled = timers.scheduled.at(-1);
+      if (scheduled === undefined) throw new Error("nothing scheduled");
+      delays.push(scheduled.delayMs);
+      scheduled.run();
+    }
+
+    // Doubling, capped at 45s, and back to the interval after the success.
+    expect(delays).toEqual([30_000, 45_000, 45_000, 15_000]);
+    stop();
+  });
+
+  test("an interval of zero starts nothing, rather than looping with no gap", async () => {
+    const timers = fakeTimers();
+    let calls = 0;
+    const indexer = {
+      tick: async () => {
+        calls += 1;
+      },
+    };
+
+    const stop = startIndexerLoops({
+      indexers: new Map([[CHAIN, indexer]]),
+      intervalMs: 0,
+      timers: timers.port,
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    await flush();
+    expect(calls).toBe(0);
+    expect(timers.scheduled).toHaveLength(0);
+    stop();
+  });
+
+  test("waits as long as a rate limiter asked, when that is longer than the backoff", async () => {
+    const timers = fakeTimers();
+    const indexer = {
+      tick: async () => {
+        throw new ProviderError("subgraph at https://example.test answered 429", {
+          status: 429,
+          retryAfterMs: 120_000,
+        });
+      },
+    };
+
+    const stop = startIndexerLoops({
+      indexers: new Map([[CHAIN, indexer]]),
+      intervalMs: 15_000,
+      maxBackoffMs: 45_000,
+      timers: timers.port,
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    await flush();
+    expect(timers.scheduled.map((entry) => entry.delayMs)).toEqual([120_000]);
+    stop();
   });
 });

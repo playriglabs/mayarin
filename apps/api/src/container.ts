@@ -418,11 +418,16 @@ function createSettlementSource(deps: {
   client: ChainClient;
   endpoints: Readonly<Partial<Record<ChainId, string>>>;
   routers: Readonly<Partial<Record<ChainId, string>>>;
+  apiKey: string | undefined;
 }): SettlementSource {
-  const { client, endpoints, routers } = deps;
+  const { client, endpoints, routers, apiKey } = deps;
   if (Object.keys(endpoints).length === 0) return client;
 
-  const subgraph = new SubgraphSettlementSource({ endpoints, routers });
+  const subgraph = new SubgraphSettlementSource({
+    endpoints,
+    routers,
+    ...(apiKey === undefined ? {} : { apiKey }),
+  });
   const servesSubgraph = (chain: ChainId): boolean => endpoints[chain] !== undefined;
 
   return {
@@ -813,6 +818,7 @@ export function createContainer({
     const settlementSource = createSettlementSource({
       client: indexerClient,
       endpoints: config.subgraphEndpoints,
+      apiKey: config.subgraphApiKey,
       routers: config.contract.paymentRouters,
     });
 
