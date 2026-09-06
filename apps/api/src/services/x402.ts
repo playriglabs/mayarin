@@ -14,6 +14,7 @@
  * the other way round would credit a merchant for money that never moved.
  */
 
+import type { ChainId } from "@mayarin/chain";
 import { caip2Of } from "@mayarin/chain";
 import type { ClearingEngine, RateProvider } from "@mayarin/clearing";
 import {
@@ -38,6 +39,7 @@ import type {
   AcceptedAsset,
   AssetCapabilities,
   CrossAssetSettler,
+  CrossAssetSwapRequest,
   FacilitatorRegistry,
   PaymentPayload,
   PaymentRequired,
@@ -131,6 +133,19 @@ export interface X402ServiceOptions {
    * did everything right and is told no.
    */
   readonly crossAssetSettler?: CrossAssetSettler;
+  /**
+   * Where a merchant is paid on-chain, per chain.
+   *
+   * A cross-asset swap delivers straight to the merchant, so it needs an
+   * address rather than the `payTo` on the rail — that one is the operator's,
+   * because the payer's asset had to land somewhere swappable. A merchant's
+   * address differs per chain (the Safe salt carries the chain), so this is
+   * asked per payment rather than resolved once.
+   */
+  readonly settlementAddressOf?: (
+    merchantId: string,
+    chain: ChainId,
+  ) => Promise<string | undefined>;
 }
 
 /**
@@ -439,18 +454,33 @@ export class X402Service {
     const intent = await this.#intentFor(resource, requirements, merchant, payment);
     const confirmed = await this.#options.intents.confirm(intent.id);
     const transaction = await this.#options.engine.start(confirmed);
-    // The current rail transfers the settlement token directly. Refuse a
-    // cross-asset or changed quote before broadcasting money we cannot book.
-    if (
-      transaction.state !== "PAYMENT_PENDING" ||
-      intent.payment === undefined ||
-      intent.payment.asset !== transaction.settlementAsset ||
-      transaction.settlementAmount?.amount !== BigInt(requirements.amount)
-    ) {
+    const rail = intent.payment;
+    const locked = transaction.settlementAmount;
+    if (transaction.state !== "PAYMENT_PENDING" || rail === undefined || locked === undefined) {
+      throw new ValidationError("x402 payment does not match a pending lock", {
+        intentId: intent.id,
+      });
+    }
+
+    // What the payer signed for, in the asset they signed in. On a same-asset
+    // rail that is the merchant's number and has to equal the lock exactly; on
+    // a cross-asset one it is the swap's budget and the two are not comparable.
+    const authorized = money(BigInt(requirements.amount), rail.asset);
+    const crossAsset = rail.asset !== transaction.settlementAsset;
+    if (!crossAsset && locked.amount !== authorized.amount) {
       throw new ValidationError("x402 payment does not match a pending same-asset lock", {
         intentId: intent.id,
       });
     }
+
+    // Planned before the payer's money moves, and that ordering is the whole
+    // point of planning at all. A route needing more than the authorization
+    // carries is unexecutable, and discovering it after
+    // `transferWithAuthorization` has landed leaves the payer's asset at the
+    // operator, the merchant unpaid, and the nonce spent so no retry can pay.
+    const swapRequest = crossAsset
+      ? await this.#planSwap(resource.merchantId, rail.chain, authorized, locked)
+      : undefined;
 
     const response = await this.#options.facilitators
       .for(requirements)
@@ -472,12 +502,24 @@ export class X402Service {
     if (response.success && isTransactionHash(response.transaction)) {
       await this.#options.engine.recordFacilitatorBroadcast(transaction.id, response.transaction);
     }
+    // Confirms the authorization, whichever rail this is. On a cross-asset one
+    // that is the payer's asset arriving at the operator rather than at the
+    // merchant — `requirements` already names both, because the `402` did.
     const settlement = await confirmSettlement(response, requirements, confirmer);
-    const progress = await this.#options.engine.recordFacilitatorSettlement(transaction.id, {
-      chain: intent.payment.chain,
-      txHash: settlement.transaction,
-      amount: { amount: BigInt(settlement.transfer.value), asset: intent.payment.asset },
-    });
+
+    const facilitatorSettlement =
+      swapRequest === undefined
+        ? {
+            chain: rail.chain,
+            txHash: settlement.transaction,
+            amount: money(BigInt(settlement.transfer.value), rail.asset),
+          }
+        : await this.#swap(transaction.id, swapRequest);
+
+    const progress = await this.#options.engine.recordFacilitatorSettlement(
+      transaction.id,
+      facilitatorSettlement,
+    );
     if (progress.transaction.state !== "SUCCESS") {
       throw new ValidationError("x402 transfer confirmed but clearing did not complete", {
         intentId: intent.id,
@@ -486,6 +528,79 @@ export class X402Service {
     }
 
     return { response, intent: await this.#options.intents.getById(intent.id) };
+  }
+
+  /**
+   * The swap this payment will need, checked against what the payer authorised.
+   *
+   * Refused here rather than left to `amountInMaximum` on-chain. The contract
+   * bound is still set and still reverts, but a revert at that point has already
+   * taken the payer's asset — so the bound is the second line of defence and
+   * this is the first.
+   */
+  async #planSwap(
+    merchantId: string,
+    chain: ChainId,
+    authorized: Money,
+    exactOut: Money,
+  ): Promise<CrossAssetSwapRequest> {
+    const settler = this.#options.crossAssetSettler;
+    const recipient = await this.#options.settlementAddressOf?.(merchantId, chain);
+    if (settler === undefined || recipient === undefined) {
+      throw new ValidationError(
+        `This deployment cannot pay ${merchantId} in ${exactOut.asset} on ${chain}: a cross-asset payment needs a settler and an on-chain address to deliver into`,
+        { merchantId, chain },
+      );
+    }
+
+    const request: CrossAssetSwapRequest = { chain, held: authorized, exactOut, recipient };
+    const expectedIn = await settler.plan(request);
+    if (expectedIn.amount > authorized.amount) {
+      throw new ValidationError(
+        "The swap would spend more than the payer authorised; the price moved after the 402",
+        {
+          merchantId,
+          expectedIn: expectedIn.amount.toString(),
+          authorized: authorized.amount.toString(),
+          asset: authorized.asset,
+        },
+      );
+    }
+    return request;
+  }
+
+  /**
+   * Sends the swap, records its hash, then reads it back.
+   *
+   * Send, persist, confirm — the same order the authorization takes, and here
+   * for a sharper reason. An authorization cannot be re-sent because EIP-3009
+   * records its nonce; a swap has no such guard, so a hash lost between sending
+   * and confirming is one a resume would send again, spending the operator's own
+   * balance and paying the merchant twice.
+   */
+  async #swap(
+    clearingTransactionId: string,
+    request: CrossAssetSwapRequest,
+  ): Promise<{ chain: ChainId; txHash: string; amount: Money; surplus: Money }> {
+    // `#planSwap` established this; re-read for the type rather than assert.
+    const settler = this.#options.crossAssetSettler;
+    if (settler === undefined) {
+      throw new ValidationError("x402 cannot settle a cross-asset payment on this deployment", {
+        clearingTransactionId,
+      });
+    }
+
+    const txHash = await settler.send(request);
+    await this.#options.engine.recordCrossAssetSwap(clearingTransactionId, txHash);
+    const swap = await settler.confirm(txHash, request);
+
+    return {
+      chain: request.chain,
+      txHash: swap.transaction,
+      amount: swap.delivered,
+      // The payer's change: authorised, not consumed, and still at the operator.
+      surplus: money(request.held.amount - swap.spent.amount, request.held.asset),
+    };
   }
 
   /**
@@ -519,6 +634,14 @@ export class X402Service {
         const intent = await this.#options.intents.getById(transaction.paymentIntentId);
         const chain = intent.payment?.chain;
         if (chain === undefined) continue;
+        // A cross-asset payment has two chain movements and this sweep knows
+        // how to finish one of them. Which one the reference names is readable
+        // — the `settlement.swap` event says the swap has gone out — but the
+        // resume differs in each case: before the swap it has to be sent, and
+        // after it, confirmed against the merchant rather than the operator.
+        // Left alone rather than confirmed wrongly, and named so an operator
+        // sees it rather than watching a sweep retry forever. See #211.
+        if (intent.payment?.asset !== transaction.settlementAsset) continue;
         const resource = await this.resourceById(intent.metadata.x402Resource ?? "");
         const accept = resource.accepts.find((candidate) => candidate.chain === chain);
         const confirmer = this.#options.confirmers.get(caip2Of(chain));

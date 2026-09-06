@@ -77,7 +77,7 @@ import type { ClearingState, ClearingTransaction } from "./types.ts";
  * something the executor already knows. The idempotency key still has to
  * distinguish it, so the label widens instead of the state machine.
  */
-export type PostingStep = ClearingState | "SWAPPED" | "GAS";
+export type PostingStep = ClearingState | "SWAPPED" | "GAS" | "PAYER_SURPLUS";
 
 export function postingIdempotencyKey(transaction: ClearingTransaction, step: PostingStep): string {
   return `${transaction.id}:${step}`;
@@ -95,6 +95,31 @@ export function assetReceivedPosting(transaction: ClearingTransaction): DraftTra
       credit("MERCHANT_PAYABLE", netAmount),
       ...(fee.amount === 0n ? [] : [credit("FEE_REVENUE", fee)]),
     ],
+  };
+}
+
+/**
+ * The payer's change on a cross-asset x402 payment (#211).
+ *
+ * `surplus` is what the authorization carried and the swap did not consume,
+ * denominated in the payer's asset. Both sides of the entry are the payer's
+ * asset and neither touches the settlement asset: the merchant's leg is already
+ * accounted for by the receipt, and this is the remainder sitting at the
+ * operator afterwards.
+ *
+ * Posted rather than absorbed. `exact` authorises a fixed amount grossed up by
+ * slippage, so a surplus is the normal outcome rather than an anomaly, and an
+ * unexplained operator balance is how it would otherwise appear.
+ */
+export function payerSurplusPosting(
+  transaction: ClearingTransaction,
+  surplus: Money,
+): DraftTransaction {
+  return {
+    description: `Payer surplus on payment ${transaction.paymentIntentId}`,
+    reference: transaction.id,
+    idempotencyKey: postingIdempotencyKey(transaction, "PAYER_SURPLUS"),
+    entries: [debit("PAYER_ASSET_HELD", surplus), credit("PAYER_SURPLUS", surplus)],
   };
 }
 

@@ -95,6 +95,28 @@ export const ACCOUNT_KINDS = {
     description:
       "Gain or loss between the locked price and the swap actually achieved. Debit balance is a loss.",
   },
+  /**
+   * The payer's own change, on a cross-asset x402 payment (#211).
+   *
+   * The `exact` scheme takes a fixed authorization and nothing may top it up,
+   * so the amount the agent signs for is the exact-output quote grossed up by
+   * slippage — deliberately more than the swap is expected to consume. The
+   * difference is the payer's, not a gain: `FX_RESULT` would call it Mayarin's
+   * exposure between the lock and the fill, and it is neither.
+   *
+   * `LIABILITY`, because we are holding somebody else's money. A credit balance
+   * here is change owed back, and it stays owed until it is either returned or
+   * a policy that does not exist yet decides otherwise. On the contract path the
+   * same money never reaches this account: `PaymentRouter._returnResidue` hands
+   * it back inside the same transaction, which x402 cannot do because the payer
+   * is not the sender.
+   */
+  PAYER_SURPLUS: {
+    type: "LIABILITY",
+    name: "Payer surplus",
+    description:
+      "Payer asset authorised but not consumed by a cross-asset swap, held against a return to the payer.",
+  },
   /** Gas Mayarin pays on a payer's behalf. */
   GAS_EXPENSE: {
     type: "EXPENSE",

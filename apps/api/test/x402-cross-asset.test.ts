@@ -15,9 +15,15 @@ import { type PriceQuote, type PriceSource, StaticRateProvider } from "@mayarin/
 import { FixedPriceOracle } from "@mayarin/clearing/testing";
 import { QuoteEngine } from "@mayarin/quote";
 import { type AssetCode, ConfigurationError, type Money, money, RATE_SCALE } from "@mayarin/shared";
-import { AssetCapabilities, facilitatorRegistry } from "@mayarin/x402";
+import {
+  AssetCapabilities,
+  facilitatorRegistry,
+  type PaymentPayload,
+  selectRequirements,
+} from "@mayarin/x402";
 import {
   EURC_BASE_SEPOLIA,
+  EXAMPLE_EIP3009_PAYLOAD,
   exampleResource,
   FakeCrossAssetSettler,
   FakeFacilitator,
@@ -31,6 +37,9 @@ import { X402Service } from "../src/services/x402.ts";
 const OPERATOR = "0x209693Bc6afc0C5328bA36FaF03C514EF312287C";
 
 const MERCHANT_SAFE = "0xe5DD11a0579C0ab6a60B8263277c174cC8Eb675E";
+const PAYER = "0x1111111111111111111111111111111111111111";
+const AUTHORIZATION_TX = `0x${"ab".repeat(32)}`;
+const SWAP_TX = `0x${"cd".repeat(32)}`;
 const SLIPPAGE_BPS = 50;
 
 /**
@@ -72,6 +81,12 @@ function service(options: {
   readonly price?: Money;
 }) {
   const settler = options.settler ?? new FakeCrossAssetSettler();
+  const confirmer = new FakeSettlementConfirmer();
+  const facilitator = new FakeFacilitator().willSettleWith({
+    success: true,
+    transaction: AUTHORIZATION_TX,
+    network: "eip155:84532",
+  });
   const clearing = createHarness({
     autoConfirmAssetReceipt: false,
     rates: { "USD/USDC": 1_000_000n },
@@ -103,13 +118,7 @@ function service(options: {
 
   const x402 = new X402Service({
     resources,
-    facilitators: facilitatorRegistry([
-      new FakeFacilitator().willSettleWith({
-        success: true,
-        transaction: `0x${"ab".repeat(32)}`,
-        network: "eip155:84532",
-      }),
-    ]),
+    facilitators: facilitatorRegistry([facilitator]),
     capabilities: new AssetCapabilities({
       pairs: [],
       probes: [
@@ -127,7 +136,7 @@ function service(options: {
         },
       ],
     }),
-    confirmers: new Map([["eip155:84532", new FakeSettlementConfirmer()]]),
+    confirmers: new Map([["eip155:84532", confirmer]]),
     rates: new StaticRateProvider({ "USD/USDC": 1_000_000n }),
     intents: clearing.intents,
     engine: clearing.engine,
@@ -145,9 +154,10 @@ function service(options: {
       : { quote: async () => ({ engine, slippageBps: SLIPPAGE_BPS }) }),
     operatorAddress: OPERATOR,
     crossAssetSettler: settler,
+    settlementAddressOf: async () => MERCHANT_SAFE,
   });
 
-  return { x402, resources, resource };
+  return { x402, resources, resource, settler, confirmer, clearing };
 }
 
 describe("a cross-asset 402", () => {
@@ -241,5 +251,109 @@ describe("registering a cross-asset rail", () => {
 
     expect(resource.accepts[0]?.payTo).toBe(OPERATOR);
     expect(resource.accepts[0]?.transferMethod).toBe("eip3009");
+  });
+});
+
+describe("settling a cross-asset payment", () => {
+  /** Signs for whatever the `402` asked, which is what an honest agent does. */
+  async function paid(built: Awaited<ReturnType<typeof settleHarness>>) {
+    const required = await built.x402.paymentRequired(built.resource);
+    const accepted = required.accepts[0];
+    if (accepted === undefined) throw new Error("No cross-asset rail was offered");
+
+    const payment: PaymentPayload = {
+      x402Version: 2,
+      accepted,
+      payload: {
+        ...EXAMPLE_EIP3009_PAYLOAD,
+        authorization: {
+          ...EXAMPLE_EIP3009_PAYLOAD.authorization,
+          from: PAYER,
+          to: OPERATOR,
+          value: accepted.amount,
+          validAfter: "0",
+          validBefore: String(Math.floor(built.clearing.clock.now().getTime() / 1000) + 55),
+        },
+      },
+    };
+
+    // The chain's side of the authorization: the payer's EURC reached the
+    // operator, which is where a cross-asset rail has to send it.
+    built.confirmer.recordMatching(AUTHORIZATION_TX, selectRequirements(required, payment), PAYER);
+    return { payment, accepted };
+  }
+
+  async function settleHarness(settler?: FakeCrossAssetSettler) {
+    const built = service({ ...(settler === undefined ? {} : { settler }) });
+    await built.resources.save(built.resource);
+    return built;
+  }
+
+  test("pays the merchant the invoice and books the payer's change", async () => {
+    // Authorised 20101 EURC, the swap consumed 19980 — the 121 left over is the
+    // slippage the payer was asked to carry and the pool did not need.
+    const settler = new FakeCrossAssetSettler()
+      .willPlan(money(20_000n, "EURC"))
+      .willSpend(money(19_980n, "EURC"))
+      .willUseTransaction(SWAP_TX);
+    const built = await settleHarness(settler);
+    const { payment } = await paid(built);
+
+    const { intent } = await built.x402.settle(built.resource, payment);
+
+    expect(intent.status).toBe("COMPLETED");
+    // Delivered to the merchant's own address, not to the rail's `payTo` —
+    // that one is the operator's, because the EURC had to land somewhere
+    // swappable.
+    expect(settler.sent[0]?.recipient).toBe(MERCHANT_SAFE);
+    expect(settler.sent[0]?.exactOut).toEqual(money(20_000n, "USDC"));
+    // Not absorbed, and not booked as an FX gain either: it is the payer's.
+    expect((await built.clearing.ledger.balance("PAYER_SURPLUS", "EURC")).balance).toEqual(
+      money(121n, "EURC"),
+    );
+    expect((await built.clearing.ledger.balance("PAYER_ASSET_HELD", "EURC")).balance).toEqual(
+      money(121n, "EURC"),
+    );
+  });
+
+  test("plans the swap before the payer's money moves", async () => {
+    // The price moved between the 402 and the signature: the route now needs
+    // more than the payer authorised.
+    const settler = new FakeCrossAssetSettler().willPlan(money(30_000n, "EURC"));
+    const built = await settleHarness(settler);
+    const { payment } = await paid(built);
+
+    await expect(built.x402.settle(built.resource, payment)).rejects.toThrow(
+      /spend more than the payer authorised/,
+    );
+
+    // The refusal is worth nothing if the authorization went out anyway: the
+    // payer's EURC would sit at the operator with the merchant unpaid and the
+    // nonce spent, so no retry could ever pay them.
+    expect(settler.planned).toHaveLength(1);
+    expect(settler.sent).toHaveLength(0);
+  });
+
+  test("records the swap hash before it is confirmed", async () => {
+    const settler = new FakeCrossAssetSettler()
+      .willUseTransaction(SWAP_TX)
+      .willFailToConfirm(new Error("RPC is down"));
+    const built = await settleHarness(settler);
+    const { payment } = await paid(built);
+
+    await expect(built.x402.settle(built.resource, payment)).rejects.toThrow("RPC is down");
+
+    // A swap has no nonce to stop a second one, so the hash has to survive a
+    // confirmation that throws — otherwise a resume sends it again, spending
+    // the operator's own balance and paying the merchant twice.
+    const [stuck] = await built.clearing.repositories.clearing.listResumable(1);
+    expect(stuck?.providerReference).toBe(SWAP_TX);
+    expect(stuck?.state).toBe("PAYMENT_PENDING");
+
+    // And the log keeps both movements: the authorization it replaced, and the
+    // swap it moved on to.
+    const events = await built.clearing.repositories.clearing.listEvents(stuck?.id ?? "");
+    expect(events.filter((event) => event.type === "settlement.broadcast")).toHaveLength(1);
+    expect(events.filter((event) => event.type === "settlement.swap")).toHaveLength(1);
   });
 });

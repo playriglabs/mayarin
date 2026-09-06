@@ -21,7 +21,7 @@ import {
   type WebhookEndpointRepository,
   type WebhookOutbox,
 } from "@mayarin/notifications";
-import { and, asc, desc, eq, gt, gte, ilike, lt, lte, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, lt, lte, notInArray, or } from "drizzle-orm";
 import type { Database } from "../client.ts";
 import { present } from "../mapping.ts";
 import {
@@ -66,7 +66,10 @@ export class DrizzleWebhookOutbox implements WebhookOutbox {
       // cursor — the last row returned — would never move past them.
       .where(
         and(
-          ne(clearingEvents.type, "settlement.broadcast" satisfies ClearingEventType),
+          notInArray(clearingEvents.type, [
+            "settlement.broadcast",
+            "settlement.swap",
+          ] satisfies ClearingEventType[]),
           cursor === undefined ? undefined : gt(clearingEvents.id, cursor),
         ),
       )
