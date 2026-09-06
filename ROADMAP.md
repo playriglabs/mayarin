@@ -564,6 +564,13 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
       payment was rejected as forged. **The policy half stays blocked**:
       `circle wallet limit set` takes a mainnet chain, and Circle lists Arc on
       testnet only, so no arrangement of Arc shows a Circle-enforced refusal.
+      The same agent wallet also paid on Base Sepolia
+      ([`0x9fcad5d8…`](https://sepolia.basescan.org/tx/0x9fcad5d8dc0a5bef55cbbe1e06d147bab81bcd4c120b6292ef15923d70366630),
+      [evidence](docs/evidence/base-sepolia-x402-circle-208.json)) — same
+      address, same CLI, one extra step: Base charges gas in ETH, so the wallet
+      had to hold a second asset the merchant never sees, and the transfer
+      failed with "insufficient" until it did. On Arc that step does not exist.
+      That is the Arc thesis stated by two runs rather than by a claim.
 - [ ] Architecture diagram, video, documentation, repo.
 
 #### Deployed on Arc
