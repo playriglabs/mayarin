@@ -34,6 +34,7 @@ import { settingsRoutes } from "./routes/settings.ts";
 import { settlementRoutes } from "./routes/settlements.ts";
 import { walletRoutes } from "./routes/wallets.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
+import { x402ResourceRoutes } from "./routes/x402-resources.ts";
 
 export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
@@ -116,6 +117,13 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // cashier can sell all day without being able to redirect the payout.
   v1.use("/catalog/*", requireAuth(), requirePermission("catalog:manage"));
   v1.route("/catalog", catalogRoutes(container));
+
+  // x402 resources (#208): what the merchant sells to an agent, priced like a
+  // product. Same permission as the catalogue, because it is one — and the
+  // payout address is never taken from the request.
+  v1.use("/x402-resources", requireAuth(), requirePermission("catalog:manage"));
+  v1.use("/x402-resources/*", requireAuth(), requirePermission("catalog:manage"));
+  v1.route("/x402-resources", x402ResourceRoutes(container));
 
   v1.use("/payment-links", requireAuth(), requirePermission("catalog:manage"));
   v1.use("/payment-links/*", requireAuth(), requirePermission("catalog:manage"));

@@ -23,6 +23,7 @@ import { paymentRoutes } from "./routes/payments.ts";
 import { quoteRoutes } from "./routes/quotes.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
 import { x402Routes } from "./routes/x402.ts";
+import { x402ResourceRoutes } from "./routes/x402-resources.ts";
 import { checkoutUiRoutes } from "./services/checkout-shell.ts";
 
 export function createApp(container: Container): Hono {
@@ -86,6 +87,9 @@ export function createApp(container: Container): Hono {
   // would take. Locks nothing and records nothing (#15).
   v1.route("/quotes", quoteRoutes(container));
   v1.route("/webhooks", webhookRoutes(container));
+  // x402 resources, merchant-scoped (#208). The unversioned `/x402` surface is
+  // for agents and facilitators; this one is for the merchant who owns them.
+  v1.route("/x402/resources", x402ResourceRoutes(container));
   // The commerce layer (#10). Mounted unconditionally and depended on by
   // nothing above it: every route already registered works without it.
   v1.route("/catalog", catalogRoutes(container));

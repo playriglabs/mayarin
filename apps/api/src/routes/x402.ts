@@ -39,7 +39,7 @@ import type { X402Service } from "../services/x402.ts";
  * than broken, and a route that needs it says so once instead of every caller
  * checking.
  */
-function requireX402(container: Container): X402Service {
+export function requireX402(container: Container): X402Service {
   const service = container.x402;
   if (service === undefined) {
     throw new NotFoundError("x402 is not enabled on this deployment", {});

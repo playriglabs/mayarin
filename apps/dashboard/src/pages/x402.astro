@@ -1,0 +1,13 @@
+---
+import { PageHeader } from "../components/page-header.tsx";
+import X402Resources from "../components/x402-resources.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Agent endpoints">
+  <PageHeader
+    title="Agent endpoints"
+    description="Endpoints an autonomous agent can pay for per request. It is told the price in a 402, signs once, and is charged in whichever supported asset it holds — you are paid in yours."
+  />
+  <X402Resources client:load />
+</Protected>
