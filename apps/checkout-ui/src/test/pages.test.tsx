@@ -42,6 +42,7 @@ const linkBootstrap: LinkBootstrap = {
     { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
     { chain: "base-sepolia", asset: "ETH", contract: null },
   ],
+  settlementAsset: "USDC",
   lockMinutes: 15,
 };
 

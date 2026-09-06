@@ -27,7 +27,7 @@ import { useQuoteEstimate } from "./use-quote-estimate.ts";
  * `RailPicker` asks nothing when there is nothing to ask.
  */
 export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
-  const { payable, currency, total, lines, rails, lockMinutes } = bootstrap;
+  const { payable, currency, total, lines, rails, settlementAsset, lockMinutes } = bootstrap;
   const [rail, setRail] = useState(rails[0]);
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
@@ -35,7 +35,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
 
   const typedAmount = total === null ? amount : total.formatted;
   const displayCurrency = currencySymbol(currency);
-  const estimate = useQuoteEstimate(typedAmount, currency, rail?.asset);
+  const estimate = useQuoteEstimate(typedAmount, currency, rail, settlementAsset);
   // A merchant with no rail cannot be paid at all — say so, rather than
   // offering a button whose only outcome is a refusal.
   const payableNow = payable && rail !== undefined;

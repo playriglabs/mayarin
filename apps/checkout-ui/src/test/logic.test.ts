@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { checkoutBody } from "../features/link/checkout-body.ts";
 import type { LinkBootstrap } from "../features/link/types.ts";
+import { quoteBody } from "../features/link/use-quote-estimate.ts";
 import { remainingAt } from "../features/pay/countdown.ts";
 import { usableDeposit } from "../features/pay/payment-status.ts";
 import { isTerminal, paymentStage, statusWording } from "../features/pay/status-wording.ts";
@@ -62,6 +63,7 @@ function linkBootstrap(overrides: Partial<LinkBootstrap> = {}): LinkBootstrap {
     },
     lines: null,
     rails: [{ chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" }],
+    settlementAsset: "USDC",
     lockMinutes: 15,
     ...overrides,
   };
@@ -148,5 +150,25 @@ describe("checkout body", () => {
   test("a priced link never sends an amount of its own", () => {
     const body = checkoutBody(linkBootstrap(), "999", USDC_ON_BASE);
     expect(body["amount"]).toBeUndefined();
+  });
+});
+
+describe("quote body", () => {
+  test("prices on the rail the payer picked, not on whichever venue is first", () => {
+    // A swap leg is priced by a venue, and a venue's pool lives on one chain.
+    // Without the chain the preview quoted the same EURC figure on Arc as on
+    // Base Sepolia — two pools, one answer, and only one of them lockable.
+    const body = quoteBody(
+      "1.00",
+      "USD",
+      { chain: "arc-testnet", asset: "EURC", contract: "0x89b5" },
+      "USDC",
+    );
+    expect(body).toEqual({
+      amount: { amount: "1.00", asset: "USD" },
+      assets: ["EURC"],
+      chain: "arc-testnet",
+      settlementAsset: "USDC",
+    });
   });
 });
