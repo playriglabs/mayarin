@@ -11,6 +11,7 @@
  * is why this is not `settings:manage`.
  */
 
+import { acceptedAssetsOn } from "@mayarin/auth";
 import { CHAIN_IDS } from "@mayarin/chain";
 import {
   type AssetCode,
@@ -58,7 +59,15 @@ const chargeBodySchema = z
 
 /** An `open` link is priced at the counter; the others carry their own amount. */
 const quoteBodySchema = z
-  .object({ amount: z.object({ amount: z.string(), asset: assetCodeSchema }).optional() })
+  .object({
+    amount: z.object({ amount: z.string(), asset: assetCodeSchema }).optional(),
+    /**
+     * The network the counter has selected. The accepted set is per-chain
+     * (#244), so without it the quote lists the merchant-wide assets and an
+     * asset accepted only on the selected chain never appears.
+     */
+    chain: z.enum(CHAIN_IDS).optional(),
+  })
   .strict();
 
 /**
@@ -161,11 +170,18 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
     const scope = scopeOf(c);
     const body = quoteBodySchema.parse(await c.req.json().catch(() => ({})));
 
-    // The merchant's own accepted set decides which assets are offered.
+    // The merchant's own accepted set decides which assets are offered — the
+    // one for the selected chain when the counter named one, because that is
+    // the set the payment can actually be taken in. The merchant-wide list is
+    // what a chain without its own row inherits anyway.
     const merchant = await container.settings.get(scope);
     const amount = await chargeableAmount(container, scope, c.req.param("id"), body.amount);
+    const assets =
+      body.chain === undefined ? merchant.acceptedAssets : acceptedAssetsOn(merchant, body.chain);
 
-    return c.json(await container.paymentApi.quote(amount, merchant.acceptedAssets));
+    return c.json(
+      await container.paymentApi.quote(amount, assets, body.chain, merchant.settlementAsset),
+    );
   });
 
   /**

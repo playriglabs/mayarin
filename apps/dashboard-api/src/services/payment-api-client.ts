@@ -151,8 +151,19 @@ export class PaymentApiClient {
   async quote(
     amount: { readonly amount: string; readonly asset: string },
     assets: readonly string[],
+    chain?: string,
+    settlementAsset?: string,
   ): Promise<QuoteView> {
-    return this.#post<QuoteView>("/quotes", { amount, assets });
+    return this.#post<QuoteView>("/quotes", {
+      amount,
+      assets,
+      // The counter's selected network, so a swap leg is priced by a venue with
+      // a pool on it — the same one the lock will price against.
+      ...(chain === undefined ? {} : { chain }),
+      // And what this merchant settles in, which is what decides whether there
+      // is a swap leg to price.
+      ...(settlementAsset === undefined ? {} : { settlementAsset }),
+    });
   }
 
   /** What the payer must send, or `null` before a price is locked. */

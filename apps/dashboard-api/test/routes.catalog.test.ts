@@ -547,6 +547,76 @@ describe("payment link routes", () => {
     expect(res.body?.quotes[1]).toMatchObject({ asset: "ETH", available: false });
   });
 
+  // #244: the merchant-wide list is the fallback, not the answer. Quoting it
+  // for a chain with its own row left an asset accepted only there off the
+  // counter entirely — the merchant could select the rail but never see a price.
+  test("a quote on a chain narrows to that chain's accepted assets", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const merchant = await harness.merchants.findById(harness.merchantId);
+    if (merchant === null) throw new Error("seeded merchant is missing");
+    await harness.merchants.update(
+      {
+        ...merchant,
+        acceptedAssets: ["USDC"],
+        acceptedAssetsByChain: { "base-sepolia": ["USDC", "ETH"] },
+        version: merchant.version + 1,
+      },
+      merchant.version,
+    );
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
+    const linkId = created.body?.paymentLink.id as string;
+
+    await post(harness, auth, `/v1/payment-links/${linkId}/quote`, {
+      amount: { amount: "75000", asset: "IDR" },
+      chain: "base-sepolia",
+    });
+    await post(harness, auth, `/v1/payment-links/${linkId}/quote`, {
+      amount: { amount: "75000", asset: "IDR" },
+    });
+
+    // Asserted on what was asked of the payment API, not on what came back:
+    // the asset list is this route's decision, and the fake prices whatever it
+    // is handed.
+    const asked = harness.paymentApiCalls
+      .filter((call) => call.path === "/v1/quotes")
+      .map((call) => (call.body as { assets: readonly string[] }).assets);
+
+    expect(asked[0]).toEqual(["USDC", "ETH"]);
+    // No chain named: the merchant-wide list, exactly as before.
+    expect(asked[1]).toEqual(["USDC"]);
+
+    // And the chain travels with it, so the payment API prices the swap leg
+    // against a venue with a pool there rather than whichever is first.
+    const chains = harness.paymentApiCalls
+      .filter((call) => call.path === "/v1/quotes")
+      .map((call) => (call.body as { chain?: string }).chain);
+    expect(chains).toEqual(["base-sepolia", undefined]);
+  });
+
+  // Without it a payer holding a different stablecoin than the merchant is
+  // shown the fiat rate and none of the swap: $1.00 read as 0,867417 EURC for
+  // a payment that then took 1,295757.
+  test("a quote says what the merchant settles in", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+    });
+    const linkId = created.body?.paymentLink.id as string;
+
+    await post(harness, auth, `/v1/payment-links/${linkId}/quote`, {
+      amount: { amount: "75000", asset: "IDR" },
+    });
+
+    const asked = harness.paymentApiCalls.find((call) => call.path === "/v1/quotes");
+    expect((asked?.body as { settlementAsset?: string } | undefined)?.settlementAsset).toBe("USDC");
+  });
+
   test("an open link with no amount cannot be quoted", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);

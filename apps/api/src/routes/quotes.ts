@@ -17,6 +17,7 @@
  * counter for the two that are fine.
  */
 
+import { CHAIN_IDS } from "@mayarin/chain";
 import {
   assetCodeSchema,
   decimalMoneySchema,
@@ -35,6 +36,20 @@ const quoteBodySchema = z
     amount: decimalMoneySchema,
     /** The payer assets to price it in. */
     assets: z.array(assetCodeSchema).min(1).max(16),
+    /**
+     * The network the payer would send on. A swap leg is priced by a venue, and
+     * a venue's pool lives on one chain — so without this the preview quotes
+     * whichever venue is configured first and can differ from the lock by the
+     * whole gap between two pools. A stablecoin payer asset has no swap leg and
+     * is unaffected.
+     */
+    chain: z.enum(CHAIN_IDS).optional(),
+    /**
+     * What the merchant settles in. It decides whether a swap leg exists at
+     * all, so without it a preview for a payer holding a different stablecoin
+     * shows the fiat rate and hides the swap the payment will actually make.
+     */
+    settlementAsset: assetCodeSchema.optional(),
   })
   .strict();
 
@@ -53,7 +68,13 @@ export function quoteRoutes(container: Container): Hono {
         }
 
         try {
-          const quote = await priceFor(container, body.amount, asset);
+          const quote = await priceFor(
+            container,
+            body.amount,
+            asset,
+            body.chain,
+            body.settlementAsset,
+          );
           // Rounded exactly as the price lock will round it, so the figure a
           // customer is shown while choosing is the figure they are then asked
           // for. A preview that differs in the eleventh decimal is a preview

@@ -7,6 +7,7 @@
  * lock is precisely the bug the comment below was written about.
  */
 
+import type { ChainId } from "@mayarin/chain";
 import type { RateProvider } from "@mayarin/clearing";
 import { payerEstimate } from "@mayarin/quote";
 import {
@@ -59,6 +60,12 @@ export async function priceFor(
   container: PricingContext,
   amount: Money,
   payerAsset: AssetCode,
+  chain?: ChainId,
+  /**
+   * What the merchant settles in. The deployment default when the caller has
+   * no merchant in hand — a public preview does not.
+   */
+  settlesIn?: AssetCode,
 ): Promise<{ priced: Money; source: string; scaledRate: bigint | null }> {
   const quote = await container.market.quote();
 
@@ -71,7 +78,7 @@ export async function priceFor(
   // table instead would show a number the lock can never produce — a preview
   // that lies about a payment it cannot make.
   if (quote === undefined) {
-    const rate = await container.rates.quote(amount.asset, payerAsset, amount);
+    const rate = await container.rates.quote(amount.asset, payerAsset, amount, chain);
     return {
       priced: convert(amount, payerAsset, rate.scaledRate),
       source: rate.source,
@@ -79,19 +86,21 @@ export async function priceFor(
     };
   }
 
-  // A stablecoin payer settles in what they hold: one fiat leg, no swap. Any
-  // other asset settles into the deployment's settlement asset — the same
-  // default `PaymentIntentService` applies to a merchant that has not chosen
-  // one, so the preview crosses the pair the lock will.
-  const settlementAsset =
-    getAsset(payerAsset).kind === "stablecoin" ? payerAsset : container.config.settlementAsset;
+  // What the merchant settles in, which is the only thing that decides whether
+  // there is a swap leg. This used to read "a stablecoin payer settles in what
+  // they hold", which is true only when their stablecoin *is* the merchant's.
+  // A EURC payer settling a USDC merchant has a real swap leg, and pricing it
+  // away showed $1.00 as 0,867417 EURC — the pure FX rate — for a payment that
+  // then took 1,295757. The deployment default stands in when the caller has
+  // no merchant, which is the same default `PaymentIntentService` applies.
+  const settlementAsset = settlesIn ?? container.config.settlementAsset;
 
   // A stablecoin payer has only the fiat leg. Route it through the injected
   // RateProvider because that is exactly what a non-executed deposit locks
   // against. RuntimePriceSource delegates this pair to the quote engine when
   // one exists, so preview and confirmation share both source and rounding.
   if (getAsset(amount.asset).kind === "fiat" && payerAsset === settlementAsset) {
-    const rate = await container.rates.quote(amount.asset, payerAsset, amount);
+    const rate = await container.rates.quote(amount.asset, payerAsset, amount, chain);
     return {
       priced: convert(amount, payerAsset, rate.scaledRate),
       source: rate.source,
@@ -103,6 +112,9 @@ export async function priceFor(
     price: amount,
     settlementAsset,
     payerAsset,
+    // The preview prices the pool the lock will price, or it is a preview of a
+    // different payment.
+    ...(chain === undefined ? {} : { chain }),
     // One whole unit, matching `contract-layer`: a probe of a different size
     // prices different depth and the preview drifts from the lock again.
     probe: money(10n ** BigInt(assetDecimals(payerAsset)), payerAsset),

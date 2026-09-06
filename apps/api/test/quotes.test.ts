@@ -5,7 +5,7 @@ import { priceSourceOf } from "@mayarin/execution";
 import { FixedSwapVenue } from "@mayarin/execution/testing";
 import { QuoteEngine } from "@mayarin/quote";
 import { FakeOrderSigner } from "@mayarin/quote/testing";
-import { FixedClock } from "@mayarin/shared";
+import { FixedClock, RATE_SCALE } from "@mayarin/shared";
 import type { Container } from "../src/container.ts";
 import type { QuoteLayer } from "../src/quote-layer.ts";
 import { quoteRoutes } from "../src/routes/quotes.ts";
@@ -15,6 +15,13 @@ const NOW = new Date("2026-08-06T12:00:00.000Z");
 
 /** 60,000,000,000 minor USDC per whole ETH — a stand-in rate, value irrelevant. */
 const ETH_USDC_RATE = 60_000_000_000n;
+
+/** Minor USDC per whole EURC, at a rate near the real euro. */
+const EURC_USDC_RATE = 1_160_000n;
+
+/** Minor USDC per whole rupiah, near the real rate. The table's job on the
+ *  no-swap path, where the payer already holds the settlement asset. */
+const IDR_USDC_RATE = 57n * RATE_SCALE;
 
 /**
  * A quote layer over fakes, mirroring `contract-layer.test.ts`. The venue and
@@ -50,7 +57,9 @@ function quoteLayer(): QuoteLayer {
 function stubContainer(quote: QuoteLayer | undefined): Container {
   return {
     market: { quote: async () => quote },
-    rates: new LiquidityRouter({ source: new TablePriceSource({ "ETH/USDC": ETH_USDC_RATE }) }),
+    rates: new LiquidityRouter({
+      source: new TablePriceSource({ "ETH/USDC": ETH_USDC_RATE, "IDR/USDC": IDR_USDC_RATE }),
+    }),
     config: { settlementAsset: "USDC" },
   } as unknown as Container;
 }
@@ -60,11 +69,12 @@ async function post(
   amount: string,
   asset: string,
   assets: string[],
+  extra: { readonly settlementAsset?: string; readonly chain?: string } = {},
 ) {
   const res = await app.request("/", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ amount: { amount, asset }, assets }),
+    body: JSON.stringify({ amount: { amount, asset }, assets, ...extra }),
   });
   return (await res.json()) as {
     quotes: Array<{
@@ -107,5 +117,72 @@ describe("quotes route — which source prices the swap leg", () => {
 
     expect(quotes[0]?.available).toBe(true);
     expect(quotes[0]?.rate?.source).toBe("table");
+  });
+});
+
+/**
+ * A merchant settling in USDC, priced against a venue that also serves
+ * EURC -> USDC. Both assets are stablecoins, which is the case that used to
+ * take the wrong branch.
+ */
+function stablecoinLayer(): QuoteLayer {
+  const clock = new FixedClock(NOW);
+  const venue = new FixedSwapVenue("uniswap", [
+    { from: "EURC", to: "USDC", scaledRate: EURC_USDC_RATE, source: "uniswap" },
+  ]);
+  const oracle = new FixedPriceOracle([
+    { from: "EURC", to: "USDC", scaledRate: EURC_USDC_RATE, source: "pyth", observedAt: NOW },
+  ]);
+  return {
+    engine: new QuoteEngine({
+      venue: priceSourceOf(venue),
+      oracle,
+      policy: { maxDeviationBps: 100, maxAgeMs: 60_000 },
+      fiat: {
+        pegged: ["IDR/USDC"],
+        maxAgeMs: 300_000,
+        closedMaxAgeMs: 300_000,
+        closedSpreadBps: 0,
+      },
+      clock,
+    }),
+    venues: [venue],
+    oracle,
+    signer: new FakeOrderSigner(),
+    slippageBps: 50,
+    ttlSeconds: 120,
+  };
+}
+
+describe("quotes route — a stablecoin payer that is not the settlement asset", () => {
+  // The bug: `priceFor` read "a stablecoin payer settles in what they hold",
+  // so a EURC payer settling a USDC merchant was priced as a pure fiat
+  // conversion into euros. Rp 15.000,00 previewed as 0,737808 EURC — the real
+  // EUR rate, and the right answer to the wrong question — for a payment that
+  // then priced its swap leg through the pool and charged something else.
+  test("prices the swap leg when the payer's stablecoin is not the merchant's", async () => {
+    const app = quoteRoutes(stubContainer(stablecoinLayer()));
+    const { quotes } = await post(app, "15000.00", "IDR", ["EURC"], { settlementAsset: "USDC" });
+
+    expect(quotes[0]?.available).toBe(true);
+    // The venue, not the FX leg alone — the swap is what the payment makes.
+    expect(quotes[0]?.rate?.source).toBe("uniswap");
+  });
+
+  test("a payer holding exactly what the merchant settles in still has no swap leg", async () => {
+    const app = quoteRoutes(stubContainer(stablecoinLayer()));
+    const { quotes } = await post(app, "15000.00", "IDR", ["USDC"], { settlementAsset: "USDC" });
+
+    expect(quotes[0]?.available).toBe(true);
+    // No venue involved: one whole unit of USDC is one whole unit of USDC.
+    expect(quotes[0]?.rate?.source).not.toBe("uniswap");
+  });
+
+  test("no settlement asset named falls back to the deployment's", async () => {
+    const app = quoteRoutes(stubContainer(stablecoinLayer()));
+    const { quotes } = await post(app, "15000.00", "IDR", ["EURC"]);
+
+    // The stub deployment settles in USDC, so the swap leg is still priced.
+    expect(quotes[0]?.rate?.source).toBe("uniswap");
   });
 });
