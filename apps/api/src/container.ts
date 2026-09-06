@@ -252,9 +252,13 @@ function createX402(deps: {
   intents: PaymentIntentService;
   engine: ClearingEngine;
   merchants: DrizzleMerchantRepository;
+  merchantPolicies: MerchantAssetPolicySource;
+  /** Absent on a deployment with `QUOTE_ENABLED=false`, which serves same-asset rails only. */
+  quote: (() => Promise<QuoteLayer>) | undefined;
   clock: Clock;
 }): X402Service | undefined {
-  const { config, handle, rates, intents, engine, merchants, clock } = deps;
+  const { config, handle, rates, intents, engine, merchants, merchantPolicies, quote, clock } =
+    deps;
 
   if (!config.x402Enabled) return undefined;
   if (config.operatorPrivateKey === undefined) return undefined;
@@ -332,6 +336,17 @@ function createX402(deps: {
       }
       return { id: merchant.id, name: merchant.name, city, countryCode };
     },
+    /**
+     * The merchant's own choice outranks the deployment default, exactly as it
+     * does for an intent. Reading it here is what tells a rail apart: an accept
+     * naming this asset pays the merchant directly, and any other one is a swap.
+     */
+    async settlementAssetOf(merchantId) {
+      const policy = await merchantPolicies.policyFor(merchantId);
+      return policy?.settlementAsset ?? config.settlementAsset;
+    },
+    ...(quote === undefined ? {} : { quote }),
+    operatorAddress: account.address,
   });
 }
 
@@ -861,6 +876,8 @@ export function createContainer({
     intents,
     engine,
     merchants: new DrizzleMerchantRepository(handle.db),
+    merchantPolicies,
+    quote: config.quote === undefined ? undefined : resolveQuote,
     clock,
   });
 

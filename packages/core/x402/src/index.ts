@@ -1,5 +1,6 @@
 export * from "./amount.ts";
 export * from "./capability.ts";
+export * from "./cross-asset.ts";
 export * from "./facilitator.ts";
 export * from "./idempotency.ts";
 export * from "./rail.ts";

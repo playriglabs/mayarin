@@ -125,6 +125,10 @@ describe("resource registration", () => {
           },
         ],
       }),
+      // `register` reads the merchant's settlement asset to tell a same-asset
+      // rail from a cross-asset one, and this resource offers the merchant's
+      // own asset — so the cross-asset guard is not reached.
+      settlementAssetOf: async () => "USDC",
       // Nothing below is reached by `register`; the seam is deliberately narrow.
     } as unknown as ConstructorParameters<typeof X402Service>[0]);
 

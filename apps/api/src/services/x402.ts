@@ -22,10 +22,14 @@ import {
   type PaymentIntent,
   type PaymentIntentService,
 } from "@mayarin/payment-intent";
+import { payerEstimate, type QuoteEngine } from "@mayarin/quote";
 import {
+  type AssetCode,
+  assetDecimals,
   type Clock,
   convert,
   type Money,
+  money,
   NotFoundError,
   roundUpToPayerPrecision,
   ValidationError,
@@ -33,6 +37,7 @@ import {
 import type {
   AcceptedAsset,
   AssetCapabilities,
+  CrossAssetSettler,
   FacilitatorRegistry,
   PaymentPayload,
   PaymentRequired,
@@ -83,6 +88,49 @@ export interface X402ServiceOptions {
    * let it reach for more later without anyone deciding that.
    */
   readonly merchantSnapshot: (merchantId: string) => Promise<MerchantSnapshot>;
+  /**
+   * The asset this merchant is paid in.
+   *
+   * A rail offering any other asset is a cross-asset payment: the agent signs
+   * an authorization in what it holds, and the merchant is still paid in what
+   * they chose. Read through a function for the same reason `merchantSnapshot`
+   * is one — the settlement asset is all this service needs from a policy.
+   */
+  readonly settlementAssetOf: (merchantId: string) => Promise<AssetCode>;
+  /**
+   * The quote layer, when this deployment has one.
+   *
+   * Only a cross-asset rail needs it, and only for the direction a fixed
+   * invoice actually poses: deliver exactly this much settlement asset, what
+   * does it cost in the payer's? Absent means cross-asset rails are not
+   * offered — a deployment without a venue cannot swap, so advertising a price
+   * it could not fill would be a `402` nobody can pay.
+   */
+  readonly quote?: () => Promise<{
+    readonly engine: QuoteEngine;
+    readonly slippageBps: number;
+  }>;
+  /**
+   * Where a cross-asset authorization pays.
+   *
+   * Same-asset pays the merchant directly and this is unused. Cross-asset
+   * cannot: the payer's asset has to land somewhere Mayarin can swap it from,
+   * and `transferWithAuthorization` names one recipient chosen before the
+   * payer signs. That recipient is the operator, and `register` refuses a
+   * cross-asset rail pointed anywhere else — a rail that paid the merchant in
+   * the payer's asset would settle an invoice in a currency they never agreed
+   * to hold.
+   */
+  readonly operatorAddress?: string;
+  /**
+   * Swaps the payer's asset into the merchant's, once the authorization lands.
+   *
+   * Its absence is what keeps a cross-asset rail out of the `402` on a
+   * deployment that cannot execute one. Advertising terms that would be refused
+   * after the payer had signed is worse than not offering the rail: the agent
+   * did everything right and is told no.
+   */
+  readonly crossAssetSettler?: CrossAssetSettler;
 }
 
 /**
@@ -133,8 +181,10 @@ export class X402Service {
    * cannot be created carrying terms no payer could sign.
    */
   async register(input: RegisterResourceInput): Promise<X402Resource> {
+    const settlementAsset = await this.#options.settlementAssetOf(input.merchantId);
     const accepts: AcceptedAsset[] = [];
     for (const accept of input.accepts) {
+      if (accept.asset !== settlementAsset) this.#requireCrossAssetRail(accept, settlementAsset);
       const capability = await this.#options.capabilities.of(accept.chain, accept.contract);
       accepts.push({
         chain: accept.chain,
@@ -196,12 +246,16 @@ export class X402Service {
     const now = this.#options.clock.now();
     const expiresAt = new Date(now.getTime() + this.#options.quoteTtlSeconds * 1000);
 
+    const settlementAsset = await this.#options.settlementAssetOf(resource.merchantId);
     const priced: PricedAsset[] = [];
     for (const accept of resource.accepts) {
       if (!this.#options.facilitators.canServe(requirementsProbe(accept))) continue;
       const asked = await this.#asked(accept);
       if (asked === undefined) continue;
-      const amount = await this.#priceInto(resource.price, asked);
+      const amount =
+        asked.asset === settlementAsset
+          ? await this.#priceInto(resource.price, asked)
+          : await this.#priceCrossAsset(resource.price, asked, settlementAsset);
       if (amount === undefined) continue;
       priced.push({ accept: asked, amount, expiresAt });
     }
@@ -231,6 +285,95 @@ export class X402Service {
       return { ...accept, domain: capability.domain, transferMethod: capability.transferMethod };
     } catch {
       return undefined;
+    }
+  }
+
+  /**
+   * What a payer must authorize in an asset the merchant does not settle in.
+   *
+   * Priced backwards, and it has to be. The merchant's number is the fixed one
+   * and the payer's is derived, so asking "what does one EURC buy?" and scaling
+   * up prices whatever depth a one-unit probe happened to touch — the mistake
+   * that locked a `minOut` a thin pool could not fill and reverted `STF` after
+   * the payer had already paid. `quoteFiatPrice` prices the fiat leg into the
+   * settlement asset first, then asks the venue what delivering *exactly* that
+   * costs.
+   *
+   * `payerEstimate` grosses the answer up by the configured slippage. That is
+   * the number the agent signs for, and it is also the ceiling the swap may
+   * consume: `exactOutputSingle` reverts rather than spending past it, and
+   * whatever it does not spend is the payer's.
+   *
+   * Dropped rather than raised when this deployment has no quote layer or no
+   * venue can price the pair — the same choice a same-asset rail makes, for the
+   * same reason: one unpriceable rail should not close a resource with another.
+   */
+  async #priceCrossAsset(
+    price: Money,
+    accept: AcceptedAsset,
+    settlementAsset: AssetCode,
+  ): Promise<Money | undefined> {
+    if (this.#crossAssetOperator() === undefined) return undefined;
+    const quote = await this.#options.quote?.();
+    if (quote === undefined) return undefined;
+    try {
+      const fiat = await quote.engine.quoteFiatPrice({
+        price,
+        settlementAsset,
+        payerAsset: accept.asset,
+        chain: accept.chain,
+        // One whole unit, matching the contract path and the preview. The probe
+        // only stands in when a venue cannot price backwards at all; when it
+        // can, the settlement amount replaces it entirely.
+        probe: money(10n ** BigInt(assetDecimals(accept.asset)), accept.asset),
+      });
+      // Unreachable: the caller already established the assets differ. A quote
+      // layer that answered otherwise priced a different payment.
+      if (!("composed" in fiat)) return undefined;
+      return roundUpToPayerPrecision(
+        payerEstimate(fiat.composed, fiat.settlement.settlementAmount, quote.slippageBps).amount,
+      );
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * A cross-asset rail is only registerable if this deployment can serve it.
+   *
+   * Refused at registration rather than at the first `402`, because both
+   * failures are permanent and configuration is where they can still be fixed
+   * by the person who caused them.
+   */
+  /**
+   * The operator a cross-asset rail pays, when this deployment serves one.
+   *
+   * All three or none: pricing the rail, holding the payer's asset and swapping
+   * it are one capability, and a deployment missing any of them cannot offer it.
+   */
+  #crossAssetOperator(): string | undefined {
+    if (this.#options.quote === undefined || this.#options.crossAssetSettler === undefined) {
+      return undefined;
+    }
+    return this.#options.operatorAddress;
+  }
+
+  #requireCrossAssetRail(
+    accept: RegisterResourceInput["accepts"][number],
+    settlementAsset: AssetCode,
+  ): void {
+    const operator = this.#crossAssetOperator();
+    if (operator === undefined) {
+      throw new ValidationError(
+        `This deployment cannot take ${accept.asset} for a merchant settling in ${settlementAsset}: a cross-asset rail needs a quote layer, an operator and a settler`,
+        { asset: accept.asset, settlementAsset },
+      );
+    }
+    if (accept.payTo.toLowerCase() !== operator.toLowerCase()) {
+      throw new ValidationError(
+        `A cross-asset rail must pay the operator, not ${accept.payTo}: the payer's ${accept.asset} has to land where it can be swapped into ${settlementAsset}`,
+        { asset: accept.asset, settlementAsset, payTo: accept.payTo },
+      );
     }
   }
 
