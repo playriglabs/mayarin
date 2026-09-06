@@ -6,6 +6,7 @@
  * aggregator sources, so the clearing engine does not change.
  */
 
+import type { ChainId } from "@mayarin/chain";
 import {
   type AssetCode,
   assetDecimals,
@@ -28,8 +29,12 @@ export interface RateProvider {
   /**
    * Quotes a conversion. `amount` is passed so size-aware sources (an AMM, an
    * aggregator) can price slippage; Phase 1's static provider ignores it.
+   *
+   * `chain` names the chain the payment runs on, where it has one, so a
+   * chain-specific source prices the pool the swap will actually execute
+   * against. A provider with nothing chain-specific to say ignores it.
    */
-  quote(from: AssetCode, to: AssetCode, amount: Money): Promise<RateQuote>;
+  quote(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<RateQuote>;
 }
 
 /**

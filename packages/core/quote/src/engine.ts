@@ -20,6 +20,7 @@
  * `ConfigurationError` — the same stance `TablePriceSource` takes.
  */
 
+import type { ChainId } from "@mayarin/chain";
 import type {
   DeviationPolicy,
   OraclePrice,
@@ -109,6 +110,11 @@ export class QuoteEngine {
     readonly settlementAsset: AssetCode;
     readonly payerAsset: AssetCode;
     readonly probe: Money;
+    /**
+     * The chain the swap leg will execute on, so the venue prices the pool the
+     * payment will actually touch. Absent on a rail that has no chain.
+     */
+    readonly chain?: ChainId;
   }): Promise<FiatQuote | Omit<FiatQuote, "composed">> {
     const settlement = await priceInSettlement(
       this.#oracle,
@@ -124,8 +130,57 @@ export class QuoteEngine {
 
     return {
       settlement,
-      composed: await this.compose(args.payerAsset, args.settlementAsset, args.probe),
+      composed: await this.#swapLeg(args, settlement.settlementAmount),
     };
+  }
+
+  /**
+   * The swap leg, priced at the size it will actually execute at.
+   *
+   * `compose` has to be given a size, and before this the caller guessed one
+   * whole unit of the payer's asset. That guess is only as good as the pool is
+   * deep. Measured on Base Sepolia: one EURC quoted 0.817981 USDC, and the
+   * 4.885472 EURC the payer was then asked for delivered 0.752620 each — so
+   * the locked `minOut` sat 9% above what the pool could fill, and the swap
+   * reverted `STF` after the payer had paid and their deposit had been swept.
+   *
+   * The settlement amount is known before this runs, and it is exactly what
+   * the swap must deliver, so asking in that direction removes the guess
+   * rather than narrowing it.
+   *
+   * A source with no depth — a rate table, an oracle — prices the same at
+   * every size, so the probe is already its exact answer and it keeps that
+   * path. A venue that has depth but cannot be asked backwards says so with a
+   * `ConfigurationError`; any other failure is a fault, and is raised rather
+   * than quietly downgrading the lock to the direction that caused this bug.
+   */
+  async #swapLeg(
+    args: {
+      readonly settlementAsset: AssetCode;
+      readonly payerAsset: AssetCode;
+      readonly probe: Money;
+      readonly chain?: ChainId;
+    },
+    settlementAmount: Money,
+  ): Promise<ComposedQuote> {
+    const priceExactOutput = this.#venue.priceExactOutput;
+    if (priceExactOutput !== undefined) {
+      try {
+        return await this.#composeWith(args.payerAsset, args.settlementAsset, () =>
+          priceExactOutput.call(
+            this.#venue,
+            args.payerAsset,
+            args.settlementAsset,
+            settlementAmount,
+            args.chain,
+          ),
+        );
+      } catch (error) {
+        if (!(error instanceof ConfigurationError)) throw error;
+      }
+    }
+
+    return this.compose(args.payerAsset, args.settlementAsset, args.probe, args.chain);
   }
 
   /**
@@ -137,7 +192,21 @@ export class QuoteEngine {
    * (stale reference, excessive deviation) surface unchanged: retryable
    * `ProviderError`s the caller's retry branch already understands.
    */
-  async compose(from: AssetCode, to: AssetCode, amount: Money): Promise<ComposedQuote> {
+  async compose(
+    from: AssetCode,
+    to: AssetCode,
+    amount: Money,
+    chain?: ChainId,
+  ): Promise<ComposedQuote> {
+    return this.#composeWith(from, to, () => this.#venue.price(from, to, amount, chain));
+  }
+
+  /** The deviation guard, over whichever direction the venue was asked in. */
+  async #composeWith(
+    from: AssetCode,
+    to: AssetCode,
+    ask: () => Promise<PriceQuote>,
+  ): Promise<ComposedQuote> {
     if (from === to) {
       throw new ConfigurationError(
         `A same-asset pair needs no quote: ${from} -> ${to} takes the no-swap path`,
@@ -145,7 +214,7 @@ export class QuoteEngine {
       );
     }
 
-    const executable = await this.#venue.price(from, to, amount);
+    const executable = await ask();
     const reference = await this.#oracle.reference(from, to);
     const composedAt = this.#clock.now();
 

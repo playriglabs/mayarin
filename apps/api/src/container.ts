@@ -52,6 +52,7 @@ import {
   DrizzleX402ResourceRepository,
   listenPaymentChanged,
 } from "@mayarin/db";
+import { FallbackRouteSource } from "@mayarin/execution";
 import { InvoiceService } from "@mayarin/invoicing";
 import { LedgerService } from "@mayarin/ledger";
 import {
@@ -423,11 +424,17 @@ function createTreasuryExecutor(deps: {
     };
   }
 
-  const routes = createRouteSources(config).values().next().value;
+  // Every configured venue, tried in order — not the first one. A deployment
+  // with a V3 pool on Base and a V2 pool on Arc has both in the map, and
+  // wiring only the first made every Arc deposit fail at execution with
+  // "pool for EURC/USDC is on base-sepolia".
+  const sources = [...createRouteSources(config).values()];
 
-  if (routes === undefined) {
+  if (sources.length === 0) {
     throw new ConfigurationError("Treasury execution needs a route-capable venue", {});
   }
+
+  const routes = new FallbackRouteSource(sources);
 
   const port = new EvmTreasuryExecutionPort({
     clients,

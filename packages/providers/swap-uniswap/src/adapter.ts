@@ -37,6 +37,9 @@ import { scaleSwapRate } from "./quoter.ts";
 const QUOTER_V2_ABI = parseAbi([
   "struct QuoteExactInputSingleParams { address tokenIn; address tokenOut; uint256 amountIn; uint24 fee; uint160 sqrtPriceLimitX96; }",
   "function quoteExactInputSingle(QuoteExactInputSingleParams params) view returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
+  // Note the argument order: exact-output names the *output* token first.
+  "struct QuoteExactOutputSingleParams { address tokenIn; address tokenOut; uint256 amount; uint24 fee; uint160 sqrtPriceLimitX96; }",
+  "function quoteExactOutputSingle(QuoteExactOutputSingleParams params) view returns (uint256 amountIn, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)",
 ]);
 
 /** The pool one configured pair trades through. */
@@ -69,7 +72,99 @@ export class UniswapSwapVenue implements SwapVenue {
     this.#pools = new Map(Object.entries(options.pools));
   }
 
-  async quote(from: AssetCode, to: AssetCode, amount: Money): Promise<PriceQuote> {
+  /**
+   * What the pool charges to deliver exactly `exactOut`.
+   *
+   * The direction the contract actually trades in, and the one that needs no
+   * guess about size — see `SwapVenue.quoteExactOutput`.
+   */
+  async quoteExactOutput(
+    from: AssetCode,
+    to: AssetCode,
+    exactOut: Money,
+    chain?: ChainId,
+  ): Promise<PriceQuote> {
+    if (exactOut.asset !== to) {
+      throw new ValidationError(
+        `The exact output asset ${exactOut.asset} must equal the buy asset ${to}`,
+        { exactOutAsset: exactOut.asset, to },
+      );
+    }
+    if (exactOut.amount <= 0n) {
+      throw new ValidationError(`The exact output must be positive`, {
+        from,
+        to,
+        amount: exactOut.amount.toString(),
+      });
+    }
+
+    const pool = this.#poolFor(from, to, chain);
+    const quoterAddress = this.#quoterFor(pool);
+
+    const [amountIn] = await this.#rpc(
+      pool.chain,
+      this.#clientFor(pool.chain).readContract({
+        address: getAddress(quoterAddress),
+        abi: QUOTER_V2_ABI,
+        functionName: "quoteExactOutputSingle",
+        args: [
+          {
+            tokenIn: getAddress(pool.tokenIn),
+            tokenOut: getAddress(pool.tokenOut),
+            amount: exactOut.amount,
+            fee: pool.fee,
+            sqrtPriceLimitX96: 0n,
+          },
+        ],
+      }),
+    );
+
+    if (amountIn <= 0n) {
+      throw new ProviderError(`Uniswap quoted zero in for ${from} -> ${to}`, { from, to });
+    }
+
+    // The effective rate over the real trade, so a `minOut` derived from it is
+    // one the pool can fill at that size rather than at one whole unit.
+    const scaledRate = scaleSwapRate(amountIn, exactOut.amount, assetDecimals(from));
+    if (scaledRate <= 0n) {
+      throw new ProviderError(
+        `Uniswap quote for ${from} -> ${to} rounds to zero minor units of ${to}`,
+        { from, to, amountIn: amountIn.toString(), amountOut: exactOut.amount.toString() },
+      );
+    }
+
+    return { from, to, scaledRate, source: this.name };
+  }
+
+  #quoterFor(pool: UniswapPool): string {
+    const quoterAddress = this.#quoters[pool.chain];
+    if (quoterAddress === undefined) {
+      throw new ConfigurationError(`No Uniswap quoter configured for ${pool.chain}`, {
+        chain: pool.chain,
+      });
+    }
+    return quoterAddress;
+  }
+
+  /** The configured pool for a pair, refused when it is on another chain. */
+  #poolFor(from: AssetCode, to: AssetCode, chain: ChainId | undefined): UniswapPool {
+    const pool = this.#pools.get(rateKey(from, to));
+    if (pool === undefined) {
+      throw new ConfigurationError(`No Uniswap pool configured for ${from} -> ${to}`, { from, to });
+    }
+    // The same refusal `UniswapRouteSource` makes, one step earlier. Pricing a
+    // payment against a pool on another chain locks a rate from a pool the swap
+    // will never touch; the caller falls back to a venue whose pool is here.
+    if (chain !== undefined && pool.chain !== chain) {
+      throw new ConfigurationError(
+        `Uniswap pool for ${rateKey(from, to)} is on ${pool.chain}, not ${chain}`,
+        { pair: rateKey(from, to), poolChain: pool.chain, chain },
+      );
+    }
+    return pool;
+  }
+
+  async quote(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<PriceQuote> {
     if (amount.asset !== from) {
       throw new ValidationError(
         `The amount asset ${amount.asset} must equal the sell asset ${from}`,
@@ -87,6 +182,16 @@ export class UniswapSwapVenue implements SwapVenue {
     const pool = this.#pools.get(rateKey(from, to));
     if (pool === undefined) {
       throw new ConfigurationError(`No Uniswap pool configured for ${from} -> ${to}`, { from, to });
+    }
+
+    // The same refusal `UniswapRouteSource` makes, one step earlier. Pricing a
+    // payment against a pool on another chain locks a rate from a pool the swap
+    // will never touch; the caller falls back to a venue whose pool is here.
+    if (chain !== undefined && pool.chain !== chain) {
+      throw new ConfigurationError(
+        `Uniswap pool for ${rateKey(from, to)} is on ${pool.chain}, not ${chain}`,
+        { pair: rateKey(from, to), poolChain: pool.chain, chain },
+      );
     }
 
     const quoterAddress = this.#quoters[pool.chain];

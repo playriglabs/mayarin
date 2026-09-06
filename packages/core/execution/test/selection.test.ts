@@ -26,10 +26,8 @@ function venue(name: string, rate: bigint): FixedSwapVenue {
 }
 
 function failingVenue(name: string): SwapVenue {
-  return {
-    name,
-    quote: () => Promise.reject(new ProviderError(`${name} is down`, {}, { retryable: true })),
-  };
+  const down = () => Promise.reject(new ProviderError(`${name} is down`, {}, { retryable: true }));
+  return { name, quote: down, quoteExactOutput: down };
 }
 
 /** Wraps a venue so its answer arrives after `ms`, to make latency observable. */
@@ -39,6 +37,10 @@ function delayedVenue(inner: SwapVenue, ms: number): SwapVenue {
     quote: (from, to, amount) =>
       new Promise((resolve, reject) => {
         setTimeout(() => inner.quote(from, to, amount).then(resolve, reject), ms);
+      }),
+    quoteExactOutput: (from, to, exactOut) =>
+      new Promise((resolve, reject) => {
+        setTimeout(() => inner.quoteExactOutput(from, to, exactOut).then(resolve, reject), ms);
       }),
   };
 }
@@ -57,8 +59,14 @@ describe("selectVenue, batched (best-quote)", () => {
     const b = venue("uniswap", 3_700_000_000n);
     await selectVenue([a, b], "ETH", "USDC", ONE_ETH, "batched");
 
-    expect(a.calls).toEqual([{ from: "ETH", to: "USDC", amount: 10n ** 18n }]);
-    expect(b.calls).toEqual([{ from: "ETH", to: "USDC", amount: 10n ** 18n }]);
+    const asked = {
+      from: "ETH",
+      to: "USDC",
+      amount: 10n ** 18n,
+      direction: "exact-input",
+    } as const;
+    expect(a.calls).toEqual([asked]);
+    expect(b.calls).toEqual([asked]);
   });
 
   test("equal quotes select the venue that is configured first", async () => {

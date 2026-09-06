@@ -16,6 +16,7 @@
  * matching the other price seams.
  */
 
+import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import type { SwapVenue } from "@mayarin/execution";
@@ -67,7 +68,23 @@ export class LifiSwapVenue implements SwapVenue {
     this.#fetchFn = options.fetchFn ?? fetch;
   }
 
-  async quote(from: AssetCode, to: AssetCode, amount: Money): Promise<PriceQuote> {
+  /**
+   * Refused: LiFi prices forwards only.
+   *
+   * Its `/quote` takes `fromAmount` and has no exact-output form, and it
+   * cannot route either — so there is no direction in which it can price a
+   * payment the contract will actually execute. A `ConfigurationError` is what
+   * `FallbackPriceSource` needs to reach a venue that can, matching what
+   * LiFi's absence from the route sources already says.
+   */
+  async quoteExactOutput(from: AssetCode, to: AssetCode): Promise<PriceQuote> {
+    throw new ConfigurationError(`LiFi cannot price ${from} -> ${to} by exact output`, {
+      from,
+      to,
+    });
+  }
+
+  async quote(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<PriceQuote> {
     if (amount.asset !== from) {
       throw new ValidationError(
         `The amount asset ${amount.asset} must equal the sell asset ${from}`,
@@ -85,6 +102,16 @@ export class LifiSwapVenue implements SwapVenue {
     const pair = this.#pairs.get(rateKey(from, to));
     if (pair === undefined) {
       throw new ConfigurationError(`No LiFi pair configured for ${from} -> ${to}`, { from, to });
+    }
+
+    // LiFi prices but cannot route, so nothing falls back to it at execution —
+    // which makes a cross-chain price here worse, not harmless: it would be the
+    // rate a lock is signed against with no venue on this chain behind it.
+    if (chain !== undefined && EVM_CHAIN_IDS[chain] !== BigInt(pair.chainId)) {
+      throw new ConfigurationError(
+        `LiFi pair for ${rateKey(from, to)} is on chain id ${pair.chainId}, not ${chain} (${EVM_CHAIN_IDS[chain]})`,
+        { pair: rateKey(from, to), pairChainId: pair.chainId, chain },
+      );
     }
 
     const body = await this.#quote(pair, from, to, amount.amount);

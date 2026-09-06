@@ -332,6 +332,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
           exactOut: money(order.minOut, settlementAsset),
           maxIn: request.inputAmount,
           recipient: paymentRouter,
+          chain: request.chain,
         });
 
     const call =

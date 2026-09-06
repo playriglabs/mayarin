@@ -14,6 +14,7 @@
  * price seams.
  */
 
+import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import type { SwapVenue } from "@mayarin/execution";
@@ -61,7 +62,7 @@ export class ZeroExSwapVenue implements SwapVenue {
     this.#fetchFn = options.fetchFn ?? fetch;
   }
 
-  async quote(from: AssetCode, to: AssetCode, amount: Money): Promise<PriceQuote> {
+  async quote(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<PriceQuote> {
     if (amount.asset !== from) {
       throw new ValidationError(
         `The amount asset ${amount.asset} must equal the sell asset ${from}`,
@@ -81,7 +82,17 @@ export class ZeroExSwapVenue implements SwapVenue {
       throw new ConfigurationError(`No 0x pair configured for ${from} -> ${to}`, { from, to });
     }
 
-    const body = await this.#price(pair, from, to, amount.amount);
+    // The same refusal `ZeroExRouteSource` makes, one step earlier: 0x serves
+    // one configured chain, and a price from that chain does not describe a
+    // swap that will execute on another.
+    if (chain !== undefined && EVM_CHAIN_IDS[chain] !== BigInt(this.#chainId)) {
+      throw new ConfigurationError(
+        `0x is configured for chain id ${this.#chainId}, not ${chain} (${EVM_CHAIN_IDS[chain]})`,
+        { pair: rateKey(from, to), chain, configuredChainId: this.#chainId },
+      );
+    }
+
+    const body = await this.#price(pair, from, to, { sellAmount: amount.amount });
     if (!body.liquidityAvailable) {
       throw new ProviderError(`0x has no liquidity for ${from} -> ${to}`, { from, to });
     }
@@ -105,12 +116,81 @@ export class ZeroExSwapVenue implements SwapVenue {
     return { from, to, scaledRate, source: this.name };
   }
 
-  async #price(pair: ZeroExPair, from: AssetCode, to: AssetCode, sellAmount: bigint) {
+  /**
+   * What 0x charges to deliver exactly `exactOut`.
+   *
+   * 0x takes either `sellAmount` or `buyAmount`; `buyAmount` asks it to price
+   * backwards, which is what `ZeroExRouteSource` already does and what the
+   * contract actually trades — see `SwapVenue.quoteExactOutput`.
+   */
+  async quoteExactOutput(
+    from: AssetCode,
+    to: AssetCode,
+    exactOut: Money,
+    chain?: ChainId,
+  ): Promise<PriceQuote> {
+    if (exactOut.asset !== to) {
+      throw new ValidationError(
+        `The exact output asset ${exactOut.asset} must equal the buy asset ${to}`,
+        { exactOutAsset: exactOut.asset, to },
+      );
+    }
+    if (exactOut.amount <= 0n) {
+      throw new ValidationError(`The exact output must be positive`, {
+        from,
+        to,
+        amount: exactOut.amount.toString(),
+      });
+    }
+
+    const pair = this.#pairs.get(rateKey(from, to));
+    if (pair === undefined) {
+      throw new ConfigurationError(`No 0x pair configured for ${from} -> ${to}`, { from, to });
+    }
+    if (chain !== undefined && EVM_CHAIN_IDS[chain] !== BigInt(this.#chainId)) {
+      throw new ConfigurationError(
+        `0x is configured for chain id ${this.#chainId}, not ${chain} (${EVM_CHAIN_IDS[chain]})`,
+        { pair: rateKey(from, to), chain, configuredChainId: this.#chainId },
+      );
+    }
+
+    const body = await this.#price(pair, from, to, { buyAmount: exactOut.amount });
+    if (!body.liquidityAvailable) {
+      throw new ProviderError(`0x has no liquidity for ${from} -> ${to}`, { from, to });
+    }
+
+    const sellAmount = BigInt(body.sellAmount);
+    const buyAmount = BigInt(body.buyAmount);
+    if (sellAmount <= 0n || buyAmount <= 0n) {
+      throw new ProviderError(`0x quoted a non-positive amount for ${from} -> ${to}`, { from, to });
+    }
+
+    const scaledRate = scaleSwapRate(sellAmount, buyAmount, assetDecimals(from));
+    if (scaledRate <= 0n) {
+      throw new ProviderError(`0x quote for ${from} -> ${to} rounds to zero minor units of ${to}`, {
+        from,
+        to,
+        sellAmount: sellAmount.toString(),
+        buyAmount: buyAmount.toString(),
+      });
+    }
+
+    return { from, to, scaledRate, source: this.name };
+  }
+
+  async #price(
+    pair: ZeroExPair,
+    from: AssetCode,
+    to: AssetCode,
+    side: { readonly sellAmount: bigint } | { readonly buyAmount: bigint },
+  ) {
     const query = new URLSearchParams({
       chainId: String(this.#chainId),
       sellToken: pair.sellToken,
       buyToken: pair.buyToken,
-      sellAmount: sellAmount.toString(),
+      ...("sellAmount" in side
+        ? { sellAmount: side.sellAmount.toString() }
+        : { buyAmount: side.buyAmount.toString() }),
     });
     const url = `${this.#endpoint}/swap/permit2/price?${query}`;
     const headers = { "0x-api-key": this.#apiKey, "0x-version": "v2" };

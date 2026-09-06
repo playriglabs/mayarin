@@ -22,7 +22,8 @@
  * dust.
  */
 
-import type { AssetCode, Money } from "@mayarin/shared";
+import type { ChainId } from "@mayarin/chain";
+import { type AssetCode, ConfigurationError, type Money } from "@mayarin/shared";
 
 /**
  * What the caller needs a route for. `recipient` is always the PaymentRouter:
@@ -41,6 +42,13 @@ export interface RouteRequest {
   readonly maxIn: Money;
   /** The PaymentRouter address the swap must deliver into. */
   readonly recipient: string;
+  /**
+   * The chain the payment runs on. A venue with a pool on another chain cannot
+   * route this payment — its router would have no code here — so the route
+   * source refuses and the caller falls back to a venue whose pool is on this
+   * chain.
+   */
+  readonly chain: ChainId;
 }
 
 /**
@@ -80,4 +88,43 @@ export interface SwapRouteSource {
    * the pair or cannot price exact-output at all.
    */
   route(request: RouteRequest): Promise<ExecutableRoute>;
+}
+
+/**
+ * The first configured venue that can route this chain.
+ *
+ * A venue whose pool is on another chain refuses with a `ConfigurationError` —
+ * its router has no code here — so trying the venues in order is what reaches
+ * the one whose pool is on the payment's chain. Wiring a single source instead
+ * pins every payment to whichever venue happened to be configured first, and a
+ * second chain then fails at execution with a message about the first chain's
+ * pool.
+ *
+ * Only a `ConfigurationError` is routed around. A real RPC or venue fault is
+ * rethrown, so the caller sees the failure rather than a misleading "no venue"
+ * after every source has been tried.
+ */
+export class FallbackRouteSource implements SwapRouteSource {
+  readonly name = "fallback";
+  readonly #sources: readonly SwapRouteSource[];
+
+  constructor(sources: readonly SwapRouteSource[]) {
+    this.#sources = sources;
+  }
+
+  async route(request: RouteRequest): Promise<ExecutableRoute> {
+    let lastError: unknown;
+    for (const source of this.#sources) {
+      try {
+        return await source.route(request);
+      } catch (error) {
+        if (!(error instanceof ConfigurationError)) throw error;
+        lastError = error;
+      }
+    }
+    if (lastError !== undefined) throw lastError;
+    throw new ConfigurationError(`No route-capable venue is configured for ${request.chain}`, {
+      chain: request.chain,
+    });
+  }
 }

@@ -14,6 +14,7 @@ const request: RouteRequest = {
   exactOut: money(2_135_000n, "USDC"), // the merchant's locked minOut
   maxIn: money(600_000_000_000_000n, "ETH"), // payer estimate, slippage included
   recipient: PAYMENT_ROUTER,
+  chain: "base",
 };
 
 function source(handler: (url: URL, init?: RequestInit) => Response): ZeroExRouteSource {
