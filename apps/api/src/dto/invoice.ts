@@ -11,7 +11,7 @@
  * matters.
  */
 
-import type { Invoice, InvoiceView } from "@mayarin/invoicing";
+import type { Invoice, InvoicePayment, InvoiceView } from "@mayarin/invoicing";
 import { assetCodeSchema, decimalMoneySchema, timestampSchema } from "@mayarin/shared";
 import { z } from "zod";
 import { intentOptionsSchema } from "./catalog.ts";
@@ -167,6 +167,26 @@ export function toInvoiceDto(invoice: Invoice, baseUrl: string) {
 
 export type InvoiceDto = ReturnType<typeof toInvoiceDto>;
 
+/**
+ * One completed payment on the wire.
+ *
+ * The rail is the point: a paid invoice that does not say which asset on which
+ * chain settled it leaves a buyer checking their wallet and a finance team
+ * reconciling several chains with the same unanswered question. `null` for a
+ * fiat-only intent, which has no chain to name.
+ */
+export function toInvoicePaymentDto(payment: InvoicePayment) {
+  return {
+    intentId: payment.intentId,
+    amount: toMoneyDto(payment.amount),
+    rail:
+      payment.rail === undefined ? null : { asset: payment.rail.asset, chain: payment.rail.chain },
+    paidAt: payment.paidAt.toISOString(),
+  };
+}
+
+export type InvoicePaymentDto = ReturnType<typeof toInvoicePaymentDto>;
+
 /** The invoice with everything derived from its payments, which is what a reader wants. */
 export function toInvoiceViewDto(view: InvoiceView, baseUrl: string) {
   return {
@@ -174,6 +194,7 @@ export function toInvoiceViewDto(view: InvoiceView, baseUrl: string) {
     status: view.status,
     paid: toMoneyDto(view.paid),
     outstanding: toMoneyDto(view.outstanding),
+    payments: view.payments.map(toInvoicePaymentDto),
   };
 }
 

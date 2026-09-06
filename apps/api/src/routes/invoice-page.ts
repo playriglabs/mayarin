@@ -17,6 +17,7 @@ import type { InvoiceView } from "@mayarin/invoicing";
 import type { OfferedRail } from "@mayarin/payment-intent";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
+import { toInvoicePaymentDto } from "../dto/invoice.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import { toRailDto } from "../dto/rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
@@ -49,7 +50,7 @@ export function invoicePageRoutes(container: Container): Hono {
  * units, and the SPA renders `display` strings without ever doing arithmetic.
  */
 function invoiceBootstrap(view: InvoiceView, checkoutUrl: string, rails: readonly OfferedRail[]) {
-  const { invoice, status, paid, outstanding } = view;
+  const { invoice, status, paid, outstanding, payments } = view;
   return {
     page: "invoice",
     invoiceId: invoice.id,
@@ -79,6 +80,12 @@ function invoiceBootstrap(view: InvoiceView, checkoutUrl: string, rails: readonl
     dueAt: invoice.dueAt?.toISOString() ?? null,
     payable: status !== "void" && status !== "draft" && outstanding.amount > 0n,
     rails: rails.map(toRailDto),
+    /**
+     * What was paid, and on what. A paid document that names only a figure
+     * makes a buyer open a block explorer to answer "did my USDC on Arc land
+     * against this invoice"; the rail is the answer, so the document carries it.
+     */
+    payments: payments.map(toInvoicePaymentDto),
     checkoutUrl,
   };
 }

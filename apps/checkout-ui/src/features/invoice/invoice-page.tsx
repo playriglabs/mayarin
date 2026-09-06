@@ -1,10 +1,14 @@
+import { chainLabel } from "@mayarin/chain";
 import { useState } from "react";
 import { Brand } from "../../shared/brand.tsx";
 import { ChainLabel } from "../../shared/chain-logo.tsx";
 import { PoweredBy } from "../../shared/powered-by.tsx";
+import { RailMark } from "../../shared/rail-mark.tsx";
 import { RailPicker } from "../../shared/rail-picker.tsx";
-import { dateLine, STATUS_LABEL, STATUS_TONE } from "./invoice-status.ts";
-import type { InvoiceBootstrap } from "./types.ts";
+import type { Rail } from "../../shared/types.ts";
+import { dateLine, paidOn, STATUS_LABEL, STATUS_TONE } from "./invoice-status.ts";
+import { PaidMark } from "./paid-mark.tsx";
+import type { InvoiceBootstrap, InvoicePaymentRecord } from "./types.ts";
 
 /**
  * One page that serves two readers. On screen a buyer sees what is owed and a
@@ -14,7 +18,7 @@ import type { InvoiceBootstrap } from "./types.ts";
  * page cannot drift from the one the buyer looked at.
  */
 export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstrap }) {
-  const { status, buyer, lines, payable } = bootstrap;
+  const { status, buyer, lines, payable, payments } = bootstrap;
   const [busy, setBusy] = useState(false);
   const [rail, setRail] = useState(bootstrap.rails[0]);
 
@@ -57,7 +61,12 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
           <p className="muted">{dateLine(bootstrap.issuedAt, bootstrap.dueAt)}</p>
         </div>
         <div>
-          <p className={`badge ${STATUS_TONE[status]}`}>{STATUS_LABEL[status]}</p>
+          <p className={`badge ${STATUS_TONE[status]}`}>
+            {/* The tick is read before the word is. Only for a document that
+                is actually settled — a part payment is not a receipt. */}
+            {status === "paid" && <PaidMark />}
+            {STATUS_LABEL[status]}
+          </p>
         </div>
       </header>
 
@@ -74,6 +83,30 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
           {buyer.taxId !== null && <dd className="muted">Tax ID {buyer.taxId}</dd>}
           {buyer.email !== null && <dd className="muted">{buyer.email}</dd>}
         </dl>
+      </div>
+
+      <div className="detail-strip">
+        <dl className="party">
+          <dt>Recipient</dt>
+          <dd className="muted">{buyer.email ?? buyer.name}</dd>
+        </dl>
+        {/* The rails as marks, the way the payer will recognise them: the token
+            badged with its network, not a list of names. Screen only — a
+            printed document records what was paid, not what could have been. */}
+        {payable && bootstrap.rails.length > 0 && (
+          <dl className="party screen-only">
+            <dt>Payment methods</dt>
+            <dd className="rail-marks">
+              {bootstrap.rails.map((offered: Rail) => (
+                <RailMark
+                  key={`${offered.chain}:${offered.asset}`}
+                  asset={offered.asset}
+                  chain={offered.chain}
+                />
+              ))}
+            </dd>
+          </dl>
+        )}
       </div>
 
       <table>
@@ -115,6 +148,8 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         </tfoot>
       </table>
 
+      {payments.length > 0 && <Settled payments={payments} />}
+
       {bootstrap.notes !== null && <p className="notes muted">{bootstrap.notes}</p>}
 
       {payable && (
@@ -134,15 +169,63 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         </>
       )}
 
-      <button
-        type="button"
-        className="primary"
-        disabled={!payable || busy || rail === undefined}
-        onClick={() => void pay()}
-      >
-        {payable ? `Pay ${bootstrap.outstanding.display}` : STATUS_LABEL[status]}
-      </button>
+      {/* Only while there is something to pay. A disabled button reading
+          "Paid" is a control that cannot be used pretending to be one that
+          can — the badge and the receipt above already say what happened. */}
+      {payable && (
+        <button
+          type="button"
+          className="primary"
+          disabled={busy || rail === undefined}
+          onClick={() => void pay()}
+        >
+          Pay {bootstrap.outstanding.display}
+        </button>
+      )}
       <PoweredBy className="powered-by mx-auto mt-6 block" />
     </main>
+  );
+}
+
+/**
+ * What the invoice was paid with — asset and chain, per payment.
+ *
+ * Printed as well as shown: it is the half of the receipt a finance team
+ * reconciling several chains actually needs, and a document that says only
+ * "Paid" sends them to a block explorer to find out which USDC on which network
+ * cleared it. A part-paid invoice lists each payment in the order it arrived,
+ * which is also why the figures live here rather than in one summary line.
+ */
+function Settled({ payments }: { readonly payments: readonly InvoicePaymentRecord[] }) {
+  return (
+    <section className="settled">
+      <h2 className="settled-title">
+        <PaidMark size={13} />
+        Paid with
+      </h2>
+      <ul className="settled-list">
+        {payments.map((payment) => (
+          <li key={payment.intentId} className="settled-row">
+            <span className="settled-rail">
+              {payment.rail === null ? (
+                // A fiat-only intent has no chain to name, and naming one it did
+                // not settle on would be worse than saying nothing.
+                <span>Off-chain</span>
+              ) : (
+                <>
+                  <RailMark asset={payment.rail.asset} chain={payment.rail.chain} size={28} />
+                  <span className="settled-asset">{payment.rail.asset}</span>
+                  <span className="muted">on {chainLabel(payment.rail.chain)}</span>
+                </>
+              )}
+            </span>
+            <span className="settled-meta">
+              <strong>{payment.amount.display}</strong>
+              <span className="muted">{paidOn(payment.paidAt)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
