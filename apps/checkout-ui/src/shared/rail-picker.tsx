@@ -1,6 +1,6 @@
 import { chainLabel } from "@mayarin/chain";
-import { AssetLogo } from "./asset-logo.tsx";
 import { ChainLabel } from "./chain-logo.tsx";
+import { RailMark } from "./rail-mark.tsx";
 import type { Rail } from "./types.ts";
 
 /**
@@ -81,7 +81,7 @@ export function RailPicker({
                 aria-pressed={rail.asset === selected?.asset && rail.chain === selected?.chain}
                 onClick={() => onSelect(rail)}
               >
-                <AssetLogo symbol={rail.asset} />
+                <RailMark asset={rail.asset} chain={rail.chain} size={26} />
                 {rail.asset}
               </button>
             ))}

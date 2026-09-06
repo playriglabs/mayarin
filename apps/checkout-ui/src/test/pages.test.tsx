@@ -42,6 +42,7 @@ const linkBootstrap: LinkBootstrap = {
     { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
     { chain: "base-sepolia", asset: "ETH", contract: null },
   ],
+  settlementAsset: "USDC",
   lockMinutes: 15,
 };
 
@@ -85,6 +86,7 @@ const invoiceBootstrap: InvoiceBootstrap = {
     { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
     { chain: "arc-testnet", asset: "USDC", contract: "0x360000" },
   ],
+  payments: [],
   checkoutUrl: "http://localhost:3000/v1/invoices/inv_1/checkout",
 };
 
@@ -319,7 +321,7 @@ describe("invoice page", () => {
     expect(html).not.toContain("—");
   });
 
-  test("a settled invoice offers no payment button", () => {
+  test("a settled invoice offers no payment button at all", () => {
     const html = renderToStaticMarkup(
       <InvoicePage
         bootstrap={{
@@ -330,8 +332,61 @@ describe("invoice page", () => {
         }}
       />,
     );
-    expect(html).toContain("disabled");
+    // Not a disabled button reading "Paid": a control that cannot be used
+    // pretending to be one that can. The badge says what happened.
+    expect(html).not.toContain("<button");
     expect(html).toContain("Paid");
+  });
+
+  test("a paid invoice says which asset on which chain settled it", () => {
+    const html = renderToStaticMarkup(
+      <InvoicePage
+        bootstrap={{
+          ...invoiceBootstrap,
+          status: "paid",
+          payable: false,
+          paid: idr("Rp 125.000,00"),
+          outstanding: idr("Rp 0,00"),
+          payments: [
+            {
+              intentId: "pi_1",
+              amount: idr("Rp 125.000,00"),
+              rail: { asset: "USDC", chain: "arc-testnet" },
+              paidAt: "2026-01-05T03:00:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+    expect(html).toContain("Paid with");
+    // The tick, in the badge and on the receipt: read before the word is.
+    expect(html).toContain("paid-mark");
+    expect(html).toContain("USDC");
+    expect(html).toContain("Arc Testnet");
+    expect(html).toContain("January 5, 2026");
+  });
+
+  test("a payment with no rail is named off-chain rather than given a chain", () => {
+    // A fiat-only intent settled on nothing; printing a network it never
+    // touched would be worse than printing none.
+    const html = renderToStaticMarkup(
+      <InvoicePage
+        bootstrap={{
+          ...invoiceBootstrap,
+          status: "partially_paid",
+          paid: idr("Rp 25.000,00"),
+          payments: [
+            {
+              intentId: "pi_2",
+              amount: idr("Rp 25.000,00"),
+              rail: null,
+              paidAt: "2026-01-05T03:00:00.000Z",
+            },
+          ],
+        }}
+      />,
+    );
+    expect(html).toContain("Off-chain");
   });
 });
 

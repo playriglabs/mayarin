@@ -25,7 +25,7 @@
  */
 
 import type { CartLine } from "@mayarin/catalog";
-import type { MerchantSnapshot } from "@mayarin/payment-intent";
+import type { MerchantSnapshot, PaymentRail } from "@mayarin/payment-intent";
 import type { AssetCode, Money } from "@mayarin/shared";
 
 /**
@@ -128,4 +128,26 @@ export interface InvoiceView {
   readonly status: InvoiceStatus;
   readonly paid: Money;
   readonly outstanding: Money;
+  /**
+   * What was paid, and on what. Oldest first, so a part-paid invoice reads down
+   * the page in the order the money arrived.
+   */
+  readonly payments: readonly InvoicePayment[];
+}
+
+/**
+ * One completed payment against an invoice.
+ *
+ * A document that has been paid should say what it was paid *with*: "USDC on
+ * Arc" is the answer a buyer checking their wallet and a finance team
+ * reconciling a bank of chains both need, and neither can get it from a status
+ * badge. `amount` is in the invoice's own currency — the same figure that sums
+ * to `paid` — because that is what the document is denominated in.
+ */
+export interface InvoicePayment {
+  readonly intentId: string;
+  readonly amount: Money;
+  /** Absent on a fiat-only intent, which has no chain to name. */
+  readonly rail?: PaymentRail;
+  readonly paidAt: Date;
 }

@@ -279,6 +279,30 @@ describe("paying an invoice", () => {
     expect(view.outstanding).toEqual(money(0n, "IDR"));
   });
 
+  test("the view names what each payment was made with", async () => {
+    // A paid document that carries only a figure sends its reader to a block
+    // explorer to find out which asset on which chain cleared it.
+    const { intentRepository, invoices, invoice } = await issued();
+    const half = money(6_250_000n, "IDR");
+
+    await complete(
+      intentRepository,
+      await invoices.checkoutInvoice(invoice.id, {
+        amount: half,
+        payment: { asset: "USDC", chain: "arc-testnet" },
+      }),
+    );
+    // Pending, so it counts for nothing: money in flight is not money paid.
+    await invoices.checkoutInvoice(invoice.id, {
+      payment: { asset: "USDC", chain: "base-sepolia" },
+    });
+
+    const view = await invoices.viewInvoice(invoice.id);
+    expect(view.payments).toHaveLength(1);
+    expect(view.payments[0]?.rail).toEqual({ asset: "USDC", chain: "arc-testnet" });
+    expect(view.payments[0]?.amount).toEqual(half);
+  });
+
   test("refuses a payment larger than the balance", async () => {
     const { invoices, invoice } = await issued();
     await expect(

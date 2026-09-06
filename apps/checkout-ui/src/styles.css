@@ -246,6 +246,27 @@
   .chain-label {
     @apply inline-flex items-center gap-[0.35em] align-[-0.25em] whitespace-nowrap;
   }
+  /* Token badged with its network, as one mark. The badge sits on the corner
+     and carries a ring in the page's own background so it reads as in front of
+     the token rather than as a second, clipped token.
+
+     Both images are sized off the mark, not off themselves: `.chain-logo` is
+     `1.15em` for prose, which inside a fixed 32px mark is whatever the
+     inherited font happens to be — larger than the badge that holds it, and
+     visibly off its corner. */
+  .rail-mark {
+    @apply relative inline-grid shrink-0 place-items-center leading-none;
+  }
+  .rail-mark > .asset-logo,
+  .rail-mark > .asset-logo-fallback {
+    @apply size-full;
+  }
+  .rail-mark-chain {
+    @apply absolute right-0 bottom-0 inline-grid translate-x-[18%] translate-y-[18%] place-items-center overflow-hidden rounded-full bg-paper ring-2 ring-paper;
+  }
+  .rail-mark-chain .chain-logo {
+    @apply size-full;
+  }
   .payment-estimate {
     @apply mt-6 flex items-baseline justify-between gap-4 border-y border-line py-4;
   }
@@ -519,8 +540,10 @@
   .invoice-head p {
     @apply mt-1 mb-0 text-xs;
   }
+  /* A pill, not a bare word: the status is the first thing a reader looks for
+     on an invoice, and it has to be findable without reading the line. */
   .badge {
-    @apply text-xs font-semibold tracking-wide uppercase;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-current/25 px-2.5 py-1 text-xs font-semibold tracking-wide uppercase;
   }
   .badge.ok {
     @apply text-brand;
@@ -564,6 +587,38 @@
   }
   .notes {
     @apply mt-5 whitespace-pre-wrap;
+  }
+  /* The settlement receipt: what paid this document, and on which network.
+     Bordered rather than tabled because it is a fact about money that arrived,
+     not another line of what was sold. */
+  /* Recipient and rails, side by side under the parties — the strip the
+     reference invoice carries above its line items. */
+  .detail-strip {
+    @apply mb-4 flex flex-wrap items-start justify-between gap-6;
+  }
+  .rail-marks {
+    @apply mt-1.5 flex flex-wrap items-center gap-2.5;
+  }
+  .settled {
+    @apply mt-6 border border-line p-4;
+  }
+  .settled-title {
+    @apply m-0 inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-brand uppercase;
+  }
+  .settled-list {
+    @apply mt-3 grid list-none gap-2.5 p-0;
+  }
+  .settled-row {
+    @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1;
+  }
+  .settled-rail {
+    @apply inline-flex items-center gap-2 text-sm;
+  }
+  .settled-asset {
+    @apply font-medium;
+  }
+  .settled-meta {
+    @apply inline-flex items-baseline gap-3 text-sm tabular-nums;
   }
 }
 

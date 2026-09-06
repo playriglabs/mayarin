@@ -13,25 +13,46 @@
 
 import type { PaymentIntent } from "@mayarin/payment-intent";
 import { type Money, money, subtract, sum } from "@mayarin/shared";
-import type { Invoice, InvoiceStatus } from "./types.ts";
+import type { Invoice, InvoicePayment, InvoiceStatus } from "./types.ts";
 
 /**
- * Totals what a buyer has actually paid.
+ * The payments that actually count, in the order they completed.
  *
- * Only `COMPLETED` intents count. An intent that is merely created, or is
+ * One filter, used by both the sum and the list a reader is shown, so "paid
+ * Rp 5.000.000" and "paid with USDC on Arc" can never describe different sets
+ * of intents.
+ *
+ * Only `COMPLETED` intents. An intent that is merely created, or is
  * mid-clearing, is a promise — treating it as payment would show an invoice as
- * settled while the money was still in flight.
- *
- * An intent in another asset is ignored rather than converted. There is no rate
- * here, and inventing one would misstate a balance.
+ * settled while the money was still in flight. An intent in another asset is
+ * ignored rather than converted: there is no rate here, and inventing one would
+ * misstate a balance.
  */
-export function paidAmount(invoice: Invoice, intents: readonly PaymentIntent[]): Money {
-  const amounts = intents
+export function paymentsOf(
+  invoice: Invoice,
+  intents: readonly PaymentIntent[],
+): readonly InvoicePayment[] {
+  return intents
     .filter((intent) => intent.status === "COMPLETED")
-    .map((intent) => intent.amount)
-    .filter((amount) => amount.asset === invoice.currency);
+    .filter((intent) => intent.amount.asset === invoice.currency)
+    .map((intent) => ({
+      intentId: intent.id,
+      amount: intent.amount,
+      // Absent on a fiat-only intent, which is every Phase 1 intent — a
+      // document that was paid without a rail says so by omitting one rather
+      // than by naming a chain nothing settled on.
+      ...(intent.payment === undefined ? {} : { rail: intent.payment }),
+      paidAt: intent.completedAt ?? intent.updatedAt,
+    }))
+    .sort((left, right) => left.paidAt.getTime() - right.paidAt.getTime());
+}
 
-  return sum(amounts, invoice.currency);
+/** Totals what a buyer has actually paid — the sum of the payments that count. */
+export function paidAmount(invoice: Invoice, intents: readonly PaymentIntent[]): Money {
+  return sum(
+    paymentsOf(invoice, intents).map((payment) => payment.amount),
+    invoice.currency,
+  );
 }
 
 /** What is still owed. Never negative: an overpayment reads as settled, not as a debt owed back. */
@@ -65,11 +86,21 @@ export function viewOf(
   invoice: Invoice,
   intents: readonly PaymentIntent[],
   now: Date,
-): { readonly status: InvoiceStatus; readonly paid: Money; readonly outstanding: Money } {
-  const paid = paidAmount(invoice, intents);
+): {
+  readonly status: InvoiceStatus;
+  readonly paid: Money;
+  readonly outstanding: Money;
+  readonly payments: readonly InvoicePayment[];
+} {
+  const payments = paymentsOf(invoice, intents);
+  const paid = sum(
+    payments.map((payment) => payment.amount),
+    invoice.currency,
+  );
   return {
     status: invoiceStatus(invoice, paid, now),
     paid,
     outstanding: outstandingOf(invoice, paid),
+    payments,
   };
 }

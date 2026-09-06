@@ -23,5 +23,11 @@ export interface LinkBootstrap {
    * button that would fail.
    */
   readonly rails: readonly Rail[];
+  /**
+   * What the merchant is paid in. The estimate quotes against it: it is what
+   * decides whether the payer's asset has a swap leg, and a preview that skips
+   * it shows the pure FX rate for a payment that will take the swap.
+   */
+  readonly settlementAsset: string;
   readonly lockMinutes: number;
 }
