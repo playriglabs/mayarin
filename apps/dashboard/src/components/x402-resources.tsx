@@ -36,7 +36,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QueryError } from "@/components/ui/query-error";
@@ -53,10 +53,11 @@ import {
 import { useCreateX402Resource, useX402Rails, useX402Resources } from "@/hooks/x402";
 import { ApiError } from "@/lib/api/client";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
 
 function reasonOf(error: unknown): string {
-  return error instanceof ApiError ? error.message : "Failed to load x402 resources";
+  return error instanceof ApiError ? error.message : "Failed to load agent endpoints";
 }
 
 function X402Resources() {
@@ -122,18 +123,18 @@ function X402Resources() {
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-xs text-subtle-foreground">
-          {rows.length} resource{rows.length === 1 ? "" : "s"}
+          {rows.length} endpoint{rows.length === 1 ? "" : "s"}
         </p>
         <Button onClick={open} disabled={offered.length === 0}>
           <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-          New resource
+          New endpoint
         </Button>
       </div>
 
       {rails.isSuccess && offered.length === 0 && (
         <Alert>
-          No rail can be offered yet: an x402 resource is paid to your own address, and none is
-          verified on a supported chain. Link and verify a wallet under Wallets first.
+          Nothing can be offered yet: an agent pays your own address, and none is verified on a
+          supported chain. Link and verify a wallet under Wallets first.
         </Alert>
       )}
 
@@ -162,16 +163,16 @@ function X402Resources() {
               <EmptyAction>
                 <Button onClick={open} disabled={offered.length === 0}>
                   <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                  Register your first resource
+                  Register your first endpoint
                 </Button>
               </EmptyAction>
             </Empty>
           ) : (
             <Table>
-              <TableCaption>x402 resources for this merchant</TableCaption>
+              <TableCaption>Endpoints agents can pay for</TableCaption>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Resource</TableHead>
+                  <TableHead>Endpoint</TableHead>
                   <TableHead>URL</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Rails</TableHead>
@@ -207,30 +208,56 @@ function X402Resources() {
         )}
 
       <Dialog open={creating} onOpenChange={(next) => !next && setCreating(false)}>
-        <DialogContent>
+        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New x402 resource</DialogTitle>
+            <DialogTitle>New agent endpoint</DialogTitle>
             <DialogDescription>
-              One endpoint, one price. Agents pay per request and are paid to your own verified
-              address — you never type one here.
+              One endpoint, one price. An agent is charged per request and pays your own verified
+              address — which is why there is no address to type here.
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
             {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
 
-            <Field>
-              <FieldLabel htmlFor="x402-id">Resource id</FieldLabel>
-              <Input
-                id="x402-id"
-                value={id}
-                onChange={(e) => {
-                  setId(e.target.value);
-                  setFailure("");
-                }}
-                placeholder="fx-quote"
-              />
-            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="x402-id">Endpoint id</FieldLabel>
+                <Input
+                  id="x402-id"
+                  value={id}
+                  onChange={(e) => {
+                    setId(e.target.value);
+                    setFailure("");
+                  }}
+                  placeholder="fx-quote"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <FieldDescription>Lowercase, digits and hyphens.</FieldDescription>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="x402-price">Price</FieldLabel>
+                <div className="relative">
+                  <Input
+                    id="x402-price"
+                    value={amount}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      setFailure("");
+                    }}
+                    inputMode="decimal"
+                    placeholder="0.02"
+                    className="pr-12"
+                  />
+                  <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 font-mono text-subtle-foreground text-xs">
+                    USD
+                  </span>
+                </div>
+                <FieldDescription>Charged per request.</FieldDescription>
+              </Field>
+            </div>
 
             <Field>
               <FieldLabel htmlFor="x402-url">URL</FieldLabel>
@@ -242,7 +269,12 @@ function X402Resources() {
                   setFailure("");
                 }}
                 placeholder="https://api.example.com/quote"
+                autoComplete="off"
+                spellCheck={false}
               />
+              <FieldDescription>
+                The endpoint an agent calls. It is told the price on the first unpaid request.
+              </FieldDescription>
             </Field>
 
             <Field>
@@ -253,50 +285,63 @@ function X402Resources() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="One oracle-guarded FX quote"
               />
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="x402-price">Price, in USD</FieldLabel>
-              <Input
-                id="x402-price"
-                value={amount}
-                onChange={(e) => {
-                  setAmount(e.target.value);
-                  setFailure("");
-                }}
-                inputMode="decimal"
-                placeholder="0.02"
-              />
+              <FieldDescription>
+                Optional. Shown to an agent browsing what you sell.
+              </FieldDescription>
             </Field>
 
             <FieldSet>
-              <FieldLegend className="mb-3">Paid on</FieldLegend>
-              {offered.map((rail) => {
-                const inputId = `x402-rail-${rail.chain}`;
-                return (
-                  <div key={rail.chain} className="flex items-start gap-2">
-                    <Checkbox
-                      id={inputId}
-                      checked={chains.has(rail.chain)}
-                      onCheckedChange={() => toggleChain(rail.chain)}
-                      disabled={create.isPending}
-                    />
-                    <Label htmlFor={inputId} className="cursor-pointer text-sm text-foreground">
-                      <ChainLabel chain={rail.chain} /> · {rail.asset}
-                      <span className="block font-mono text-xs text-subtle-foreground">
-                        {rail.payTo}
+              <FieldLegend className="mb-1">Paid on</FieldLegend>
+              <FieldDescription className="mb-3">
+                Your verified addresses. Choose one or more networks an agent may pay over.
+              </FieldDescription>
+              <div className="flex flex-col gap-2">
+                {offered.map((rail) => {
+                  const inputId = `x402-rail-${rail.chain}`;
+                  const selected = chains.has(rail.chain);
+                  return (
+                    <Label
+                      key={rail.chain}
+                      htmlFor={inputId}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-3 border p-3 transition-colors",
+                        selected
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-subtle-foreground",
+                      )}
+                    >
+                      <Checkbox
+                        id={inputId}
+                        checked={selected}
+                        onCheckedChange={() => toggleChain(rail.chain)}
+                        disabled={create.isPending}
+                      />
+                      {/* min-w-0 so the address truncates instead of pushing the
+                          row wider than the dialog — a 42-character hex string
+                          is longer than any sensible modal. */}
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="flex items-center gap-2 text-foreground text-sm">
+                          <ChainLabel chain={rail.chain} />
+                          <Badge variant="default">{rail.asset}</Badge>
+                        </span>
+                        <span
+                          className="truncate font-mono text-subtle-foreground text-xs"
+                          title={rail.payTo}
+                        >
+                          {rail.payTo}
+                        </span>
                       </span>
                     </Label>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </FieldSet>
           </div>
 
           <DialogFooter>
             <DialogClose render={<Button variant="secondary">Cancel</Button>} />
             <Button onClick={() => void save()} disabled={!canCreate || create.isPending}>
-              Register resource
+              Register endpoint
             </Button>
           </DialogFooter>
         </DialogContent>

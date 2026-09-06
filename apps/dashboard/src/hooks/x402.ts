@@ -31,7 +31,7 @@ export function useX402Rails() {
 export function useCreateX402Resource() {
   return useEffectMutation<X402ResourceResponse, CreateX402ResourceRequest, ApiError>({
     mutation: (body) => x402Api.create(body),
-    toast: { loading: "Registering resource…", success: "Resource registered" },
+    toast: { loading: "Registering endpoint…", success: "Endpoint registered" },
     invalidate: [RESOURCES_KEY],
   });
 }
