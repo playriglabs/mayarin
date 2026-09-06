@@ -129,8 +129,11 @@ export function DepositCard({
         {copied === "address" ? "Address copied" : "Copy payment address"}
       </button>
       <p className="estimate-note">
-        Send only {deposit.amount.asset} on <ChainLabel chain={deposit.chain} size={18} />. A
-        smaller amount or an asset on another network will not complete this payment.
+        Send only {deposit.amount.asset} on{" "}
+        <span className="pl-1">
+          <ChainLabel chain={deposit.chain} size={18} />
+        </span>
+        . A smaller amount or an asset on another network will not complete this payment.
       </p>
     </>
   );

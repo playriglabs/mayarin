@@ -136,8 +136,10 @@ describe("link page", () => {
     // the default selection is Base, which has both.
     expect(html).toContain("USDC");
     expect(html).toContain("ETH");
-    expect(html).toContain("Send USDC on");
-    expect(html).toContain("Base Sepolia</span></span> only");
+    // Read as a sentence rather than as markup: what matters is that the note
+    // names the *selected* rail's chain, not how many spans wrap the label.
+    // Asserting the nesting made a styling change fail as a behaviour change.
+    expect(html.replace(/<[^>]+>/g, "")).toContain("Send USDC on Base Sepolia only");
     expect(html).toContain("https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png");
   });
 

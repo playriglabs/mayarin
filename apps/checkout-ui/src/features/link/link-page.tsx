@@ -146,8 +146,11 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
               {/* True of a choice the payer made, not one the deployment made
                   for them — which is what makes it worth stating twice. */}
               <p className="rail-note">
-                Send {rail.asset} on <ChainLabel chain={rail.chain} size={18} /> only. Anything
-                else, or the same asset on another network, cannot be recovered.
+                Send {rail.asset} on{" "}
+                <span className="pl-1">
+                  <ChainLabel chain={rail.chain} size={18} />
+                </span>{" "}
+                only. Anything else, or the same asset on another network, cannot be recovered.
               </p>
 
               <p className="estimate-note">
