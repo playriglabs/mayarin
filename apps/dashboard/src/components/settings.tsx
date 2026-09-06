@@ -36,7 +36,7 @@ import {
   ComboboxList,
   type ComboboxOption,
 } from "@/components/ui/combobox";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
@@ -76,9 +76,6 @@ const SETTLEMENT_OPTIONS: readonly SelectOption[] = [
   { value: "USDC", label: "USDC" },
   { value: "USDT", label: "USDT" },
 ];
-
-/** What a payer may pay with. The settlement asset itself is the no-swap path. */
-const PAYABLE_ASSETS: readonly string[] = ["USDC", "USDT", "ETH"];
 
 /**
  * Every country, with the unsupported ones disabled rather than hidden.
@@ -139,6 +136,18 @@ function sameAssets(left: readonly string[], right: readonly string[]): boolean 
   return left.length === right.length && left.every((asset) => right.includes(asset));
 }
 
+/**
+ * Whether a typed settlement address is one the API will accept.
+ *
+ * Blank is valid — it means "pay me at my managed wallet". Checksum case is not
+ * enforced, matching the domain: EIP-55 mixed case is a hint, and an
+ * all-lowercase address copied from a block explorer is a correct address.
+ */
+function isValidSettlementAddress(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed === "" || /^0x[0-9a-fA-F]{40}$/.test(trimmed);
+}
+
 function Settings() {
   const settings = useSettings();
   const history = useSettingsHistory();
@@ -158,6 +167,10 @@ function Settings() {
   const loaded = settings.data?.settings;
   /** What each network can receive, so the matrix lists nothing a chain has no address for. */
   const supportedChains = rails.data?.supported ?? [];
+  // Blocks the save rather than only colouring the field: the API probes every
+  // chain for contract code before it validates, so a malformed address came
+  // back as a provider fault instead of as the typo it is.
+  const addressInvalid = draft !== null && !isValidSettlementAddress(draft.settlementAddress);
   useEffect(() => {
     if (loaded !== undefined) setDraft(draftOf(loaded));
   }, [loaded]);
@@ -185,14 +198,6 @@ function Settings() {
     setFailure("");
     setNotice("");
     setDraft(next);
-  }
-
-  function toggleAsset(asset: string, checked: boolean) {
-    if (draft === null) return;
-    const next = checked
-      ? [...draft.acceptedAssets, asset]
-      : draft.acceptedAssets.filter((a) => a !== asset);
-    edit({ ...draft, acceptedAssets: next });
   }
 
   /**
@@ -330,32 +335,13 @@ function Settings() {
                       </FieldDescription>
                     </Field>
 
-                    <Field>
-                      <FieldLabel>Accepted payer assets</FieldLabel>
-                      <div className="flex flex-wrap gap-4 pt-1">
-                        {PAYABLE_ASSETS.map((asset) => (
-                          <span key={asset} className="flex items-center gap-2 text-sm">
-                            <Checkbox
-                              id={`accepted-${asset}`}
-                              checked={draft.acceptedAssets.includes(asset)}
-                              onCheckedChange={(checked) => toggleAsset(asset, checked === true)}
-                            />
-                            <label htmlFor={`accepted-${asset}`} className="mt-1">
-                              <AssetLabel symbol={asset} size={18} />
-                            </label>
-                          </span>
-                        ))}
-                      </div>
-                      <FieldDescription>
-                        Accepting the asset you settle in is what enables the no-swap path. It is
-                        kept in the set whether you tick it or not.
-                      </FieldDescription>
-                    </Field>
-
-                    {/* Per network, because one list stopped describing either
-                        the moment there were two: Base can receive ETH and Arc
-                        cannot, so a merchant who accepts ETH is not saying they
-                        accept it everywhere (#244). */}
+                    {/* Per network and nowhere else. One merchant-wide list
+                        stopped describing anything the moment there were two
+                        chains — Base can receive ETH and Arc cannot — so a
+                        merchant ticking ETH was never saying they accept it
+                        everywhere (#244). Showing both a global list and a
+                        per-network one asked them to answer the same question
+                        twice, so only the network cards remain. */}
                     {rails.isPending && (
                       <p role="status" className="text-muted-foreground text-sm">
                         Loading per-network asset options…
@@ -368,7 +354,9 @@ function Settings() {
                         retrying={rails.isFetching}
                       />
                     )}
-                    {!rails.isPending && !rails.isError && supportedChains.length > 1 && (
+                    {/* Rendered for a single chain too, now that this is the
+                        only place a payer asset can be chosen at all. */}
+                    {!rails.isPending && !rails.isError && supportedChains.length > 0 && (
                       <Field>
                         <FieldLabel>Accepted assets per network</FieldLabel>
                         <div className="grid gap-3 pt-1 sm:grid-cols-2">
@@ -431,9 +419,8 @@ function Settings() {
                           })}
                         </div>
                         <FieldDescription>
-                          Only what each network can actually receive is listed. A network you have
-                          not customized follows the list above, and every network keeps at least
-                          one payable asset.
+                          Choose what payers can send on each network. Only assets a network can
+                          receive are listed, and each keeps at least one.
                         </FieldDescription>
                       </Field>
                     )}
@@ -445,13 +432,20 @@ function Settings() {
                         value={draft.settlementAddress}
                         onChange={(e) => edit({ ...draft, settlementAddress: e.target.value })}
                         placeholder="0x…"
+                        aria-invalid={addressInvalid}
+                        aria-describedby="settlement-address-hint"
                         className="font-mono text-xs"
                       />
-                      <FieldDescription>
+                      <FieldDescription id="settlement-address-hint">
                         Leave it blank to be paid at your managed wallet. There is no shared
                         default: one address for every merchant would pay every merchant into the
                         same wallet.
                       </FieldDescription>
+                      {addressInvalid && (
+                        <FieldError>
+                          Enter a 20-byte hex address, e.g. 0x1234…abcd, or leave it blank.
+                        </FieldError>
+                      )}
                     </Field>
 
                     {/* Shown in full and never truncated in the DOM: an address a
@@ -578,7 +572,9 @@ function Settings() {
                   <Button
                     onClick={save}
                     disabled={
-                      update.isPending || JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
+                      update.isPending ||
+                      addressInvalid ||
+                      JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
                     }
                   >
                     {update.isPending ? "Saving…" : "Save settings"}

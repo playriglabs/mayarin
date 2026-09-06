@@ -241,6 +241,48 @@ describe("PATCH /settings", () => {
     expect(status).toBe(400);
   });
 
+  // A merchant clearing the box is asking to be paid at the managed wallet, so
+  // an emptied field and an explicit `null` are the same request. Only `null`
+  // reached the clear path once the address had a pattern, which would have
+  // told them a blank box was a malformed address.
+  test("an emptied address clears it, exactly as null does", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    await patch(harness, auth, { settlementAddress: ADDRESS });
+    const set = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
+    expect(set.body?.settings.settlementAddress).toBe(ADDRESS);
+
+    const { status } = await patch(harness, auth, { settlementAddress: "" });
+    expect(status).toBe(200);
+
+    const cleared = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
+    expect(cleared.body?.settings.settlementAddress).toBeNull();
+  });
+
+  // The bug this pins: the shape was only checked in the domain, which runs
+  // *after* the contract-code probe. With no probe wired the malformed address
+  // still 400d, so the existing test passed while a real deployment answered
+  // "A connected service could not complete this request" — an RPC fault for
+  // what is plainly a typo. Rejecting at the DTO means the probe is never
+  // reached, so a stub that throws when called proves the ordering.
+  test("a malformed address never reaches the chain probe", async () => {
+    const harness = await createDashboardHarness({
+      adminEmail: ADMIN_EMAIL,
+      adminPassword: ADMIN_PASSWORD,
+      contractsOn: ["base-sepolia"],
+    });
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    for (const malformed of ["a", "0xnope", ADDRESS.slice(0, -1), `${ADDRESS}00`]) {
+      const { status } = await patch(harness, auth, { settlementAddress: malformed });
+      expect(status).toBe(400);
+    }
+
+    const after = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
+    expect(after.body?.settings.settlementAddress).toBeNull();
+  });
+
   test("a non-stablecoin settlement asset is refused", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
