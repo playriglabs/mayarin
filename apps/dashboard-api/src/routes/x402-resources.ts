@@ -66,7 +66,13 @@ export function x402ResourceRoutes(container: Container): Hono<{ Variables: Auth
 
   app.get("/", async (c) => {
     const resources = await container.x402Resources.list(scopeOf(c));
-    return c.json({ resources: resources.map(toResourceDto) });
+    return c.json({
+      resources: resources.map(toResourceDto),
+      // Where the merchant's own server calls to price, verify and settle. The
+      // public address rather than the internal one: these instructions are
+      // followed on a machine that is not this one.
+      facilitatorBaseUrl: container.config.checkoutBaseUrl,
+    });
   });
 
   /** Where this merchant can be paid today. An empty list is the answer too. */

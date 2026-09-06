@@ -29,6 +29,8 @@ export interface X402ResourceDto {
 
 export interface X402ResourceListResponse {
   readonly resources: readonly X402ResourceDto[];
+  /** Public base URL a merchant's own server calls to price, verify and settle. */
+  readonly facilitatorBaseUrl: string;
 }
 
 export interface X402RailsResponse {
