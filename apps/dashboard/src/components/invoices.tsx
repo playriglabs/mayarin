@@ -429,7 +429,13 @@ function Invoices() {
                           </Button>
                         ) : (
                           <>
-                            {invoice.buyer.email !== null && (
+                            {/* The action sends a payment link, so it goes once
+                                there is nothing left to pay. Mailing a client a
+                                link to an invoice they already settled reads as
+                                a second demand for the same money. A partly
+                                paid or overdue invoice still owes something and
+                                keeps it. */}
+                            {invoice.buyer.email !== null && invoice.status !== "paid" && (
                               <Button
                                 variant="ghost"
                                 size="icon"
