@@ -6,6 +6,39 @@
  * `--chain` names the rail the resource must offer; the run refuses a header
  * that does not advertise it. `--check` stops after the preflight, before an
  * authorization is signed and before anything is spent.
+ *
+ * **Cross-asset** (#211), where the agent holds one asset and the merchant is
+ * paid another:
+ *
+ * bun run scripts/e2e-x402.ts --pay-with EURC --pay-to <operator> --merchant 0x…
+ *
+ * `--pay-to` is then the **operator**, not the merchant: the payer's asset has
+ * to land somewhere Mayarin can swap it from, and `transferWithAuthorization`
+ * names one recipient chosen before the payer signs. `--merchant` is where the
+ * swap delivers, and the run checks three balances rather than two — the payer
+ * loses exactly what they authorised, the merchant gains exactly the invoice,
+ * and the operator keeps the difference as the payer's booked surplus.
+ *
+ * ## Running it against a local API
+ *
+ * No deployment is involved. The chain is remote and the API is not, which is
+ * how #207's fixes were verified before anything was released.
+ *
+ * 1. `bun run db:up` and migrate, then `bun run dev` with `X402_ENABLED=true`,
+ *    a funded `OPERATOR_PRIVATE_KEY`, and `QUOTE_ENABLED=true` naming a venue
+ *    with a pool on the chain — Base Sepolia's EURC/USDC is in `UNISWAP_POOLS`.
+ * 2. The merchant needs a settlement address on that chain, because a
+ *    cross-asset swap delivers to the merchant rather than to the rail's
+ *    `payTo`. Set one, or provision a managed wallet.
+ * 3. `market_config.stablecoins` is seeded once and never overwritten (#95), so
+ *    a payer asset the merchant will accept has to reach the admin API — the
+ *    environment and the runtime registry are two sources of truth and both
+ *    have to agree.
+ * 4. Register the resource with a cross-asset accept:
+ *    `POST /admin/x402/resources` naming the payer's token and the **operator**
+ *    as `payTo`. Registration refuses any other recipient.
+ * 5. Fund `PAYER_PRIVATE_KEY` with the payer's asset. The payer pays no gas
+ *    here: the operator broadcasts the authorization and then the swap.
  */
 import { CHAIN_IDS, type ChainId, caip2Of, EVM_CHAIN_IDS } from "@mayarin/chain";
 import {
@@ -48,7 +81,19 @@ const network = caip2Of(chain);
 const nativeMirrorsAsset: readonly ChainId[] = ["arc-testnet"];
 const mirrored = nativeMirrorsAsset.includes(chain);
 const payTo = argument("pay-to");
-assert(payTo && /^0x[0-9a-f]{40}$/i.test(payTo), "Pass the verified merchant address as --pay-to");
+assert(
+  payTo && /^0x[0-9a-f]{40}$/i.test(payTo),
+  "Pass the address the rail advertises as --pay-to (the merchant, or the operator when --pay-with is set)",
+);
+const settlesIn = argument("settles-in") ?? "USDC";
+const payWith = argument("pay-with") ?? settlesIn;
+const crossAsset = payWith !== settlesIn;
+const merchantAddress = argument("merchant") ?? payTo;
+assert(/^0x[0-9a-f]{40}$/i.test(merchantAddress), "Pass where the merchant is paid as --merchant");
+assert(
+  !crossAsset || merchantAddress.toLowerCase() !== payTo.toLowerCase(),
+  "A cross-asset rail pays the operator, so --merchant must differ from --pay-to",
+);
 const output = argument("output") ?? "/tmp/mayarin-x402-evidence.json";
 const rpcUrls: Record<string, string> = JSON.parse(required("CHAIN_RPC_URLS"));
 const rpc = rpcUrls[chain];
@@ -82,12 +127,20 @@ try {
     required("CHAIN_ASSETS"),
   );
   assert(
-    accepted.asset.toLowerCase() === configuredTokens[chain]?.USDC?.toLowerCase(),
-    "The resource asks for a token other than configured testnet USDC",
+    accepted.asset.toLowerCase() === configuredTokens[chain]?.[payWith]?.toLowerCase(),
+    `The resource asks for a token other than configured testnet ${payWith}`,
   );
+  const settlementToken = configuredTokens[chain]?.[settlesIn];
+  assert(settlementToken, `CHAIN_ASSETS has no ${settlesIn} on ${chain}`);
   assert(accepted.payTo.toLowerCase() === payTo.toLowerCase(), "Unexpected payment recipient");
   const amount = BigInt(accepted.amount);
-  assert(amount > 0n && amount <= 20_000n, "Test payment must be at most 0.02 USDC");
+  // A cross-asset authorization is the invoice grossed up by slippage, so the
+  // ceiling is a little above the same-asset one and still small enough that a
+  // mistake costs cents.
+  assert(
+    amount > 0n && amount <= (crossAsset ? 30_000n : 20_000n),
+    `Test payment must be at most ${crossAsset ? "0.03" : "0.02"} ${payWith}`,
+  );
   assert(
     Number.isSafeInteger(accepted.maxTimeoutSeconds) && accepted.maxTimeoutSeconds > 10,
     "The authorization window is too short",
@@ -101,9 +154,21 @@ try {
       functionName: "balanceOf",
       args: [address],
     });
-  const [payerBefore, merchantBefore] = await Promise.all([
+  const settlementBalanceOf = (address: Address) =>
+    client.readContract({
+      address: settlementToken as Address,
+      abi,
+      functionName: "balanceOf",
+      args: [address],
+    });
+  const merchant = merchantAddress as Address;
+  // Three balances on a cross-asset run, not two. `recipient` is the operator
+  // there — what it keeps is the payer's change, and checking only the payer
+  // and the merchant would let an unbooked balance sit at the operator unseen.
+  const [payerBefore, merchantBefore, operatorBefore] = await Promise.all([
     balanceOf(payer.address),
-    balanceOf(recipient),
+    crossAsset ? settlementBalanceOf(merchant) : balanceOf(recipient),
+    crossAsset ? balanceOf(recipient) : Promise.resolve(0n),
   ]);
   // Capture the native view too, at native precision, so gas paid by a payer who
   // also broadcasts is reconciled rather than mistaken for a short payment. The
@@ -132,6 +197,14 @@ try {
       amount: amount.toString(),
       payerBalance: payerBefore.toString(),
       merchantBalance: merchantBefore.toString(),
+      ...(crossAsset
+        ? {
+            payWith,
+            settlesIn,
+            merchant,
+            operatorBalance: operatorBefore.toString(),
+          }
+        : {}),
     }),
   );
   if (!process.argv.includes("--check")) {
@@ -226,9 +299,10 @@ try {
         from ledger_transactions t join ledger_entries e on e.transaction_id=t.id
         where t.reference=${clearingId} group by t.id,e.asset order by t.id`;
     }
-    const [payerAfter, merchantAfter, used] = await Promise.all([
+    const [payerAfter, merchantAfter, operatorAfter, used] = await Promise.all([
       balanceOf(payer.address),
-      balanceOf(recipient),
+      crossAsset ? settlementBalanceOf(merchant) : balanceOf(recipient),
+      crossAsset ? balanceOf(recipient) : Promise.resolve(0n),
       client.readContract({
         address: token,
         abi,
@@ -241,7 +315,23 @@ try {
       payerAfter: payerAfter.toString(),
       merchantBefore: merchantBefore.toString(),
       merchantAfter: merchantAfter.toString(),
+      ...(crossAsset
+        ? {
+            operatorBefore: operatorBefore.toString(),
+            operatorAfter: operatorAfter.toString(),
+          }
+        : {}),
     };
+    if (intent?.clearing_transaction_id) {
+      // Both chain movements, from the log rather than inferred. The reference
+      // on the row is the swap; the authorization is the event before it, and
+      // a cross-asset payment that lost one of them is unrecoverable.
+      evidence.settlementEvents = await sql`
+        select type,payload from clearing_events
+        where clearing_transaction_id=${String(intent.clearing_transaction_id)}
+          and type in ('settlement.broadcast','settlement.swap')
+        order by sequence`;
+    }
     evidence.authorizationUsed = used;
     await save();
     assert(settlement?.success, "PAYMENT-RESPONSE did not confirm success");
@@ -270,27 +360,43 @@ try {
         gasPaidByMerchant: gasPaidByMerchant.toString(),
       };
     }
-    const transfers = parseEventLogs({ abi, eventName: "Transfer", logs: receipt.logs }).filter(
-      (log) => log.address.toLowerCase() === token.toLowerCase(),
-    );
-    const delivered = transfers
-      .filter(
-        (log) =>
-          log.args.from.toLowerCase() === payer.address.toLowerCase() &&
-          log.args.to.toLowerCase() === recipient.toLowerCase(),
-      )
-      .reduce((sum, log) => sum + log.args.value, 0n);
+    const logs = parseEventLogs({ abi, eventName: "Transfer", logs: receipt.logs });
+    // Filtered by the emitting contract, always. On Arc one USDC movement writes
+    // a `Transfer` on the native view as well as on the ERC-20 one, so a sum
+    // over every log is right on Base and double on Arc.
+    const movedBy = (contract: string, from: string | undefined, to: string | undefined) =>
+      logs
+        .filter(
+          (log) =>
+            log.address.toLowerCase() === contract.toLowerCase() &&
+            (from === undefined || log.args.from.toLowerCase() === from.toLowerCase()) &&
+            (to === undefined || log.args.to.toLowerCase() === to.toLowerCase()),
+        )
+        .reduce((sum, log) => sum + log.args.value, 0n);
+
+    // Same-asset: the authorization *is* the settlement, payer to merchant.
+    // Cross-asset: the referenced transaction is the swap, so what proves the
+    // merchant was paid is the settlement token arriving at their address.
+    const delivered = crossAsset
+      ? movedBy(settlementToken, undefined, merchant)
+      : movedBy(token, payer.address, recipient);
+    const spent = crossAsset ? movedBy(token, recipient, undefined) : 0n;
     evidence.receipt = {
       hash: receipt.transactionHash,
       status: receipt.status,
       blockNumber: receipt.blockNumber.toString(),
       delivered: delivered.toString(),
+      ...(crossAsset ? { spent: spent.toString() } : {}),
       gasCostWei: gasCost.toString(),
     };
     await save();
     assert(paid.status === 200, `Paid resource failed: HTTP ${paid.status}; evidence at ${output}`);
+    const [invoiceRow] = (evidence.clearing ?? []) as readonly { settlement_amount: string }[];
+    // What the merchant was owed, from the lock rather than from the header —
+    // the header carries what moved, and the point is whether it matches.
+    const invoice = crossAsset ? BigInt(invoiceRow?.settlement_amount ?? "0") : amount;
     assert(
-      receipt.status === "success" && delivered === amount,
+      receipt.status === "success" && delivered === invoice,
       "Receipt does not prove the exact transfer",
     );
     assert(used, "Authorization was not consumed");
@@ -310,6 +416,27 @@ try {
           merchantBefore === nativeBefore[1] / nativeScale &&
           merchantAfter === nativeAfter[1] / nativeScale,
         "The ERC-20 view is not the native view scaled — two balances, not one",
+      );
+    } else if (crossAsset) {
+      // Three statements, and the third is the one this rail exists to keep
+      // honest: the payer is charged exactly what they signed for, the merchant
+      // receives exactly their invoice, and every unit the swap did not consume
+      // is still at the operator rather than quietly gone.
+      assert(payerBefore - payerAfter === amount, "The payer was not charged what they authorised");
+      assert(
+        merchantAfter - merchantBefore === invoice,
+        "The merchant did not receive their invoice exactly",
+      );
+      assert(
+        operatorAfter - operatorBefore === amount - spent,
+        "The operator's balance disagrees with what the swap consumed",
+      );
+      const surplus = (evidence.entries as readonly { account_code: string; amount: string }[])
+        .filter((entry) => entry.account_code === `PAYER_SURPLUS:${payWith}`)
+        .reduce((sum, entry) => sum + BigInt(entry.amount), 0n);
+      assert(
+        surplus === amount - spent,
+        `The payer's change is at the operator but not on the books: ${surplus} booked, ${amount - spent} held`,
       );
     } else {
       assert(
