@@ -238,6 +238,8 @@ packages/
       ✓ swap-uniswap/     UniswapSwapVenue + UniswapRouteSource — QuoterV2 read + exactOutputSingle
       ✓ swap-lifi/        LifiSwapVenue — LiFi quote, same-chain, price-only (no exact-output API)
       ✓ pyth/             PythPriceOracle — Hermes reference read for the deviation guard
+      ✓ fx/               FxRatesPriceOracle — the fiat leg no venue can price
+      ✓ coinbase/         CoinbasePriceOracle — public ticker, covers what Pyth's grant denies
       ✓ chainlink/        ChainlinkPriceOracle — AggregatorV3 reference read via viem
 
   ✓ db/                   Drizzle schema, repositories, in-memory adapters
