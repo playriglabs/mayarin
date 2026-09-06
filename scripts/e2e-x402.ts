@@ -377,7 +377,40 @@ try {
     await save();
     assert(settlement?.success, "PAYMENT-RESPONSE did not confirm success");
     assert(settlement.network === accepted.network, "Settlement reported the wrong chain");
-    const receipt = await client.getTransactionReceipt({ hash: settlement.transaction as Hex });
+
+    // `PAYMENT-RESPONSE` names the transaction the payer's signature produced,
+    // and on a cross-asset rail that is the authorization rather than the swap —
+    // coherently, since its `amount` is in the asset the payer paid. The
+    // transaction that pays the merchant is the swap, and the log is where the
+    // two are told apart.
+    const referenceOf = (type: string) =>
+      (
+        (evidence.settlementEvents ?? []) as readonly {
+          type: string;
+          payload: { providerReference?: string };
+        }[]
+      ).find((event) => event.type === type)?.payload?.providerReference;
+    const authorizationHash = referenceOf("settlement.broadcast") ?? settlement.transaction;
+    const swapHash = referenceOf("settlement.swap");
+    assert(
+      !crossAsset || swapHash !== undefined,
+      "A cross-asset payment recorded no settlement.swap event; nothing names the transaction that paid the merchant",
+    );
+    assert(
+      !crossAsset || authorizationHash === settlement.transaction,
+      "PAYMENT-RESPONSE names a transaction the log does not record as the authorization",
+    );
+    evidence.transactions = { authorization: authorizationHash, swap: swapHash };
+
+    // Both movements are read on a cross-asset run: the authorization is what
+    // charged the payer, and the swap is what paid the merchant. Checking one
+    // proves half a payment.
+    const receipt = await client.getTransactionReceipt({
+      hash: (crossAsset ? (swapHash as string) : settlement.transaction) as Hex,
+    });
+    const authorizationReceipt = crossAsset
+      ? await client.getTransactionReceipt({ hash: authorizationHash as Hex })
+      : receipt;
     const gasCost = receipt.gasUsed * receipt.effectiveGasPrice;
     const nativeAfter =
       nativeBefore === undefined
@@ -402,11 +435,19 @@ try {
       };
     }
     const logs = parseEventLogs({ abi, eventName: "Transfer", logs: receipt.logs });
+    const authorizationLogs = crossAsset
+      ? parseEventLogs({ abi, eventName: "Transfer", logs: authorizationReceipt.logs })
+      : logs;
     // Filtered by the emitting contract, always. On Arc one USDC movement writes
     // a `Transfer` on the native view as well as on the ERC-20 one, so a sum
     // over every log is right on Base and double on Arc.
-    const movedBy = (contract: string, from: string | undefined, to: string | undefined) =>
-      logs
+    const movedIn = (
+      source: typeof logs,
+      contract: string,
+      from: string | undefined,
+      to: string | undefined,
+    ) =>
+      source
         .filter(
           (log) =>
             log.address.toLowerCase() === contract.toLowerCase() &&
@@ -414,20 +455,32 @@ try {
             (to === undefined || log.args.to.toLowerCase() === to.toLowerCase()),
         )
         .reduce((sum, log) => sum + log.args.value, 0n);
+    const movedBy = (contract: string, from: string | undefined, to: string | undefined) =>
+      movedIn(logs, contract, from, to);
 
     // Same-asset: the authorization *is* the settlement, payer to merchant.
-    // Cross-asset: the referenced transaction is the swap, so what proves the
-    // merchant was paid is the settlement token arriving at their address.
+    // Cross-asset: the swap is what pays the merchant, so the proof is the
+    // settlement token arriving at their address — and separately the payer's
+    // asset reaching the operator, which is the half the authorization did.
     const delivered = crossAsset
       ? movedBy(settlementToken, undefined, merchant)
       : movedBy(token, payer.address, recipient);
     const spent = crossAsset ? movedBy(token, recipient, undefined) : 0n;
+    const authorised = crossAsset
+      ? movedIn(authorizationLogs, token, payer.address, recipient)
+      : 0n;
     evidence.receipt = {
       hash: receipt.transactionHash,
       status: receipt.status,
       blockNumber: receipt.blockNumber.toString(),
       delivered: delivered.toString(),
-      ...(crossAsset ? { spent: spent.toString() } : {}),
+      ...(crossAsset
+        ? {
+            spent: spent.toString(),
+            authorization: authorizationReceipt.transactionHash,
+            authorised: authorised.toString(),
+          }
+        : {}),
       gasCostWei: gasCost.toString(),
     };
     await save();
@@ -438,7 +491,11 @@ try {
     const invoice = crossAsset ? BigInt(invoiceRow?.settlement_amount ?? "0") : amount;
     assert(
       receipt.status === "success" && delivered === invoice,
-      "Receipt does not prove the exact transfer",
+      `The settlement receipt does not prove the merchant was paid: ${delivered} delivered against an invoice of ${invoice}`,
+    );
+    assert(
+      !crossAsset || (authorizationReceipt.status === "success" && authorised === amount),
+      `The authorization receipt does not prove the payer was charged: ${authorised} moved against an authorization of ${amount}`,
     );
     assert(used, "Authorization was not consumed");
     if (nativeBefore !== undefined && nativeAfter !== undefined && nativeScale !== undefined) {
