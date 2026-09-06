@@ -151,17 +151,20 @@ try {
   assert(header, "402 omitted PAYMENT-REQUIRED");
   const offeredAt = Math.floor(Date.now() / 1000);
   const offered = decodePaymentRequired(header);
-  const accepted = offered.accepts.find((rail) => rail.network === network);
-  assert(accepted, `The resource does not offer ${chain}`);
-  assert(accepted.scheme === "exact", "Expected the exact scheme");
-  assert(accepted.extra?.assetTransferMethod === "eip3009", "Expected EIP-3009");
   const configuredTokens: Record<string, Record<string, string>> = JSON.parse(
     required("CHAIN_ASSETS"),
   );
-  assert(
-    accepted.asset.toLowerCase() === configuredTokens[chain]?.[payWith]?.toLowerCase(),
-    `The resource asks for a token other than configured testnet ${payWith}`,
+  const wanted = configuredTokens[chain]?.[payWith];
+  assert(wanted, `CHAIN_ASSETS has no ${payWith} on ${chain}`);
+  // Chain *and* asset. A resource can offer several rails on one chain — Arc
+  // offers USDC and EURC — so matching the chain alone picks whichever was
+  // registered first and then fails comparing it to the asset asked for.
+  const accepted = offered.accepts.find(
+    (rail) => rail.network === network && rail.asset.toLowerCase() === wanted.toLowerCase(),
   );
+  assert(accepted, `The resource does not offer ${payWith} on ${chain}`);
+  assert(accepted.scheme === "exact", "Expected the exact scheme");
+  assert(accepted.extra?.assetTransferMethod === "eip3009", "Expected EIP-3009");
   const settlementToken = configuredTokens[chain]?.[settlesIn];
   assert(settlementToken, `CHAIN_ASSETS has no ${settlesIn} on ${chain}`);
   assert(accepted.payTo.toLowerCase() === payTo.toLowerCase(), "Unexpected payment recipient");
