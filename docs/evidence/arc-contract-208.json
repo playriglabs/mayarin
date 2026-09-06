@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-06",
+  "environment": "Local production container wiring, isolated Postgres, public Arc testnet",
+  "chain": "arc-testnet",
+  "chainId": 5042002,
+  "executionPath": "on-chain-contract",
+  "payer": "0xF3e42dAfE9715DDdD6569EE192041f872E4af287",
+  "merchant": "0x596a7fb9857ca6c008dae1ba8e0e44c0eb38c1f5",
+  "transaction": "0x461ba2fe1276832cae781d804f2cf7184ae5d246a22052fc55590e01700a758d",
+  "intent": "pi_01M1TNQT88FRYY5CV5EWAYQZCX",
+  "intentStatus": "COMPLETED",
+  "clearing": "clr_01M1TNQT8QTZE3C7XT6CK2AJZA",
+  "clearingState": "SUCCESS",
+  "indexer": { "recorded": 1, "confirmed": 1, "completed": 1, "unmatched": 0 },
+  "ledger": [
+    { "stage": "ASSET_RECEIVED", "asset": "USDC", "debit": "20000", "credit": "20000" },
+    { "stage": "CLEARING", "asset": "USDC", "debit": "19900", "credit": "19900" },
+    { "stage": "SETTLED", "asset": "USDC", "debit": "19900", "credit": "19900" }
+  ],
+  "limitations": ["Not a public API deployment test", "Not a Circle Agent Wallet payment"]
+}

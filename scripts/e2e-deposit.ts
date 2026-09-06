@@ -12,6 +12,7 @@
  * bun run e2e -- --asset ETH  --amount 0.10 --seed-merchant
  * bun run e2e -- --asset USDC --amount 5000 --currency IDR
  * bun run e2e -- --chain arc-testnet --asset USDC --amount 0.25
+ * bun run e2e -- --path on-chain-contract --chain arc-testnet --asset USDC --amount 0.02 --merchant mrc_…
  *
  * # pay a real merchant created by `bun run seed:merchant`
  * bun run e2e -- --merchant mrc_01K… --settlement-address 0x… --amount 0.25
@@ -56,12 +57,21 @@ import {
   merchants as merchantsTable,
   merchantWallets as merchantWalletsTable,
 } from "@mayarin/db/schema";
+import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
 import { assetDecimals, generateId, getAsset, isAssetCode, isMayarinError } from "@mayarin/shared";
 import { eq } from "drizzle-orm";
-import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  formatUnits,
+  http,
+  parseAbi,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { loadConfig } from "../apps/api/src/config.ts";
 import { createContainer } from "../apps/api/src/container.ts";
+import { runContractPayment } from "./e2e-contract.ts";
 
 /** The fixture `--seed-merchant` creates when no `--merchant` is named. */
 const FIXTURE_MERCHANT_ID = "ID1020017611473";
@@ -87,6 +97,16 @@ const asset = (arg("asset") ?? "USDC").toUpperCase();
 /** What the merchant prices in. `USD` is a peg to USDC; `IDR` is a real FX rate. */
 const currency = (arg("currency") ?? "USD").toUpperCase();
 const price = Number(arg("amount") ?? "0.25");
+const executionPath = arg("path") ?? "deposit-match";
+if (executionPath !== "deposit-match" && executionPath !== "on-chain-contract")
+  throw new Error("Unsupported --path");
+if (
+  executionPath === "on-chain-contract" &&
+  (arg("chain") !== "arc-testnet" || !arg("merchant") || arg("settlement-address"))
+)
+  throw new Error(
+    "Contract audit requires --chain arc-testnet and an existing --merchant, without changing its settlement address",
+  );
 const seedMerchant = process.argv.includes("--seed-merchant");
 const merchantId = arg("merchant") ?? FIXTURE_MERCHANT_ID;
 const settlementAddress = arg("settlement-address");
@@ -144,6 +164,8 @@ if (rpcUrl === undefined) {
 }
 
 const pub = createPublicClient({ transport: http(rpcUrl) });
+if (executionPath === "on-chain-contract" && (await pub.getChainId()) !== 5042002)
+  throw new Error("RPC is not Arc testnet");
 const head = await pub.getBlockNumber();
 
 const config = loadConfig({
@@ -215,17 +237,17 @@ async function payerBalance(): Promise<bigint> {
 console.log("=".repeat(70));
 const priceLabel =
   currency === "IDR" ? `Rp ${price.toLocaleString("id-ID")}` : `$${price.toFixed(2)}`;
-console.log(`Deposit path · ${chain} · merchant prices ${priceLabel} · payer sends ${asset}`);
+console.log(`${executionPath} · ${chain} · merchant prices ${priceLabel} · payer sends ${asset}`);
 console.log("=".repeat(70));
 console.log("payer     ", payer.address, show(await payerBalance()));
 // Not every chain pays gas in ETH — Arc's own currency is USDC — so the label
-// comes from CHAIN_NATIVE_ASSETS rather than from an assumption that was true
-// while every chain here was an Ethereum testnet.
-const nativeAsset = JSON.parse(process.env.CHAIN_NATIVE_ASSETS ?? "{}")[chain] ?? "native units";
+// comes from chain facts. CHAIN_NATIVE_ASSETS deliberately omits Arc because
+// payment balances use its six-decimal ERC-20 view, not its gas interface.
+const nativeCurrency = VIEM_CHAINS[chain].nativeCurrency;
 console.log(
   "operator  ",
   operator.address,
-  `${Number(await pub.getBalance({ address: operator.address })) / 1e18} ${nativeAsset} (gas)`,
+  `${formatUnits(await pub.getBalance({ address: operator.address }), nativeCurrency.decimals)} ${nativeCurrency.symbol} (gas)`,
 );
 
 // A merchant must exist and carry a settlement address, or `PRICE_LOCKED`
@@ -324,8 +346,12 @@ const intent = await container.intents.create({
   // Both are 2-decimal, so minor units are cents / sen.
   amount: { amount: BigInt(Math.round(price * 100)), asset: currency },
   source: { type: "manual" },
-  payment: { asset, chain },
-  executionPath: "deposit-match",
+  payment: {
+    asset,
+    chain,
+    ...(executionPath === "on-chain-contract" ? { payerAddress: payer.address } : {}),
+  },
+  executionPath,
   idempotencyKey: `e2e-${currency}-${asset}-${Date.now()}`,
 });
 const confirmed = await container.intents.confirm(intent.id);
@@ -336,6 +362,18 @@ console.log("\n1. intent       ", confirmed.id);
 // ---------------------------------------------------------------------------
 
 const locked = await container.engine.start(confirmed);
+if (executionPath === "on-chain-contract") {
+  await runContractPayment({
+    container,
+    config,
+    chain,
+    locked,
+    payer,
+    publicClient: pub,
+    walletClient: payerWallet,
+  });
+  process.exit(0);
+}
 const deposit = locked.deposit;
 if (deposit === undefined) {
   console.error("No deposit leg was locked — the rail did not produce an address.");

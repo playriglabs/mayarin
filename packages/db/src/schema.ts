@@ -50,6 +50,7 @@ export const paymentIntents = pgTable(
 
     paymentAsset: text("payment_asset"),
     paymentChain: text("payment_chain"),
+    payerAddress: text("payer_address"),
     // How the payment rail is executed. Null for a fiat-only intent.
     executionPath: text("execution_path"),
 

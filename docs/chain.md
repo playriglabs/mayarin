@@ -280,6 +280,9 @@ beside it asserts each viem `id` equals the `EVM_CHAIN_IDS` entry: viem
 broadcasts with its own id, so a typo there would send a transaction to the wrong
 network while every check against the domain table still passed.
 
+The [Arc audit](./arc.md) records native-decimal regression coverage and the
+payer-submitted contract-path evidence.
+
 ### Arc, and the first chains whose native asset is not ETH
 
 Arc and Hedera are the first chains here whose native asset is not ETH — USDC on

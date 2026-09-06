@@ -16,6 +16,7 @@ import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
 import { type AssetCode, type Money, money, ProviderError } from "@mayarin/shared";
 import type { WalletBalanceQuery, WalletBalanceReader } from "@mayarin/wallet";
 import { createPublicClient, getAddress, http, type PublicClient, parseAbi } from "viem";
+import { validateNativeAssets } from "./native-assets.ts";
 
 const ERC20_ABI = parseAbi(["function balanceOf(address account) view returns (uint256)"]);
 
@@ -32,6 +33,7 @@ export class EvmWalletBalanceReader implements WalletBalanceReader {
   readonly #clients = new Map<ChainId, PublicClient>();
 
   constructor(options: EvmWalletBalanceReaderOptions) {
+    validateNativeAssets(options.nativeAssets ?? {});
     this.#options = options;
   }
 

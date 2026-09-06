@@ -212,12 +212,17 @@ function toPaymentRail(row: Row): PaymentRail | undefined {
       chain: row.paymentChain,
     });
   }
-  return { asset: toAsset(row.paymentAsset), chain: row.paymentChain };
+  return {
+    asset: toAsset(row.paymentAsset),
+    chain: row.paymentChain,
+    ...present("payerAddress", row.payerAddress),
+  };
 }
 
 function paymentRailColumns(intent: PaymentIntent) {
   return {
     paymentAsset: intent.payment?.asset ?? null,
     paymentChain: intent.payment?.chain ?? null,
+    payerAddress: intent.payment?.payerAddress ?? null,
   };
 }

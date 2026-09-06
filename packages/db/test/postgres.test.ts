@@ -188,6 +188,9 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     });
     const loaded = await intents.getById(created.id);
     expect(loaded.executionPath).toBe("on-chain-contract");
+    expect(loaded.payment).toEqual(created.payment);
+    await intents.confirm(created.id);
+    expect((await intents.getById(created.id)).payment).toEqual(created.payment);
 
     const { transaction, event } = createClearingTransaction(loaded, clock.now());
     await clearingRepository.insert(transaction, [event]);

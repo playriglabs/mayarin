@@ -427,7 +427,9 @@ unverifiable against a live endpoint.
       chain and now gets every RPC the deployment has; `WalletService` still
       takes one chain, so the UI cannot ask for another yet.
 - [ ] Circle Agent Stack as the payer, spending under a Circle policy — including
-      the policy refusing an over-limit payment.
+      the policy refusing an over-limit payment. Circle documents policies as
+      mainnet-only; the Arc testnet policy demonstration remains blocked. See
+      [the Arc audit](docs/arc.md) for sources and the existing CLI path.
 - [ ] Architecture diagram, video, documentation, repo.
 
 #### Deployed on Arc
@@ -645,7 +647,7 @@ to Pages.
       20000 USDC to the merchant, and the 143 EURC the pool did not need was
       credited to `PAYER_SURPLUS`. Intent `COMPLETED`, clearing `SUCCESS`, fee
       zero, treasury netting to zero. `bun run scripts/e2e-x402.ts --pay-with
-  EURC` is the repeatable form.
+EURC` is the repeatable form.
 - [x] `FEEDBACK.md` and the README pointing at the contracts and lines to read.
 - [ ] Resume a cross-asset payment interrupted between its two chain movements.
       `recoverBroadcasts` skips them today rather than confirming one wrongly.

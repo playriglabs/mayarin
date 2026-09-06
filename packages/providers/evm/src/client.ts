@@ -22,6 +22,7 @@ import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
 import { type AssetCode, ConfigurationError, ProviderError } from "@mayarin/shared";
 import { createPublicClient, getAddress, http, type PublicClient, parseAbiItem } from "viem";
 import { shortReason } from "./errors.ts";
+import { validateNativeAssets } from "./native-assets.ts";
 
 const TRANSFER_EVENT = parseAbiItem(
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -88,6 +89,7 @@ export class EvmChainClient implements ChainClient {
   readonly #clients = new Map<ChainId, PublicClient>();
 
   constructor(options: EvmChainClientOptions) {
+    validateNativeAssets(options.nativeAssets ?? {});
     this.#rpcUrls = options.rpcUrls;
     this.#tokens = options.tokens;
     this.#nativeAssets = options.nativeAssets ?? {};
