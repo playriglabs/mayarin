@@ -418,6 +418,9 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     // Tests that register a rail bring their own probe.
     capabilities: new AssetCapabilities({ pairs: [], probes: [] }),
     tokens: config.chainAssets,
+    // No payment API in the harness, and the safe answer to "can this
+    // deployment swap?" is no.
+    crossAssetOperator: async () => undefined,
   });
 
   const container: Container = {

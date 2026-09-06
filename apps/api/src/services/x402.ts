@@ -425,6 +425,18 @@ export class X402Service {
    * All three or none: pricing the rail, holding the payer's asset and swapping
    * it are one capability, and a deployment missing any of them cannot offer it.
    */
+  /**
+   * The address a cross-asset rail must pay, when this deployment can serve one.
+   *
+   * Public: it is already advertised inside every cross-asset `402`, so a
+   * caller learning it here learns nothing a payer is not told. Exposed because
+   * a dashboard offering the rail has to name the same address registration
+   * will insist on.
+   */
+  crossAssetOperator(): string | undefined {
+    return this.#crossAssetOperator();
+  }
+
   #crossAssetOperator(): string | undefined {
     if (this.#options.quote === undefined || this.#options.crossAssetSettler === undefined) {
       return undefined;

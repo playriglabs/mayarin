@@ -9,12 +9,14 @@
  * where the merchant already has a verified wallet, and `payTo` is filled from
  * it.
  *
- * **Same-asset only.** A cross-asset rail pays the operator, not the merchant,
- * and is only payable where this deployment also has a quote engine and a
- * settler. Those live in the payment API; offering the choice here would mean
- * either duplicating that judgement or letting a merchant register a rail no
- * payer could pay. Cross-asset registration stays on the payment API's own
- * merchant route, which owns both.
+ * A cross-asset rail — the agent holds EURC, the merchant settles in USDC — is
+ * offered too, and it pays the **operator** rather than the merchant. That is
+ * forced, not chosen: `transferWithAuthorization` names one recipient before
+ * the payer signs, and the payer's asset has to land somewhere Mayarin can swap
+ * it from. Whether this deployment can serve one at all, and at which address,
+ * is the payment API's answer rather than a guess made here — a rail pointed at
+ * the wrong operator is refused at registration, which is the good failure, but
+ * only because someone asked.
  */
 
 import type { MerchantRepository } from "@mayarin/auth";
@@ -29,8 +31,20 @@ export interface RailOption {
   readonly chain: ChainId;
   readonly asset: AssetCode;
   readonly contract: string;
-  /** Where this rail would pay: the merchant's own verified address. */
+  /** Where this rail pays: the merchant for same-asset, the operator otherwise. */
   readonly payTo: string;
+  /**
+   * `cross-asset` means the agent pays this asset and the merchant is still
+   * paid their own — worth saying in the form, because the address shown is
+   * deliberately not the merchant's.
+   */
+  readonly kind: "same-asset" | "cross-asset";
+}
+
+/** One offered rail, named the way a caller picks it: chain plus asset. */
+export interface RailChoice {
+  readonly chain: ChainId;
+  readonly asset: AssetCode;
 }
 
 export interface CreateResourceInput {
@@ -41,7 +55,7 @@ export interface CreateResourceInput {
   readonly price: Money;
   readonly maxTimeoutSeconds: number;
   /** Which of the offered rails to register. Anything else is refused. */
-  readonly chains: readonly ChainId[];
+  readonly rails: readonly RailChoice[];
 }
 
 export interface X402ResourceServiceOptions {
@@ -49,6 +63,12 @@ export interface X402ResourceServiceOptions {
   readonly merchants: MerchantRepository;
   readonly wallets: MerchantWalletRepository;
   readonly capabilities: AssetCapabilities;
+  /**
+   * Where a cross-asset rail pays, or `undefined` when this deployment cannot
+   * serve one. Asked of the payment API, which owns the quote engine and the
+   * settler that decide it.
+   */
+  readonly crossAssetOperator: () => Promise<string | undefined>;
   /** The ERC-20 address per chain and asset, as this deployment is configured. */
   readonly tokens: Partial<Record<ChainId, Partial<Record<AssetCode, string>>>>;
 }
@@ -75,39 +95,49 @@ export class X402ResourceService {
     const merchant = await this.#merchant(scope);
     const settlementAsset = merchant.settlementAsset;
     const wallets = await this.#options.wallets.listByMerchant(scope.merchantId);
+    const operator = await this.#options.crossAssetOperator();
     const options: RailOption[] = [];
 
     for (const [chain, assets] of Object.entries(this.#options.tokens) as [
       ChainId,
       Partial<Record<AssetCode, string>>,
     ][]) {
-      const contract = assets[settlementAsset];
-      if (contract === undefined) continue;
       // The merchant's configured address wins, the way the signer reads it;
       // otherwise their verified wallet on this chain. An unverified wallet is
       // a claim, and a claim is not somewhere to send money.
       const verified = wallets.find(
         (wallet) => wallet.chain === chain && wallet.verifiedAt !== undefined,
       );
-      const payTo = merchant.settlementAddress ?? verified?.address;
-      if (payTo === undefined) continue;
-      options.push({ chain, asset: settlementAsset, contract, payTo });
+      const settleTo = merchant.settlementAddress ?? verified?.address;
+      // Nowhere to be paid on this chain: neither rail can be offered, because
+      // a cross-asset one still ends with the merchant paid here.
+      if (settleTo === undefined) continue;
+
+      for (const [asset, contract] of Object.entries(assets) as [AssetCode, string][]) {
+        if (asset === settlementAsset) {
+          options.push({ chain, asset, contract, payTo: settleTo, kind: "same-asset" });
+        } else if (operator !== undefined) {
+          options.push({ chain, asset, contract, payTo: operator, kind: "cross-asset" });
+        }
+      }
     }
 
     return options;
   }
 
   async create(scope: Scope, input: CreateResourceInput): Promise<X402Resource> {
-    if (input.chains.length === 0) {
-      throw new ValidationError("Choose at least one chain to be paid on", {});
+    if (input.rails.length === 0) {
+      throw new ValidationError("Choose at least one rail to be paid over", {});
     }
     const offered = await this.rails(scope);
-    const chosen = input.chains.map((chain) => {
-      const rail = offered.find((option) => option.chain === chain);
+    const chosen = input.rails.map((choice) => {
+      const rail = offered.find(
+        (option) => option.chain === choice.chain && option.asset === choice.asset,
+      );
       if (rail === undefined) {
         throw new ValidationError(
-          `This merchant cannot be paid on ${chain}: link and verify a wallet there first`,
-          { chain },
+          `This merchant cannot take ${choice.asset} on ${choice.chain}: verify a wallet there, and check the asset is configured`,
+          { chain: choice.chain, asset: choice.asset },
         );
       }
       return rail;

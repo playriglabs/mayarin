@@ -14,6 +14,8 @@ const SCOPE = { merchantId: MERCHANT_ID } as Scope;
 const ARC_USDC = "0x3600000000000000000000000000000000000000";
 const BASE_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const OWN_WALLET = "0x596a7fb9857ca6c008dae1ba8e0e44c0eb38c1f5";
+const OPERATOR = "0x616e2B9Bc83D60790E70CbaAc6c8612AFc6A7896";
+const ARC_EURC = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 
 function merchant(overrides: Partial<Merchant> = {}): Merchant {
   return {
@@ -44,7 +46,7 @@ function wallet(overrides: Record<string, unknown> = {}): MerchantWallet {
 async function serviceWith(options: {
   merchant?: Merchant;
   wallets?: readonly MerchantWallet[];
-  probed?: number[];
+  operator?: string;
 }) {
   const merchants = new InMemoryMerchantRepository();
   await merchants.insert(options.merchant ?? merchant());
@@ -70,8 +72,9 @@ async function serviceWith(options: {
     merchants,
     wallets,
     capabilities: new AssetCapabilities({ pairs: [], probes }),
+    crossAssetOperator: async () => options.operator,
     tokens: {
-      "arc-testnet": { USDC: ARC_USDC, EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" },
+      "arc-testnet": { USDC: ARC_USDC, EURC: ARC_EURC },
       "base-sepolia": { USDC: BASE_USDC },
     },
   });
@@ -91,11 +94,34 @@ describe("rails", () => {
 
     const rails = await service.rails(SCOPE);
 
-    // EURC is configured on Arc and is not offered: this merchant settles in
-    // USDC, and a EURC rail would pay the operator rather than them.
+    // EURC is configured on Arc, and without an operator this deployment cannot
+    // swap it, so offering it would be a rail no payer could pay.
     expect(rails).toEqual([
-      { chain: "arc-testnet", asset: "USDC", contract: ARC_USDC, payTo: OWN_WALLET },
+      {
+        chain: "arc-testnet",
+        asset: "USDC",
+        contract: ARC_USDC,
+        payTo: OWN_WALLET,
+        kind: "same-asset",
+      },
     ]);
+  });
+
+  // The agent holds EURC and the merchant still settles USDC, so the rail pays
+  // the operator — the one address in this form that is deliberately not the
+  // merchant's.
+  test("offers a cross-asset rail once the deployment can swap", async () => {
+    const { service } = await serviceWith({ operator: OPERATOR });
+
+    const rails = await service.rails(SCOPE);
+
+    expect(rails).toContainEqual({
+      chain: "arc-testnet",
+      asset: "EURC",
+      contract: ARC_EURC,
+      payTo: OPERATOR,
+      kind: "cross-asset",
+    });
   });
 
   test("offers nothing on a chain where the wallet is unverified", async () => {
@@ -122,7 +148,7 @@ describe("rails", () => {
 describe("remove", () => {
   test("forgets the merchant's own endpoint", async () => {
     const { service, resources } = await serviceWith({});
-    await service.create(SCOPE, { ...input, chains: ["arc-testnet"] });
+    await service.create(SCOPE, { ...input, rails: [{ chain: "arc-testnet", asset: "USDC" }] });
 
     await service.remove(SCOPE, "fx-quote");
 
@@ -151,7 +177,10 @@ describe("create", () => {
   test("fills payTo from the merchant's own wallet and the domain from the token", async () => {
     const { service, resources } = await serviceWith({});
 
-    const resource = await service.create(SCOPE, { ...input, chains: ["arc-testnet"] });
+    const resource = await service.create(SCOPE, {
+      ...input,
+      rails: [{ chain: "arc-testnet", asset: "USDC" }],
+    });
 
     expect(resource.accepts).toEqual([
       {
@@ -171,9 +200,9 @@ describe("create", () => {
   test("refuses a chain the merchant cannot be paid on", async () => {
     const { service } = await serviceWith({});
 
-    await expect(service.create(SCOPE, { ...input, chains: ["base-sepolia"] })).rejects.toThrow(
-      /link and verify a wallet/,
-    );
+    await expect(
+      service.create(SCOPE, { ...input, rails: [{ chain: "base-sepolia", asset: "USDC" }] }),
+    ).rejects.toThrow(/verify a wallet there/);
   });
 
   test("refuses an id already registered by another merchant", async () => {
@@ -187,16 +216,16 @@ describe("create", () => {
       accepts: [],
     });
 
-    await expect(service.create(SCOPE, { ...input, chains: ["arc-testnet"] })).rejects.toThrow(
-      /is taken/,
-    );
+    await expect(
+      service.create(SCOPE, { ...input, rails: [{ chain: "arc-testnet", asset: "USDC" }] }),
+    ).rejects.toThrow(/is taken/);
   });
 
   test("refuses a resource offering no rail at all", async () => {
     const { service } = await serviceWith({});
 
-    await expect(service.create(SCOPE, { ...input, chains: [] })).rejects.toThrow(
-      /at least one chain/,
+    await expect(service.create(SCOPE, { ...input, rails: [] })).rejects.toThrow(
+      /at least one rail/,
     );
   });
 });

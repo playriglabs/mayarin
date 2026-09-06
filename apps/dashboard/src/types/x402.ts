@@ -7,11 +7,12 @@ export interface X402RailOption {
   readonly chain: string;
   readonly asset: string;
   readonly contract: string;
-  /** The merchant's own verified address. Shown, never typed. */
+  /** Merchant's own verified address, or the operator on a cross-asset rail. */
   readonly payTo: string;
+  readonly kind: "same-asset" | "cross-asset";
 }
 
-export interface X402Accept extends X402RailOption {
+export interface X402Accept extends Omit<X402RailOption, "kind"> {
   /** What the token implements, read off the contract at registration. */
   readonly transferMethod: string;
   readonly domain: { readonly name: string; readonly version: string };
@@ -42,7 +43,7 @@ export interface CreateX402ResourceRequest {
   readonly mimeType?: string;
   readonly price: { readonly amount: string; readonly asset: string };
   readonly maxTimeoutSeconds: number;
-  readonly chains: readonly string[];
+  readonly rails: readonly { readonly chain: string; readonly asset: string }[];
 }
 
 export interface X402ResourceResponse {

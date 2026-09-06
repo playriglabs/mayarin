@@ -76,7 +76,7 @@ import { ApiError } from "@/lib/api/client";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
-import type { X402ResourceDto } from "@/types/x402";
+import type { X402RailOption, X402ResourceDto } from "@/types/x402";
 
 function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load agent endpoints";
@@ -91,6 +91,9 @@ function reasonOf(error: unknown): string {
  */
 const DOCS_URL = "https://docs.mayarin.xyz";
 
+/** One rail's identity in the form: a chain offers more than one. */
+const keyOf = (rail: X402RailOption) => `${rail.chain}:${rail.asset}`;
+
 function X402Resources() {
   const resources = useX402Resources();
   const rails = useX402Rails();
@@ -102,21 +105,26 @@ function X402Resources() {
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [chains, setChains] = useState<Set<string>>(new Set());
+  // Keyed `chain:asset`, because one chain can offer two rails — the merchant's
+  // own asset, and one Mayarin swaps into it.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [failure, setFailure] = useState("");
   const [guide, setGuide] = useState<X402ResourceDto | null>(null);
   const [pendingRemove, setPendingRemove] = useState<X402ResourceDto | null>(null);
 
   const offered = rails.data?.rails ?? [];
+  // What the merchant is paid in, read off their own same-asset rail rather
+  // than configured twice: every rail on offer settles to it.
+  const settlementAsset = offered.find((rail) => rail.kind === "same-asset")?.asset ?? "your asset";
   const rows = resources.data?.resources ?? [];
   const canCreate =
-    id.trim() !== "" && url.trim() !== "" && amount.trim() !== "" && chains.size > 0;
+    id.trim() !== "" && url.trim() !== "" && amount.trim() !== "" && selected.size > 0;
 
-  const toggleChain = (chain: string) => {
-    setChains((current) => {
+  const toggleRail = (key: string) => {
+    setSelected((current) => {
       const next = new Set(current);
-      if (next.has(chain)) next.delete(chain);
-      else next.add(chain);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
     setFailure("");
@@ -130,7 +138,7 @@ function X402Resources() {
     setAmount("");
     // One rail is the common case, and pre-selecting the only one there is
     // saves a click without ever choosing between two.
-    setChains(new Set(offered.length === 1 ? offered.map((rail) => rail.chain) : []));
+    setSelected(new Set(offered.length === 1 ? offered.map(keyOf) : []));
     setCreating(true);
   };
 
@@ -145,7 +153,10 @@ function X402Resources() {
         // time, not stored here.
         price: { amount: amount.trim(), asset: "USD" },
         maxTimeoutSeconds: 60,
-        chains: [...chains],
+        rails: [...selected].map((key) => {
+          const [chain = "", asset = ""] = key.split(":");
+          return { chain, asset };
+        }),
       });
       setCreating(false);
       // Registering prices the endpoint; it does not make the merchant's own
@@ -352,48 +363,71 @@ function X402Resources() {
             <FieldSet>
               <FieldLegend className="mb-1">Paid on</FieldLegend>
               <FieldDescription className="mb-3">
-                Your verified addresses. Choose one or more networks an agent may pay over.
+                Choose one or more rails an agent may pay over. A rail in another asset is still
+                settled to you in {settlementAsset} — Mayarin swaps it, so that one pays Mayarin
+                first rather than you.
               </FieldDescription>
-              <div className="flex flex-col gap-2">
-                {offered.map((rail) => {
-                  const inputId = `x402-rail-${rail.chain}`;
-                  const selected = chains.has(rail.chain);
-                  return (
-                    <Label
-                      key={rail.chain}
-                      htmlFor={inputId}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-3 border p-3 transition-colors",
-                        selected
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-subtle-foreground",
-                      )}
-                    >
-                      <Checkbox
-                        id={inputId}
-                        checked={selected}
-                        onCheckedChange={() => toggleChain(rail.chain)}
-                        disabled={create.isPending}
-                      />
-                      {/* min-w-0 so the address truncates instead of pushing the
-                          row wider than the dialog — a 42-character hex string
-                          is longer than any sensible modal. */}
-                      <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="flex items-center gap-2 text-foreground text-sm">
-                          <ChainLabel chain={rail.chain} />
-                          <Badge variant="default">{rail.asset}</Badge>
+              {/* Capped and scrolled: a deployment with several chains and two
+                  assets each pushes the buttons off the screen, and a form whose
+                  submit is below the fold reads as broken rather than as long.
+                  The fade is the affordance — a cut-off row alone is ambiguous. */}
+              <div className="relative">
+                <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+                  {offered.map((rail) => {
+                    const key = keyOf(rail);
+                    const inputId = `x402-rail-${key.replace(":", "-")}`;
+                    const picked = selected.has(key);
+                    const cross = rail.kind === "cross-asset";
+                    return (
+                      <Label
+                        key={key}
+                        htmlFor={inputId}
+                        className={cn(
+                          "flex cursor-pointer items-center gap-3 border p-3 transition-colors",
+                          picked
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-subtle-foreground",
+                        )}
+                      >
+                        <Checkbox
+                          id={inputId}
+                          checked={picked}
+                          onCheckedChange={() => toggleRail(key)}
+                          disabled={create.isPending}
+                        />
+                        {/* min-w-0 so the address truncates instead of pushing the
+                            row wider than the dialog — a 42-character hex string
+                            is longer than any sensible modal. */}
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="flex flex-wrap items-center gap-2 text-foreground text-sm">
+                            <ChainLabel chain={rail.chain} />
+                            <Badge variant="default">{rail.asset}</Badge>
+                            {cross && <Badge variant="warning">swapped to {settlementAsset}</Badge>}
+                          </span>
+                          <span
+                            className="truncate font-mono text-subtle-foreground text-xs"
+                            title={rail.payTo}
+                          >
+                            {cross ? "Mayarin operator · " : ""}
+                            {rail.payTo}
+                          </span>
                         </span>
-                        <span
-                          className="truncate font-mono text-subtle-foreground text-xs"
-                          title={rail.payTo}
-                        >
-                          {rail.payTo}
-                        </span>
-                      </span>
-                    </Label>
-                  );
-                })}
+                      </Label>
+                    );
+                  })}
+                </div>
+                {offered.length > 3 && (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-popover to-transparent"
+                  />
+                )}
               </div>
+              {offered.length > 3 && (
+                <FieldDescription className="mt-2">
+                  {offered.length} rails available — scroll for the rest.
+                </FieldDescription>
+              )}
             </FieldSet>
           </div>
 

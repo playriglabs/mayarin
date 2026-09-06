@@ -495,6 +495,7 @@ export function createContainer(options: CreateContainerOptions): Container {
       ),
     }),
     tokens: config.chainAssets,
+    crossAssetOperator: () => crossAssetOperator(config),
   });
 
   const rails = new DerivedRailCatalog({
@@ -552,6 +553,33 @@ export function createContainer(options: CreateContainerOptions): Container {
  * their own settlement address has a balance worth showing whether or not this
  * deployment can provision wallets.
  */
+/**
+ * Where a cross-asset rail pays, as the payment API reports it.
+ *
+ * Read rather than derived: the operator address belongs to the deployment that
+ * holds the key and runs the swap, and a second opinion here would be a second
+ * thing to keep in step — one that, when it drifted, would offer a merchant a
+ * rail their own registration then refuses. A deployment with no quote layer
+ * answers that it cannot serve one, and an unreachable payment API is treated
+ * as the same answer: declining to offer a rail is always safe.
+ */
+async function crossAssetOperator(config: Config): Promise<string | undefined> {
+  try {
+    const response = await fetch(`${config.paymentApiUrl}/x402/cross-asset`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) return undefined;
+    const body: unknown = await response.json();
+    const operator =
+      typeof body === "object" && body !== null && "operator" in body
+        ? (body as { operator: unknown }).operator
+        : undefined;
+    return typeof operator === "string" ? operator : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function createBalanceReader(config: Config): WalletBalanceReader | undefined {
   // Every chain this deployment can reach, not just the one it provisions on
   // by default — a merchant paid on two chains has a balance on each, and the

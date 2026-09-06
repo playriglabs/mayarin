@@ -179,6 +179,23 @@ export function x402Routes(container: Container): Hono<X402Env> {
   });
 
   /**
+   * Whether this deployment can serve a cross-asset rail, and where one pays.
+   *
+   * Public for the same reason the price is: the operator address is already
+   * inside every cross-asset `402`. A merchant surface offering the rail has to
+   * name the address registration will insist on, and guessing it wrong is a
+   * rail that refuses at creation rather than a rail that pays the wrong place.
+   */
+  app.get("/cross-asset", async (c) => {
+    const service = requireX402(container);
+    const operator = service.crossAssetOperator();
+    return c.json({
+      enabled: operator !== undefined,
+      ...(operator === undefined ? {} : { operator }),
+    });
+  });
+
+  /**
    * The `PaymentRequired` for one resource, without asking for it.
    *
    * Not part of the specification — an agent normally learns the price from a

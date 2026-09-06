@@ -32,7 +32,7 @@ const createBodySchema = z
     mimeType: z.string().min(1).max(100).optional(),
     price: z.object({ amount: z.string().min(1), asset: assetCodeSchema }),
     maxTimeoutSeconds: z.number().int().positive().max(3_600),
-    chains: z.array(z.enum(CHAIN_IDS)).min(1),
+    rails: z.array(z.object({ chain: z.enum(CHAIN_IDS), asset: assetCodeSchema }).strict()).min(1),
   })
   .strict();
 
@@ -84,7 +84,7 @@ export function x402ResourceRoutes(container: Container): Hono<{ Variables: Auth
       ...(body.mimeType === undefined ? {} : { mimeType: body.mimeType }),
       price: fromDecimalString(body.price.amount, body.price.asset),
       maxTimeoutSeconds: body.maxTimeoutSeconds,
-      chains: body.chains,
+      rails: body.rails,
     });
     return c.json({ resource: toResourceDto(resource) }, 201);
   });
