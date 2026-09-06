@@ -3,9 +3,9 @@
  *
  * A facilitator verifies an authorization and broadcasts it. Two kinds exist
  * and the port has to fit both: one Mayarin runs itself against its own
- * treasury, and one belonging to somebody else — Blocky402 on Hedera, say. The
- * second is why this is a port at all. A single hard-coded local settler would
- * have made the remote case a rewrite rather than an adapter.
+ * treasury, and one belonging to somebody else on a chain we hold no key for.
+ * The second is why this is a port at all. A single hard-coded local settler
+ * would have made the remote case a rewrite rather than an adapter.
  *
  * The important part of this file is not the interface. It is
  * `confirmSettlement`: **a facilitator's `success: true` is a claim, not a
@@ -25,11 +25,11 @@ import type {
 } from "./types.ts";
 
 export interface X402Facilitator {
-  /** Configuration and logs refer to a facilitator by this ("local", "blocky402"). */
+  /** Configuration and logs refer to a facilitator by this ("local", say). */
   readonly name: string;
   /**
    * Whether this facilitator can serve these requirements. Both the network and
-   * the scheme matter: a facilitator configured for Hedera cannot settle a Base
+   * the scheme matter: a facilitator configured for Arc cannot settle a Base
    * authorization, and one that speaks `exact` cannot settle `upto`.
    */
   supports(requirements: PaymentRequirements): boolean;

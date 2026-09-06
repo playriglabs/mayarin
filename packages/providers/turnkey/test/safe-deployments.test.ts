@@ -22,7 +22,7 @@ describe("Safe deployments", () => {
   test("refuses a chain nobody has read the addresses off", () => {
     // Falling back to another chain's table would deploy a wallet at an address
     // nobody predicted, because the salt already carries the chain.
-    expect(() => safeDeploymentFor("hedera-testnet")).toThrow(/No verified Safe deployment/);
+    expect(() => safeDeploymentFor("robinhood-testnet")).toThrow(/No verified Safe deployment/);
   });
 
   test("only names chains it can actually serve", () => {

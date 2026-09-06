@@ -3,7 +3,7 @@
  * `PaymentRequired` is built from it.
  *
  * A resource is priced once, in the merchant's own currency, and offers one or
- * more ways to pay it — USDC on Arc, USDC on Hedera, whatever the deployment
+ * more ways to pay it — USDC on Arc, EURC on Base, whatever the deployment
  * has facilitators for. The payer picks. That is the whole shape: fiat pricing
  * in, stablecoin settlement out, which is the same thing Mayarin already does
  * for a checkout, wearing an HTTP header instead of a page.

@@ -44,11 +44,11 @@ function confirmerWithMatchingTransfer(): FakeSettlementConfirmer {
 describe("facilitatorRegistry", () => {
   test("resolves the facilitator that claims the network", () => {
     const base = new FakeFacilitator({ name: "local", networks: ["eip155:84532"] });
-    const hedera = new FakeFacilitator({ name: "blocky402", networks: ["eip155:296"] });
-    const registry = facilitatorRegistry([base, hedera]);
+    const arc = new FakeFacilitator({ name: "remote", networks: ["eip155:5042002"] });
+    const registry = facilitatorRegistry([base, arc]);
 
     expect(registry.for(EXAMPLE_REQUIREMENTS).name).toBe("local");
-    expect(registry.for(withRequirements({ network: "eip155:296" })).name).toBe("blocky402");
+    expect(registry.for(withRequirements({ network: "eip155:5042002" })).name).toBe("remote");
   });
 
   // A resource offering a network nothing can settle would otherwise fail at
