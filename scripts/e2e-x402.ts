@@ -10,14 +10,25 @@
  * **Cross-asset** (#211), where the agent holds one asset and the merchant is
  * paid another:
  *
- * bun run scripts/e2e-x402.ts --pay-with EURC --pay-to <operator> --merchant 0x…
+ * bun run scripts/e2e-x402.ts --pay-with EURC
  *
- * `--pay-to` is then the **operator**, not the merchant: the payer's asset has
- * to land somewhere Mayarin can swap it from, and `transferWithAuthorization`
- * names one recipient chosen before the payer signs. `--merchant` is where the
- * swap delivers, and the run checks three balances rather than two — the payer
- * loses exactly what they authorised, the merchant gains exactly the invoice,
- * and the operator keeps the difference as the payer's booked surplus.
+ * No addresses: the rail advertises the **operator**, which is derived from
+ * `OPERATOR_PRIVATE_KEY`, and where the merchant is paid is read out of the
+ * database the way the signer reads it — their configured address first, then
+ * their verified managed wallet on this chain. `--pay-to` and `--merchant`
+ * override either, for a run against a deployment whose keys are not local.
+ *
+ * The payer's asset has to land somewhere Mayarin can swap it from, and
+ * `transferWithAuthorization` names one recipient chosen before the payer
+ * signs — which is why the operator is the recipient rather than the merchant.
+ * The run then checks three balances rather than two: the payer loses exactly
+ * what they authorised, the merchant gains exactly the invoice, and the
+ * operator keeps the difference as the payer's booked surplus.
+ *
+ * **`PAYER_PRIVATE_KEY` and `OPERATOR_PRIVATE_KEY` must be different keys.**
+ * The claim being tested is that Mayarin never holds the payer's, and one key
+ * playing both parts tests nothing — a self-transfer moves no money and the
+ * balance arithmetic has nothing to say.
  *
  * ## Running it against a local API
  *
@@ -80,20 +91,22 @@ const network = caip2Of(chain);
 // (6) are one balance, so the payment and the gas come out of the same number.
 const nativeMirrorsAsset: readonly ChainId[] = ["arc-testnet"];
 const mirrored = nativeMirrorsAsset.includes(chain);
-const payTo = argument("pay-to");
-assert(
-  payTo && /^0x[0-9a-f]{40}$/i.test(payTo),
-  "Pass the address the rail advertises as --pay-to (the merchant, or the operator when --pay-with is set)",
-);
-const settlesIn = argument("settles-in") ?? "USDC";
+const settlesIn = argument("settles-in") ?? process.env.SETTLEMENT_ASSET ?? "USDC";
 const payWith = argument("pay-with") ?? settlesIn;
 const crossAsset = payWith !== settlesIn;
-const merchantAddress = argument("merchant") ?? payTo;
-assert(/^0x[0-9a-f]{40}$/i.test(merchantAddress), "Pass where the merchant is paid as --merchant");
+// A cross-asset rail advertises the operator, and the operator is whoever holds
+// the key this deployment signs with — so it is derived rather than typed. An
+// address wrong there sends the payer's asset somewhere nothing can swap it
+// from, and an authorization cannot be taken back.
+const payTo =
+  argument("pay-to") ??
+  (crossAsset ? privateKeyToAccount(required("OPERATOR_PRIVATE_KEY") as Hex).address : undefined);
 assert(
-  !crossAsset || merchantAddress.toLowerCase() !== payTo.toLowerCase(),
-  "A cross-asset rail pays the operator, so --merchant must differ from --pay-to",
+  payTo && /^0x[0-9a-f]{40}$/i.test(payTo),
+  "Pass the address the rail advertises as --pay-to — the merchant on a same-asset rail, derived from OPERATOR_PRIVATE_KEY on a cross-asset one",
 );
+/** Overrides the address the deployment would pay this merchant at, if given. */
+const merchantOverride = argument("merchant");
 const output = argument("output") ?? "/tmp/mayarin-x402-evidence.json";
 const rpcUrls: Record<string, string> = JSON.parse(required("CHAIN_RPC_URLS"));
 const rpc = rpcUrls[chain];
@@ -161,6 +174,34 @@ try {
       functionName: "balanceOf",
       args: [address],
     });
+  // Where this deployment would pay the merchant, read the way the signer reads
+  // it: the merchant's configured address first, then their verified managed
+  // wallet on this chain. Looked up rather than passed, because a run checking
+  // a balance at an address the code would never pay proves nothing.
+  const resolved = crossAsset
+    ? await sql`
+        select coalesce(m.settlement_address, w.address) as address
+        from x402_resources r
+        join merchants m on m.id = r.merchant_id
+        left join merchant_wallets w
+          on w.merchant_id = m.id and w.chain = ${chain}
+          and w.provenance = 'managed' and w.verified_at is not null
+        where r.url = ${offered.resource.url}
+        limit 1`
+    : [];
+  const merchantAddress = merchantOverride ?? (resolved[0]?.address as string | undefined) ?? payTo;
+  assert(
+    !crossAsset || /^0x[0-9a-f]{40}$/i.test(merchantAddress),
+    `The merchant behind ${offered.resource.url} has no settlement address on ${chain}; set one, provision a wallet, or pass --merchant`,
+  );
+  assert(
+    !crossAsset || merchantAddress.toLowerCase() !== payTo.toLowerCase(),
+    "A cross-asset rail pays the operator, so the merchant's address must differ from it",
+  );
+  assert(
+    !crossAsset || merchantAddress.toLowerCase() !== payer.address.toLowerCase(),
+    "The payer cannot also be the merchant: nothing would move",
+  );
   const merchant = merchantAddress as Address;
   // Three balances on a cross-asset run, not two. `recipient` is the operator
   // there — what it keeps is the payer's change, and checking only the payer
