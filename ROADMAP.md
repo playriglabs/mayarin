@@ -547,22 +547,23 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
       chain and now gets every RPC the deployment has; `WalletService` still
       takes one chain, so the UI cannot ask for another yet.
 - [ ] Circle Agent Stack as the payer, spending under a Circle policy — including
-      the policy refusing an over-limit payment. **The payer half is code**, and
-      an agent wallet is a **contract account**, not a key: its address is
+      the policy refusing an over-limit payment. **The payer half is done and
+      paid for**: a Circle agent wallet paid the gated endpoint on Arc testnet,
+      6 September —
+      [`0xe1d37298…`](https://testnet.arcscan.app/tx/0xe1d3729806ea2621f723388550ea88d0b0a07beb518b287f3fdc82fed287fa08),
+      intent `pi_01M1V97XNGWB8BPJB5GHPEY3EW` `COMPLETED`, clearing
+      `clr_01M1V97XPVFXW0FNQRBAJP3TXF` `SUCCESS`, three balanced postings of
+      20000 USDC each, and the payer's gas is **zero**: the operator broadcasts
+      what the wallet signed. Evidence in
+      [`docs/evidence/arc-x402-circle-208.json`](docs/evidence/arc-x402-circle-208.json).
+      An agent wallet is a **contract account**, not a key — its address is
       counterfactual until a first transaction deploys it, and what the CLI
       signs with recovers to the wallet's signer rather than to the wallet. Arc
       USDC takes that signature through EIP-1271, so `EvmX402Reader` asks the
-      chain to verify instead of recovering locally — verified by simulation on
-      Arc testnet, 6 September, after the local recovery rejected it as forged.
-      Concretely:
-      `bun run scripts/e2e-x402.ts --payer circle` signs the x402 authorization
-      through `circle wallet sign typed-data`, so the key stays in Circle's
-      custody and this repository only ever receives a signature. It needs a
-      Circle CLI session and a funded agent wallet to run, and neither is
-      committed. **The policy half stays blocked**: `circle wallet limit set`
-      takes a mainnet chain, and Circle lists Arc on testnet only, so no
-      arrangement of Arc shows a Circle-enforced refusal. See
-      [the Arc audit](docs/arc.md) for sources.
+      chain to verify instead of recovering locally; until that fix every agent
+      payment was rejected as forged. **The policy half stays blocked**:
+      `circle wallet limit set` takes a mainnet chain, and Circle lists Arc on
+      testnet only, so no arrangement of Arc shows a Circle-enforced refusal.
 - [ ] Architecture diagram, video, documentation, repo.
 
 #### Deployed on Arc
