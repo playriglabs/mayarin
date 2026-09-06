@@ -70,6 +70,14 @@ const DEFINITIONS = {
   // Settlement assets
   USDC: { kind: "stablecoin", decimals: 6, name: "USD Coin" },
   USDT: { kind: "stablecoin", decimals: 6, name: "Tether USD" },
+  /**
+   * Euro-denominated, which makes it the one stablecoin here that is NOT a
+   * dollar in another representation. `EURC/USDC` is a real exchange rate — the
+   * EUR/USD one — so it must never be declared in `QUOTE_PEGGED_PAIRS`: a
+   * pegged pair reads no price at all and would settle euros as dollars, an
+   * error of whatever the pair happens to be worth that day.
+   */
+  EURC: { kind: "stablecoin", decimals: 6, name: "Euro Coin" },
 
   // Native crypto
   ETH: {

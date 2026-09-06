@@ -7,6 +7,7 @@
 
 import { fileURLToPath } from "node:url";
 import { CHAIN_IDS, type ChainId, isChainId, isMainnetChain } from "@mayarin/chain";
+import type { FxFeed } from "@mayarin/provider-fx";
 import type { PythFeed } from "@mayarin/provider-pyth";
 import {
   type AssetCode,
@@ -224,11 +225,23 @@ const configSchema = z.object({
   /** Venue adapters to price against, in preference order for tie-breaks. */
   quoteVenues: jsonObject<string[]>("QUOTE_VENUES", "[]"),
   /** Reference oracle for the deviation guard. */
-  quoteOracle: z.enum(["pyth", "chainlink"]).default("pyth"),
+  quoteOracle: z.enum(["pyth", "chainlink", "fx", "coinbase"]).default("pyth"),
   /** Ordered secondary references used when the primary is unavailable or stale. */
   quoteOracleFallbacks: jsonObject<string[]>("QUOTE_ORACLE_FALLBACKS", "[]"),
   /** How far the venue price may sit from the oracle before the quote fails. */
   quoteDeviationBps: z.coerce.number().int().min(1).max(10_000).default(100),
+  /**
+   * How far two oracles may disagree before neither is trusted.
+   *
+   * Deliberately NOT `QUOTE_DEVIATION_BPS`. That one bounds a venue against a
+   * reference, and a testnet deployment has to open it wide because a toy
+   * Uniswap pool is its own truth — Base Sepolia sits ~9100 bps off the market.
+   * Two independent oracles reading the same pair have no such excuse: they are
+   * both claiming to report the market, so a real gap between them means one is
+   * wrong and the quote should fail. Sharing one knob meant widening it for the
+   * pool silently switched the oracle cross-check off.
+   */
+  quoteOracleAgreementBps: z.coerce.number().int().min(1).max(10_000).default(100),
   /** How stale a reference may be and still vouch for a price. */
   quoteMaxReferenceAgeSeconds: z.coerce.number().int().positive().default(60),
   /**
@@ -262,6 +275,27 @@ const configSchema = z.object({
    * served by inverting it.
    */
   pythFeeds: jsonObject<Record<string, PythFeed>>("PYTH_FEEDS", "{}"),
+  /** Pyth API key (required since the 2026-08-26 Pyth Core Hermes auth cutover). */
+  pythApiKey: z.string().optional(),
+  /** Override the Hermes endpoint; defaults to the upgraded `pyth.dourolabs.app/hermes`. */
+  pythHermesEndpoint: z.string().url().optional(),
+  /**
+   * FX pair to API series. A bare string is a series quoted in the pair's own
+   * direction; the object form names one quoted the other way round:
+   *   FX_FEEDS={"IDR/USDC":{"symbol":"USD/IDR","invert":true}}
+   */
+  fxFeeds: jsonObject<Record<string, FxFeed>>("FX_FEEDS", "{}"),
+  /** Optional FX API key; the default provider's free tier is open. */
+  fxApiKey: z.string().optional(),
+  /** Override the FX endpoint; defaults to `api.fxratesapi.com`. */
+  fxEndpoint: z.string().url().optional(),
+  /**
+   * Crypto pair to Coinbase Exchange product, e.g.
+   *   COINBASE_PRODUCTS={"ETH/USDC":"ETH-USD","SOL/USDC":"SOL-USD"}
+   */
+  coinbaseProducts: jsonObject<Record<string, string>>("COINBASE_PRODUCTS", "{}"),
+  /** Override the Coinbase endpoint; defaults to `api.exchange.coinbase.com`. */
+  coinbaseEndpoint: z.string().url().optional(),
   /** Chainlink pair to `{ chain, address }`. */
   chainlinkFeeds: jsonObject<Record<string, { chain: ChainId; address: string }>>(
     "CHAINLINK_FEEDS",
@@ -272,6 +306,10 @@ const configSchema = z.object({
   zeroExPairs: jsonObject<Record<string, unknown>>("ZERO_EX_PAIRS", "{}"),
   uniswapQuoters: jsonObject<Partial<Record<ChainId, string>>>("UNISWAP_QUOTERS", "{}"),
   uniswapPools: jsonObject<Record<string, unknown>>("UNISWAP_POOLS", "{}"),
+  /** `UniswapV2Router02` address per chain, for the V2 venue and route source. */
+  uniswapV2Routers: jsonObject<Partial<Record<ChainId, string>>>("UNISWAP_V2_ROUTERS", "{}"),
+  /** Pair (`rateKey(from, to)`) to `{ chain, tokenIn, tokenOut }` — V2 has no fee. */
+  uniswapV2Pairs: jsonObject<Record<string, unknown>>("UNISWAP_V2_PAIRS", "{}"),
   lifiPairs: jsonObject<Record<string, unknown>>("LIFI_PAIRS", "{}"),
   lifiFromAddress: z.string().min(1).optional(),
   lifiApiKey: z.string().min(1).optional(),
@@ -372,11 +410,16 @@ export interface ChainConfig {
 }
 
 /** Resolved quote-layer configuration. Present only when `QUOTE_ENABLED=true`. */
+/** The oracle sources the composition root can build. */
+export type OracleName = "pyth" | "chainlink" | "fx" | "coinbase";
+
 export interface QuoteConfig {
   readonly venues: readonly string[];
-  readonly oracle: "pyth" | "chainlink";
-  readonly fallbackOracles: readonly ("pyth" | "chainlink")[];
+  readonly oracle: OracleName;
+  readonly fallbackOracles: readonly OracleName[];
   readonly deviationBps: number;
+  /** How far two oracles may disagree before neither is trusted. */
+  readonly oracleAgreementBps: number;
   readonly maxReferenceAgeSeconds: number;
   readonly peggedPairs: readonly string[];
   readonly fxMaxAgeSeconds: number;
@@ -399,7 +442,7 @@ export type Config = RawConfig & {
   readonly stablecoins: readonly Stablecoin[];
 };
 
-const SUPPORTED_VENUES = ["0x", "uniswap", "lifi"] as const;
+const SUPPORTED_VENUES = ["0x", "uniswap", "uniswap-v2", "lifi"] as const;
 
 /**
  * Resolves the quote layer, failing the boot rather than the first quote.
@@ -435,6 +478,12 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     if (venue === "uniswap" && Object.keys(data.uniswapPools).length === 0) {
       issues.push("UNISWAP_POOLS must configure at least one pool for the uniswap venue");
     }
+    if (venue === "uniswap-v2") {
+      if (Object.keys(data.uniswapV2Pairs).length === 0)
+        issues.push("UNISWAP_V2_PAIRS must configure at least one pair for the uniswap-v2 venue");
+      if (Object.keys(data.uniswapV2Routers).length === 0)
+        issues.push("UNISWAP_V2_ROUTERS is required for the uniswap-v2 venue");
+    }
     if (venue === "lifi") {
       if (data.lifiFromAddress === undefined)
         issues.push("LIFI_FROM_ADDRESS is required for the lifi venue");
@@ -457,7 +506,7 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     );
   }
 
-  const supportedOracles = ["pyth", "chainlink"] as const;
+  const supportedOracles = ["pyth", "chainlink", "fx", "coinbase"] as const;
   const unsupportedOracles = data.quoteOracleFallbacks.filter(
     (oracle) => !(supportedOracles as readonly string[]).includes(oracle),
   );
@@ -472,6 +521,19 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
   }
   if (oracleNames.includes("pyth") && Object.keys(data.pythFeeds).length === 0) {
     issues.push("PYTH_FEEDS must configure at least one feed when a Pyth oracle is enabled");
+  }
+  if (oracleNames.includes("pyth") && data.pythApiKey === undefined) {
+    issues.push(
+      "PYTH_API_KEY is required since the 2026-08-26 Pyth Core upgrade made Hermes authentication mandatory",
+    );
+  }
+  if (oracleNames.includes("fx") && Object.keys(data.fxFeeds).length === 0) {
+    issues.push("FX_FEEDS must configure at least one series when the FX oracle is enabled");
+  }
+  if (oracleNames.includes("coinbase") && Object.keys(data.coinbaseProducts).length === 0) {
+    issues.push(
+      "COINBASE_PRODUCTS must configure at least one product when the Coinbase oracle is enabled",
+    );
   }
   if (oracleNames.includes("chainlink") && Object.keys(data.chainlinkFeeds).length === 0) {
     issues.push(
@@ -515,8 +577,9 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
   return {
     venues: data.quoteVenues,
     oracle: data.quoteOracle,
-    fallbackOracles: data.quoteOracleFallbacks as readonly ("pyth" | "chainlink")[],
+    fallbackOracles: data.quoteOracleFallbacks as readonly OracleName[],
     deviationBps: data.quoteDeviationBps,
+    oracleAgreementBps: data.quoteOracleAgreementBps,
     maxReferenceAgeSeconds: data.quoteMaxReferenceAgeSeconds,
     peggedPairs: data.quotePeggedPairs,
     fxMaxAgeSeconds: data.quoteFxMaxAgeSeconds,
@@ -567,15 +630,18 @@ function resolveContract(
   }
 
   const routeCapable = (quote?.venues ?? []).filter(
-    (venue) => venue === "0x" || venue === "uniswap",
+    (venue) => venue === "0x" || venue === "uniswap" || venue === "uniswap-v2",
   );
   if (quote !== undefined && routeCapable.length === 0) {
     issues.push(
-      "the contract path needs a route-capable venue (0x or uniswap); LiFi is price-only",
+      "the contract path needs a route-capable venue (0x, uniswap, or uniswap-v2); LiFi is price-only",
     );
   }
   if (routeCapable.includes("uniswap") && Object.keys(data.uniswapSwapRouters).length === 0) {
     issues.push("UNISWAP_SWAP_ROUTERS is required when the uniswap venue serves routes");
+  }
+  if (routeCapable.includes("uniswap-v2") && Object.keys(data.uniswapV2Routers).length === 0) {
+    issues.push("UNISWAP_V2_ROUTERS is required when the uniswap-v2 venue serves routes");
   }
 
   // A settlement asset with no token address on a router chain cannot be named
@@ -853,6 +919,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     quoteOracle: env.QUOTE_ORACLE,
     quoteOracleFallbacks: env.QUOTE_ORACLE_FALLBACKS,
     quoteDeviationBps: env.QUOTE_DEVIATION_BPS,
+    quoteOracleAgreementBps: env.QUOTE_ORACLE_AGREEMENT_BPS,
     quoteMaxReferenceAgeSeconds: env.QUOTE_MAX_REFERENCE_AGE_SECONDS,
     quotePeggedPairs: env.QUOTE_PEGGED_PAIRS,
     quoteFxMaxAgeSeconds: env.QUOTE_FX_MAX_AGE_SECONDS,
@@ -861,12 +928,21 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     quoteSlippageBps: env.QUOTE_SLIPPAGE_BPS,
     quoteTtlSeconds: env.QUOTE_TTL_SECONDS,
     pythFeeds: env.PYTH_FEEDS,
+    pythApiKey: env.PYTH_API_KEY,
+    pythHermesEndpoint: env.PYTH_HERMES_ENDPOINT,
+    fxFeeds: env.FX_FEEDS,
+    fxApiKey: env.FX_API_KEY,
+    fxEndpoint: env.FX_ENDPOINT,
+    coinbaseProducts: env.COINBASE_PRODUCTS,
+    coinbaseEndpoint: env.COINBASE_ENDPOINT,
     chainlinkFeeds: env.CHAINLINK_FEEDS,
     zeroExApiKey: env.ZERO_EX_API_KEY,
     zeroExChainId: env.ZERO_EX_CHAIN_ID,
     zeroExPairs: env.ZERO_EX_PAIRS,
     uniswapQuoters: env.UNISWAP_QUOTERS,
     uniswapPools: env.UNISWAP_POOLS,
+    uniswapV2Routers: env.UNISWAP_V2_ROUTERS,
+    uniswapV2Pairs: env.UNISWAP_V2_PAIRS,
     lifiPairs: env.LIFI_PAIRS,
     lifiFromAddress: env.LIFI_FROM_ADDRESS,
     lifiApiKey: env.LIFI_API_KEY,

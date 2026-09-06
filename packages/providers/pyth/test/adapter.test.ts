@@ -36,10 +36,10 @@ function hermesBody(
 }
 
 function stubFetch(handler: (url: string) => Response | Promise<Response>) {
-  const calls: string[] = [];
-  const fn = (async (input: Parameters<typeof fetch>[0]) => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  const fn = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    calls.push(url);
+    calls.push(init === undefined ? { url } : { url, init });
     return handler(url);
   }) as typeof fetch;
   return { calls, fn };
@@ -98,8 +98,8 @@ describe("PythPriceOracle", () => {
     expect(price.scaledRate).toBe(3_700_000_000n * RATE_SCALE);
     expect(price.source).toBe("pyth");
     expect(price.observedAt).toEqual(new Date(1_785_915_000 * 1_000));
-    expect(calls[0]).toContain("/v2/updates/price/latest?ids[]=");
-    expect(calls[0]).toContain(ETH_USD_FEED);
+    expect(calls[0]?.url).toContain("/v2/updates/price/latest?ids[]=");
+    expect(calls[0]?.url).toContain(ETH_USD_FEED);
   });
 
   test("a configured 0x-prefixed feed id still matches the unprefixed response", async () => {
@@ -119,7 +119,31 @@ describe("PythPriceOracle", () => {
     });
 
     await custom.reference("ETH", "USDC");
-    expect(calls[0]).toStartWith("https://hermes.example.test/");
+    expect(calls[0]?.url).toStartWith("https://hermes.example.test/");
+  });
+
+  test("the default endpoint is the post-upgrade Pyth Hermes host", async () => {
+    const { calls, fn } = stubFetch(() => json(hermesBody()));
+    await oracle(fn).reference("ETH", "USDC");
+    expect(calls[0]?.url).toStartWith("https://pyth.dourolabs.app/hermes/");
+  });
+
+  test("an API key is sent as a Bearer Authorization header", async () => {
+    const { calls, fn } = stubFetch(() => json(hermesBody()));
+    const withKey = new PythPriceOracle({
+      feeds: { "ETH/USDC": ETH_USD_FEED },
+      apiKey: "test-key",
+      fetchFn: fn,
+    });
+    await withKey.reference("ETH", "USDC");
+    const headers = calls[0]?.init?.headers as Record<string, string>;
+    expect(headers?.Authorization).toBe("Bearer test-key");
+  });
+
+  test("without an API key no Authorization header is sent", async () => {
+    const { calls, fn } = stubFetch(() => json(hermesBody()));
+    await oracle(fn).reference("ETH", "USDC");
+    expect(calls[0]?.init?.headers).toBeUndefined();
   });
 
   test("a pair with no configured feed throws ConfigurationError", async () => {
@@ -138,6 +162,32 @@ describe("PythPriceOracle", () => {
       if (!isMayarinError(error)) throw error;
       expect(error.code).toBe("PROVIDER_ERROR");
       expect(error.retryable).toBe(true);
+    }
+  });
+
+  test("a 403 entitlement refusal is non-retryable so the engine fails fast", async () => {
+    const { fn } = stubFetch(() => json({}, 403));
+
+    try {
+      await oracle(fn).reference("ETH", "USDC");
+      throw new Error("expected reference to throw");
+    } catch (error) {
+      if (!isMayarinError(error)) throw error;
+      expect(error.code).toBe("PROVIDER_ERROR");
+      expect(error.retryable).toBe(false);
+    }
+  });
+
+  test("a 401 auth refusal is non-retryable", async () => {
+    const { fn } = stubFetch(() => json({}, 401));
+
+    try {
+      await oracle(fn).reference("ETH", "USDC");
+      throw new Error("expected reference to throw");
+    } catch (error) {
+      if (!isMayarinError(error)) throw error;
+      expect(error.code).toBe("PROVIDER_ERROR");
+      expect(error.retryable).toBe(false);
     }
   });
 

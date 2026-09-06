@@ -29,6 +29,7 @@ import type { MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/p
 import { buildPayEthCall, deriveIntentId, type RouterCall } from "@mayarin/provider-evm";
 import { ZeroExRouteSource } from "@mayarin/provider-swap-0x";
 import { UniswapRouteSource } from "@mayarin/provider-swap-uniswap";
+import { UniswapV2RouteSource } from "@mayarin/provider-swap-uniswap-v2";
 import {
   assembleOrder,
   type LockedQuote,
@@ -505,6 +506,15 @@ export function createRouteSources(
         new UniswapRouteSource({
           swapRouters: config.uniswapSwapRouters,
           pools: pools as never,
+        }),
+      );
+    }
+    if (name === "uniswap-v2") {
+      sources.set(
+        "uniswap-v2",
+        new UniswapV2RouteSource({
+          routers: config.uniswapV2Routers,
+          pairs: config.uniswapV2Pairs as never,
         }),
       );
     }

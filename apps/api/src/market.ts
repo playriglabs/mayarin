@@ -55,6 +55,8 @@ export const MARKET_CONFIG_KEYS = [
   "stablecoins",
   "exchangeRates",
   "pythFeeds",
+  "fxFeeds",
+  "coinbaseProducts",
   "chainlinkFeeds",
   "uniswapPools",
 ] as const;
@@ -82,6 +84,13 @@ const pythFeedsSchema = z.record(
   z.union([z.string(), z.object({ id: z.string(), invert: z.boolean().optional() })]),
 );
 
+const fxFeedsSchema = z.record(
+  z.string(),
+  z.union([z.string(), z.object({ symbol: z.string(), invert: z.boolean().optional() })]),
+);
+
+const coinbaseProductsSchema = z.record(z.string(), z.string());
+
 const chainlinkFeedsSchema = z.record(z.string(), z.unknown());
 const uniswapPoolsSchema = z.record(z.string(), z.unknown());
 
@@ -89,6 +98,8 @@ const SCHEMAS: Readonly<Record<MarketConfigKey, z.ZodTypeAny>> = {
   stablecoins: stablecoinsSchema,
   exchangeRates: exchangeRatesSchema,
   pythFeeds: pythFeedsSchema,
+  fxFeeds: fxFeedsSchema,
+  coinbaseProducts: coinbaseProductsSchema,
   chainlinkFeeds: chainlinkFeedsSchema,
   uniswapPools: uniswapPoolsSchema,
 };
@@ -111,6 +122,8 @@ interface MarketSnapshot {
   readonly stablecoins: readonly Stablecoin[];
   readonly exchangeRates: Readonly<Record<string, bigint>>;
   readonly pythFeeds: Record<string, unknown>;
+  readonly fxFeeds: Record<string, unknown>;
+  readonly coinbaseProducts: Record<string, unknown>;
   readonly chainlinkFeeds: Record<string, unknown>;
   readonly uniswapPools: Record<string, unknown>;
 }
@@ -241,6 +254,8 @@ export class RuntimeMarket {
         {
           ...this.#config,
           pythFeeds: snapshot.pythFeeds as Config["pythFeeds"],
+          fxFeeds: snapshot.fxFeeds as Config["fxFeeds"],
+          coinbaseProducts: snapshot.coinbaseProducts as Config["coinbaseProducts"],
           chainlinkFeeds: snapshot.chainlinkFeeds as Config["chainlinkFeeds"],
           uniswapPools: snapshot.uniswapPools as Config["uniswapPools"],
         },
@@ -277,6 +292,8 @@ export class RuntimeMarket {
       stablecoins: toStablecoins(read<unknown>("stablecoins")),
       exchangeRates: toRates(read<Record<string, string>>("exchangeRates")),
       pythFeeds: read<Record<string, unknown>>("pythFeeds"),
+      fxFeeds: read<Record<string, unknown>>("fxFeeds"),
+      coinbaseProducts: read<Record<string, unknown>>("coinbaseProducts"),
       chainlinkFeeds: read<Record<string, unknown>>("chainlinkFeeds"),
       uniswapPools: read<Record<string, unknown>>("uniswapPools"),
     };
@@ -330,7 +347,7 @@ export class RuntimePriceSource implements PriceSource {
     this.#market = market;
   }
 
-  async price(from: AssetCode, to: AssetCode, amount: Money): Promise<PriceQuote> {
+  async price(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<PriceQuote> {
     const quote = await this.#market.quote();
     if (
       quote !== undefined &&
@@ -354,7 +371,7 @@ export class RuntimePriceSource implements PriceSource {
         source: settlement.source,
       };
     }
-    return (await this.#market.rates()).price(from, to, amount);
+    return (await this.#market.rates()).price(from, to, amount, chain);
   }
 }
 
@@ -366,6 +383,8 @@ function environmentValues(config: Config): Readonly<Record<MarketConfigKey, unk
       Object.entries(config.exchangeRates).map(([pair, rate]) => [pair, rate.toString()]),
     ),
     pythFeeds: config.pythFeeds,
+    fxFeeds: config.fxFeeds,
+    coinbaseProducts: config.coinbaseProducts,
     chainlinkFeeds: config.chainlinkFeeds,
     uniswapPools: config.uniswapPools,
   };

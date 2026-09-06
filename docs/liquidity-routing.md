@@ -108,6 +108,27 @@ moves execution on-chain:
   (`Uniswap`, `0x API`), fetches the executable quote that becomes `minOut`, and
   builds the calldata the contract executes. Swap logic is not duplicated
   off-chain.
+- **The swap leg is priced by exact output.** The contract enforces `minOut`
+  and refunds the rest, so "how much input delivers exactly this settlement
+  amount" is the question that describes the trade. The lock used to probe one
+  whole unit of the payer's asset instead and scale up, which is only sound on
+  a pool deep enough that the rate does not move with size. Measured on Base
+  Sepolia: 1 EURC quoted 0.817981 USDC while the 4.885472 EURC the payer was
+  then asked for delivered 0.752620 each, and the swap reverted `STF` against a
+  `minOut` the pool could never fill — after the payer had paid and the deposit
+  had been swept. The settlement amount is known before the swap leg is priced,
+  so `SwapVenue.quoteExactOutput` removes the guess rather than narrowing it. A
+  venue that cannot price backwards refuses and the caller falls back; a source
+  with no depth (the rate table) is exact either way and keeps the probe.
+- **A venue is chosen per chain, at both ends.** `QUOTE_VENUES` is a priority
+  list, and a venue whose pool is on another chain refuses the pair with a
+  `ConfigurationError` — so the first venue that can serve the payment's chain
+  prices it (`FallbackPriceSource`) and routes it (`FallbackRouteSource`). This
+  is not an optimisation: a deployment with a V3 pool on one chain and a V2 pool
+  on another once priced every payment against whichever venue was configured
+  first, and the lock then carried a rate from a pool the swap would never
+  touch. The chain reaches the venue through `SwapVenue.quote` and
+  `PriceSource.price`, the same way it reaches `SwapRouteSource.route`.
 - The executable `minOut` comes from the DEX quote; a **Price Oracle** (Pyth,
   Chainlink) is a deviation guard, not the fill price. Do not trust the oracle
   for the fill; trust the DEX, guard with the oracle. The `PriceOracle` port and
@@ -120,9 +141,22 @@ Multiple reference providers may be configured in priority order with
 `QUOTE_ORACLE` and `QUOTE_ORACLE_FALLBACKS`. They are read concurrently for
 every configured pair, including fiat pairs such as `IDR/USDC` and `SGD/USDC`
 and crypto pairs such as `ETH/USDC`. Failed and stale observations are removed;
-fresh observations must agree within `QUOTE_DEVIATION_BPS`, and the first
+fresh observations must agree within `QUOTE_ORACLE_AGREEMENT_BPS`, and the first
 configured fresh source is used. If none remain, or two fresh sources disagree,
 the quote fails closed.
+
+A source that has no feed for a pair drops out of that pair's read rather than
+failing it, which is what lets partial sources cover a matrix none of them
+covers alone — Pyth's grant is a per-feed allowlist, an FX rates API serves the
+fiat legs it denies, and a public exchange ticker serves the crypto feeds it
+denies.
+
+`QUOTE_ORACLE_AGREEMENT_BPS` is deliberately **not** `QUOTE_DEVIATION_BPS`. The
+latter bounds a venue against a reference and a testnet deployment has to open
+it wide, because a toy pool with no arbitrage is its own truth there. Two
+oracles reading the same pair have no such excuse: both claim to report the same
+market, so a real gap means one of them is wrong. While the two shared a knob,
+widening it for a testnet pool silently switched the oracle cross-check off.
 
 - The `LiquidityRouter`'s same-asset identity stays; its cross-asset delegation
   moves to the Execution Engine. Multi-hop paths (`A → bridge → C`) across the

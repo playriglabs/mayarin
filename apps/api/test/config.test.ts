@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig } from "../src/config.ts";
 
-const BASE = { DATABASE_URL: "postgres://localhost:5433/mayarin" } as const;
+const BASE = {
+  DATABASE_URL: "postgres://localhost:5433/mayarin",
+  PYTH_API_KEY: "test-key",
+} as const;
 const XPUB =
   "xpub6EF8jXqFeFEW5bwMU7RpQtHkzE4KJxcqJtvkCjJumzW8CPpacXkb92ek4WzLQXjL93HycJwTPUAcuNxCqFPKKU5m5Z2Vq4nCyh5CyPeBFFr";
 
@@ -345,6 +348,7 @@ describe("quote configuration", () => {
       oracle: "pyth",
       fallbackOracles: [],
       deviationBps: 100,
+      oracleAgreementBps: 100,
       maxReferenceAgeSeconds: 60,
       peggedPairs: [],
       fxMaxAgeSeconds: 300,
@@ -430,6 +434,98 @@ describe("quote configuration", () => {
     });
 
     expect(config.quote?.fallbackOracles).toEqual(["chainlink"]);
+  });
+
+  test("resolves the FX oracle as the fiat leg beside Pyth's crypto feeds", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      ...TURNKEY,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      PYTH_FEEDS,
+      QUOTE_ORACLE_FALLBACKS: '["fx"]',
+      FX_FEEDS: '{"IDR/USDC":{"symbol":"USD/IDR","invert":true}}',
+    });
+
+    expect(config.quote?.fallbackOracles).toEqual(["fx"]);
+    expect(config.fxFeeds).toEqual({ "IDR/USDC": { symbol: "USD/IDR", invert: true } });
+  });
+
+  test("refuses the FX oracle with no series — it could price no fiat leg", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        ...TURNKEY,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_ORACLE_FALLBACKS: '["fx"]',
+      }),
+    ).toThrow(/FX_FEEDS/);
+  });
+
+  // The bug the split exists to prevent: a testnet has to widen the venue bound
+  // to ~9900 for a toy pool, and while one knob served both, that also told two
+  // oracles they could disagree by 99%.
+  test("a wide venue bound does not widen the oracle cross-check", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      ...TURNKEY,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      PYTH_FEEDS,
+      QUOTE_DEVIATION_BPS: "9900",
+    });
+
+    expect(config.quote?.deviationBps).toBe(9_900);
+    expect(config.quote?.oracleAgreementBps).toBe(100);
+  });
+
+  test("carries an explicit oracle agreement bound through", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      ...TURNKEY,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      PYTH_FEEDS,
+      QUOTE_ORACLE_AGREEMENT_BPS: "50",
+    });
+
+    expect(config.quote?.oracleAgreementBps).toBe(50);
+  });
+
+  test("resolves a second crypto source beside Pyth", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...ZERO_EX,
+      ...TURNKEY,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["0x"]',
+      PYTH_FEEDS,
+      QUOTE_ORACLE_FALLBACKS: '["coinbase"]',
+      COINBASE_PRODUCTS: '{"ETH/USDC":"ETH-USD"}',
+    });
+
+    expect(config.quote?.fallbackOracles).toEqual(["coinbase"]);
+    expect(config.coinbaseProducts).toEqual({ "ETH/USDC": "ETH-USD" });
+  });
+
+  test("refuses the Coinbase oracle with no products", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...ZERO_EX,
+        ...TURNKEY,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["0x"]',
+        PYTH_FEEDS,
+        QUOTE_ORACLE_FALLBACKS: '["coinbase"]',
+      }),
+    ).toThrow(/COINBASE_PRODUCTS/);
   });
 
   test("refuses duplicate oracle sources", () => {
