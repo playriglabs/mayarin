@@ -547,9 +547,15 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
       chain and now gets every RPC the deployment has; `WalletService` still
       takes one chain, so the UI cannot ask for another yet.
 - [ ] Circle Agent Stack as the payer, spending under a Circle policy — including
-      the policy refusing an over-limit payment. Circle documents policies as
-      mainnet-only; the Arc testnet policy demonstration remains blocked. See
-      [the Arc audit](docs/arc.md) for sources and the existing CLI path.
+      the policy refusing an over-limit payment. **The payer half is code**:
+      `bun run scripts/e2e-x402.ts --payer circle` signs the x402 authorization
+      through `circle wallet sign typed-data`, so the key stays in Circle's
+      custody and this repository only ever receives a signature. It needs a
+      Circle CLI session and a funded agent wallet to run, and neither is
+      committed. **The policy half stays blocked**: `circle wallet limit set`
+      takes a mainnet chain, and Circle lists Arc on testnet only, so no
+      arrangement of Arc shows a Circle-enforced refusal. See
+      [the Arc audit](docs/arc.md) for sources.
 - [ ] Architecture diagram, video, documentation, repo.
 
 #### Deployed on Arc

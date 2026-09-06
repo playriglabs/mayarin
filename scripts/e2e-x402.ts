@@ -30,6 +30,16 @@
  * playing both parts tests nothing — a self-transfer moves no money and the
  * balance arithmetic has nothing to say.
  *
+ * **A Circle Agent Stack agent wallet as the payer** (#208), which is the same
+ * claim made by custody rather than by convention — the key is Circle's and
+ * this process only receives a signature:
+ *
+ * CIRCLE_AGENT_WALLET=0x… bun run scripts/e2e-x402.ts --payer circle --chain arc-testnet
+ *
+ * `scripts/circle-agent-wallet.ts` carries the CLI prerequisites, and the one
+ * thing Arc cannot show: Circle enforces spending policies on mainnet chains
+ * only, and lists Arc on testnet only.
+ *
  * ## Running it against a local API
  *
  * No deployment is involved. The chain is remote and the API is not, which is
@@ -61,11 +71,11 @@ import {
   PAYMENT_RESPONSE_HEADER,
   PAYMENT_SIGNATURE_HEADER,
   type PaymentPayload,
-  TRANSFER_WITH_AUTHORIZATION_TYPES,
 } from "@mayarin/x402";
 import postgres from "postgres";
 import { type Address, createPublicClient, type Hex, http, parseAbi, parseEventLogs } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { circleAgentWalletPayer, localKeyPayer, type X402Payer } from "./circle-agent-wallet.ts";
 
 function argument(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -113,7 +123,15 @@ const rpc = rpcUrls[chain];
 assert(rpc, `CHAIN_RPC_URLS must contain ${chain}`);
 const client = createPublicClient({ transport: http(rpc) });
 assert((await client.getChainId()) === chainId, "RPC does not match the selected testnet");
-const payer = privateKeyToAccount(required("PAYER_PRIVATE_KEY") as Hex);
+// Who holds the key that signs. A Circle agent wallet is the only one of the
+// two that demonstrates the claim — Mayarin never sees the payer's key — so a
+// run recording that claim has to say which it used.
+const custody = argument("payer") ?? "local-key";
+assert(custody === "local-key" || custody === "circle", "--payer must be local-key or circle");
+const payer: X402Payer =
+  custody === "circle"
+    ? circleAgentWalletPayer(required("CIRCLE_AGENT_WALLET") as Address, chain)
+    : localKeyPayer(required("PAYER_PRIVATE_KEY") as Hex);
 const sql = postgres(required("DATABASE_URL"), { connect_timeout: 10, max: 1 });
 const abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
@@ -234,6 +252,7 @@ try {
       phase: "preflight",
       network: accepted.network,
       payer: payer.address,
+      payerCustody: payer.custody,
       recipient,
       amount: amount.toString(),
       payerBalance: payerBefore.toString(),
@@ -265,12 +284,10 @@ try {
       nonce,
     };
     const domain = domainOf(accepted, chainId);
-    const signature = await payer.signTypedData({
-      domain: { ...domain, verifyingContract: token },
-      types: TRANSFER_WITH_AUTHORIZATION_TYPES,
-      primaryType: "TransferWithAuthorization",
+    const signature = await payer.signTransferAuthorization(
+      { ...domain, verifyingContract: token },
       message,
-    });
+    );
     const payment: PaymentPayload = {
       x402Version: 2,
       resource: offered.resource,
@@ -290,6 +307,7 @@ try {
       url,
       network: accepted.network,
       payer: payer.address,
+      payerCustody: payer.custody,
       recipient,
       token,
       amount: amount.toString(),
