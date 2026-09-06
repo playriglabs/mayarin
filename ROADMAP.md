@@ -78,18 +78,26 @@ Agent: I need this FX quote. Price: $0.02.
        base-sepolia   12s median headroom, 2 failures  (n=112)
   → Choosing arc-testnet: most headroom, no observed failures.
 
-  → My wallet holds ETH. The merchant is paid in USDC.
-       Uniswap exact-output: 0.0000071 ETH → 0.020000 USDC
+  → My wallet holds EURC. The merchant is paid in USDC.
+       Uniswap exact-output: 0.020101 EURC → 0.020000 USDC
   → Policy check: $0.02 ≤ $25 per payment ✓ · $0.34 of $100 today ✓
 
-  → Signing an EIP-3009 authorization for exactly 0.020000 USDC…
-  → Settled 0xabc…def on arc-testnet. Merchant credited Rp 320.
+  → Signing an EIP-3009 authorization for exactly 0.020101 EURC…
+  → Settled 0xabc…def on base-sepolia. Merchant credited Rp 320.
+       0.000121 EURC unspent, booked back to me.
 
   (no API key was used; this agent has no account with anyone)
 ```
 
 Every line is a decision the code already makes. The requirement is only that it
 **say** what it did.
+
+**It says EURC rather than ETH, and that is not a downgrade to hide.** Native
+ETH has no EIP-3009 and WETH9 has no permit at all, so an agent holding either
+cannot sign an `exact` authorization — the scheme takes a Circle-style token or
+nothing. Writing "holds ETH" described a payment no code could make. EURC into a
+USDC merchant is the same claim and a real one: two assets, one signature, and
+the payer never touches the merchant's.
 
 Each sponsor is load-bearing in a way a judge can verify by deletion:
 
@@ -595,9 +603,10 @@ unblocks the most.
 1. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
    the trace, the refusal run, and the no-signup `curl`. Two of the three now
    have something real to point at.
-2. **Exact-output swaps** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
-   Without it an agent holding only ETH cannot pay a USDC price at all, which is
-   one of the pitch's own sentences.
+2. **The EVM half of cross-asset x402** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
+   The pricing, the swap seam, the ledger account and the adapter have landed;
+   what is left is a real EURC → USDC payment on Base Sepolia and the resume
+   path for a payment interrupted between its two chain movements.
 3. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
    and the policy visibly refusing an over-limit payment. A spending policy
    nobody has watched refuse anything is a claim.
@@ -615,9 +624,26 @@ to Pages.
 
 ### #211 — Uniswap
 
-- [ ] Widen `SwapVenue` to a `SwapRequest` with an `exact-output` direction; 0x
-      and LiFi throw `ConfigurationError` for a direction they cannot serve.
-- [ ] Post payer surplus through a balanced ledger entry — never absorb it.
+- [x] **Exact-output reached `SwapVenue` as a second method, not a
+      `SwapRequest`** (#258). `quoteExactOutput` sits beside `quote`, every
+      venue implements or refuses it, and `QuoteEngine.#swapLeg` prices at the
+      settlement amount rather than a one-unit probe. LiFi refuses exact-output;
+      **0x turned out to be able to serve it**, so it does.
+- [x] The `402` prices a cross-asset rail backwards, and `register` refuses one
+      whose `payTo` is not the operator — the payer's asset has to land
+      somewhere swappable, and paying the merchant directly would settle a USDC
+      invoice in EURC.
+- [x] `CrossAssetSettler` and its EVM adapter: plan before the payer's money
+      moves, send, persist the hash, then confirm. A swap has no nonce to stop a
+      second one, so the hash is durable before anything is trusted.
+- [x] Post payer surplus through a balanced ledger entry — never absorb it.
+      `PAYER_SURPLUS`, a **liability**, because it is the payer's change rather
+      than an FX result.
+- [ ] A real EURC → USDC payment on Base Sepolia, end to end.
+- [ ] Resume a cross-asset payment interrupted between its two chain movements.
+      `recoverBroadcasts` skips them today rather than confirming one wrongly.
+- [ ] Payer refund above a dust threshold. Everything sits in `PAYER_SURPLUS`
+      until somebody sets one.
 - [ ] `FEEDBACK.md`, the Developer Feedback Form, and a README naming the exact
       contracts and lines to read.
 
