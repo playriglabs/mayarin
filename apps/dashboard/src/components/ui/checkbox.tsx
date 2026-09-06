@@ -11,6 +11,11 @@ import { cn } from "@/lib/utils";
  * `Checkbox.Root` renders a `<button role="checkbox">`. A button IS a labelable
  * element, so an external `<label htmlFor>` both names it and toggles it on
  * click — which WRAPPING it in a label would not have done.
+ *
+ * `nativeButton` says so out loud. Base UI's checkbox assumes it is rendering
+ * something that is *not* a button and adds the keyboard and role handling a
+ * non-button needs; handed a real `<button>` without being told, it warns and
+ * duplicates what the element already does.
  */
 function Checkbox({
   className,
@@ -20,6 +25,7 @@ function Checkbox({
   return (
     <CheckboxPrimitive.Root
       data-slot="checkbox"
+      nativeButton
       {...(disabled === undefined ? {} : { disabled })}
       render={
         <motion.button

@@ -61,6 +61,7 @@ import {
   DrizzleWalletWithdrawalRepository,
   DrizzleWebhookDeliveryRepository,
   DrizzleWebhookEndpointRepository,
+  DrizzleX402ResourceRepository,
 } from "@mayarin/db";
 import { type InvoiceRepository, InvoiceService } from "@mayarin/invoicing";
 import type { LedgerRepository } from "@mayarin/ledger";
@@ -82,6 +83,7 @@ import {
   TurnkeyMerchantKeyProvider,
   TurnkeyWalletProvider,
 } from "@mayarin/provider-turnkey";
+import { EvmAssetCapabilityProbe } from "@mayarin/provider-x402-local";
 import { type Clock, ConfigurationError, systemClock } from "@mayarin/shared";
 import {
   ManagedWalletProvisioner,
@@ -94,6 +96,8 @@ import {
   type WalletProvider,
   type WalletWithdrawalRepository,
 } from "@mayarin/wallet";
+import { AssetCapabilities } from "@mayarin/x402";
+import { createPublicClient, http } from "viem";
 import type { Config } from "./config.ts";
 import { chainReceipts, PaymentApiPricingSource, settlementChains } from "./rails.ts";
 import {
@@ -126,6 +130,7 @@ import {
 import { UserService } from "./services/user-service.ts";
 import { WalletService } from "./services/wallet-service.ts";
 import { WebhookService } from "./services/webhook-service.ts";
+import { X402ResourceService } from "./services/x402-resource-service.ts";
 
 export interface Container {
   readonly config: Config;
@@ -164,6 +169,8 @@ export interface Container {
   readonly webhooks: WebhookService;
   /** Merchant wallets and proof of control (#11). */
   readonly wallets: WalletService;
+  /** The merchant's own x402 resources (#208), priced and offered by them. */
+  readonly x402Resources: X402ResourceService;
   /**
    * The wallet port itself, exposed for backend-only operator tooling.
    *
@@ -467,6 +474,30 @@ export function createContainer(options: CreateContainerOptions): Container {
       ? undefined
       : new EvmContractCodeReader({ rpcUrls: config.chainRpcUrls });
 
+  // The chain's own answer about each token, asked once and cached, so a rail a
+  // merchant registers advertises what the contract implements rather than what
+  // the form assumed.
+  const x402Resources = new X402ResourceService({
+    resources: new DrizzleX402ResourceRepository(handle?.db ?? throwIfNoHandle()),
+    merchants,
+    wallets: walletRepository,
+    capabilities: new AssetCapabilities({
+      pairs: [],
+      probes: Object.entries(config.chainRpcUrls).flatMap(([chain, rpcUrl]) =>
+        rpcUrl === undefined
+          ? []
+          : [
+              new EvmAssetCapabilityProbe({
+                chain: chain as ChainId,
+                publicClient: createPublicClient({ transport: http(rpcUrl) }),
+              }),
+            ],
+      ),
+    }),
+    tokens: config.chainAssets,
+    crossAssetOperator: () => crossAssetOperator(config),
+  });
+
   const rails = new DerivedRailCatalog({
     receipts: chainReceipts(config),
     merchantPolicies: new DrizzleMerchantAssetPolicySource(merchants),
@@ -498,6 +529,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     paymentApi,
     webhooks,
     wallets,
+    x402Resources,
     merchantWallets: walletRepository,
     settlementAddresses,
     rails,
@@ -521,6 +553,33 @@ export function createContainer(options: CreateContainerOptions): Container {
  * their own settlement address has a balance worth showing whether or not this
  * deployment can provision wallets.
  */
+/**
+ * Where a cross-asset rail pays, as the payment API reports it.
+ *
+ * Read rather than derived: the operator address belongs to the deployment that
+ * holds the key and runs the swap, and a second opinion here would be a second
+ * thing to keep in step — one that, when it drifted, would offer a merchant a
+ * rail their own registration then refuses. A deployment with no quote layer
+ * answers that it cannot serve one, and an unreachable payment API is treated
+ * as the same answer: declining to offer a rail is always safe.
+ */
+async function crossAssetOperator(config: Config): Promise<string | undefined> {
+  try {
+    const response = await fetch(`${config.paymentApiUrl}/x402/cross-asset`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) return undefined;
+    const body: unknown = await response.json();
+    const operator =
+      typeof body === "object" && body !== null && "operator" in body
+        ? (body as { operator: unknown }).operator
+        : undefined;
+    return typeof operator === "string" ? operator : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function createBalanceReader(config: Config): WalletBalanceReader | undefined {
   // Every chain this deployment can reach, not just the one it provisions on
   // by default — a merchant paid on two chains has a balance on each, and the

@@ -22,6 +22,7 @@ import {
   ChartLineIcon,
   FileTextIcon,
   GearSixIcon,
+  GlobeIcon,
   type Icon,
   KeyIcon,
   LightningIcon,
@@ -80,6 +81,12 @@ const DEVELOPERS: readonly NavItem[] = [
   { href: "/api-keys", label: "API keys", icon: KeyIcon, permission: "settings:manage" },
   { href: "/webhooks", label: "Webhooks", icon: WebhooksLogoIcon, permission: "settings:manage" },
   { href: "/event-logs", label: "Event logs", icon: LightningIcon, permission: "payments:read" },
+  {
+    href: "/x402",
+    label: "Agent endpoints",
+    icon: GlobeIcon,
+    permission: "catalog:manage",
+  },
 ];
 
 /**

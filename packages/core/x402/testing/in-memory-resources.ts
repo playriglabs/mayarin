@@ -30,6 +30,10 @@ export class InMemoryResourceRepository implements X402ResourceRepository {
   async save(resource: X402Resource): Promise<void> {
     this.#byId.set(resource.id, resource);
   }
+
+  async remove(id: string): Promise<void> {
+    this.#byId.delete(id);
+  }
 }
 
 /** USDC on Base Sepolia, as the token actually reports itself. */

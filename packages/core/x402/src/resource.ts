@@ -88,6 +88,15 @@ export interface X402ResourceRepository {
   findById(id: string): Promise<X402Resource | undefined>;
   listByMerchant(merchantId: string): Promise<readonly X402Resource[]>;
   save(resource: X402Resource): Promise<void>;
+  /**
+   * Forgets a resource.
+   *
+   * A registry row, not a payment: what has been paid is in the ledger and in
+   * the intents, and neither is touched. What stops is the `402` — a price this
+   * merchant is no longer offering should not be quotable, and an agent holding
+   * an old quote for it is refused rather than charged for something withdrawn.
+   */
+  remove(id: string): Promise<void>;
 }
 
 export function resourceInfoOf(resource: X402Resource): ResourceInfo {

@@ -58,6 +58,8 @@ import {
   InMemoryWalletChallengeRepository,
   InMemoryWalletWithdrawalRepository,
 } from "@mayarin/wallet/testing";
+import { AssetCapabilities } from "@mayarin/x402";
+import { InMemoryResourceRepository } from "@mayarin/x402/testing";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
@@ -80,6 +82,7 @@ import { SettlementReadService } from "../src/services/settlement-read-service.t
 import { UserService } from "../src/services/user-service.ts";
 import { WalletService } from "../src/services/wallet-service.ts";
 import { WebhookService } from "../src/services/webhook-service.ts";
+import { X402ResourceService } from "../src/services/x402-resource-service.ts";
 
 /**
  * The deployment's fee destination, exported so a test can try to claim it.
@@ -407,6 +410,19 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     defaultSettlementAsset: config.settlementAsset,
   });
 
+  const x402Resources = new X402ResourceService({
+    resources: new InMemoryResourceRepository(),
+    merchants,
+    wallets: merchantWallets,
+    // No RPC in the harness: a probe here would ask a chain that is not there.
+    // Tests that register a rail bring their own probe.
+    capabilities: new AssetCapabilities({ pairs: [], probes: [] }),
+    tokens: config.chainAssets,
+    // No payment API in the harness, and the safe answer to "can this
+    // deployment swap?" is no.
+    crossAssetOperator: async () => undefined,
+  });
+
   const container: Container = {
     config,
     auth: authService,
@@ -426,6 +442,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     paymentApi,
     webhooks,
     wallets,
+    x402Resources,
     merchantWallets,
     settlementAddresses: settlementAddressResolver,
     rails,

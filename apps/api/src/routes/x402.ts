@@ -39,7 +39,7 @@ import type { X402Service } from "../services/x402.ts";
  * than broken, and a route that needs it says so once instead of every caller
  * checking.
  */
-function requireX402(container: Container): X402Service {
+export function requireX402(container: Container): X402Service {
   const service = container.x402;
   if (service === undefined) {
     throw new NotFoundError("x402 is not enabled on this deployment", {});
@@ -175,6 +175,23 @@ export function x402Routes(container: Container): Hono<X402Env> {
         ...(resource.description === undefined ? {} : { description: resource.description }),
         ...(resource.mimeType === undefined ? {} : { mimeType: resource.mimeType }),
       })),
+    });
+  });
+
+  /**
+   * Whether this deployment can serve a cross-asset rail, and where one pays.
+   *
+   * Public for the same reason the price is: the operator address is already
+   * inside every cross-asset `402`. A merchant surface offering the rail has to
+   * name the address registration will insist on, and guessing it wrong is a
+   * rail that refuses at creation rather than a rail that pays the wrong place.
+   */
+  app.get("/cross-asset", async (c) => {
+    const service = requireX402(container);
+    const operator = service.crossAssetOperator();
+    return c.json({
+      enabled: operator !== undefined,
+      ...(operator === undefined ? {} : { operator }),
     });
   });
 
