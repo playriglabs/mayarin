@@ -71,6 +71,7 @@ import {
   Create2DepositAddressDeriver,
   EvmChainClient,
   EvmContractCodeReader,
+  EvmCrossAssetSettler,
   EvmTreasuryExecutionPort,
   HdDepositAddressDeriver,
 } from "@mayarin/provider-evm";
@@ -253,18 +254,59 @@ function createX402(deps: {
   engine: ClearingEngine;
   merchants: DrizzleMerchantRepository;
   merchantPolicies: MerchantAssetPolicySource;
+  /** Where a cross-asset swap delivers: the merchant's own address on that chain. */
+  settlementAddresses: SettlementAddressResolver;
   /** Absent on a deployment with `QUOTE_ENABLED=false`, which serves same-asset rails only. */
   quote: (() => Promise<QuoteLayer>) | undefined;
   clock: Clock;
 }): X402Service | undefined {
-  const { config, handle, rates, intents, engine, merchants, merchantPolicies, quote, clock } =
-    deps;
+  const {
+    config,
+    handle,
+    rates,
+    intents,
+    engine,
+    merchants,
+    merchantPolicies,
+    settlementAddresses,
+    quote,
+    clock,
+  } = deps;
 
   if (!config.x402Enabled) return undefined;
   if (config.operatorPrivateKey === undefined) return undefined;
 
   const rpcUrls = config.chain?.rpcUrls ?? {};
   const account = privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
+
+  // The swap half of a cross-asset rail, and its absence is what keeps such a
+  // rail out of the `402`. A deployment with no route-capable venue simply does
+  // not offer one, rather than pricing a payment it could not execute.
+  const routeSources = [...createRouteSources(config).values()];
+  const crossAssetSettler =
+    routeSources.length === 0
+      ? undefined
+      : new EvmCrossAssetSettler({
+          clients: Object.fromEntries(
+            Object.entries(rpcUrls).flatMap(([chainId, rpcUrl]) => {
+              if (rpcUrl === undefined) return [];
+              const transport = http(rpcUrl);
+              return [
+                [
+                  chainId,
+                  {
+                    publicClient: createPublicClient({ transport }),
+                    walletClient: createWalletClient({ account, transport }),
+                  },
+                ],
+              ];
+            }),
+          ),
+          account,
+          routes: new FallbackRouteSource(routeSources),
+          tokens: config.chainAssets,
+          ...(config.chain === undefined ? {} : { confirmations: config.chain.confirmations }),
+        });
 
   const facilitators: X402Facilitator[] = [];
   const confirmers = new Map<string, SettlementConfirmer>();
@@ -347,6 +389,15 @@ function createX402(deps: {
     },
     ...(quote === undefined ? {} : { quote }),
     operatorAddress: account.address,
+    ...(crossAssetSettler === undefined ? {} : { crossAssetSettler }),
+    /**
+     * Where the swap delivers. Not the rail's `payTo` — that one is the
+     * operator's, because the payer's asset had to land somewhere swappable.
+     */
+    async settlementAddressOf(merchantId, chain) {
+      const policy = await merchantPolicies.policyFor(merchantId);
+      return settlementAddresses.effective(merchantId, chain, policy?.settlementAddress);
+    },
   });
 }
 
@@ -877,6 +928,7 @@ export function createContainer({
     engine,
     merchants: new DrizzleMerchantRepository(handle.db),
     merchantPolicies,
+    settlementAddresses,
     quote: config.quote === undefined ? undefined : resolveQuote,
     clock,
   });
