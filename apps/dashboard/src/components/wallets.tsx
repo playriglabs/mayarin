@@ -241,6 +241,29 @@ function Wallets() {
       (wallet) =>
         wallet.chain === targetChain && wallet.verified && wallet.provenance !== "provisioned",
     );
+  /**
+   * Whether there is anything left for the three header actions to add.
+   *
+   * All three exist to put an address on a chain: one from the merchant's own
+   * wallet, one typed in, one provisioned by Mayarin. A merchant who already
+   * holds both kinds on every network this deployment provisions on has nothing
+   * to add, and three buttons offering it are noise on the screen that is
+   * meant to show them what they have.
+   *
+   * Existence, not verification: an address that is present but unproven still
+   * needs work, and that work is the row's own "Prove control" — not one of
+   * these. Gated on a non-empty chain list so the actions stay visible while
+   * the list is still loading, when hiding them would be a guess.
+   */
+  const everyChainHasBothWallets =
+    provisionChains.length > 0 &&
+    provisionChains.every(
+      (targetChain) =>
+        rows.some(
+          (wallet) => wallet.chain === targetChain && wallet.provenance !== "provisioned",
+        ) &&
+        rows.some((wallet) => wallet.chain === targetChain && wallet.provenance === "provisioned"),
+    );
   /** One row per chain this deployment settles on, in the API's order (#244). */
   const chainBalances = balance.data?.balances ?? [];
   /** The assets in the open withdraw dialog: the chosen chain's, never another's. */
@@ -467,8 +490,9 @@ function Wallets() {
           {/* The browser's wallet does the whole ceremony, so it is the primary
               action wherever there is one. The typed-address path stays for a
               wallet that is not in this browser — a hardware signer, a Safe
-              app, another machine. */}
-          {injected.length > 0 && chain !== undefined && (
+              app, another machine. All three disappear once every network has
+              both kinds of address, because then they add nothing. */}
+          {!everyChainHasBothWallets && injected.length > 0 && chain !== undefined && (
             <Button
               variant="secondary"
               onClick={() => withWallet("connect", chain)}
@@ -480,11 +504,17 @@ function Wallets() {
                 : `Connect ${chosen?.name ?? "wallet"} on ${chainLabel(chain)}`}
             </Button>
           )}
-          <Button variant="secondary" onClick={() => openConnect()} disabled={chain === undefined}>
-            <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-            Connect existing
-          </Button>
-          {chain !== undefined && hasVerifiedWalletOn(chain) && (
+          {!everyChainHasBothWallets && (
+            <Button
+              variant="secondary"
+              onClick={() => openConnect()}
+              disabled={chain === undefined}
+            >
+              <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+              Connect existing
+            </Button>
+          )}
+          {!everyChainHasBothWallets && chain !== undefined && hasVerifiedWalletOn(chain) && (
             <Button onClick={() => void provisionOn(chain)} disabled={provision.isPending}>
               <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
               Create on {chainLabel(chain)}
