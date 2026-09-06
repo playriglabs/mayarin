@@ -173,6 +173,9 @@ The detailed and continuously updated status lives in
 
 ## Agent payments
 
+See the [Arc rail audit and reproduction guide](./docs/arc.md) for the architecture,
+contract-path evidence, and remaining Circle wallet and submission work.
+
 An agent asks for a resource, is told the price in machine-readable terms, pays,
 and is served. It never registered with anyone.
 

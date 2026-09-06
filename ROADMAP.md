@@ -439,17 +439,17 @@ zero, and creates nothing. `packages/db/test/journal.test.ts` now catches it.
 
 Read off the chains and registries on 3–4 September:
 
-| Fact                            | Value                                                                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Arc testnet / mainnet chain id  | `5042002` / `5042`                                                                                          |
-| Arc USDC                        | `0x3600000000000000000000000000000000000000` — `FiatTokenV2` behind an EIP-1967 proxy, **not** a precompile |
-| Arc USDC capability             | `eip3009` ✓ · `eip2612` ✓ · domain `{USDC, 2}`                                                              |
-| Arc EURC                        | `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a` — `eip3009` ✓ · domain `{EURC, 2}`                             |
-| Arc Permit2                     | deployed · `x402ExactPermit2Proxy` **not** deployed                                                         |
-| Arc decimals                    | native view 18, ERC-20 view 6 — **one balance**, factor 10^12                                               |
-| Arc `Transfer` logs             | one payment emits **two** — the native view `0xffff…fffe` and the ERC-20 view — same money, two contracts   |
-| The Graph: `base-sepolia`       | Subgraph Studio ✓ · Firehose ✓ · Substreams ✓                                                               |
-| The Graph: `arc-testnet`, `arc` | Subgraph Studio ✓                                                                                           |
+| Fact                            | Value                                                                                                                                                                                   |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arc testnet / mainnet chain id  | `5042002` / `5042`                                                                                                                                                                      |
+| Arc USDC                        | `0x3600000000000000000000000000000000000000` — `FiatTokenV2` behind Circle's `FiatTokenProxy` (the zeppelinos slot, not EIP-1967), **not** a precompile · validates EIP-1271 signatures |
+| Arc USDC capability             | `eip3009` ✓ · `eip2612` ✓ · domain `{USDC, 2}`                                                                                                                                          |
+| Arc EURC                        | `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a` — `eip3009` ✓ · domain `{EURC, 2}`                                                                                                         |
+| Arc Permit2                     | deployed · `x402ExactPermit2Proxy` **not** deployed                                                                                                                                     |
+| Arc decimals                    | native view 18, ERC-20 view 6 — **one balance**, factor 10^12                                                                                                                           |
+| Arc `Transfer` logs             | one payment emits **two** — the native view `0xffff…fffe` and the ERC-20 view — same money, two contracts                                                                               |
+| The Graph: `base-sepolia`       | Subgraph Studio ✓ · Firehose ✓ · Substreams ✓                                                                                                                                           |
+| The Graph: `arc-testnet`, `arc` | Subgraph Studio ✓                                                                                                                                                                       |
 
 Read off Arc testnet on 4 September, before deploying anything to it:
 
@@ -547,7 +547,30 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
       chain and now gets every RPC the deployment has; `WalletService` still
       takes one chain, so the UI cannot ask for another yet.
 - [ ] Circle Agent Stack as the payer, spending under a Circle policy — including
-      the policy refusing an over-limit payment.
+      the policy refusing an over-limit payment. **The payer half is done and
+      paid for**: a Circle agent wallet paid the gated endpoint on Arc testnet,
+      6 September —
+      [`0xe1d37298…`](https://testnet.arcscan.app/tx/0xe1d3729806ea2621f723388550ea88d0b0a07beb518b287f3fdc82fed287fa08),
+      intent `pi_01M1V97XNGWB8BPJB5GHPEY3EW` `COMPLETED`, clearing
+      `clr_01M1V97XPVFXW0FNQRBAJP3TXF` `SUCCESS`, three balanced postings of
+      20000 USDC each, and the payer's gas is **zero**: the operator broadcasts
+      what the wallet signed. Evidence in
+      [`docs/evidence/arc-x402-circle-208.json`](docs/evidence/arc-x402-circle-208.json).
+      An agent wallet is a **contract account**, not a key — its address is
+      counterfactual until a first transaction deploys it, and what the CLI
+      signs with recovers to the wallet's signer rather than to the wallet. Arc
+      USDC takes that signature through EIP-1271, so `EvmX402Reader` asks the
+      chain to verify instead of recovering locally; until that fix every agent
+      payment was rejected as forged. **The policy half stays blocked**:
+      `circle wallet limit set` takes a mainnet chain, and Circle lists Arc on
+      testnet only, so no arrangement of Arc shows a Circle-enforced refusal.
+      The same agent wallet also paid on Base Sepolia
+      ([`0x9fcad5d8…`](https://sepolia.basescan.org/tx/0x9fcad5d8dc0a5bef55cbbe1e06d147bab81bcd4c120b6292ef15923d70366630),
+      [evidence](docs/evidence/base-sepolia-x402-circle-208.json)) — same
+      address, same CLI, one extra step: Base charges gas in ETH, so the wallet
+      had to hold a second asset the merchant never sees, and the transfer
+      failed with "insufficient" until it did. On Arc that step does not exist.
+      That is the Arc thesis stated by two runs rather than by a claim.
 - [ ] Architecture diagram, video, documentation, repo.
 
 #### Deployed on Arc

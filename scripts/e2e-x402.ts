@@ -30,6 +30,16 @@
  * playing both parts tests nothing — a self-transfer moves no money and the
  * balance arithmetic has nothing to say.
  *
+ * **A Circle Agent Stack agent wallet as the payer** (#208), which is the same
+ * claim made by custody rather than by convention — the key is Circle's and
+ * this process only receives a signature:
+ *
+ * CIRCLE_AGENT_WALLET=0x… bun run scripts/e2e-x402.ts --payer circle --chain arc-testnet
+ *
+ * `scripts/circle-agent-wallet.ts` carries the CLI prerequisites, and the one
+ * thing Arc cannot show: Circle enforces spending policies on mainnet chains
+ * only, and lists Arc on testnet only.
+ *
  * ## Running it against a local API
  *
  * No deployment is involved. The chain is remote and the API is not, which is
@@ -52,6 +62,7 @@
  *    here: the operator broadcasts the authorization and then the swap.
  */
 import { CHAIN_IDS, type ChainId, caip2Of, EVM_CHAIN_IDS } from "@mayarin/chain";
+import { type AssetCode, fromDecimalString } from "@mayarin/shared";
 import {
   decodePaymentRequired,
   decodeSettleResponse,
@@ -61,11 +72,11 @@ import {
   PAYMENT_RESPONSE_HEADER,
   PAYMENT_SIGNATURE_HEADER,
   type PaymentPayload,
-  TRANSFER_WITH_AUTHORIZATION_TYPES,
 } from "@mayarin/x402";
 import postgres from "postgres";
 import { type Address, createPublicClient, type Hex, http, parseAbi, parseEventLogs } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { circleAgentWalletPayer, localKeyPayer, type X402Payer } from "./circle-agent-wallet.ts";
 
 function argument(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -89,10 +100,13 @@ const chainId = Number(EVM_CHAIN_IDS[chain]);
 const network = caip2Of(chain);
 // Arc's own currency is USDC: its native view (18 decimals) and its ERC-20 view
 // (6) are one balance, so the payment and the gas come out of the same number.
-const nativeMirrorsAsset: readonly ChainId[] = ["arc-testnet"];
-const mirrored = nativeMirrorsAsset.includes(chain);
+// Only for that asset, though — EURC on Arc is an ordinary ERC-20 and its
+// balance has no native side, so reconciling a EURC payment against the native
+// view compares two different assets and always disagrees.
+const NATIVE_ASSETS: Partial<Record<ChainId, string>> = { "arc-testnet": "USDC" };
 const settlesIn = argument("settles-in") ?? process.env.SETTLEMENT_ASSET ?? "USDC";
 const payWith = argument("pay-with") ?? settlesIn;
+const mirrored = NATIVE_ASSETS[chain] === payWith;
 const crossAsset = payWith !== settlesIn;
 // A cross-asset rail advertises the operator, and the operator is whoever holds
 // the key this deployment signs with — so it is derived rather than typed. An
@@ -113,7 +127,15 @@ const rpc = rpcUrls[chain];
 assert(rpc, `CHAIN_RPC_URLS must contain ${chain}`);
 const client = createPublicClient({ transport: http(rpc) });
 assert((await client.getChainId()) === chainId, "RPC does not match the selected testnet");
-const payer = privateKeyToAccount(required("PAYER_PRIVATE_KEY") as Hex);
+// Who holds the key that signs. A Circle agent wallet is the only one of the
+// two that demonstrates the claim — Mayarin never sees the payer's key — so a
+// run recording that claim has to say which it used.
+const custody = argument("payer") ?? "local-key";
+assert(custody === "local-key" || custody === "circle", "--payer must be local-key or circle");
+const payer: X402Payer =
+  custody === "circle"
+    ? circleAgentWalletPayer(required("CIRCLE_AGENT_WALLET") as Address, chain)
+    : localKeyPayer(required("PAYER_PRIVATE_KEY") as Hex);
 const sql = postgres(required("DATABASE_URL"), { connect_timeout: 10, max: 1 });
 const abi = parseAbi([
   "function balanceOf(address) view returns (uint256)",
@@ -132,27 +154,38 @@ try {
   assert(header, "402 omitted PAYMENT-REQUIRED");
   const offeredAt = Math.floor(Date.now() / 1000);
   const offered = decodePaymentRequired(header);
-  const accepted = offered.accepts.find((rail) => rail.network === network);
-  assert(accepted, `The resource does not offer ${chain}`);
-  assert(accepted.scheme === "exact", "Expected the exact scheme");
-  assert(accepted.extra?.assetTransferMethod === "eip3009", "Expected EIP-3009");
   const configuredTokens: Record<string, Record<string, string>> = JSON.parse(
     required("CHAIN_ASSETS"),
   );
-  assert(
-    accepted.asset.toLowerCase() === configuredTokens[chain]?.[payWith]?.toLowerCase(),
-    `The resource asks for a token other than configured testnet ${payWith}`,
+  const wanted = configuredTokens[chain]?.[payWith];
+  assert(wanted, `CHAIN_ASSETS has no ${payWith} on ${chain}`);
+  // Chain *and* asset. A resource can offer several rails on one chain — Arc
+  // offers USDC and EURC — so matching the chain alone picks whichever was
+  // registered first and then fails comparing it to the asset asked for.
+  const accepted = offered.accepts.find(
+    (rail) => rail.network === network && rail.asset.toLowerCase() === wanted.toLowerCase(),
   );
+  assert(accepted, `The resource does not offer ${payWith} on ${chain}`);
+  assert(accepted.scheme === "exact", "Expected the exact scheme");
+  assert(accepted.extra?.assetTransferMethod === "eip3009", "Expected EIP-3009");
   const settlementToken = configuredTokens[chain]?.[settlesIn];
   assert(settlementToken, `CHAIN_ASSETS has no ${settlesIn} on ${chain}`);
   assert(accepted.payTo.toLowerCase() === payTo.toLowerCase(), "Unexpected payment recipient");
   const amount = BigInt(accepted.amount);
   // A cross-asset authorization is the invoice grossed up by slippage, so the
   // ceiling is a little above the same-asset one and still small enough that a
-  // mistake costs cents.
+  // mistake costs cents. `--ceiling` raises it for a run that deliberately
+  // prices higher — a decimal amount of the payer's asset, typed once, so the
+  // guard is relaxed on purpose rather than edited away.
+  const ceiling = argument("ceiling");
+  const maximum = ceiling
+    ? fromDecimalString(ceiling, payWith as AssetCode).amount
+    : crossAsset
+      ? 30_000n
+      : 20_000n;
   assert(
-    amount > 0n && amount <= (crossAsset ? 30_000n : 20_000n),
-    `Test payment must be at most ${crossAsset ? "0.03" : "0.02"} ${payWith}`,
+    amount > 0n && amount <= maximum,
+    `Test payment must be at most ${ceiling ?? (crossAsset ? "0.03" : "0.02")} ${payWith}`,
   );
   assert(
     Number.isSafeInteger(accepted.maxTimeoutSeconds) && accepted.maxTimeoutSeconds > 10,
@@ -234,6 +267,7 @@ try {
       phase: "preflight",
       network: accepted.network,
       payer: payer.address,
+      payerCustody: payer.custody,
       recipient,
       amount: amount.toString(),
       payerBalance: payerBefore.toString(),
@@ -265,12 +299,10 @@ try {
       nonce,
     };
     const domain = domainOf(accepted, chainId);
-    const signature = await payer.signTypedData({
-      domain: { ...domain, verifyingContract: token },
-      types: TRANSFER_WITH_AUTHORIZATION_TYPES,
-      primaryType: "TransferWithAuthorization",
+    const signature = await payer.signTransferAuthorization(
+      { ...domain, verifyingContract: token },
       message,
-    });
+    );
     const payment: PaymentPayload = {
       x402Version: 2,
       resource: offered.resource,
@@ -290,6 +322,7 @@ try {
       url,
       network: accepted.network,
       payer: payer.address,
+      payerCustody: payer.custody,
       recipient,
       token,
       amount: amount.toString(),

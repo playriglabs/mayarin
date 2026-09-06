@@ -39,6 +39,7 @@ import {
 } from "viem";
 import { shortReason } from "./errors.ts";
 import { depositSalt } from "./forwarder-deriver.ts";
+import { validateNativeAssets } from "./native-assets.ts";
 import { buildPayERC20Call, buildPayEthCall, type Permit2Single } from "./payment-router.ts";
 
 /** Canonical Uniswap Permit2 — the address `PaymentRouter` was deployed against. */
@@ -194,6 +195,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
   readonly #nextNonce = new Map<ChainId, number>();
 
   constructor(options: EvmTreasuryExecutionPortOptions) {
+    validateNativeAssets(options.nativeAssets ?? {});
     this.#options = options;
   }
 
