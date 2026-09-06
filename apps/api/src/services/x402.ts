@@ -257,6 +257,10 @@ export class X402Service {
     return resource;
   }
 
+  remove(id: string): Promise<void> {
+    return this.#options.resources.remove(id);
+  }
+
   listByMerchant(merchantId: string): Promise<readonly X402Resource[]> {
     return this.#options.resources.listByMerchant(merchantId);
   }

@@ -89,5 +89,10 @@ export function x402ResourceRoutes(container: Container): Hono<{ Variables: Auth
     return c.json({ resource: toResourceDto(resource) }, 201);
   });
 
+  app.delete("/:id", csrfMiddleware(), async (c) => {
+    await container.x402Resources.remove(scopeOf(c), c.req.param("id"));
+    return c.body(null, 204);
+  });
+
   return app;
 }

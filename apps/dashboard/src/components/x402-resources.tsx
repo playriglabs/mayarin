@@ -12,11 +12,27 @@
  * that rail somewhere nobody controls, and it cannot be taken back.
  */
 
-import { ArrowSquareOutIcon, GlobeIcon, PlusIcon, TerminalWindowIcon } from "@phosphor-icons/react";
+import {
+  ArrowSquareOutIcon,
+  GlobeIcon,
+  PlusIcon,
+  TerminalWindowIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { ChainLabel } from "@/components/chain-logo";
 import { Alert } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,7 +66,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCreateX402Resource, useX402Rails, useX402Resources } from "@/hooks/x402";
+import {
+  useCreateX402Resource,
+  useDeleteX402Resource,
+  useX402Rails,
+  useX402Resources,
+} from "@/hooks/x402";
 import { ApiError } from "@/lib/api/client";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -74,6 +95,7 @@ function X402Resources() {
   const resources = useX402Resources();
   const rails = useX402Rails();
   const create = useCreateX402Resource();
+  const remove = useDeleteX402Resource();
 
   const [creating, setCreating] = useState(false);
   const [id, setId] = useState("");
@@ -83,6 +105,7 @@ function X402Resources() {
   const [chains, setChains] = useState<Set<string>>(new Set());
   const [failure, setFailure] = useState("");
   const [guide, setGuide] = useState<X402ResourceDto | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<X402ResourceDto | null>(null);
 
   const offered = rails.data?.rails ?? [];
   const rows = resources.data?.resources ?? [];
@@ -191,7 +214,7 @@ function X402Resources() {
                   <TableHead>URL</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Rails</TableHead>
-                  <TableHead className="text-right">Setup</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -217,14 +240,24 @@ function X402Resources() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setGuide(resource)}
-                        aria-label={`How to gate ${resource.id}`}
-                      >
-                        <TerminalWindowIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setGuide(resource)}
+                          aria-label={`How to gate ${resource.id}`}
+                        >
+                          <TerminalWindowIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setPendingRemove(resource)}
+                          aria-label={`Remove ${resource.id}`}
+                        >
+                          <TrashIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -412,6 +445,34 @@ function X402Resources() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={pendingRemove !== null}
+        onOpenChange={(next) => !next && setPendingRemove(null)}
+      >
+        <AlertDialogContent className="max-w-md gap-6 p-6">
+          <AlertDialogHeader className="gap-2">
+            <AlertDialogTitle>Remove this endpoint?</AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              <span className="font-mono text-foreground">{pendingRemove?.id}</span> stops being
+              quotable: an agent asking its price is refused, and one holding an old quote cannot
+              spend it. Payments already made are untouched — they are in your ledger and your
+              settlements, and stay there.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel />
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingRemove !== null)
+                  void remove.mutateAsync(pendingRemove.id).catch(() => {});
+                setPendingRemove(null);
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

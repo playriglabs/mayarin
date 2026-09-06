@@ -28,6 +28,14 @@ export function useX402Rails() {
   });
 }
 
+export function useDeleteX402Resource() {
+  return useEffectMutation<void, string, ApiError>({
+    mutation: (id) => x402Api.remove(id),
+    toast: { loading: "Removing endpoint…", success: "Endpoint removed" },
+    invalidate: [RESOURCES_KEY],
+  });
+}
+
 export function useCreateX402Resource() {
   return useEffectMutation<X402ResourceResponse, CreateX402ResourceRequest, ApiError>({
     mutation: (body) => x402Api.create(body),

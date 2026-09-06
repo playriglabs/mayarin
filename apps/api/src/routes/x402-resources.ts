@@ -11,7 +11,7 @@
  * could name any merchant would be an admin token wearing a merchant's name.
  */
 
-import { fromDecimalString } from "@mayarin/shared";
+import { fromDecimalString, NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { merchantX402ResourceSchema, toX402ResourceDto } from "../dto/x402-resource.ts";
@@ -45,6 +45,24 @@ export function x402ResourceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     });
 
     return c.json({ resource: toX402ResourceDto(resource) }, 201);
+  });
+
+  /**
+   * Withdraws a resource this merchant owns.
+   *
+   * Nothing paid is undone: the ledger and the intents are the record of that,
+   * and neither is touched. What stops is the `402` — the price is no longer
+   * offered, so it is no longer quotable.
+   */
+  app.delete("/:id", manage, async (c) => {
+    const service = requireX402(container);
+    const id = c.req.param("id");
+    const resource = await service.resourceById(id).catch(() => undefined);
+    if (resource === undefined || resource.merchantId !== c.get("scope").merchantId) {
+      throw new NotFoundError(`Resource ${id} not found`, { id });
+    }
+    await service.remove(id);
+    return c.body(null, 204);
   });
 
   return app;

@@ -119,6 +119,34 @@ describe("rails", () => {
   });
 });
 
+describe("remove", () => {
+  test("forgets the merchant's own endpoint", async () => {
+    const { service, resources } = await serviceWith({});
+    await service.create(SCOPE, { ...input, chains: ["arc-testnet"] });
+
+    await service.remove(SCOPE, "fx-quote");
+
+    expect(await resources.findById("fx-quote")).toBeUndefined();
+  });
+
+  // Another merchant's id reads as absent rather than forbidden: the caller
+  // learns nothing about what exists outside their own account.
+  test("cannot remove another merchant's endpoint, and is not told it exists", async () => {
+    const { service, resources } = await serviceWith({});
+    await resources.save({
+      id: "theirs",
+      merchantId: "mrc_someone_else",
+      url: "https://elsewhere.example/quote",
+      price: { amount: 10_000n, asset: "USD" },
+      maxTimeoutSeconds: 60,
+      accepts: [],
+    });
+
+    await expect(service.remove(SCOPE, "theirs")).rejects.toThrow(/not found/);
+    expect(await resources.findById("theirs")).toBeDefined();
+  });
+});
+
 describe("create", () => {
   test("fills payTo from the merchant's own wallet and the domain from the token", async () => {
     const { service, resources } = await serviceWith({});

@@ -151,6 +151,21 @@ export class X402ResourceService {
     return resource;
   }
 
+  /**
+   * Withdraws one of this merchant's own endpoints.
+   *
+   * Another merchant's id is a `NotFoundError` rather than a refusal: the
+   * caller learns nothing about what exists outside their own account, which is
+   * the same posture every other listing here takes.
+   */
+  async remove(scope: Scope, id: string): Promise<void> {
+    const existing = await this.#options.resources.findById(id);
+    if (existing === undefined || existing.merchantId !== scope.merchantId) {
+      throw new NotFoundError(`Endpoint ${id} not found`, { id });
+    }
+    await this.#options.resources.remove(id);
+  }
+
   async #merchant(scope: Scope) {
     const merchant = await this.#options.merchants.findById(scope.merchantId);
     if (merchant === null) {

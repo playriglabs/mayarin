@@ -25,4 +25,8 @@ export const x402Api = {
 
   create: (body: CreateX402ResourceRequest): Effect.Effect<X402ResourceResponse, ApiError> =>
     request<X402ResourceResponse>("/x402-resources", { method: "POST", body }),
+
+  /** Withdraws an endpoint. Nothing already paid is undone. */
+  remove: (id: string): Effect.Effect<void, ApiError> =>
+    request<void>(`/x402-resources/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };

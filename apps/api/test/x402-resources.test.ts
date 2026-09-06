@@ -33,13 +33,14 @@ function resourceFor(merchantId: string, id = "fx-quote"): X402Resource {
 
 interface Registered {
   readonly merchantIds: string[];
+  readonly removed: string[];
 }
 
 function appFor(
   permissions: readonly Permission[],
   merchantId = MERCHANT,
 ): { app: Hono; registered: Registered } {
-  const registered: Registered = { merchantIds: [] };
+  const registered: Registered = { merchantIds: [], removed: [] };
   const service = {
     async listByMerchant(id: string) {
       return id === MERCHANT ? [resourceFor(MERCHANT)] : [];
@@ -47,6 +48,13 @@ function appFor(
     async register(input: { merchantId: string }) {
       registered.merchantIds.push(input.merchantId);
       return resourceFor(input.merchantId);
+    },
+    async resourceById(id: string) {
+      if (id !== "fx-quote") throw new Error(`unknown resource ${id}`);
+      return resourceFor(MERCHANT);
+    },
+    async remove(id: string) {
+      registered.removed.push(id);
     },
   } as unknown as X402Service;
 
@@ -123,6 +131,37 @@ describe("POST /v1/x402/resources", () => {
     const { app } = appFor(["catalog:manage"]);
 
     expect((await post(app, body, "nope")).status).toBe(401);
+  });
+});
+
+describe("DELETE /v1/x402/resources/:id", () => {
+  const remove = (app: Hono, id: string) =>
+    app.request(`/x402/resources/${id}`, {
+      method: "DELETE",
+      headers: { authorization: "Bearer sk_live" },
+    });
+
+  test("removes the key's own resource", async () => {
+    const { app, registered } = appFor(["catalog:manage"]);
+
+    expect((await remove(app, "fx-quote")).status).toBe(204);
+    expect(registered.removed).toEqual(["fx-quote"]);
+  });
+
+  // Owned by MERCHANT, and this key is another merchant's: absent, not
+  // forbidden, so the caller learns nothing about what exists elsewhere.
+  test("reads another merchant's resource as absent", async () => {
+    const { app, registered } = appFor(["catalog:manage"], OTHER);
+
+    expect((await remove(app, "fx-quote")).status).toBe(404);
+    expect(registered.removed).toEqual([]);
+  });
+
+  test("requires catalog:manage", async () => {
+    const { app, registered } = appFor(["payments:read"]);
+
+    expect((await remove(app, "fx-quote")).status).toBe(403);
+    expect(registered.removed).toEqual([]);
   });
 });
 

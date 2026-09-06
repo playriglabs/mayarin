@@ -43,6 +43,10 @@ export class DrizzleX402ResourceRepository implements X402ResourceRepository {
     return rows.map(toResource);
   }
 
+  async remove(id: string): Promise<void> {
+    await this.#db.delete(x402Resources).where(eq(x402Resources.id, id));
+  }
+
   /**
    * Upsert by id.
    *
