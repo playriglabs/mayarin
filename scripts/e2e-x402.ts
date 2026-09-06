@@ -100,10 +100,13 @@ const chainId = Number(EVM_CHAIN_IDS[chain]);
 const network = caip2Of(chain);
 // Arc's own currency is USDC: its native view (18 decimals) and its ERC-20 view
 // (6) are one balance, so the payment and the gas come out of the same number.
-const nativeMirrorsAsset: readonly ChainId[] = ["arc-testnet"];
-const mirrored = nativeMirrorsAsset.includes(chain);
+// Only for that asset, though — EURC on Arc is an ordinary ERC-20 and its
+// balance has no native side, so reconciling a EURC payment against the native
+// view compares two different assets and always disagrees.
+const NATIVE_ASSETS: Partial<Record<ChainId, string>> = { "arc-testnet": "USDC" };
 const settlesIn = argument("settles-in") ?? process.env.SETTLEMENT_ASSET ?? "USDC";
 const payWith = argument("pay-with") ?? settlesIn;
+const mirrored = NATIVE_ASSETS[chain] === payWith;
 const crossAsset = payWith !== settlesIn;
 // A cross-asset rail advertises the operator, and the operator is whoever holds
 // the key this deployment signs with — so it is derived rather than typed. An
