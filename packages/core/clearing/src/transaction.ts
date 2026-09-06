@@ -134,6 +134,48 @@ export function recordSettlementBroadcast(
   };
 }
 
+/**
+ * Records the swap that pays the merchant on a cross-asset payment (#211).
+ *
+ * Persist-before-confirm, one movement later than `recordSettlementBroadcast`,
+ * and for a sharper reason. The authorization cannot be re-sent — EIP-3009 has
+ * recorded its nonce — so a lost broadcast hash strands money. A swap has no
+ * such guard: re-sending one spends the operator's own balance and pays the
+ * merchant a second time. Writing the hash first is what lets a resume confirm
+ * the swap instead of repeating it.
+ *
+ * The reference moves off the authorization and onto the swap, because the
+ * settlement reference names the transaction that paid the merchant and on a
+ * cross-asset payment that is not the one the payer signed. The authorization's
+ * own hash stays in the `settlement.broadcast` event before it.
+ */
+export function recordCrossAssetSwap(
+  transaction: ClearingTransaction,
+  providerReference: string,
+  now: Date,
+): TransitionResult {
+  const updatedAt = new Date(now);
+  const next: ClearingTransaction = {
+    ...transaction,
+    providerReference,
+    updatedAt,
+    version: transaction.version + 1,
+  };
+
+  return {
+    transaction: next,
+    event: {
+      id: generateId("evt", updatedAt.getTime()),
+      clearingTransactionId: transaction.id,
+      sequence: next.version,
+      type: "settlement.swap",
+      toState: transaction.state,
+      payload: { providerReference },
+      occurredAt: updatedAt,
+    },
+  };
+}
+
 export function failTransaction(
   transaction: ClearingTransaction,
   failure: ClearingFailure,

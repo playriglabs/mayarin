@@ -173,5 +173,17 @@ export const CLEARING_EVENT_TYPES = [
    * anywhere, and EIP-3009 will not let the same authorization be sent twice.
    */
   "settlement.broadcast",
+  /**
+   * A cross-asset payment's swap went out and has not been confirmed yet.
+   *
+   * The twin of `settlement.broadcast`, one movement later. A cross-asset x402
+   * payment (#211) has two chain transactions — the payer's authorization into
+   * the operator, then the swap that pays the merchant — and only one of them
+   * can be the settlement reference. This event is what says the reference has
+   * moved on, so a resume confirms the swap instead of re-sending it. A swap
+   * has no nonce to stop a second one: re-sending would spend the operator's
+   * own balance and pay the merchant twice.
+   */
+  "settlement.swap",
 ] as const;
 export type ClearingEventType = (typeof CLEARING_EVENT_TYPES)[number];

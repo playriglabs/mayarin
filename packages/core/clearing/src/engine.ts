@@ -62,6 +62,7 @@ import {
   contractSettledPosting,
   depositAssetReceivedPosting,
   internalSettledPosting,
+  payerSurplusPosting,
   settledPosting,
 } from "./postings.ts";
 import { lockRate, type RateProvider } from "./rate.ts";
@@ -70,6 +71,7 @@ import { canTransition, isTerminal } from "./state-machine.ts";
 import {
   createClearingTransaction,
   failTransaction,
+  recordCrossAssetSwap,
   recordSettlementBroadcast,
   type TransitionResult,
   transition,
@@ -100,6 +102,15 @@ export interface FacilitatorSettlement {
   readonly chain: ChainId;
   readonly txHash: string;
   readonly amount: Money;
+  /**
+   * What the payer authorised and the swap did not consume (#211).
+   *
+   * Present only on a cross-asset payment, and denominated in the payer's asset
+   * rather than the merchant's. Carried here rather than posted separately so
+   * the receipt and the change are one write: they describe one movement, and a
+   * crash between them would leave a balance nothing explains.
+   */
+  readonly surplus?: Money;
 }
 
 export interface ClearingEngineOptions {
@@ -359,7 +370,59 @@ export class ClearingEngine {
     return next;
   }
 
-  /** Records a direct payout, including its durable transaction reference. */
+  /**
+   * Records the swap that pays a cross-asset payment's merchant (#211).
+   *
+   * Called after the swap is broadcast and before it is confirmed, for the same
+   * reason `recordFacilitatorBroadcast` is: a confirmation that throws must not
+   * be able to lose the pointer to money that has already moved. The failure it
+   * prevents is worse here — an authorization cannot be re-sent, but a swap can,
+   * and repeating one spends the operator's own balance and pays the merchant
+   * twice.
+   *
+   * The reference moves from the authorization to the swap. Both stay in the
+   * log, as `settlement.broadcast` and `settlement.swap`, and which of them the
+   * transaction is holding is what a resume reads to decide whether the swap
+   * still has to be sent.
+   *
+   * Idempotent: the same hash twice is the resume case.
+   */
+  async recordCrossAssetSwap(id: string, txHash: string): Promise<ClearingTransaction> {
+    const transaction = await this.getById(id);
+    if (!awaitsFacilitatorSettlement(transaction.executionPath)) {
+      throw new ValidationError("Only an x402 payment records a cross-asset swap", { id });
+    }
+    if (!/^0x[\da-f]{64}$/i.test(txHash)) {
+      throw new ValidationError("Cross-asset swap is not a transaction hash", { id, txHash });
+    }
+    if (transaction.providerReference === txHash) return transaction;
+    // Unlike a broadcast, a reference is *expected* here: the authorization is
+    // what put one there. Its absence means the swap was sent before the payer
+    // had paid, which is the operator spending its own balance.
+    if (transaction.providerReference === undefined) {
+      throw new ValidationError("A cross-asset swap needs the authorization it swaps", { id });
+    }
+
+    const { transaction: next, event } = recordCrossAssetSwap(
+      transaction,
+      txHash,
+      this.#clock.now(),
+    );
+    await this.#repository.update(next, transaction.version, [event]);
+    return next;
+  }
+
+  /**
+   * Records a direct payout, including its durable transaction reference.
+   *
+   * The lock is the authority on what the merchant is owed, and the check is
+   * that exactly that much of exactly that asset was delivered. The payer's own
+   * rail asset is deliberately not part of it: on a cross-asset payment (#211)
+   * the agent authorises EURC and the merchant is paid USDC, so requiring the
+   * two to match was right while there was one asset and refuses a correct
+   * settlement the moment there are two. What still has to agree is the chain —
+   * the swap executes where the authorization landed.
+   */
   async recordFacilitatorSettlement(
     id: string,
     settlement: FacilitatorSettlement,
@@ -370,7 +433,6 @@ export class ClearingEngine {
     if (
       !awaitsFacilitatorSettlement(transaction.executionPath) ||
       intent.payment?.chain !== settlement.chain ||
-      intent.payment.asset !== settlement.amount.asset ||
       locked.asset !== settlement.amount.asset ||
       locked.amount !== settlement.amount.amount ||
       !/^0x[\da-f]{64}$/i.test(settlement.txHash)
@@ -538,6 +600,12 @@ export class ClearingEngine {
             refundAmount: zero(settlement.amount.asset),
           };
           await this.#ledger.post(assetReceivedPosting(transaction));
+          // The payer's change, when the swap took less than they authorised.
+          // Zero is the same-asset case and every exact fill, and posting a
+          // zero entry would record a movement that did not happen.
+          if (settlement.surplus !== undefined && settlement.surplus.amount > 0n) {
+            await this.#ledger.post(payerSurplusPosting(transaction, settlement.surplus));
+          }
           return this.#apply(
             transition(
               transaction,

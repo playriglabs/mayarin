@@ -97,6 +97,7 @@ async function harness() {
       city: "Jakarta",
       countryCode: "ID",
     }),
+    settlementAssetOf: async () => "USDC",
   });
   const offered = await service.paymentRequired(resource);
   const accepted = offered.accepts[0];

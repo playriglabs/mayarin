@@ -43,6 +43,26 @@ export const USDC_BASE_SEPOLIA: AcceptedAsset = {
 };
 
 /**
+ * EURC on Base Sepolia — the cross-asset rail (#211).
+ *
+ * A payer holding this and a merchant settling USDC is the only cross-asset
+ * pair the `exact` scheme can actually serve today: EIP-3009 is what an agent
+ * signs, and native ETH has none of it while WETH9 has no permit at all. So
+ * "the agent pays with what it holds" means a Circle-style token, not ether.
+ *
+ * `payTo` is deliberately the merchant here, so a test has to set the operator
+ * explicitly to build a rail that would be accepted.
+ */
+export const EURC_BASE_SEPOLIA: AcceptedAsset = {
+  chain: "base-sepolia",
+  asset: "EURC",
+  contract: "0x808456652fdb597867f38412077A9182bf77359F",
+  payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+  domain: { name: "EURC", version: "2" },
+  transferMethod: "eip3009",
+};
+
+/**
  * USDC on Arc, at the address measured on 3 September 2026. Not a precompile
  * despite the shape of it — Circle's FiatTokenV2 behind an EIP-1967 proxy, with
  * EIP-3009 present and the same `{USDC, 2}` domain.

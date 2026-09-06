@@ -131,10 +131,10 @@ export function toNotifiableEvent(
 /**
  * The merchant-facing name for a clearing event, or nothing.
  *
- * Not every event in the log is news to a merchant. `settlement.broadcast`
- * records that a settlement transaction went out and records no state change —
- * projecting it would deliver a `payment.state_changed` whose state is the same
- * one the merchant was told about last time.
+ * Not every event in the log is news to a merchant. `settlement.broadcast` and
+ * `settlement.swap` record that a settlement transaction went out and record no
+ * state change — projecting either would deliver a `payment.state_changed`
+ * whose state is the same one the merchant was told about last time.
  */
 export function toWebhookEventType(type: ClearingEventType): WebhookEventType | undefined {
   switch (type) {
@@ -145,6 +145,7 @@ export function toWebhookEventType(type: ClearingEventType): WebhookEventType | 
     case "state.failed":
       return "payment.failed";
     case "settlement.broadcast":
+    case "settlement.swap":
       return undefined;
   }
 }
