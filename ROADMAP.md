@@ -639,13 +639,20 @@ to Pages.
 - [x] Post payer surplus through a balanced ledger entry — never absorb it.
       `PAYER_SURPLUS`, a **liability**, because it is the payer's change rather
       than an FX result.
-- [ ] A real EURC → USDC payment on Base Sepolia, end to end.
+- [x] **A real EURC → USDC payment on Base Sepolia, end to end.** Block
+      `46451061`: authorization `0x254b93ce…` moved 28351 EURC from the payer to
+      the operator, swap `0xb1436735…` spent 28208 of it and delivered exactly
+      20000 USDC to the merchant, and the 143 EURC the pool did not need was
+      credited to `PAYER_SURPLUS`. Intent `COMPLETED`, clearing `SUCCESS`, fee
+      zero, treasury netting to zero. `bun run scripts/e2e-x402.ts --pay-with
+  EURC` is the repeatable form.
+- [x] `FEEDBACK.md` and the README pointing at the contracts and lines to read.
 - [ ] Resume a cross-asset payment interrupted between its two chain movements.
       `recoverBroadcasts` skips them today rather than confirming one wrongly.
 - [ ] Payer refund above a dust threshold. Everything sits in `PAYER_SURPLUS`
       until somebody sets one.
-- [ ] `FEEDBACK.md`, the Developer Feedback Form, and a README naming the exact
-      contracts and lines to read.
+- [ ] Submit the Uniswap Developer Feedback Form. `FEEDBACK.md` is written; the
+      form itself is not code and is still open.
 
 ### #210 — Privy
 

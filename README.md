@@ -305,6 +305,54 @@ The price a payer is given is honoured for a window derived from the quote lock,
 never configured beside it. The two numbers cannot drift apart because there is
 only one.
 
+#### Cross-asset: the agent pays with what it holds
+
+An agent that does not hold the merchant's settlement asset is still a payer.
+It signs one authorization in the asset it has, and the merchant is paid the
+exact amount they invoiced in the asset they chose:
+
+```text
+authorization   payer    → operator     the agent's asset, exactly what it signed for
+swap            operator → pool         exact-output, bounded by the authorization
+                pool     → merchant     exactly the invoice, or the swap reverts
+surplus                                 what the pool did not need, booked back to the payer
+```
+
+The merchant's number is the fixed one and the payer's is derived from it, so
+the swap is priced **backwards** — asking what delivering exactly the invoice
+costs, rather than what one unit buys. On a thin pool those are different
+answers, and the forward one is wrong in the direction that loses the payment
+after their money has already moved.
+
+`exact` gives the payer one signature and no way to top it up, so the amount
+they sign is the exact-output quote plus a slippage bound, and that bound is
+also the ceiling the swap may consume. Whatever it does not consume is theirs:
+it is recorded as a liability owed back, never absorbed.
+
+Measured on Base Sepolia, block `46451061` — an agent holding EURC paying a
+USDC merchant, with no account and no API key:
+
+|                |                                                                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authorization  | [`0x254b93ce…`](https://sepolia.basescan.org/tx/0x254b93cec1a73279e12968938c1c491133c5556b4adb9e71cea070e0abc8affa) — 28351 EURC, payer → operator                  |
+| Swap           | [`0xb1436735…`](https://sepolia.basescan.org/tx/0xb143673599a6b05cd95676f0bbec7ffc35f9f99563bf45c6f26468944eb38a07) — 28208 EURC in, **20000 USDC to the merchant** |
+| Payer's change | 143 EURC, booked to `PAYER_SURPLUS`                                                                                                                                 |
+
+Where to read it:
+
+| What                                                             | File                                                                  |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Pricing the invoice backwards into the payer's asset             | `apps/api/src/services/x402.ts` — `#priceCrossAsset`                  |
+| The exact-output quote against Uniswap's QuoterV2                | `packages/providers/swap-uniswap/src/adapter.ts` — `quoteExactOutput` |
+| Encoding `exactOutputSingle` for `SwapRouter02`                  | `packages/providers/swap-uniswap/src/route.ts`                        |
+| Plan before the payer's money moves, then send, persist, confirm | `packages/core/x402/src/cross-asset.ts`                               |
+| Approve, swap, and read the receipt back                         | `packages/providers/evm/src/cross-asset-settler.ts`                   |
+| The payer's change, as a liability rather than a gain            | `packages/core/ledger/src/accounts.ts` — `PAYER_SURPLUS`              |
+| The end-to-end run that produced the figures above               | `scripts/e2e-x402.ts`                                                 |
+
+Notes on the Uniswap integration itself — what the contracts do that their
+documentation does not say — are in [`FEEDBACK.md`](./FEEDBACK.md).
+
 ## Design principles
 
 - **Money is never a float.** Amounts are integer minor units and rates are
