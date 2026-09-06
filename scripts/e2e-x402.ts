@@ -529,6 +529,9 @@ try {
         operatorAfter - operatorBefore === amount - spent,
         "The operator's balance disagrees with what the swap consumed",
       );
+      // Held and booked have to be the same number. Change at the operator that
+      // the ledger does not know about, or a credit to the payer that no
+      // balance backs, are the two ways this rail quietly takes their money.
       const surplus = (evidence.entries as readonly { account_code: string; amount: string }[])
         .filter((entry) => entry.account_code === `PAYER_SURPLUS:${payWith}`)
         .reduce((sum, entry) => sum + BigInt(entry.amount), 0n);
@@ -566,10 +569,14 @@ try {
       booked?.state === "SUCCESS" && booked.fee_amount === "0" && booked.on_chain_fee === "0",
       "Direct x402 payment booked a fee that was not collected",
     );
+    // Against what the chain shows the merchant received, not against what the
+    // payer authorised. The two are the same number only on a same-asset rail;
+    // on a cross-asset one the payer's figure is in the payer's asset, and
+    // comparing them would ask the ledger to agree with the wrong side.
     assert(
-      booked.net_amount === amount.toString() &&
-        booked.on_chain_settled_amount === amount.toString(),
-      "Ledger net settlement differs from the merchant's actual transfer",
+      booked.net_amount === delivered.toString() &&
+        booked.on_chain_settled_amount === delivered.toString(),
+      `Ledger net settlement differs from the merchant's actual transfer: booked ${booked.net_amount}, delivered ${delivered}`,
     );
     assert(
       booked.provider_reference === receipt.transactionHash,
@@ -589,7 +596,7 @@ try {
       "Direct payout created uncollected revenue or an internal merchant holding",
     );
     const treasury = entries
-      .filter((entry) => entry.account_code === "TREASURY:USDC")
+      .filter((entry) => entry.account_code === `TREASURY:${settlesIn}`)
       .reduce(
         (sum, entry) =>
           sum + (entry.direction === "DEBIT" ? BigInt(entry.amount) : -BigInt(entry.amount)),
