@@ -17,7 +17,7 @@ export function CodeBlock({ snippet }: { snippet: Snippet }) {
   };
 
   return (
-    <div class="border border-line-inverse bg-[#080808]">
+    <div class="border border-line-inverse bg-code-panel">
       <div class="flex items-center justify-between border-b border-line-inverse px-5 py-3.5">
         <div class="flex items-center gap-3">
           <span aria-hidden="true" class="size-1.5 bg-accent" />

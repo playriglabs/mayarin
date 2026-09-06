@@ -61,7 +61,7 @@ export function Developers() {
         <div
           role="tablist"
           aria-label="Code examples"
-          class="flex items-center gap-x-8 overflow-x-auto border-b border-line-inverse scrollbar-none [&::-webkit-scrollbar]:hidden"
+          class="flex items-center gap-x-8 overflow-x-auto shadow-[inset_0_-2px_0_var(--color-line-inverse)] scrollbar-none [&::-webkit-scrollbar]:hidden"
         >
           {snippets.map((item, index) => (
             <button
@@ -74,9 +74,9 @@ export function Developers() {
               tabIndex={index === active ? 0 : -1}
               onClick={() => setActive(index)}
               class={clsx(
-                "-mb-px shrink-0 cursor-pointer whitespace-nowrap border-b py-3.5 text-sm transition-colors duration-200",
+                "shrink-0 cursor-pointer whitespace-nowrap border-b-2 py-3.5 text-sm transition-colors duration-200",
                 index === active
-                  ? "border-accent text-white"
+                  ? "border-accent text-accent"
                   : "border-transparent text-slate-inverse hover:text-white",
               )}
             >
@@ -98,7 +98,7 @@ export function Developers() {
       {/* The three promises read as a footer to the code, not a sidebar. */}
       <div class="mt-14 grid gap-px border-t border-line-inverse bg-line-inverse md:mt-16 md:grid-cols-3">
         {PROMISES.map((promise, index) => (
-          <div key={promise.title} class="bg-void md:px-8 md:first:pl-0 md:last:pr-0">
+          <div key={promise.title} class="bg-code-panel px-6 md:px-8">
             <Reveal delay={index * 80} class="py-8">
               <h3 class="font-display text-2xl font-medium tracking-[-0.01em] text-white">
                 {promise.title}

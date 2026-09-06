@@ -54,7 +54,7 @@ export function Hero() {
             Start building
           </a>
           <a
-            href="https://docs.mayarin.xyz"
+            href="https://dashboard-testnet.mayarin.xyz"
             aria-label="Read the documentation"
             class="inline-flex size-14 cursor-pointer items-center justify-center border border-black/20 text-ink transition-colors duration-200 hover:border-ink"
           >

@@ -62,7 +62,7 @@ export function AgentPayments() {
           <article class="border-y border-line bg-void py-16 text-white md:py-18 mx-[calc(50%-50vw)] w-screen">
             <div class="mx-auto grid max-w-341.75 items-center gap-12 px-6 md:px-12 lg:grid-cols-[minmax(0,0.9fr)_minmax(22rem,1.1fr)]">
               <div>
-                <h3 class="max-w-[18ch] text-[2.5rem] font-sans! leading-[1.1] tracking-[-0.02em]">
+                <h3 class="max-w-[18ch] text-[2.5rem] leading-[1.1] tracking-[-0.02em]">
                   An agent is a payer class, not a product line.
                 </h3>
                 <p class="mt-6 max-w-[46ch] text-[0.95rem] leading-[1.7] text-slate-inverse">
@@ -93,10 +93,10 @@ export function AgentPayments() {
             <article class="h-full bg-paper py-10 md:py-10 lg:pr-10">
               <div class="mx-auto grid h-full max-w-341.75 items-center gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)]">
                 <div>
-                  <h3 class="text-[30px] font-sans! tracking-[-0.01em]">
+                  <h3 class="text-[30px] tracking-[-0.01em]">
                     <ScrambleText text="One thing to sign" trigger="[data-scramble-cell]" />
                   </h3>
-                  <p class="mt-5 max-w-[38ch] text-sm leading-[1.7] text-slate">
+                  <p class="mt-7 max-w-[38ch] text-sm leading-[1.7] text-slate">
                     An authorization for an exact amount, in an asset the payer already holds. It
                     never touches gas, never holds the merchant's asset, and never sees an address.
                   </p>
@@ -120,10 +120,10 @@ export function AgentPayments() {
             <article class="h-full bg-paper py-10 md:py-10 lg:pl-10">
               <div class="mx-auto grid h-full max-w-341.75 items-center gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)]">
                 <div>
-                  <h3 class="text-[30px] font-sans! tracking-[-0.01em]">
+                  <h3 class="text-[30px] tracking-[-0.01em]">
                     <ScrambleText text="The merchant is unchanged" trigger="[data-scramble-cell]" />
                   </h3>
-                  <p class="mt-5 max-w-[38ch] text-sm leading-[1.7] text-slate">
+                  <p class="mt-7 max-w-[38ch] text-sm leading-[1.7] text-slate">
                     Still priced in their own currency. Still paid in their configured stablecoin. A
                     merchant does not have to know which of the three paid them, and the books do
                     not record it differently.
