@@ -252,8 +252,6 @@ with it.
 | `arbitrum-sepolia`  | 421614     | `https://sepolia.arbiscan.io`                  |
 | `robinhood-testnet` | 46630      | `https://explorer.testnet.chain.robinhood.com` |
 | `arc-testnet`       | 5042002    | `https://testnet.arcscan.app`                  |
-| `hedera`            | 295        | `https://hashscan.io/mainnet`                  |
-| `hedera-testnet`    | 296        | `https://hashscan.io/testnet`                  |
 
 Every id above was read off the network with `cast chain-id`, not copied from a
 documentation page. Arc mainnet is missing on purpose: it does not launch until
@@ -280,13 +278,12 @@ beside it asserts each viem `id` equals the `EVM_CHAIN_IDS` entry: viem
 broadcasts with its own id, so a typo there would send a transaction to the wrong
 network while every check against the domain table still passed.
 
-### Arc, and the first chains whose native asset is not ETH
+### Arc, the first chain whose native asset is not ETH
 
-Arc and Hedera are the first chains here whose native asset is not ETH — USDC on
-Arc, HBAR on Hedera. `EvmChainClient` already takes a `nativeAssets` map rather
-than assuming, so this is configuration; the failure it prevents is a native
-transfer scanned as if it were ETH, which is a wrong balance rather than an
-error.
+Arc is the first chain here whose native asset is not ETH — its own currency is
+USDC. `EvmChainClient` already takes a `nativeAssets` map rather than assuming,
+so this is configuration; the failure it prevents is a native transfer scanned
+as if it were ETH, which is a wrong balance rather than an error.
 
 Arc needs one thing said explicitly, because it is the only chain here where
 getting it wrong corrupts the ledger rather than a display. **Arc has one USDC

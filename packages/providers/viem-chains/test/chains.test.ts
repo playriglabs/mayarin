@@ -28,12 +28,10 @@ describe("VIEM_CHAINS", () => {
     }
   });
 
-  // Arc's native asset is USDC and Hedera's is HBAR, not ETH. The client scans
-  // native transfers against a configured `nativeAssets` map for exactly this
-  // reason; a chain whose symbol is not ETH must not be assumed to be.
-  test("names the native asset of the non-ETH chains", () => {
+  // Arc's native asset is USDC, not ETH. The client scans native transfers
+  // against a configured `nativeAssets` map for exactly this reason; a chain
+  // whose symbol is not ETH must not be assumed to be.
+  test("names the native asset of the non-ETH chain", () => {
     expect(VIEM_CHAINS["arc-testnet"].nativeCurrency.symbol).toBe("USDC");
-    expect(VIEM_CHAINS.hedera.nativeCurrency.symbol).toBe("HBAR");
-    expect(VIEM_CHAINS["hedera-testnet"].nativeCurrency.symbol).toBe("HBAR");
   });
 });

@@ -1,6 +1,9 @@
 # ETHOnline 2026 — Mayarin Agentic Payments
 
 **Event: 4–16 September 2026. Track: Continuity.**
+**Submissions close Sunday 13 September, 12:00 EDT — 23:00 WIB.** 14–16 September
+is judging, not working time. An earlier version of this file read those two days
+as slack for videos and write-ups; they do not exist.
 
 Working state of Mayarin's ETHOnline entry, written so an agent or a person
 arriving cold can act without re-deriving anything. For the product's own phase
@@ -42,31 +45,81 @@ it is the pitch rather than "agents don't need to understand blockchain".
 
 ## Sponsors
 
-| RFC                                                       | Sponsor      | Position in the flow                                        | Pool    |
-| --------------------------------------------------------- | ------------ | ----------------------------------------------------------- | ------- |
-| [#207](https://github.com/playriglabs/mayarin/issues/207) | —            | The spine: x402 v2 over the clearing engine — **shipped**   | —       |
-| [#208](https://github.com/playriglabs/mayarin/issues/208) | Arc (Circle) | Stablecoin clearing and settlement rail                     | $10,000 |
-| [#209](https://github.com/playriglabs/mayarin/issues/209) | Hedera       | x402 agentic commerce — a live gated service                | $6,000  |
-| [#231](https://github.com/playriglabs/mayarin/issues/231) | The Graph    | Agent payment intelligence — choose the rail from live data | $15,000 |
-| [#211](https://github.com/playriglabs/mayarin/issues/211) | Uniswap      | Autonomous liquidity execution — pay with what you hold     | $5,000  |
-| [#210](https://github.com/playriglabs/mayarin/issues/210) | Privy        | Agent wallet and spending policy                            | $5,000  |
-| [#232](https://github.com/playriglabs/mayarin/issues/232) | —            | The demo agent — makes all of the above legible             | —       |
+**A submission selects at most three partners.** Not three prizes — three
+partners, each carrying every track it offers. That cap, and not capacity, is
+what decided the list below.
 
-**Stretch, not cut:** [#213](https://github.com/playriglabs/mayarin/issues/213)
-Chainlink — $500 for a contract change and a redeploy sequenced against #12 is
-the worst trade in the batch, though the engineering argument survives the prize
-decision. [#212](https://github.com/playriglabs/mayarin/issues/212) Bazantic —
-same discovery story as the Subgraph MCP, smaller track, less documented.
+Mayarin has prior code, so the Classic pool is closed to it and only tracks open
+to Continuity count. Chosen 6 September:
+
+| RFC                                                       | Sponsor      | Position in the flow                                        | Open to us           |
+| --------------------------------------------------------- | ------------ | ----------------------------------------------------------- | -------------------- |
+| [#207](https://github.com/playriglabs/mayarin/issues/207) | —            | The spine: x402 v2 over the clearing engine — **shipped**   | —                    |
+| [#231](https://github.com/playriglabs/mayarin/issues/231) | The Graph    | Agent payment intelligence — choose the rail from live data | **$10,000**, 6 slots |
+| [#208](https://github.com/playriglabs/mayarin/issues/208) | Arc (Circle) | Stablecoin clearing and settlement rail                     | **$3,166**, 2 slots  |
+| [#211](https://github.com/playriglabs/mayarin/issues/211) | Uniswap      | Autonomous liquidity execution — pay with what you hold     | **$2,000**, 2 slots  |
+| [#232](https://github.com/playriglabs/mayarin/issues/232) | —            | The demo agent — makes all of the above legible             | —                    |
+
+The Graph is the best slot in the set and its two open tracks are worth reading
+literally:
+
+- **AI Tooling or AI Use Case (Continuity), $5,000, three placements.** Judged in
+  its own pool against other Continuity projects, not against net-new ones. Its
+  description names "x402 payment tooling", "new or extended MCP servers" and
+  "let your agent pay per query autonomously with x402" — the deliverable this
+  repository already half owns.
+- **Composable or Standardized Graph Products, $5,000, three placements.** No
+  pool badge, so Continuity qualifies. It requires **two or more Graph products**
+  and states that querying one Subgraph without composition does not qualify —
+  which is exactly what we do today, so this track is worth nothing until the
+  Subgraph MCP lands.
+
+**Cut, and closed as not planned:**
+[#209](https://github.com/playriglabs/mayarin/issues/209) Hedera,
+[#210](https://github.com/playriglabs/mayarin/issues/210) Privy,
+[#212](https://github.com/playriglabs/mayarin/issues/212) Bazantic and
+[#213](https://github.com/playriglabs/mayarin/issues/213) Chainlink. Each carries
+its reasoning on the issue. See **Why Hedera and Privy lost their slots** below.
+
+**One thing was closed that should not stay closed.** The `AgentWallet` core port
+lived inside #210 and has product value independent of any sponsor —
+`WalletProvider` structurally cannot express "sign this payload", and that refusal
+is deliberate (`packages/core/wallet/src/provider.ts`). No open issue represents
+it now. Reopen it on its own after the event.
 
 Umbrella: [#214](https://github.com/playriglabs/mayarin/issues/214).
+
+### Why Hedera and Privy lost their slots
+
+**Hedera** splits its pool so that the $6,000 agentic-payments track carries no
+Continuity pool and a separate Continuity track carries $1,000. So the realistic
+figure is $1,000, and reaching it is the largest piece of engineering left in the
+batch: Hedera's USDC is HTS token `0.0.429274`, 147 bytes of facade with no
+`version()`, therefore no EIP-712 domain and no EIP-3009. Permit2 is deployed,
+but `x402ExactPermit2Proxy` is not, and both facilitator and reader in
+`packages/providers/x402-local` are EIP-3009 only. Worst ratio in the set.
+
+**Privy** has no code at all — a provider package _and_ a new core port, roughly
+three days. Those three days come out of the Subgraph MCP, which is what unlocks
+$5,000 of Graph. Both Privy tracks pay one winner with no second or third place.
+And the adapter is throwaway: Turnkey is already this repository's wallet
+provider, so the Privy work dies on 13 September while `CrossAssetSettler`,
+exact-output `SwapVenue` and `PAYER_SURPLUS` are merged and stay.
+
+The `AgentWallet` port is still worth building — it is a core port with product
+value independent of any sponsor. What was dropped is the Privy adapter behind
+it, not the seam.
 
 ---
 
 ## The demo is the deliverable
 
-Six sponsors, one flow, five minutes of a judge's attention. If the demo is _"an
-agent pays for an API and gets data"_, then Arc, The Graph, Uniswap and Privy are
-**invisible** — real, load-bearing, and never on screen.
+Three sponsors, one flow, **four minutes** of a judge's attention. If the demo is
+_"an agent pays for an API and gets data"_, then Arc, The Graph and Uniswap are
+**invisible** — real, load-bearing, and never on screen. Worse, that sentence
+describes a genre: x402 is a theme across four sponsors at this event, so the
+_shape_ of our demo will not distinguish it. Only the depth will, and depth does
+not render on its own.
 
 So the agent prints its decisions ([#232](https://github.com/playriglabs/mayarin/issues/232)):
 
@@ -80,7 +133,7 @@ Agent: I need this FX quote. Price: $0.02.
 
   → My wallet holds EURC. The merchant is paid in USDC.
        Uniswap exact-output: 0.020101 EURC → 0.020000 USDC
-  → Policy check: $0.02 ≤ $25 per payment ✓ · $0.34 of $100 today ✓
+  → Circle policy check: $0.02 ≤ $25 per payment ✓ · $0.34 of $100 today ✓
 
   → Signing an EIP-3009 authorization for exactly 0.020101 EURC…
   → Settled 0xabc…def on base-sepolia. Merchant credited Rp 320.
@@ -104,15 +157,79 @@ Each sponsor is load-bearing in a way a judge can verify by deletion:
 | Remove          | What visibly breaks                                                   |
 | --------------- | --------------------------------------------------------------------- |
 | The Graph       | The rail choice becomes "first in the array", and the trace admits it |
-| Uniswap         | An agent holding only ETH cannot pay a USDC price at all              |
-| Privy           | Nothing stops the agent spending its whole balance on one call        |
-| Arc             | The settlement has nowhere USDC-native to land                        |
+| Uniswap         | An agent holding only EURC cannot pay a USDC price at all             |
+| Arc             | The settlement has nowhere USDC-native to land, and no policy refuses |
 | The rail (#207) | There is no `402`, and the agent needs an account                     |
 
-Two more beats are part of the deliverable: the **no-signup moment** (`curl` from
-a clean machine, no key, `402`, pay, resource — under 30 seconds) and the
-**refusal** (the same agent, an over-limit payment, the policy visibly saying
-no). A spending policy nobody has watched refuse anything is a claim.
+**The refusal now comes from Circle, not Privy.** The beat is unchanged on camera
+— the same agent, an over-limit payment, a policy visibly saying no — but it is
+served by the Circle Agent Stack policy under #208 rather than by a Privy policy
+under #210, so it costs a slot we have rather than one we do not. A spending
+policy nobody has watched refuse anything is a claim.
+
+The **no-signup moment** (`curl` from a clean machine, no key, `402`, pay,
+resource — under 30 seconds) is the other required beat, and it opens the video
+rather than closing it.
+
+### What actually scores
+
+Judging is five categories: Technicality, Originality, Practicality, Usability
+(UI/UX/DX) and WOW Factor. Honest reading of where this project sits:
+
+| Category     | Where we are | Why                                                                                                      |
+| ------------ | ------------ | -------------------------------------------------------------------------------------------------------- |
+| Technicality | strong       | Nine-state idempotent engine, double-entry ledger, capability probed off the chain, exact-output swaps   |
+| Practicality | strong       | A live public endpoint, clickable transactions on two chains, a ledger that balances                     |
+| Originality  | **weakest**  | "An agent pays for an API with x402" is a crowded genre in 2026. The depth is original; the pitch is not |
+| Usability/DX | middling     | The `curl` is excellent DX; four minutes of terminal is not. No UI currently appears in the demo         |
+| WOW          | **unearned** | Payments do not move on camera, and none of the depth above renders by itself                            |
+
+Two of those are fixed by ordering, not by code.
+
+**The change is the strongest beat in the repository and it is currently buried
+in #211.** The swap spent 28208 of the 28351 EURC the payer signed for, and the
+143 EURC the pool did not need was booked back to the payer as `PAYER_SURPLUS`,
+a liability — not absorbed. One sentence, one ledger row proving we did not keep
+it. Almost no entry handles surplus at all. Show it.
+
+**Originality is a framing problem, and it is free to fix.** Not "an agent pays
+for an API". Instead: an agent paid in a currency the merchant has never heard
+of, signed once, never touched the merchant's asset, never saw an address, and
+got change. Same code, a different first sentence.
+
+**The announced fallback is worth filming.** Before Arc's fifth settlement it was
+not ranked and the system said so. A system that refuses to pretend it knows
+enough reads as mature engineering, and it takes eight seconds.
+
+### The four minutes
+
+Only work done inside the event window is judged, so the clearing layer itself is
+not being scored — the rail is. Structure follows from that:
+
+| Time      | Beat                                                                                  |
+| --------- | ------------------------------------------------------------------------------------- |
+| 0:00–0:20 | `curl` from a clean machine. `402`. Pay. Data. No key, no account. No explanation yet |
+| 0:20–1:30 | The agent asks The Graph which rail has headroom, sees real numbers, picks, says why  |
+| 1:30–2:30 | Pays EURC into a USDC price. One signature. **The change comes back** — show the row  |
+| 2:30–3:10 | The refusal. The Circle policy says no to an over-limit payment                       |
+| 3:10–4:00 | Verify by deletion. Pull The Graph out; the trace admits the rail is now arbitrary    |
+
+Not in the video, at any length: ports and adapters, the package tree, the test
+count, the nine states. All of it is Q&A material, none of it is demo material.
+
+ETHGlobal's own constraints on the file: **two to four minutes, minimum 720p, and
+no AI voice synthesis** — narrate it yourself. Also ruled out: rushed pacing,
+background noise, speed-ups to fit the limit, music with text overlays instead of
+narration, and phone recording.
+
+For the Q&A question "what challenges did you solve", answer with the two that
+are specific and true rather than the generic ones: Arc emits **two** `Transfer`
+logs for one payment because its own currency is USDC seen through two
+interfaces, so every Arc settlement was ambiguous by construction; and a payment
+stranded itself because the order was broadcast, confirm, persist, so a
+confirmation that threw destroyed the only pointer to money that had already
+moved — it is now broadcast, persist, confirm. Those two prove the thing was run
+rather than demonstrated.
 
 ---
 
@@ -123,20 +240,20 @@ response and accounting fixes were verified by a real Base Sepolia payment, the
 Arc confirmation fix by a real Arc one, and all three are deployed and paid for
 on the public endpoint. Documentation is deferred until the end.
 
-| PR                                                      | What landed                                                          |
-| ------------------------------------------------------- | -------------------------------------------------------------------- |
-| [#215](https://github.com/playriglabs/mayarin/pull/215) | Chain facts for `arc-testnet`, `hedera`, `hedera-testnet`            |
-| [#216](https://github.com/playriglabs/mayarin/pull/216) | Protocol types, HTTP transport, the `exact`/EVM scheme               |
-| [#220](https://github.com/playriglabs/mayarin/pull/220) | Facilitator port, settlement confirmation, the replay key            |
-| [#221](https://github.com/playriglabs/mayarin/pull/221) | Resource registry and the price lock that bounds the payer's window  |
-| [#222](https://github.com/playriglabs/mayarin/pull/222) | The `x402` execution path in the clearing engine                     |
-| [#223](https://github.com/playriglabs/mayarin/pull/223) | Local facilitator — Mayarin broadcasts the payer's authorization     |
-| [#224](https://github.com/playriglabs/mayarin/pull/224) | Token capability probe, with a control call                          |
-| [#225](https://github.com/playriglabs/mayarin/pull/225) | Postgres adapter for the resource registry (migration 0026)          |
-| [#226](https://github.com/playriglabs/mayarin/pull/226) | HTTP surface: `requirePayment`, discovery, facilitator endpoints     |
-| [#227](https://github.com/playriglabs/mayarin/pull/227) | Migration-journal guard, three tests rotted since #61, two high CVEs |
-| [#228](https://github.com/playriglabs/mayarin/pull/228) | Astro 5 → 7 and the Node 22 floor it brings                          |
-| [#229](https://github.com/playriglabs/mayarin/pull/229) | `.nvmrc` names the major, so `nvm use` resolves                      |
+| PR                                                      | What landed                                                                      |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [#215](https://github.com/playriglabs/mayarin/pull/215) | Chain facts for `arc-testnet`, `hedera`, `hedera-testnet` (Hedera since removed) |
+| [#216](https://github.com/playriglabs/mayarin/pull/216) | Protocol types, HTTP transport, the `exact`/EVM scheme                           |
+| [#220](https://github.com/playriglabs/mayarin/pull/220) | Facilitator port, settlement confirmation, the replay key                        |
+| [#221](https://github.com/playriglabs/mayarin/pull/221) | Resource registry and the price lock that bounds the payer's window              |
+| [#222](https://github.com/playriglabs/mayarin/pull/222) | The `x402` execution path in the clearing engine                                 |
+| [#223](https://github.com/playriglabs/mayarin/pull/223) | Local facilitator — Mayarin broadcasts the payer's authorization                 |
+| [#224](https://github.com/playriglabs/mayarin/pull/224) | Token capability probe, with a control call                                      |
+| [#225](https://github.com/playriglabs/mayarin/pull/225) | Postgres adapter for the resource registry (migration 0026)                      |
+| [#226](https://github.com/playriglabs/mayarin/pull/226) | HTTP surface: `requirePayment`, discovery, facilitator endpoints                 |
+| [#227](https://github.com/playriglabs/mayarin/pull/227) | Migration-journal guard, three tests rotted since #61, two high CVEs             |
+| [#228](https://github.com/playriglabs/mayarin/pull/228) | Astro 5 → 7 and the Node 22 floor it brings                                      |
+| [#229](https://github.com/playriglabs/mayarin/pull/229) | `.nvmrc` names the major, so `nvm use` resolves                                  |
 
 ### Where the code lives
 
@@ -325,7 +442,6 @@ Read off the chains and registries on 3–4 September:
 | Fact                            | Value                                                                                                       |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Arc testnet / mainnet chain id  | `5042002` / `5042`                                                                                          |
-| Hedera testnet / mainnet        | `296` / `295`                                                                                               |
 | Arc USDC                        | `0x3600000000000000000000000000000000000000` — `FiatTokenV2` behind an EIP-1967 proxy, **not** a precompile |
 | Arc USDC capability             | `eip3009` ✓ · `eip2612` ✓ · domain `{USDC, 2}`                                                              |
 | Arc EURC                        | `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a` — `eip3009` ✓ · domain `{EURC, 2}`                             |
@@ -334,7 +450,6 @@ Read off the chains and registries on 3–4 September:
 | Arc `Transfer` logs             | one payment emits **two** — the native view `0xffff…fffe` and the ERC-20 view — same money, two contracts   |
 | The Graph: `base-sepolia`       | Subgraph Studio ✓ · Firehose ✓ · Substreams ✓                                                               |
 | The Graph: `arc-testnet`, `arc` | Subgraph Studio ✓                                                                                           |
-| The Graph: Hedera               | **absent from the registry entirely**                                                                       |
 
 Read off Arc testnet on 4 September, before deploying anything to it:
 
@@ -381,12 +496,17 @@ unverifiable against a live endpoint.
 
 ## Next
 
+**Seven days, not nine.** Submissions close 13 September, 12:00 EDT. Everything
+below — code, videos, diagrams, per-submission READMEs — lands before then.
+
 ### Before writing code
 
-- [ ] **Confirm Continuity registration with every sponsor, in the form that
-      sponsor requires.** Arc states it outright. Answers take hours; send first.
-      A submission filed against the wrong track is a disqualification discovered
-      at judging.
+- [ ] **Confirm Continuity registration with The Graph, Arc and Uniswap, in the
+      form each requires.** Arc states it outright. Answers take hours; send
+      first. A submission filed against the wrong pool is a disqualification
+      discovered at judging. The Graph's open question is no longer _whether_
+      its Composable track admits Continuity — it carries no pool badge, so it
+      does — but confirming which pool we are registered in.
 
 ### #208 — Arc
 
@@ -481,7 +601,17 @@ one `DEPOSIT_FORWARDER_INIT_CODE_HASH` correct for every chain.
       different facts. Run against both live endpoints: Base 78 samples, Arc 0,
       and the choice comes out `base-sepolia: median headroom 828s over 78
 settlements`.
-- [ ] Subgraph MCP in front of it, so the agent asks in natural language.
+- [ ] **The Subgraph MCP, served behind x402.** One artifact, and the highest
+      leverage item left. It is a second Graph product beside Subgraph Studio,
+      which is the only thing standing between us and the Composable track's
+      $5,000 — that track states outright that querying one Subgraph without
+      composition does not qualify. It is simultaneously the AI track's own
+      words: an MCP server for AI environments, x402 payment tooling, and an
+      agent paying per query autonomously. Both halves already exist — the gated
+      endpoint is live and paid on two chains (`/x402/fx/quote`), and the live
+      subgraph reader is `SubgraphRailObservations`. What is new is the MCP layer
+      and one resource registered through `POST /admin/x402/resources`. Two
+      things to watch, both below.
 - [x] `SettlementSource` port so `SettlementIndexer` can read the subgraph instead
       of polling `eth_getLogs`. Per chain: a chain named in `SUBGRAPH_ENDPOINTS`
       is served by `SubgraphSettlementSource`, every other chain polls exactly as
@@ -515,6 +645,13 @@ Arc is no longer empty. Its five came through the deposit path, which is the onl
 thing that emits a `PaymentCompleted` on a rail nothing has paid yet — x402 never
 touches `PaymentRouter`, so no amount of agent traffic fills that gap.
 
+**Two things to watch when the MCP goes behind x402.** Subgraph Studio allows
+**3,000 queries a day, account-wide**, so a pay-per-query MCP exposed bare can be
+drained by judges during assessment — give it a per-process budget and a cache.
+And x402 never touches `PaymentRouter`, so **no amount of MCP traffic adds
+settlements to the subgraph**: Arc stays at five samples unless the deposit path
+runs.
+
 ```
 base-sepolia   78 samples · median 828s
 arc-testnet     5 samples · median 942s
@@ -526,22 +663,30 @@ Arc wins on headroom rather than on novelty, and it entered the ranking only at
 the fifth settlement. Before that the announced fallback fired, which is worth
 rehearsing on camera too.
 
-### #209 — Hedera
+### #209 — Hedera — **not entered, issue closed, code removed**
 
-- [ ] `packages/providers/x402-blocky402` implementing `X402Facilitator`.
-- [x] Find Hedera testnet USDC and probe it for EIP-3009. **Answered, and the
-      answer is no.** Circle's USDC there is HTS token `0.0.429274`
-      (`0x…068cda`): 147 bytes of facade, no `version()`, so no EIP-712 domain
-      and no EIP-3009. Permit2 _is_ deployed at its canonical address (9152
-      bytes). So the permit2 path applies, and it is not a small job — the
-      facilitator and reader in `packages/providers/x402-local` are EIP-3009
-      only, and `x402ExactPermit2Proxy` still has to be deployed. Decide between
-      building that and letting Blocky402's facilitator carry Hedera before
-      spending a day on it.
-- [x] `GET /x402/fx/quote`, gated and **publicly reachable**. See **The 402, in
-      public** below.
+Hedera did not get one of the three slots; see **Why Hedera and Privy lost their
+slots** above. [#209](https://github.com/playriglabs/mayarin/issues/209) is closed
+as not planned, and the chain itself has been taken back out of the code — the
+`hedera` and `hedera-testnet` entries added to `CHAIN_IDS` by
+[#215](https://github.com/playriglabs/mayarin/pull/215), their viem definitions,
+their HashScan explorer URLs, and the landing page's Hedera lockup. Supporting a
+chain nobody settles on is a claim the code was making on its own.
 
-#### The 402, in public
+**The one finding worth keeping.** Circle's USDC on Hedera testnet is HTS token
+`0.0.429274` (`0x…068cda`): 147 bytes of facade, no `version()`, therefore no
+EIP-712 domain and no EIP-3009. Permit2 _is_ deployed at its canonical address
+(9152 bytes), so the permit2 path is the only one available — and it is not a
+small job, because the facilitator and reader in `packages/providers/x402-local`
+are EIP-3009 only and `x402ExactPermit2Proxy` is not deployed there. That is what
+made Hedera the worst trade in the batch, and it is why re-entering later means
+choosing between building that scheme and letting a third-party facilitator carry
+the chain.
+
+### The 402, in public
+
+This landed on **Arc**, not Hedera, and stands on its own now that #209 is out:
+`GET /x402/fx/quote`, gated and publicly reachable.
 
 A `curl` from a clean machine, with no account and no key:
 
@@ -597,30 +742,39 @@ resource cannot be created advertising terms no payer could sign.
 ### Next, in order
 
 The fixes are deployed, and the public endpoint has been paid on Arc. RFC #207
-is closed, with documentation deferred. Everything below is ordered by what
-unblocks the most.
+is closed, with documentation deferred. Seven days remain. Ordered by what
+unblocks the most prize money per day spent:
 
-1. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
-   the trace, the refusal run, and the no-signup `curl`. Two of the three now
-   have something real to point at.
-2. **The EVM half of cross-asset x402** ([#211](https://github.com/playriglabs/mayarin/issues/211)).
-   The pricing, the swap seam, the ledger account and the adapter have landed;
-   what is left is a real EURC → USDC payment on Base Sepolia and the resume
-   path for a payment interrupted between its two chain movements.
-3. **The `AgentWallet` port** ([#210](https://github.com/playriglabs/mayarin/issues/210)),
-   and the policy visibly refusing an over-limit payment. A spending policy
-   nobody has watched refuse anything is a claim.
-4. **Decide Hedera's path** ([#209](https://github.com/playriglabs/mayarin/issues/209)):
-   Blocky402's facilitator, or building the permit2 scheme ourselves. Its USDC
-   has no EIP-3009, so `exact`/EIP-3009 is not available there at all.
-5. **Documentation and OpenAPI updates at the end.** Add the x402 page and
+1. **Continuity registration with The Graph, Arc and Uniswap.** Not code, sent
+   today, because answers take hours and a wrong pool is a disqualification.
+2. **The Subgraph MCP behind x402**
+   ([#231](https://github.com/playriglabs/mayarin/issues/231)). The single
+   highest-leverage item: it opens the Composable track's $5,000, which is worth
+   nothing without a second Graph product, and it is the AI track's own
+   description of itself.
+3. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
+   the trace, the refusal run, and the no-signup `curl`. All three now have
+   something real to point at.
+4. **The Circle Agent Stack as the payer, with a policy that refuses**
+   ([#208](https://github.com/playriglabs/mayarin/issues/208)). This carries the
+   refusal beat now that Privy is out.
+5. **Record and cut the video.** Four minutes, narrated by a person, to the
+   structure in **The four minutes** above. Plus the Arc architecture diagram and
+   a README per submission separating pre-existing work from work done in the
+   window.
+6. **Submit the Uniswap Developer Feedback Form.** Five minutes, and #211 is
+   otherwise complete.
+7. **Documentation and OpenAPI updates, if time survives.** Add the x402 page and
    expose its unversioned routes in the generated spec, then run
    `bun run docs:openapi:check`. This is deferred work, not a reason to reopen
    [#207](https://github.com/playriglabs/mayarin/issues/207).
 
-Not code, and still open: **Continuity registration with every sponsor**, and
-moving the dashboard's custom domain now that it deploys as a Worker rather than
-to Pages.
+**Cut order if the window tightens:** Arc's mainnet push first, then the Circle
+Agent Stack, then the Composable half of The Graph. The MCP, the demo agent and
+the video are never cut — without them all three slots go in empty.
+
+Also still open and not code: moving the dashboard's custom domain, now that it
+deploys as a Worker rather than to Pages.
 
 ### #211 — Uniswap
 
@@ -645,7 +799,7 @@ to Pages.
       20000 USDC to the merchant, and the 143 EURC the pool did not need was
       credited to `PAYER_SURPLUS`. Intent `COMPLETED`, clearing `SUCCESS`, fee
       zero, treasury netting to zero. `bun run scripts/e2e-x402.ts --pay-with
-  EURC` is the repeatable form.
+EURC` is the repeatable form.
 - [x] `FEEDBACK.md` and the README pointing at the contracts and lines to read.
 - [ ] Resume a cross-asset payment interrupted between its two chain movements.
       `recoverBroadcasts` skips them today rather than confirming one wrongly.
@@ -654,18 +808,28 @@ to Pages.
 - [ ] Submit the Uniswap Developer Feedback Form. `FEEDBACK.md` is written; the
       form itself is not code and is still open.
 
-### #210 — Privy
+### #210 — Privy — **not entered, issue closed**
+
+Privy did not get one of the three slots, and
+[#210](https://github.com/playriglabs/mayarin/issues/210) is closed as not
+planned. The `AgentWallet` port below is still worth building on its own merits
+and should be reopened as its own RFC after the event; the Privy adapter behind
+it is not, because Turnkey already holds that role in this repository. The spending-policy beat in
+[#232](https://github.com/playriglabs/mayarin/issues/232) is served by the Circle
+Agent Stack under #208 instead.
 
 - [ ] `packages/providers/privy` implementing `WalletProvider` — organization
-      wallets, policies, key quorums, intents.
+      wallets, policies, key quorums, intents. **Deferred past the event.**
 - [ ] The **`AgentWallet` port** — new, in core. `WalletProvider` structurally
       cannot express "sign this payload" and that refusal is deliberate; see
       `packages/core/wallet/src/provider.ts`. A closed intent union, and the
       adapter builds the typed data.
-- [ ] The policy shown refusing an over-limit payment — #232 depends on it.
+- [ ] The policy shown refusing an over-limit payment. **#232 no longer depends
+      on this** — the Circle policy under #208 carries that beat.
 
 Confirmed: Privy server wallets sign arbitrary EIP-712 via `eth_signTypedData_v4`.
-Privy's prizes are published; _Ledger_ is the one still "coming soon".
+Privy's prizes are published; _Ledger_ is the one still "coming soon". Neither
+fact is load-bearing any more, but both cost time to establish.
 
 ### #232 — The demo agent
 
@@ -676,13 +840,34 @@ Privy's prizes are published; _Ledger_ is the one still "coming soon".
 - [ ] Verify by deletion: remove each sponsor's step once and confirm the trace
       visibly changes, before recording.
 
-### Submission, 14–16 September
+### Submission — due 13 September, 12:00 EDT
 
-Two full days of work, not slack. Six videos at different angles, an architecture
-diagram for Arc, `FEEDBACK.md` and the developer form for Uniswap, HashScan
-verification for Hedera, and a README per submission separating pre-existing work
-from work done in the window. This is what most often sinks an ETHGlobal entry —
-not the code.
+**This is not a separate phase with its own days.** An earlier version of this
+file scheduled it for 14–16 September; that window is judging. Everything ships
+by 13 September at 23:00 WIB, and the packaging has to be built alongside the
+code rather than after it.
+
+What each submission needs: one video of two to four minutes at 720p or better,
+narrated by a person and not by a voice model; the Arc architecture diagram;
+`FEEDBACK.md` plus the developer form for Uniswap; a public repository; and a
+README per submission separating pre-existing work from work done in the window.
+Version-control history is itself a requirement — a few large commits risk
+disqualification, which the PR-per-change history here already satisfies.
+
+This is what most often sinks an ETHGlobal entry — not the code. It now has less
+time than the plan assumed.
+
+### How judging actually pays
+
+Two rounds. The first is asynchronous and screens roughly the bottom 80%; the
+top advance to a live session of a four-minute demo and three minutes of Q&A.
+Two consequences, both from ETHGlobal's own wording:
+
+- **Round one has no effect on partner prizes**, and partners never see its
+  results. The three slots are assessed independently and asynchronously.
+- **At most async events the majority of prize money goes to projects that never
+  advance to live judging.** So the stage is not the target. The three partner
+  slots are.
 
 ---
 
@@ -692,7 +877,7 @@ not the code.
 window is 14 September – 1 October and §7.1 requires headline work inside it, so
 ETHOnline work done 4–13 September counts for ETHOnline and **not** for Arbitrum.
 Separately, its staged payout makes the second and third tranches conditional on
-building **exclusively on an Arbitrum chain** — which deploying to Arc and Hedera
+building **exclusively on an Arbitrum chain** — which deploying to Arc
 contradicts. Taken knowingly.
 
 **Agent-to-agent commerce is currently aspirational.** Four example flows, no
@@ -718,6 +903,14 @@ meets it once per API call.
 ---
 
 ## Not entered
+
+Three slots exist, and The Graph, Arc and Uniswap hold them. Everything below is
+out — several of them for reasons that have nothing to do with their merit.
+
+**Hedera** ($1,000 realistically) and **Privy** ($5,000 nominally) lost on the
+slot cap and on cost per day; the reasoning is under **Why Hedera and Privy lost
+their slots**. **Chainlink** ($500 on its Continuity track) and **Bazantic**
+($1,000) were stretch before the cap and are moot after it.
 
 **1inch Aqua** ($7,000) needs a DeFi position on SwapVM; Mayarin is not a position
 product. **Hedera tokenization and harness** ($8,000) is ERC-3643 territory.

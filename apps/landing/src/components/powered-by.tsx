@@ -27,12 +27,6 @@ const LOGOS: Logo[] = [
     class: "h-5 md:h-[1.5rem]",
   },
   {
-    src: "/images/logos/hedera.svg",
-    name: "Hedera",
-    lockup: true,
-    class: "h-8 md:h-[2.25rem]",
-  },
-  {
     src: "/images/logos/x402.svg",
     name: "x402",
     lockup: true,
