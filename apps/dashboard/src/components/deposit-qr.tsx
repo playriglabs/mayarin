@@ -107,8 +107,8 @@ function Paid({ deposit, qrUrl, copied, onCopy, children }: PaidProps) {
   const funded = BigInt(deposit.received.amount) >= BigInt(deposit.amount.amount);
 
   return (
-    <div className="flex w-full flex-col gap-4">
-      <div className="grid gap-5 md:grid-cols-[13rem_minmax(0,1fr)] md:items-center md:gap-6">
+    <div className="flex w-full flex-col gap-6">
+      <div className="grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)] md:items-center md:gap-10">
         <div className="flex flex-col items-center gap-3">
           {qrUrl === null ? (
             <Alert role="status">
@@ -122,7 +122,10 @@ function Paid({ deposit, qrUrl, copied, onCopy, children }: PaidProps) {
               <img
                 src={qrUrl}
                 alt={`Payment code for ${deposit.amount.display} to ${deposit.address}`}
-                className="size-48 bg-white p-2 md:size-52"
+                // The white margin is the code's quiet zone, not decoration: a
+                // scanner needs clear space around the modules to find them at
+                // arm's length across a counter.
+                className="size-48 rounded-md bg-white p-3 md:size-52"
               />
               <p className="flex items-center gap-2 text-center text-xs text-muted-foreground">
                 <QrCodeIcon size={16} aria-hidden="true" />
@@ -176,7 +179,7 @@ function Paid({ deposit, qrUrl, copied, onCopy, children }: PaidProps) {
 
           <div
             aria-live="polite"
-            className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm"
+            className="flex flex-wrap items-center gap-2 border-t border-border pt-4 text-sm"
           >
             <Badge variant={funded ? "success" : "warning"}>
               {funded ? "Received" : "Waiting for payment"}
@@ -191,7 +194,7 @@ function Paid({ deposit, qrUrl, copied, onCopy, children }: PaidProps) {
       </div>
 
       {/* One address per sale, so a second payer must not be sent here. */}
-      <p className="border-t border-border pt-3 text-center text-xs text-subtle-foreground md:text-left">
+      <p className="border-t border-border pt-4 text-center text-xs text-subtle-foreground md:text-left">
         This address belongs to this sale only. Start a new one for the next customer.
       </p>
 
