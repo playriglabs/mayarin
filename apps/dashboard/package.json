@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "MAYARIN_DASHBOARD_LOCAL_DEV=true astro dev",
     "build": "astro build",
     "deploy:testnet": "bun run typecheck && bun run build && wrangler deploy -c dist/server/wrangler.json",
     "preview": "astro preview",
