@@ -29,6 +29,16 @@ const { title } = Astro.props;
 const user: UserDto | undefined = Astro.locals.user;
 if (user === undefined) return Astro.redirect("/login");
 
+/**
+ * Who to greet.
+ *
+ * A `UserDto` carries an email and no name, so the local part is the closest
+ * thing to one this app actually knows. Inventing a display name would be worse
+ * than a slightly technical greeting, and the full address is already in the
+ * sidebar for anyone who needs it.
+ */
+const greetingName = user.email.split("@")[0] ?? user.email;
+
 const isAdmin = user.permissions.includes("admin:access");
 const roleLabel = isAdmin ? "Administrator" : "Merchant";
 const loopsStyle = new Style(loopsDefinition);
@@ -149,7 +159,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 
       <main id="main" class="min-w-0 flex-1">
         <header
-          class="flex min-h-16 items-center justify-between gap-4 border-b border-border bg-background px-4 md:px-8 lg:px-10"
+          class="flex min-h-16 items-center justify-between gap-4 bg-background px-4 md:px-8 lg:px-10"
         >
           <div class="flex items-center gap-3">
             <button
@@ -166,7 +176,9 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               </span>
               <XIcon data-menu-close-icon size={22} weight="bold" aria-hidden="true" />
             </button>
-            <span class="text-[17px] font-medium text-foreground">Dashboard</span>
+            <span class="text-[17px] font-medium text-foreground">
+              Welcome back, {greetingName}! <span aria-hidden="true">&#128075;</span>
+            </span>
           </div>
 
           <nav aria-label="Dashboard shortcuts" class="flex items-center gap-2">
