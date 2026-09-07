@@ -158,17 +158,6 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       </aside>
 
       <main id="main" class="min-w-0 flex-1">
-        <!-- `h-16` on both this and the sidebar header, so their bottom
-             borders meet as one line across the seam. A *fixed* height rather
-             than a minimum, because the sidebar's own content changes when it
-             collapses — the logo leaves the flow — and a minimum would let that
-             header shrink out from under this one. Changing either alone puts
-             the step back.
-
-             Below `md` there is no seam to line up with: the sidebar is off
-             canvas and the bar carries a menu button rather than a greeting, so
-             the border and the greeting are both dropped. A rule under a bar
-             holding one button separates nothing. -->
         <header
           class="flex h-16 items-center justify-between gap-4 border-border bg-background px-4 md:border-b md:px-8 lg:px-10"
         >
@@ -222,7 +211,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 
           <nav aria-label="Dashboard shortcuts" class="flex items-center gap-2">
             <ThemeToggle client:load />
-          
+
             <a
               href="/event-logs"
               aria-label="Open notifications"

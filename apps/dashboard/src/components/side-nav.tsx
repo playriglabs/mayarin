@@ -52,6 +52,15 @@ interface NavItem {
    * some accounts: every merchant seeded before it exists has none.
    */
   readonly permission?: Permission;
+  /**
+   * A short flag beside the label — "NEW" and nothing longer.
+   *
+   * Deliberately not the shared `Badge`: its variants are coloured for the app
+   * surface, and this sidebar is dark whatever theme the rest of the page is in,
+   * so `success` would be a pale pill on black half the time. `electric` is the
+   * green this surface already uses for the active item and its focus ring.
+   */
+  readonly flag?: string;
 }
 
 interface NavGroup {
@@ -86,6 +95,7 @@ const DEVELOPERS: readonly NavItem[] = [
     label: "Agent endpoints",
     icon: GlobeIcon,
     permission: "catalog:manage",
+    flag: "New",
   },
 ];
 
@@ -154,7 +164,7 @@ export default function SideNav({
             </h2>
 
             <div className="flex flex-col gap-0.5">
-              {items.map(({ href, label, icon: IconComponent }) => {
+              {items.map(({ href, label, icon: IconComponent, flag }) => {
                 const active = isActive(href, pathname);
                 return (
                   <a
@@ -183,6 +193,17 @@ export default function SideNav({
                       className={active ? "text-electric" : "text-sidebar-muted-foreground"}
                     />
                     <span data-sidebar-nav-label>{label}</span>
+                    {flag !== undefined && (
+                      // The same attribute the label carries, so the collapsed
+                      // sidebar hides it by the rule that already exists rather
+                      // than by a second one that could drift from it.
+                      <span
+                        data-sidebar-nav-label
+                        className="bg-electric/15 px-1.5 py-0.5 font-medium text-[10px] text-electric uppercase tracking-wide"
+                      >
+                        {flag}
+                      </span>
+                    )}
                   </a>
                 );
               })}
