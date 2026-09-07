@@ -12,6 +12,7 @@
  * that rail somewhere nobody controls, and it cannot be taken back.
  */
 
+import { chainLabel } from "@mayarin/chain";
 import {
   ArrowSquareOutIcon,
   GlobeIcon,
@@ -76,7 +77,7 @@ import { ApiError } from "@/lib/api/client";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
-import type { X402RailOption, X402ResourceDto } from "@/types/x402";
+import type { X402Accept, X402RailOption, X402ResourceDto } from "@/types/x402";
 
 function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load agent endpoints";
@@ -93,6 +94,42 @@ const DOCS_URL = "https://docs.mayarin.xyz";
 
 /** One rail's identity in the form: a chain offers more than one. */
 const keyOf = (rail: X402RailOption) => `${rail.chain}:${rail.asset}`;
+
+/**
+ * Rails shown before the row starts pushing the actions off the table.
+ *
+ * Two, because a chain that offers a second asset is the common case and the
+ * pair reads as one fact. The rest collapse behind a count, the same way the
+ * admin table handles permissions.
+ */
+const VISIBLE_RAIL_COUNT = 2;
+
+function RailBadges({ accepts }: { readonly accepts: readonly X402Accept[] }) {
+  const visible = accepts.slice(0, VISIBLE_RAIL_COUNT);
+  const hidden = accepts.slice(VISIBLE_RAIL_COUNT);
+  // Plain text rather than the logo-and-name badge: this is a `title`, and an
+  // attribute cannot hold an element.
+  const hiddenLabels = hidden.map((accept) => `${chainLabel(accept.chain)} · ${accept.asset}`);
+
+  return (
+    <span className="flex flex-nowrap items-center gap-2">
+      {visible.map((accept) => (
+        <Badge key={`${accept.chain}-${accept.asset}`} variant="default">
+          <ChainLabel chain={accept.chain} /> · {accept.asset}
+        </Badge>
+      ))}
+      {hidden.length > 0 && (
+        <Badge
+          variant="default"
+          title={hiddenLabels.join(", ")}
+          aria-label={`${hidden.length} more rails: ${hiddenLabels.join(", ")}`}
+        >
+          +{hidden.length}
+        </Badge>
+      )}
+    </span>
+  );
+}
 
 function X402Resources() {
   const resources = useX402Resources();
@@ -242,13 +279,7 @@ function X402Resources() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{resource.price.display}</TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {resource.accepts.map((accept) => (
-                          <Badge key={`${accept.chain}-${accept.asset}`} variant="default">
-                            <ChainLabel chain={accept.chain} /> · {accept.asset}
-                          </Badge>
-                        ))}
-                      </div>
+                      <RailBadges accepts={resource.accepts} />
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -419,7 +450,7 @@ function X402Resources() {
                 {offered.length > 3 && (
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-popover to-transparent"
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-popover to-transparent"
                   />
                 )}
               </div>
@@ -443,7 +474,7 @@ function X402Resources() {
         <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Make your server ask for payment</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="mt-2">
               Mayarin now knows what <span className="font-mono text-foreground">{guide?.id}</span>{" "}
               costs and where you are paid — but your own server still answers every request for
               free. These three steps are what turn it into a gate.
