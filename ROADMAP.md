@@ -132,12 +132,13 @@ Agent: I need this FX quote. Price: $0.02.
   → Choosing arc-testnet: most headroom, no observed failures.
 
   → My wallet holds EURC. The merchant is paid in USDC.
-       Uniswap exact-output: 0.020101 EURC → 0.020000 USDC
-  → Circle policy check: $0.02 ≤ $25 per payment ✓ · $0.34 of $100 today ✓
+       Uniswap exact-output: 2.046810 EURC → 1.000000 USDC
+  → Deviation guard: pool 2.05 EURC/USD against oracle 0.93 — within the
+       configured bound for testnet. Proceeding.
 
-  → Signing an EIP-3009 authorization for exactly 0.020101 EURC…
-  → Settled 0xabc…def on base-sepolia. Merchant credited Rp 320.
-       0.000121 EURC unspent, booked back to me.
+  → Signing an EIP-3009 authorization for exactly 2.046810 EURC…
+  → Settled 0x9f4bf25b… on arc-testnet. Merchant credited 1.000000 USDC.
+       0.010236 EURC unspent, owed back to me.
 
   (no API key was used; this agent has no account with anyone)
 ```
@@ -154,18 +155,27 @@ the payer never touches the merchant's.
 
 Each sponsor is load-bearing in a way a judge can verify by deletion:
 
-| Remove          | What visibly breaks                                                   |
-| --------------- | --------------------------------------------------------------------- |
-| The Graph       | The rail choice becomes "first in the array", and the trace admits it |
-| Uniswap         | An agent holding only EURC cannot pay a USDC price at all             |
-| Arc             | The settlement has nowhere USDC-native to land, and no policy refuses |
-| The rail (#207) | There is no `402`, and the agent needs an account                     |
+| Remove          | What visibly breaks                                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| The Graph       | The rail choice becomes "first in the array", and the trace admits it                                            |
+| Uniswap         | An agent holding only EURC cannot pay a USDC price at all                                                        |
+| Arc             | The settlement has nowhere USDC-native to land, and the payer pays gas in a second asset the merchant never sees |
+| The rail (#207) | There is no `402`, and the agent needs an account                                                                |
 
-**The refusal now comes from Circle, not Privy.** The beat is unchanged on camera
-— the same agent, an over-limit payment, a policy visibly saying no — but it is
-served by the Circle Agent Stack policy under #208 rather than by a Privy policy
-under #210, so it costs a slot we have rather than one we do not. A spending
-policy nobody has watched refuse anything is a claim.
+**The refusal comes from a guard Mayarin owns, not from Circle.** Both earlier
+plans are dead: Privy lost its slot, and `circle wallet limit set` requires a
+mainnet chain while Circle lists Arc on testnet only — so no arrangement of the
+demo shows a Circle-enforced refusal, and a `--max-amount` flag in our own script
+proves nothing about anybody's policy.
+
+What refuses instead is the **quote deviation guard**. The Arc EURC/USDC pool
+prices 1 USD at about 2.05 EURC — roughly 2.2× real FX — which is why
+`QUOTE_DEVIATION_BPS=9900` is set that loose on testnet in the first place.
+Tighten it for the take and the same payment is refused before the payer signs,
+with the pool price and the oracle price both on screen. That is a refusal this
+repository actually enforces, on the exact number the demo has already shown, and
+it protects the payer rather than the operator. Restore the loose value
+afterwards or every later run fails.
 
 The **no-signup moment** (`curl` from a clean machine, no key, `402`, pay,
 resource — under 30 seconds) is the other required beat, and it opens the video
@@ -210,13 +220,13 @@ enough reads as mature engineering, and it takes eight seconds.
 Only work done inside the event window is judged, so the clearing layer itself is
 not being scored — the rail is. Structure follows from that:
 
-| Time      | Beat                                                                                  |
-| --------- | ------------------------------------------------------------------------------------- |
-| 0:00–0:20 | `curl` from a clean machine. `402`. Pay. Data. No key, no account. No explanation yet |
-| 0:20–1:30 | The agent asks The Graph which rail has headroom, sees real numbers, picks, says why  |
-| 1:30–2:30 | Pays EURC into a USDC price. One signature. **The change comes back** — show the row  |
-| 2:30–3:10 | The refusal. The Circle policy says no to an over-limit payment                       |
-| 3:10–4:00 | Verify by deletion. Pull The Graph out; the trace admits the rail is now arbitrary    |
+| Time      | Beat                                                                                   |
+| --------- | -------------------------------------------------------------------------------------- |
+| 0:00–0:20 | `curl` from a clean machine. `402`. Pay. Data. No key, no account. No explanation yet  |
+| 0:20–1:30 | The agent asks The Graph which rail has headroom, sees real numbers, picks, says why   |
+| 1:30–2:30 | Pays EURC into a USDC price. One signature. **The change is owed back** — show the row |
+| 2:30–3:10 | The refusal. The deviation guard says no to a pool 2.2× off the oracle                 |
+| 3:10–4:00 | Verify by deletion. Pull The Graph out; the trace admits the rail is now arbitrary     |
 
 Not in the video, at any length: ports and adapters, the package tree, the test
 count, the nine states. All of it is Q&A material, none of it is demo material.
@@ -258,6 +268,22 @@ on the public endpoint. Documentation is deferred until the end.
 | [#227](https://github.com/playriglabs/mayarin/pull/227) | Migration-journal guard, three tests rotted since #61, two high CVEs             |
 | [#228](https://github.com/playriglabs/mayarin/pull/228) | Astro 5 → 7 and the Node 22 floor it brings                                      |
 | [#229](https://github.com/playriglabs/mayarin/pull/229) | `.nvmrc` names the major, so `nvm use` resolves                                  |
+
+### In the window — 4 to 7 September
+
+Everything below was written during the event, which is the distinction each
+submission README has to draw. Grouped by what it serves rather than by date; the
+per-slot sections further down carry the detail and the evidence.
+
+| Slot               | PRs                                                        | What landed                                                                                                                                               |
+| ------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Arc** (#208)     | #236, #243, #246, #248, #251, #252, #270                   | Arc testnet deploy, per-chain merchant Safes, one facilitator per chain, deposits derived on their own chain, Circle agent wallet paying through EIP-1271 |
+| **Graph** (#231)   | #237, #238, #241, #271                                     | Both subgraphs live, `chooseRail` on median headroom, the indexer reading the subgraph clamped to `indexedHead`, and its query budget                     |
+| **Uniswap** (#211) | #258, #262, #263, #264, #265, #266, #267, #268, #275, #276 | Exact-output quoting, cross-asset x402 end to end on two chains, the payer's change and what becomes of it, the interrupted-payment resume, `FEEDBACK.md` |
+| Rail correctness   | #255, #257, #261                                           | Paid quotes delivered, direct settlements reconciled, a broadcast persisted before it is trusted, the estimate priced on the payer's rail                 |
+| Product            | #239, #274                                                 | A running deployment can have a resource at all; then merchants register their own, on the API and in the dashboard                                       |
+| Tooling, deploy    | #240, #242, #245, #249, #250                               | e2e takes a chain, asks the chain what gas costs, and the Railway sync has a dry run                                                                      |
+| The entry itself   | #230, #233, #234, #247, #253, #256, #272                   | This file, the three-slot decision, the corrected deadline, and Hedera removed                                                                            |
 
 ### Where the code lives
 
@@ -502,8 +528,9 @@ unverifiable against a live endpoint.
 
 ## Next
 
-**Seven days, not nine.** Submissions close 13 September, 12:00 EDT. Everything
-below — code, videos, diagrams, per-submission READMEs — lands before then.
+**Six days, not nine.** Submissions close 13 September, 12:00 EDT, and it is the
+7th. Everything below — code, videos, diagrams, per-submission READMEs — lands
+before then.
 
 ### Before writing code
 
@@ -514,7 +541,11 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
       its Composable track admits Continuity — it carries no pool badge, so it
       does — but confirming which pool we are registered in.
 
-### #208 — Arc
+### #208 — Arc — **closed 6 September**
+
+The rail is built, deployed, and paid on by a Circle agent wallet. The two boxes
+left open below are named rather than ticked because they are real work that did
+not make the slot, not because the issue is unfinished.
 
 - [x] Deploy `PaymentRouter`, `TimelockController`, `DepositForwarderFactory` to
       Arc testnet; verified on ArcScan. See **Deployed on Arc** below.
@@ -543,8 +574,9 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
       address from their Base one** — the salt is
       `mayarin:wallet:<merchant>:<chain>` — so provisioning has to run per chain
       rather than reusing an address that exists elsewhere.
-- [ ] One link, many rails: the payer picks chain and asset at checkout, filtered
-      per chain ([#244](https://github.com/playriglabs/mayarin/issues/244)). Base
+- [x] One link, many rails: the payer picks chain and asset at checkout, filtered
+      per chain ([#244](https://github.com/playriglabs/mayarin/issues/244), closed
+      with #258 and #261). Base
       offers ETH and USDC where Arc offers only USDC, and a rail is offered only
       when the merchant can actually be paid on it. Today the chain is whichever
       key comes first in `CHAIN_ASSETS` and the asset list is a union across
@@ -552,9 +584,8 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
 - [ ] Surface per-chain balances in the dashboard. The reader is already keyed by
       chain and now gets every RPC the deployment has; `WalletService` still
       takes one chain, so the UI cannot ask for another yet.
-- [ ] Circle Agent Stack as the payer, spending under a Circle policy — including
-      the policy refusing an over-limit payment. **The payer half is done and
-      paid for**: a Circle agent wallet paid the gated endpoint on Arc testnet,
+- [x] Circle Agent Stack as the payer. **Done and paid for; the Circle-policy
+      half is abandoned rather than pending** — see the note under it: a Circle agent wallet paid the gated endpoint on Arc testnet,
       6 September —
       [`0xe1d37298…`](https://testnet.arcscan.app/tx/0xe1d3729806ea2621f723388550ea88d0b0a07beb518b287f3fdc82fed287fa08),
       intent `pi_01M1V97XNGWB8BPJB5GHPEY3EW` `COMPLETED`, clearing
@@ -570,6 +601,10 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
       payment was rejected as forged. **The policy half stays blocked**:
       `circle wallet limit set` takes a mainnet chain, and Circle lists Arc on
       testnet only, so no arrangement of Arc shows a Circle-enforced refusal.
+      **The refusal beat therefore comes from a refusal Mayarin owns** — the
+      quote deviation guard, or a rail the merchant cannot be paid on — not from
+      a `--max-amount` flag, which proves nothing about a policy. That is a
+      decision, not an open item.
       The same agent wallet also paid on Base Sepolia
       ([`0x9fcad5d8…`](https://sepolia.basescan.org/tx/0x9fcad5d8dc0a5bef55cbbe1e06d147bab81bcd4c120b6292ef15923d70366630),
       [evidence](docs/evidence/base-sepolia-x402-circle-208.json)) — same
@@ -577,7 +612,8 @@ below — code, videos, diagrams, per-submission READMEs — lands before then.
       had to hold a second asset the merchant never sees, and the transfer
       failed with "insufficient" until it did. On Arc that step does not exist.
       That is the Arc thesis stated by two runs rather than by a claim.
-- [ ] Architecture diagram, video, documentation, repo.
+- [ ] Architecture diagram, video, documentation, repo. Tracked under #232 and
+      **Submission** below, not here.
 
 #### Deployed on Arc
 
@@ -770,37 +806,52 @@ resource cannot be created advertising terms no payer could sign.
 
 ### Next, in order
 
-The fixes are deployed, and the public endpoint has been paid on Arc. RFC #207
-is closed, with documentation deferred. Seven days remain. Ordered by what
-unblocks the most prize money per day spent:
+**Two of the three slots are built.** Arc (#208) and Uniswap (#211) both have a
+real payment on a real chain with evidence committed; The Graph has a subgraph
+serving the rail choice but not yet the second product its Composable track
+requires. Six days remain, and what is left is mostly not code:
 
-1. **Continuity registration with The Graph, Arc and Uniswap.** Not code, sent
-   today, because answers take hours and a wrong pool is a disqualification.
+1. **Continuity registration with The Graph, Arc and Uniswap.** Not code, and
+   still first, because answers take hours and a wrong pool is a
+   disqualification discovered at judging.
 2. **The Subgraph MCP behind x402**
-   ([#231](https://github.com/playriglabs/mayarin/issues/231)). The single
-   highest-leverage item: it opens the Composable track's $5,000, which is worth
-   nothing without a second Graph product, and it is the AI track's own
-   description of itself.
+   ([#231](https://github.com/playriglabs/mayarin/issues/231)). The only item
+   left that _opens_ a track rather than improving one: a second Graph product
+   is the whole condition on the Composable pool, and an MCP paid per query is
+   the AI track's own description of itself. Give it a per-process budget — see
+   the 3,000-a-day account-wide cap under **Subgraphs live**.
 3. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
-   the trace, the refusal run, and the no-signup `curl`. All three now have
-   something real to point at.
-4. **The Circle Agent Stack as the payer, with a policy that refuses**
-   ([#208](https://github.com/playriglabs/mayarin/issues/208)). This carries the
-   refusal beat now that Privy is out.
-5. **Record and cut the video.** Four minutes, narrated by a person, to the
-   structure in **The four minutes** above. Plus the Arc architecture diagram and
-   a README per submission separating pre-existing work from work done in the
-   window.
-6. **Submit the Uniswap Developer Feedback Form.** Five minutes, and #211 is
-   otherwise complete.
+   the trace, the refusal run, and the no-signup `curl`. The refusal comes from
+   the deviation guard or an unpayable rail, not from Circle: `circle wallet
+limit set` needs a mainnet chain and Circle lists Arc on testnet only.
+4. **Record and cut the video.** Two to four minutes, 720p or better, narrated
+   by a person — an AI voice is disqualifying. Film the **Arc cross-asset run**
+   under #211: one payment carrying three sponsors, with change that is actually
+   owed back. Plus the Arc architecture diagram and a README per submission
+   separating pre-existing work from work done in the window.
+5. **Submit the Uniswap Developer Feedback Form.** Five minutes. `FEEDBACK.md`
+   is written and the form is a separate deliverable the track names.
+6. **Send the payer's refund** ([#211](https://github.com/playriglabs/mayarin/issues/211)),
+   if the window allows. It is the last code item on that RFC and the only one
+   with real risk left in it — a fourth thing signing with the operator's key,
+   with its own nonce, resume and idempotency story. Cuttable: the change is
+   already accounted for and owed, which is what the track was shown.
 7. **Documentation and OpenAPI updates, if time survives.** Add the x402 page and
    expose its unversioned routes in the generated spec, then run
-   `bun run docs:openapi:check`. This is deferred work, not a reason to reopen
+   `bun run docs:openapi:check`. Deferred work, not a reason to reopen
    [#207](https://github.com/playriglabs/mayarin/issues/207).
 
-**Cut order if the window tightens:** Arc's mainnet push first, then the Circle
-Agent Stack, then the Composable half of The Graph. The MCP, the demo agent and
-the video are never cut — without them all three slots go in empty.
+**Cut order if the window tightens:** the refund first, then Arc's mainnet push,
+then the Composable half of The Graph. The MCP, the demo agent and the video are
+never cut — without them all three slots go in empty.
+
+**Outside the three slots, and not to be pulled into them.**
+[#269](https://github.com/playriglabs/mayarin/issues/269) (merchants gating their
+own APIs) shipped its first half in #274 — merchant-owned endpoints on
+`/v1/x402/resources`, a dashboard page, and `docs/guides/x402` — and is open for
+the SDK half. [#273](https://github.com/playriglabs/mayarin/issues/273) (agent
+discovery, and paying invoices, links and carts) is a Phase 4 RFC with no
+ethonline label. Neither scores a partner prize; both are post-event.
 
 Also still open and not code: moving the dashboard's custom domain, now that it
 deploys as a Worker rather than to Pages.
@@ -839,6 +890,22 @@ deploys as a Worker rather than to Pages.
       disposition on the receipt event. Intent `COMPLETED`, clearing `SUCCESS`, fee
       zero, treasury netting to zero. `bun run scripts/e2e-x402.ts --pay-with
 EURC` is the repeatable form.
+- [x] **The same payment on Arc, paid by a Circle agent wallet.** 6 September,
+      authorization
+      [`0xf08c141d…`](https://testnet.arcscan.app/tx/0xf08c141d2c11de1ac9abc3ca1b4da201bce901250148bd4436b86b421638beba)
+      and swap
+      [`0x9f4bf25b…`](https://testnet.arcscan.app/tx/0x9f4bf25b74fe3cb18087ff4e93eff22b530b48f2e7a41fbd064280f3abfc1e52):
+      the agent signs 2.046810 EURC, the merchant is paid exactly 1.000000 USDC,
+      and 0.010236 EURC is the payer's change — above the dust threshold, so it
+      is the run where the change is genuinely owed back. Intent
+      `pi_01M1VAPDVMSSNWGZXE1YFWS4A0` `COMPLETED`, clearing
+      `clr_01M1VAPDW4PAAVG7XV71Q6P9WT` `SUCCESS`. Venue is the `uniswap-v2` fork
+      on Arc (`osr21/arc-swap`), since the V3 adapter has no pool there.
+      Evidence: `docs/evidence/arc-x402-circle-cross-asset-208.json`. **This is
+      the run to film**: three sponsors in one payment, and the pool priced 1 USD
+      at 2.05 EURC — roughly 2.2× real FX, which is the testnet pool rather than
+      a pricing bug and the reason `QUOTE_DEVIATION_BPS=9900` is deliberately
+      loose. Tighten it before anything points at mainnet.
 - [x] `FEEDBACK.md` and the README pointing at the contracts and lines to read.
 - [x] Resume a cross-asset payment interrupted between its two chain movements.
       `recoverBroadcasts` branches on the `settlement.swap` event: with it the
@@ -881,11 +948,17 @@ fact is load-bearing any more, but both cost time to establish.
 ### #232 — The demo agent
 
 - [ ] `scripts/demo-agent.ts` emitting the trace above from real execution.
-- [ ] The refusal run (`--amount 500`), stopping at the policy check.
+- [ ] The refusal run, stopping at the **deviation guard** — not at a Circle
+      policy, which cannot be enforced on a testnet chain, and not at a
+      `--max-amount` flag in our own script, which proves nothing. Tighten
+      `QUOTE_DEVIATION_BPS` for the take, film the pool price against the oracle
+      price, then restore the loose value or every later run fails.
 - [ ] The no-key `curl` sequence, recorded separately, under 30 seconds.
 - [ ] Six cuts from one run, each opening on the right decision.
 - [ ] Verify by deletion: remove each sponsor's step once and confirm the trace
       visibly changes, before recording.
+- [ ] Reset the `fx-quote` resource price to `0.02`. It is registered at 1 USD
+      from the EURC test, so a same-asset run hits the runner's ceiling.
 
 ### Submission — due 13 September, 12:00 EDT
 
