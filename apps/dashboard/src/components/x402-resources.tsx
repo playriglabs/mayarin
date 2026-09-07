@@ -496,7 +496,7 @@ function X402Resources() {
                         className={cn(
                           "flex cursor-pointer items-center gap-3 border p-3 transition-colors",
                           picked
-                            ? "border-primary bg-primary/5"
+                            ? "border-subtle-foreground bg-primary/5"
                             : "border-border hover:border-subtle-foreground",
                         )}
                       >

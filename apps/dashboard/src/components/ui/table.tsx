@@ -22,7 +22,7 @@ function Table({
       data-slot="table-container"
       aria-label="Scrollable data table"
       className={cn(
-        "w-full max-w-full overscroll-contain overflow-x-auto border border-border bg-card",
+        "w-full max-w-full overscroll-contain overflow-x-auto rounded-lg border border-border bg-card",
         containerClassName,
       )}
     >

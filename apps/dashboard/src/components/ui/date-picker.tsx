@@ -100,7 +100,7 @@ function DatePicker({
         id={id}
         disabled={disabled}
         className={cn(
-          "flex h-8 w-full cursor-pointer items-center justify-between gap-2 border border-input bg-card px-2.5 text-left text-sm text-foreground transition-colors duration-150",
+          "flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-input bg-card px-2.5 text-left text-sm text-foreground transition-colors duration-150",
           // Matches the shared Select's disabled treatment, so a filter row
           // reads as one control group whichever field is looked at.
           "disabled:cursor-not-allowed disabled:bg-muted disabled:text-subtle-foreground",
@@ -117,7 +117,7 @@ function DatePicker({
             so it must occupy the popup layer above them rather than inheriting
             the dialog's stacking context. This matches the shared Select. */}
         <Popover.Positioner sideOffset={4} align="start" className="z-80">
-          <Popover.Popup className="w-72 border border-input bg-popover p-3 text-popover-foreground shadow-sm focus-visible:outline-none">
+          <Popover.Popup className="w-72 rounded-lg border border-input bg-popover p-3 text-popover-foreground shadow-sm focus-visible:outline-none">
             <div className="mb-2 flex items-center justify-between">
               <Button
                 type="button"

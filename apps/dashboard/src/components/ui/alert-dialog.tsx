@@ -94,7 +94,7 @@ function AlertDialogContent({
             // Centring offsets live in `dialogVariants`, not in `-translate-*`
             // classes, because motion owns `transform` on this element.
             className={cn(
-              "fixed top-1/2 left-1/2 z-[70] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-4 border border-border bg-popover p-4 text-popover-foreground",
+              "fixed top-1/2 left-1/2 z-[70] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-4 rounded-lg border border-border bg-popover p-4 text-popover-foreground",
               className,
             )}
             render={

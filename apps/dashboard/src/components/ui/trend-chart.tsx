@@ -32,7 +32,7 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 
-const DAY_LABEL = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" });
+const DAY_LABEL = new Intl.DateTimeFormat("en-US", { day: "2-digit", month: "short" });
 
 /** A UTC day key (`2026-09-07`) as a reader sees it. */
 export function dayLabel(iso: string): string {
@@ -95,7 +95,7 @@ function ChartTooltip({
   if (active !== true || point === undefined) return null;
 
   return (
-    <div className="flex flex-col gap-0.5 border border-border bg-popover px-2.5 py-1.5 text-xs shadow-sm">
+    <div className="flex flex-col gap-0.5 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs shadow-sm">
       <span className="flex items-center gap-2">
         <span aria-hidden="true" className="size-2 shrink-0 bg-chart-1" />
         <span className="font-medium text-foreground">{dayLabel(point.date)}</span>

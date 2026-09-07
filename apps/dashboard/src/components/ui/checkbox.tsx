@@ -35,7 +35,7 @@ function Checkbox({
         />
       }
       className={cn(
-        "flex size-4 shrink-0 cursor-pointer items-center justify-center border border-input bg-card transition-colors duration-150",
+        "flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm border border-input bg-card transition-colors duration-150",
         "data-checked:border-primary data-checked:bg-primary",
         // Disabled is dimmed, never repainted. A `bg-muted` here also won the
         // background on a box that was checked AND disabled, drawing a ticked

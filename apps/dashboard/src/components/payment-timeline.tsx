@@ -132,7 +132,7 @@ export default function PaymentTimeline({
           >
             <span
               aria-hidden="true"
-              className="z-10 flex size-6 shrink-0 items-center justify-center border border-destructive bg-destructive text-destructive-foreground"
+              className="z-10 flex size-6 shrink-0 items-center justify-center rounded-full border border-destructive bg-destructive text-destructive-foreground"
             >
               <XIcon size={12} weight="bold" />
             </span>

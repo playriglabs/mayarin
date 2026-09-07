@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import LogoutButton from "../components/logout-button.tsx";
 import LiveUpdates from "../components/live-updates.tsx";
+import SearchCommand from "../components/search-command.tsx";
 import SidebarToggle from "../components/sidebar-toggle.tsx";
 import SideNav from "../components/side-nav.tsx";
 import ThemeToggle from "../components/theme-toggle.tsx";
@@ -29,16 +30,6 @@ const { title } = Astro.props;
 
 const user: UserDto | undefined = Astro.locals.user;
 if (user === undefined) return Astro.redirect("/login");
-
-/**
- * Who to greet.
- *
- * A `UserDto` carries an email and no name, so the local part is the closest
- * thing to one this app actually knows. Inventing a display name would be worse
- * than a slightly technical greeting, and the full address is already in the
- * sidebar for anyone who needs it.
- */
-const greetingName = user.email.split("@")[0] ?? user.email;
 
 const isAdmin = user.permissions.includes("admin:access");
 const roleLabel = isAdmin ? "Administrator" : "Merchant";
@@ -122,19 +113,19 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
               alt=""
               aria-hidden="true"
-              width="52"
-              height="52"
-              class="size-13 dark:hidden"
+              width="40"
+              height="40"
+              class="size-10 dark:hidden"
             />
             <img
               src="https://mayarin.xyz/brand-kit/mayarin-logo-white.svg"
               alt=""
               aria-hidden="true"
-              width="52"
-              height="52"
-              class="hidden size-13 dark:block"
+              width="40"
+              height="40"
+              class="hidden size-10 dark:block"
             />
-            <span class="-ml-1 font-sans text-[30px] font-medium leading-none tracking-[-0.06em]">
+            <span class="-ml-1 font-sans text-[26px] font-medium leading-none tracking-[-0.06em]">
               mayarin
             </span>
           </a>
@@ -142,7 +133,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
             type="button"
             data-sidebar-close
             aria-label="Close navigation menu"
-            class="inline-flex size-10 items-center justify-center text-sidebar-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden"
+            class="inline-flex size-10 items-center justify-center rounded-lg text-sidebar-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground md:hidden"
           >
             <XIcon size={22} weight="bold" aria-hidden="true" />
           </button>
@@ -185,7 +176,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               aria-label="Open navigation menu"
               aria-controls="dashboard-sidebar"
               aria-expanded="false"
-              class="inline-flex size-10 items-center justify-center border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+              class="inline-flex size-10 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
             >
               <span data-menu-open-icon aria-hidden="true" class="flex w-5 flex-col gap-1">
                 <span class="h-0.5 w-full bg-current"></span>
@@ -193,47 +184,16 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               </span>
               <XIcon data-menu-close-icon size={22} weight="bold" aria-hidden="true" />
             </button>
-            <span class="hidden truncate text-[19px] font-medium text-foreground md:inline">
-              <span data-greeting>Welcome back</span>, {greetingName}!{" "}
-              <span data-greeting-emoji aria-hidden="true">&#128075;</span>
-            </span>
-            <script is:inline>
-              // The time of day is the *reader's*, not the server's. This page
-              // renders on Cloudflare, so a greeting decided there would tell
-              // someone in Jakarta good evening over their morning coffee.
-              //
-              // Inline and immediately after the element, so it runs while the
-              // parser is still here and the neutral server-rendered wording is
-              // never seen changing. In `<head>` it would run before the span
-              // exists and do nothing at all.
-              (() => {
-                const hour = new Date().getHours();
-                const [greeting, emoji] =
-                  hour < 5
-                    ? ["Good night", "\uD83C\uDF19"]
-                    : hour < 12
-                      ? ["Good morning", "\u2600\uFE0F"]
-                      : hour < 17
-                        ? ["Good afternoon", "\uD83C\uDF24\uFE0F"]
-                        : hour < 21
-                          ? ["Good evening", "\uD83C\uDF06"]
-                          : ["Good night", "\uD83C\uDF19"];
-                const label = document.querySelector("[data-greeting]");
-                if (label !== null) label.textContent = greeting;
-                const mark = document.querySelector("[data-greeting-emoji]");
-                if (mark !== null) mark.textContent = emoji;
-              })();
-            </script>
+            <SearchCommand client:load permissions={user.permissions} />
           </div>
 
           <nav aria-label="Dashboard shortcuts" class="flex items-center gap-2">
             <ThemeToggle client:load />
-
             <a
               href="/event-logs"
               aria-label="Open notifications"
               title="Notifications"
-              class="flex size-10 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground"
+              class="flex size-10 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground"
             >
               <BellIcon size={20} weight="regular" aria-hidden="true" />
             </a>
@@ -241,7 +201,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               href="/settings"
               aria-label="Open account settings"
               title="Account settings"
-              class="flex size-10 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground"
+              class="flex size-10 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors duration-200 hover:bg-muted hover:text-foreground"
             >
               <UserIcon size={20} weight="regular" aria-hidden="true" />
             </a>

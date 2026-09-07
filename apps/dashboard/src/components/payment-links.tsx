@@ -33,6 +33,7 @@ import {
   PackageIcon,
   PlusIcon,
   QrCodeIcon,
+  ReceiptIcon,
   ShareNetworkIcon,
   XIcon,
 } from "@phosphor-icons/react";
@@ -944,6 +945,7 @@ function PaymentLinks() {
                   window.location.href = `/payments/${encodeURIComponent(takenPaymentId)}`;
                 }}
               >
+                <ReceiptIcon size={14} aria-hidden="true" />
                 Open payment
               </Button>
             )}

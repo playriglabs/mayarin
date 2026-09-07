@@ -28,9 +28,8 @@
  * Three deliberate departures from a stock shadcn theme, each enforcing a rule
  * the design system already had:
  *
- *   1. Radius is pinned to 0 at every step. `rounded-md` still COMPILES — so a
- *      registry component is not broken by it — but it renders sharp, like the
- *      landing page.
+ *   1. Radius was pinned to 0 at every step; the scale now carries Tailwind's
+ *      defaults so `rounded-lg` rounds buttons, inputs, cards and popups.
  *   2. The type scale is cleared and redefined as four sizes: 12/13/14/24. A
  *      fifth size does not exist, so `text-lg` emits nothing and the element
  *      falls back to an inherited size that is still inside the scale.
@@ -44,7 +43,7 @@
 :root {
   color-scheme: light;
 
-  --radius: 0rem;
+  --radius: 0.5rem;
 
   /* Paper and ink, matching the landing (`--color-paper`, `--color-ink`,
      `--color-line`). Surfaces separate by hairline rules, not by fill. */
@@ -339,19 +338,19 @@
   --color-warning-muted: var(--warning-muted);
   --color-chart-1: var(--chart-1);
 
-  /* Every step is 0. `rounded-*` compiles, and draws nothing. `DEFAULT` covers
-     the bare `rounded` utility, which Tailwind would otherwise emit at its own
-     0.25rem — including when it picks the word out of a prose comment. */
-  --radius-DEFAULT: 0;
+  /* Tailwind's default scale. `DEFAULT` covers the bare `rounded` utility,
+     which Tailwind would otherwise emit at its own 0.25rem — including when it
+     picks the word out of a prose comment. */
+  --radius-DEFAULT: 0.25rem;
   --radius-none: 0;
-  --radius-xs: 0;
-  --radius-sm: 0;
-  --radius-md: 0;
-  --radius-lg: 0;
-  --radius-xl: 0;
-  --radius-2xl: 0;
-  --radius-3xl: 0;
-  --radius-full: 0;
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+  --radius-full: 9999px;
 
   /* Four sizes. A fifth is a compile-time nothing, by design. */
   --text-*: initial;
@@ -371,7 +370,8 @@
   --font-sans:
     "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --tracking-*: initial;
   --tracking-tight: -0.15px;
@@ -385,11 +385,9 @@
  * 12px step, tracked a little less because the glyphs are larger.
  */
 @utility label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  text-transform: capitalize;
   line-height: 1;
 }
 

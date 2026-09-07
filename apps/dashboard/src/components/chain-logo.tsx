@@ -92,11 +92,11 @@ function ChainStack({
           key={chain}
           chain={chain}
           size={size}
-          // `rounded-[50%]`, not `rounded-full`: this app sets `--radius-full`
-          // to 0 along with the rest of the scale, so every `rounded-full` in
-          // it is square. A mark that is round in its own artwork (Arc) then
-          // sits beside one that is not (Base's is a square PNG), and the
-          // stack reads as broken. A literal value bypasses the token.
+          // `rounded-[50%]`, not `rounded-full`: a literal value keeps this
+          // disc round whatever the radius scale says. A mark that is round
+          // in its own artwork (Arc) then sits beside one that is not
+          // (Base's is a square PNG), and the stack reads as broken if the
+          // token ever changes shape.
           //
           // Later marks overlap earlier ones and sit on top, which is the
           // direction the eye already reads. The ring is the card's own

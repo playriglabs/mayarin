@@ -371,7 +371,7 @@ function Catalog() {
 
       <Dialog open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
         <DialogContent
-          className="top-0 right-0 bottom-0 left-auto h-svh w-full max-w-xl gap-0 overflow-hidden border-y-0 border-r-0 p-0"
+          className="top-0 right-0 bottom-0 left-auto h-svh w-full max-w-xl gap-0 overflow-hidden rounded-r-none rounded-l-lg border-y-0 border-r-0 p-0"
           render={
             <motion.div variants={drawerVariants} initial="initial" animate="animate" exit="exit" />
           }

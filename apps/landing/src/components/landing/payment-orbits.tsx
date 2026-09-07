@@ -90,7 +90,7 @@ export function PaymentOrbits() {
       fill="none"
       aria-hidden="true"
       focusable="false"
-      class="pointer-events-none absolute left-1/2 top-[-22%] w-[145%] max-w-none -translate-x-1/2 overflow-visible md:top-[-38%] md:w-[135%]"
+      class="pointer-events-none absolute left-1/2 top-[-22%] w-[145%] max-w-none -translate-x-1/2 overflow-visible md:top-[-30%] md:w-[135%]"
     >
       {ORBITS.map((orbit, index) => (
         <g key={orbit.path}>

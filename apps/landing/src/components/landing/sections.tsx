@@ -40,10 +40,10 @@ export function Hero() {
             </a>
           </Reveal>
         </div>
-        <div class="relative z-0 isolate mx-auto mt-14 max-w-255 px-1 pt-3 md:mt-24 md:px-4">
+        <div class="relative z-0 isolate mx-auto mt-14 max-w-255 px-1 pt-3 md:mt-24 md:max-w-290 md:px-4">
           <PaymentOrbits />
           <ScrollTilt>
-            <DashboardPreview />
+            <DashboardPreview src="/images/pitch-deck/mayarin-dashboard.png" />
           </ScrollTilt>
         </div>
       </div>

@@ -104,7 +104,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       {...(disabled === undefined ? {} : { disabled })}
       className={cn(
-        "flex h-8 w-full cursor-pointer items-center justify-between gap-2 border border-input bg-card px-2.5 text-left text-sm text-foreground transition-colors duration-150",
+        "flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-input bg-card px-2.5 text-left text-sm text-foreground transition-colors duration-150",
         "data-disabled:cursor-not-allowed data-disabled:bg-muted data-disabled:text-subtle-foreground",
         "aria-invalid:border-destructive",
         className,
@@ -170,7 +170,7 @@ function SelectContent({
             <SelectPrimitive.Popup
               data-slot="select-content"
               className={cn(
-                "max-h-64 min-w-(--anchor-width) origin-top overflow-y-auto border border-border bg-popover py-1 text-popover-foreground shadow-sm",
+                "max-h-64 min-w-(--anchor-width) origin-top overflow-y-auto rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-sm",
                 className,
               )}
               render={

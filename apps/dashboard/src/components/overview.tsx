@@ -380,10 +380,12 @@ function RecentPayments({ payments }: { payments: readonly PaymentIntentDto[] })
               <a
                 href={`/payments/${encodeURIComponent(payment.id)}`}
                 title={payment.id}
-                className="min-w-0 truncate font-mono text-foreground text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
-                dir="rtl"
+                className="inline-flex min-w-0 items-center gap-1.5 font-mono text-foreground text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
               >
-                {payment.id}
+                <ReceiptIcon size={12} aria-hidden="true" className="shrink-0" />
+                <span dir="rtl" className="min-w-0 truncate">
+                  {payment.id}
+                </span>
               </a>
               <span className="flex shrink-0 items-center gap-2">
                 <span className="text-foreground text-xs">{payment.amount.display}</span>
@@ -412,7 +414,7 @@ function Overview() {
       <div role="status" aria-live="polite" className="flex flex-col gap-8">
         <span className="sr-only">Loading overview</span>
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+          <div className="min-w-0 lg:col-span-2">
             <BalanceCardSkeleton />
           </div>
           <RecentListSkeleton />
@@ -489,7 +491,7 @@ function Overview() {
               came in. The balance takes two thirds because it carries a chart;
               the list is a column of rows and does not want the width. */}
           <div className="grid gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
+            <div className="min-w-0 lg:col-span-2">
               <BalanceOverview
                 total={holdings.total}
                 asset={settlementAsset}

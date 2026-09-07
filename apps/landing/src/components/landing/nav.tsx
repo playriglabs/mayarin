@@ -189,11 +189,11 @@ export function Navigation() {
             src="/brand-kit/mayarin-logo-black.svg"
             alt=""
             aria-hidden="true"
-            width="52"
-            height="52"
-            class="size-13"
+            width="48"
+            height="48"
+            class="size-12"
           />
-          <span class="font-medium font-sans -ml-1">mayarin</span>
+          <span class="font-medium font-sans -ml-1 text-[1.8rem]">mayarin</span>
         </a>
 
         {/* Beside the wordmark rather than centred: the bar reads left to right,

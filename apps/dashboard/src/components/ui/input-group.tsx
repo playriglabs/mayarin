@@ -19,7 +19,7 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="input-group"
       className={cn(
-        "flex h-8 w-full items-center border border-input bg-card",
+        "flex h-10 w-full items-center rounded-lg border border-input bg-card",
         "has-focus-visible:outline-2 has-focus-visible:outline-ring has-focus-visible:outline-offset-2",
         "has-disabled:bg-muted",
         "has-aria-invalid:border-destructive",

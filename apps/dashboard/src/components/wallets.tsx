@@ -680,7 +680,7 @@ function Wallets() {
                     return (
                       <section
                         key={network.chain}
-                        className="flex min-w-0 flex-col gap-3 border border-border bg-muted/30 p-3"
+                        className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3"
                         aria-label={`${chainLabel(network.chain)} payment availability`}
                       >
                         <div className="flex items-center justify-between gap-3">

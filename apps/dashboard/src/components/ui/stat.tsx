@@ -16,7 +16,7 @@ function StatGrid({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="stat-grid"
       className={cn(
-        "grid gap-px border border-border bg-border sm:grid-cols-2 xl:grid-cols-4",
+        "grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 xl:grid-cols-4",
         className,
       )}
       {...props}

@@ -159,7 +159,7 @@ function Paid({ deposit, qrUrl, copied, onCopy, children }: PaidProps) {
             <span className="text-xs text-subtle-foreground">Payment address</span>
             {/* Never truncated in the DOM: an address a merchant cannot copy
                 whole is worse than one they have to scroll. */}
-            <div className="flex items-center gap-2 border border-border bg-muted px-3 py-2">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2">
               <span className="min-w-0 flex-1 break-all font-mono text-sm">{deposit.address}</span>
               <Button
                 variant="ghost"

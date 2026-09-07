@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { ComponentChildren } from "preact";
+import { useRef } from "preact/hooks";
 import { ArrowRight } from "../ui.tsx";
 
 export function Action({
@@ -48,7 +49,11 @@ export function SectionIntro({
   );
 }
 
-/** Supply the real dashboard capture here when it is ready. The empty state is intentional. */
+/**
+ * A full-viewport zoom for the capture. `<dialog>` gives the top layer, the
+ * Escape key and the focus trap for free, matching the pattern in
+ * `capabilities.tsx` — and any click dismisses, which is all a lightbox needs.
+ */
 export function DashboardPreview({
   src,
   alt = "Mayarin merchant dashboard",
@@ -56,25 +61,66 @@ export function DashboardPreview({
   readonly src?: string;
   readonly alt?: string;
 }) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  const open = () => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    dialog.showModal();
+    // Lenis keeps scrolling the page underneath otherwise.
+    document.documentElement.style.overflow = "hidden";
+    dialog.addEventListener(
+      "close",
+      () => {
+        document.documentElement.style.overflow = "";
+      },
+      { once: true },
+    );
+  };
+
   return (
     <div class="overflow-hidden rounded-t-xl border border-line bg-paper shadow-[0_0_0_8px_#ffffff66,0_0_60px_#1f6f5410] md:rounded-t-2xl">
       <div
-        class="flex h-9 items-center gap-1.5 border-b border-line/60 bg-v2-mist/40 px-4 [&>span]:size-1.5 [&>span]:rounded-full [&>span]:bg-ink/15 [&>i]:mx-auto [&>i]:h-3 [&>i]:w-32 [&>i]:rounded-sm [&>i]:bg-ink/3"
+        class="flex h-9 items-center gap-1.5 border-b border-line/60 bg-v2-mist/40 px-4 [&>span]:size-1.5 [&>span]:rounded-full [&>i]:mx-auto [&>i]:h-3 [&>i]:w-32 [&>i]:rounded-sm [&>i]:bg-ink/3"
         aria-hidden="true"
       >
-        <span />
-        <span />
-        <span />
+        <span class="bg-red-400/80" />
+        <span class="bg-ink/25" />
+        <span class="bg-forest/60" />
         <i />
       </div>
       {src ? (
-        <img
-          src={src}
-          alt={alt}
-          width="1440"
-          height="900"
-          class="block aspect-video w-full object-cover object-top"
-        />
+        <>
+          <button
+            type="button"
+            onClick={open}
+            aria-label={`${alt} — click to zoom`}
+            class="block w-full cursor-zoom-in"
+          >
+            <img
+              src={src}
+              alt={alt}
+              width="1440"
+              height="900"
+              class="block aspect-video w-full object-cover object-top"
+            />
+          </button>
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: Escape is native to <dialog>; clicking anywhere is a pointer-only shortcut on top of it. */}
+          <dialog
+            ref={ref}
+            onClick={() => ref.current?.close()}
+            aria-label={`${alt} — zoomed`}
+            class="fixed inset-0 m-0 h-dvh w-screen max-h-none max-w-none bg-transparent p-0 backdrop:bg-ink/70 backdrop:backdrop-blur-sm open:flex open:items-center open:justify-center"
+          >
+            <img
+              src={src}
+              alt={alt}
+              width="1440"
+              height="900"
+              class="max-h-[86dvh] w-auto max-w-[94vw] rounded-lg shadow-2xl"
+            />
+          </dialog>
+        </>
       ) : (
         <div
           class="aspect-16/7 w-full bg-paper"

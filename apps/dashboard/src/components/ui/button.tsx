@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
  * override silently lose to an inline style.
  */
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xs text-sm font-medium whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -32,8 +32,8 @@ const buttonVariants = cva(
         link: "text-foreground underline decoration-input underline-offset-2 hover:decoration-foreground",
       },
       size: {
-        default: "h-8 px-3",
-        sm: "h-7 px-2 text-xs",
+        default: "h-10 px-5",
+        sm: "h-8 px-3 text-xs",
         icon: "size-8 px-0",
       },
     },

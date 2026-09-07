@@ -5,7 +5,11 @@ import { cn } from "@/lib/utils";
 /** The base bar. Compose it; do not stack three of these and call it a page. */
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="skeleton" className={cn("h-8 animate-pulse bg-muted", className)} {...props} />
+    <div
+      data-slot="skeleton"
+      className={cn("h-8 animate-pulse rounded-sm bg-muted", className)}
+      {...props}
+    />
   );
 }
 
@@ -26,7 +30,7 @@ function StatGridSkeleton({ cells = 4 }: { cells?: number }) {
   return (
     <div
       aria-hidden="true"
-      className="grid gap-px border border-border bg-border sm:grid-cols-2 xl:grid-cols-4"
+      className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 xl:grid-cols-4"
     >
       {run(cells).map((cell) => (
         <div key={cell} className="flex flex-col gap-2 bg-card p-4">
@@ -42,7 +46,7 @@ function StatGridSkeleton({ cells = 4 }: { cells?: number }) {
 /** Mirrors `Table`: a bordered surface with a header band and row bars. */
 function TableSkeleton({ rows = 5, bigSize = false }: { rows?: number; bigSize?: boolean }) {
   return (
-    <div aria-hidden="true" className="w-full border border-border bg-card">
+    <div aria-hidden="true" className="w-full rounded-lg border border-border bg-card">
       <div className={clsx("border-b border-border", bigSize ? "p-4" : "px-4 py-3")}>
         <Skeleton className={clsx("w-1/3", bigSize ? "h-4" : "h-3.5")} />
       </div>
@@ -61,7 +65,10 @@ function TableSkeleton({ rows = 5, bigSize = false }: { rows?: number; bigSize?:
 /** Mirrors a `Card` of key/value rows or a chart: label bar plus lines. */
 function PanelSkeleton({ lines = 6 }: { lines?: number }) {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-3 border border-border bg-card p-4">
+    <div
+      aria-hidden="true"
+      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
+    >
       <Skeleton className="h-3 w-24" />
       {run(lines).map((line) => (
         <Skeleton key={line} className="h-4 w-full" />
@@ -80,7 +87,10 @@ function PanelSkeleton({ lines = 6 }: { lines?: number }) {
  */
 function BalanceCardSkeleton() {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-5 border border-border bg-card p-4">
+    <div
+      aria-hidden="true"
+      className="flex flex-col gap-5 rounded-lg border border-border bg-card p-4"
+    >
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-3 w-16" />
@@ -97,7 +107,10 @@ function BalanceCardSkeleton() {
 /** Mirrors a movement card: title, total, hint, the link, and a sparkline. */
 function MovementCardSkeleton() {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-4 border border-border bg-card p-4">
+    <div
+      aria-hidden="true"
+      className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-4 w-16" />
@@ -114,7 +127,10 @@ function MovementCardSkeleton() {
 /** Mirrors the compact recent-payments card: a title, a link, and five rows. */
 function RecentListSkeleton({ rows = 6 }: { rows?: number }) {
   return (
-    <div aria-hidden="true" className="flex flex-col gap-4 border border-border bg-card p-4">
+    <div
+      aria-hidden="true"
+      className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4"
+    >
       <div className="flex items-center justify-between gap-4">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-3 w-12" />
@@ -139,7 +155,7 @@ function SettlementDestinationSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="flex flex-col gap-3 border border-border bg-card p-4 sm:flex-row sm:gap-8"
+      className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:gap-8"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <Skeleton className="h-3 w-14" />

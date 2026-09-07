@@ -219,7 +219,7 @@ function CreateUserForm() {
                 ))
                 .with({ status: "error" }, (s) => <Alert variant="destructive">{s.reason}</Alert>)
                 .with({ status: "created" }, (s) => (
-                  <div className="border border-border bg-brand-muted px-3 py-2">
+                  <div className="rounded-lg border border-border bg-brand-muted px-3 py-2">
                     <p className="text-xs font-medium text-success">Account created.</p>
                     {s.generatedPassword !== undefined ? (
                       <p className="mt-1 text-xs text-muted-foreground">

@@ -105,6 +105,7 @@ interface Draft {
 }
 
 const SETTINGS_TABS = ["settlement", "profile", "history"] as const;
+const HISTORY_PAGE_SIZE = 10;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 function draftOf(settings: SettingsDto): Draft {
@@ -157,6 +158,13 @@ function Settings() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
+  // Client-side paging: the history endpoint returns the whole audit trail at
+  // once, so a page is a slice. Clamped against the live count, so a save that
+  // appends a row cannot leave the pager pointing past the last page.
+  const [historyPageInput, setHistoryPage] = useState(0);
+  const historyChanges = history.data?.changes ?? [];
+  const historyPages = Math.max(1, Math.ceil(historyChanges.length / HISTORY_PAGE_SIZE));
+  const historyPage = Math.min(historyPageInput, historyPages - 1);
   // In the URL, so a reload — or a link a merchant sends a colleague — opens
   // the tab they were actually on.
   const [activeTab, setActiveTab] = useUrlTab<SettingsTab>("tab", SETTINGS_TABS, "settlement");
@@ -299,7 +307,7 @@ function Settings() {
                     <Tabs.Tab
                       key={value}
                       value={value}
-                      className="min-h-11 shrink-0 cursor-pointer border-transparent border-b-2 px-4 font-mono text-muted-foreground text-xs uppercase tracking-[0.16em] transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-active:border-brand data-active:text-foreground dark:data-active:border-electric"
+                      className="min-h-11 shrink-0 cursor-pointer border-transparent border-b-2 px-4 font-sans text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-active:border-brand data-active:text-foreground dark:data-active:border-electric"
                     >
                       {label}
                     </Tabs.Tab>
@@ -367,7 +375,7 @@ function Settings() {
                             return (
                               <div
                                 key={entry.chain}
-                                className="flex flex-col gap-3 border border-border bg-muted/30 p-3"
+                                className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3"
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <p className="font-medium text-sm">
@@ -531,38 +539,70 @@ function Settings() {
                       retry={() => void history.refetch()}
                       retrying={history.isFetching}
                     />
-                  ) : (history.data?.changes.length ?? 0) === 0 ? (
+                  ) : historyChanges.length === 0 ? (
                     <p className="text-sm text-muted-foreground">Nothing has been changed yet.</p>
                   ) : (
-                    <Table>
-                      <TableCaption>Settlement setting changes</TableCaption>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Field</TableHead>
-                          <TableHead>From</TableHead>
-                          <TableHead>To</TableHead>
-                          <TableHead>Changed</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(history.data?.changes ?? []).map((change) => (
-                          <TableRow key={change.id}>
-                            <TableCell className="font-mono text-xs">{change.field}</TableCell>
-                            <TableCell className="break-all font-mono text-xs text-muted-foreground">
-                              {change.previousValue ?? "—"}
-                            </TableCell>
-                            <TableCell className="break-all font-mono text-xs">
-                              {change.nextValue ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              <time dateTime={isoAttr(change.changedAt)}>
-                                {formatDateTime(change.changedAt)}
-                              </time>
-                            </TableCell>
+                    <div className="flex flex-col gap-3">
+                      <Table>
+                        <TableCaption>Settlement setting changes</TableCaption>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Field</TableHead>
+                            <TableHead>From</TableHead>
+                            <TableHead>To</TableHead>
+                            <TableHead>Changed</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {historyChanges
+                            .slice(
+                              historyPage * HISTORY_PAGE_SIZE,
+                              (historyPage + 1) * HISTORY_PAGE_SIZE,
+                            )
+                            .map((change) => (
+                              <TableRow key={change.id}>
+                                <TableCell className="font-mono text-xs">{change.field}</TableCell>
+                                <TableCell className="break-all font-mono text-xs text-muted-foreground">
+                                  {change.previousValue ?? "—"}
+                                </TableCell>
+                                <TableCell className="break-all font-mono text-xs">
+                                  {change.nextValue ?? "—"}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  <time dateTime={isoAttr(change.changedAt)}>
+                                    {formatDateTime(change.changedAt)}
+                                  </time>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                      {historyPages > 1 && (
+                        <nav
+                          aria-label="Change history pages"
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <Button
+                            variant="secondary"
+                            onClick={() => setHistoryPage(historyPage - 1)}
+                            disabled={historyPage === 0}
+                          >
+                            Previous
+                          </Button>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            Page {historyPage + 1} of {historyPages} · {historyChanges.length}{" "}
+                            changes
+                          </span>
+                          <Button
+                            variant="secondary"
+                            onClick={() => setHistoryPage(historyPage + 1)}
+                            disabled={historyPage >= historyPages - 1}
+                          >
+                            Next
+                          </Button>
+                        </nav>
+                      )}
+                    </div>
                   )}
                 </Tabs.Panel>
               </Tabs.Root>

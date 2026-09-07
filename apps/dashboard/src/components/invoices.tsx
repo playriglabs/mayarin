@@ -596,7 +596,7 @@ function Invoices() {
             {draft.lines.map((line, index) => (
               <div
                 key={line.id}
-                className="grid gap-3 border border-border bg-card p-3 sm:grid-cols-[minmax(0,1fr)_11rem_6rem_auto] sm:items-end"
+                className="grid gap-3 rounded-lg border border-border bg-card p-3 sm:grid-cols-[minmax(0,1fr)_11rem_6rem_auto] sm:items-end"
               >
                 <Field>
                   <FieldLabel htmlFor={`invoice-line-name-${line.id}`}>Item {index + 1}</FieldLabel>

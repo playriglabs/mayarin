@@ -258,8 +258,9 @@ function PaymentsExplorer() {
                       <TableCell>
                         <a
                           href={`/payments/${encodeURIComponent(p.id)}`}
-                          className="font-mono text-xs text-foreground underline decoration-input underline-offset-2 hover:decoration-foreground"
+                          className="inline-flex items-center gap-1.5 font-mono text-xs text-foreground underline decoration-input underline-offset-2 hover:decoration-foreground"
                         >
+                          <ReceiptIcon size={12} aria-hidden="true" className="shrink-0" />
                           {p.id}
                         </a>
                       </TableCell>
