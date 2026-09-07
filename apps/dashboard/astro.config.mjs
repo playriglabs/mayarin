@@ -26,6 +26,33 @@ export default defineConfig({
   integrations: [react({ exclude: [/\.astro$/, /node_modules/] })],
   vite: {
     plugins: [tailwindcss()],
+    // Pre-bundled at startup rather than discovered on the first page that
+    // imports them.
+    //
+    // Vite finds dependencies lazily: a subpath nobody has imported yet is not
+    // in the initial scan, so the first page to reach for one triggers a
+    // re-optimise and every chunk URL the browser is already holding turns into
+    // a 504 `Outdated Optimize Dep` — which lands as "Failed to fetch
+    // dynamically imported module" on whichever island was hydrating. Islands
+    // make it routine here: nothing is imported until a page that uses it is
+    // opened, so each new surface is another mid-session re-optimise.
+    //
+    // Every Base UI subpath in `src/` is listed, not just the ones seen
+    // crashing. A component added later needs its subpath added here, and the
+    // symptom if it is forgotten is this same 504 rather than a build error.
+    optimizeDeps: {
+      include: [
+        "@base-ui-components/react/alert-dialog",
+        "@base-ui-components/react/checkbox",
+        "@base-ui-components/react/combobox",
+        "@base-ui-components/react/dialog",
+        "@base-ui-components/react/popover",
+        "@base-ui-components/react/select",
+        "@base-ui-components/react/tabs",
+        "@base-ui-components/react/tooltip",
+        "recharts",
+      ],
+    },
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
