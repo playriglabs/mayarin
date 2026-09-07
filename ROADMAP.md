@@ -188,9 +188,13 @@ Two of those are fixed by ordering, not by code.
 
 **The change is the strongest beat in the repository and it is currently buried
 in #211.** The swap spent 28208 of the 28351 EURC the payer signed for, and the
-143 EURC the pool did not need was booked back to the payer as `PAYER_SURPLUS`,
-a liability — not absorbed. One sentence, one ledger row proving we did not keep
-it. Almost no entry handles surplus at all. Show it.
+143 EURC the pool did not need went somewhere a ledger row names. On the Arc run
+the change was 0.010236 EURC and is a liability owed back to the address that
+signed; on Base it was 0.000143 and is under the one-cent dust threshold, so it
+is taken as revenue and the receipt event says which. Neither is absorbed, and
+that is the beat: one ledger row proving the money was accounted for either way.
+Almost no entry handles surplus at all. Show it — and show the Arc figure, which
+is the one that is owed back.
 
 **Originality is a framing problem, and it is free to fix.** Not "an agent pays
 for an API". Instead: an agent paid in a currency the merchant has never heard
@@ -816,18 +820,30 @@ deploys as a Worker rather than to Pages.
 - [x] Post payer surplus through a balanced ledger entry — never absorb it.
       `PAYER_SURPLUS`, a **liability**, because it is the payer's change rather
       than an FX result.
+- [x] Split the change by whether returning it is worth doing. Above one cent of
+      a stablecoin it stays a liability and the receipt event records the
+      address it is owed to; at or below, returning it costs more than it is
+      worth, so it is taken as `FEE_REVENUE` and the event says `dust`. A
+      threshold is declared only for the assets an `exact` authorization can be
+      signed in — an asset that has not declared one keeps every amount, because
+      keeping somebody's money is a decision and silence is not one.
 - [x] **A real EURC → USDC payment on Base Sepolia, end to end.** Block
       `46451061`: authorization `0x254b93ce…` moved 28351 EURC from the payer to
       the operator, swap `0xb1436735…` spent 28208 of it and delivered exactly
       20000 USDC to the merchant, and the 143 EURC the pool did not need was
-      credited to `PAYER_SURPLUS`. Intent `COMPLETED`, clearing `SUCCESS`, fee
+      accounted for as the payer's change. That run predates the dust threshold
+      and credited `PAYER_SURPLUS`; at 0.000143 EURC it is dust under the policy
+      now in the code, and the same run today books it to `FEE_REVENUE` with the
+      disposition on the receipt event. Intent `COMPLETED`, clearing `SUCCESS`, fee
       zero, treasury netting to zero. `bun run scripts/e2e-x402.ts --pay-with
 EURC` is the repeatable form.
 - [x] `FEEDBACK.md` and the README pointing at the contracts and lines to read.
 - [ ] Resume a cross-asset payment interrupted between its two chain movements.
       `recoverBroadcasts` skips them today rather than confirming one wrongly.
-- [ ] Payer refund above a dust threshold. Everything sits in `PAYER_SURPLUS`
-      until somebody sets one.
+- [ ] Send the refund. The threshold is set and the address is on the receipt
+      event, so above dust the change is a liability with a payee — but no
+      transaction returns it yet, and that is a broadcast with its own nonce,
+      resume and idempotency story rather than a posting.
 - [ ] Submit the Uniswap Developer Feedback Form. `FEEDBACK.md` is written; the
       form itself is not code and is still open.
 

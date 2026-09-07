@@ -41,6 +41,7 @@ import {
   type DomainEvent,
   type EventPublisher,
   InvalidStateTransitionError,
+  isDustAmount,
   isMayarinError,
   isPositive,
   type Money,
@@ -63,6 +64,7 @@ import {
   depositAssetReceivedPosting,
   internalSettledPosting,
   payerSurplusPosting,
+  type SurplusDisposition,
   settledPosting,
 } from "./postings.ts";
 import { lockRate, type RateProvider } from "./rate.ts";
@@ -111,6 +113,14 @@ export interface FacilitatorSettlement {
    * crash between them would leave a balance nothing explains.
    */
   readonly surplus?: Money;
+  /**
+   * The address the authorization was signed from, read off the chain (#211).
+   *
+   * Only meaningful alongside `surplus`: it is who refundable change is owed
+   * to. Recorded on the receipt event rather than derived later, because the
+   * authorization is the only thing that knows it and it is spent by then.
+   */
+  readonly payer?: string;
 }
 
 export interface ClearingEngineOptions {
@@ -603,8 +613,21 @@ export class ClearingEngine {
           // The payer's change, when the swap took less than they authorised.
           // Zero is the same-asset case and every exact fill, and posting a
           // zero entry would record a movement that did not happen.
-          if (settlement.surplus !== undefined && settlement.surplus.amount > 0n) {
-            await this.#ledger.post(payerSurplusPosting(transaction, settlement.surplus));
+          const surplus =
+            settlement.surplus !== undefined && settlement.surplus.amount > 0n
+              ? settlement.surplus
+              : undefined;
+          // Dust is change the return transaction would cost more than. Taken
+          // as revenue and said so in the event — the alternative is a liability
+          // row worth less than reconciling it that is never paid out anyway.
+          const disposition: SurplusDisposition | undefined =
+            surplus === undefined
+              ? undefined
+              : isDustAmount(surplus.asset, surplus.amount)
+                ? "dust"
+                : "refundable";
+          if (surplus !== undefined && disposition !== undefined) {
+            await this.#ledger.post(payerSurplusPosting(transaction, surplus, disposition));
           }
           return this.#apply(
             transition(
@@ -620,6 +643,17 @@ export class ClearingEngine {
                 chain: settlement.chain,
                 settledAmount: serializeMoney(settlement.amount),
                 fee: serializeMoney(onChain.fee),
+                // The audit trail's whole answer on the payer's change: how
+                // much, which way it went, and — when it is owed back — to whom.
+                ...(surplus === undefined || disposition === undefined
+                  ? {}
+                  : {
+                      payerSurplus: serializeMoney(surplus),
+                      payerSurplusDisposition: disposition,
+                      ...(disposition === "refundable" && settlement.payer !== undefined
+                        ? { payerRefundAddress: settlement.payer }
+                        : {}),
+                    }),
               },
             ),
           );

@@ -99,6 +99,17 @@ export function assetReceivedPosting(transaction: ClearingTransaction): DraftTra
 }
 
 /**
+ * What becomes of the payer's change (#211).
+ *
+ * `refundable` is owed back and sits as a liability until it is returned.
+ * `dust` is change the return transaction would cost more than, so it is taken
+ * as revenue — stated in an account and an event, never absorbed into a balance
+ * nothing explains. `isDustAmount` draws the line and only for the assets that
+ * declare one.
+ */
+export type SurplusDisposition = "refundable" | "dust";
+
+/**
  * The payer's change on a cross-asset x402 payment (#211).
  *
  * `surplus` is what the authorization carried and the swap did not consume,
@@ -110,16 +121,27 @@ export function assetReceivedPosting(transaction: ClearingTransaction): DraftTra
  * Posted rather than absorbed. `exact` authorises a fixed amount grossed up by
  * slippage, so a surplus is the normal outcome rather than an anomaly, and an
  * unexplained operator balance is how it would otherwise appear.
+ *
+ * The credit side is the disposition and nothing else changes: the debit is the
+ * operator holding the asset either way, and the two cases differ only in whom
+ * it is held for.
  */
 export function payerSurplusPosting(
   transaction: ClearingTransaction,
   surplus: Money,
+  disposition: SurplusDisposition,
 ): DraftTransaction {
   return {
-    description: `Payer surplus on payment ${transaction.paymentIntentId}`,
+    description:
+      disposition === "dust"
+        ? `Payer surplus below dust on payment ${transaction.paymentIntentId}`
+        : `Payer surplus on payment ${transaction.paymentIntentId}`,
     reference: transaction.id,
     idempotencyKey: postingIdempotencyKey(transaction, "PAYER_SURPLUS"),
-    entries: [debit("PAYER_ASSET_HELD", surplus), credit("PAYER_SURPLUS", surplus)],
+    entries: [
+      debit("PAYER_ASSET_HELD", surplus),
+      disposition === "dust" ? credit("FEE_REVENUE", surplus) : credit("PAYER_SURPLUS", surplus),
+    ],
   };
 }
 

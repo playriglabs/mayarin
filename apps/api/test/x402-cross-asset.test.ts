@@ -283,20 +283,32 @@ describe("settling a cross-asset payment", () => {
     return { payment, accepted };
   }
 
-  async function settleHarness(settler?: FakeCrossAssetSettler) {
-    const built = service({ ...(settler === undefined ? {} : { settler }) });
+  async function settleHarness(settler?: FakeCrossAssetSettler, price?: Money) {
+    const built = service({
+      ...(settler === undefined ? {} : { settler }),
+      ...(price === undefined ? {} : { price }),
+    });
     await built.resources.save(built.resource);
     return built;
   }
 
+  /** The receipt event, which is where the change's disposition is recorded. */
+  async function receiptPayload(built: Awaited<ReturnType<typeof settleHarness>>, id: string) {
+    const events = await built.clearing.repositories.clearing.listEvents(id);
+    const receipt = events.find((event) => event.toState === "ASSET_RECEIVED");
+    if (receipt === undefined) throw new Error("No ASSET_RECEIVED event was appended");
+    return receipt.payload as Record<string, unknown>;
+  }
+
   test("pays the merchant the invoice and books the payer's change", async () => {
-    // Authorised 20101 EURC, the swap consumed 19980 — the 121 left over is the
-    // slippage the payer was asked to carry and the pool did not need.
+    // A 2.00 USD invoice, so the change clears EURC's dust threshold of one
+    // cent: authorised 2010051 EURC, the swap consumed 1990000, and the 20051
+    // left over is slippage the payer carried and the pool did not need.
     const settler = new FakeCrossAssetSettler()
-      .willPlan(money(20_000n, "EURC"))
-      .willSpend(money(19_980n, "EURC"))
+      .willPlan(money(2_000_000n, "EURC"))
+      .willSpend(money(1_990_000n, "EURC"))
       .willUseTransaction(SWAP_TX);
-    const built = await settleHarness(settler);
+    const built = await settleHarness(settler, money(200n, "USD"));
     const { payment } = await paid(built);
 
     const { intent } = await built.x402.settle(built.resource, payment);
@@ -306,14 +318,74 @@ describe("settling a cross-asset payment", () => {
     // that one is the operator's, because the EURC had to land somewhere
     // swappable.
     expect(settler.sent[0]?.recipient).toBe(MERCHANT_SAFE);
-    expect(settler.sent[0]?.exactOut).toEqual(money(20_000n, "USDC"));
-    // Not absorbed, and not booked as an FX gain either: it is the payer's.
+    expect(settler.sent[0]?.exactOut).toEqual(money(2_000_000n, "USDC"));
+    // Not absorbed, not booked as an FX gain, and not taken as revenue either:
+    // it is the payer's, and above dust it stays owed to them.
     expect((await built.clearing.ledger.balance("PAYER_SURPLUS", "EURC")).balance).toEqual(
-      money(121n, "EURC"),
+      money(20_051n, "EURC"),
     );
     expect((await built.clearing.ledger.balance("PAYER_ASSET_HELD", "EURC")).balance).toEqual(
+      money(20_051n, "EURC"),
+    );
+    expect((await built.clearing.ledger.balance("FEE_REVENUE", "EURC")).balance).toEqual(
+      money(0n, "EURC"),
+    );
+  });
+
+  test("records who refundable change is owed to", async () => {
+    // A liability nobody can be paid from is not a refund. The address comes
+    // off the chain — `ConfirmedSettlement.payer` — rather than out of the
+    // payload, for the same reason every other field on that receipt does.
+    const settler = new FakeCrossAssetSettler()
+      .willPlan(money(2_000_000n, "EURC"))
+      .willSpend(money(1_990_000n, "EURC"))
+      .willUseTransaction(SWAP_TX);
+    const built = await settleHarness(settler, money(200n, "USD"));
+    const { payment } = await paid(built);
+
+    const { intent } = await built.x402.settle(built.resource, payment);
+    const transaction = await built.clearing.repositories.clearing.findByPaymentIntentId(intent.id);
+    if (transaction === null) throw new Error("No clearing transaction for the intent");
+
+    expect(await receiptPayload(built, transaction.id)).toMatchObject({
+      payerSurplus: { amount: "20051", asset: "EURC" },
+      payerSurplusDisposition: "refundable",
+      payerRefundAddress: PAYER,
+    });
+  });
+
+  test("takes change too small to return, and says so rather than absorbing it", async () => {
+    // 121 minor units is 0.000121 EURC. Returning it is an ERC-20 transfer the
+    // operator pays gas for and a liability row somebody reconciles, both worth
+    // more than the change — so it is taken as revenue, in an account and an
+    // event, which is the part that distinguishes this from absorbing it.
+    const settler = new FakeCrossAssetSettler()
+      .willPlan(money(20_000n, "EURC"))
+      .willSpend(money(19_980n, "EURC"))
+      .willUseTransaction(SWAP_TX);
+    const built = await settleHarness(settler);
+    const { payment } = await paid(built);
+
+    const { intent } = await built.x402.settle(built.resource, payment);
+    const transaction = await built.clearing.repositories.clearing.findByPaymentIntentId(intent.id);
+    if (transaction === null) throw new Error("No clearing transaction for the intent");
+
+    expect((await built.clearing.ledger.balance("FEE_REVENUE", "EURC")).balance).toEqual(
       money(121n, "EURC"),
     );
+    // Nothing is owed back, so nothing sits in the liability account waiting to
+    // be paid out by a transaction nobody would ever send.
+    expect((await built.clearing.ledger.balance("PAYER_SURPLUS", "EURC")).balance).toEqual(
+      money(0n, "EURC"),
+    );
+
+    const payload = await receiptPayload(built, transaction.id);
+    expect(payload).toMatchObject({
+      payerSurplus: { amount: "121", asset: "EURC" },
+      payerSurplusDisposition: "dust",
+    });
+    // No address, because there is no refund to send to one.
+    expect(payload.payerRefundAddress).toBeUndefined();
   });
 
   test("plans the swap before the payer's money moves", async () => {
