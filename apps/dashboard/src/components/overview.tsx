@@ -247,7 +247,7 @@ function BalanceOverview({
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div className="flex flex-col gap-1">
           <span className="text-muted-foreground text-xs uppercase tracking-wide">Balance</span>
-          <span className="font-medium text-4xl text-foreground tracking-tight">
+          <span className="font-medium text-[30px] my-2 text-foreground tracking-tight">
             {balanceDisplay(total, asset)}
           </span>
           <span className="text-subtle-foreground text-xs">
@@ -294,8 +294,10 @@ function MovementCard({
   href: string;
 }) {
   const total = points.reduce((sum, point) => sum + point.total, 0n);
-  const formatted =
-    asset === undefined || !isAssetCode(asset) ? "—" : formatMoneyLocale(money(total, asset));
+  // `balanceDisplay`, not the raw locale format: a settlement figure belongs in
+  // the same money as the balance above it, and `8,375196 USDC` beside `$ 8,39`
+  // is one page quoting itself two ways.
+  const formatted = asset === undefined ? "—" : balanceDisplay(total, asset);
 
   return (
     <Card className="gap-4">
@@ -317,10 +319,7 @@ function MovementCard({
         points={points.map((point) => ({
           date: point.date,
           value: Number(point.total),
-          label:
-            asset === undefined || !isAssetCode(asset)
-              ? "—"
-              : formatMoneyLocale(money(point.total, asset)),
+          label: asset === undefined ? "—" : balanceDisplay(point.total, asset),
           detail: title,
         }))}
         formatTick={() => ""}
@@ -373,9 +372,16 @@ function Overview() {
             );
       const recent = all.slice(0, 5);
 
+      // Filtered to one asset before anything is added. Minor units are only
+      // comparable within an asset: a rupiah payment has two decimals and a
+      // six-figure amount, and adding it to a dollar one produces a number in
+      // no currency at all — which is exactly what a mixed sum rendered as `$`
+      // was claiming.
       const payInDaily = dailyTotals(
         all
-          .filter((payment) => payment.status === "COMPLETED")
+          .filter(
+            (payment) => payment.status === "COMPLETED" && payment.amount.asset === payInAsset,
+          )
           .map((payment) => ({
             day: payment.createdAt.slice(0, 10),
             amount: BigInt(payment.amount.amount),
@@ -385,7 +391,7 @@ function Overview() {
         data.settlements
           .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
           .flatMap((row) =>
-            row.netAmount === null
+            row.netAmount === null || row.netAmount.asset !== settlementAsset
               ? []
               : [
                   {
