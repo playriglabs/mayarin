@@ -1,4 +1,5 @@
 import { capabilitySnippets, type Snippet } from "virtual:code-snippets";
+import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { Reveal } from "../reveal.tsx";
 import { CapabilityVisual } from "./capability-visuals.tsx";
@@ -106,7 +107,7 @@ function Arrow() {
  */
 function CodePanel({ snippet, class: className = "" }: { snippet: Snippet; class?: string }) {
   return (
-    <div class={`flex min-h-0 flex-col bg-code-panel ${className}`}>
+    <div class={clsx("flex min-h-0 flex-col bg-code-panel", className)}>
       <div class="flex shrink-0 items-center gap-3 border-b border-line-inverse px-5 py-3.5">
         <LanguageMark lang={snippet.lang} />
         <span class="text-[13px] font-sans text-slate-inverse">{snippet.filename}</span>

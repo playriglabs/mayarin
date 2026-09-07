@@ -1,3 +1,4 @@
+import clsx from "clsx";
 /**
  * The end of the payment, in place of the deposit card.
  *
@@ -29,7 +30,7 @@ export function Outcome({
   return (
     <div className="outcome-wrap">
       <div className="outcome">
-        <div className={`mark${paid ? "" : " bad"}`}>
+        <div className={clsx("mark", { bad: !paid })}>
           <svg viewBox="0 0 16 16" aria-hidden="true">
             {paid ? (
               <path

@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { usePathname } from "fumadocs-core/framework";
 import type { Folder } from "fumadocs-core/page-tree";
 import {
@@ -102,7 +103,7 @@ export const PersistentFolder: FC<{
           href={item.index.url}
           external={item.index.external}
           active={isActive(item.index.url, pathname)}
-          className={`${ITEM_BASE} ${ITEM_LINK} ${depth >= 1 ? ITEM_HIGHLIGHT : ""} w-full`}
+          className={clsx(ITEM_BASE, ITEM_LINK, depth >= 1 && ITEM_HIGHLIGHT, "w-full")}
           style={offset}
         >
           {item.icon}
@@ -110,14 +111,14 @@ export const PersistentFolder: FC<{
         </SidebarFolderLink>
       ) : (
         <SidebarFolderTrigger
-          className={`${ITEM_BASE} ${collapsible ? ITEM_BUTTON : ""} w-full`}
+          className={clsx(ITEM_BASE, collapsible && ITEM_BUTTON, "w-full")}
           style={offset}
         >
           {item.icon}
           {item.name}
         </SidebarFolderTrigger>
       )}
-      <SidebarFolderContent className={`relative ${depth === 0 ? FOLDER_CONTENT_GUIDE : ""}`}>
+      <SidebarFolderContent className={clsx("relative", depth === 0 && FOLDER_CONTENT_GUIDE)}>
         <div className="flex flex-col gap-0.5 pt-0.5">{children}</div>
       </SidebarFolderContent>
     </SidebarFolder>

@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import type { ComponentChildren } from "preact";
 import type { CapabilityKind } from "./capabilities.tsx";
 import { networkName, RailMark } from "./rail-mark.tsx";
@@ -12,7 +13,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
   if (kind === "accept") {
     return (
       <Frame>
-        <div class="w-full max-w-[380px] rounded-2xl bg-paper p-6 shadow-[0_18px_50px_#142b1612]">
+        <div class="w-full max-w-95 rounded-2xl bg-paper p-6 shadow-[0_18px_50px_#142b1612]">
           <div class="flex items-start justify-between gap-4 text-center">
             <div class="flex-1 [&_p]:mt-1 [&_p]:text-[10px] [&_p]:text-slate [&_strong]:mt-3 [&_strong]:block [&_strong]:text-xs [&_strong]:font-medium">
               <span class="mx-auto flex size-9 items-center justify-center">
@@ -67,7 +68,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
   if (kind === "route") {
     return (
       <Frame>
-        <div class="w-full max-w-[280px] space-y-2">
+        <div class="w-full max-w-70 space-y-2">
           {[
             { asset: "ETH", chain: "base", selected: true },
             { asset: "EURC", chain: "arbitrum", selected: false },
@@ -83,7 +84,10 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
                 <p class="text-[10px] text-slate">{networkName(rail.chain)}</p>
               </div>
               <span
-                class={`ml-auto size-3 rounded-full ${rail.selected ? "border-[3px] border-forest" : "border border-slate/40"}`}
+                class={clsx(
+                  "ml-auto size-3 rounded-full",
+                  rail.selected ? "border-[3px] border-forest" : "border border-slate/40",
+                )}
               />
             </div>
           ))}
@@ -96,7 +100,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
   if (kind === "settle") {
     return (
       <Frame>
-        <div class="w-full max-w-[280px] rounded-xl border border-line bg-paper p-5 text-center shadow-[0_12px_40px_#142b1610]">
+        <div class="w-full max-w-70 rounded-xl border border-line bg-paper p-5 text-center shadow-[0_12px_40px_#142b1610]">
           <span class="mx-auto flex size-9 items-center justify-center">
             <RailMark asset="USDC" chain="base" size={36} />
           </span>
@@ -123,7 +127,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
 
   return (
     <Frame>
-      <div class="w-full max-w-[280px] space-y-2 font-mono text-[11px]">
+      <div class="w-full max-w-70 space-y-2 font-mono text-[11px]">
         <div class="rounded-lg border border-line bg-paper p-3">
           <p class="text-slate">GET /premium/fx-quote</p>
           <p class="mt-1.5 text-ink">402 Payment Required</p>

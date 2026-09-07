@@ -1,4 +1,5 @@
 import { type AssetCode, assetSymbol } from "@mayarin/shared";
+import clsx from "clsx";
 import { useEffect, useId, useRef } from "preact/hooks";
 
 /**
@@ -42,7 +43,10 @@ function Currency({ code }: { readonly code: AssetCode }) {
         text-anchor="middle"
         dominant-baseline="central"
         // Two-character symbols would otherwise touch the disc's edge.
-        class={`fill-forest/80 font-sans font-normal ${symbol.length > 1 ? "text-[10px]" : "text-[12px]"}`}
+        class={clsx(
+          "fill-forest/80 font-sans font-normal",
+          symbol.length > 1 ? "text-[10px]" : "text-[12px]",
+        )}
       >
         {symbol}
       </text>

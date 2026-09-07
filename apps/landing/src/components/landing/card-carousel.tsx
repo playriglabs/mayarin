@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import type { VNode } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ArrowRight } from "../ui.tsx";
@@ -136,7 +137,7 @@ export function CardCarousel<T>({
   }, [pages.length]);
 
   return (
-    <div class={`min-w-0 lg:pt-10 ${className}`}>
+    <div class={clsx("min-w-0 lg:pt-10", className)}>
       <section
         ref={track}
         id={id}

@@ -48,7 +48,7 @@ export function TitleLockup() {
           class="size-[1.4em]"
           decoding="async"
         />
-        <span class="-ml-[0.06em] font-sans font-medium">mayarin</span>
+        <span class="ml-[-0.06em] font-sans font-medium">mayarin</span>
       </div>
       <div data-reveal class="flex flex-wrap items-end gap-x-10 gap-y-4">
         <div class="flex flex-col gap-2">

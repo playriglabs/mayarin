@@ -1,4 +1,5 @@
 import { chainLogoUrl } from "@mayarin/chain";
+import clsx from "clsx";
 
 /**
  * The networks a payment can arrive on. Base, Arbitrum and Arc resolve through
@@ -25,7 +26,7 @@ export function NetworkMarks({
   readonly class?: string;
 }) {
   return (
-    <div class={`flex items-center -space-x-2 ${className}`}>
+    <div class={clsx("flex items-center -space-x-2", className)}>
       {NETWORKS.map((network) =>
         network.src ? (
           <img
@@ -37,7 +38,7 @@ export function NetworkMarks({
             height="26"
             loading="lazy"
             decoding="async"
-            class={`size-6.5 shrink-0 rounded-full object-contain ring-2 ${ring}`}
+            class={clsx("size-6.5 shrink-0 rounded-full object-contain ring-2", ring)}
           />
         ) : undefined,
       )}

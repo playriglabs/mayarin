@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 const LINKS = [
@@ -103,7 +104,7 @@ function ChevronDown({ open }: { readonly open: boolean }) {
       stroke="currentColor"
       stroke-width="1.5"
       aria-hidden="true"
-      class={`size-4 transition-transform duration-200${open ? " rotate-180" : ""}`}
+      class={clsx("size-4 transition-transform duration-200", { "rotate-180": open })}
     >
       <path d="m3.5 6 4.5 4 4.5-4" stroke-linecap="square" />
     </svg>
@@ -223,11 +224,12 @@ export function Navigation() {
               id="v2-developers-menu"
               aria-hidden={!developersOpen}
               inert={!developersOpen}
-              class={`absolute top-full left-1/2 mt-5 w-96 -translate-x-1/2 rounded-2xl border border-line bg-paper p-3 shadow-[0_20px_60px_#1111111f] transition-[opacity,transform,visibility] duration-200 ${
+              class={clsx(
+                "absolute top-full left-1/2 mt-5 w-96 -translate-x-1/2 rounded-2xl border border-line bg-paper p-3 shadow-[0_20px_60px_#1111111f] transition-[opacity,transform,visibility] duration-200",
                 developersOpen
                   ? "visible translate-y-0 opacity-100"
-                  : "invisible -translate-y-2 opacity-0"
-              }`}
+                  : "invisible -translate-y-2 opacity-0",
+              )}
             >
               <p class="px-3 pt-2 pb-3 text-slate">Developers</p>
               <div class="grid gap-1">
@@ -283,14 +285,16 @@ export function Navigation() {
         >
           <span aria-hidden="true" class="relative block size-5">
             <span
-              class={`absolute top-1/2 left-1/2 block h-px w-5 -translate-x-1/2 bg-current transition-transform duration-300 ease-out motion-reduce:transition-none ${
-                open ? "-translate-y-1/2 rotate-45" : "-translate-y-1"
-              }`}
+              class={clsx(
+                "absolute top-1/2 left-1/2 block h-px w-5 -translate-x-1/2 bg-current transition-transform duration-300 ease-out motion-reduce:transition-none",
+                open ? "-translate-y-1/2 rotate-45" : "-translate-y-1",
+              )}
             />
             <span
-              class={`absolute top-1/2 left-1/2 block h-px w-5 -translate-x-1/2 bg-current transition-transform duration-300 ease-out motion-reduce:transition-none ${
-                open ? "-translate-y-1/2 -rotate-45" : "translate-y-1"
-              }`}
+              class={clsx(
+                "absolute top-1/2 left-1/2 block h-px w-5 -translate-x-1/2 bg-current transition-transform duration-300 ease-out motion-reduce:transition-none",
+                open ? "-translate-y-1/2 -rotate-45" : "translate-y-1",
+              )}
             />
           </span>
         </button>
@@ -304,23 +308,26 @@ export function Navigation() {
         tabIndex={-1}
         aria-label="Close navigation"
         onClick={() => setOpen(false)}
-        class={`fixed inset-0 top-16 cursor-default bg-ink/40 backdrop-blur-sm transition-[opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:hidden ${
-          open ? "visible opacity-100" : "invisible opacity-0"
-        }`}
+        class={clsx(
+          "fixed inset-0 top-16 cursor-default bg-ink/40 backdrop-blur-sm transition-[opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:hidden",
+          open ? "visible opacity-100" : "invisible opacity-0",
+        )}
       />
 
       <div
-        class={`relative grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none lg:hidden ${
-          open ? "grid-rows-[1fr] border-t border-line opacity-100" : "grid-rows-[0fr] opacity-0"
-        }`}
+        class={clsx(
+          "relative grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none lg:hidden",
+          open ? "grid-rows-[1fr] border-t border-line opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
       >
         <div class="min-h-0">
           <nav
             id="v2-mobile-menu"
             inert={!open}
-            class={`bg-paper px-6 py-3 transition-transform duration-300 ease-out motion-reduce:transition-none [&>a]:block [&>a]:py-3 [&>a:hover]:text-forest ${
-              open ? "translate-y-0" : "-translate-y-3"
-            }`}
+            class={clsx(
+              "bg-paper px-6 py-3 transition-transform duration-300 ease-out motion-reduce:transition-none [&>a]:block [&>a]:py-3 [&>a:hover]:text-forest",
+              open ? "translate-y-0" : "-translate-y-3",
+            )}
             aria-label="Mobile navigation"
           >
             {LINKS.map((link) => (
@@ -344,9 +351,10 @@ export function Navigation() {
                 id="v2-developers-menu-mobile"
                 aria-hidden={!developersOpen}
                 inert={!developersOpen}
-                class={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-200 ${
-                  developersOpen ? "grid-rows-[1fr] pb-2 opacity-100" : "grid-rows-[0fr] opacity-0"
-                }`}
+                class={clsx(
+                  "grid overflow-hidden transition-[grid-template-rows,opacity] duration-200",
+                  developersOpen ? "grid-rows-[1fr] pb-2 opacity-100" : "grid-rows-[0fr] opacity-0",
+                )}
               >
                 <div class="min-h-0">
                   {DEVELOPER_LINKS.map((item) => (

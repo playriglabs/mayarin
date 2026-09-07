@@ -87,6 +87,7 @@
       "dependencies": {
         "@mayarin/chain": "workspace:*",
         "@mayarin/shared": "workspace:*",
+        "clsx": "^2.1.1",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
       },
@@ -196,6 +197,7 @@
         "@orama/orama": "^3.1.15",
         "@tailwindcss/vite": "^4.1.18",
         "astro": "^7.3.1",
+        "clsx": "^2.1.1",
         "fumadocs-core": "16.14.3",
         "fumadocs-openapi": "11.2.3",
         "fumadocs-typescript": "^5.0.3",

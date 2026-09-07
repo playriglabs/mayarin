@@ -1,4 +1,5 @@
 import { chainLabel } from "@mayarin/chain";
+import clsx from "clsx";
 import { useState } from "react";
 import { Brand } from "../../shared/brand.tsx";
 import { ChainLabel } from "../../shared/chain-logo.tsx";
@@ -61,7 +62,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
           <p className="muted">{dateLine(bootstrap.issuedAt, bootstrap.dueAt)}</p>
         </div>
         <div>
-          <p className={`badge ${STATUS_TONE[status]}`}>
+          <p className={clsx("badge", STATUS_TONE[status])}>
             {/* The tick is read before the word is. Only for a document that
                 is actually settled — a part payment is not a receipt. */}
             {status === "paid" && <PaidMark />}

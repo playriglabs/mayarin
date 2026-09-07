@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { usePathname } from "fumadocs-core/framework";
 import type { Item } from "fumadocs-core/page-tree";
 import { SidebarItem, useFolderDepth } from "fumadocs-ui/components/sidebar/base";
@@ -29,7 +30,10 @@ function MethodBadge({ method }: { readonly method: string }) {
   const className = METHOD_STYLES[method] ?? "text-neutral-600 dark:text-neutral-400";
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center font-mono text-[0.6rem] font-semibold uppercase leading-none ${className}`}
+      className={clsx(
+        "inline-flex shrink-0 items-center justify-center font-mono text-[0.6rem] font-semibold uppercase leading-none",
+        className,
+      )}
       style={{ minWidth: "2.75rem" }}
     >
       {method}
@@ -48,7 +52,7 @@ export const MethodItem: FC<{ readonly item: Item }> = ({ item }) => {
       external={item.external}
       active={isActive(item.url, pathname ?? "")}
       icon={method !== undefined ? <MethodBadge method={method} /> : item.icon}
-      className={`${ITEM_BASE} ${ITEM_LINK} ${depth >= 1 ? ITEM_HIGHLIGHT : ""} w-full`}
+      className={clsx(ITEM_BASE, ITEM_LINK, depth >= 1 && ITEM_HIGHLIGHT, "w-full")}
       style={{ paddingInlineStart: itemOffset(depth) }}
     >
       {item.name}

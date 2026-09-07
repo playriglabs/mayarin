@@ -1,3 +1,5 @@
+import clsx from "clsx";
+
 const MARK_ASSETS = [
   {
     index: "01",
@@ -61,12 +63,15 @@ function AssetCard({ index, label, file, surface, imageClass, description }: Bra
   return (
     <article>
       <div
-        class={`flex min-h-72 items-center justify-center rounded-xl p-8 md:min-h-96 md:p-12 ${surface}`}
+        class={clsx(
+          "flex min-h-72 items-center justify-center rounded-xl p-8 md:min-h-96 md:p-12",
+          surface,
+        )}
       >
         <img
           src={`${BRAND_KIT_PATH}/${file}`}
           alt={`Mayarin ${label.toLowerCase()}`}
-          class={`h-auto w-auto object-contain ${imageClass}`}
+          class={clsx("h-auto w-auto object-contain", imageClass)}
         />
       </div>
       <div class="mt-4 flex items-start justify-between gap-6">
@@ -99,9 +104,9 @@ export function BrandKit() {
 
       <section class="shell pb-24 md:pb-36" aria-labelledby="marks-heading">
         <div class="mb-10 flex items-end justify-between gap-6 border-b border-line pb-5">
-          <h2 id="marks-heading" class="font-mono text-xs font-medium tracking-[0.16em] uppercase">
+          <p id="marks-heading" class="text-xs font-medium tracking-[0.16em] uppercase">
             Core identifiers
-          </h2>
+          </p>
           <span class="label hidden text-slate sm:block">SVG and PNG · transparent</span>
         </div>
 
@@ -111,9 +116,9 @@ export function BrandKit() {
           ))}
         </div>
 
-        <h2 class="mt-24 border-b border-line pb-5 font-mono text-xs font-medium tracking-[0.16em] uppercase md:mt-36">
+        <p class="mt-24 border-b border-line pb-5 text-xs font-medium tracking-[0.16em] uppercase md:mt-36">
           Lockup
-        </h2>
+        </p>
         <div class="mt-10 grid gap-10 md:grid-cols-[1fr_1fr] md:gap-16">
           <div class="flex min-h-56 items-center justify-center rounded-sm bg-[#f1f1ee] p-10">
             <span class="flex items-center text-[clamp(2rem,4vw,3rem)] leading-none tracking-[-0.06em] text-ink">
@@ -125,7 +130,7 @@ export function BrandKit() {
                 height="96"
                 class="size-[1.4em]"
               />
-              <span class="-ml-[0.06em] font-sans font-medium">mayarin</span>
+              <span class="ml-[-0.06em] font-sans font-medium">mayarin</span>
             </span>
           </div>
           <div class="self-center">
@@ -163,9 +168,9 @@ export function BrandKit() {
         </div>
       </section>
 
-      <footer class="shell flex flex-col gap-4 py-8 text-xs text-slate sm:flex-row sm:items-center sm:justify-between">
+      <footer class="shell flex flex-col gap-4 py-8 text-sm text-slate sm:flex-row sm:items-center sm:justify-between">
         <span>© {new Date().getFullYear()} Mayarin</span>
-        <a href="/" class="label text-slate transition-colors hover:text-forest">
+        <a href="/" class="text-slate transition-colors hover:text-forest">
           mayarin.xyz
         </a>
       </footer>

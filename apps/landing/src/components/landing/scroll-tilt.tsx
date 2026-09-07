@@ -75,10 +75,10 @@ export function ScrollTilt({ children }: { readonly children: ComponentChildren 
   }, []);
 
   return (
-    <div ref={container} class="relative z-10 [perspective:1600px]">
+    <div ref={container} class="relative z-10 perspective-[1600px]">
       <div
         ref={panel}
-        class="origin-top [--dashboard-angle:18deg] [transform:rotateX(calc(var(--dashboard-angle)*var(--dashboard-tilt,1)))] motion-safe:will-change-transform motion-reduce:transform-none md:[--dashboard-angle:28deg]"
+        class="origin-top [--dashboard-angle:18deg] transform-[rotateX(calc(var(--dashboard-angle)*var(--dashboard-tilt,1)))] motion-safe:will-change-transform motion-reduce:transform-none md:[--dashboard-angle:28deg]"
       >
         {children}
       </div>

@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import type { ComponentChildren } from "preact";
 import { ArrowRight } from "../ui.tsx";
 
@@ -32,7 +33,9 @@ export function SectionIntro({
 }) {
   return (
     <div
-      class={`max-w-180 [&.text-center]:mx-auto [&_h2_span]:text-forest${centered ? " text-center" : ""}`}
+      class={clsx("max-w-180 [&.text-center]:mx-auto [&_h2_span]:text-forest", {
+        "text-center": centered,
+      })}
     >
       <p class="mb-5 text-xs font-medium tracking-[0.08em] text-forest">{label}</p>
       <h2>{title}</h2>
@@ -56,7 +59,7 @@ export function DashboardPreview({
   return (
     <div class="overflow-hidden rounded-t-xl border border-line bg-paper shadow-[0_0_0_8px_#ffffff66,0_0_60px_#1f6f5410] md:rounded-t-2xl">
       <div
-        class="flex h-9 items-center gap-1.5 border-b border-line/60 bg-v2-mist/40 px-4 [&>span]:size-1.5 [&>span]:rounded-full [&>span]:bg-ink/15 [&>i]:mx-auto [&>i]:h-3 [&>i]:w-32 [&>i]:rounded-sm [&>i]:bg-ink/[0.03]"
+        class="flex h-9 items-center gap-1.5 border-b border-line/60 bg-v2-mist/40 px-4 [&>span]:size-1.5 [&>span]:rounded-full [&>span]:bg-ink/15 [&>i]:mx-auto [&>i]:h-3 [&>i]:w-32 [&>i]:rounded-sm [&>i]:bg-ink/3"
         aria-hidden="true"
       >
         <span />
@@ -70,11 +73,11 @@ export function DashboardPreview({
           alt={alt}
           width="1440"
           height="900"
-          class="block aspect-[16/9] w-full object-cover object-top"
+          class="block aspect-video w-full object-cover object-top"
         />
       ) : (
         <div
-          class="aspect-[16/7] w-full bg-paper"
+          class="aspect-16/7 w-full bg-paper"
           role="img"
           aria-label="Dashboard preview space reserved for a product screenshot"
         />

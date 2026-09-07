@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import { ConfirmingCard } from "./confirming-card.tsx";
 import { DepositCard } from "./deposit-card.tsx";
@@ -41,7 +42,7 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
                 <h2>Complete your payment</h2>
               </div>
               {stage === "waiting" && (
-                <div className={`timer${remaining.low ? " low" : ""}`}>
+                <div className={clsx("timer", { low: remaining.low })}>
                   <span>Time left</span>
                   <strong>{remaining.text}</strong>
                 </div>

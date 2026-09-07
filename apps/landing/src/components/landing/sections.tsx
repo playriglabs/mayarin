@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { LOGOS } from "../powered-by.tsx";
 import { Reveal } from "../reveal.tsx";
 import { ArrowRight } from "../ui.tsx";
@@ -85,16 +86,17 @@ export function PoweredBy() {
             {LOGOS.map((logo) => (
               <li
                 key={logo.name}
-                class={`flex shrink-0 items-center gap-2.5 opacity-70 transition-opacity duration-300 hover:opacity-100 ${
-                  logo.tonal ? "mix-blend-screen invert grayscale" : "brightness-0 invert"
-                }`}
+                class={clsx(
+                  "flex shrink-0 items-center gap-2.5 opacity-70 transition-opacity duration-300 hover:opacity-100",
+                  logo.tonal ? "mix-blend-screen invert grayscale" : "brightness-0 invert",
+                )}
               >
                 <img
                   src={logo.src}
                   alt={logo.lockup ? logo.name : ""}
                   loading="lazy"
                   decoding="async"
-                  class={`w-auto ${logo.class ?? "h-7 md:h-8"}`}
+                  class={clsx("w-auto", logo.class ?? "h-7 md:h-8")}
                 />
                 {logo.lockup ? null : (
                   <span class="whitespace-nowrap font-sans text-base font-bold text-paper lowercase">
