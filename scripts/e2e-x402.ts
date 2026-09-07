@@ -3,6 +3,11 @@
  *
  * bun run scripts/e2e-x402.ts --pay-to 0x… [--chain arc-testnet] [--url …] [--check]
  *
+ * With `--body` it buys an MCP tool call instead of a GET resource (#231):
+ *
+ * bun run scripts/e2e-x402.ts --url http://localhost:3000/x402/mcp \
+ *   --body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"choose_rail","arguments":{"chains":["base-sepolia","arc-testnet"]}}}'
+ *
  * `--chain` names the rail the resource must offer; the run refuses a header
  * that does not advertise it. `--check` stops after the preflight, before an
  * authorization is signed and before anything is spent.
@@ -121,6 +126,33 @@ assert(
 );
 /** Overrides the address the deployment would pay this merchant at, if given. */
 const merchantOverride = argument("merchant");
+/**
+ * A JSON-RPC body, which turns this into an MCP run rather than a GET (#231).
+ *
+ * The MCP server is a single `POST /x402/mcp`, so the thing being bought is in
+ * the body rather than in the path — and the paid retry has to carry **the same
+ * body** as the request that got the `402`. A different one would be a different
+ * purchase settled against the first one's authorization.
+ */
+const body = argument("body");
+if (body !== undefined) {
+  try {
+    JSON.parse(body);
+  } catch {
+    throw new Error("--body must be JSON; for the MCP that is a JSON-RPC 2.0 request object");
+  }
+}
+
+/** Both requests, built identically. Only the payment header differs. */
+function requestInit(headers: Record<string, string>, timeoutMs: number): RequestInit {
+  const init: RequestInit = {
+    headers: body === undefined ? headers : { "content-type": "application/json", ...headers },
+    signal: AbortSignal.timeout(timeoutMs),
+    redirect: "error",
+  };
+  return body === undefined ? init : { ...init, method: "POST", body };
+}
+
 const output = argument("output") ?? "/tmp/mayarin-x402-evidence.json";
 const rpcUrls: Record<string, string> = JSON.parse(required("CHAIN_RPC_URLS"));
 const rpc = rpcUrls[chain];
@@ -148,7 +180,15 @@ try {
   // Fail before signing if the database cannot provide the required evidence.
   await sql`select id from payment_intents limit 0`;
   await sql`select id from ledger_entries limit 0`;
-  const unpaid = await fetch(url, { signal: AbortSignal.timeout(30_000), redirect: "error" });
+  const unpaid = await fetch(url, requestInit({}, 30_000));
+  if (body !== undefined && unpaid.status === 200) {
+    // The MCP runs a tool before it charges, so a refusal never reaches the
+    // gate and never produces a `402`. Say which it was rather than reporting
+    // the status alone — the reason is in the body.
+    throw new Error(
+      `The MCP answered 200 without asking for payment, so the tool refused before the gate: ${await unpaid.text()}`,
+    );
+  }
   assert(unpaid.status === 402, `Expected HTTP 402, received ${unpaid.status}`);
   const header = unpaid.headers.get(PAYMENT_REQUIRED_HEADER);
   assert(header, "402 omitted PAYMENT-REQUIRED");
@@ -334,13 +374,13 @@ try {
     // Keep the nonce even if the connection drops after the server broadcasts.
     await save();
     console.log("Signing one authorization and retrying the resource without an API key.");
-    const paid = await fetch(url, {
-      headers: {
-        [PAYMENT_SIGNATURE_HEADER]: Buffer.from(JSON.stringify(payment)).toString("base64"),
-      },
-      signal: AbortSignal.timeout(120_000),
-      redirect: "error",
-    });
+    const paid = await fetch(
+      url,
+      requestInit(
+        { [PAYMENT_SIGNATURE_HEADER]: Buffer.from(JSON.stringify(payment)).toString("base64") },
+        120_000,
+      ),
+    );
     evidence.httpStatus = paid.status;
     evidence.body = await paid.text();
     const responseHeader = paid.headers.get(PAYMENT_RESPONSE_HEADER);

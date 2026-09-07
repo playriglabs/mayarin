@@ -261,6 +261,22 @@ itself reads, because Subgraph Studio allows 3,000 queries a day _account-wide_ 
 a pay-per-query tool wired straight through hands anyone who can pay a way to
 spend the whole deployment's budget.
 
+Trying it takes two commands. The first is free and needs no wallet:
+
+```bash
+curl -X POST $API/x402/mcp -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+The second pays for an answer, and sends the **same body** in both the request
+that receives the `402` and the retry carrying the signature — a different one
+would be a different purchase settled against the first one's authorization:
+
+```bash
+bun run scripts/e2e-x402.ts --url $API/x402/mcp --pay-to 0x… \
+  --body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"choose_rail","arguments":{"chains":["base-sepolia","arc-testnet"]}}}'
+```
+
 | What                                       | File                             |
 | ------------------------------------------ | -------------------------------- |
 | The MCP wire format, no domain in it       | `apps/api/src/mcp/protocol.ts`   |
