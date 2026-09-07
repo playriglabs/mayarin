@@ -337,7 +337,9 @@ function X402Resources() {
                     <TableCell>
                       <span className="font-mono text-xs text-foreground">{resource.id}</span>
                       {resource.description !== undefined && (
-                        <p className="text-xs text-subtle-foreground">{resource.description}</p>
+                        <p className="text-xs mt-0.5 text-subtle-foreground">
+                          {resource.description}
+                        </p>
                       )}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-xs text-muted-foreground">

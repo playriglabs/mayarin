@@ -112,7 +112,7 @@ function MovementCardSkeleton() {
 }
 
 /** Mirrors the compact recent-payments card: a title, a link, and five rows. */
-function RecentListSkeleton({ rows = 5 }: { rows?: number }) {
+function RecentListSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div aria-hidden="true" className="flex flex-col gap-4 border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-4">
