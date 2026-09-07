@@ -59,7 +59,7 @@ import type { SettlementDto } from "@/types/settlement";
 
 const IN_PROGRESS = new Set(["CREATED", "CONFIRMED", "PROCESSING"]);
 /** The movement cards' window, matching the analytics page they link to. */
-const MOVEMENT_DAYS = 14;
+const MOVEMENT_DAYS = 30;
 /**
  * The balance's window, deliberately longer.
  *
@@ -287,7 +287,7 @@ function BalanceOverview({
 }
 
 /**
- * A section's fourteen days, as a sparkline and a total.
+ * A section's thirty days, as a sparkline and a total.
  *
  * No axes: at this size they would be most of the picture, and the number
  * beside them is the figure anyone reads. "View more" goes to the analytics
@@ -484,14 +484,14 @@ function Overview() {
           <div className="grid gap-4 lg:grid-cols-2">
             <MovementCard
               title="Pay ins"
-              hint="What buyers were charged, over the last fourteen days."
+              hint="What buyers were charged, over the last thirty days."
               points={payInDaily}
               asset={payInAsset}
               href="/analytics"
             />
             <MovementCard
               title="Pay outs"
-              hint="What reached you, net of fee, over the last fourteen days."
+              hint="What reached you, net of fee, over the last thirty days."
               points={payOutDaily}
               asset={settlementAsset}
               href="/analytics"

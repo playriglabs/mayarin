@@ -70,7 +70,15 @@ import { withQuery } from "@/lib/with-query";
 import type { PaymentIntentDto } from "@/types/payment";
 import type { SettlementDto } from "@/types/settlement";
 
-const WINDOW_DAYS = 14;
+/**
+ * The charting window, matching the overview's balance card.
+ *
+ * The read behind it is unpaginated — every payment and settlement, always — so
+ * this slices rather than fetches. One window across the product means the
+ * "View more" on the overview opens the same month it was showing, rather than
+ * a different window wearing the same title.
+ */
+const WINDOW_DAYS = 30;
 
 /* -------------------------------------------------------------------------- */
 /* Derivation                                                                 */
