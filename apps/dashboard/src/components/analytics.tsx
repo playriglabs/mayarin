@@ -59,7 +59,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { dayLabel, type Plot, TrendChart } from "@/components/ui/trend-chart";
+import { dayLabel, type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
 import { ApiError } from "@/lib/api/client";
 import { compactMoney } from "@/lib/compact";
@@ -423,7 +423,11 @@ function MovementSection({
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="gap-4">
           <CardTitle hint={volumeHint}>Transaction volume · {asset}</CardTitle>
-          <TrendChart points={volumePlots(daily, asset)} formatTick={formatMoneyTick} />
+          {/* Bars: a day's takings are a discrete quantity, and a line
+              between two of them draws a value that never existed. Completion
+              time stays a line — a median is a level, and it does hold
+              between two readings. */}
+          <TrendBars points={volumePlots(daily, asset)} formatTick={formatMoneyTick} />
           <DataDisclosure summary="Show the numbers">
             <Table containerClassName="max-h-64 overflow-y-auto">
               <TableCaption>Volume by day</TableCaption>

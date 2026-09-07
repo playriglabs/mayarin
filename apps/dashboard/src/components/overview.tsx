@@ -45,7 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { type Plot, TrendChart } from "@/components/ui/trend-chart";
+import { type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
 import { useSettings, useWalletBalance, useWalletWithdrawalHistory } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
@@ -329,7 +329,7 @@ function MovementCard({
         </a>
       </div>
 
-      <TrendChart
+      <TrendBars
         points={points.map((point) => ({
           date: point.date,
           value: Number(point.total),

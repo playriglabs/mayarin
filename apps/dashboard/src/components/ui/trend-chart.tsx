@@ -22,6 +22,9 @@ import { useId } from "react";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   XAxis,
@@ -151,6 +154,97 @@ export function TrendChart({
             isAnimationActive={false}
           />
         </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/**
+ * The same series as columns.
+ *
+ * A day's takings are a discrete quantity, and a line between two of them draws
+ * a value that never existed — worse on a series that is mostly zero, where the
+ * line becomes a flat baseline implying a steady trickle rather than nothing at
+ * all. Bars say "this day, this much", and a day with no payments is visibly
+ * empty.
+ *
+ * A balance is the opposite case and stays a line: it genuinely holds a value
+ * between two readings.
+ */
+export function TrendBars({
+  points,
+  formatTick,
+  className = "h-44",
+  showAxes = true,
+}: {
+  points: readonly Plot[];
+  formatTick: (value: number) => string;
+  className?: string;
+  showAxes?: boolean;
+}) {
+  if (points.length === 0) {
+    return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
+  }
+
+  return (
+    <div className={cn("w-full", className)}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={[...points]}
+          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+          // A gap a third of the column's width: enough that each day is its
+          // own object rather than a filled region, without the series turning
+          // into a row of tally marks.
+          barCategoryGap="25%"
+        >
+          {showAxes && (
+            <CartesianGrid
+              // Horizontal only. A vertical line between two days would draw a
+              // boundary the data does not have.
+              vertical={false}
+              stroke="var(--color-border)"
+            />
+          )}
+          {showAxes && (
+            <XAxis
+              dataKey="date"
+              tickFormatter={dayLabel}
+              ticks={[points[0]?.date ?? "", points[points.length - 1]?.date ?? ""]}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
+              interval="preserveStartEnd"
+            />
+          )}
+          {showAxes && (
+            <YAxis
+              width={64}
+              tickFormatter={formatTick}
+              // More than the line chart's two: a column is read against the
+              // gridline behind it, so the ticks are doing work here that the
+              // shape of a line does on its own.
+              tickCount={5}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
+            />
+          )}
+          <RechartsTooltip
+            content={<ChartTooltip />}
+            // A filled band rather than a line: the hit area is the column, and
+            // a cursor thinner than the bar it highlights points between them.
+            cursor={{ fill: "var(--color-muted)" }}
+          />
+          <Bar
+            dataKey="value"
+            className="fill-chart-1"
+            // Square, like everything else here — the radius scale is pinned to
+            // zero and a rounded bar would be the one exception on the page.
+            radius={0}
+            maxBarSize={18}
+            isAnimationActive={false}
+          />
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );
