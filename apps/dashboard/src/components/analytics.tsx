@@ -394,18 +394,18 @@ function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* One transform, on the bar, rather than one per segment. Animating each
-          segment gave every one its own composited layer, and layers round
-          their own edges — the tallest colour ended up a pixel prouder than its
-          neighbours, which is visible on a bar only twelve pixels high.
-          `shrink-0` for the same reason: these widths are the data, and flex is
-          entitled to shave a percentage that does not divide evenly. */}
+      {/* No transform at all: it fades in rather than growing. A `scaleX`
+          rasterises the bar's edges through a composited layer, and this is
+          twelve pixels high — every rounding decision is a visible fraction of
+          it. `shrink-0` is not cosmetic either: these widths are the data, and
+          flex is otherwise entitled to shave a percentage that does not divide
+          evenly. */}
       <motion.div
         aria-hidden="true"
-        className="flex h-3 w-full origin-left overflow-hidden"
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        className="flex h-3 w-full overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       >
         {slices.map((slice) => (
           <span
