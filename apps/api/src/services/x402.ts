@@ -16,7 +16,7 @@
 
 import type { ChainId } from "@mayarin/chain";
 import { caip2Of } from "@mayarin/chain";
-import type { ClearingEngine, RateProvider } from "@mayarin/clearing";
+import type { ClearingEngine, ClearingTransaction, RateProvider } from "@mayarin/clearing";
 import {
   awaitsFacilitatorSettlement,
   type MerchantSnapshot,
@@ -29,10 +29,12 @@ import {
   assetDecimals,
   type Clock,
   convert,
+  deserializeMoney,
   type Money,
   money,
   NotFoundError,
   roundUpToPayerPrecision,
+  type SerializedMoney,
   ValidationError,
 } from "@mayarin/shared";
 import type {
@@ -43,6 +45,7 @@ import type {
   FacilitatorRegistry,
   PaymentPayload,
   PaymentRequired,
+  PaymentRequirements,
   PricedAsset,
   RailChoice,
   RailObservation,
@@ -571,7 +574,11 @@ export class X402Service {
     // only pointer to money that had already moved, and EIP-3009 will not let
     // the same authorization be sent again.
     if (response.success && isTransactionHash(response.transaction)) {
-      await this.#options.engine.recordFacilitatorBroadcast(transaction.id, response.transaction);
+      await this.#options.engine.recordFacilitatorBroadcast(
+        transaction.id,
+        response.transaction,
+        authorized,
+      );
     }
     // Confirms the authorization, whichever rail this is. On a cross-asset one
     // that is the payer's asset arriving at the operator rather than at the
@@ -690,6 +697,13 @@ export class X402Service {
    * cannot finish these itself: confirming means reading a chain, which the
    * domain deliberately cannot do.
    *
+   * A cross-asset payment has two chain movements and either can be the one that
+   * was interrupted, so it branches on the `settlement.swap` event: with it the
+   * swap has gone out and only needs confirming, without it the payer's asset is
+   * at the operator and the swap still has to be sent. Both are handled by
+   * `#recoverCrossAsset`; confirming the wrong one would credit a merchant who
+   * was never paid, which is why this used to skip them.
+   *
    * Each transaction is attempted on its own. A failure is left where it is
    * rather than raised, because the next pass repeats it — the same shape as
    * the expiry sweep and the webhook dispatcher.
@@ -710,33 +724,49 @@ export class X402Service {
       try {
         const intent = await this.#options.intents.getById(transaction.paymentIntentId);
         const chain = intent.payment?.chain;
-        if (chain === undefined) continue;
-        // A cross-asset payment has two chain movements and this sweep knows
-        // how to finish one of them. Which one the reference names is readable
-        // — the `settlement.swap` event says the swap has gone out — but the
-        // resume differs in each case: before the swap it has to be sent, and
-        // after it, confirmed against the merchant rather than the operator.
-        // Left alone rather than confirmed wrongly, and named so an operator
-        // sees it rather than watching a sweep retry forever. See #211.
-        if (intent.payment?.asset !== transaction.settlementAsset) continue;
+        const railAsset = intent.payment?.asset;
+        if (chain === undefined || railAsset === undefined) continue;
         const resource = await this.resourceById(intent.metadata.x402Resource ?? "");
-        const accept = resource.accepts.find((candidate) => candidate.chain === chain);
+        // Matched on chain *and* asset. A resource may accept two tokens on one
+        // chain, and picking by chain alone reads the wrong contract and payTo.
+        const accept = resource.accepts.find(
+          (candidate) => candidate.chain === chain && candidate.asset === railAsset,
+        );
         const confirmer = this.#options.confirmers.get(caip2Of(chain));
         if (accept === undefined || confirmer === undefined) continue;
 
-        // Rebuilt from what was locked, never re-priced. The payer signed for
+        // What the payer signed, off the event that recorded the broadcast.
+        // A payment broadcast before that event carried it falls back to the
+        // lock, which on a same-asset rail is the same number — `settle`
+        // refuses one where the two differ. A cross-asset payment has no such
+        // fallback: the lock is the merchant's number in the merchant's asset,
+        // so it is left for an operator rather than guessed at.
+        const authorized =
+          (await this.#authorizedAmount(transaction.id, railAsset)) ??
+          (railAsset === transaction.settlementAsset ? transaction.settlementAmount : undefined);
+        if (authorized === undefined) continue;
+
+        // Rebuilt from what was recorded, never re-priced. The payer signed for
         // this amount, and a quote that has moved since says nothing about the
         // transfer already on the chain.
+        const requirements = {
+          scheme: "exact" as const,
+          network: caip2Of(chain),
+          amount: authorized.amount.toString(),
+          asset: accept.contract,
+          payTo: accept.payTo,
+          maxTimeoutSeconds: resource.maxTimeoutSeconds,
+        };
+
+        if (railAsset !== transaction.settlementAsset) {
+          await this.#recoverCrossAsset(transaction, chain, authorized, requirements, confirmer);
+          recovered.push(transaction.id);
+          continue;
+        }
+
         const settlement = await confirmSettlement(
           { success: true, transaction: txHash, network: caip2Of(chain) },
-          {
-            scheme: "exact",
-            network: caip2Of(chain),
-            amount: transaction.settlementAmount.amount.toString(),
-            asset: accept.contract,
-            payTo: accept.payTo,
-            maxTimeoutSeconds: resource.maxTimeoutSeconds,
-          },
+          requirements,
           confirmer,
         );
         await this.#options.engine.recordFacilitatorSettlement(transaction.id, {
@@ -744,7 +774,7 @@ export class X402Service {
           txHash: settlement.transaction,
           amount: {
             amount: BigInt(settlement.transfer.value),
-            asset: transaction.settlementAmount.asset,
+            asset: transaction.settlementAsset,
           },
         });
         recovered.push(transaction.id);
@@ -753,6 +783,113 @@ export class X402Service {
       }
     }
     return recovered;
+  }
+
+  /**
+   * What the payer authorised, read off the `settlement.broadcast` event.
+   *
+   * `undefined` for a payment broadcast before the event carried it, which is
+   * not something to guess at: the amount is in the payer's asset, and the only
+   * other number available is the merchant's in a different one.
+   */
+  async #authorizedAmount(
+    clearingTransactionId: string,
+    railAsset: AssetCode,
+  ): Promise<Money | undefined> {
+    const events = await this.#options.engine.history(clearingTransactionId);
+    const broadcast = events.findLast((event) => event.type === "settlement.broadcast");
+    const serialized = (broadcast?.payload as { authorized?: SerializedMoney } | undefined)
+      ?.authorized;
+    if (serialized === undefined) return undefined;
+    const authorized = deserializeMoney(serialized);
+    return authorized.asset === railAsset ? authorized : undefined;
+  }
+
+  /**
+   * Finishes a cross-asset payment interrupted between its two chain movements (#211).
+   *
+   * Two movements means two ways to be interrupted, and the `settlement.swap`
+   * event is what tells them apart: with it the swap has gone out and only needs
+   * confirming, without it the payer's asset is sitting at the operator and the
+   * swap still has to be sent. Confirming the wrong one credits a merchant who
+   * was never paid, which is why this used to be skipped rather than guessed at.
+   *
+   * The authorization is confirmed first in both branches, and not only for the
+   * payer's address. Sending a swap for an authorization that never landed
+   * spends the operator's own balance on a payment nobody made — and a resume,
+   * unlike the original settle, has no facilitator response in front of it
+   * saying the transfer went out at all.
+   */
+  async #recoverCrossAsset(
+    transaction: ClearingTransaction,
+    chain: ChainId,
+    authorized: Money,
+    requirements: PaymentRequirements,
+    confirmer: SettlementConfirmer,
+  ): Promise<void> {
+    const locked = transaction.settlementAmount;
+    const settler = this.#options.crossAssetSettler;
+    const recipient = await this.#options.settlementAddressOf?.(transaction.merchant.id, chain);
+    if (locked === undefined || settler === undefined || recipient === undefined) {
+      throw new ValidationError("This deployment cannot finish a cross-asset payment", {
+        clearingTransactionId: transaction.id,
+        chain,
+      });
+    }
+
+    const events = await this.#options.engine.history(transaction.id);
+    const swapped = events.some((event) => event.type === "settlement.swap");
+    const broadcast = events.findLast((event) => event.type === "settlement.broadcast");
+    const authorization = (broadcast?.payload as { providerReference?: string } | undefined)
+      ?.providerReference;
+    if (authorization === undefined) {
+      throw new ValidationError("A cross-asset payment has no authorization to resume from", {
+        clearingTransactionId: transaction.id,
+      });
+    }
+
+    const landed = await confirmSettlement(
+      { success: true, transaction: authorization, network: requirements.network },
+      requirements,
+      confirmer,
+    );
+
+    const request: CrossAssetSwapRequest = {
+      chain,
+      held: authorized,
+      exactOut: locked,
+      recipient,
+    };
+    // `providerReference` is the swap's hash once the swap has been recorded,
+    // which is exactly the case this branch is for.
+    const swap = swapped
+      ? await this.#confirmSwap(transaction.providerReference ?? "", request)
+      : await this.#swap(transaction.id, request);
+
+    await this.#options.engine.recordFacilitatorSettlement(transaction.id, {
+      ...swap,
+      payer: landed.payer,
+    });
+  }
+
+  /** Reads a swap that was already sent, in the shape `#swap` returns. */
+  async #confirmSwap(
+    txHash: string,
+    request: CrossAssetSwapRequest,
+  ): Promise<{ chain: ChainId; txHash: string; amount: Money; surplus: Money }> {
+    const settler = this.#options.crossAssetSettler;
+    if (settler === undefined) {
+      throw new ValidationError("x402 cannot settle a cross-asset payment on this deployment", {
+        txHash,
+      });
+    }
+    const swap = await settler.confirm(txHash, request);
+    return {
+      chain: request.chain,
+      txHash: swap.transaction,
+      amount: swap.delivered,
+      surplus: money(request.held.amount - swap.spent.amount, request.held.asset),
+    };
   }
 
   /**

@@ -356,9 +356,18 @@ export class ClearingEngine {
    * because EIP-3009 has recorded the nonce and the authorization cannot be
    * sent again.
    *
+   * `authorized` is what the payer signed, in the asset they signed in, and it
+   * goes into the event because a cross-asset resume has nowhere else to read
+   * it: the lock is the merchant's number in the merchant's asset, and the
+   * quote that derived the payer's has moved by then.
+   *
    * Idempotent: the same hash twice is the resume case, not a conflict.
    */
-  async recordFacilitatorBroadcast(id: string, txHash: string): Promise<ClearingTransaction> {
+  async recordFacilitatorBroadcast(
+    id: string,
+    txHash: string,
+    authorized: Money,
+  ): Promise<ClearingTransaction> {
     const transaction = await this.getById(id);
     if (!awaitsFacilitatorSettlement(transaction.executionPath)) {
       throw new ValidationError("Only an x402 payment records a facilitator broadcast", { id });
@@ -374,6 +383,7 @@ export class ClearingEngine {
     const { transaction: next, event } = recordSettlementBroadcast(
       transaction,
       txHash,
+      authorized,
       this.#clock.now(),
     );
     await this.#repository.update(next, transaction.version, [event]);

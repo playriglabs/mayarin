@@ -6,7 +6,7 @@
  */
 
 import type { PaymentIntent } from "@mayarin/payment-intent";
-import { generateId, serializeMoney } from "@mayarin/shared";
+import { generateId, type Money, serializeMoney } from "@mayarin/shared";
 import { assertTransition } from "./state-machine.ts";
 import type {
   ClearingEvent,
@@ -110,6 +110,7 @@ export function transition(
 export function recordSettlementBroadcast(
   transaction: ClearingTransaction,
   providerReference: string,
+  authorized: Money,
   now: Date,
 ): TransitionResult {
   const updatedAt = new Date(now);
@@ -128,7 +129,12 @@ export function recordSettlementBroadcast(
       sequence: next.version,
       type: "settlement.broadcast",
       toState: transaction.state,
-      payload: { providerReference },
+      // What the payer signed, in the asset they signed in. On a same-asset
+      // rail that is the lock again; on a cross-asset one it is the swap's
+      // budget and appears nowhere else, and a resume between the two chain
+      // movements has nothing else to read it from — the quote it came from has
+      // moved and the authorization it describes is already spent.
+      payload: { providerReference, authorized: serializeMoney(authorized) },
       occurredAt: updatedAt,
     },
   };
