@@ -16,7 +16,7 @@ import {
   ReceiptIcon,
 } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
-import { ChainLabel } from "@/components/chain-logo";
+import { ChainStack } from "@/components/chain-logo";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -247,7 +247,7 @@ function BalanceOverview({
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div className="flex flex-col gap-1">
           <span className="text-muted-foreground text-xs uppercase tracking-wide">Balance</span>
-          <span className="font-medium text-3xl text-foreground">
+          <span className="font-medium text-4xl text-foreground tracking-tight">
             {balanceDisplay(total, asset)}
           </span>
           <span className="text-subtle-foreground text-xs">
@@ -257,18 +257,10 @@ function BalanceOverview({
           </span>
         </div>
 
-        {chains.length > 0 && (
-          <ul className="flex min-w-48 flex-col gap-2">
-            {chains.map((holding) => (
-              <li key={holding.chain} className="flex items-center justify-between gap-4 text-xs">
-                <ChainLabel chain={holding.chain} size={18} />
-                <span className="text-muted-foreground">
-                  {balanceDisplay(holding.amount, asset)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        {/* The marks alone. A per-chain figure beside them read as a
+            reconciliation nobody asked for, and the sentence under the total
+            already says how many networks it is spread over. */}
+        <ChainStack chains={chains.map((holding) => holding.chain)} size={24} />
       </div>
 
       <TrendChart
