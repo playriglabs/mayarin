@@ -105,8 +105,10 @@ export const ACCOUNT_KINDS = {
    * exposure between the lock and the fill, and it is neither.
    *
    * `LIABILITY`, because we are holding somebody else's money. A credit balance
-   * here is change owed back, and it stays owed until it is either returned or
-   * a policy that does not exist yet decides otherwise. On the contract path the
+   * here is change owed back, and it stays owed until it is returned. Change
+   * too small to be worth a transaction never reaches this account at all: it
+   * is taken as `FEE_REVENUE`, stated in the receipt event, and the line is
+   * `dustThreshold` in the asset registry. On the contract path the
    * same money never reaches this account: `PaymentRouter._returnResidue` hands
    * it back inside the same transaction, which x402 cannot do because the payer
    * is not the sender.

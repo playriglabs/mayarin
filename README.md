@@ -318,7 +318,7 @@ exact amount they invoiced in the asset they chose:
 authorization   payer    → operator     the agent's asset, exactly what it signed for
 swap            operator → pool         exact-output, bounded by the authorization
                 pool     → merchant     exactly the invoice, or the swap reverts
-surplus                                 what the pool did not need, booked back to the payer
+surplus                                 what the pool did not need, owed back to the payer
 ```
 
 The merchant's number is the fixed one and the payer's is derived from it, so
@@ -330,7 +330,12 @@ after their money has already moved.
 `exact` gives the payer one signature and no way to top it up, so the amount
 they sign is the exact-output quote plus a slippage bound, and that bound is
 also the ceiling the swap may consume. Whatever it does not consume is theirs:
-it is recorded as a liability owed back, never absorbed.
+above one cent it is recorded as a liability owed back to the address that
+signed. Below it, returning the change costs more than the change — an ERC-20
+transfer the operator pays gas for and a liability row somebody reconciles — so
+it is taken as revenue in an account and stated in the receipt event. Neither
+case absorbs it into a balance nothing explains, which is the property; the
+threshold only decides which of the two accounts carries it.
 
 Measured on Base Sepolia, block `46451061` — an agent holding EURC paying a
 USDC merchant, with no account and no API key:
@@ -339,19 +344,20 @@ USDC merchant, with no account and no API key:
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Authorization  | [`0x254b93ce…`](https://sepolia.basescan.org/tx/0x254b93cec1a73279e12968938c1c491133c5556b4adb9e71cea070e0abc8affa) — 28351 EURC, payer → operator                  |
 | Swap           | [`0xb1436735…`](https://sepolia.basescan.org/tx/0xb143673599a6b05cd95676f0bbec7ffc35f9f99563bf45c6f26468944eb38a07) — 28208 EURC in, **20000 USDC to the merchant** |
-| Payer's change | 143 EURC, booked to `PAYER_SURPLUS`                                                                                                                                 |
+| Payer's change | 143 EURC — 0.000143, under the one-cent dust threshold, so taken as revenue rather than owed back                                                                   |
 
 Where to read it:
 
-| What                                                             | File                                                                  |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Pricing the invoice backwards into the payer's asset             | `apps/api/src/services/x402.ts` — `#priceCrossAsset`                  |
-| The exact-output quote against Uniswap's QuoterV2                | `packages/providers/swap-uniswap/src/adapter.ts` — `quoteExactOutput` |
-| Encoding `exactOutputSingle` for `SwapRouter02`                  | `packages/providers/swap-uniswap/src/route.ts`                        |
-| Plan before the payer's money moves, then send, persist, confirm | `packages/core/x402/src/cross-asset.ts`                               |
-| Approve, swap, and read the receipt back                         | `packages/providers/evm/src/cross-asset-settler.ts`                   |
-| The payer's change, as a liability rather than a gain            | `packages/core/ledger/src/accounts.ts` — `PAYER_SURPLUS`              |
-| The end-to-end run that produced the figures above               | `scripts/e2e-x402.ts`                                                 |
+| What                                                                  | File                                                                  |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Pricing the invoice backwards into the payer's asset                  | `apps/api/src/services/x402.ts` — `#priceCrossAsset`                  |
+| The exact-output quote against Uniswap's QuoterV2                     | `packages/providers/swap-uniswap/src/adapter.ts` — `quoteExactOutput` |
+| Encoding `exactOutputSingle` for `SwapRouter02`                       | `packages/providers/swap-uniswap/src/route.ts`                        |
+| Plan before the payer's money moves, then send, persist, confirm      | `packages/core/x402/src/cross-asset.ts`                               |
+| Approve, swap, and read the receipt back                              | `packages/providers/evm/src/cross-asset-settler.ts`                   |
+| The payer's change, as a liability rather than a gain                 | `packages/core/ledger/src/accounts.ts` — `PAYER_SURPLUS`              |
+| Where the line between change and dust is drawn, and for which assets | `packages/shared/src/asset.ts` — `dustThreshold`                      |
+| The end-to-end run that produced the figures above                    | `scripts/e2e-x402.ts`                                                 |
 
 Notes on the Uniswap integration itself — what the contracts do that their
 documentation does not say — are in [`FEEDBACK.md`](./FEEDBACK.md).

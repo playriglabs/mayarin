@@ -31,6 +31,22 @@ export interface AssetDefinition {
    * rupiah or six of USDC are fine as they are.
    */
   readonly payerDecimals?: number;
+  /**
+   * Surplus below which returning the money costs more than the money (#211).
+   *
+   * A cross-asset x402 payment authorises a fixed amount grossed up by
+   * slippage, so the payer is nearly always owed change. Returning it is an
+   * ERC-20 transfer the operator pays gas for, plus a liability row that has to
+   * be reconciled for as long as it sits there. Under some amount both of those
+   * cost more than the change is worth.
+   *
+   * Absent means **no amount is dust**: everything is owed back. That is the
+   * right default for an asset that cannot reach this path — nothing here may
+   * decide to keep a payer's money on a guess — so a threshold is declared only
+   * for the assets an `exact` authorization can actually be signed in, which is
+   * the EIP-3009 stablecoins.
+   */
+  readonly dustThreshold?: bigint;
   /** ISO 4217 numeric code. Only defined for fiat assets. */
   readonly iso4217Numeric?: string;
   /**
@@ -68,8 +84,10 @@ const DEFINITIONS = {
   },
 
   // Settlement assets
-  USDC: { kind: "stablecoin", decimals: 6, name: "USD Coin" },
-  USDT: { kind: "stablecoin", decimals: 6, name: "Tether USD" },
+  // One cent of change, which is below the smallest unit any of this is
+  // accounted in and well under the transfer that would carry it back.
+  USDC: { kind: "stablecoin", decimals: 6, dustThreshold: 10_000n, name: "USD Coin" },
+  USDT: { kind: "stablecoin", decimals: 6, dustThreshold: 10_000n, name: "Tether USD" },
   /**
    * Euro-denominated, which makes it the one stablecoin here that is NOT a
    * dollar in another representation. `EURC/USDC` is a real exchange rate — the
@@ -77,7 +95,7 @@ const DEFINITIONS = {
    * pegged pair reads no price at all and would settle euros as dollars, an
    * error of whatever the pair happens to be worth that day.
    */
-  EURC: { kind: "stablecoin", decimals: 6, name: "Euro Coin" },
+  EURC: { kind: "stablecoin", decimals: 6, dustThreshold: 10_000n, name: "Euro Coin" },
 
   // Native crypto
   ETH: {
@@ -155,6 +173,21 @@ export function assetSymbol(code: AssetCode): string | undefined {
 export function assetPayerDecimals(code: AssetCode): number {
   const definition = REGISTRY[code];
   return definition.payerDecimals ?? definition.decimals;
+}
+
+/**
+ * Whether an amount of this asset is too small to be worth moving (#211).
+ *
+ * `0n` is dust in the arithmetic sense but never reaches here: a zero surplus
+ * is no movement at all and the caller skips the posting entirely.
+ *
+ * An asset with no declared threshold answers `false` for every amount — see
+ * `dustThreshold`. Keeping somebody's money is a decision, and an asset that
+ * has not made it does not get to.
+ */
+export function isDustAmount(code: AssetCode, minorUnits: bigint): boolean {
+  const threshold = REGISTRY[code].dustThreshold;
+  return threshold !== undefined && minorUnits <= threshold;
 }
 
 /**

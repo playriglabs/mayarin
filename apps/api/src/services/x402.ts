@@ -585,7 +585,13 @@ export class X402Service {
             txHash: settlement.transaction,
             amount: money(BigInt(settlement.transfer.value), rail.asset),
           }
-        : await this.#swap(transaction.id, swapRequest);
+        : {
+            ...(await this.#swap(transaction.id, swapRequest)),
+            // Whoever signed the authorization is who the change is owed to.
+            // Read off the chain rather than taken from the payload, for the
+            // same reason every other field here is.
+            payer: settlement.payer,
+          };
 
     const progress = await this.#options.engine.recordFacilitatorSettlement(
       transaction.id,
