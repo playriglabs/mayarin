@@ -48,6 +48,30 @@ export interface Plot {
   readonly detail: string;
 }
 
+/**
+ * The axis, computed here rather than by the library.
+ *
+ * Recharts derives "nice" ticks from the domain, and on these series it can
+ * derive a step small enough relative to the range to generate hundreds of
+ * thousands of them — which it then spreads into one call and overflows the
+ * stack on: `RangeError: Maximum call stack size exceeded at Array.unshift`.
+ * Minor units make that easy to hit, because a balance of sixty-eight dollars
+ * is sixty-eight million of them.
+ *
+ * Fixed ticks over a fixed domain removes the algorithm from the path
+ * altogether. A flat or empty series gets a domain of `[0, 1]` so the axis
+ * still has a range to draw; without it the domain is `[0, 0]` and the same
+ * generator divides by zero.
+ */
+function axisOf(points: readonly Plot[], count: number) {
+  const max = points.reduce((acc, point) => Math.max(acc, point.value), 0);
+  const top = max > 0 ? max : 1;
+  return {
+    domain: [0, top] as [number, number],
+    ticks: Array.from({ length: count }, (_, i) => (top * i) / (count - 1)),
+  };
+}
+
 /** The tooltip pill: a dot, the day, the figure, and what it is made of. */
 function ChartTooltip({
   active,
@@ -99,6 +123,7 @@ export function TrendChart({
   showAxes?: boolean;
 }) {
   const gradientId = useId();
+  const axis = axisOf(points, 2);
 
   if (points.length === 0) {
     return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
@@ -131,7 +156,8 @@ export function TrendChart({
             <YAxis
               width={64}
               tickFormatter={formatTick}
-              tickCount={2}
+              domain={axis.domain}
+              ticks={axis.ticks}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
@@ -182,6 +208,8 @@ export function TrendBars({
   className?: string;
   showAxes?: boolean;
 }) {
+  const axis = axisOf(points, 5);
+
   if (points.length === 0) {
     return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
   }
@@ -223,7 +251,8 @@ export function TrendBars({
               // More than the line chart's two: a column is read against the
               // gridline behind it, so the ticks are doing work here that the
               // shape of a line does on its own.
-              tickCount={5}
+              domain={axis.domain}
+              ticks={axis.ticks}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
