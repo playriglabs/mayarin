@@ -63,7 +63,7 @@ export function PoweredBy() {
         <Reveal class="mx-auto max-w-225 text-center">
           <p class="text-sm mb-5 text-accent">Powered by</p>
           <h2 class="text-balance">
-            Provider are temporary.
+            Providers are temporary.
             <br />
             <span class="text-accent">The clearing layer is not.</span>
           </h2>

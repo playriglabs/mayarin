@@ -87,7 +87,7 @@ export function Reach() {
             <NetworkMarks ring="ring-paper" />
           </div>
 
-          <p class="mt-3 text-xs text-slate">
+          <p class="mt-5 text-xs text-slate">
             Whatever the payer brought, converted as part of the payment
           </p>
         </div>
