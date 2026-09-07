@@ -29,7 +29,12 @@ import {
 } from "@/components/ui/empty";
 import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
-import { StatGridSkeleton, TableSkeleton } from "@/components/ui/skeleton";
+import {
+  BalanceCardSkeleton,
+  MovementCardSkeleton,
+  StatGridSkeleton,
+  TableSkeleton,
+} from "@/components/ui/skeleton";
 import { Stat, StatGrid } from "@/components/ui/stat";
 import {
   Table,
@@ -338,10 +343,18 @@ function Overview() {
 
   return match(analytics)
     .with({ status: "pending" }, () => (
+      // The page's own shape, in the order it will be read: the balance card,
+      // the four stats, the two movement cards, then the table. A skeleton that
+      // does not match is a layout that rearranges itself under the reader.
       <div role="status" aria-live="polite" className="flex flex-col gap-8">
         <span className="sr-only">Loading overview</span>
+        <BalanceCardSkeleton />
         <StatGridSkeleton />
-        <TableSkeleton rows={6} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <MovementCardSkeleton />
+          <MovementCardSkeleton />
+        </div>
+        <TableSkeleton rows={5} />
       </div>
     ))
     .with({ status: "error" }, ({ error }) => (
