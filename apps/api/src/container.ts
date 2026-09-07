@@ -177,6 +177,17 @@ export interface Container {
    */
   readonly rails: RailCatalog;
   /**
+   * What the rails have actually been settling like, read from the subgraph (#231).
+   *
+   * Absent unless `SUBGRAPH_ENDPOINTS` names a chain, which is the honest
+   * default: a deployment without one has not measured its rails. Exposed
+   * because two callers want the same answer — `paymentRequired` orders a
+   * resource's `accepts` with it, and the MCP tool sells it — and they must
+   * share one cache. Studio allows 3,000 queries a day account-wide, so a
+   * second observer would halve the budget for nothing.
+   */
+  readonly railObservations?: RailObservationSource;
+  /**
    * Market data held in the database rather than the environment (#95).
    *
    * Everything derived from it — the stablecoin registry, the rate table, the
@@ -260,6 +271,8 @@ function createX402(deps: {
   settlementAddresses: SettlementAddressResolver;
   /** Absent on a deployment with `QUOTE_ENABLED=false`, which serves same-asset rails only. */
   quote: (() => Promise<QuoteLayer>) | undefined;
+  /** Absent unless `SUBGRAPH_ENDPOINTS` names a chain. Shared with the MCP route. */
+  railObservations: RailObservationSource | undefined;
   clock: Clock;
 }): X402Service | undefined {
   const {
@@ -272,6 +285,7 @@ function createX402(deps: {
     merchantPolicies,
     settlementAddresses,
     quote,
+    railObservations,
     clock,
   } = deps;
 
@@ -344,11 +358,9 @@ function createX402(deps: {
     );
   }
 
-  const rails = createRailObservations(config, clock);
-
   return new X402Service({
     resources: new DrizzleX402ResourceRepository(handle.db),
-    ...(rails === undefined ? {} : { rails }),
+    ...(railObservations === undefined ? {} : { rails: railObservations }),
     facilitators: facilitatorRegistry(facilitators),
     capabilities: new AssetCapabilities({
       probes,
@@ -958,6 +970,10 @@ export function createContainer({
       : { code: new EvmContractCodeReader({ rpcUrls: config.chainRpcUrls }) }),
   });
 
+  // One observer for the whole process, so the `402` and the MCP tool share a
+  // cache. Two would double a query budget that is 3,000 a day account-wide.
+  const railObservations = createRailObservations(config, clock);
+
   const x402 = createX402({
     config,
     handle,
@@ -968,6 +984,7 @@ export function createContainer({
     merchantPolicies,
     settlementAddresses,
     quote: config.quote === undefined ? undefined : resolveQuote,
+    railObservations,
     clock,
   });
 
@@ -990,6 +1007,7 @@ export function createContainer({
     market,
     merchantPolicies,
     rails: railCatalog,
+    ...(railObservations === undefined ? {} : { railObservations }),
     walletGuard,
     watchers,
     indexers,

@@ -666,7 +666,20 @@ one `DEPOSIT_FORWARDER_INIT_CODE_HASH` correct for every chain.
       different facts. Run against both live endpoints: Base 78 samples, Arc 0,
       and the choice comes out `base-sepolia: median headroom 828s over 78
 settlements`.
-- [ ] **The Subgraph MCP, served behind x402.** One artifact, and the highest
+- [x] **The Subgraph MCP, served behind x402.** Shipped: `POST /x402/mcp`, MCP
+      over JSON-RPC, with `initialize` and `tools/list` free and `tools/call`
+      gated by `requirePayment` on the `rail-intelligence` resource. Two tools —
+      `rail_stats` (samples, median headroom, and the worst settlement the median
+      hides) and `choose_rail` (the ranked choice with its reason) — both reading
+      the **cached** observer the `402` reads, so a pay-per-query tool cannot
+      spend the 3,000-a-day account-wide Studio budget. Three refusals never
+      charge: arguments the tool rejects, a tool nobody serves, and — the
+      deletion test in its useful form — **no settlements observed at all**,
+      because charging for "no rail has been observed" is charging an agent for
+      our own outage. The resource still has to be registered through
+      `POST /admin/x402/resources` on a deployment; that is runtime config, not
+      code. Original wording follows.
+- [ ] ~~**The Subgraph MCP, served behind x402.**~~ One artifact, and the highest
       leverage item left. It is a second Graph product beside Subgraph Studio,
       which is the only thing standing between us and the Composable track's
       $5,000 — that track states outright that querying one Subgraph without

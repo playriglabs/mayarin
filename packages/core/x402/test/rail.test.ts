@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ChainId } from "@mayarin/chain";
 import type { RailObservation } from "../src/rail.ts";
-import { chooseRail } from "../src/rail.ts";
+import { chooseRail, summariseRails } from "../src/rail.ts";
 
 const ARC: ChainId = "arc-testnet";
 const BASE: ChainId = "base-sepolia";
@@ -110,5 +110,51 @@ describe("chooseRail", () => {
 
   test("refuses to choose from nothing", () => {
     expect(() => chooseRail([], [observed(ARC, 58, 340)])).toThrow(/at least one accepted rail/);
+  });
+});
+
+describe("summariseRails", () => {
+  test("reports the tail the median hides", () => {
+    // Base Sepolia's real shape: a comfortable middle with settlements landing
+    // seconds from the deadline. A summary reporting only the median would
+    // describe this rail as safe.
+    const summaries = summariseRails(
+      ["base-sepolia"],
+      [{ chain: "base-sepolia", headroomSeconds: [828, 1797, 28, 900, 40] }],
+    );
+
+    expect(summaries[0]).toEqual({
+      chain: "base-sepolia",
+      samples: 5,
+      medianHeadroomSeconds: 828,
+      minHeadroomSeconds: 28,
+      maxHeadroomSeconds: 1797,
+    });
+  });
+
+  test("keeps a rail nobody has observed, with zero samples", () => {
+    // Dropping it would make "never seen this rail settle" and "did not ask
+    // about this rail" the same answer.
+    const summaries = summariseRails(
+      ["base-sepolia", "arc-testnet"],
+      [{ chain: "base-sepolia", headroomSeconds: [10, 20, 30] }],
+    );
+
+    expect(summaries).toHaveLength(2);
+    expect(summaries[1]).toEqual({ chain: "arc-testnet", samples: 0 });
+    expect(summaries[1]?.medianHeadroomSeconds).toBeUndefined();
+  });
+
+  test("carries failures through without inventing a zero", () => {
+    const summaries = summariseRails(
+      ["base-sepolia", "arc-testnet"],
+      [
+        { chain: "base-sepolia", headroomSeconds: [10], failures: 2 },
+        { chain: "arc-testnet", headroomSeconds: [10] },
+      ],
+    );
+
+    expect(summaries[0]?.failures).toBe(2);
+    expect(summaries[1]?.failures).toBeUndefined();
   });
 });
