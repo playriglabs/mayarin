@@ -47,6 +47,9 @@ export interface RailChoice {
   readonly asset: AssetCode;
 }
 
+/** An edit changes everything a resource has except the id it is known by. */
+export type UpdateResourceInput = Omit<CreateResourceInput, "id">;
+
 export interface CreateResourceInput {
   readonly id: string;
   readonly url: string;
@@ -129,8 +132,85 @@ export class X402ResourceService {
     if (input.rails.length === 0) {
       throw new ValidationError("Choose at least one rail to be paid over", {});
     }
+    const accepts = await this.#accepts(scope, input.rails);
+
+    const resource: X402Resource = {
+      id: input.id,
+      merchantId: scope.merchantId,
+      url: input.url,
+      ...(input.description === undefined ? {} : { description: input.description }),
+      ...(input.mimeType === undefined ? {} : { mimeType: input.mimeType }),
+      price: input.price,
+      accepts,
+      maxTimeoutSeconds: input.maxTimeoutSeconds,
+    };
+
+    // A resource id is the payer's handle on a price, so taking one that
+    // already belongs to another merchant would repoint their endpoint. Taking
+    // one of the merchant's own is refused too, now that editing exists:
+    // creation that silently overwrote an endpoint would lose its rails to a
+    // form the merchant thought was blank.
+    const existing = await this.#options.resources.findById(input.id);
+    if (existing !== undefined) {
+      throw new ValidationError(`The resource id "${input.id}" is taken`, { id: input.id });
+    }
+
+    await this.#options.resources.save(resource);
+    return resource;
+  }
+
+  /**
+   * Changes one of this merchant's own endpoints.
+   *
+   * **The id never moves.** It is the payer's handle on a price — it is what
+   * `requirePayment` gates on and what a `402` already handed out — so renaming
+   * one would silently unregister the endpoint an agent is holding a quote for.
+   * Everything else is editable, rails included.
+   *
+   * The rails are rebuilt from the merchant's current options rather than
+   * patched, for the same reason creation builds them: a rail's `payTo` and
+   * transfer method come from the wallet and the token, and carrying the old
+   * ones forward would keep paying an address the merchant may since have
+   * replaced.
+   */
+  async update(scope: Scope, id: string, input: UpdateResourceInput): Promise<X402Resource> {
+    if (input.rails.length === 0) {
+      throw new ValidationError("Choose at least one rail to be paid over", {});
+    }
+    const existing = await this.#options.resources.findById(id);
+    if (existing === undefined || existing.merchantId !== scope.merchantId) {
+      throw new NotFoundError(`Endpoint ${id} not found`, { id });
+    }
+
+    const resource: X402Resource = {
+      id: existing.id,
+      merchantId: existing.merchantId,
+      url: input.url,
+      ...(input.description === undefined ? {} : { description: input.description }),
+      ...(input.mimeType === undefined ? {} : { mimeType: input.mimeType }),
+      price: input.price,
+      accepts: await this.#accepts(scope, input.rails),
+      maxTimeoutSeconds: input.maxTimeoutSeconds,
+    };
+
+    await this.#options.resources.save(resource);
+    return resource;
+  }
+
+  /**
+   * The rails a merchant chose, resolved against the ones they may actually
+   * offer and confirmed against the token.
+   *
+   * Two refusals live here. A rail this merchant cannot be paid on is named
+   * rather than dropped, because a silently missing rail is a resource that
+   * quietly stops accepting an asset. And the transfer method comes from the
+   * chain rather than the form: a row can claim a method the token does not
+   * implement, and a payer discovers that by signing something no contract will
+   * ever accept.
+   */
+  async #accepts(scope: Scope, rails: readonly RailChoice[]) {
     const offered = await this.rails(scope);
-    const chosen = input.rails.map((choice) => {
+    const chosen = rails.map((choice) => {
       const rail = offered.find(
         (option) => option.chain === choice.chain && option.asset === choice.asset,
       );
@@ -145,9 +225,6 @@ export class X402ResourceService {
 
     const accepts = [];
     for (const rail of chosen) {
-      // The chain's answer, not the form's. A row can claim a transfer method
-      // the token does not implement, and the payer finds out by signing
-      // something that will never be accepted.
       const capability = await this.#options.capabilities.of(rail.chain, rail.contract);
       accepts.push({
         chain: rail.chain,
@@ -158,27 +235,7 @@ export class X402ResourceService {
         transferMethod: capability.transferMethod,
       });
     }
-
-    const resource: X402Resource = {
-      id: input.id,
-      merchantId: scope.merchantId,
-      url: input.url,
-      ...(input.description === undefined ? {} : { description: input.description }),
-      ...(input.mimeType === undefined ? {} : { mimeType: input.mimeType }),
-      price: input.price,
-      accepts,
-      maxTimeoutSeconds: input.maxTimeoutSeconds,
-    };
-
-    // A resource id is the payer's handle on a price, so taking one that
-    // already belongs to another merchant would repoint their endpoint.
-    const existing = await this.#options.resources.findById(input.id);
-    if (existing !== undefined && existing.merchantId !== scope.merchantId) {
-      throw new ValidationError(`The resource id "${input.id}" is taken`, { id: input.id });
-    }
-
-    await this.#options.resources.save(resource);
-    return resource;
+    return accepts;
   }
 
   /**

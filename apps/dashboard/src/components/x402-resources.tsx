@@ -16,6 +16,7 @@ import { chainLabel } from "@mayarin/chain";
 import {
   ArrowSquareOutIcon,
   GlobeIcon,
+  PencilSimpleIcon,
   PlusIcon,
   TerminalWindowIcon,
   TrashIcon,
@@ -67,9 +68,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useCreateX402Resource,
   useDeleteX402Resource,
+  useUpdateX402Resource,
   useX402Rails,
   useX402Resources,
 } from "@/hooks/x402";
@@ -119,13 +122,30 @@ function RailBadges({ accepts }: { readonly accepts: readonly X402Accept[] }) {
         </Badge>
       ))}
       {hidden.length > 0 && (
-        <Badge
-          variant="default"
-          title={hiddenLabels.join(", ")}
-          aria-label={`${hidden.length} more rails: ${hiddenLabels.join(", ")}`}
-        >
-          +{hidden.length}
-        </Badge>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                // `aria-label` carries the whole list regardless of whether the
+                // tooltip ever opens: a screen reader must not depend on hover.
+                <Badge
+                  variant="default"
+                  className="cursor-default"
+                  aria-label={`${hidden.length} more rails: ${hiddenLabels.join(", ")}`}
+                >
+                  +{hidden.length}
+                </Badge>
+              }
+            />
+            <TooltipContent>
+              <span className="flex flex-col gap-0.5">
+                {hiddenLabels.map((label) => (
+                  <span key={label}>{label}</span>
+                ))}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </span>
   );
@@ -135,9 +155,12 @@ function X402Resources() {
   const resources = useX402Resources();
   const rails = useX402Rails();
   const create = useCreateX402Resource();
+  const update = useUpdateX402Resource();
   const remove = useDeleteX402Resource();
 
   const [creating, setCreating] = useState(false);
+  /** The resource the open dialog is editing. `null` means it is registering one. */
+  const [editing, setEditing] = useState<X402ResourceDto | null>(null);
   const [id, setId] = useState("");
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
@@ -154,8 +177,11 @@ function X402Resources() {
   // than configured twice: every rail on offer settles to it.
   const settlementAsset = offered.find((rail) => rail.kind === "same-asset")?.asset ?? "your asset";
   const rows = resources.data?.resources ?? [];
-  const canCreate =
-    id.trim() !== "" && url.trim() !== "" && amount.trim() !== "" && selected.size > 0;
+  const canSave =
+    (editing !== null || id.trim() !== "") &&
+    url.trim() !== "" &&
+    amount.trim() !== "" &&
+    selected.size > 0;
 
   const toggleRail = (key: string) => {
     setSelected((current) => {
@@ -169,6 +195,7 @@ function X402Resources() {
 
   const open = () => {
     setFailure("");
+    setEditing(null);
     setId("");
     setUrl("");
     setDescription("");
@@ -179,22 +206,61 @@ function X402Resources() {
     setCreating(true);
   };
 
+  /**
+   * Opens the same dialog on an existing endpoint.
+   *
+   * The price comes from `formatted` rather than `display`: one is the parse
+   * form and the other is for reading, and putting `$ 0,10` into a field that
+   * will be parsed back is how a price becomes a different price.
+   *
+   * A rail the merchant can no longer offer — a wallet since unverified — is not
+   * pre-selected, because the form can only submit rails that are on offer. It
+   * disappears from the checkboxes rather than being silently resubmitted.
+   */
+  const openEdit = (resource: X402ResourceDto) => {
+    setFailure("");
+    setEditing(resource);
+    setId(resource.id);
+    setUrl(resource.url);
+    setDescription(resource.description ?? "");
+    setAmount(resource.price.formatted);
+    setSelected(
+      new Set(
+        resource.accepts
+          .map((accept) => `${accept.chain}:${accept.asset}`)
+          .filter((key) => offered.some((rail) => keyOf(rail) === key)),
+      ),
+    );
+    setCreating(true);
+  };
+
+  const saving = create.isPending || update.isPending;
+
   const save = async () => {
+    const body = {
+      url: url.trim(),
+      ...(description.trim() === "" ? {} : { description: description.trim() }),
+      // The merchant's own currency, priced the way every other price on this
+      // dashboard is: what the payer sends is worked out per rail at request
+      // time, not stored here.
+      price: { amount: amount.trim(), asset: "USD" },
+      maxTimeoutSeconds: 60,
+      rails: [...selected].map((key) => {
+        const [chain = "", asset = ""] = key.split(":");
+        return { chain, asset };
+      }),
+    };
+
     try {
-      const created = await create.mutateAsync({
-        id: id.trim(),
-        url: url.trim(),
-        ...(description.trim() === "" ? {} : { description: description.trim() }),
-        // The merchant's own currency, priced the way every other price on this
-        // dashboard is: what the payer sends is worked out per rail at request
-        // time, not stored here.
-        price: { amount: amount.trim(), asset: "USD" },
-        maxTimeoutSeconds: 60,
-        rails: [...selected].map((key) => {
-          const [chain = "", asset = ""] = key.split(":");
-          return { chain, asset };
-        }),
-      });
+      if (editing !== null) {
+        await update.mutateAsync({ id: editing.id, body });
+        setCreating(false);
+        // No guide on an edit. The merchant's server is already gated — that is
+        // what made this an endpoint to edit — and reopening the instructions
+        // would read as though something needed doing again.
+        return;
+      }
+      const created = await create.mutateAsync({ id: id.trim(), ...body });
       setCreating(false);
       // Registering prices the endpoint; it does not make the merchant's own
       // server ask for payment. Showing the guide unprompted is the difference
@@ -294,6 +360,14 @@ function X402Resources() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => openEdit(resource)}
+                          aria-label={`Edit ${resource.id}`}
+                        >
+                          <PencilSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setPendingRemove(resource)}
                           aria-label={`Remove ${resource.id}`}
                         >
@@ -311,10 +385,11 @@ function X402Resources() {
       <Dialog open={creating} onOpenChange={(next) => !next && setCreating(false)}>
         <DialogContent className="max-h-[calc(100vh-2rem)] max-w-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New agent endpoint</DialogTitle>
+            <DialogTitle>{editing === null ? "New agent endpoint" : "Edit endpoint"}</DialogTitle>
             <DialogDescription>
-              One endpoint, one price. An agent is charged per request and pays your own verified
-              address — which is why there is no address to type here.
+              {editing === null
+                ? "One endpoint, one price. An agent is charged per request and pays your own verified address — which is why there is no address to type here."
+                : "The id stays as it is: an agent holding a quote knows this endpoint by it, and renaming one would unregister the thing they are about to pay for."}
             </DialogDescription>
           </DialogHeader>
 
@@ -334,8 +409,11 @@ function X402Resources() {
                   placeholder="fx-quote"
                   autoComplete="off"
                   spellCheck={false}
+                  disabled={editing !== null}
                 />
-                <FieldDescription>Lowercase, digits and hyphens.</FieldDescription>
+                <FieldDescription>
+                  {editing === null ? "Lowercase, digits and hyphens." : "Fixed once registered."}
+                </FieldDescription>
               </Field>
 
               <Field>
@@ -464,8 +542,8 @@ function X402Resources() {
 
           <DialogFooter>
             <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-            <Button onClick={() => void save()} disabled={!canCreate || create.isPending}>
-              Register endpoint
+            <Button onClick={() => void save()} disabled={!canSave || saving}>
+              {editing === null ? "Register endpoint" : "Save changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

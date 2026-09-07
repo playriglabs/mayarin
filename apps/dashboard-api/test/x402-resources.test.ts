@@ -229,3 +229,87 @@ describe("create", () => {
     );
   });
 });
+
+describe("update", () => {
+  test("changes the price and the rails, and keeps the id", async () => {
+    const { service, resources } = await serviceWith({});
+    await service.create(SCOPE, { ...input, rails: [{ chain: "arc-testnet", asset: "USDC" }] });
+
+    const updated = await service.update(SCOPE, "fx-quote", {
+      url: "https://merchant.example/quote-v2",
+      description: "Two oracle-guarded FX quotes",
+      price: { amount: 50_000n, asset: "USD" },
+      maxTimeoutSeconds: 120,
+      rails: [{ chain: "arc-testnet", asset: "USDC" }],
+    });
+
+    expect(updated.id).toBe("fx-quote");
+    expect(updated.url).toBe("https://merchant.example/quote-v2");
+    expect(updated.price).toEqual({ amount: 50_000n, asset: "USD" });
+    expect(await resources.findById("fx-quote")).toMatchObject({ maxTimeoutSeconds: 120 });
+  });
+
+  // A rail's payTo and transfer method come from the wallet and the token, so
+  // carrying the old ones forward would keep paying an address the merchant may
+  // since have replaced.
+  test("rebuilds the rails from what the merchant can offer now", async () => {
+    const { service } = await serviceWith({});
+    await service.create(SCOPE, { ...input, rails: [{ chain: "arc-testnet", asset: "USDC" }] });
+
+    await expect(
+      service.update(SCOPE, "fx-quote", {
+        url: input.url,
+        price: input.price,
+        maxTimeoutSeconds: input.maxTimeoutSeconds,
+        rails: [{ chain: "base-sepolia", asset: "USDC" }],
+      }),
+    ).rejects.toThrow(/verify a wallet there/);
+  });
+
+  test("cannot edit another merchant's endpoint, and is not told it exists", async () => {
+    const { service, resources } = await serviceWith({});
+    await resources.save({
+      id: "theirs",
+      merchantId: "mrc_someone_else",
+      url: "https://elsewhere.example/quote",
+      price: { amount: 10_000n, asset: "USD" },
+      maxTimeoutSeconds: 60,
+      accepts: [],
+    });
+
+    await expect(
+      service.update(SCOPE, "theirs", {
+        url: "https://mine.example/quote",
+        price: { amount: 1n, asset: "USD" },
+        maxTimeoutSeconds: 60,
+        rails: [{ chain: "arc-testnet", asset: "USDC" }],
+      }),
+    ).rejects.toThrow(/not found/);
+    expect(await resources.findById("theirs")).toMatchObject({ merchantId: "mrc_someone_else" });
+  });
+
+  test("an endpoint that does not exist is not created by editing it", async () => {
+    const { service, resources } = await serviceWith({});
+
+    await expect(
+      service.update(SCOPE, "never-registered", {
+        url: "https://merchant.example/quote",
+        price: { amount: 1n, asset: "USD" },
+        maxTimeoutSeconds: 60,
+        rails: [{ chain: "arc-testnet", asset: "USDC" }],
+      }),
+    ).rejects.toThrow(/not found/);
+    expect(await resources.findById("never-registered")).toBeUndefined();
+  });
+
+  test("registering over an id the merchant already owns is refused", async () => {
+    // Creation used to overwrite it silently. With editing available that is a
+    // way to lose an endpoint's rails to a form the merchant thought was blank.
+    const { service } = await serviceWith({});
+    await service.create(SCOPE, { ...input, rails: [{ chain: "arc-testnet", asset: "USDC" }] });
+
+    await expect(
+      service.create(SCOPE, { ...input, rails: [{ chain: "arc-testnet", asset: "USDC" }] }),
+    ).rejects.toThrow(/is taken/);
+  });
+});

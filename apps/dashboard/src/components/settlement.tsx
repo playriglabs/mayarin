@@ -17,15 +17,11 @@
  * surface resolves and this one displays.
  */
 
-import {
-  ArrowSquareOutIcon,
-  BankIcon,
-  HourglassMediumIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { BankIcon, HourglassMediumIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
+import { TransactionLink } from "@/components/transaction-link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,7 +54,6 @@ import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { useSettings } from "@/hooks/settings";
 import { useSettlements } from "@/hooks/settlements";
 import { ApiError } from "@/lib/api/client";
-import { shortHash } from "@/lib/chain-explorer";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
 import { PAGE_SIZE } from "@/lib/pagination";
@@ -288,17 +283,13 @@ function Settlement() {
                             {row.reference === null ? (
                               <span className="text-xs text-subtle-foreground">Not settled</span>
                             ) : (
-                              <span
-                                title={row.reference}
-                                className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground"
-                              >
-                                {shortHash(row.reference)}
-                                <ArrowSquareOutIcon
-                                  size={12}
-                                  aria-hidden="true"
-                                  className="text-subtle-foreground"
-                                />
-                              </span>
+                              // The arrow used to be drawn beside plain text, so
+                              // it promised an explorer nobody could reach. Now
+                              // it is only drawn when there is one.
+                              <TransactionLink
+                                chain={row.chain?.chain ?? row.payment?.chain ?? ""}
+                                transactionHash={row.reference}
+                              />
                             )}
                           </TableCell>
                           <TableCell className="text-muted-foreground">

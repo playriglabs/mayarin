@@ -46,6 +46,9 @@ export interface CreateX402ResourceRequest {
   readonly rails: readonly { readonly chain: string; readonly asset: string }[];
 }
 
+/** An edit sends everything creation does except the id, which never moves. */
+export type UpdateX402ResourceRequest = Omit<CreateX402ResourceRequest, "id">;
+
 export interface X402ResourceResponse {
   readonly resource: X402ResourceDto;
 }

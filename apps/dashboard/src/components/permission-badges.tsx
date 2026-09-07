@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PERMISSION_LABELS, type Permission } from "@/types/user";
 
 const VISIBLE_PERMISSION_COUNT = 3;
@@ -14,12 +15,27 @@ function PermissionBadges({ permissions }: { readonly permissions: readonly Perm
         <Badge key={permission}>{PERMISSION_LABELS[permission]}</Badge>
       ))}
       {hidden.length > 0 && (
-        <Badge
-          title={hiddenLabels.join(", ")}
-          aria-label={`${hidden.length} more permissions: ${hiddenLabels.join(", ")}`}
-        >
-          +{hidden.length}
-        </Badge>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Badge
+                  className="cursor-default"
+                  aria-label={`${hidden.length} more permissions: ${hiddenLabels.join(", ")}`}
+                >
+                  +{hidden.length}
+                </Badge>
+              }
+            />
+            <TooltipContent>
+              <span className="flex flex-col gap-0.5">
+                {hiddenLabels.map((label) => (
+                  <span key={label}>{label}</span>
+                ))}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </span>
   );

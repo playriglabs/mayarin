@@ -36,6 +36,9 @@ const createBodySchema = z
   })
   .strict();
 
+/** An edit takes everything creation does except the id, which never moves. */
+const updateBodySchema = createBodySchema.omit({ id: true });
+
 function toResourceDto(resource: X402Resource): Record<string, unknown> {
   return {
     id: resource.id,
@@ -87,6 +90,27 @@ export function x402ResourceRoutes(container: Container): Hono<{ Variables: Auth
       rails: body.rails,
     });
     return c.json({ resource: toResourceDto(resource) }, 201);
+  });
+
+  /**
+   * Edits an endpoint in place.
+   *
+   * `PUT` rather than `PATCH`, and the whole resource rather than a diff: the
+   * rails are rebuilt from the merchant's current options every time, so a
+   * partial update would have to guess whether an omitted `rails` meant "leave
+   * them" or "remove them". The form always knows all of it.
+   */
+  app.put("/:id", csrfMiddleware(), async (c) => {
+    const body = updateBodySchema.parse(await c.req.json());
+    const resource = await container.x402Resources.update(scopeOf(c), c.req.param("id"), {
+      url: body.url,
+      ...(body.description === undefined ? {} : { description: body.description }),
+      ...(body.mimeType === undefined ? {} : { mimeType: body.mimeType }),
+      price: fromDecimalString(body.price.amount, body.price.asset),
+      maxTimeoutSeconds: body.maxTimeoutSeconds,
+      rails: body.rails,
+    });
+    return c.json({ resource: toResourceDto(resource) });
   });
 
   app.delete("/:id", csrfMiddleware(), async (c) => {
