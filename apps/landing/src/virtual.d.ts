@@ -10,4 +10,6 @@ declare module "virtual:code-snippets" {
   };
 
   export const snippets: Snippet[];
+  /** The capability cards on `/v2`, from `src/data/capability-snippets.json`. */
+  export const capabilitySnippets: Snippet[];
 }

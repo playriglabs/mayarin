@@ -6,13 +6,16 @@ type RevealProps = {
   /** Milliseconds of stagger. */
   delay?: number;
   class?: string;
-  as?: "div" | "section" | "li" | "span" | "article";
+  as?: "div" | "section" | "li" | "span" | "article" | "p";
 };
 
 /**
  * Fade-and-rise on first entry. The observer disconnects once the element has
  * been shown, so the animation never replays on scroll-back — which is what
  * keeps the page feeling calm rather than reactive.
+ *
+ * The hidden state lives behind `.js` in `styles.css`, so a page that never
+ * runs the script still renders every section.
  */
 export function Reveal({ children, delay = 0, class: className = "", as = "div" }: RevealProps) {
   const ref = useRef<HTMLElement | null>(null);

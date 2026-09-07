@@ -33,7 +33,7 @@ export function FooterWordmark() {
   }, [shown]);
 
   return (
-    <div ref={ref} data-in={shown ? "true" : "false"} class="wordmark group">
+    <div ref={ref} data-in={shown ? "true" : "false"} class="wordmark group pb-24">
       <a href="#top" aria-label="Mayarin — back to top" class="block">
         <span class="sr-only">Mayarin</span>
         <span

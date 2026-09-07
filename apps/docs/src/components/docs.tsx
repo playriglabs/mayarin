@@ -17,18 +17,25 @@ const BRAND_KIT_BASE_URL = "https://mayarin.xyz/brand-kit";
 function Brand() {
   return (
     <span className="flex items-center gap-2.5">
-      <img
-        src={`${BRAND_KIT_BASE_URL}/mayarin-full-black.png`}
-        alt="mayarin"
-        height="32"
-        className="h-8 w-auto dark:hidden"
-      />
-      <img
-        src={`${BRAND_KIT_BASE_URL}/mayarin-full-white.png`}
-        alt="mayarin"
-        height="32"
-        className="hidden h-8 w-auto dark:block"
-      />
+      <span className="flex items-center text-2xl leading-none tracking-[-0.06em]">
+        <img
+          src={`${BRAND_KIT_BASE_URL}/mayarin-logo-black.svg`}
+          alt=""
+          aria-hidden="true"
+          width="32"
+          height="32"
+          className="size-8 dark:hidden"
+        />
+        <img
+          src={`${BRAND_KIT_BASE_URL}/mayarin-logo-white.svg`}
+          alt=""
+          aria-hidden="true"
+          width="32"
+          height="32"
+          className="hidden size-8 dark:block"
+        />
+        <span className="-ml-0.5 font-medium font-sans">mayarin</span>
+      </span>
       <span className="border-l border-fd-border pl-2.5 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-fd-muted-foreground">
         docs
       </span>

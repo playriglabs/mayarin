@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import AuthGridField from "../components/auth-grid-field.tsx";
 import ThemeToggle from "../components/theme-toggle.tsx";
+import SocialMeta from "../components/social-meta.astro";
 // Auth layout: for the login page. A logged-in user has no business here.
 if (Astro.locals.user !== undefined) return Astro.redirect("/");
 ---
@@ -13,6 +14,7 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0a0a0a" />
     <title>Sign in — Mayarin</title>
+    <SocialMeta />
     <link rel="icon" href="/favicon.ico" sizes="48x48" type="image/x-icon" />
     <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
@@ -51,20 +53,28 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
           aria-label="Mayarin home"
           class="pointer-events-auto inline-flex w-fit lg:pt-6 lg:pl-6"
         >
+          <!-- The lockup is composed rather than shipped: the mark, then the
+               name in the interface sans. Two marks, one per theme, so nothing
+               inverts a logo into a state the brand kit never approved. -->
           <img
-            src="https://mayarin.xyz/brand-kit/mayarin-full-black.png"
-            alt="Mayarin"
-            width="571"
-            height="186"
-            class="auth-logo auth-logo-light h-auto w-28 lg:w-36"
-          />
-          <img
-            src="https://mayarin.xyz/brand-kit/mayarin-full-white.png"
+            src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
             alt=""
-            width="571"
-            height="186"
-            class="auth-logo auth-logo-dark h-auto w-28 lg:w-36"
+            aria-hidden="true"
+            width="52"
+            height="52"
+            class="auth-logo auth-logo-light size-10 lg:size-12"
           />
+          <img
+            src="https://mayarin.xyz/brand-kit/mayarin-logo-white.svg"
+            alt=""
+            aria-hidden="true"
+            width="52"
+            height="52"
+            class="auth-logo auth-logo-dark size-10 lg:size-12"
+          />
+          <span class="-ml-0.5 self-center font-sans text-2xl font-medium leading-none tracking-[-0.06em] lg:text-[1.75rem]">
+            mayarin
+          </span>
         </a>
         <div class="pointer-events-auto">
           <ThemeToggle client:load />
@@ -95,6 +105,10 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
 
   .auth-logo-dark {
     display: none;
+  }
+
+  .auth-logo {
+    height: auto;
   }
 
   :global(:root[data-theme="dark"]) .auth-logo-light {

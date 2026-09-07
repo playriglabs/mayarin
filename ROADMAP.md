@@ -688,11 +688,7 @@ settlements`.
       936.5s over 12 settlements**. Evidence:
       `docs/evidence/base-sepolia-mcp-231.json`.
 
-      The sentence worth saying on camera is what that payment was *for*: the
-                                                                                                                                                                                                                                                  agent paid ten cents to find out which rail to pay on. Nobody in the entry
-                                                                                                                                                                                                                                                  pool is selling a decision. And the payer's gas was zero — the operator
-                                                                                                                                                                                                                                                  broadcasts what the wallet signed, and the wallet is a contract account
-                                                                                                                                                                                                                                                  whose signature the token accepts through EIP-1271.
+  The sentence worth saying on camera is what that payment was _for_: the agent paid ten cents to find out which rail to pay on. Nobody in the entry pool is selling a decision. And the payer's gas was zero — the operator broadcasts what the wallet signed, and the wallet is a contract account whose signature the token accepts through EIP-1271.
 
 - [ ] ~~**The Subgraph MCP, served behind x402.**~~ One artifact, and the highest
       leverage item left. It is a second Graph product beside Subgraph Studio,

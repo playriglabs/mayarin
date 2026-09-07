@@ -8,7 +8,7 @@ export function NotFound() {
       <div class="shell pointer-events-none relative z-2 w-full py-16 md:py-24">
         <a href="/" aria-label="Mayarin home" class="pointer-events-auto inline-flex">
           <img
-            src="/brand-kit/mayarin-logo-black.png"
+            src="/brand-kit/mayarin-logo-black.svg"
             alt="Mayarin"
             width="48"
             height="48"

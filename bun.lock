@@ -8,6 +8,7 @@
         "@biomejs/biome": "^2.5.6",
         "@fontsource-variable/geist": "^5.3.0",
         "@fontsource-variable/geist-mono": "^5.3.0",
+        "@fontsource/cascadia-code": "^5.3.0",
         "@fontsource/instrument-serif": "^5.3.0",
         "@fontsource/playfair-display": "^5.3.0",
         "@types/bun": "^1.4.0",
@@ -217,6 +218,8 @@
       "name": "@mayarin/landing",
       "version": "0.1.0",
       "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "@mayarin/shared": "workspace:*",
         "clsx": "^2.1.1",
         "cobe": "^2.0.1",
         "lenis": "^1.3.25",
@@ -1206,6 +1209,8 @@
     "@fontsource-variable/geist": ["@fontsource-variable/geist@5.3.0", "", {}, "sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA=="],
 
     "@fontsource-variable/geist-mono": ["@fontsource-variable/geist-mono@5.3.0", "", {}, "sha512-vBbuwDEo9AkrqADMXOrlAR3DFcJi4/JxeuU43FoiQERnNwsfXNnvxvReZG02cQKmyk4DZkZdBZX3oTDvy2zBAw=="],
+
+    "@fontsource/cascadia-code": ["@fontsource/cascadia-code@5.3.0", "", {}, "sha512-XEGnkay3kCOAJXcrZqokezGlw1sATtpqOMOrBOuvYt6Bj6EaejU2BvO1q8AdWdNfDQ4AoYP/Zs30QRY5m9UEZw=="],
 
     "@fontsource/instrument-serif": ["@fontsource/instrument-serif@5.3.0", "", {}, "sha512-mDiaIg0u67sYV59fie92Wz4sM8UiVlbL7fLxnFPCKkX15DMASEnQTREbaP5S5/3DCcsoAOcQ0sV9E4AeY4QqYQ=="],
 

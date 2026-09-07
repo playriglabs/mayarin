@@ -1,0 +1,30 @@
+[
+  {
+    "id": "accept",
+    "tab": "Accept",
+    "filename": "accept-payment.ts",
+    "lang": "typescript",
+    "code": "import { createMayarin } from \"@mayarin/sdk\";\n\nconst secretKey = process.env.MAYARIN_SECRET_KEY;\nif (!secretKey) throw new Error(\"MAYARIN_SECRET_KEY is required\");\n\nconst mayarin = createMayarin({\n  baseUrl: \"https://api.mayarin.xyz\",\n  secretKey,\n});\n\n// Priced in the currency the business already uses. Amounts are\n// human-readable decimal strings — never a float.\nconst link = await mayarin.commerce.paymentLinks.create({\n  kind: \"fixed\",\n  merchant: {\n    id: \"M-1\",\n    name: \"Studio Supply\",\n    city: \"Jakarta\",\n    countryCode: \"ID\",\n  },\n  amount: { amount: \"1500000.00\", asset: \"IDR\" },\n  title: \"Brand design package\",\n  merchantReference: \"inv-2026-014\",\n});\n\n// Share it. Nothing about a chain has been decided yet.\nconsole.log(link.url);\n"
+  },
+  {
+    "id": "route",
+    "tab": "Route",
+    "filename": "choose-a-rail.ts",
+    "lang": "typescript",
+    "code": "// Every (chain, asset) pair this link can be paid on — the same list the\n// hosted checkout renders, derived the same way.\nconst { rails, settlementAsset } = await mayarin.commerce.paymentLinks.rails(\n  link.id,\n);\n\nfor (const rail of rails) {\n  console.log(`${rail.asset} on ${rail.chain} settles as ${settlementAsset}`);\n}\n// USDC on base settles as USDC\n// EURC on base settles as USDC\n// USDC on arc  settles as USDC\n\n// The payer picks one. The quote layer prices the pair against an oracle\n// reference and refuses the trade if the venue has drifted too far from it.\nconst intent = await mayarin.commerce.paymentLinks.checkout(link.id, {\n  payment: { asset: \"EURC\", chain: \"base\" },\n});\n\nconsole.log(intent.state); // \"PRICE_LOCKED\"\n"
+  },
+  {
+    "id": "settle",
+    "tab": "Settle",
+    "filename": "settlement-webhook.ts",
+    "lang": "typescript",
+    "code": "import { constructWebhook } from \"@mayarin/sdk\";\n\nconst webhookSecret = process.env.MAYARIN_WEBHOOK_SECRET;\nif (!webhookSecret) throw new Error(\"MAYARIN_WEBHOOK_SECRET is required\");\n\ntype PaymentEvent = {\n  readonly type: \"payment.created\" | \"payment.state_changed\" | \"payment.failed\";\n  readonly state: string;\n  readonly clearingTransactionId: string;\n};\n\nexport async function POST(request: Request) {\n  // A webhook is a signal, not truth: the signature is checked, then the\n  // authoritative state is read back from the API.\n  const event = await constructWebhook<PaymentEvent>({\n    payload: await request.text(),\n    signature: request.headers.get(\"Mayarin-Signature\") ?? \"\",\n    secret: webhookSecret,\n  });\n\n  if (event.type !== \"payment.state_changed\") return new Response(null, { status: 204 });\n\n  const payment = await mayarin.payment.get(event.clearingTransactionId);\n  if (payment.state === \"SETTLED\") await markOrderPaid(payment.merchantReference);\n\n  return new Response(null, { status: 204 });\n}\n"
+  },
+  {
+    "id": "agent",
+    "tab": "Agents",
+    "filename": "agent-pays.sh",
+    "lang": "shellscript",
+    "code": "# An agent with no account, no API key and no checkout page.\n# Ask what the resource costs before deciding to call it.\ncurl https://api-testnet.mayarin.xyz/x402/resources/fx-quote/payment-required\n\n# Or just call it. The gate answers with its own terms.\ncurl -i https://api-testnet.mayarin.xyz/premium/fx-quote\n# HTTP/1.1 402 Payment Required\n# PAYMENT-REQUIRED: <price, chains, assets, deadline>\n\n# Sign one EIP-3009 authorization for exactly that amount, then ask again.\ncurl -i https://api-testnet.mayarin.xyz/premium/fx-quote \\\n  -H \"PAYMENT-SIGNATURE: $AUTHORIZATION\"\n# HTTP/1.1 200 OK\n# PAYMENT-RESPONSE: <authorization hash>\n\n# The agent held EURC and the merchant is paid USDC. Two chain movements,\n# two hashes — the swap is what settles, and the payer's change is a\n# ledger liability, not a lost coin.\n"
+  }
+]

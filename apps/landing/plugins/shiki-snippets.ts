@@ -68,7 +68,13 @@ const theme: ThemeRegistration = {
  * never change at runtime.
  */
 export function shikiSnippets(): Plugin {
-  const source = path.resolve(import.meta.dirname, "../src/data/snippets.json");
+  // Two lists, one module: the developer section's tabs and the capability
+  // cards' examples are highlighted by the same pass but must not share a
+  // list — adding to one would silently add a tab to the other.
+  const sources = {
+    snippets: path.resolve(import.meta.dirname, "../src/data/snippets.json"),
+    capabilitySnippets: path.resolve(import.meta.dirname, "../src/data/capability-snippets.json"),
+  } as const;
 
   return {
     name: "mayarin:shiki-snippets",
@@ -80,25 +86,33 @@ export function shikiSnippets(): Plugin {
     async load(id) {
       if (id !== RESOLVED_ID) return undefined;
 
-      this.addWatchFile(source);
+      const lists: Record<string, Snippet[]> = {};
+      for (const [name, file] of Object.entries(sources)) {
+        this.addWatchFile(file);
+        lists[name] = JSON.parse(await readFile(file, "utf8")) as Snippet[];
+      }
 
-      const snippets = JSON.parse(await readFile(source, "utf8")) as Snippet[];
+      const all = Object.values(lists).flat();
       const highlighter = await createHighlighter({
         themes: [theme],
-        langs: [...new Set(snippets.map((snippet) => snippet.lang))],
+        langs: [...new Set(all.map((snippet) => snippet.lang))],
       });
 
-      const highlighted = snippets.map((snippet) => ({
+      const highlight = (snippet: Snippet) => ({
         ...snippet,
         html: highlighter.codeToHtml(snippet.code.trimEnd(), {
           lang: snippet.lang,
           theme: "mayarin",
         }),
-      }));
+      });
+
+      const modules = Object.entries(lists).map(
+        ([name, list]) => `export const ${name} = ${JSON.stringify(list.map(highlight))};`,
+      );
 
       highlighter.dispose();
 
-      return `export const snippets = ${JSON.stringify(highlighted)};`;
+      return modules.join("\n");
     },
   };
 }

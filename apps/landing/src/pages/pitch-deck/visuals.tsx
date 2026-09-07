@@ -35,15 +35,21 @@ function Card({
 export function TitleLockup() {
   return (
     <div class="flex h-full flex-col items-start justify-between gap-10">
-      <img
+      <div
         data-reveal
-        src="/brand-kit/mayarin-full-black.png"
-        alt="Mayarin"
-        width="640"
-        height="160"
-        class="w-full max-w-88 md:max-w-120 md:-ml-11.5"
-        decoding="async"
-      />
+        class="flex items-center text-[clamp(3rem,7vw,5.5rem)] leading-none tracking-[-0.06em] md:-ml-6"
+      >
+        <img
+          src="/brand-kit/mayarin-logo-black.svg"
+          alt=""
+          aria-hidden="true"
+          width="160"
+          height="160"
+          class="size-[1.4em]"
+          decoding="async"
+        />
+        <span class="-ml-[0.06em] font-sans font-medium">mayarin</span>
+      </div>
       <div data-reveal class="flex flex-wrap items-end gap-x-10 gap-y-4">
         <div class="flex flex-col gap-2">
           <span class="label text-ink">Pronounced</span>
