@@ -16,6 +16,7 @@ import LiveUpdates from "../components/live-updates.tsx";
 import SidebarToggle from "../components/sidebar-toggle.tsx";
 import SideNav from "../components/side-nav.tsx";
 import ThemeToggle from "../components/theme-toggle.tsx";
+import SocialMeta from "../components/social-meta.astro";
 import Toaster from "../components/ui/toaster.tsx";
 import "../styles/global.css";
 import type { UserDto } from "../types/user";
@@ -57,6 +58,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0a0a0a" />
     <title>{title} — Mayarin</title>
+    <SocialMeta />
     <link rel="icon" href="/favicon.ico" sizes="48x48" type="image/x-icon" />
     <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />

@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import AuthGridField from "../components/auth-grid-field.tsx";
 import ThemeToggle from "../components/theme-toggle.tsx";
+import SocialMeta from "../components/social-meta.astro";
 // Auth layout: for the login page. A logged-in user has no business here.
 if (Astro.locals.user !== undefined) return Astro.redirect("/");
 ---
@@ -13,6 +14,7 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0a0a0a" />
     <title>Sign in — Mayarin</title>
+    <SocialMeta />
     <link rel="icon" href="/favicon.ico" sizes="48x48" type="image/x-icon" />
     <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
