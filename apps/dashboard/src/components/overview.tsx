@@ -450,7 +450,7 @@ function Overview() {
               data.settlements,
               withdrawals.data?.withdrawals ?? [],
             );
-      const recent = all.slice(0, 5);
+      const recent = all.slice(0, 6);
 
       // Filtered to one asset before anything is added. Minor units are only
       // comparable within an asset: a rupiah payment has two decimals and a
