@@ -159,7 +159,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 
       <main id="main" class="min-w-0 flex-1">
         <header
-          class="flex min-h-16 items-center justify-between gap-4 bg-background px-4 md:px-8 lg:px-10"
+          class="flex min-h-16 items-center justify-between gap-4 bg-background px-4 py-3 md:px-8 lg:px-10"
         >
           <div class="flex items-center gap-3">
             <button
@@ -176,9 +176,30 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               </span>
               <XIcon data-menu-close-icon size={22} weight="bold" aria-hidden="true" />
             </button>
-            <span class="text-[17px] font-medium text-foreground">
-              Welcome back, {greetingName}! <span aria-hidden="true">&#128075;</span>
-            </span>
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <span class="truncate text-[17px] font-medium text-foreground">
+                Welcome back, {greetingName}! <span aria-hidden="true">&#128075;</span>
+              </span>
+              <p class="text-sm text-muted-foreground">
+                Browse our{" "}
+                <a
+                  href="https://docs.mayarin.xyz"
+                  target="_blank"
+                  rel="noreferrer"
+                  class="text-foreground underline decoration-input underline-offset-2 transition-colors hover:decoration-foreground"
+                >
+                  developer docs
+                </a>{" "}
+                or{" "}
+                <a
+                  href="/x402"
+                  class="text-foreground underline decoration-input underline-offset-2 transition-colors hover:decoration-foreground"
+                >
+                  sell an endpoint to an agent
+                </a>{" "}
+                to start using Mayarin.
+              </p>
+            </div>
           </div>
 
           <nav aria-label="Dashboard shortcuts" class="flex items-center gap-2">
