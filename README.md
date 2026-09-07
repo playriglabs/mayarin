@@ -261,6 +261,17 @@ itself reads, because Subgraph Studio allows 3,000 queries a day _account-wide_ 
 a pay-per-query tool wired straight through hands anyone who can pay a way to
 spend the whole deployment's budget.
 
+Measured on Base Sepolia, 7 September — a Circle Agent Stack wallet buying one
+`choose_rail` call, with no account and no API key:
+
+|         |                                                                                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payment | [`0xdce241e2…`](https://sepolia.basescan.org/tx/0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b) — 100000 USDC, payer's gas **zero** |
+| Answer  | `arc-testnet: median headroom 936.5s over 12 settlements`, read from live Studio data                                                                   |
+| Ledger  | Intent `COMPLETED`, clearing `SUCCESS`, fee zero, postings balanced                                                                                     |
+
+The agent paid ten cents to find out which rail to pay on.
+
 Trying it takes two commands. The first is free and needs no wallet:
 
 ```bash

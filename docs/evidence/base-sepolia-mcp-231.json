@@ -1,0 +1,151 @@
+{
+  "url": "http://localhost:3000/x402/mcp",
+  "network": "eip155:84532",
+  "payer": "0x5742533d9d0c2e9eedbc8f270d98cf5697ff9648",
+  "payerCustody": "circle-agent-wallet",
+  "recipient": "0x596a7fb9857ca6c008dae1ba8e0e44c0eb38c1f5",
+  "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "amount": "100000",
+  "nonce": "0x018323d3d479b89761179b64c800bfcfcdfeebcd3d71c85788e75e609333df23",
+  "idempotencyKey": "x402:eip155:84532:0x036cbd53842c5426634e7929541ec2318f3dcf7e:0x018323d3d479b89761179b64c800bfcfcdfeebcd3d71c85788e75e609333df23",
+  "startedAt": "2026-09-07T03:25:09.607Z",
+  "httpStatus": 200,
+  "body": "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"arc-testnet: median headroom 936.5s over 12 settlements, failures not recorded\"}],\"structuredContent\":{\"chain\":\"arc-testnet\",\"reason\":\"arc-testnet: median headroom 936.5s over 12 settlements, failures not recorded\",\"medianHeadroomSeconds\":936.5,\"samples\":12,\"unobserved\":false}}}",
+  "settlement": {
+    "success": true,
+    "transaction": "0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b",
+    "network": "eip155:84532",
+    "payer": "0x5742533d9d0c2e9eedbc8f270d98cf5697ff9648",
+    "amount": "100000"
+  },
+  "intents": [
+    {
+      "id": "pi_01M1WYBY4FM766VPSAWY128JHA",
+      "status": "COMPLETED",
+      "payment_chain": "base-sepolia",
+      "execution_path": "x402",
+      "clearing_transaction_id": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K",
+      "failure_reason": null
+    }
+  ],
+  "clearing": [
+    {
+      "id": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K",
+      "state": "SUCCESS",
+      "settlement_amount": "100000",
+      "settlement_asset": "USDC",
+      "fee_amount": "0",
+      "net_amount": "100000",
+      "provider_reference": "0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b",
+      "on_chain_settled_amount": "100000",
+      "on_chain_fee": "0",
+      "on_chain_refund_amount": "0"
+    }
+  ],
+  "entries": [
+    {
+      "posting_id": "ltxn_01M1WYC2RX4JNTG8V8KY8SZQF0",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:ASSET_RECEIVED",
+      "account_code": "TREASURY:USDC",
+      "direction": "DEBIT",
+      "amount": "100000",
+      "asset": "USDC"
+    },
+    {
+      "posting_id": "ltxn_01M1WYC2RX4JNTG8V8KY8SZQF0",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:ASSET_RECEIVED",
+      "account_code": "MERCHANT_PAYABLE:USDC",
+      "direction": "CREDIT",
+      "amount": "100000",
+      "asset": "USDC"
+    },
+    {
+      "posting_id": "ltxn_01M1WYC2T9K7YYCH7565YNWF3G",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:CLEARING",
+      "account_code": "MERCHANT_PAYABLE:USDC",
+      "direction": "DEBIT",
+      "amount": "100000",
+      "asset": "USDC"
+    },
+    {
+      "posting_id": "ltxn_01M1WYC2T9K7YYCH7565YNWF3G",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:CLEARING",
+      "account_code": "SETTLEMENT_IN_FLIGHT:USDC",
+      "direction": "CREDIT",
+      "amount": "100000",
+      "asset": "USDC"
+    },
+    {
+      "posting_id": "ltxn_01M1WYC2W2Z00MY3HRX31SPXE2",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:SETTLED",
+      "account_code": "SETTLEMENT_IN_FLIGHT:USDC",
+      "direction": "DEBIT",
+      "amount": "100000",
+      "asset": "USDC"
+    },
+    {
+      "posting_id": "ltxn_01M1WYC2W2Z00MY3HRX31SPXE2",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:SETTLED",
+      "account_code": "TREASURY:USDC",
+      "direction": "CREDIT",
+      "amount": "100000",
+      "asset": "USDC"
+    }
+  ],
+  "postingTotals": [
+    {
+      "id": "ltxn_01M1WYC2RX4JNTG8V8KY8SZQF0",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:ASSET_RECEIVED",
+      "asset": "USDC",
+      "entries": 2,
+      "debits": "100000",
+      "credits": "100000"
+    },
+    {
+      "id": "ltxn_01M1WYC2T9K7YYCH7565YNWF3G",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:CLEARING",
+      "asset": "USDC",
+      "entries": 2,
+      "debits": "100000",
+      "credits": "100000"
+    },
+    {
+      "id": "ltxn_01M1WYC2W2Z00MY3HRX31SPXE2",
+      "idempotency_key": "clr_01M1WYBY5R4V0Z4B3FJVTR1V1K:SETTLED",
+      "asset": "USDC",
+      "entries": 2,
+      "debits": "100000",
+      "credits": "100000"
+    }
+  ],
+  "balances": {
+    "payerBefore": "19980000",
+    "payerAfter": "19880000",
+    "merchantBefore": "3563558",
+    "merchantAfter": "3663558"
+  },
+  "settlementEvents": [
+    {
+      "type": "settlement.broadcast",
+      "payload": {
+        "authorized": {
+          "asset": "USDC",
+          "amount": "100000"
+        },
+        "providerReference": "0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b"
+      }
+    }
+  ],
+  "authorizationUsed": true,
+  "transactions": {
+    "authorization": "0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b"
+  },
+  "receipt": {
+    "hash": "0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b",
+    "status": "success",
+    "blockNumber": "46491612",
+    "delivered": "100000",
+    "gasCostWei": "577998000000"
+  },
+  "verified": true
+}

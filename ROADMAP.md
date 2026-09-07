@@ -679,6 +679,21 @@ settlements`.
       our own outage. The resource still has to be registered through
       `POST /admin/x402/resources` on a deployment; that is runtime config, not
       code. Original wording follows.
+- [x] **Paid for, on a chain, by an agent wallet — 7 September.** A Circle Agent
+      Stack wallet bought one `choose_rail` call on Base Sepolia:
+      [`0xdce241e2…`](https://sepolia.basescan.org/tx/0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b),
+      100000 USDC, intent `pi_01M1WYBY4FM766VPSAWY128JHA` `COMPLETED`, clearing
+      `clr_01M1WYBY5R4V0Z4B3FJVTR1V1K` `SUCCESS`, fee zero, postings balanced.
+      The answer came back off live Studio data: **`arc-testnet`, median headroom
+      936.5s over 12 settlements**. Evidence:
+      `docs/evidence/base-sepolia-mcp-231.json`.
+
+      The sentence worth saying on camera is what that payment was *for*: the
+              agent paid ten cents to find out which rail to pay on. Nobody in the entry
+              pool is selling a decision. And the payer's gas was zero — the operator
+              broadcasts what the wallet signed, and the wallet is a contract account
+              whose signature the token accepts through EIP-1271.
+
 - [ ] ~~**The Subgraph MCP, served behind x402.**~~ One artifact, and the highest
       leverage item left. It is a second Graph product beside Subgraph Studio,
       which is the only thing standing between us and the Composable track's
