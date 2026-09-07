@@ -18,6 +18,26 @@ Early-access submissions are stored in the bound
 migrations before uploading the site. The list command prints email and
 submission time, newest first; it does not expose a public listing endpoint.
 
+`dev:landing` applies local D1 migrations and starts Vite alongside Wrangler
+Pages Functions on port 8788. Vite proxies `/api` to that local runtime, so the
+early-access form runs the same handler as production. Local submissions persist
+in `apps/landing/.wrangler/state` and do not write to the production database.
+Restart `bun run dev:landing` after updating the dev configuration; running Vite
+alone does not start the Functions runtime. To inspect local submissions:
+
+```bash
+cd apps/landing
+bunx wrangler d1 execute mayarin-landing-early-access --local --command "select email from early_access_signups order by created_at desc"
+```
+
+The endpoint allows five attempts per Cloudflare client IP in ten minutes,
+including invalid submissions, and returns `429` with `Retry-After` when full.
+An atomic D1 counter stores the IP hash; expired counters are removed on the next
+request. The form also blocks duplicate in-flight submissions, waits 60 seconds
+between attempts (or the server's longer cooldown), and stays disabled after
+success. The honeypot and unique email constraint remain in place. This limits
+form spam; it is not a substitute for edge protection against distributed floods.
+
 ## Design system
 
 Tokens live in `src/styles.css` under `@theme` — there are no design values in components

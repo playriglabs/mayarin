@@ -68,7 +68,7 @@ function LinkedInIcon() {
  * field rather than being a second control beside it.
  */
 function EarlyAccessCapture() {
-  const { state, submit, submitting } = useEarlyAccess();
+  const { state, submit, submitting, disabled, cooldown } = useEarlyAccess();
 
   return (
     <form id="footer-early-access" class="scroll-mt-24" onSubmit={(event) => void submit(event)}>
@@ -83,12 +83,12 @@ function EarlyAccessCapture() {
           required
           autocomplete="email"
           placeholder="you@company.com"
-          disabled={submitting}
+          disabled={disabled}
           class="h-full min-w-0 flex-1 bg-transparent px-4 text-sm text-ink outline-none placeholder:text-slate disabled:cursor-not-allowed disabled:opacity-60"
         />
         <button
           type="submit"
-          disabled={submitting}
+          disabled={disabled}
           aria-label={submitting ? "Joining the early-access list" : "Request early access"}
           class="inline-flex size-12 shrink-0 cursor-pointer items-center justify-center text-ink transition-colors duration-200 hover:text-forest disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -100,6 +100,7 @@ function EarlyAccessCapture() {
         aria-live="polite"
       >
         {state.status === "success" || state.status === "error" ? state.message : ""}
+        {state.status === "error" && cooldown > 0 ? ` Try again in ${cooldown}s.` : ""}
       </p>
 
       <div class="hidden" aria-hidden="true">
