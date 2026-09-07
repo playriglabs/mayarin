@@ -111,6 +111,29 @@ function MovementCardSkeleton() {
   );
 }
 
+/** Mirrors the compact recent-payments card: a title, a link, and five rows. */
+function RecentListSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div aria-hidden="true" className="flex flex-col gap-4 border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-3 w-12" />
+      </div>
+      <div className="flex flex-col">
+        {run(rows).map((row) => (
+          <div
+            key={row}
+            className="flex items-center justify-between gap-3 border-border border-b py-2.5 first:pt-0 last:border-b-0 last:pb-0"
+          >
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Mirrors the settlement destination's address, asset, and readiness columns. */
 function SettlementDestinationSkeleton() {
   return (
@@ -180,6 +203,7 @@ export {
   DepositQrSkeleton,
   MovementCardSkeleton,
   PanelSkeleton,
+  RecentListSkeleton,
   SettlementDestinationSkeleton,
   Skeleton,
   StatGridSkeleton,

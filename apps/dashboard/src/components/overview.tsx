@@ -20,40 +20,23 @@ import { ChainStack } from "@/components/chain-logo";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Empty,
-  EmptyAction,
-  EmptyDescription,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { QueryError } from "@/components/ui/query-error";
-import { SectionHeader } from "@/components/ui/section-header";
 import {
   BalanceCardSkeleton,
   MovementCardSkeleton,
+  RecentListSkeleton,
   StatGridSkeleton,
-  TableSkeleton,
 } from "@/components/ui/skeleton";
 import { Stat, StatGrid } from "@/components/ui/stat";
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
 import { useSettings, useWalletBalance, useWalletWithdrawalHistory } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
-import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
 import { display, dominantAsset, totalIn } from "@/lib/money";
 import { withQuery } from "@/lib/with-query";
+import type { PaymentIntentDto } from "@/types/payment";
 import type { ChainBalanceDto, WalletWithdrawalDto } from "@/types/settings";
 import type { SettlementDto } from "@/types/settlement";
 
@@ -344,6 +327,66 @@ function MovementCard({
   );
 }
 
+/**
+ * The five most recent payments, as a column rather than a table.
+ *
+ * A table needs four columns to say what it knows and this sits in a third of
+ * the width, so it drops to what a merchant scans for: which payment, how much,
+ * and whether it landed. The full table is one link away and still has the
+ * created time, the reference and the rest.
+ *
+ * The id is truncated from the left. A payment id is a ULID whose leading
+ * characters are a timestamp shared by everything created the same
+ * millisecond — the tail is the part that tells two of them apart.
+ */
+function RecentPayments({ payments }: { payments: readonly PaymentIntentDto[] }) {
+  return (
+    <Card className="gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <span className="font-medium text-foreground text-sm">Recent payments</span>
+        <a
+          href="/payments"
+          className="shrink-0 text-muted-foreground text-xs underline decoration-input underline-offset-2 hover:text-foreground hover:decoration-foreground"
+        >
+          View all
+        </a>
+      </div>
+
+      {payments.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
+          <ReceiptIcon size={ICON_CARD} aria-hidden="true" className="text-subtle-foreground" />
+          <span className="text-muted-foreground text-xs">No payments yet.</span>
+          <a href="/links" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            Create a payment link
+          </a>
+        </div>
+      ) : (
+        <ul className="flex flex-col">
+          {payments.map((payment) => (
+            <li
+              key={payment.id}
+              className="flex items-center justify-between gap-3 border-border border-b py-2.5 last:border-b-0 last:pb-0 first:pt-0"
+            >
+              <a
+                href={`/payments/${encodeURIComponent(payment.id)}`}
+                title={payment.id}
+                className="min-w-0 truncate font-mono text-foreground text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
+                dir="rtl"
+              >
+                {payment.id}
+              </a>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="text-foreground text-xs">{payment.amount.display}</span>
+                <Badge variant={toneOf(payment.status)}>{intentStatusLabel(payment.status)}</Badge>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 function Overview() {
   const analytics = useAnalytics();
   const balance = useWalletBalance();
@@ -352,18 +395,23 @@ function Overview() {
 
   return match(analytics)
     .with({ status: "pending" }, () => (
-      // The page's own shape, in the order it will be read: the balance card,
-      // the four stats, the two movement cards, then the table. A skeleton that
-      // does not match is a layout that rearranges itself under the reader.
+      // The page's own shape, in the order it will be read: the balance beside
+      // the recent list, the four stats, then the two movement cards. A
+      // skeleton that does not match is a layout that rearranges itself under
+      // the reader.
       <div role="status" aria-live="polite" className="flex flex-col gap-8">
         <span className="sr-only">Loading overview</span>
-        <BalanceCardSkeleton />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <BalanceCardSkeleton />
+          </div>
+          <RecentListSkeleton />
+        </div>
         <StatGridSkeleton />
         <div className="grid gap-4 lg:grid-cols-2">
           <MovementCardSkeleton />
           <MovementCardSkeleton />
         </div>
-        <TableSkeleton rows={5} />
       </div>
     ))
     .with({ status: "error" }, ({ error }) => (
@@ -426,12 +474,21 @@ function Overview() {
 
       return (
         <div className="flex flex-col gap-8">
-          <BalanceOverview
-            total={holdings.total}
-            asset={settlementAsset}
-            chains={holdings.chains}
-            history={history}
-          />
+          {/* The two things a merchant opens this page for, side by side and
+              in the order they ask them: how much do I have, and what just
+              came in. The balance takes two thirds because it carries a chart;
+              the list is a column of rows and does not want the width. */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <BalanceOverview
+                total={holdings.total}
+                asset={settlementAsset}
+                chains={holdings.chains}
+                history={history}
+              />
+            </div>
+            <RecentPayments payments={recent} />
+          </div>
 
           {/* Four across now: the balance has its own card above, where it can
               carry a chart and the networks it is spread over. Leaving it here
@@ -497,70 +554,6 @@ function Overview() {
               href="/analytics"
             />
           </div>
-
-          <section className="flex flex-col gap-3">
-            <SectionHeader
-              title="Recent payments"
-              action={
-                <a
-                  href="/payments"
-                  className="text-xs text-muted-foreground underline decoration-input underline-offset-2 hover:text-foreground hover:decoration-foreground"
-                >
-                  View all
-                </a>
-              }
-            />
-
-            {recent.length === 0 ? (
-              <Empty>
-                <EmptyMedia>
-                  <ReceiptIcon size={ICON_CARD} aria-hidden="true" />
-                </EmptyMedia>
-                <EmptyTitle>No payments yet.</EmptyTitle>
-                <EmptyDescription>
-                  Create a checkout link to take your first payment.
-                </EmptyDescription>
-                <EmptyAction>
-                  <a href="/links" className={buttonVariants()}>
-                    Create a payment link
-                  </a>
-                </EmptyAction>
-              </Empty>
-            ) : (
-              <Table>
-                <TableCaption>The five most recent payments</TableCaption>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Created</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recent.map((p) => (
-                    <TableRow key={p.id} className="hover:bg-muted">
-                      <TableCell>
-                        <a
-                          href={`/payments/${encodeURIComponent(p.id)}`}
-                          className="font-mono text-xs text-foreground underline decoration-input underline-offset-2 hover:decoration-foreground"
-                        >
-                          {p.id}
-                        </a>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={toneOf(p.status)}>{intentStatusLabel(p.status)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{p.amount.display}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <time dateTime={isoAttr(p.createdAt)}>{formatDateTime(p.createdAt)}</time>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </section>
         </div>
       );
     })
