@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import type { RouteRequest } from "@mayarin/execution";
 import { money } from "@mayarin/shared";
 import type { CrossAssetSwapRequest } from "@mayarin/x402";
 import { type Address, encodeEventTopics, getAddress, type Hex, pad, parseAbi, toHex } from "viem";
@@ -48,6 +49,7 @@ function settler(
     readonly logs?: readonly ReturnType<typeof transferLog>[];
     readonly status?: "success" | "reverted";
     readonly allowance?: bigint;
+    readonly expectedIn?: bigint;
   } = {},
 ) {
   const sent: { to: string; data: string }[] = [];
@@ -77,6 +79,8 @@ function settler(
     },
   };
 
+  const routed: RouteRequest[] = [];
+
   const instance = new EvmCrossAssetSettler({
     clients: {
       "base-sepolia": { publicClient: publicClient as any, walletClient: walletClient as any },
@@ -85,10 +89,13 @@ function settler(
     routes: {
       name: "uniswap",
       async route(request) {
+        routed.push(request);
         return {
           router: ROUTER,
           callData: "0xdeadbeef",
-          expectedIn: money(19_980n, request.payerAsset),
+          // Deliberately below the authorization: a quote is an estimate, and
+          // an estimate must not be what bounds the spend.
+          expectedIn: money(options.expectedIn ?? 19_980n, request.payerAsset),
           source: "uniswap",
         };
       },
@@ -97,7 +104,7 @@ function settler(
     confirmations: { "base-sepolia": 1 },
   });
 
-  return { settler: instance, sent };
+  return { settler: instance, sent, routed };
 }
 
 describe("confirming a cross-asset swap", () => {
@@ -157,6 +164,23 @@ describe("confirming a cross-asset swap", () => {
     await expect(instance.confirm(SWAP_TX, REQUEST)).rejects.toThrow(/not the invoiced 20000/);
   });
 
+  test("refuses a swap that spent more than the payer authorised", async () => {
+    // Cannot happen against a route bounded by `amountInMaximum`, which is why
+    // it is worth asserting: the surplus is `held − spent`, so a `spent` above
+    // the authorization would post a negative balance to the payer's name and
+    // report a payment nobody signed for as settled.
+    const { settler: instance } = settler({
+      logs: [
+        transferLog(EURC, OPERATOR, POOL, 20_500n),
+        transferLog(USDC, POOL, MERCHANT, 20_000n),
+      ],
+    });
+
+    await expect(instance.confirm(SWAP_TX, REQUEST)).rejects.toThrow(
+      /spent 20500 of EURC, more than the 20101 authorised/,
+    );
+  });
+
   test("refuses a swap that paid somebody else", async () => {
     const { settler: instance } = settler({
       logs: [transferLog(EURC, OPERATOR, POOL, 19_980n), transferLog(USDC, POOL, POOL, 20_000n)],
@@ -194,6 +218,33 @@ describe("sending a cross-asset swap", () => {
 
     expect(sent).toHaveLength(1);
     expect(sent[0]?.to).toBe(ROUTER);
+  });
+
+  test("bounds the swap by the authorization, never by the quote", async () => {
+    // The manipulated-quote case. `amountInMaximum` comes from what the payer
+    // signed, so a route source that understates — stale, thin, or lying —
+    // moves what the swap is expected to cost and not one unit of what it is
+    // allowed to cost. A quote at 1 EURC would still bound the router at 20101.
+    const { settler: instance, routed } = settler({ expectedIn: 1n });
+
+    await instance.send(REQUEST);
+
+    expect(routed).toHaveLength(1);
+    expect(routed[0]?.maxIn).toEqual(REQUEST.held);
+    expect(routed[0]?.exactOut).toEqual(REQUEST.exactOut);
+  });
+
+  test("routes again to send rather than reusing what it planned", async () => {
+    // A route commits to a fill and goes stale faster than a price does, so the
+    // one that bounded the payment is not the one that executes it — and both
+    // are bounded by the same authorization either way.
+    const { settler: instance, routed } = settler();
+
+    await instance.plan(REQUEST);
+    await instance.send(REQUEST);
+
+    expect(routed).toHaveLength(2);
+    expect(routed[1]?.maxIn).toEqual(REQUEST.held);
   });
 
   test("plans through the route source without sending anything", async () => {
