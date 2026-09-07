@@ -39,6 +39,11 @@ describe("chain facts", () => {
       "https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png",
     );
     expect(chainLogoUrl("base-sepolia")).toBe(chainLogoUrl("base"));
+    expect(chainLogoUrl("arbitrum")).toBe(
+      "https://assets-cdn.trustwallet.com/blockchains/arbitrum/info/logo.png",
+    );
+    // A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet.
+    expect(chainLogoUrl("arbitrum-sepolia")).toBe(chainLogoUrl("arbitrum"));
     expect(chainLogoUrl("arc-testnet", "/arc.svg")).toBe("/arc.svg");
     expect(chainLogoUrl("robinhood-testnet")).toBeUndefined();
   });

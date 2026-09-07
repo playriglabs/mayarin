@@ -1,29 +1,43 @@
+import { useEarlyAccess } from "../lib/early-access.ts";
 import { FooterWordmark } from "./footer-wordmark.tsx";
 import { ScrambleText } from "./scramble-text.tsx";
+import { ArrowRight } from "./ui.tsx";
 
+/**
+ * Four groups of four. Every link earns its line and lands somewhere real: the
+ * three in-page anchors exist on both this landing and the V2 one, and every
+ * other destination is a docs page that exists. The dashboard is absent on
+ * purpose — the header already carries it.
+ */
 const COLUMNS = [
   {
     heading: "Platform",
     links: [
-      { label: "Clearing Engine", href: "#how-it-works" },
-      { label: "Agent Payments", href: "#agents" },
-      { label: "x402 Gateway", href: "#x402" },
-      { label: "Liquidity Routing", href: "#capabilities" },
-      { label: "Settlement", href: "#capabilities" },
-      { label: "Ledger", href: "#capabilities" },
+      { label: "Clearing engine", href: "#capabilities" },
+      { label: "Agent payments", href: "https://docs.mayarin.xyz/guides/x402" },
+      { label: "Storefront plugin", href: "https://docs.mayarin.xyz/guides/woocommerce" },
+      { label: "Webhooks", href: "https://docs.mayarin.xyz/guides/webhooks" },
     ],
   },
   {
     heading: "Developers",
     links: [
       { label: "Documentation", href: "https://docs.mayarin.xyz" },
-      { label: "API reference", href: "https://docs.mayarin.xyz" },
-      { label: "Architecture", href: "#architecture" },
-      // { label: "Status", href: "#top" },
+      { label: "API reference", href: "https://docs.mayarin.xyz/api-reference" },
+      { label: "TypeScript SDK", href: "https://docs.mayarin.xyz/sdk/typescript" },
     ],
   },
   {
-    heading: "Foundation",
+    heading: "Concepts",
+    links: [
+      { label: "Payment lifecycle", href: "https://docs.mayarin.xyz/concepts/payment-lifecycle" },
+      { label: "Execution paths", href: "https://docs.mayarin.xyz/concepts/execution-paths" },
+      { label: "Money", href: "https://docs.mayarin.xyz/concepts/money" },
+      { label: "Error reference", href: "https://docs.mayarin.xyz/errors" },
+    ],
+  },
+  {
+    heading: "Resources",
     links: [
       { label: "Use cases", href: "#use-cases" },
       { label: "Principles", href: "#principles" },
@@ -48,66 +62,129 @@ function LinkedInIcon() {
   );
 }
 
+/**
+ * Early access reduced to one field. The landing section states the offer; here
+ * the address is all that is left to give, so the submit collapses into the
+ * field rather than being a second control beside it.
+ */
+function EarlyAccessCapture() {
+  const { state, submit, submitting } = useEarlyAccess();
+
+  return (
+    <form id="footer-early-access" class="scroll-mt-24" onSubmit={(event) => void submit(event)}>
+      <label for="footer-early-access-email" class="text-sm text-slate">
+        Get early access
+      </label>
+      <div class="mt-5 flex h-12 items-center border border-line bg-paper transition-colors duration-200 focus-within:border-forest">
+        <input
+          id="footer-early-access-email"
+          name="email"
+          type="email"
+          required
+          autocomplete="email"
+          placeholder="you@company.com"
+          disabled={submitting}
+          class="h-full min-w-0 flex-1 bg-transparent px-4 text-sm text-ink outline-none placeholder:text-slate disabled:cursor-not-allowed disabled:opacity-60"
+        />
+        <button
+          type="submit"
+          disabled={submitting}
+          aria-label={submitting ? "Joining the early-access list" : "Request early access"}
+          class="inline-flex size-12 shrink-0 cursor-pointer items-center justify-center text-ink transition-colors duration-200 hover:text-forest disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <ArrowRight />
+        </button>
+      </div>
+      <p
+        class={state.status === "error" ? "mt-3 text-xs text-red-700" : "mt-3 text-xs text-forest"}
+        aria-live="polite"
+      >
+        {state.status === "success" || state.status === "error" ? state.message : ""}
+      </p>
+
+      <div class="hidden" aria-hidden="true">
+        <label for="footer-early-access-company">Company website</label>
+        <input
+          id="footer-early-access-company"
+          name="company"
+          type="text"
+          tabIndex={-1}
+          autocomplete="off"
+        />
+      </div>
+    </form>
+  );
+}
+
 export function Footer() {
   return (
     <footer class="bg-paper">
-      <div class="shell py-16 md:py-20">
+      <div class="shell py-12 md:py-16">
         <FooterWordmark />
 
-        <div class="mt-14 grid gap-16 md:mt-20 md:grid-cols-[1.4fr_2fr] md:gap-20">
+        <div class="grid gap-12 md:grid-cols-[2fr_1fr] md:gap-14 lg:gap-16">
           <div>
-            <p class="max-w-[34ch] text-sm leading-[1.7] text-slate">
-              Programmable clearing infrastructure. Move value, not complexity.
-            </p>
-            <p class="label mt-6 text-slate">/maɪˈjɑːrɪn/ · “My-ar-in”</p>
-            <div class="mt-6 flex items-center gap-2">
-              <a
-                href="https://x.com/mayarinxyz"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Mayarin on X"
-                class="inline-flex size-11 items-center justify-center border border-line text-slate transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
-              >
-                <XIcon />
-              </a>
-              <a
-                href="https://linkedin.com/company/mayarin"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="Mayarin on LinkedIn"
-                class="inline-flex size-11 items-center justify-center border border-line text-slate transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
-              >
-                <LinkedInIcon />
-              </a>
+            <div class="grid grid-cols-2 gap-x-8 gap-y-10 lg:grid-cols-4">
+              {COLUMNS.map((column) => (
+                <div key={column.heading}>
+                  <p class="text-[14px] text-slate">{column.heading}</p>
+                  <ul class="mt-5 space-y-2">
+                    {column.links.map((link) => (
+                      <li key={link.label}>
+                        <a
+                          href={link.href}
+                          class="text-[15px] leading-6 font-medium text-ink transition-colors duration-200 hover:text-forest"
+                        >
+                          <ScrambleText text={link.label} trigger="a" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div class="mt-10">
+              <p class="label mt-4 text-slate">/maɪˈjɑːrɪn/ · “My-ar-in”</p>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-10 sm:grid-cols-3">
-            {COLUMNS.map((column) => (
-              <div key={column.heading}>
-                <p class="label text-slate">{column.heading}</p>
-                <ul class="mt-6 space-y-3.5">
-                  {column.links.map((link) => (
-                    <li key={link.label}>
-                      <a
-                        href={link.href}
-                        class="text-sm text-ink transition-colors duration-200 hover:text-forest"
-                      >
-                        <ScrambleText text={link.label} trigger="a" />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+          <div>
+            <EarlyAccessCapture />
+
+            <div class="mt-8 flex items-center justify-between gap-6 border-t border-line pt-6">
+              <p class="text-sm text-slate">Find us on social</p>
+              <div class="flex items-center gap-2">
+                <a
+                  href="https://x.com/mayarinxyz"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Mayarin on X"
+                  class="inline-flex size-10 items-center justify-center border border-line text-slate transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
+                >
+                  <XIcon />
+                </a>
+                <a
+                  href="https://linkedin.com/company/mayarin"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Mayarin on LinkedIn"
+                  class="inline-flex size-10 items-center justify-center border border-line text-slate transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
+                >
+                  <LinkedInIcon />
+                </a>
               </div>
-            ))}
+            </div>
           </div>
         </div>
 
-        <div class="mt-20 flex flex-col gap-4 border-t border-line pt-8 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-xs text-slate">
+        <div class="mt-14 flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-xs font-medium text-slate">
             © {new Date().getFullYear()} Mayarin. All rights reserved.
           </p>
-          <p class="text-slate leading-5 text-sm">Money moves – Infrastructure orchestrates</p>
+          <p class="text-slate leading-5 text-sm font-medium">
+            Money moves – Infrastructure orchestrates
+          </p>
         </div>
       </div>
     </footer>

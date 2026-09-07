@@ -1,6 +1,3 @@
-import { Reveal } from "../components/reveal.tsx";
-import { Label, Section, SectionHeading } from "../components/ui.tsx";
-
 type UseCaseGlyph =
   | "storefront"
   | "route"
@@ -15,7 +12,7 @@ type UseCaseGlyph =
   | "terminal"
   | "plugin";
 
-const USE_CASES = [
+export const USE_CASES = [
   {
     icon: "storefront" as const,
     title: "Merchant platforms",
@@ -78,7 +75,7 @@ const USE_CASES = [
   },
 ] as const;
 
-function UseCaseIcon({ name }: { name: UseCaseGlyph }) {
+export function UseCaseIcon({ name }: { name: UseCaseGlyph }) {
   const common = {
     fill: "none",
     stroke: "currentColor",
@@ -125,9 +122,9 @@ function UseCaseIcon({ name }: { name: UseCaseGlyph }) {
     case "coin":
       return (
         <>
-          <path {...common} d="M13.744 17.736a6 6 0 1 1-7.48-7.48" />
-          <path {...common} d="M15 6h1v4M6.134 14.768l.866-.5 2 3.464" />
-          <circle {...common} cx="16" cy="8" r="6" />
+          <ellipse {...common} cx="12" cy="7" rx="8" ry="3" />
+          <path {...common} d="M4 7v5c0 1.66 3.58 3 8 3s8-1.34 8-3V7" />
+          <path {...common} d="M4 12v5c0 1.66 3.58 3 8 3s8-1.34 8-3v-5" />
         </>
       );
     case "bag":
@@ -194,45 +191,4 @@ function UseCaseIcon({ name }: { name: UseCaseGlyph }) {
         </>
       );
   }
-}
-
-export function UseCases() {
-  return (
-    <Section id="use-cases">
-      <Reveal>
-        <Label>Use cases</Label>
-      </Reveal>
-
-      <Reveal delay={60}>
-        <SectionHeading>Wherever value has to cross a boundary.</SectionHeading>
-      </Reveal>
-
-      <div class="ornament-grid mt-12 grid grid-cols-1 border-l border-t sm:grid-cols-2 xl:grid-cols-4 md:mt-16">
-        {USE_CASES.map((useCase, index) => (
-          <Reveal
-            key={useCase.title}
-            delay={(index % 2) * 80}
-            class="ornament-card group relative flex min-h-72 flex-col border-b border-r p-6 transition-colors duration-300 hover:bg-[#fafafa] md:p-7 xl:p-8"
-          >
-            <div class="flex items-start justify-between">
-              <span class="label text-slate">{String(index + 1).padStart(2, "0")}</span>
-              <svg
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                class="size-8 text-forest transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1"
-              >
-                <UseCaseIcon name={useCase.icon} />
-              </svg>
-            </div>
-            <h4 class="mt-auto pt-12 font-display text-[clamp(1.8rem,2.5vw,2.2rem)] leading-none">
-              {useCase.title}
-            </h4>
-            <p class="mt-5 max-w-[32ch] text-[0.9375rem] leading-[1.65] text-slate">
-              {useCase.body}
-            </p>
-          </Reveal>
-        ))}
-      </div>
-    </Section>
-  );
 }

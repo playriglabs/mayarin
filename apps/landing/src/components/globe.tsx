@@ -2,14 +2,14 @@ import clsx from "clsx";
 import createGlobe, { type COBEOptions, type Marker } from "cobe";
 import { useEffect, useRef } from "preact/hooks";
 
-type City = {
+export type City = {
   id: string;
   label: string;
   location: [number, number];
 };
 
 /** A regional corridor: Asia → MENA → Europe → APAC → LATAM. */
-const ROUTE: City[] = [
+const DEFAULT_ROUTE: City[] = [
   { id: "jakarta", label: "Jakarta", location: [-6.2088, 106.8456] },
   { id: "singapore", label: "Singapore", location: [1.3521, 103.8198] },
   { id: "bangkok", label: "Bangkok", location: [13.7563, 100.5018] },
@@ -22,10 +22,6 @@ const ROUTE: City[] = [
   { id: "saopaulo", label: "São Paulo", location: [-23.5505, -46.6333] },
   { id: "mexicocity", label: "Mexico City", location: [19.4326, -99.1332] },
 ];
-
-/* Every stop is named. An unlabelled dot just reads as an unexplained speck;
-   overlapping chips are culled per frame instead. */
-const LABELLED = ROUTE;
 
 type Vector = readonly [number, number, number];
 
@@ -66,19 +62,24 @@ const interpolateRoute = (
   });
 };
 
-const ROUTE_DOTS: Marker[] = ROUTE.slice(0, -1).flatMap((city, index) => {
-  const next = ROUTE[index + 1];
-  if (!next) return [];
-  return interpolateRoute(city.location, next.location, 5).map((location) => ({
-    location,
-    size: 0.009,
-  }));
-});
-
-const MARKERS: Marker[] = [
-  ...ROUTE_DOTS,
-  ...ROUTE.map((city) => ({ location: city.location, size: 0.032 })),
-];
+/**
+ * Stops as markers, optionally with the corridor drawn between them. A set of
+ * places that are not a route — every country a merchant can price in, say —
+ * wants the dots without the line implying travel between them.
+ */
+function markersFor(cities: readonly City[], connect: boolean): Marker[] {
+  const corridor = connect
+    ? cities.slice(0, -1).flatMap((city, index) => {
+        const next = cities[index + 1];
+        if (!next) return [];
+        return interpolateRoute(city.location, next.location, 5).map((location) => ({
+          location,
+          size: 0.009,
+        }));
+      })
+    : [];
+  return [...corridor, ...cities.map((city) => ({ location: city.location, size: 0.032 }))];
+}
 
 /** Longitude the globe opens on, with Asia and MENA facing the reader. */
 const START_PHI = 4.1;
@@ -145,9 +146,23 @@ function project(
 type GlobeProps = {
   class?: string /** "light" draws on paper, "dark" on the void. */;
   tone?: "light" | "dark";
+  /** Defaults to the settlement corridor. Pass a module-level constant: it is
+      an effect dependency, so a fresh array every render would rebuild the
+      globe on every render. */
+  cities?: readonly City[];
+  /** Draw the interpolated great-circle dots between the stops. */
+  connect?: boolean;
+  /** Overrides the generated description when the stops are not a corridor. */
+  description?: string;
 };
 
-export function Globe({ class: className = "", tone = "light" }: GlobeProps) {
+export function Globe({
+  class: className = "",
+  tone = "light",
+  cities = DEFAULT_ROUTE,
+  connect = true,
+  description,
+}: GlobeProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -161,7 +176,7 @@ export function Globe({ class: className = "", tone = "light" }: GlobeProps) {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const chips = new Map<string, HTMLElement>();
-    for (const city of LABELLED) {
+    for (const city of cities) {
       const chip = layer.querySelector<HTMLElement>(`[data-city="${city.id}"]`);
       if (chip) chips.set(city.id, chip);
     }
@@ -198,10 +213,12 @@ export function Globe({ class: className = "", tone = "light" }: GlobeProps) {
     const placeLabels = (angle: number) => {
       /* Nearest first, so when two cities collide the one facing the reader is
          the one that keeps its label. */
-      const ordered = LABELLED.map((city) => ({
-        city,
-        ...project(city.location, angle, THETA, size),
-      })).sort((a, b) => b.depth - a.depth);
+      const ordered = cities
+        .map((city) => ({
+          city,
+          ...project(city.location, angle, THETA, size),
+        }))
+        .sort((a, b) => b.depth - a.depth);
 
       const taken: { left: number; right: number; top: number; bottom: number }[] = [];
 
@@ -310,7 +327,7 @@ export function Globe({ class: className = "", tone = "light" }: GlobeProps) {
               markerColor: [0.055, 0.92, 0.18],
               glowColor: [1, 1, 1],
             }),
-        markers: MARKERS,
+        markers: markersFor(cities, connect),
         arcs: [],
       });
     };
@@ -364,21 +381,23 @@ export function Globe({ class: className = "", tone = "light" }: GlobeProps) {
       canvas.removeEventListener("pointercancel", onPointerUp);
       globe?.destroy();
     };
-  }, [tone]);
+  }, [tone, cities, connect]);
 
   return (
     <div ref={frameRef} class={clsx("relative aspect-square w-full overflow-hidden", className)}>
       <canvas
         ref={canvasRef}
         class="size-full cursor-grab touch-pan-y contain-[layout_paint_size]"
-        aria-label="Rotating globe showing a dotted settlement corridor through Jakarta, Singapore, Bangkok and Tokyo in Asia; Dubai and Riyadh in MENA; Frankfurt and London in Europe; Sydney in APAC; and São Paulo and Mexico City in LATAM."
+        aria-label={
+          description ?? `Rotating globe marking ${cities.map((city) => city.label).join(", ")}.`
+        }
         role="img"
       />
 
       {/* Chips ride on top of the canvas. The layer is inert so a drag that
           starts on a label still reaches the globe underneath. */}
       <div ref={layerRef} aria-hidden="true" class="pointer-events-none absolute inset-0">
-        {LABELLED.map((city) => (
+        {cities.map((city) => (
           <span
             key={city.id}
             data-city={city.id}

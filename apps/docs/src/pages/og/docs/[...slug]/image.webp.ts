@@ -21,7 +21,10 @@ export const GET: APIRoute = async ({ params }) => {
 
   const markup = `
 <div style="display:flex;flex-direction:column;justify-content:space-between;width:1200px;height:630px;padding:80px;background:#ffffff;color:#0a0a0a;font-family:Geist Variable,Helvetica,Arial,sans-serif;">
-  <img src="${BRAND_KIT_URL}/mayarin-full-black.png" alt="Mayarin" style="height:44px;width:auto;object-fit:contain;" />
+  <div style="display:flex;align-items:center;gap:2px;">
+    <img src="${BRAND_KIT_URL}/mayarin-logo-black.svg" alt="" style="height:52px;width:52px;object-fit:contain;" />
+    <span style="font-size:40px;font-weight:500;letter-spacing:-0.06em;line-height:1;">mayarin</span>
+  </div>
   <div style="display:flex;flex-direction:column;gap:24px;">
     <div style="font-size:64px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;max-width:1000px;">${escapeHtml(title)}</div>
     <div style="font-size:30px;line-height:1.4;color:#525252;max-width:980px;">${escapeHtml(description)}</div>

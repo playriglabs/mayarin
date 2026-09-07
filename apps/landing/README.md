@@ -26,7 +26,7 @@ beyond layout utilities.
 | Token            | Value     | Used for                                                         |
 | ---------------- | --------- | ---------------------------------------------------------------- |
 | `--color-paper`  | `#ffffff` | Light sections                                                   |
-| `--color-void`   | `#050505` | Dark sections (how it works, developer experience, final CTA)    |
+| `--color-void`   | `#050505` | Reserved for dark surfaces; the pitch deck uses it               |
 | `--color-ink`    | `#111111` | Primary text                                                     |
 | `--color-slate`  | `#666666` | Secondary text                                                   |
 | `--color-line`   | `#eaeaea` | Hairlines on light                                               |
@@ -38,81 +38,107 @@ beyond layout utilities.
 nodes, rails and flow; `--color-forest` is its accessible counterpart for type.
 
 Type uses HB Set through `--font-heading` for `h1`–`h3`, `--font-display` for display accents,
-and `--font-brand` for the wordmark. The hero's _in motion_ accent uses Instrument Serif through
-`--font-motion`. `--font-sans` (Geist) handles everything read, while `--font-mono` (Geist Mono)
-handles labels and code.
+and `--font-brand` for the wordmark. `--font-sans` (Geist) handles everything read, while
+`--font-mono` (Cascadia Code, then Geist Mono) handles labels and code — the mono weights are
+imported latin-only, since the snippets are ASCII.
 
 ## Structure
 
-- `src/sections/*` — one file per page section, in the order `app.tsx` composes them.
-- `src/graphics/*` — `wave-grid.tsx` (the hero canvas), `topology.tsx` (the routing
-  illustration, wide and compact variants), `stage-scene.tsx` (one isometric scene per clearing stage)
-  and `glyphs.tsx` (the capability marks).
-- `src/data/snippets.json` + `plugins/shiki-snippets.ts` — the code samples and the Vite plugin
-  that highlights them. Shiki runs at build time behind a `virtual:code-snippets` module; shipping
-  the highlighter to the browser would cost more than the rest of the page. The theme is the site
-  palette expressed as TextMate scopes, so highlighting is grammar-accurate but still only ink,
-  white and the accent. Line numbers come from a CSS counter, so copied source stays clean.
-- `src/lib/smooth-scroll.ts` — Lenis setup. It also routes in-page anchor clicks through
-  `lenis.scrollTo` with a header offset; without that, `#hash` links jump instantly while wheel and
-  touch glide, which reads as two different scrolls on one page. Disabled under
-  `prefers-reduced-motion`, where the browser's own scrolling is left alone.
-- `src/components/*` — `ui.tsx` holds `Section`/`Label`/`SectionHeading`/`Lede`/`Button`, which is
-  what keeps the vertical rhythm consistent; `reveal.tsx` is the one motion primitive.
-- `src/pages/pitch-deck/*` — the pitch deck at `/pitch-deck`, `noindex`. `slides.tsx` mirrors
-  `docs/pitch-deck.md` slide for slide; change the copy there first. The track is a horizontal
-  scroll-snap row from `md` up (a long page below), each slide declares its own reveal — the
-  headline and bullets stay put, the visual moves in the way that fits it — and some slides carry
-  a backdrop from `graphics/` (grid field, wave plane) or the dark `Globe`. Keyboard: arrows,
-  paging keys, Home/End, `F` fullscreen, `N` notes, `T` presenter timer, `R` timer reset; a
-  vertical wheel turns one page. Lenis does not mount here — it would fight the snap.
+`src/pages/landing.tsx` composes the landing page from `src/components/landing/`.
+Styling is Tailwind utilities; the `--color-v2-*` tokens in `src/styles.css`
+carry the illustration palette.
+
+The hero reserves an empty dashboard frame. When the screenshot is ready, put it
+in `public/images/` and pass its URL to `DashboardPreview` in
+`src/components/landing/sections.tsx`, for example
+`<DashboardPreview src="/images/dashboard.webp" />`.
+
+- `src/components/landing/*` — one file per section, in the order
+  `pages/landing.tsx` composes them, plus the primitives they share: `ui.tsx`
+  (`Action`, `SectionIntro`, `DashboardPreview`, `Check`), `card-carousel.tsx`
+  (the page-at-a-time track behind Use cases and Principles), `rail-mark.tsx`
+  and `network-marks.tsx`.
+- `src/components/*` — what more than one page uses: the footer and its
+  wordmark, the `Globe`, the "Powered by" strip and its `LOGOS` list,
+  `ScrambleText`, `use-case-content.tsx`, and `ui.tsx`, which is now only
+  `ArrowRight`.
+- `src/graphics/*` — `glyphs.tsx` (the principle marks), `grid-field.tsx` and
+  `wave-grid.tsx` (pitch-deck backdrops).
+- `src/data/capability-snippets.json` and `src/data/snippets.json` +
+  `plugins/shiki-snippets.ts` — the code samples and the Vite plugin that
+  highlights them. Shiki runs at build time behind a `virtual:code-snippets`
+  module, which exports the two lists separately so adding a capability example
+  cannot change what another surface renders. Shipping the highlighter to the
+  browser would cost more than the rest of the page. The theme is the site
+  palette expressed as TextMate scopes, so highlighting is grammar-accurate but
+  still only ink, white and the accent. Line numbers come from a CSS counter, so
+  copied source stays clean.
+- `src/lib/early-access.ts` — one `useEarlyAccess` hook, so every form posting to
+  `/api/early-access` shares a submission path.
+- `src/lib/smooth-scroll.ts` — Lenis setup. It also routes in-page anchor clicks
+  through `lenis.scrollTo` with a header offset; without that, `#hash` links jump
+  instantly while wheel and touch glide, which reads as two different scrolls on
+  one page. Disabled under `prefers-reduced-motion`, where the browser's own
+  scrolling is left alone.
+
+  A horizontally scrolling child carries `data-lenis-prevent-horizontal`, **not**
+  `data-lenis-prevent`: the latter hands Lenis back every gesture over the
+  element, so scrolling the page past a carousel drops out of the smoothed scroll
+  and back into the browser's own.
+
+- `src/pages/pitch-deck/*` — the pitch deck at `/pitch-deck`, `noindex`.
+  `slides.tsx` mirrors `docs/pitch-deck.md` slide for slide; change the copy there
+  first. The track is a horizontal scroll-snap row from `md` up (a long page
+  below), each slide declares its own reveal, and some carry a backdrop from
+  `graphics/` or the dark `Globe`. Keyboard: arrows, paging keys, Home/End, `F`
+  fullscreen, `N` notes, `T` presenter timer, `R` timer reset; a vertical wheel
+  turns one page. Lenis does not mount here — it would fight the snap.
 
 ## Logos
 
-`public/images/logos/*.svg` holds the third-party marks the "Powered by" strip renders — chains
-(Tempo, Base, Arbitrum, Polygon) and infrastructure (Alchemy, viem). They are downloaded
-originals, unmodified; the strip greys them with a CSS filter rather than editing the files, so
-replacing one is a drop-in. Anything added there also has to be added to `LOGOS` in
-`src/components/powered-by.tsx`.
+`public/images/logos/*.svg` holds the third-party marks the "Powered by" section renders. They are
+downloaded originals — the one exception is `ethereum.svg`, whose `viewBox` is cropped to the
+artwork because ethereum.org ships its lockup inside a mostly empty 1920x1080 canvas. Anything
+added there also has to be added to `LOGOS` in `src/components/powered-by.tsx`.
 
-From `md` up the strip is a marquee: the list is rendered four times inside a track that
-translates `-50%`, so the first half always overflows the widest viewport and the loop has no
-seam. It pauses on hover. Below `md` the marquee is not rendered at all — phones get the static
-wrapped list, which is also the copy screen readers see.
+Two flags on a `Logo` describe the file rather than the design, and both exist because a mark that
+is invisible on white is not invisible on a dark plate:
+
+- `tonal` — the mark carries meaningful light areas, either its own background (Pyth) or white
+  cut-outs inside it (Arbitrum). Flattening every tone with `brightness-0` loses them and leaves a
+  blob, so those invert, greyscale and `mix-blend-screen` instead.
+- `light` — the artwork is drawn in white (Alchemy). Correct on the plate, invisible on the light
+  strip, which inverts it back to ink before greying it.
+
+`public/chains/*.svg` is separate: those are the round network marks `chainLogoUrl` serves for
+chains Trust Wallet's CDN does not carry.
 
 ## Motion
 
-Everything is a fade-and-rise on first viewport entry (`Reveal`), plus the hero wave grid and two
-looping accents.
+Sections do not animate in. What moves is deliberate and small.
 
-`graphics/wave-grid.tsx` is a canvas: a grid plane in perspective with a wave running through it.
-Rows and columns are drawn as polylines rather than points, so it reads as one surface; spread,
-height, wave amplitude and line weight all scale with depth, which is what sells the recession. An
-accent crest sweeps from the horizon to the front every nine seconds — the one green thing in the
-hero. Phones get a coarser mesh (30x20 instead of 56x30) for the same picture at a third of the
-path work. Two intersected masks fade it at the horizon and at the edges of the frame; the type
-sits far enough above it in contrast to need no clearing. Under `prefers-reduced-motion` it draws
-one frame and stops.
+`components/landing/payment-orbits.tsx` is the hero's backdrop: three dashed
+orbits carrying the five currencies a merchant can price in, each disc following
+its path with native SVG `animateMotion` so it stays upright. The symbols come
+from `assetSymbol` in `@mayarin/shared`, so the hero cannot advertise a currency
+the registry does not carry. The whole SVG pauses when it scrolls out of view,
+when the tab is hidden, and under `prefers-reduced-motion`, which instead places
+each disc at a fixed point on its orbit.
 
-The "How Mayarin works" section is a walkthrough rather than a list: six stages as a tablist that
-drives a detail panel carrying the clearing-engine states each stage passes through. It
-auto-advances every 6.5s, but only while the walkthrough is actually on screen, and stops for good
-the moment someone hovers, clicks or arrows through it. The dwell timer is drawn as the hairline
-filling under the active row. Below `md` there is no autoplay at all — the six stages are simply
-unrolled as a stack of the same posters.
+`components/landing/scroll-tilt.tsx` flattens the dashboard frame from a
+rotated plate to face-on as it enters. It measures a stationary wrapper rather
+than the panel it transforms, so the transform cannot feed back into the scroll
+progress that drives it.
 
-Each stage is a poster: a `--color-plate` panel carrying an isometric scene, then the copy on
-near-black below it, hairline-bordered so it reads as a card without breaking the dark section. The scenes (`graphics/stage-scene.tsx`) are built from one 2:1 isometric grid — a shared
-`iso()` projection, hatched extruded blocks, dotted ground planes — with the accent reserved for
-what the stage is about: the intent leaving the application, the newest version of the aggregate,
-two inputs collapsing into one settlement asset, debit and credit mirrored across the ledger,
-the provider's answer coming back, the rail the merchant is finally paid on.
+The capability cards cross-fade their illustration out and a code panel in on
+hover and on keyboard focus. Both layers are promoted with `transform-gpu` and
+`will-change`, so the transition composites instead of re-rasterising the Shiki
+subtree every frame; clicking opens the full snippet in a `<dialog>`, which
+brings Escape, the focus trap and the inert page behind it for free.
 
-`stageScenes` holds factories, not elements: the same scene renders in the desktop panel and the
-mobile stack at once, and a shared Preact vnode cannot be mounted twice.
+The `Globe` is `cobe` on a canvas. It holds off creating its WebGL context until
+the section is near, and stops drawing once it leaves. City labels are projected
+with the same maths cobe uses internally, so a label cannot drift off its marker,
+and overlapping ones are culled per frame.
 
-Stage order there follows the engine, not the marketing diagram: clearing precedes settlement,
-because the state machine is `CLEARING → SETTLING → SETTLED`.
-
-The rest: the flow pulse on the routing illustration and the clearing-node pulse. All animation is disabled
-under `prefers-reduced-motion`.
+All of it is disabled under `prefers-reduced-motion`.

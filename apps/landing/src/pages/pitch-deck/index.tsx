@@ -330,7 +330,7 @@ export function PitchDeck() {
             aria-label="Mayarin pitch deck"
           >
             <img
-              src="/brand-kit/mayarin-logo-black.png"
+              src="/brand-kit/mayarin-logo-black.svg"
               alt=""
               width="28"
               height="28"

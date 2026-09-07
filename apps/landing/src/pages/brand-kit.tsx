@@ -2,7 +2,7 @@ const MARK_ASSETS = [
   {
     index: "01",
     label: "Primary mark",
-    file: "mayarin-logo-black.png",
+    file: "mayarin-logo-black.svg",
     surface: "bg-[#f1f1ee]",
     imageClass: "max-h-72",
     description: "The mark for light surfaces and quiet applications.",
@@ -10,7 +10,7 @@ const MARK_ASSETS = [
   {
     index: "02",
     label: "Reversed mark",
-    file: "mayarin-logo-white.png",
+    file: "mayarin-logo-white.svg",
     surface: "bg-ink",
     imageClass: "max-h-72",
     description: "The mark for dark surfaces and high-contrast moments.",
@@ -25,26 +25,7 @@ const MARK_ASSETS = [
   },
 ] as const;
 
-const WORDMARK_ASSETS = [
-  {
-    index: "04",
-    label: "Wordmark",
-    file: "mayarin-full-black.png",
-    surface: "bg-[#f1f1ee]",
-    imageClass: "max-w-[78%]",
-    description: "The full lockup for introductions, headers and documents.",
-  },
-  {
-    index: "05",
-    label: "Reversed wordmark",
-    file: "mayarin-full-white.png",
-    surface: "bg-ink",
-    imageClass: "max-w-[78%]",
-    description: "The full lockup for dark backgrounds and presentations.",
-  },
-] as const;
-
-type BrandKitAsset = (typeof MARK_ASSETS | typeof WORDMARK_ASSETS)[number];
+type BrandKitAsset = (typeof MARK_ASSETS)[number];
 
 const BRAND_KIT_PATH = "/brand-kit";
 
@@ -121,7 +102,7 @@ export function BrandKit() {
           <h2 id="marks-heading" class="font-mono text-xs font-medium tracking-[0.16em] uppercase">
             Core identifiers
           </h2>
-          <span class="label hidden text-slate sm:block">PNG · transparent where applicable</span>
+          <span class="label hidden text-slate sm:block">SVG and PNG · transparent</span>
         </div>
 
         <div class="grid gap-x-8 gap-y-16 md:grid-cols-3 md:gap-y-24">
@@ -131,12 +112,30 @@ export function BrandKit() {
         </div>
 
         <h2 class="mt-24 border-b border-line pb-5 font-mono text-xs font-medium tracking-[0.16em] uppercase md:mt-36">
-          Wordmarks
+          Lockup
         </h2>
-        <div class="mt-10 grid gap-x-8 gap-y-16 md:grid-cols-2 md:gap-y-24">
-          {WORDMARK_ASSETS.map((asset) => (
-            <AssetCard key={asset.file} {...asset} />
-          ))}
+        <div class="mt-10 grid gap-10 md:grid-cols-[1fr_1fr] md:gap-16">
+          <div class="flex min-h-56 items-center justify-center rounded-sm bg-[#f1f1ee] p-10">
+            <span class="flex items-center text-[clamp(2rem,4vw,3rem)] leading-none tracking-[-0.06em] text-ink">
+              <img
+                src="/brand-kit/mayarin-logo-black.svg"
+                alt=""
+                aria-hidden="true"
+                width="96"
+                height="96"
+                class="size-[1.4em]"
+              />
+              <span class="-ml-[0.06em] font-sans font-medium">mayarin</span>
+            </span>
+          </div>
+          <div class="self-center">
+            <p class="text-lg leading-[1.7] text-slate">
+              There is no lockup file. The lockup is the mark set beside the name in Geist at medium
+              weight, optically kerned so the wordmark tucks under the mark's overhang. Building it
+              from the two parts keeps one source of truth for the mark and lets the name inherit
+              whatever text colour it sits in.
+            </p>
+          </div>
         </div>
       </section>
 

@@ -2,6 +2,9 @@
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist/wght-italic.css";
 @import "@fontsource-variable/geist-mono";
+@import "@fontsource/cascadia-code/latin-400.css";
+@import "@fontsource/cascadia-code/latin-500.css";
+@import "@fontsource/cascadia-code/latin-600.css";
 @import "@fontsource/instrument-serif/latin-400-italic.css";
 
 @font-face {
@@ -13,6 +16,13 @@
 }
 
 @theme {
+  /* Product landing V2: soft illustration surfaces, paired with accessible ink. */
+  --color-v2-mist: #f6f7f6;
+  --color-v2-sage: #e4eee6;
+  --color-v2-peach: #f3e8dd;
+  --color-v2-clay: #755136;
+  --color-v2-lilac: #eeecf6;
+  --color-v2-indigo: #51456c;
   --color-paper: #ffffff;
   --color-ink: #111111;
   --color-slate: #666666;
@@ -36,8 +46,8 @@
     "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono:
-    "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
-    monospace;
+    "Cascadia Code", "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
   --font-brand: var(--font-heading);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -73,6 +83,23 @@
       "ss03" 1;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Chrome paints autofilled fields with its own background and text colour,
+     which here turned the early-access field pale blue against a white button.
+     The colour cannot be set directly, so the field is covered by an inset
+     shadow in the page's own paper and the text is repainted over it. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--color-ink);
+    -webkit-box-shadow: 0 0 0 1000px var(--color-paper) inset;
+    box-shadow: 0 0 0 1000px var(--color-paper) inset;
+    caret-color: var(--color-ink);
+    /* Chrome re-applies its background on interaction; an absurd delay keeps
+       the override in place without a visible transition. */
+    transition: background-color 0s 600000s;
   }
 
   ::selection {
@@ -152,7 +179,7 @@ h3 {
    sit at opacity: 0 for anything that does not execute the script. */
 .js .reveal {
   opacity: 0;
-  transform: translate3d(0, 12px, 0);
+  transform: translate3d(0, 18px, 0);
   transition:
     opacity 700ms var(--ease-out-expo),
     transform 700ms var(--ease-out-expo);
@@ -162,61 +189,6 @@ h3 {
 .js .reveal[data-in="true"] {
   opacity: 1;
   transform: none;
-}
-
-/* Routing illustration: quiet surfaces, fluid paths and a shared clearing hub. */
-.topology {
-  overflow: hidden;
-  background: radial-gradient(ellipse at 50% 46%, #eaf6ed, #fafcfb 48%, white 85%);
-}
-
-.topology-track { stroke: #cadfd2; }
-.topology-card { fill: white; stroke: #d4e3d9; stroke-width: 1; }
-.topology-icon-disc { fill: #f0f7f2; }
-.topology-label { font: 15px var(--font-sans); fill: var(--color-ink); }
-.topology-endpoint .topology-label { font-size: 13px; }
-.topology-detail { font: 11px var(--font-sans); fill: var(--color-slate); }
-.topology-caption { font: 10px var(--font-mono); letter-spacing: 1.5px; fill: var(--color-forest); }
-.topology-hub-label { font: 10px var(--font-mono); letter-spacing: 2px; fill: var(--color-forest); }
-.topology-hub { fill: white; stroke: #b7d5c2; filter: drop-shadow(0 8px 12px #1f6f5414); }
-.topology-orbit { fill: none; stroke: #c5dfce; stroke-width: 1; }
-.topology-halo { fill: #dff2e5; opacity: 0.55; transform-origin: 0 0; animation: topology-breathe 6s ease-in-out infinite; }
-.topology-stream { stroke: var(--color-forest); stroke-dasharray: 5 95; animation: topology-travel 9s cubic-bezier(0.35, 0, 0.65, 1) infinite; animation-delay: var(--route-delay); }
-.topology-stream-glow { stroke: var(--color-accent); stroke-opacity: 0.18; }
-.topology[data-paused="true"] .topology-stream,
-.topology[data-paused="true"] .topology-halo { animation-play-state: paused; }
-
-@keyframes topology-travel {
-  0% { stroke-dashoffset: 5; opacity: 0; }
-  8% { opacity: 1; }
-  72% { opacity: 1; }
-  85%, 100% { stroke-dashoffset: -100; opacity: 0; }
-}
-
-@keyframes topology-breathe {
-  0%, 100% { transform: scale(0.94); opacity: 0.35; }
-  50% { transform: scale(1.08); opacity: 0.65; }
-}
-
-@media (width < 48rem) {
-  .topology-label { font-size: 12px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .topology-stream, .topology-halo { animation: none; }
-  .topology-stream, .topology-pause { display: none; }
-}
-
-
-@keyframes pulse {
-  0%,
-  70%,
-  100% {
-    opacity: 0.25;
-  }
-  35% {
-    opacity: 1;
-  }
 }
 
 /* The plane fades out at the horizon and at the edges of the frame; the type
@@ -291,86 +263,7 @@ h3 {
   }
 }
 
-/* Logo strip runs at every width, full-bleed on phones.
-
-   The travel distance is one sequence, measured in pixels by the component and
-   written to `--marquee-distance`. A percentage would be a fraction of the
-   track's own width, which changes as SVGs decode and as the breakpoint moves
-   the gaps — so the loop point drifted and the strip visibly jumped. The
-   percentage stays only as the pre-measurement fallback.
-
-   The duration is measured too, from a constant pixels-per-second speed, so the
-   strip runs at one pace at every width instead of racing on a wide viewport. */
-.marquee {
-  animation: marquee var(--marquee-duration, 42s) linear infinite;
-  /* Its own compositor layer, so the browser never repaints the logos to move
-     them and the transform is not rounded to whole pixels each frame. */
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  backface-visibility: hidden;
-}
-
-/* The strip is its own painting island: the logos moving inside it can never
-   invalidate anything outside, which is what keeps a wide track from costing a
-   whole-page repaint each frame. */
-.marquee-track {
-  contain: layout paint;
-}
-
-.marquee:hover {
-  animation-play-state: paused;
-}
-
-@keyframes marquee {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(calc(-1 * var(--marquee-distance, 50%)), 0, 0);
-  }
-}
-
-/* Filled buttons wipe their hover colour up from the baseline rather than
-   cross-fading it — the same upward motion the rest of the page moves in. The
-   colour is passed per button as `--btn-fill`, so one rule serves the light and
-   the dark CTA alike. Outline buttons are deliberately left out: they have no
-   background to wipe. */
-.btn-fill {
-  position: relative;
-  /* Contains the negative z-index below, so it can never slip behind an
-     ancestor's background. */
-  isolation: isolate;
-  overflow: hidden;
-}
-
-.btn-fill::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  /* Paints over the button's own background but under its label. */
-  z-index: -1;
-  background-color: var(--btn-fill);
-  transform: scaleY(0);
-  transform-origin: 50% 100%;
-  transition: transform 420ms var(--ease-out-expo);
-}
-
-.btn-fill:hover::after,
-.btn-fill:active::after,
-.btn-fill:focus-visible::after {
-  transform: scaleY(1);
-}
-
-/* Touch browsers can retain :hover after a tap. Keep the mobile demo label
-   legible whenever its dark fill is visible, including keyboard activation. */
-.mobile-nav-demo:hover,
-.mobile-nav-demo:active,
-.mobile-nav-demo:focus-visible {
-  color: var(--color-white);
-}
-
-/* Footer wordmark: letters rise from behind the top edge in sequence, then the
-   accent rail draws itself under them. */
+/* Footer wordmark: letters rise from behind the top edge in sequence. */
 .wordmark-letter {
   display: inline-block;
 }
@@ -402,10 +295,6 @@ h3 {
   }
 }
 
-.js .wordmark[data-in="true"] .wordmark-rail {
-  transform: scaleX(1);
-}
-
 /* Shiki output: the page owns the frame and the rhythm, the theme owns colour. */
 .code-surface pre {
   overflow-x: auto;
@@ -416,6 +305,9 @@ h3 {
   background-color: transparent !important;
 }
 
+/* `code` as well as `pre`: Tailwind's preflight sets `code, kbd, samp, pre` to
+   the default mono family, so styling only `pre` leaves the `code` child
+   resetting the family back before the token spans can inherit it. */
 .code-surface code {
   display: grid;
   counter-reset: line;
@@ -440,156 +332,12 @@ h3 {
   }
 }
 
-/* The clearing walkthrough: a dwell timer drawn as a filling hairline, and a
-   detail panel that cross-fades when the stage changes. */
-.stage-fill {
-  transform-origin: left;
-  animation-name: stage-fill;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
-
-@keyframes stage-fill {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-.stage-enter {
-  animation: stage-enter 520ms var(--ease-out-expo) both;
-}
-
-/* Isometric scenes are drawn, not photographed: they keep breathing. Parts
-   float on their own clocks, dashed guides flow, and an accent packet runs the
-   path the stage is about instead of drawing itself once and stopping. */
-.iso-in {
-  animation: iso-in 560ms var(--ease-out-expo) both;
-  animation-delay: calc(var(--i, 0) * 70ms);
-}
-
-@keyframes iso-in {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 10px, 0);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.iso-float {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: iso-float 6s ease-in-out infinite alternate;
-  animation-delay: calc(var(--i, 0) * -900ms);
-}
-
-@keyframes iso-float {
-  from {
-    transform: translate3d(0, 2.5px, 0);
-  }
-  to {
-    transform: translate3d(0, -4px, 0);
-  }
-}
-
-.iso-flow {
-  animation: iso-flow 2.6s linear infinite;
-}
-
-@keyframes iso-flow {
-  to {
-    stroke-dashoffset: -14;
-  }
-}
-
-.iso-pulse {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: iso-pulse 2.8s ease-in-out infinite;
-  animation-delay: calc(var(--i, 0) * -700ms);
-}
-
-@keyframes iso-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.95;
-    transform: scale(1.3);
-  }
-}
-
-/* A short dash running the whole length: the value moving, not the line
-   appearing. Pairs with pathLength=100 and stroke-dasharray="8 92". */
-.iso-travel {
-  animation: iso-travel 3.4s linear infinite;
-}
-
-@keyframes iso-travel {
-  from {
-    stroke-dashoffset: 100;
-  }
-  to {
-    stroke-dashoffset: -8;
-  }
-}
-
-@keyframes stage-enter {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 8px, 0);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .reveal,
-  .wordmark-letter,
-  .wordmark-rail {
+  .wordmark-letter {
     opacity: 1;
     transform: none;
     transition: none;
-  }
-
-  .marquee,
-  .stage-fill,
-  .stage-enter,
-  .iso-in,
-  .iso-float,
-  .iso-flow,
-  .iso-pulse,
-  .iso-travel {
-    animation: none;
-  }
-
-  /* A stopped marquee cannot reveal the logos it has clipped, so hand the
-     track back to the reader. */
-  .marquee-track {
-    overflow-x: auto;
-  }
-
-  /* Keep the hover colour, drop the wipe. */
-  .btn-fill::after {
-    transition: none;
-  }
-
-  .iso-travel {
-    stroke-dasharray: none;
-  }
-
-  .flow-line {
-    stroke-dasharray: none;
-    opacity: 0.5;
   }
 }
 
@@ -663,43 +411,6 @@ h3 {
   [data-visual]
   [data-reveal] {
   opacity: 0;
-}
-
-/* Corner brackets meet as crosses at the responsive grid's intersections. */
-.ornament-grid {
-  --grid-line: color-mix(in srgb, var(--color-forest) 25%, var(--color-paper));
-  --grid-ornament: color-mix(in srgb, var(--color-forest) 45%, var(--color-paper));
-  border-color: var(--grid-line);
-}
-
-.ornament-card {
-  border-color: var(--grid-line);
-}
-
-.ornament-card::after {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  pointer-events: none;
-  --horizontal-brackets: linear-gradient(
-    to right,
-    var(--grid-ornament) 16px,
-    transparent 16px,
-    transparent calc(100% - 16px),
-    var(--grid-ornament) calc(100% - 16px)
-  );
-  --vertical-brackets: linear-gradient(
-    to bottom,
-    var(--grid-ornament) 16px,
-    transparent 16px,
-    transparent calc(100% - 16px),
-    var(--grid-ornament) calc(100% - 16px)
-  );
-  background:
-    var(--horizontal-brackets) top / 100% 2px no-repeat,
-    var(--horizontal-brackets) bottom / 100% 2px no-repeat,
-    var(--vertical-brackets) left / 2px 100% no-repeat,
-    var(--vertical-brackets) right / 2px 100% no-repeat;
 }
 
 @media print {

@@ -64,7 +64,16 @@ export function chainLabel(chain: string): string {
   return isChainId(chain) ? CHAIN_LABELS[chain] : chain;
 }
 
-const BASE_LOGO = "https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png";
+const TRUST_WALLET_CHAIN_LOGOS: Readonly<Record<string, string>> = {
+  base: "https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png",
+  arbitrum: "https://assets-cdn.trustwallet.com/blockchains/arbitrum/info/logo.png",
+};
+
+/** A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet. */
+const MAINNET_OF: Readonly<Record<string, string>> = {
+  "base-sepolia": "base",
+  "arbitrum-sepolia": "arbitrum",
+};
 
 /**
  * The network mark shown beside a chain name.
@@ -73,9 +82,8 @@ const BASE_LOGO = "https://assets-cdn.trustwallet.com/blockchains/base/info/logo
  * lets each frontend hand Vite or Astro the public URL it actually serves.
  */
 export function chainLogoUrl(chain: string, arcLogo = "/chains/arc.svg"): string | undefined {
-  if (chain === "base" || chain === "base-sepolia") return BASE_LOGO;
   if (chain === "arc-testnet") return arcLogo;
-  return undefined;
+  return TRUST_WALLET_CHAIN_LOGOS[MAINNET_OF[chain] ?? chain];
 }
 
 /**

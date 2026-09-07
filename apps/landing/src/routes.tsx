@@ -1,6 +1,6 @@
 import type { VNode } from "preact";
-import { App } from "./app.tsx";
 import { BrandKit } from "./pages/brand-kit.tsx";
+import { Landing } from "./pages/landing.tsx";
 import { NotFound } from "./pages/not-found.tsx";
 import { PitchDeck } from "./pages/pitch-deck/index.tsx";
 
@@ -30,12 +30,12 @@ export type Route = Readonly<{
 export const routes: readonly Route[] = [
   {
     path: "/",
-    page: () => <App />,
+    page: () => <Landing />,
     file: "index.html",
     meta: {
-      title: "Mayarin — Programmable clearing infrastructure",
+      title: "Mayarin — A world of ways to pay",
       description:
-        "Mayarin helps internet businesses accept global crypto payments, price in local currency and settle in stablecoins through one programmable clearing layer.",
+        "Accept crypto, price in your local currency, and get paid in stablecoins. Explore Mayarin checkout, payment links, invoices, and your payment workspace.",
       canonical: `${SITE_URL}/`,
     },
   },

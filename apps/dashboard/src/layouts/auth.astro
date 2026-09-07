@@ -51,20 +51,28 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
           aria-label="Mayarin home"
           class="pointer-events-auto inline-flex w-fit lg:pt-6 lg:pl-6"
         >
+          <!-- The lockup is composed rather than shipped: the mark, then the
+               name in the interface sans. Two marks, one per theme, so nothing
+               inverts a logo into a state the brand kit never approved. -->
           <img
-            src="https://mayarin.xyz/brand-kit/mayarin-full-black.png"
-            alt="Mayarin"
-            width="571"
-            height="186"
-            class="auth-logo auth-logo-light h-auto w-28 lg:w-36"
-          />
-          <img
-            src="https://mayarin.xyz/brand-kit/mayarin-full-white.png"
+            src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
             alt=""
-            width="571"
-            height="186"
-            class="auth-logo auth-logo-dark h-auto w-28 lg:w-36"
+            aria-hidden="true"
+            width="52"
+            height="52"
+            class="auth-logo auth-logo-light size-10 lg:size-12"
           />
+          <img
+            src="https://mayarin.xyz/brand-kit/mayarin-logo-white.svg"
+            alt=""
+            aria-hidden="true"
+            width="52"
+            height="52"
+            class="auth-logo auth-logo-dark size-10 lg:size-12"
+          />
+          <span class="-ml-0.5 self-center font-sans text-2xl font-medium leading-none tracking-[-0.06em] lg:text-[1.75rem]">
+            mayarin
+          </span>
         </a>
         <div class="pointer-events-auto">
           <ThemeToggle client:load />
@@ -95,6 +103,10 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
 
   .auth-logo-dark {
     display: none;
+  }
+
+  .auth-logo {
+    height: auto;
   }
 
   :global(:root[data-theme="dark"]) .auth-logo-light {
