@@ -4,13 +4,27 @@ import { cn } from "@/lib/utils";
 /**
  * The wrapper scrolls on its own axis. Without it the page body scrolls
  * sideways on a narrow viewport, which is the one thing a layout must not do.
+ *
+ * `containerClassName` caps that wrapper, for a table that has to fit a box
+ * rather than run — a card whose height other cards are lined up against. It
+ * belongs on the wrapper rather than on a `div` around it because this element
+ * is already the scroll container: `overflow-x: auto` makes the other axis
+ * `auto` too, so a `sticky` header resolves against this and not against
+ * anything wrapped outside it.
  */
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & { readonly containerClassName?: string }) {
   return (
     <section
       data-slot="table-container"
       aria-label="Scrollable data table"
-      className="w-full max-w-full overscroll-x-contain overflow-x-auto border border-border bg-card"
+      className={cn(
+        "w-full max-w-full overscroll-contain overflow-x-auto border border-border bg-card",
+        containerClassName,
+      )}
     >
       <table
         data-slot="table"

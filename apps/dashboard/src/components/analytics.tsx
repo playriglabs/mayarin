@@ -394,18 +394,27 @@ function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div aria-hidden="true" className="flex h-3 w-full overflow-hidden">
-        {slices.map((slice, i) => (
-          <motion.span
+      {/* One transform, on the bar, rather than one per segment. Animating each
+          segment gave every one its own composited layer, and layers round
+          their own edges — the tallest colour ended up a pixel prouder than its
+          neighbours, which is visible on a bar only twelve pixels high.
+          `shrink-0` for the same reason: these widths are the data, and flex is
+          entitled to shave a percentage that does not divide evenly. */}
+      <motion.div
+        aria-hidden="true"
+        className="flex h-3 w-full origin-left overflow-hidden"
+        initial={{ scaleX: 0 }}
+        animate={{ scaleX: 1 }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {slices.map((slice) => (
+          <span
             key={slice.label}
-            className={cn("h-full origin-left", TONE_FILL[slice.tone])}
+            className={cn("h-full shrink-0", TONE_FILL[slice.tone])}
             style={{ width: `${(slice.count / total) * 100}%` }}
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ duration: 0.45, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] }}
           />
         ))}
-      </div>
+      </motion.div>
 
       <ul className="flex flex-col gap-2.5">
         {slices.map((slice) => (
@@ -428,7 +437,15 @@ function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
 
-/** A chart's numbers, reachable without reading the picture. */
+/**
+ * A chart's numbers, reachable without reading the picture.
+ *
+ * Capped and scrolled rather than allowed to run. Fourteen rows opened in one
+ * card makes three cards in a row three different heights, and the section
+ * below it moves down the page every time somebody opens one. The cap is a
+ * little over five rows, so it is visibly a window onto more rather than a
+ * table that happens to fit.
+ */
 function DataDisclosure({ summary, children }: { summary: string; children: React.ReactNode }) {
   return (
     <details className="group">
@@ -533,9 +550,9 @@ function MovementSection({
           <CardTitle hint={volumeHint}>Transaction volume · {asset}</CardTitle>
           <TrendChart points={volumePlots(daily, asset)} formatTick={formatMoneyTick} />
           <DataDisclosure summary="Show the numbers">
-            <Table>
+            <Table containerClassName="max-h-64 overflow-y-auto">
               <TableCaption>Volume by day</TableCaption>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead>Day</TableHead>
                   <TableHead className="text-right">Volume</TableHead>
@@ -568,9 +585,9 @@ function MovementSection({
           <CardTitle hint={durationHint}>Completion time</CardTitle>
           <TrendChart points={durationPlots(durations)} formatTick={formatDuration} />
           <DataDisclosure summary="Show the numbers">
-            <Table>
+            <Table containerClassName="max-h-64 overflow-y-auto">
               <TableCaption>Median completion time by day</TableCaption>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead>Day</TableHead>
                   <TableHead className="text-right">Median</TableHead>
