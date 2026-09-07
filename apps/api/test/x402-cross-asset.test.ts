@@ -429,3 +429,114 @@ describe("settling a cross-asset payment", () => {
     expect(events.filter((event) => event.type === "settlement.swap")).toHaveLength(1);
   });
 });
+
+describe("resuming a cross-asset payment", () => {
+  /**
+   * Two chain movements, so two ways to be interrupted, and the sweep used to
+   * skip both rather than confirm the wrong one — a swap hash confirmed against
+   * the authorization credits a merchant who was never paid.
+   */
+  async function interrupted(settler: FakeCrossAssetSettler) {
+    const built = service({ settler, price: money(200n, "USD") });
+    await built.resources.save(built.resource);
+
+    const required = await built.x402.paymentRequired(built.resource);
+    const accepted = required.accepts[0];
+    if (accepted === undefined) throw new Error("No cross-asset rail was offered");
+    const payment: PaymentPayload = {
+      x402Version: 2,
+      accepted,
+      payload: {
+        ...EXAMPLE_EIP3009_PAYLOAD,
+        authorization: {
+          ...EXAMPLE_EIP3009_PAYLOAD.authorization,
+          from: PAYER,
+          to: OPERATOR,
+          value: accepted.amount,
+          validAfter: "0",
+          validBefore: String(Math.floor(built.clearing.clock.now().getTime() / 1000) + 55),
+        },
+      },
+    };
+    built.confirmer.recordMatching(AUTHORIZATION_TX, selectRequirements(required, payment), PAYER);
+
+    // The payer's asset reached the operator; everything after that did not.
+    await expect(built.x402.settle(built.resource, payment)).rejects.toThrow();
+    return built;
+  }
+
+  function swapping() {
+    return new FakeCrossAssetSettler()
+      .willPlan(money(2_000_000n, "EURC"))
+      .willSpend(money(1_990_000n, "EURC"))
+      .willUseTransaction(SWAP_TX);
+  }
+
+  test("confirms a swap that already went out rather than sending it again", async () => {
+    // The hash was persisted before the confirmation was trusted, precisely so
+    // this is recoverable. A swap has no nonce to stop a second one: re-sending
+    // spends the operator's own balance and pays the merchant twice.
+    const settler = swapping().willFailToConfirm(new Error("RPC timed out"));
+    const built = await interrupted(settler);
+
+    settler.recovers();
+    const recovered = await built.x402.recoverBroadcasts();
+
+    expect(recovered).toHaveLength(1);
+    expect(settler.sent).toHaveLength(1);
+    const transaction = await built.clearing.engine.getById(recovered[0] ?? "");
+    expect(transaction.state).toBe("SUCCESS");
+    expect(transaction.providerReference).toBe(SWAP_TX);
+  });
+
+  test("sends the swap when the interruption came before it", async () => {
+    // The other half: the payer's EURC is at the operator, the merchant is
+    // unpaid, and the nonce is spent so nothing can pay them except this.
+    const settler = swapping().willFailToSend(new Error("broadcast refused"));
+    const built = await interrupted(settler);
+    expect(settler.sent).toHaveLength(0);
+
+    settler.recovers();
+    const recovered = await built.x402.recoverBroadcasts();
+
+    expect(recovered).toHaveLength(1);
+    expect(settler.sent).toHaveLength(1);
+    expect(settler.sent[0]?.recipient).toBe(MERCHANT_SAFE);
+    expect(settler.sent[0]?.exactOut).toEqual(money(2_000_000n, "USDC"));
+    const transaction = await built.clearing.engine.getById(recovered[0] ?? "");
+    expect(transaction.state).toBe("SUCCESS");
+  });
+
+  test("books the payer's change on the resumed payment too", async () => {
+    // The resume goes through the same receipt, so the change is classified the
+    // same way and is owed to the same address — read off the authorization,
+    // which is the only thing that knows who signed.
+    const settler = swapping().willFailToConfirm(new Error("RPC timed out"));
+    const built = await interrupted(settler);
+
+    settler.recovers();
+    const recovered = await built.x402.recoverBroadcasts();
+    const id = recovered[0] ?? "";
+
+    expect((await built.clearing.ledger.balance("PAYER_SURPLUS", "EURC")).balance).toEqual(
+      money(20_051n, "EURC"),
+    );
+    const events = await built.clearing.repositories.clearing.listEvents(id);
+    const receipt = events.find((event) => event.toState === "ASSET_RECEIVED");
+    expect(receipt?.payload).toMatchObject({
+      payerSurplusDisposition: "refundable",
+      payerRefundAddress: PAYER,
+    });
+  });
+
+  test("re-swaps nothing once the payment is done", async () => {
+    // A settled payment is terminal, so the sweep never sees it again.
+    const settler = swapping().willFailToConfirm(new Error("RPC timed out"));
+    const built = await interrupted(settler);
+    settler.recovers();
+    await built.x402.recoverBroadcasts();
+
+    expect(await built.x402.recoverBroadcasts()).toHaveLength(0);
+    expect(settler.sent).toHaveLength(1);
+  });
+});

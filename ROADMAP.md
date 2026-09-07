@@ -376,9 +376,11 @@ confirmed has not been received. Three consequences follow:
 - **`X402Service.recoverBroadcasts` finishes it**, at boot and on the same
   60-second beat as the sweep. The clearing engine cannot do this itself —
   confirming means reading a chain — so the service holding the confirmers
-  rebuilds the requirements from what was locked, never from a fresh price, and
-  confirms the hash it already has. A pass that cannot confirm yet leaves the
-  payment where it is and repeats next time.
+  rebuilds the requirements from what the payer signed — recorded on the
+  `settlement.broadcast` event, never re-priced — and confirms the hash it
+  already has. A cross-asset payment has two movements, so it also reads whether
+  the swap has gone out and either confirms it or sends it. A pass that cannot
+  confirm yet leaves the payment where it is and repeats next time.
 - **A merchant is not told about it.** `settlement.broadcast` records no state
   change, so `toWebhookEventType` returns nothing for it and the outbox filters
   it in SQL — where `limit` counts only rows a merchant is told about, so a page
@@ -838,8 +840,14 @@ deploys as a Worker rather than to Pages.
       zero, treasury netting to zero. `bun run scripts/e2e-x402.ts --pay-with
 EURC` is the repeatable form.
 - [x] `FEEDBACK.md` and the README pointing at the contracts and lines to read.
-- [ ] Resume a cross-asset payment interrupted between its two chain movements.
-      `recoverBroadcasts` skips them today rather than confirming one wrongly.
+- [x] Resume a cross-asset payment interrupted between its two chain movements.
+      `recoverBroadcasts` branches on the `settlement.swap` event: with it the
+      swap has gone out and only needs confirming, without it the swap still has
+      to be sent. The authorization is confirmed first in both branches — a
+      resume has no facilitator response in front of it saying the payer's asset
+      landed, and swapping for one that did not spends the operator's own
+      balance. What the payer signed is read off the `settlement.broadcast`
+      event, because on a cross-asset payment nothing else records it.
 - [ ] Send the refund. The threshold is set and the address is on the receipt
       event, so above dust the change is a liability with a payee — but no
       transaction returns it yet, and that is a broadcast with its own nonce,

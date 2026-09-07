@@ -59,6 +59,19 @@ export class FakeCrossAssetSettler implements CrossAssetSettler {
     return this;
   }
 
+  /**
+   * The interruption is over.
+   *
+   * A resume walks into a chain that works again, and a fake whose failure is
+   * permanent cannot express that — it can only prove the first attempt failed,
+   * which is the half that was already known.
+   */
+  recovers(): this {
+    this.#sendFails = undefined;
+    this.#confirmFails = undefined;
+    return this;
+  }
+
   async plan(request: CrossAssetSwapRequest): Promise<Money> {
     this.planned.push(request);
     return this.#expectedIn?.(request) ?? request.held;

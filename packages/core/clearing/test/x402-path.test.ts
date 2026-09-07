@@ -1,10 +1,12 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { awaitsFacilitatorSettlement, usesDepositAddress } from "@mayarin/payment-intent";
-import { ProviderError } from "@mayarin/shared";
+import { money, ProviderError } from "@mayarin/shared";
 import type { ClearingTransaction } from "../src/types.ts";
 import { createHarness } from "./harness.ts";
 
 const TX_HASH = `0x${"ab".repeat(32)}`;
+/** What the payer signed for. Equal to the lock, because these rails are same-asset. */
+const AUTHORIZED = money(50_000n, "USDC");
 
 function completion(transaction: ClearingTransaction) {
   if (transaction.settlementAmount === undefined) throw new Error("Missing lock");
@@ -240,7 +242,11 @@ describe("x402 execution path", () => {
     test("keeps the hash without moving the payment", async () => {
       const { harness, started } = await pending();
 
-      const recorded = await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+      const recorded = await harness.engine.recordFacilitatorBroadcast(
+        started.id,
+        TX_HASH,
+        AUTHORIZED,
+      );
 
       expect(recorded.state).toBe("PAYMENT_PENDING");
       expect(recorded.providerReference).toBe(TX_HASH);
@@ -254,7 +260,7 @@ describe("x402 execution path", () => {
     test("credits nothing on its own", async () => {
       const { harness, started } = await pending();
 
-      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH, AUTHORIZED);
 
       expect(await harness.ledger.transactionsFor(started.id)).toHaveLength(0);
     });
@@ -263,8 +269,12 @@ describe("x402 execution path", () => {
     test("is idempotent for the same hash", async () => {
       const { harness, started } = await pending();
 
-      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
-      const again = await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH, AUTHORIZED);
+      const again = await harness.engine.recordFacilitatorBroadcast(
+        started.id,
+        TX_HASH,
+        AUTHORIZED,
+      );
 
       expect(again.providerReference).toBe(TX_HASH);
       const events = await harness.repositories.clearing.listEvents(started.id);
@@ -273,10 +283,10 @@ describe("x402 execution path", () => {
 
     test("refuses a second, different hash", async () => {
       const { harness, started } = await pending();
-      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH, AUTHORIZED);
 
       await expect(
-        harness.engine.recordFacilitatorBroadcast(started.id, `0x${"cd".repeat(32)}`),
+        harness.engine.recordFacilitatorBroadcast(started.id, `0x${"cd".repeat(32)}`, AUTHORIZED),
       ).rejects.toThrow(/already has a different settlement reference/);
     });
 
@@ -284,7 +294,7 @@ describe("x402 execution path", () => {
       const { harness, started } = await pending();
 
       await expect(
-        harness.engine.recordFacilitatorBroadcast(started.id, "pending"),
+        harness.engine.recordFacilitatorBroadcast(started.id, "pending", AUTHORIZED),
       ).rejects.toThrow(/not a transaction hash/);
     });
 
@@ -295,16 +305,16 @@ describe("x402 execution path", () => {
       });
       const started = await harness.engine.start(intent);
 
-      await expect(harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH)).rejects.toThrow(
-        /Only an x402 payment/,
-      );
+      await expect(
+        harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH, AUTHORIZED),
+      ).rejects.toThrow(/Only an x402 payment/);
     });
 
     // Expiry describes a payer who never paid. A payment holding a broadcast
     // hash was paid, and failing it would bury the money it moved.
     test("keeps the expiry sweep off a payment that has been broadcast", async () => {
       const { harness, started } = await pending();
-      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH, AUTHORIZED);
       harness.clock.advance(60 * 60 * 1000);
 
       expect(await harness.engine.sweepExpired()).toHaveLength(0);
@@ -323,7 +333,7 @@ describe("x402 execution path", () => {
     // be finished from it.
     test("survives a confirmation that throws, and settles afterwards", async () => {
       const { harness, started } = await pending();
-      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH);
+      await harness.engine.recordFacilitatorBroadcast(started.id, TX_HASH, AUTHORIZED);
 
       const stranded = await harness.engine.getById(started.id);
       expect(stranded.providerReference).toBe(TX_HASH);
