@@ -104,7 +104,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       >
         <div
           data-sidebar-header
-          class="flex min-h-14 items-center justify-between gap-2 border-b border-sidebar-border px-3 py-[9.5px] md:px-2"
+          class="flex h-16 items-center justify-between gap-2 border-b border-sidebar-border px-3 md:px-2"
         >
           <a
             href="/"
@@ -158,11 +158,19 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       </aside>
 
       <main id="main" class="min-w-0 flex-1">
-        <!-- `min-h-14` matches the sidebar header above the nav, so the two
-             bottom borders meet as one line across the seam rather than
-             stepping. Changing either height alone breaks that. -->
+        <!-- `h-16` on both this and the sidebar header, so their bottom
+             borders meet as one line across the seam. A *fixed* height rather
+             than a minimum, because the sidebar's own content changes when it
+             collapses — the logo leaves the flow — and a minimum would let that
+             header shrink out from under this one. Changing either alone puts
+             the step back.
+
+             Below `md` there is no seam to line up with: the sidebar is off
+             canvas and the bar carries a menu button rather than a greeting, so
+             the border and the greeting are both dropped. A rule under a bar
+             holding one button separates nothing. -->
         <header
-          class="flex min-h-14 items-center justify-between gap-4 border-b border-border bg-background px-4 md:px-8 lg:px-10"
+          class="flex h-16 items-center justify-between gap-4 border-border bg-background px-4 md:border-b md:px-8 lg:px-10"
         >
           <div class="flex items-center gap-3">
             <button
@@ -179,7 +187,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               </span>
               <XIcon data-menu-close-icon size={22} weight="bold" aria-hidden="true" />
             </button>
-            <span class="truncate text-[17px] font-medium text-foreground">
+            <span class="hidden truncate text-[17px] font-medium text-foreground md:inline">
               <span data-greeting>Welcome back</span>, {greetingName}!{" "}
               <span data-greeting-emoji aria-hidden="true">&#128075;</span>
             </span>
