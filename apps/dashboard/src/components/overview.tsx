@@ -172,11 +172,21 @@ function balanceHistory(
 
   // Backwards from today, then reversed: each earlier day undoes the movements
   // of the day after it.
+  //
+  // Clamped at zero, and the clamp is load-bearing rather than defensive. The
+  // walk starts from what the *current* settlement address holds and subtracts
+  // every settlement in the window — including ones paid to an address the
+  // merchant has since replaced, which this balance never contained. Changing a
+  // settlement address makes that immediate: today's holding is the new
+  // address's, the history is the old one's, and the difference drives the walk
+  // below zero. A negative balance is not a thing a merchant ever held, so the
+  // floor is nothing.
   const history: { date: string; balance: bigint }[] = [];
   let balance = current;
   for (const day of [...days].reverse()) {
     history.push({ date: day, balance });
-    balance = balance - (inflow.get(day) ?? 0n) + (outflow.get(day) ?? 0n);
+    const previous = balance - (inflow.get(day) ?? 0n) + (outflow.get(day) ?? 0n);
+    balance = previous > 0n ? previous : 0n;
   }
   return history.reverse();
 }

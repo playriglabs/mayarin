@@ -72,6 +72,17 @@ function axisOf(points: readonly Plot[], count: number) {
   };
 }
 
+/**
+ * A domain given here is a request, not a rule.
+ *
+ * Recharts widens a domain to fit data outside it unless told otherwise, and a
+ * widened domain leaves fixed ticks bunched wherever they happen to fall — a
+ * `$ 0,00` label a quarter of the way down the chart, with the series running
+ * below it. `allowDataOverflow` makes the domain the actual scale and clips
+ * anything outside, which is what a fixed axis has to mean.
+ */
+const CLIP_TO_DOMAIN = true;
+
 /** The tooltip pill: a dot, the day, the figure, and what it is made of. */
 function ChartTooltip({
   active,
@@ -158,6 +169,7 @@ export function TrendChart({
               tickFormatter={formatTick}
               domain={axis.domain}
               ticks={axis.ticks}
+              allowDataOverflow={CLIP_TO_DOMAIN}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
@@ -253,6 +265,7 @@ export function TrendBars({
               // shape of a line does on its own.
               domain={axis.domain}
               ticks={axis.ticks}
+              allowDataOverflow={CLIP_TO_DOMAIN}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
