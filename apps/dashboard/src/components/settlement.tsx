@@ -58,16 +58,12 @@ import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { useSettings } from "@/hooks/settings";
 import { useSettlements } from "@/hooks/settlements";
 import { ApiError } from "@/lib/api/client";
+import { shortHash } from "@/lib/chain-explorer";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
 import { PAGE_SIZE } from "@/lib/pagination";
 import { withQuery } from "@/lib/with-query";
 import type { SettlementDto } from "@/types/settlement";
-
-/** Shortened for display only — the full value stays in the `title`. */
-function shortHash(hash: string): string {
-  return hash.length <= 20 ? hash : `${hash.slice(0, 10)}…${hash.slice(-8)}`;
-}
 
 function toneOf(state: string): "success" | "destructive" | "warning" {
   if (state === "SUCCESS" || state === "SETTLED") return "success";
