@@ -55,10 +55,10 @@ interface NavItem {
   /**
    * A short flag beside the label — "NEW" and nothing longer.
    *
-   * Deliberately not the shared `Badge`: its variants are coloured for the app
-   * surface, and this sidebar is dark whatever theme the rest of the page is in,
-   * so `success` would be a pale pill on black half the time. `electric` is the
-   * green this surface already uses for the active item and its focus ring.
+   * Deliberately not the shared `Badge`: its variants are coloured for the page
+   * surface rather than for this one. `sidebar-marker` is the green this
+   * sidebar already uses for the active item — forest on paper, electric on
+   * void — so the chip stays readable in both themes without a second rule.
    */
   readonly flag?: string;
 }
@@ -183,14 +183,14 @@ export default function SideNav({
                     {active && (
                       <span
                         aria-hidden="true"
-                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-electric"
+                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-sidebar-marker"
                       />
                     )}
                     <IconComponent
                       size={SIDEBAR_ICON_SIZE}
                       weight={active ? "fill" : "regular"}
                       aria-hidden="true"
-                      className={active ? "text-electric" : "text-sidebar-muted-foreground"}
+                      className={active ? "text-sidebar-marker" : "text-sidebar-muted-foreground"}
                     />
                     <span data-sidebar-nav-label>{label}</span>
                     {flag !== undefined && (
@@ -199,7 +199,7 @@ export default function SideNav({
                       // than by a second one that could drift from it.
                       <span
                         data-sidebar-nav-label
-                        className="bg-electric/15 px-1.5 py-0.5 font-medium text-[10px] text-electric uppercase tracking-wide"
+                        className="bg-sidebar-marker/15 px-2 py-px font-medium text-[9px] text-sidebar-marker uppercase tracking-wide"
                       >
                         {flag}
                       </span>

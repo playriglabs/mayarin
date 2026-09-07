@@ -112,13 +112,25 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
             aria-label="Mayarin dashboard"
             class="flex min-h-11 items-center gap-2 px-2"
           >
+            <!-- Two marks, one per theme. The white one was drawn for the void
+                 sidebar and disappears entirely on the light one, so the theme
+                 picks rather than a filter inverting a logo into something the
+                 brand kit never approved. -->
+            <img
+              src="https://mayarin.xyz/brand-kit/mayarin-logo-black.png"
+              alt=""
+              aria-hidden="true"
+              width="400"
+              height="400"
+              class="h-9 w-auto dark:hidden"
+            />
             <img
               src="https://mayarin.xyz/brand-kit/mayarin-logo-white.png"
               alt=""
               aria-hidden="true"
               width="400"
               height="400"
-              class="h-9 w-auto"
+              class="hidden h-9 w-auto dark:block"
             />
           </a>
           <button

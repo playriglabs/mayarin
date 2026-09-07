@@ -6,6 +6,18 @@
 @import "@fontsource/instrument-serif/400-italic.css";
 
 /**
+ * `dark:` means the theme this app is in, not the one the operating system is
+ * in.
+ *
+ * Tailwind v4's default `dark:` is `prefers-color-scheme`, which this product
+ * deliberately does not follow: a pre-paint script stamps `data-theme` from the
+ * user's own choice, and dark is the default rather than the OS's answer. Left
+ * alone, `dark:` would fire for someone whose machine is dark and whose
+ * dashboard is light — the exact case it is used to guard against.
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/**
  * Theme tokens, on shadcn's naming.
  *
  * Colours use shadcn's vocabulary (`background`, `foreground`, `primary`,
@@ -75,15 +87,23 @@
      white, where it cannot pass contrast. */
   --electric: #0eeb2e;
 
-  /* EXTRA — the sidebar is the landing's dark tone brought into the product:
-     void black, lifted hairlines, slate text. shadcn's own sidebar-* names,
-     so a registry sidebar component is already themed. */
-  --sidebar: #050505;
-  --sidebar-foreground: #fafafa;
-  --sidebar-muted-foreground: #8a8a8a;
-  --sidebar-border: #1e1e1e;
-  --sidebar-accent: #121212;
-  --sidebar-accent-foreground: #fafafa;
+  /* EXTRA — the sidebar, in shadcn's own sidebar-* names so a registry sidebar
+     component is already themed.
+
+     It used to be the landing's void black in both themes. That made the
+     product's own light mode a dark slab beside a white page, and it forced
+     every mark on it to be chosen for black — which is why `--sidebar-marker`
+     exists: the landing's electric green is a signal on void and unreadable on
+     paper, so the marker follows the theme rather than the surface. */
+  --sidebar: #fafafa;
+  --sidebar-foreground: #111111;
+  --sidebar-muted-foreground: #666666;
+  --sidebar-border: #eaeaea;
+  --sidebar-accent: #efefef;
+  --sidebar-accent-foreground: #111111;
+  /* Forest here, electric on the dark tone. Both pass 12px text on their own
+     surface; neither passes on the other's. */
+  --sidebar-marker: #1f6f54;
 
   /* EXTRA — brand, and the status colours a payment dashboard needs. Each
      pairs with a wash light enough to sit under 12px text. */
@@ -163,6 +183,17 @@
 
   --chart-1: #0eeb2e;
   --loader-color: var(--electric);
+
+  /* The landing's dark tone, which the sidebar carried in both themes until
+     light mode got its own. One step off `--background` so the seam reads
+     without a border doing all the work. */
+  --sidebar: #050505;
+  --sidebar-foreground: #fafafa;
+  --sidebar-muted-foreground: #8a8a8a;
+  --sidebar-border: #1e1e1e;
+  --sidebar-accent: #121212;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-marker: var(--electric);
 }
 
 /* The login CTA keeps the shared default hover in light mode. Only an
@@ -298,6 +329,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-marker: var(--sidebar-marker);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-muted: var(--brand-muted);
@@ -366,9 +398,11 @@
     border-color: var(--color-border);
   }
 
-  /* On the void sidebar the forest ring vanishes; the electric accent is the
-     focus colour the landing uses on its dark tone. */
-  [data-tone="dark"] :focus-visible {
+  /* On the void sidebar the forest ring vanishes, so the dark tone borrows the
+     landing's electric focus colour. Scoped to the dark theme: in light mode
+     the sidebar is paper and the forest ring is the readable one — electric on
+     white is the contrast failure this palette avoids everywhere else. */
+  :root[data-theme="dark"] [data-tone="dark"] :focus-visible {
     outline-color: var(--electric);
   }
 
