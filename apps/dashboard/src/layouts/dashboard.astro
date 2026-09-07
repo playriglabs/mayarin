@@ -159,7 +159,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 
       <main id="main" class="min-w-0 flex-1">
         <header
-          class="flex min-h-16 items-center justify-between gap-4 bg-background px-4 py-3 md:px-8 lg:px-10"
+          class="flex min-h-16 items-center justify-between gap-4 bg-background px-4 md:px-8 lg:px-10"
         >
           <div class="flex items-center gap-3">
             <button
@@ -176,30 +176,37 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               </span>
               <XIcon data-menu-close-icon size={22} weight="bold" aria-hidden="true" />
             </button>
-            <div class="flex min-w-0 flex-col gap-0.5">
-              <span class="truncate text-[17px] font-medium text-foreground">
-                Welcome back, {greetingName}! <span aria-hidden="true">&#128075;</span>
-              </span>
-              <p class="text-sm text-muted-foreground">
-                Browse our{" "}
-                <a
-                  href="https://docs.mayarin.xyz"
-                  target="_blank"
-                  rel="noreferrer"
-                  class="text-foreground underline decoration-input underline-offset-2 transition-colors hover:decoration-foreground"
-                >
-                  developer docs
-                </a>{" "}
-                or{" "}
-                <a
-                  href="/x402"
-                  class="text-foreground underline decoration-input underline-offset-2 transition-colors hover:decoration-foreground"
-                >
-                  sell an endpoint to an agent
-                </a>{" "}
-                to start using Mayarin.
-              </p>
-            </div>
+            <span class="truncate text-[17px] font-medium text-foreground">
+              <span data-greeting>Welcome back</span>, {greetingName}!{" "}
+              <span data-greeting-emoji aria-hidden="true">&#128075;</span>
+            </span>
+            <script is:inline>
+              // The time of day is the *reader's*, not the server's. This page
+              // renders on Cloudflare, so a greeting decided there would tell
+              // someone in Jakarta good evening over their morning coffee.
+              //
+              // Inline and immediately after the element, so it runs while the
+              // parser is still here and the neutral server-rendered wording is
+              // never seen changing. In `<head>` it would run before the span
+              // exists and do nothing at all.
+              (() => {
+                const hour = new Date().getHours();
+                const [greeting, emoji] =
+                  hour < 5
+                    ? ["Good night", "\uD83C\uDF19"]
+                    : hour < 12
+                      ? ["Good morning", "\u2600\uFE0F"]
+                      : hour < 17
+                        ? ["Good afternoon", "\uD83C\uDF24\uFE0F"]
+                        : hour < 21
+                          ? ["Good evening", "\uD83C\uDF06"]
+                          : ["Good night", "\uD83C\uDF19"];
+                const label = document.querySelector("[data-greeting]");
+                if (label !== null) label.textContent = greeting;
+                const mark = document.querySelector("[data-greeting-emoji]");
+                if (mark !== null) mark.textContent = emoji;
+              })();
+            </script>
           </div>
 
           <nav aria-label="Dashboard shortcuts" class="flex items-center gap-2">
