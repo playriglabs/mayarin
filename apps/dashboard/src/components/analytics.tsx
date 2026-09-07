@@ -35,17 +35,6 @@ import { formatMoneyLocale } from "@mayarin/shared/locale";
 import { money } from "@mayarin/shared/money";
 import { ChartBarIcon, InfoIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
-import { useId } from "react";
-// Recharts ships its own `Tooltip`, which is a chart overlay rather than the
-// hover popup this app means by the word. Aliased so both can be used here.
-import {
-  Area,
-  AreaChart,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { match } from "ts-pattern";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -70,6 +59,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { dayLabel, type Plot, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
 import { ApiError } from "@/lib/api/client";
 import { compactMoney } from "@/lib/compact";
@@ -80,12 +70,7 @@ import { withQuery } from "@/lib/with-query";
 import type { PaymentIntentDto } from "@/types/payment";
 import type { SettlementDto } from "@/types/settlement";
 
-const DAY_LABEL = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" });
 const WINDOW_DAYS = 14;
-
-function dayLabel(iso: string): string {
-  return DAY_LABEL.format(new Date(`${iso}T00:00:00Z`));
-}
 
 /* -------------------------------------------------------------------------- */
 /* Derivation                                                                 */
@@ -258,116 +243,6 @@ function formatDuration(seconds: number): string {
 /* -------------------------------------------------------------------------- */
 /* Charts                                                                      */
 /* -------------------------------------------------------------------------- */
-
-interface Plot {
-  readonly date: string;
-  /** Plotted height. A float, because this is geometry rather than accounting. */
-  readonly value: number;
-  /** Preformatted: only the caller knows whether this is money or a duration. */
-  readonly label: string;
-  readonly detail: string;
-}
-
-/** The tooltip pill: a dot, the day, the figure, and what it is made of. */
-function ChartTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: readonly { payload: Plot }[];
-}) {
-  const point = payload?.[0]?.payload;
-  if (active !== true || point === undefined) return null;
-
-  return (
-    <div className="flex flex-col gap-0.5 border border-border bg-popover px-2.5 py-1.5 text-xs shadow-sm">
-      <span className="flex items-center gap-2">
-        <span aria-hidden="true" className="size-2 shrink-0 bg-chart-1" />
-        <span className="font-medium text-foreground">{dayLabel(point.date)}</span>
-      </span>
-      <span className="text-muted-foreground">{point.label}</span>
-      <span className="text-subtle-foreground">{point.detail}</span>
-    </div>
-  );
-}
-
-/**
- * A filled line over time, on Recharts.
- *
- * Hand-drawn SVG got the shape but not the behaviour: a shared cursor, a
- * tooltip that tracks the nearest point rather than the column under the mouse,
- * and axis ticks that thin out as the series grows are all things this library
- * already does correctly.
- *
- * Two departures from its defaults, both deliberate. The hue is the product's
- * single chart colour rather than a per-series palette — length carries
- * magnitude here and colour means only "this is data". And the axes are
- * recessive: no grid, no axis lines, two Y labels and two X labels, because a
- * label under every one of fourteen days collides long before it informs.
- */
-function TrendChart({
-  points,
-  formatTick,
-}: {
-  points: readonly Plot[];
-  formatTick: (value: number) => string;
-}) {
-  const gradientId = useId();
-
-  if (points.length === 0) {
-    return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
-  }
-
-  return (
-    <div className="h-44 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={[...points]} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.25} />
-              <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <XAxis
-            dataKey="date"
-            tickFormatter={dayLabel}
-            // First and last only: the reference labels the ends of the window
-            // and nothing between them, which is what fits.
-            ticks={[points[0]?.date ?? "", points[points.length - 1]?.date ?? ""]}
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            width={64}
-            tickFormatter={formatTick}
-            tickCount={2}
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
-          />
-          <RechartsTooltip
-            content={<ChartTooltip />}
-            cursor={{ stroke: "var(--color-input)", strokeDasharray: "3 3" }}
-          />
-          <Area
-            type="linear"
-            dataKey="value"
-            stroke="var(--color-chart-1)"
-            strokeWidth={1.5}
-            fill={`url(#${gradientId})`}
-            // The dot appears on hover only. Fourteen of them at rest is a
-            // series competing with itself for attention.
-            dot={false}
-            activeDot={{ r: 3, className: "fill-chart-1 stroke-background" }}
-            isAnimationActive={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
 
 const TONE_FILL: Readonly<Record<StatusSlice["tone"], string>> = {
   success: "bg-success",
