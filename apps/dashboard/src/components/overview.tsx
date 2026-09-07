@@ -58,7 +58,16 @@ import type { ChainBalanceDto, WalletWithdrawalDto } from "@/types/settings";
 import type { SettlementDto } from "@/types/settlement";
 
 const IN_PROGRESS = new Set(["CREATED", "CONFIRMED", "PROCESSING"]);
-const WINDOW_DAYS = 14;
+/** The movement cards' window, matching the analytics page they link to. */
+const MOVEMENT_DAYS = 14;
+/**
+ * The balance's window, deliberately longer.
+ *
+ * A balance moves on settlement and withdrawal rather than on trading, so two
+ * weeks of it is often one step and a flat line. A month is enough to show a
+ * shape without becoming a chart nobody reads the middle of.
+ */
+const BALANCE_DAYS = 30;
 
 function volumeOf(settlements: readonly SettlementDto[]): {
   value: string;
@@ -144,7 +153,7 @@ function balanceDisplay(total: bigint, asset: string): string {
 }
 
 /**
- * Balance over the last fourteen days, walked backwards from today.
+ * Balance over the last thirty days, walked backwards from today.
  *
  * There is no balance history to read: a chain reports what an address holds
  * now and nothing about what it held on Tuesday. So it is reconstructed —
@@ -161,7 +170,7 @@ function balanceHistory(
   settlements: readonly SettlementDto[],
   withdrawals: readonly WalletWithdrawalDto[],
 ): readonly { date: string; balance: bigint }[] {
-  const days = recentDays(WINDOW_DAYS);
+  const days = recentDays(BALANCE_DAYS);
   const inflow = new Map<string, bigint>();
   const outflow = new Map<string, bigint>();
 
@@ -205,7 +214,7 @@ function dailyTotals(
 ): readonly { date: string; total: bigint }[] {
   const byDay = new Map<string, bigint>();
   for (const entry of entries) byDay.set(entry.day, (byDay.get(entry.day) ?? 0n) + entry.amount);
-  return recentDays(WINDOW_DAYS).map((date) => ({ date, total: byDay.get(date) ?? 0n }));
+  return recentDays(MOVEMENT_DAYS).map((date) => ({ date, total: byDay.get(date) ?? 0n }));
 }
 
 /**
