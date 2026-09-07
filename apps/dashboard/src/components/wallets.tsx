@@ -20,7 +20,6 @@ import { chainLabel } from "@mayarin/chain";
 import { isAssetCode } from "@mayarin/shared/asset";
 import {
   ArrowLineUpRightIcon,
-  ArrowSquareOutIcon,
   CheckCircleIcon,
   PlusIcon,
   SealCheckIcon,
@@ -30,6 +29,7 @@ import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
+import { TransactionLink } from "@/components/transaction-link";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,7 +84,6 @@ import {
   useWithdraw,
 } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
-import { transactionExplorerUrl } from "@/lib/chain-explorer";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { fromEditableDecimalString } from "@/lib/decimal-input";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
@@ -135,10 +134,6 @@ function reasonOf(error: unknown): string {
 
 function withdrawalReasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load withdrawal history";
-}
-
-function shortHash(hash: string): string {
-  return hash.length <= 20 ? hash : `${hash.slice(0, 10)}…${hash.slice(-8)}`;
 }
 
 function Wallets() {
@@ -856,7 +851,6 @@ function Wallets() {
                 </TableHeader>
                 <TableBody>
                   {withdrawalRows.map((row) => {
-                    const explorer = transactionExplorerUrl(row.chain, row.transactionHash);
                     return (
                       <TableRow key={row.id}>
                         <TableCell className="text-muted-foreground">
@@ -874,22 +868,10 @@ function Wallets() {
                           <Badge variant="success">Confirmed</Badge>
                         </TableCell>
                         <TableCell>
-                          {explorer === undefined ? (
-                            <span className="font-mono text-muted-foreground text-xs">
-                              {shortHash(row.transactionHash)}
-                            </span>
-                          ) : (
-                            <a
-                              href={explorer}
-                              target="_blank"
-                              rel="noreferrer"
-                              title={row.transactionHash}
-                              className="inline-flex items-center gap-1 font-mono text-foreground text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
-                            >
-                              {shortHash(row.transactionHash)}
-                              <ArrowSquareOutIcon size={12} aria-hidden="true" />
-                            </a>
-                          )}
+                          <TransactionLink
+                            chain={row.chain}
+                            transactionHash={row.transactionHash}
+                          />
                         </TableCell>
                       </TableRow>
                     );

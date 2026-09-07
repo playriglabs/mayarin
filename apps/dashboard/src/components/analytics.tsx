@@ -1,20 +1,30 @@
 /**
- * Merchant analytics — a React island over the real `/payments` endpoint.
+ * Merchant analytics — a React island over the dedicated `/analytics` read.
  *
- * Every figure is derived from the dedicated, unpaginated analytics read. The
- * explorer and settlement table remain independently paginated; changing page
- * can therefore never change a chart or headline metric.
+ * Two sections, because a payment and its settlement are two different facts
+ * about the same money and a merchant asks different questions of each. **Pay
+ * ins** is what buyers were charged, in the merchant's own currency. **Pay
+ * outs** is what actually reached the merchant, net of fee, in the settlement
+ * asset. Charting one and calling it both would hide the fee and every payment
+ * that was taken and never settled.
  *
- * Volume is charted in the merchant's dominant completed settlement asset.
- * This makes customer prices in IDR and USD directly comparable after they
- * have actually settled, without inventing a dashboard-side exchange rate.
+ * Each section answers the same three questions: how much moved, what state it
+ * ended in, and how long it took. Every figure is derived from the unpaginated
+ * analytics read, so changing a page in the explorer can never move a chart.
  *
- * Two charts, both single-series, both drawn in one hue. Shading bars
- * light-to-dark by value would be colour following RANK rather than an
- * entity: redundant with the length already encoding magnitude, and repainted
- * the moment the sort changes. Length carries magnitude; the direct label
- * carries identity; the hue is constant and means only "this is data".
- * Marks are square-ended because the design system has no corner radius.
+ * ## Colour
+ *
+ * The charts are single-hue: length carries magnitude, the direct label carries
+ * identity, and the hue means only "this is data". Shading by value would be
+ * colour following rank, repainted the moment a sort changes.
+ *
+ * **Status overview is the one deliberate exception.** Four states share one
+ * stacked bar, so length cannot distinguish them — colour is the only channel
+ * left, and it is encoding identity rather than rank. It uses the semantic
+ * tokens the rest of the product already reads (`success`, `warning`,
+ * `destructive`, and a muted grey for expired), so a status means the same
+ * thing here as it does on a payment row. Every segment is also labelled with
+ * its name and its share, so the colour is never the only signal.
  *
  * Each chart ships a real table behind a disclosure, so the numbers are
  * reachable without reading a picture.
@@ -23,9 +33,8 @@
 import { type AssetCode, assetDecimals, assetSymbol } from "@mayarin/shared/asset";
 import { formatMoneyLocale } from "@mayarin/shared/locale";
 import { money } from "@mayarin/shared/money";
-import { ChartBarIcon } from "@phosphor-icons/react";
+import { ChartBarIcon, InfoIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
-import { useState } from "react";
 import { match } from "ts-pattern";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,9 +58,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { dayLabel, type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
 import { ApiError } from "@/lib/api/client";
-import { compactMoney, percentOf } from "@/lib/compact";
+import { compactMoney } from "@/lib/compact";
 import { ICON_CARD } from "@/lib/icons";
 import { dominantAsset } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -59,11 +70,15 @@ import { withQuery } from "@/lib/with-query";
 import type { PaymentIntentDto } from "@/types/payment";
 import type { SettlementDto } from "@/types/settlement";
 
-const DAY_LABEL = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" });
-
-function dayLabel(iso: string): string {
-  return DAY_LABEL.format(new Date(`${iso}T00:00:00Z`));
-}
+/**
+ * The charting window, matching the overview's balance card.
+ *
+ * The read behind it is unpaginated — every payment and settlement, always — so
+ * this slices rather than fetches. One window across the product means the
+ * "View more" on the overview opens the same month it was showing, rather than
+ * a different window wearing the same title.
+ */
+const WINDOW_DAYS = 30;
 
 /* -------------------------------------------------------------------------- */
 /* Derivation                                                                 */
@@ -75,201 +90,229 @@ interface DayPoint {
   readonly count: number;
 }
 
-interface AssetShare {
+/** One state's share of a section, in the tone the rest of the product uses. */
+interface StatusSlice {
   readonly label: string;
+  readonly count: number;
+  readonly tone: "success" | "warning" | "destructive" | "neutral";
+}
+
+interface DurationPoint {
+  readonly date: string;
+  /** Median seconds from created to completed, over the payments that day. */
+  readonly seconds: number;
   readonly count: number;
 }
 
-/**
- * Completed settlements in `asset`, grouped by the UTC day they completed.
- * At most the 14 most recent days that actually had a payment.
- */
-function dailyOf(settlements: readonly SettlementDto[], asset: AssetCode): readonly DayPoint[] {
+/** A row reduced to the three things every chart here needs from it. */
+interface Movement {
+  readonly day: string;
+  readonly amount: bigint | null;
+  readonly seconds: number | null;
+}
+
+function bucketByDay(movements: readonly Movement[]): readonly DayPoint[] {
   const byDay = new Map<string, { volume: bigint; count: number }>();
-  for (const settlement of settlements) {
-    const amount = settlement.settlementAmount;
-    if (
-      (settlement.state !== "SUCCESS" && settlement.state !== "SETTLED") ||
-      amount === null ||
-      amount.asset !== asset
-    ) {
-      continue;
-    }
-    const day = (settlement.completedAt ?? settlement.updatedAt).slice(0, 10);
-    const bucket = byDay.get(day) ?? { volume: 0n, count: 0 };
-    byDay.set(day, {
-      volume: bucket.volume + BigInt(amount.amount),
+  for (const movement of movements) {
+    if (movement.amount === null) continue;
+    const bucket = byDay.get(movement.day) ?? { volume: 0n, count: 0 };
+    byDay.set(movement.day, {
+      volume: bucket.volume + movement.amount,
       count: bucket.count + 1,
     });
   }
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
-    .slice(-14)
+    .slice(-WINDOW_DAYS)
     .map(([date, bucket]) => ({ date, ...bucket }));
 }
 
-/** What payers actually sent, counted by rail asset. Rail-less intents show
- * as "Not selected" rather than being dropped — they are real payments. */
-function mixOf(payments: readonly PaymentIntentDto[]): readonly AssetShare[] {
-  const counts = new Map<string, number>();
-  for (const p of payments) {
-    const label = p.payment?.asset ?? "Not selected";
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+/**
+ * How long each day's payments took, as a median.
+ *
+ * A median rather than a mean, for the reason the rail chooser already uses
+ * one: a single payment that sat unpaid for an hour would otherwise describe a
+ * day where everything else settled in seconds.
+ */
+function bucketDurations(movements: readonly Movement[]): readonly DurationPoint[] {
+  const byDay = new Map<string, number[]>();
+  for (const movement of movements) {
+    if (movement.seconds === null) continue;
+    byDay.set(movement.day, [...(byDay.get(movement.day) ?? []), movement.seconds]);
   }
-  return [...counts.entries()]
-    .sort(([, a], [, b]) => b - a)
-    .map(([label, count]) => ({ label, count }));
+  return [...byDay.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .slice(-WINDOW_DAYS)
+    .map(([date, samples]) => ({ date, seconds: medianOf(samples), count: samples.length }));
 }
 
-/* -------------------------------------------------------------------------- */
-/* Daily volume                                                                */
-/* -------------------------------------------------------------------------- */
+function medianOf(samples: readonly number[]): number {
+  const sorted = [...samples].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const upper = sorted[middle] ?? 0;
+  if (sorted.length % 2 === 1) return upper;
+  return ((sorted[middle - 1] ?? upper) + upper) / 2;
+}
 
-function VolumeChart({
-  points,
-  asset,
-  decimals,
-  symbol,
-}: {
-  points: readonly DayPoint[];
-  asset: AssetCode;
-  decimals: number;
-  symbol: string;
-}) {
-  const [hovered, setHovered] = useState<number | null>(null);
+/** Seconds between two timestamps, or `null` when either is missing. */
+function secondsBetween(from: string, to: string | null): number | null {
+  if (to === null) return null;
+  const elapsed = (new Date(to).getTime() - new Date(from).getTime()) / 1000;
+  return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : null;
+}
 
-  const max = points.reduce((acc, p) => (p.volume > acc ? p.volume : acc), 0n);
-  // Four ticks including zero, computed in bigint so the labels are exact. The
-  // quarter each tick sits at is carried along as its key: two ticks can share
-  // a value when the series is flat, so the value alone is not unique.
-  const ticks = [4n, 3n, 2n, 1n, 0n].map((n) => ({
-    id: `q${n}`,
-    value: (max * n) / 4n,
+/**
+ * What buyers were charged.
+ *
+ * Dated by creation rather than completion: this is demand, and a payment
+ * created on Monday that settles on Tuesday was Monday's.
+ */
+function payInMovements(payments: readonly PaymentIntentDto[], asset: AssetCode): Movement[] {
+  return payments.map((payment) => ({
+    day: payment.createdAt.slice(0, 10),
+    amount:
+      payment.status === "COMPLETED" && payment.amount.asset === asset
+        ? BigInt(payment.amount.amount)
+        : null,
+    seconds: secondsBetween(payment.createdAt, payment.completedAt),
   }));
+}
 
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex gap-3">
-        {/* Y axis. Recessive: no rule, no box, just the numbers. */}
-        <ul className="flex w-16 shrink-0 flex-col justify-between py-0 text-right text-xs text-subtle-foreground">
-          {ticks.map((t) => (
-            <li key={t.id}>{compactMoney(t.value, decimals, symbol)}</li>
-          ))}
-        </ul>
+/**
+ * What reached the merchant.
+ *
+ * `netAmount` rather than `settlementAmount`, because the fee is not the
+ * merchant's money and a payout chart that includes it overstates every day.
+ * Dated by completion: this is arrival.
+ */
+function payOutMovements(settlements: readonly SettlementDto[], asset: AssetCode): Movement[] {
+  return settlements.map((settlement) => {
+    const net = settlement.netAmount;
+    const settled = settlement.state === "SUCCESS" || settlement.state === "SETTLED";
+    return {
+      day: (settlement.completedAt ?? settlement.updatedAt).slice(0, 10),
+      amount: settled && net !== null && net.asset === asset ? BigInt(net.amount) : null,
+      seconds: secondsBetween(settlement.createdAt, settlement.completedAt),
+    };
+  });
+}
 
-        <div className="relative min-w-0 flex-1">
-          {/* Gridlines sit under the marks and are never read aloud. */}
-          <div aria-hidden="true" className="absolute inset-0 flex flex-col justify-between">
-            {ticks.map((t) => (
-              <span key={t.id} className="h-px w-full bg-border" />
-            ))}
-          </div>
+const PAY_IN_STATUS: Readonly<Record<string, { label: string; tone: StatusSlice["tone"] }>> = {
+  COMPLETED: { label: "Completed", tone: "success" },
+  CREATED: { label: "Awaiting payment", tone: "warning" },
+  CONFIRMED: { label: "Confirmed", tone: "warning" },
+  PROCESSING: { label: "Processing", tone: "warning" },
+  FAILED: { label: "Failed", tone: "destructive" },
+  EXPIRED: { label: "Expired", tone: "neutral" },
+};
 
-          {/* Each column is a real button, so the series is reachable by tab
-              and not only by pointer. The visual tooltip is decorative — the
-              same three facts are on the button's own label, which is what a
-              screen reader announces. */}
-          <div className="relative flex h-40 items-end gap-0.5">
-            {points.map((p, i) => {
-              const height = percentOf(p.volume, max);
-              const active = hovered === i;
-              return (
-                <button
-                  type="button"
-                  key={p.date}
-                  // The hit target spans the full column height, not just the
-                  // bar, so a short day is no harder to reach than a tall one.
-                  className="relative flex h-full flex-1 cursor-pointer items-end bg-transparent p-0"
-                  aria-label={`${dayLabel(p.date)}: ${formatMoneyLocale(money(p.volume, asset))} across ${p.count} payment${p.count === 1 ? "" : "s"}`}
-                  onMouseEnter={() => setHovered(i)}
-                  onMouseLeave={() => setHovered(null)}
-                  onFocus={() => setHovered(i)}
-                  onBlur={() => setHovered(null)}
-                >
-                  <motion.span
-                    className={cn("w-full origin-bottom", active ? "bg-primary" : "bg-chart-1")}
-                    style={{ height: `${height}%` }}
-                    initial={{ scaleY: 0 }}
-                    animate={{ scaleY: 1 }}
-                    transition={{
-                      duration: 0.4,
-                      delay: i * 0.02,
-                      ease: [0.16, 1, 0.3, 1],
-                    }}
-                  />
-                  {active && (
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 flex w-max max-w-48 -translate-x-1/2 flex-col border border-border bg-popover px-2 py-1.5 text-left text-xs shadow-sm"
-                    >
-                      <span className="font-medium text-foreground">{dayLabel(p.date)}</span>
-                      <span className="text-muted-foreground">
-                        {formatMoneyLocale(money(p.volume, asset))}
-                      </span>
-                      <span className="text-subtle-foreground">
-                        {p.count} payment{p.count === 1 ? "" : "s"}
-                      </span>
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+const PAY_OUT_STATUS: Readonly<Record<string, { label: string; tone: StatusSlice["tone"] }>> = {
+  SUCCESS: { label: "Complete", tone: "success" },
+  SETTLED: { label: "Settled", tone: "success" },
+  SETTLING: { label: "Settling", tone: "warning" },
+  CLEARING: { label: "Clearing", tone: "warning" },
+  FAILED: { label: "Failed", tone: "destructive" },
+};
 
-      {/* X axis: only the ends and the middle are labelled. A label under every
-          bar would collide long before fourteen days fit. */}
-      <div className="flex gap-3">
-        <span className="w-16 shrink-0" />
-        <div className="flex min-w-0 flex-1 justify-between text-xs text-subtle-foreground">
-          <span>{dayLabel(points[0]?.date ?? "")}</span>
-          <span>{dayLabel(points[Math.floor(points.length / 2)]?.date ?? "")}</span>
-          <span>{dayLabel(points[points.length - 1]?.date ?? "")}</span>
-        </div>
-      </div>
-    </div>
-  );
+/**
+ * Counts by state, largest first.
+ *
+ * A state the map does not name still appears, under its own raw name and in
+ * the neutral tone. Dropping it would quietly shrink the denominator, and a
+ * status overview whose shares do not add up to what happened is worse than one
+ * with an unfamiliar word in it.
+ */
+function statusesOf(
+  states: readonly string[],
+  vocabulary: Readonly<Record<string, { label: string; tone: StatusSlice["tone"] }>>,
+): readonly StatusSlice[] {
+  const counts = new Map<string, number>();
+  for (const state of states) counts.set(state, (counts.get(state) ?? 0) + 1);
+
+  return [...counts.entries()]
+    .map(([state, count]) => {
+      const known = vocabulary[state];
+      return {
+        label: known?.label ?? state,
+        tone: known?.tone ?? ("neutral" as const),
+        count,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+}
+
+/** Whole seconds read as noise past a minute; past an hour, so do minutes. */
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3_600) return `${(seconds / 60).toFixed(1)}m`;
+  return `${(seconds / 3_600).toFixed(1)}h`;
 }
 
 /* -------------------------------------------------------------------------- */
-/* Payer asset mix                                                             */
+/* Charts                                                                      */
 /* -------------------------------------------------------------------------- */
 
-function AssetMixChart({ mix }: { mix: readonly AssetShare[] }) {
-  const total = mix.reduce((acc, a) => acc + a.count, 0);
-  const max = mix.reduce((acc, a) => (a.count > acc ? a.count : acc), 0);
+const TONE_FILL: Readonly<Record<StatusSlice["tone"], string>> = {
+  success: "bg-success",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
+  neutral: "bg-subtle-foreground",
+};
+
+/**
+ * Every state in one bar, with a legend that names each one.
+ *
+ * Not a Recharts chart: it is one bar and a list, and a charting library adds a
+ * canvas, a layout pass and a tooltip to draw a row of divs.
+ *
+ * The bar alone would leave colour as the only channel. The legend repeats each
+ * state by name, count and share, so nothing here depends on telling green from
+ * yellow.
+ */
+function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
+  const total = slices.reduce((acc, slice) => acc + slice.count, 0);
+  if (total === 0) {
+    return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
+  }
 
   return (
-    <ul className="flex flex-col gap-3">
-      {mix.map((a, i) => {
-        const share = total === 0 ? 0 : Math.round((a.count / total) * 100);
-        return (
-          <li key={a.label} className="flex flex-col gap-1">
-            <div className="flex items-baseline justify-between gap-3 text-xs">
-              {/* Direct label — identity never depends on the colour. */}
-              <span className="font-medium text-foreground">{a.label}</span>
-              <span className="text-subtle-foreground">
-                {a.count} · {share}%
-              </span>
-            </div>
-            <div className="h-2 w-full bg-muted">
-              <motion.div
-                className="h-full origin-left bg-chart-1"
-                style={{ width: `${max === 0 ? 0 : (a.count / max) * 100}%` }}
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{
-                  duration: 0.45,
-                  delay: i * 0.05,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-              />
-            </div>
+    <div className="flex flex-col gap-4">
+      {/* No transform at all: it fades in rather than growing. A `scaleX`
+          rasterises the bar's edges through a composited layer, and this is
+          twelve pixels high — every rounding decision is a visible fraction of
+          it. `shrink-0` is not cosmetic either: these widths are the data, and
+          flex is otherwise entitled to shave a percentage that does not divide
+          evenly. */}
+      <motion.div
+        aria-hidden="true"
+        className="flex h-3 w-full overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {slices.map((slice) => (
+          <span
+            key={slice.label}
+            className={cn("h-full shrink-0", TONE_FILL[slice.tone])}
+            style={{ width: `${(slice.count / total) * 100}%` }}
+          />
+        ))}
+      </motion.div>
+
+      <ul className="flex flex-col gap-2.5">
+        {slices.map((slice) => (
+          <li key={slice.label} className="flex items-center justify-between gap-3 text-xs">
+            <span className="flex items-center gap-2">
+              <span aria-hidden="true" className={cn("size-2.5 shrink-0", TONE_FILL[slice.tone])} />
+              <span className="text-foreground">{slice.label}</span>
+            </span>
+            <span className="text-muted-foreground">
+              {slice.count} · {Math.round((slice.count / total) * 100)}%
+            </span>
           </li>
-        );
-      })}
-    </ul>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -277,15 +320,183 @@ function AssetMixChart({ mix }: { mix: readonly AssetShare[] }) {
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
 
-/** A chart's numbers, reachable without reading the picture. */
+/**
+ * A chart's numbers, reachable without reading the picture.
+ *
+ * Capped and scrolled rather than allowed to run. Fourteen rows opened in one
+ * card makes three cards in a row three different heights, and the section
+ * below it moves down the page every time somebody opens one. The cap is a
+ * little over five rows, so it is visibly a window onto more rather than a
+ * table that happens to fit.
+ */
 function DataDisclosure({ summary, children }: { summary: string; children: React.ReactNode }) {
   return (
     <details className="group">
-      <summary className="w-fit cursor-pointer list-none text-xs text-muted-foreground underline decoration-input underline-offset-2 hover:text-foreground">
+      <summary className="w-fit cursor-pointer list-none text-muted-foreground text-xs underline decoration-input underline-offset-2 hover:text-foreground">
         {summary}
       </summary>
       <div className="mt-3">{children}</div>
     </details>
+  );
+}
+
+/**
+ * A card's title, with the explanation behind an icon rather than under it.
+ *
+ * Three cards in a row have no space for a sentence each, and the sentence is
+ * what makes the difference between "volume" and "volume of what, dated when".
+ * The tooltip opens on focus as well as hover, so the explanation is not
+ * mouse-only.
+ */
+function CardTitle({ children, hint }: { children: React.ReactNode; hint: string }) {
+  return (
+    <h3 className="flex items-center gap-1.5 font-medium text-foreground text-sm">
+      {children}
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label={hint}
+                className="cursor-help text-subtle-foreground transition-colors hover:text-foreground"
+              >
+                <InfoIcon size={14} weight="regular" aria-hidden="true" />
+              </button>
+            }
+          />
+          <TooltipContent>{hint}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </h3>
+  );
+}
+
+/**
+ * Money, plotted.
+ *
+ * The Y axis is formatted from the plotted float; the tooltip is formatted from
+ * the exact `bigint`. That split is the point — the axis is a ruler and a
+ * rounded ruler is fine, while the figure a merchant reads off the tooltip has
+ * to be the one in the ledger.
+ */
+function volumePlots(points: readonly DayPoint[], asset: AssetCode): readonly Plot[] {
+  return points.map((point) => ({
+    date: point.date,
+    value: Number(point.volume),
+    label: formatMoneyLocale(money(point.volume, asset)),
+    detail: `${point.count} payment${point.count === 1 ? "" : "s"}`,
+  }));
+}
+
+function durationPlots(points: readonly DurationPoint[]): readonly Plot[] {
+  return points.map((point) => ({
+    date: point.date,
+    value: point.seconds,
+    label: formatDuration(point.seconds),
+    detail: `median over ${point.count} payment${point.count === 1 ? "" : "s"}`,
+  }));
+}
+
+/** One section: how much moved, how it ended, how long it took. */
+function MovementSection({
+  title,
+  asset,
+  daily,
+  statuses,
+  durations,
+  volumeHint,
+  statusHint,
+  durationHint,
+}: {
+  title: string;
+  asset: AssetCode;
+  daily: readonly DayPoint[];
+  statuses: readonly StatusSlice[];
+  durations: readonly DurationPoint[];
+  volumeHint: string;
+  statusHint: string;
+  durationHint: string;
+}) {
+  const decimals = assetDecimals(asset);
+  const symbol = assetSymbol(asset) ?? asset;
+  // Minor units back to a `bigint` for the axis label, which is the only place
+  // a plotted float meets the money formatter.
+  const formatMoneyTick = (value: number) =>
+    compactMoney(BigInt(Math.round(value)), decimals, symbol);
+
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionHeader title={title} />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="gap-4">
+          <CardTitle hint={volumeHint}>Transaction volume · {asset}</CardTitle>
+          {/* Bars: a day's takings are a discrete quantity, and a line
+              between two of them draws a value that never existed. Completion
+              time stays a line — a median is a level, and it does hold
+              between two readings. */}
+          <TrendBars points={volumePlots(daily, asset)} formatTick={formatMoneyTick} />
+          <DataDisclosure summary="Show the numbers">
+            <Table containerClassName="max-h-64 overflow-y-auto">
+              <TableCaption>Volume by day</TableCaption>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow>
+                  <TableHead>Day</TableHead>
+                  <TableHead className="text-right">Volume</TableHead>
+                  <TableHead className="text-right">Payments</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {daily.map((point) => (
+                  <TableRow key={point.date}>
+                    <TableCell>{dayLabel(point.date)}</TableCell>
+                    <TableCell className="text-right">
+                      {formatMoneyLocale(money(point.volume, asset))}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {point.count}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataDisclosure>
+        </Card>
+
+        <Card className="gap-4">
+          <CardTitle hint={statusHint}>Status overview</CardTitle>
+          <StatusOverview slices={statuses} />
+        </Card>
+
+        <Card className="gap-4">
+          <CardTitle hint={durationHint}>Completion time</CardTitle>
+          <TrendChart points={durationPlots(durations)} formatTick={formatDuration} />
+          <DataDisclosure summary="Show the numbers">
+            <Table containerClassName="max-h-64 overflow-y-auto">
+              <TableCaption>Median completion time by day</TableCaption>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow>
+                  <TableHead>Day</TableHead>
+                  <TableHead className="text-right">Median</TableHead>
+                  <TableHead className="text-right">Payments</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {durations.map((point) => (
+                  <TableRow key={point.date}>
+                    <TableCell>{dayLabel(point.date)}</TableCell>
+                    <TableCell className="text-right">{formatDuration(point.seconds)}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {point.count}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataDisclosure>
+        </Card>
+      </div>
+    </section>
   );
 }
 
@@ -304,19 +515,25 @@ function Analytics() {
       />
     ))
     .with({ status: "success" }, ({ data }) => {
-      const all = data.payments;
-      const settlementRows = data.settlements;
-      const completedAmounts = settlementRows
-        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
-        .map((row) => row.settlementAmount)
-        .filter((amount) => amount !== null);
-      const asset = dominantAsset(completedAmounts);
+      const payments = data.payments;
+      const settlements = data.settlements;
 
-      if (asset === undefined) {
+      const settledAmounts = settlements
+        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
+        .map((row) => row.netAmount)
+        .filter((amount) => amount !== null);
+      const payOutAsset = dominantAsset(settledAmounts);
+      // Priced in the merchant's own currency, which is a different question
+      // from what they settled in — an IDR merchant settling USDC has two.
+      const payInAsset = dominantAsset(
+        payments.filter((p) => p.status === "COMPLETED").map((p) => p.amount),
+      );
+
+      if (payOutAsset === undefined || payInAsset === undefined) {
         return (
           <div className="flex flex-col gap-8">
             <StatGrid>
-              <Stat label="Payments" value={String(all.length)} hint="Across all payments." />
+              <Stat label="Payments" value={String(payments.length)} hint="Across all payments." />
               <Stat label="Completed" value="0" hint="Nothing to chart yet." />
               <Stat label="Volume" value="—" hint="No completed payments." />
               <Stat label="Busiest day" value="—" hint="No completed payments." />
@@ -339,98 +556,74 @@ function Analytics() {
         );
       }
 
-      const decimals = assetDecimals(asset);
-      const symbol = assetSymbol(asset) ?? asset;
-      const daily = dailyOf(settlementRows, asset);
-      const mix = mixOf(all);
+      const payIns = payInMovements(payments, payInAsset);
+      const payOuts = payOutMovements(settlements, payOutAsset);
+      const payInDaily = bucketByDay(payIns);
+      const payOutDaily = bucketByDay(payOuts);
 
-      const amountsInAsset = completedAmounts.filter((amount) => amount.asset === asset);
-      const totalVolume = amountsInAsset.reduce((acc, amount) => acc + BigInt(amount.amount), 0n);
-      const totalCount = amountsInAsset.length;
+      const settledIn = settledAmounts.filter((amount) => amount.asset === payOutAsset);
+      const totalVolume = settledIn.reduce((acc, amount) => acc + BigInt(amount.amount), 0n);
+      const totalCount = settledIn.length;
       const average = totalCount === 0 ? 0n : totalVolume / BigInt(totalCount);
-      const busiest = daily.reduce(
-        (acc, p) => (p.volume > acc.volume ? p : acc),
-        daily[0] as DayPoint,
+      // `reduce` with no seed throws on an empty array, and a seed of
+      // `payOutDaily[0]` is `undefined` to the compiler for exactly that case.
+      const busiest = payOutDaily.reduce<DayPoint | undefined>(
+        (acc, point) => (acc === undefined || point.volume > acc.volume ? point : acc),
+        undefined,
       );
 
       return (
         <div className="flex flex-col gap-8">
           <StatGrid>
             <Stat
-              label={`Settled volume · ${asset}`}
-              value={formatMoneyLocale(money(totalVolume, asset), { trimZeroFraction: true })}
-              hint={`Gross settlement across ${totalCount} completed payment${totalCount === 1 ? "" : "s"}.`}
+              label={`Settled volume · ${payOutAsset}`}
+              value={formatMoneyLocale(money(totalVolume, payOutAsset), { trimZeroFraction: true })}
+              hint={`Net of fee, across ${totalCount} completed payment${totalCount === 1 ? "" : "s"}.`}
             />
-            <Stat label="Payments" value={String(all.length)} hint="Across all payments." />
+            <Stat label="Payments" value={String(payments.length)} hint="Across all payments." />
             <Stat
-              label={`Average settlement · ${asset}`}
-              value={formatMoneyLocale(money(average, asset), { trimZeroFraction: true })}
-              hint="Gross settled volume divided by completed settlements."
+              label={`Average settlement · ${payOutAsset}`}
+              value={formatMoneyLocale(money(average, payOutAsset), { trimZeroFraction: true })}
+              hint="Net settled volume divided by completed settlements."
             />
             <Stat
               label="Busiest day"
-              value={dayLabel(busiest.date)}
-              hint={`${busiest.count} payment${busiest.count === 1 ? "" : "s"}.`}
+              value={busiest === undefined ? "—" : dayLabel(busiest.date)}
+              hint={
+                busiest === undefined
+                  ? "No completed payments."
+                  : `${busiest.count} payment${busiest.count === 1 ? "" : "s"}.`
+              }
             />
           </StatGrid>
 
-          <section className="flex flex-col gap-3">
-            <SectionHeader title={`Daily volume · ${asset}`} />
-            <Card className="gap-4">
-              <VolumeChart points={daily} asset={asset} decimals={decimals} symbol={symbol} />
-              <DataDisclosure summary="Show the numbers">
-                <Table>
-                  <TableCaption>Daily completed volume, by day</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Day</TableHead>
-                      <TableHead className="text-right">Volume</TableHead>
-                      <TableHead className="text-right">Payments</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {daily.map((p) => (
-                      <TableRow key={p.date}>
-                        <TableCell>{dayLabel(p.date)}</TableCell>
-                        <TableCell className="text-right">
-                          {formatMoneyLocale(money(p.volume, asset))}
-                        </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {p.count}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </DataDisclosure>
-            </Card>
-          </section>
+          <MovementSection
+            title="Pay ins"
+            asset={payInAsset}
+            daily={payInDaily}
+            statuses={statusesOf(
+              payments.map((payment) => payment.status),
+              PAY_IN_STATUS,
+            )}
+            durations={bucketDurations(payIns)}
+            volumeHint="What buyers were charged, dated by when the payment was created."
+            statusHint="Every payment intent by the state it is in now, including the ones nobody paid."
+            durationHint="Median time from created to completed, per day."
+          />
 
-          <section className="flex flex-col gap-3">
-            <SectionHeader title="What payers sent" />
-            <Card className="gap-4">
-              <AssetMixChart mix={mix} />
-              <DataDisclosure summary="Show the numbers">
-                <Table>
-                  <TableCaption>Payments by payer asset</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Asset</TableHead>
-                      <TableHead className="text-right">Payments</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mix.map((a) => (
-                      <TableRow key={a.label}>
-                        <TableCell>{a.label}</TableCell>
-                        <TableCell className="text-right">{a.count}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </DataDisclosure>
-            </Card>
-          </section>
+          <MovementSection
+            title="Pay outs"
+            asset={payOutAsset}
+            daily={payOutDaily}
+            statuses={statusesOf(
+              settlements.map((settlement) => settlement.state),
+              PAY_OUT_STATUS,
+            )}
+            durations={bucketDurations(payOuts)}
+            volumeHint="What reached you, net of fee, dated by when it settled."
+            statusHint="Every settlement by clearing state. A payment nobody made never reaches this chart."
+            durationHint="Median time from payment to settlement, per day."
+          />
         </div>
       );
     })

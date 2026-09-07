@@ -131,6 +131,8 @@ The detailed and continuously updated status lives in
 - Token capability probed from the contract at boot, never configured.
 - Replay key scoped by network, asset and nonce, covering the window before the
   chain has recorded it.
+- An MCP server at `POST /x402/mcp` selling rail intelligence per call —
+  discovery free, answers paid, and refusals that never charge.
 
 ### Commerce and checkout
 
@@ -213,6 +215,86 @@ enforces rather than a claim:
 Enabled with `X402_ENABLED`, which is off by default: without an operator key
 there is nothing to broadcast an authorization with, so the routes answer 404
 rather than half-working.
+
+### An MCP server the agent pays per call
+
+`POST /x402/mcp` is an MCP server over the same rail. An agent connects, reads
+what the tools do, calls one, receives a `402`, signs one authorization, and gets
+its answer — no account, no API key, no dashboard. It sells the one thing
+Mayarin knows and the agent cannot look up: how each payment rail has actually
+been settling, read from Mayarin's own settlements subgraph.
+
+| Method                     | Costs             |
+| -------------------------- | ----------------- |
+| `initialize`, `tools/list` | Free              |
+| `tools/call`               | One authorization |
+
+**Discovery is free and answers are paid**, and that line is the design rather
+than a convenience. An agent cannot decide a price is worth paying for a tool it
+has not been allowed to read the description of; a `402` on the catalogue is a
+shop with the lights off.
+
+Two tools, both doing work on the data rather than returning a query result:
+
+- **`rail_stats`** — per rail: samples, median headroom, and the worst and best
+  observed. _Headroom_ is the seconds an order had left before its deadline when
+  it landed, so the minimum is the number that matters: Base Sepolia's median is
+  828 seconds and its worst settlement landed with 28, and a median on its own
+  would call that rail comfortable.
+- **`choose_rail`** — ranks the rails and returns the one to pay on with the
+  reason in a line. Below `minSamples` observed settlements it says it is falling
+  back rather than presenting the first rail as a decision.
+
+Three refusals are as load-bearing as the answers, and none of them charges:
+
+- Arguments the tool will not accept — a chain this deployment has never heard
+  of — refuse **before** the gate. `exact` gives the payer one signature and no
+  way to get it back, and a resource server cannot un-serve a response.
+- No settlements observed at all is refused rather than sold. Charging for "no
+  rail has been observed" is charging an agent for our own subgraph being down.
+- A tool that does not exist is a tool error, not a JSON-RPC error. A model that
+  cannot tell "the server said no" from "the call never arrived" cannot decide
+  whether retrying is worth anything.
+
+Neither tool queries The Graph directly. Both read the cached observer the `402`
+itself reads, because Subgraph Studio allows 3,000 queries a day _account-wide_ —
+a pay-per-query tool wired straight through hands anyone who can pay a way to
+spend the whole deployment's budget.
+
+Measured on Base Sepolia, 7 September — a Circle Agent Stack wallet buying one
+`choose_rail` call, with no account and no API key:
+
+|         |                                                                                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payment | [`0xdce241e2…`](https://sepolia.basescan.org/tx/0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b) — 100000 USDC, payer's gas **zero** |
+| Answer  | `arc-testnet: median headroom 936.5s over 12 settlements`, read from live Studio data                                                                   |
+| Ledger  | Intent `COMPLETED`, clearing `SUCCESS`, fee zero, postings balanced                                                                                     |
+
+The agent paid ten cents to find out which rail to pay on.
+
+Trying it takes two commands. The first is free and needs no wallet:
+
+```bash
+curl -X POST $API/x402/mcp -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+The second pays for an answer, and sends the **same body** in both the request
+that receives the `402` and the retry carrying the signature — a different one
+would be a different purchase settled against the first one's authorization:
+
+```bash
+bun run scripts/e2e-x402.ts --url $API/x402/mcp --pay-to 0x… \
+  --body '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"choose_rail","arguments":{"chains":["base-sepolia","arc-testnet"]}}}'
+```
+
+| What                                       | File                             |
+| ------------------------------------------ | -------------------------------- |
+| The MCP wire format, no domain in it       | `apps/api/src/mcp/protocol.ts`   |
+| The two tools and what they refuse to sell | `apps/api/src/mcp/rail-tools.ts` |
+| The free/paid line, and the gate ordering  | `apps/api/src/routes/mcp.ts`     |
+| Ranking and summarising rails, pure        | `packages/core/x402/src/rail.ts` |
+| Reading settlements from the subgraph      | `packages/providers/subgraph/`   |
 
 See [ROADMAP.md](./ROADMAP.md) for the ETHOnline 2026 work built on this.
 

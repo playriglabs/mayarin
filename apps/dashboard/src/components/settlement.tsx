@@ -17,15 +17,11 @@
  * surface resolves and this one displays.
  */
 
-import {
-  ArrowSquareOutIcon,
-  BankIcon,
-  HourglassMediumIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { BankIcon, HourglassMediumIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
+import { TransactionLink } from "@/components/transaction-link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -63,11 +59,6 @@ import { ICON_CARD } from "@/lib/icons";
 import { PAGE_SIZE } from "@/lib/pagination";
 import { withQuery } from "@/lib/with-query";
 import type { SettlementDto } from "@/types/settlement";
-
-/** Shortened for display only — the full value stays in the `title`. */
-function shortHash(hash: string): string {
-  return hash.length <= 20 ? hash : `${hash.slice(0, 10)}…${hash.slice(-8)}`;
-}
 
 function toneOf(state: string): "success" | "destructive" | "warning" {
   if (state === "SUCCESS" || state === "SETTLED") return "success";
@@ -292,17 +283,13 @@ function Settlement() {
                             {row.reference === null ? (
                               <span className="text-xs text-subtle-foreground">Not settled</span>
                             ) : (
-                              <span
-                                title={row.reference}
-                                className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground"
-                              >
-                                {shortHash(row.reference)}
-                                <ArrowSquareOutIcon
-                                  size={12}
-                                  aria-hidden="true"
-                                  className="text-subtle-foreground"
-                                />
-                              </span>
+                              // The arrow used to be drawn beside plain text, so
+                              // it promised an explorer nobody could reach. Now
+                              // it is only drawn when there is one.
+                              <TransactionLink
+                                chain={row.chain?.chain ?? row.payment?.chain ?? ""}
+                                transactionHash={row.reference}
+                              />
                             )}
                           </TableCell>
                           <TableCell className="text-muted-foreground">

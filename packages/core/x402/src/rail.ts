@@ -143,6 +143,64 @@ export function chooseRail(
   };
 }
 
+/**
+ * What one rail has been doing, as a number a caller can show somebody.
+ *
+ * `chooseRail` answers *which* rail and reports only the winner's median. This
+ * answers *what the rails look like*, for every rail asked about, which is the
+ * question an agent deciding for itself has — and the question the paid MCP
+ * tool sells.
+ *
+ * **The minimum is here because the median hides it.** Base Sepolia's median
+ * headroom is 828 seconds and its worst settlement landed with 28, and a rail
+ * whose tail brushes the deadline is the one about to start reverting on
+ * `ExpiredOrder`. A summary that reported only the middle would describe that
+ * rail as comfortable.
+ */
+export interface RailSummary {
+  readonly chain: ChainId;
+  readonly samples: number;
+  /** Absent when the rail has no observed settlements at all. */
+  readonly medianHeadroomSeconds?: number;
+  /** The worst settlement observed — the one the median hides. */
+  readonly minHeadroomSeconds?: number;
+  readonly maxHeadroomSeconds?: number;
+  /** As reported. Absent means nobody looked, not none. */
+  readonly failures?: number;
+}
+
+/**
+ * Summarise every rail asked about, observed or not.
+ *
+ * A chain with no observation comes back with zero samples rather than being
+ * dropped. Omitting it would make "we have never seen this rail settle" and "we
+ * did not ask about this rail" the same answer, and they are not.
+ */
+export function summariseRails(
+  chains: readonly ChainId[],
+  observations: readonly RailObservation[],
+): readonly RailSummary[] {
+  return chains.map((chain) => {
+    const observation = observationOf(observations, chain);
+    const samples = observation?.headroomSeconds ?? [];
+    const failures = observation?.failures;
+
+    if (samples.length === 0) {
+      return { chain, samples: 0, ...(failures === undefined ? {} : { failures }) };
+    }
+
+    const sorted = [...samples].sort((left, right) => left - right);
+    return {
+      chain,
+      samples: samples.length,
+      medianHeadroomSeconds: medianOf(samples),
+      minHeadroomSeconds: sorted[0] ?? 0,
+      maxHeadroomSeconds: sorted[sorted.length - 1] ?? 0,
+      ...(failures === undefined ? {} : { failures }),
+    };
+  });
+}
+
 function observationOf(
   observations: readonly RailObservation[],
   chain: ChainId,

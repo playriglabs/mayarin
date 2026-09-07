@@ -17,6 +17,7 @@ import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
 import { DepositQr } from "@/components/deposit-qr";
 import PaymentTimeline from "@/components/payment-timeline";
+import { TransactionLink } from "@/components/transaction-link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -65,9 +66,10 @@ const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
  * Where this payment came from, read off the intent's metadata.
  *
  * The commerce layer stamps what minted the intent: an invoice checkout writes
- * `invoiceId`, a link checkout writes `paymentLinkId`, and anything that priced
- * a cart writes the `cart` snapshot. A payment with none of those was created
- * straight through the API — by a QR scan or a server integration.
+ * `invoiceId`, a link checkout writes `paymentLinkId`, anything that priced a
+ * cart writes the `cart` snapshot, and an agent endpoint writes
+ * `x402Resource`. A payment with none of those was created straight through the
+ * API — by a QR scan or a server integration.
  */
 interface Purchase {
   readonly label: string;
@@ -93,6 +95,14 @@ function purchaseOf(intent: {
   }
   if (cart !== undefined) {
     return { label: "Product catalog", cart };
+  }
+  // An x402 payment is a machine paying for one endpoint, and its source is
+  // `manual` only because nobody scanned anything. Calling it "Direct API"
+  // describes a server integration holding a key — the opposite of a payer that
+  // has never registered with anyone.
+  const resourceId = intent.metadata.x402Resource;
+  if (resourceId !== undefined) {
+    return { label: "Agent · x402", reference: resourceId };
   }
   return intent.source.type === "qr"
     ? { label: `QR scan · ${intent.source.scheme}` }
@@ -356,7 +366,10 @@ function PaymentDetail({ id }: { id: string }) {
                           {clearing.providerReference === null ? (
                             <span className="text-subtle-foreground">—</span>
                           ) : (
-                            <span className="font-mono text-xs">{clearing.providerReference}</span>
+                            <TransactionLink
+                              chain={intent.payment?.chain ?? ""}
+                              transactionHash={clearing.providerReference}
+                            />
                           )}
                         </Row>
                       </dl>

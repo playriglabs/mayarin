@@ -52,6 +52,15 @@ interface NavItem {
    * some accounts: every merchant seeded before it exists has none.
    */
   readonly permission?: Permission;
+  /**
+   * A short flag beside the label — "NEW" and nothing longer.
+   *
+   * Deliberately not the shared `Badge`: its variants are coloured for the page
+   * surface rather than for this one. `sidebar-marker` is the green this
+   * sidebar already uses for the active item — forest on paper, electric on
+   * void — so the chip stays readable in both themes without a second rule.
+   */
+  readonly flag?: string;
 }
 
 interface NavGroup {
@@ -86,6 +95,7 @@ const DEVELOPERS: readonly NavItem[] = [
     label: "Agent endpoints",
     icon: GlobeIcon,
     permission: "catalog:manage",
+    flag: "New",
   },
 ];
 
@@ -154,7 +164,7 @@ export default function SideNav({
             </h2>
 
             <div className="flex flex-col gap-0.5">
-              {items.map(({ href, label, icon: IconComponent }) => {
+              {items.map(({ href, label, icon: IconComponent, flag }) => {
                 const active = isActive(href, pathname);
                 return (
                   <a
@@ -173,16 +183,27 @@ export default function SideNav({
                     {active && (
                       <span
                         aria-hidden="true"
-                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-electric"
+                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-sidebar-marker"
                       />
                     )}
                     <IconComponent
                       size={SIDEBAR_ICON_SIZE}
                       weight={active ? "fill" : "regular"}
                       aria-hidden="true"
-                      className={active ? "text-electric" : "text-sidebar-muted-foreground"}
+                      className={active ? "text-sidebar-marker" : "text-sidebar-muted-foreground"}
                     />
                     <span data-sidebar-nav-label>{label}</span>
+                    {flag !== undefined && (
+                      // The same attribute the label carries, so the collapsed
+                      // sidebar hides it by the rule that already exists rather
+                      // than by a second one that could drift from it.
+                      <span
+                        data-sidebar-nav-label
+                        className="bg-sidebar-marker/15 px-2 py-px font-medium text-[9px] text-sidebar-marker uppercase tracking-wide"
+                      >
+                        {flag}
+                      </span>
+                    )}
                   </a>
                 );
               })}

@@ -29,6 +29,16 @@ const { title } = Astro.props;
 const user: UserDto | undefined = Astro.locals.user;
 if (user === undefined) return Astro.redirect("/login");
 
+/**
+ * Who to greet.
+ *
+ * A `UserDto` carries an email and no name, so the local part is the closest
+ * thing to one this app actually knows. Inventing a display name would be worse
+ * than a slightly technical greeting, and the full address is already in the
+ * sidebar for anyone who needs it.
+ */
+const greetingName = user.email.split("@")[0] ?? user.email;
+
 const isAdmin = user.permissions.includes("admin:access");
 const roleLabel = isAdmin ? "Administrator" : "Merchant";
 const loopsStyle = new Style(loopsDefinition);
@@ -94,7 +104,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       >
         <div
           data-sidebar-header
-          class="flex min-h-14 items-center justify-between gap-2 border-b border-sidebar-border px-3 py-[9.5px] md:px-2"
+          class="flex h-16 items-center justify-between gap-2 border-b border-sidebar-border px-3 md:px-2"
         >
           <a
             href="/"
@@ -102,13 +112,25 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
             aria-label="Mayarin dashboard"
             class="flex min-h-11 items-center gap-2 px-2"
           >
+            <!-- Two marks, one per theme. The white one was drawn for the void
+                 sidebar and disappears entirely on the light one, so the theme
+                 picks rather than a filter inverting a logo into something the
+                 brand kit never approved. -->
+            <img
+              src="https://mayarin.xyz/brand-kit/mayarin-logo-black.png"
+              alt=""
+              aria-hidden="true"
+              width="400"
+              height="400"
+              class="h-9 w-auto dark:hidden"
+            />
             <img
               src="https://mayarin.xyz/brand-kit/mayarin-logo-white.png"
               alt=""
               aria-hidden="true"
               width="400"
               height="400"
-              class="h-9 w-auto"
+              class="hidden h-9 w-auto dark:block"
             />
           </a>
           <button
@@ -149,7 +171,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 
       <main id="main" class="min-w-0 flex-1">
         <header
-          class="flex min-h-16 items-center justify-between gap-4 border-b border-border bg-background px-4 md:px-8 lg:px-10"
+          class="flex h-16 items-center justify-between gap-4 border-border bg-background px-4 md:border-b md:px-8 lg:px-10"
         >
           <div class="flex items-center gap-3">
             <button
@@ -166,12 +188,42 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               </span>
               <XIcon data-menu-close-icon size={22} weight="bold" aria-hidden="true" />
             </button>
-            <span class="text-[17px] font-medium text-foreground">Dashboard</span>
+            <span class="hidden truncate text-[19px] font-medium text-foreground md:inline">
+              <span data-greeting>Welcome back</span>, {greetingName}!{" "}
+              <span data-greeting-emoji aria-hidden="true">&#128075;</span>
+            </span>
+            <script is:inline>
+              // The time of day is the *reader's*, not the server's. This page
+              // renders on Cloudflare, so a greeting decided there would tell
+              // someone in Jakarta good evening over their morning coffee.
+              //
+              // Inline and immediately after the element, so it runs while the
+              // parser is still here and the neutral server-rendered wording is
+              // never seen changing. In `<head>` it would run before the span
+              // exists and do nothing at all.
+              (() => {
+                const hour = new Date().getHours();
+                const [greeting, emoji] =
+                  hour < 5
+                    ? ["Good night", "\uD83C\uDF19"]
+                    : hour < 12
+                      ? ["Good morning", "\u2600\uFE0F"]
+                      : hour < 17
+                        ? ["Good afternoon", "\uD83C\uDF24\uFE0F"]
+                        : hour < 21
+                          ? ["Good evening", "\uD83C\uDF06"]
+                          : ["Good night", "\uD83C\uDF19"];
+                const label = document.querySelector("[data-greeting]");
+                if (label !== null) label.textContent = greeting;
+                const mark = document.querySelector("[data-greeting-emoji]");
+                if (mark !== null) mark.textContent = emoji;
+              })();
+            </script>
           </div>
 
           <nav aria-label="Dashboard shortcuts" class="flex items-center gap-2">
             <ThemeToggle client:load />
-          
+
             <a
               href="/event-logs"
               aria-label="Open notifications"

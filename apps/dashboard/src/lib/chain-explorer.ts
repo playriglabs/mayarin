@@ -30,3 +30,13 @@ export function addressExplorerUrl(chain: string, address: string): string | und
   if (!isExplorerChain(chain) || !ADDRESS.test(address)) return undefined;
   return `${EXPLORERS[chain]}address/${address}`;
 }
+
+/**
+ * A hash shortened for display. The full value belongs in a `title`.
+ *
+ * Here rather than in each component because three of them were shortening
+ * hashes and two had already written this function.
+ */
+export function shortHash(hash: string): string {
+  return hash.length <= 20 ? hash : `${hash.slice(0, 10)}…${hash.slice(-8)}`;
+}

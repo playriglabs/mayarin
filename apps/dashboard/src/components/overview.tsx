@@ -6,7 +6,7 @@
  * reported in the asset the merchant receives (USDC for a USDC merchant).
  */
 
-import { isAssetCode } from "@mayarin/shared/asset";
+import { assetDecimals, isAssetCode } from "@mayarin/shared/asset";
 import { formatMoneyLocale } from "@mayarin/shared/locale";
 import { money } from "@mayarin/shared/money";
 import {
@@ -19,38 +19,38 @@ import { match } from "ts-pattern";
 import { ChainStack } from "@/components/chain-logo";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyAction,
-  EmptyDescription,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { Card } from "@/components/ui/card";
 import { QueryError } from "@/components/ui/query-error";
-import { SectionHeader } from "@/components/ui/section-header";
-import { StatGridSkeleton, TableSkeleton } from "@/components/ui/skeleton";
-import { Stat, StatGrid } from "@/components/ui/stat";
 import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  BalanceCardSkeleton,
+  MovementCardSkeleton,
+  RecentListSkeleton,
+  StatGridSkeleton,
+} from "@/components/ui/skeleton";
+import { Stat, StatGrid } from "@/components/ui/stat";
+import { type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
-import { useSettings, useWalletBalance } from "@/hooks/settings";
+import { useSettings, useWalletBalance, useWalletWithdrawalHistory } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
-import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
 import { display, dominantAsset, totalIn } from "@/lib/money";
 import { withQuery } from "@/lib/with-query";
-import type { ChainBalanceDto } from "@/types/settings";
+import type { PaymentIntentDto } from "@/types/payment";
+import type { ChainBalanceDto, WalletWithdrawalDto } from "@/types/settings";
 import type { SettlementDto } from "@/types/settlement";
 
 const IN_PROGRESS = new Set(["CREATED", "CONFIRMED", "PROCESSING"]);
+/** The movement cards' window, matching the analytics page they link to. */
+const MOVEMENT_DAYS = 30;
+/**
+ * The balance's window, deliberately longer.
+ *
+ * A balance moves on settlement and withdrawal rather than on trading, so two
+ * weeks of it is often one step and a flat line. A month is enough to show a
+ * shape without becoming a chart nobody reads the middle of.
+ */
+const BALANCE_DAYS = 30;
 
 function volumeOf(settlements: readonly SettlementDto[]): {
   value: string;
@@ -76,54 +76,352 @@ function volumeOf(settlements: readonly SettlementDto[]): {
   };
 }
 
+/** One network's holding of the settlement asset, for the balance card. */
+interface ChainHolding {
+  readonly chain: string;
+  readonly amount: bigint;
+}
+
 /**
- * What the merchant holds right now, summed across every network they settle on.
+ * What the merchant holds right now, per network and in total.
  *
  * Only the settlement asset is added. A chain row also reports whatever else
  * that address happens to hold, and adding USDC to ETH would be a number the
- * ledger would not recognise — the same reason the settlement page names its
- * asset beside the figure rather than implying one.
+ * ledger would not recognise.
  *
  * Chains with no address are dropped rather than counted as zero: the
  * deployment lists every chain it settles on, and a merchant who has not been
  * provisioned there has no balance to report, not a balance of nothing.
  */
-function settlementBalanceOf(
+function holdingsOf(
   rows: readonly ChainBalanceDto[],
   asset: string | undefined,
-): { readonly value: string; readonly hint: string; readonly chains: readonly string[] } {
-  if (asset === undefined || !isAssetCode(asset)) {
-    return { value: "—", hint: "No settlement asset configured.", chains: [] };
+): { readonly total: bigint; readonly chains: readonly ChainHolding[] } {
+  if (asset === undefined || !isAssetCode(asset)) return { total: 0n, chains: [] };
+
+  const chains = rows
+    .filter((row) => row.address !== null)
+    .map((row) => ({
+      chain: row.chain,
+      amount: BigInt(row.balances.find((balance) => balance.asset === asset)?.amount ?? "0"),
+    }));
+
+  return { total: chains.reduce((sum, row) => sum + row.amount, 0n), chains };
+}
+
+/**
+ * The dollar-pegged stablecoins, where showing a balance as `$` is a fact
+ * rather than a conversion.
+ *
+ * EURC is deliberately absent. `EURC/USDC` is a real exchange rate — the
+ * EUR/USD one — and rendering a euro balance with a dollar sign would state a
+ * number nobody quoted. A merchant settling EURC sees EURC.
+ */
+const DOLLAR_PEGGED = new Set(["USDC", "USDT"]);
+
+/**
+ * A stablecoin balance written the way a merchant thinks about it.
+ *
+ * `8,395096 USDC` is the ledger's answer and an awkward thing to read at a
+ * glance. Rescaled to two decimals it is `$ 8,39` — the same money, at the
+ * precision a balance is actually read at. Truncated rather than rounded,
+ * because a balance shown as more than it is invites a withdrawal that fails.
+ */
+function balanceDisplay(total: bigint, asset: string): string {
+  if (!isAssetCode(asset)) return "—";
+  if (!DOLLAR_PEGGED.has(asset)) return formatMoneyLocale(money(total, asset));
+
+  const scale = 10n ** BigInt(assetDecimals(asset) - assetDecimals("USD"));
+  return formatMoneyLocale(money(total / scale, "USD"));
+}
+
+/**
+ * Balance over the last thirty days, walked backwards from today.
+ *
+ * There is no balance history to read: a chain reports what an address holds
+ * now and nothing about what it held on Tuesday. So it is reconstructed —
+ * yesterday's balance is today's, minus what settled in since, plus what was
+ * withdrawn out. Both movements are recorded, which is what makes the walk
+ * exact rather than a guess.
+ *
+ * A withdrawal in another asset is skipped rather than subtracted: it left a
+ * different balance than the one being charted.
+ */
+function balanceHistory(
+  current: bigint,
+  asset: string,
+  settlements: readonly SettlementDto[],
+  withdrawals: readonly WalletWithdrawalDto[],
+): readonly { date: string; balance: bigint }[] {
+  const days = recentDays(BALANCE_DAYS);
+  const inflow = new Map<string, bigint>();
+  const outflow = new Map<string, bigint>();
+
+  for (const settlement of settlements) {
+    const net = settlement.netAmount;
+    const settled = settlement.state === "SUCCESS" || settlement.state === "SETTLED";
+    if (!settled || net === null || net.asset !== asset) continue;
+    const day = (settlement.completedAt ?? settlement.updatedAt).slice(0, 10);
+    inflow.set(day, (inflow.get(day) ?? 0n) + BigInt(net.amount));
+  }
+  for (const withdrawal of withdrawals) {
+    if (withdrawal.amount.asset !== asset) continue;
+    const day = withdrawal.completedAt.slice(0, 10);
+    outflow.set(day, (outflow.get(day) ?? 0n) + BigInt(withdrawal.amount.amount));
   }
 
-  const funded = rows.filter((row) => row.address !== null);
-  const total = funded.reduce((sum, row) => {
-    const held = row.balances.find((balance) => balance.asset === asset);
-    return held === undefined ? sum : sum + BigInt(held.amount);
-  }, 0n);
+  // Backwards from today, then reversed: each earlier day undoes the movements
+  // of the day after it.
+  //
+  // Clamped at zero, and the clamp is load-bearing rather than defensive. The
+  // walk starts from what the *current* settlement address holds and subtracts
+  // every settlement in the window — including ones paid to an address the
+  // merchant has since replaced, which this balance never contained. Changing a
+  // settlement address makes that immediate: today's holding is the new
+  // address's, the history is the old one's, and the difference drives the walk
+  // below zero. A negative balance is not a thing a merchant ever held, so the
+  // floor is nothing.
+  const history: { date: string; balance: bigint }[] = [];
+  let balance = current;
+  for (const day of [...days].reverse()) {
+    history.push({ date: day, balance });
+    const previous = balance - (inflow.get(day) ?? 0n) + (outflow.get(day) ?? 0n);
+    balance = previous > 0n ? previous : 0n;
+  }
+  return history.reverse();
+}
 
-  const chains = funded.map((row) => row.chain);
-  return {
-    value: formatMoneyLocale(money(total, asset)),
-    hint:
-      chains.length === 0
-        ? "No settlement address yet."
-        : `Across ${chains.length} network${chains.length === 1 ? "" : "s"}.`,
-    chains,
-  };
+/** The last `count` UTC days, oldest first, including today. */
+function recentDays(count: number): readonly string[] {
+  const today = new Date();
+  return Array.from({ length: count }, (_, i) => {
+    const day = new Date(today);
+    day.setUTCDate(day.getUTCDate() - (count - 1 - i));
+    return day.toISOString().slice(0, 10);
+  });
+}
+
+/** Completed movements per day, for the pay-in and pay-out sparklines. */
+function dailyTotals(
+  entries: readonly { day: string; amount: bigint }[],
+): readonly { date: string; total: bigint }[] {
+  const byDay = new Map<string, bigint>();
+  for (const entry of entries) byDay.set(entry.day, (byDay.get(entry.day) ?? 0n) + entry.amount);
+  return recentDays(MOVEMENT_DAYS).map((date) => ({ date, total: byDay.get(date) ?? 0n }));
+}
+
+/**
+ * What the merchant holds, where it is held, and how it got there.
+ *
+ * The figure a merchant opens this page for, so it is the first thing on it and
+ * it is a card rather than a cell in a grid — a balance with a shape behind it
+ * answers "and is that going up" without a second page.
+ *
+ * The networks sit on the right with their own amounts. One total across two
+ * chains is not a thing a merchant can spend: money on Arc cannot pay a bill on
+ * Base, and a single figure implies it can.
+ */
+function BalanceOverview({
+  total,
+  asset,
+  chains,
+  history,
+}: {
+  total: bigint;
+  asset: string | undefined;
+  chains: readonly ChainHolding[];
+  history: readonly { date: string; balance: bigint }[];
+}) {
+  if (asset === undefined) {
+    return (
+      <Card className="gap-2">
+        <span className="text-muted-foreground text-xs uppercase tracking-wide">Balance</span>
+        <span className="font-medium text-2xl text-foreground">—</span>
+        <span className="text-subtle-foreground text-xs">No settlement asset configured.</span>
+      </Card>
+    );
+  }
+
+  const points: Plot[] = history.map((day) => ({
+    date: day.date,
+    value: Number(day.balance),
+    label: balanceDisplay(day.balance, asset),
+    detail: "Balance at end of day",
+  }));
+
+  return (
+    <Card className="gap-5">
+      <div className="flex flex-wrap items-start justify-between gap-6">
+        <div className="flex flex-col gap-1">
+          <span className="text-muted-foreground text-xs uppercase tracking-wide">Balance</span>
+          <span className="font-medium text-[30px] my-2 text-foreground tracking-tight">
+            {balanceDisplay(total, asset)}
+          </span>
+          <span className="text-subtle-foreground text-xs">
+            {chains.length === 0
+              ? "No settlement address yet."
+              : `Held in ${asset} across ${chains.length} network${chains.length === 1 ? "" : "s"}.`}
+          </span>
+        </div>
+
+        {/* The marks alone. A per-chain figure beside them read as a
+            reconciliation nobody asked for, and the sentence under the total
+            already says how many networks it is spread over. */}
+        <ChainStack chains={chains.map((holding) => holding.chain)} size={24} />
+      </div>
+
+      <TrendChart
+        points={points}
+        formatTick={(value) => balanceDisplay(BigInt(Math.round(value)), asset)}
+        className="h-40"
+      />
+    </Card>
+  );
+}
+
+/**
+ * A section's thirty days, as a sparkline and a total.
+ *
+ * No axes: at this size they would be most of the picture, and the number
+ * beside them is the figure anyone reads. "View more" goes to the analytics
+ * page, where the same two sections are drawn in full with their status and
+ * completion time beside them.
+ */
+function MovementCard({
+  title,
+  hint,
+  points,
+  asset,
+  href,
+}: {
+  title: string;
+  hint: string;
+  points: readonly { date: string; total: bigint }[];
+  asset: string | undefined;
+  href: string;
+}) {
+  const total = points.reduce((sum, point) => sum + point.total, 0n);
+  // `balanceDisplay`, not the raw locale format: a settlement figure belongs in
+  // the same money as the balance above it, and `8,375196 USDC` beside `$ 8,39`
+  // is one page quoting itself two ways.
+  const formatted = asset === undefined ? "—" : balanceDisplay(total, asset);
+
+  return (
+    <Card className="gap-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="font-medium text-foreground text-sm">{title}</span>
+          <span className="font-medium text-2xl text-foreground">{formatted}</span>
+          <span className="text-subtle-foreground text-xs">{hint}</span>
+        </div>
+        <a
+          href={href}
+          className="shrink-0 text-muted-foreground text-xs underline decoration-input underline-offset-2 hover:text-foreground hover:decoration-foreground"
+        >
+          View more
+        </a>
+      </div>
+
+      <TrendBars
+        points={points.map((point) => ({
+          date: point.date,
+          value: Number(point.total),
+          label: asset === undefined ? "—" : balanceDisplay(point.total, asset),
+          detail: title,
+        }))}
+        formatTick={() => ""}
+        className="h-20"
+        showAxes={false}
+      />
+    </Card>
+  );
+}
+
+/**
+ * The five most recent payments, as a column rather than a table.
+ *
+ * A table needs four columns to say what it knows and this sits in a third of
+ * the width, so it drops to what a merchant scans for: which payment, how much,
+ * and whether it landed. The full table is one link away and still has the
+ * created time, the reference and the rest.
+ *
+ * The id is truncated from the left. A payment id is a ULID whose leading
+ * characters are a timestamp shared by everything created the same
+ * millisecond — the tail is the part that tells two of them apart.
+ */
+function RecentPayments({ payments }: { payments: readonly PaymentIntentDto[] }) {
+  return (
+    <Card className="gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <span className="font-medium text-foreground text-sm">Recent payments</span>
+        <a
+          href="/payments"
+          className="shrink-0 text-muted-foreground text-xs underline decoration-input underline-offset-2 hover:text-foreground hover:decoration-foreground"
+        >
+          View all
+        </a>
+      </div>
+
+      {payments.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-center">
+          <ReceiptIcon size={ICON_CARD} aria-hidden="true" className="text-subtle-foreground" />
+          <span className="text-muted-foreground text-xs">No payments yet.</span>
+          <a href="/links" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            Create a payment link
+          </a>
+        </div>
+      ) : (
+        <ul className="flex flex-col">
+          {payments.map((payment) => (
+            <li
+              key={payment.id}
+              className="flex items-center justify-between gap-3 border-border border-b py-2.5 last:border-b-0 last:pb-0 first:pt-0"
+            >
+              <a
+                href={`/payments/${encodeURIComponent(payment.id)}`}
+                title={payment.id}
+                className="min-w-0 truncate font-mono text-foreground text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
+                dir="rtl"
+              >
+                {payment.id}
+              </a>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="text-foreground text-xs">{payment.amount.display}</span>
+                <Badge variant={toneOf(payment.status)}>{intentStatusLabel(payment.status)}</Badge>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
 }
 
 function Overview() {
   const analytics = useAnalytics();
   const balance = useWalletBalance();
+  const withdrawals = useWalletWithdrawalHistory();
   const settings = useSettings();
 
   return match(analytics)
     .with({ status: "pending" }, () => (
+      // The page's own shape, in the order it will be read: the balance beside
+      // the recent list, the four stats, then the two movement cards. A
+      // skeleton that does not match is a layout that rearranges itself under
+      // the reader.
       <div role="status" aria-live="polite" className="flex flex-col gap-8">
         <span className="sr-only">Loading overview</span>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <BalanceCardSkeleton />
+          </div>
+          <RecentListSkeleton />
+        </div>
         <StatGridSkeleton />
-        <TableSkeleton rows={6} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <MovementCardSkeleton />
+          <MovementCardSkeleton />
+        </div>
       </div>
     ))
     .with({ status: "error" }, ({ error }) => (
@@ -138,30 +436,74 @@ function Overview() {
       const completed = all.filter((p) => p.status === "COMPLETED").length;
       const pending = all.filter((p) => IN_PROGRESS.has(p.status)).length;
       const volume = volumeOf(data.settlements);
-      const held = settlementBalanceOf(
-        balance.data?.balances ?? [],
-        settings.data?.settings.settlementAsset,
+      const settlementAsset = settings.data?.settings.settlementAsset;
+      const payInAsset = dominantAsset(
+        all.filter((payment) => payment.status === "COMPLETED").map((payment) => payment.amount),
       );
-      const recent = all.slice(0, 5);
+      const holdings = holdingsOf(balance.data?.balances ?? [], settlementAsset);
+      const history =
+        settlementAsset === undefined
+          ? []
+          : balanceHistory(
+              holdings.total,
+              settlementAsset,
+              data.settlements,
+              withdrawals.data?.withdrawals ?? [],
+            );
+      const recent = all.slice(0, 6);
+
+      // Filtered to one asset before anything is added. Minor units are only
+      // comparable within an asset: a rupiah payment has two decimals and a
+      // six-figure amount, and adding it to a dollar one produces a number in
+      // no currency at all — which is exactly what a mixed sum rendered as `$`
+      // was claiming.
+      const payInDaily = dailyTotals(
+        all
+          .filter(
+            (payment) => payment.status === "COMPLETED" && payment.amount.asset === payInAsset,
+          )
+          .map((payment) => ({
+            day: payment.createdAt.slice(0, 10),
+            amount: BigInt(payment.amount.amount),
+          })),
+      );
+      const payOutDaily = dailyTotals(
+        data.settlements
+          .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
+          .flatMap((row) =>
+            row.netAmount === null || row.netAmount.asset !== settlementAsset
+              ? []
+              : [
+                  {
+                    day: (row.completedAt ?? row.updatedAt).slice(0, 10),
+                    amount: BigInt(row.netAmount.amount),
+                  },
+                ],
+          ),
+      );
 
       return (
         <div className="flex flex-col gap-8">
-          {/* Five across on a wide screen, and the balance leads: it is the
-              only figure that answers "how much do I have right now", which is
-              what a merchant opens this page to find. The four behind it
-              explain how it got there. On a narrow screen it spans the pair so
-              it reads as the headline rather than sharing a row. */}
-          <StatGrid className="xl:grid-cols-5">
-            {/* The networks stand in for this cell's icon rather than sitting
-                beside one: two graphics competing in a 24px row reads as
-                clutter, and the stack is the more informative of the two. */}
-            <Stat
-              className="sm:col-span-2 xl:col-span-1"
-              label="Balance"
-              value={held.value}
-              hint={held.hint}
-              icon={held.chains.length > 0 ? <ChainStack chains={held.chains} /> : undefined}
-            />
+          {/* The two things a merchant opens this page for, side by side and
+              in the order they ask them: how much do I have, and what just
+              came in. The balance takes two thirds because it carries a chart;
+              the list is a column of rows and does not want the width. */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <BalanceOverview
+                total={holdings.total}
+                asset={settlementAsset}
+                chains={holdings.chains}
+                history={history}
+              />
+            </div>
+            <RecentPayments payments={recent} />
+          </div>
+
+          {/* Four across now: the balance has its own card above, where it can
+              carry a chart and the networks it is spread over. Leaving it here
+              as well would state the same figure twice on one screen. */}
+          <StatGrid className="xl:grid-cols-4">
             <Stat
               label="Payments"
               value={String(all.length)}
@@ -206,69 +548,22 @@ function Overview() {
             />
           </StatGrid>
 
-          <section className="flex flex-col gap-3">
-            <SectionHeader
-              title="Recent payments"
-              action={
-                <a
-                  href="/payments"
-                  className="text-xs text-muted-foreground underline decoration-input underline-offset-2 hover:text-foreground hover:decoration-foreground"
-                >
-                  View all
-                </a>
-              }
+          <div className="grid gap-4 lg:grid-cols-2">
+            <MovementCard
+              title="Pay ins"
+              hint="What buyers were charged, over the last thirty days."
+              points={payInDaily}
+              asset={payInAsset}
+              href="/analytics"
             />
-
-            {recent.length === 0 ? (
-              <Empty>
-                <EmptyMedia>
-                  <ReceiptIcon size={ICON_CARD} aria-hidden="true" />
-                </EmptyMedia>
-                <EmptyTitle>No payments yet.</EmptyTitle>
-                <EmptyDescription>
-                  Create a checkout link to take your first payment.
-                </EmptyDescription>
-                <EmptyAction>
-                  <a href="/links" className={buttonVariants()}>
-                    Create a payment link
-                  </a>
-                </EmptyAction>
-              </Empty>
-            ) : (
-              <Table>
-                <TableCaption>The five most recent payments</TableCaption>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Created</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recent.map((p) => (
-                    <TableRow key={p.id} className="hover:bg-muted">
-                      <TableCell>
-                        <a
-                          href={`/payments/${encodeURIComponent(p.id)}`}
-                          className="font-mono text-xs text-foreground underline decoration-input underline-offset-2 hover:decoration-foreground"
-                        >
-                          {p.id}
-                        </a>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={toneOf(p.status)}>{intentStatusLabel(p.status)}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{p.amount.display}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <time dateTime={isoAttr(p.createdAt)}>{formatDateTime(p.createdAt)}</time>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </section>
+            <MovementCard
+              title="Pay outs"
+              hint="What reached you, net of fee, over the last thirty days."
+              points={payOutDaily}
+              asset={settlementAsset}
+              href="/analytics"
+            />
+          </div>
         </div>
       );
     })

@@ -5,6 +5,7 @@ import { x402Api } from "@/lib/api/x402";
 import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
   CreateX402ResourceRequest,
+  UpdateX402ResourceRequest,
   X402RailsResponse,
   X402ResourceListResponse,
   X402ResourceResponse,
@@ -32,6 +33,18 @@ export function useDeleteX402Resource() {
   return useEffectMutation<void, string, ApiError>({
     mutation: (id) => x402Api.remove(id),
     toast: { loading: "Removing endpoint…", success: "Endpoint removed" },
+    invalidate: [RESOURCES_KEY],
+  });
+}
+
+export function useUpdateX402Resource() {
+  return useEffectMutation<
+    X402ResourceResponse,
+    { readonly id: string; readonly body: UpdateX402ResourceRequest },
+    ApiError
+  >({
+    mutation: ({ id, body }) => x402Api.update(id, body),
+    toast: { loading: "Saving endpoint…", success: "Endpoint saved" },
     invalidate: [RESOURCES_KEY],
   });
 }

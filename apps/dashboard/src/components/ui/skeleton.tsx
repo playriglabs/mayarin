@@ -70,6 +70,70 @@ function PanelSkeleton({ lines = 6 }: { lines?: number }) {
   );
 }
 
+/**
+ * Mirrors the overview's balance card: label, figure, sentence, network marks,
+ * and the chart under them.
+ *
+ * The chart's box is the same height as the real one. A skeleton shorter than
+ * what replaces it is a page that jumps at the moment somebody starts reading
+ * it, which is worse than no skeleton at all.
+ */
+function BalanceCardSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex flex-col gap-5 border border-border bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-6">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-9 w-40" />
+          <Skeleton className="h-3 w-48" />
+        </div>
+        <Skeleton className="h-6 w-14" />
+      </div>
+      <Skeleton className="h-40 w-full" />
+    </div>
+  );
+}
+
+/** Mirrors a movement card: title, total, hint, the link, and a sparkline. */
+function MovementCardSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex flex-col gap-4 border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-7 w-32" />
+          <Skeleton className="h-3 w-56 max-w-full" />
+        </div>
+        <Skeleton className="h-3 w-16" />
+      </div>
+      <Skeleton className="h-20 w-full" />
+    </div>
+  );
+}
+
+/** Mirrors the compact recent-payments card: a title, a link, and five rows. */
+function RecentListSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div aria-hidden="true" className="flex flex-col gap-4 border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-3 w-12" />
+      </div>
+      <div className="flex flex-col">
+        {run(rows).map((row) => (
+          <div
+            key={row}
+            className="flex items-center justify-between gap-3 border-border border-b py-2.5 first:pt-0 last:border-b-0 last:pb-0"
+          >
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Mirrors the settlement destination's address, asset, and readiness columns. */
 function SettlementDestinationSkeleton() {
   return (
@@ -135,8 +199,11 @@ function DepositQrSkeleton() {
 }
 
 export {
+  BalanceCardSkeleton,
   DepositQrSkeleton,
+  MovementCardSkeleton,
   PanelSkeleton,
+  RecentListSkeleton,
   SettlementDestinationSkeleton,
   Skeleton,
   StatGridSkeleton,
