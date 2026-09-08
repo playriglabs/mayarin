@@ -44,7 +44,7 @@ function Stat({
         {icon}
         {value}
       </span>
-      {hint !== undefined && <span className="text-xs text-subtle-foreground">{hint}</span>}
+      {hint !== undefined && <span className="text-xs text-subtle-foreground mt-1">{hint}</span>}
     </div>
   );
 }

@@ -40,6 +40,7 @@ const SETTLED: SettleResponse = {
 
 interface StubOptions {
   readonly settle?: (payment: PaymentPayload) => Promise<SettleResponse>;
+  readonly listedResources?: readonly X402Resource[];
 }
 
 /** The calls a route made, so a test can assert what reached the service. */
@@ -59,6 +60,27 @@ function containerWith(options: StubOptions = {}): { container: Container; stub:
     },
     async listByMerchant(merchantId: string) {
       return merchantId === resource.merchantId ? [resource] : [];
+    },
+    async listListed(listOptions: {
+      readonly limit: number;
+      readonly cursor?: { readonly id: string; readonly createdAt: Date };
+    }) {
+      return (options.listedResources ?? [])
+        .map((listed, index) => ({ resource: listed, createdAt: new Date(index) }))
+        .filter(({ resource: listed, createdAt }) => {
+          if (listOptions.cursor === undefined) return true;
+          return (
+            createdAt < listOptions.cursor.createdAt ||
+            (createdAt.getTime() === listOptions.cursor.createdAt.getTime() &&
+              listed.id < listOptions.cursor.id)
+          );
+        })
+        .sort(
+          (left, right) =>
+            right.createdAt.getTime() - left.createdAt.getTime() ||
+            right.resource.id.localeCompare(left.resource.id),
+        )
+        .slice(0, listOptions.limit);
     },
     async paymentRequired() {
       return REQUIRED;
@@ -269,12 +291,58 @@ describe("discovery", () => {
     });
   });
 
-  // A deployment serving many merchants should not hand every agent the whole
-  // catalogue.
-  test("requires a merchant rather than listing everything", async () => {
+  // Without a merchant the same path is the cross-merchant discovery index
+  // (#273), and an unlisted resource never appears in it: the merchant's
+  // opt-in is the whole point.
+  test("without a merchant, lists only what is listed rather than refusing", async () => {
     const response = await appFor(containerWith().container).request("/x402/resources");
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ resources: [] });
+  });
+
+  test("returns listed resources across merchants and paginates without repetition", async () => {
+    const listedResources = [
+      exampleResource({ id: "res_alpha", merchantId: "mer_alpha", listed: true }),
+      exampleResource({ id: "res_beta", merchantId: "mer_beta", listed: true }),
+    ];
+    const app = appFor(containerWith({ listedResources }).container);
+
+    const first = await app.request("/x402/resources?limit=1");
+    const firstBody = (await first.json()) as {
+      resources: readonly { id: string }[];
+      nextCursor?: string;
+    };
+    expect(first.status).toBe(200);
+    expect(firstBody.resources).toHaveLength(1);
+    expect(firstBody.nextCursor).toBeString();
+
+    const second = await app.request(
+      `/x402/resources?limit=1&cursor=${encodeURIComponent(firstBody.nextCursor ?? "")}`,
+    );
+    const secondBody = (await second.json()) as {
+      resources: readonly { id: string }[];
+      nextCursor?: string;
+    };
+
+    expect(second.status).toBe(200);
+    expect(secondBody.resources).toHaveLength(1);
+    expect(secondBody.nextCursor).toBeUndefined();
+    expect(new Set([...firstBody.resources, ...secondBody.resources].map(({ id }) => id))).toEqual(
+      new Set(["res_alpha", "res_beta"]),
+    );
+  });
+
+  test("rejects malformed public-index pagination", async () => {
+    const app = appFor(containerWith().container);
+
+    const [cursor, limit] = await Promise.all([
+      app.request("/x402/resources?cursor=not-a-cursor"),
+      app.request("/x402/resources?limit=0"),
+    ]);
+
+    expect(cursor.status).toBe(400);
+    expect(limit.status).toBe(400);
   });
 
   test("returns an empty list for a merchant with nothing payable", async () => {

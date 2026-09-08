@@ -11,9 +11,10 @@ import type {
   InvoiceState,
   IssueWithSequence,
   ListInvoicesOptions,
+  ListListedInvoicesOptions,
 } from "@mayarin/invoicing";
 import { ConcurrencyError, ConflictError } from "@mayarin/shared";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction, toAsset, toMoney } from "../mapping.ts";
 import { invoiceCounters, invoices } from "../schema.ts";
@@ -70,6 +71,27 @@ export class DrizzleInvoiceRepository implements InvoiceRepository {
       .where(and(...filters))
       .orderBy(desc(invoices.createdAt))
       .limit(options.limit ?? DEFAULT_LIMIT);
+    return rows.map(toInvoice);
+  }
+
+  /** The public x402 payable index read (#273): listed only, keyset-paginated. */
+  async listListed(options: ListListedInvoicesOptions): Promise<readonly Invoice[]> {
+    const cursorFilter =
+      options.cursor === undefined
+        ? undefined
+        : or(
+            lt(invoices.createdAt, options.cursor.createdAt),
+            and(
+              eq(invoices.createdAt, options.cursor.createdAt),
+              lt(invoices.id, options.cursor.id),
+            ),
+          );
+    const rows = await this.#db
+      .select()
+      .from(invoices)
+      .where(and(eq(invoices.listed, true), cursorFilter))
+      .orderBy(desc(invoices.createdAt), desc(invoices.id))
+      .limit(options.limit);
     return rows.map(toInvoice);
   }
 
@@ -160,6 +182,7 @@ function toRow(invoice: Invoice): typeof invoices.$inferInsert {
     issuedAt: invoice.issuedAt ?? null,
     dueAt: invoice.dueAt ?? null,
     voidedAt: invoice.voidedAt ?? null,
+    listed: invoice.listed,
     idempotencyKey: invoice.idempotencyKey ?? null,
     createdAt: invoice.createdAt,
     updatedAt: invoice.updatedAt,
@@ -202,6 +225,7 @@ function toInvoice(row: InvoiceRow): Invoice {
     ...present("issuedAt", row.issuedAt),
     ...present("dueAt", row.dueAt),
     ...present("voidedAt", row.voidedAt),
+    listed: row.listed,
     ...present("idempotencyKey", row.idempotencyKey),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

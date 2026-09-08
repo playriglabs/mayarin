@@ -10,6 +10,7 @@ import type {
   Customer,
   CustomerRepository,
   ListCustomersOptions,
+  ListListedLinksOptions,
   ListPaymentLinksOptions,
   ListProductsOptions,
   PaymentLink,
@@ -206,6 +207,27 @@ export class DrizzlePaymentLinkRepository implements PaymentLinkRepository {
       .limit(options.limit ?? 100);
     return rows.map(toLink);
   }
+
+  /** The public x402 payable index read (#273): listed only, keyset-paginated. */
+  async listListed(options: ListListedLinksOptions): Promise<readonly PaymentLink[]> {
+    const cursorFilter =
+      options.cursor === undefined
+        ? undefined
+        : or(
+            lt(paymentLinks.createdAt, options.cursor.createdAt),
+            and(
+              eq(paymentLinks.createdAt, options.cursor.createdAt),
+              lt(paymentLinks.id, options.cursor.id),
+            ),
+          );
+    const rows = await this.#db
+      .select()
+      .from(paymentLinks)
+      .where(and(eq(paymentLinks.listed, true), cursorFilter))
+      .orderBy(desc(paymentLinks.createdAt), desc(paymentLinks.id))
+      .limit(options.limit);
+    return rows.map(toLink);
+  }
 }
 
 function toProductRow(product: Product): typeof products.$inferInsert {
@@ -266,6 +288,7 @@ function toLinkRow(link: PaymentLink): typeof paymentLinks.$inferInsert {
     metadata: { ...link.metadata },
     expiresAt: link.expiresAt ?? null,
     disabledAt: link.disabledAt ?? null,
+    listed: link.listed,
     idempotencyKey: link.idempotencyKey ?? null,
     createdAt: link.createdAt,
     updatedAt: link.updatedAt,
@@ -292,6 +315,7 @@ function toLink(row: LinkRow): PaymentLink {
     metadata: row.metadata,
     ...present("expiresAt", row.expiresAt),
     ...present("disabledAt", row.disabledAt),
+    listed: row.listed,
     ...present("idempotencyKey", row.idempotencyKey),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

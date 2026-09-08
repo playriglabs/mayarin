@@ -12,6 +12,7 @@ import type {
   Customer,
   CustomerRepository,
   ListCustomersOptions,
+  ListListedLinksOptions,
   ListPaymentLinksOptions,
   ListProductsOptions,
   PaymentLink,
@@ -147,6 +148,23 @@ export class InMemoryPaymentLinkRepository implements PaymentLinkRepository {
             link.id < options.cursor.id),
       )
       .slice(0, options.limit ?? DEFAULT_LIMIT);
+  }
+
+  async listListed(options: ListListedLinksOptions): Promise<readonly PaymentLink[]> {
+    return [...this.#byId.values()]
+      .filter((link) => link.listed)
+      .sort((a, b) => {
+        const time = b.createdAt.getTime() - a.createdAt.getTime();
+        return time === 0 ? b.id.localeCompare(a.id) : time;
+      })
+      .filter(
+        (link) =>
+          options.cursor === undefined ||
+          link.createdAt < options.cursor.createdAt ||
+          (link.createdAt.getTime() === options.cursor.createdAt.getTime() &&
+            link.id < options.cursor.id),
+      )
+      .slice(0, options.limit);
   }
 }
 

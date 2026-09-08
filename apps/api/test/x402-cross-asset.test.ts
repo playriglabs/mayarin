@@ -40,6 +40,7 @@ const MERCHANT_SAFE = "0xe5DD11a0579C0ab6a60B8263277c174cC8Eb675E";
 const PAYER = "0x1111111111111111111111111111111111111111";
 const AUTHORIZATION_TX = `0x${"ab".repeat(32)}`;
 const SWAP_TX = `0x${"cd".repeat(32)}`;
+const REFUND_TX = `0x${"ef".repeat(32)}`;
 const SLIPPAGE_BPS = 50;
 
 /**
@@ -300,7 +301,7 @@ describe("settling a cross-asset payment", () => {
     return receipt.payload as Record<string, unknown>;
   }
 
-  test("pays the merchant the invoice and books the payer's change", async () => {
+  test("pays the merchant and returns the payer's change", async () => {
     // A 2.00 USD invoice, so the change clears EURC's dust threshold of one
     // cent: authorised 2010051 EURC, the swap consumed 1990000, and the 20051
     // left over is slippage the payer carried and the pool did not need.
@@ -319,13 +320,16 @@ describe("settling a cross-asset payment", () => {
     // swappable.
     expect(settler.sent[0]?.recipient).toBe(MERCHANT_SAFE);
     expect(settler.sent[0]?.exactOut).toEqual(money(2_000_000n, "USDC"));
-    // Not absorbed, not booked as an FX gain, and not taken as revenue either:
-    // it is the payer's, and above dust it stays owed to them.
+    expect(settler.refunds).toEqual([
+      { chain: "base-sepolia", amount: money(20_051n, "EURC"), recipient: PAYER },
+    ]);
+    // The confirmed return clears both the operator-held asset and the
+    // liability. Neither becomes an FX gain or fee revenue.
     expect((await built.clearing.ledger.balance("PAYER_SURPLUS", "EURC")).balance).toEqual(
-      money(20_051n, "EURC"),
+      money(0n, "EURC"),
     );
     expect((await built.clearing.ledger.balance("PAYER_ASSET_HELD", "EURC")).balance).toEqual(
-      money(20_051n, "EURC"),
+      money(0n, "EURC"),
     );
     expect((await built.clearing.ledger.balance("FEE_REVENUE", "EURC")).balance).toEqual(
       money(0n, "EURC"),
@@ -386,6 +390,7 @@ describe("settling a cross-asset payment", () => {
     });
     // No address, because there is no refund to send to one.
     expect(payload.payerRefundAddress).toBeUndefined();
+    expect(settler.refunds).toHaveLength(0);
   });
 
   test("plans the swap before the payer's money moves", async () => {
@@ -436,7 +441,7 @@ describe("resuming a cross-asset payment", () => {
    * skip both rather than confirm the wrong one — a swap hash confirmed against
    * the authorization credits a merchant who was never paid.
    */
-  async function interrupted(settler: FakeCrossAssetSettler) {
+  async function payable(settler: FakeCrossAssetSettler) {
     const built = service({ settler, price: money(200n, "USD") });
     await built.resources.save(built.resource);
 
@@ -460,8 +465,20 @@ describe("resuming a cross-asset payment", () => {
     };
     built.confirmer.recordMatching(AUTHORIZATION_TX, selectRequirements(required, payment), PAYER);
 
+    return { built, payment };
+  }
+
+  async function interrupted(settler: FakeCrossAssetSettler) {
+    const { built, payment } = await payable(settler);
+
     // The payer's asset reached the operator; everything after that did not.
     await expect(built.x402.settle(built.resource, payment)).rejects.toThrow();
+    return built;
+  }
+
+  async function completedWithPendingRefund(settler: FakeCrossAssetSettler) {
+    const { built, payment } = await payable(settler);
+    expect((await built.x402.settle(built.resource, payment)).intent.status).toBe("COMPLETED");
     return built;
   }
 
@@ -507,7 +524,7 @@ describe("resuming a cross-asset payment", () => {
     expect(transaction.state).toBe("SUCCESS");
   });
 
-  test("books the payer's change on the resumed payment too", async () => {
+  test("returns the payer's change on the resumed payment too", async () => {
     // The resume goes through the same receipt, so the change is classified the
     // same way and is owed to the same address — read off the authorization,
     // which is the only thing that knows who signed.
@@ -519,7 +536,7 @@ describe("resuming a cross-asset payment", () => {
     const id = recovered[0] ?? "";
 
     expect((await built.clearing.ledger.balance("PAYER_SURPLUS", "EURC")).balance).toEqual(
-      money(20_051n, "EURC"),
+      money(0n, "EURC"),
     );
     const events = await built.clearing.repositories.clearing.listEvents(id);
     const receipt = events.find((event) => event.toState === "ASSET_RECEIVED");
@@ -527,6 +544,45 @@ describe("resuming a cross-asset payment", () => {
       payerSurplusDisposition: "refundable",
       payerRefundAddress: PAYER,
     });
+    expect(settler.refunds).toEqual([
+      { chain: "base-sepolia", amount: money(20_051n, "EURC"), recipient: PAYER },
+    ]);
+  });
+
+  test("confirms a refund that already went out rather than sending it again", async () => {
+    const settler = swapping()
+      .willUseRefundTransaction(REFUND_TX)
+      .willFailToConfirmRefund(new Error("refund receipt unavailable"));
+    const built = await completedWithPendingRefund(settler);
+    expect(settler.refunds).toHaveLength(1);
+    const [pending] = await built.clearing.engine.listPendingPayerSurplusRefunds();
+    if (pending === undefined) throw new Error("No pending payer-surplus refund");
+    expect(pending.state).toBe("SUCCESS");
+    const before = await built.clearing.engine.history(pending.id);
+    expect(
+      before.find((event) => event.type === "payer-surplus.refund.broadcast")?.payload,
+    ).toMatchObject({ providerReference: REFUND_TX });
+
+    settler.recovers();
+    expect(await built.x402.recoverBroadcasts()).toEqual([pending.id]);
+    expect(settler.refunds).toHaveLength(1);
+    expect(await built.clearing.engine.listPendingPayerSurplusRefunds()).toHaveLength(0);
+    expect((await built.clearing.ledger.balance("PAYER_SURPLUS", "EURC")).balance).toEqual(
+      money(0n, "EURC"),
+    );
+  });
+
+  test("sends a refund on recovery when its first broadcast failed", async () => {
+    const settler = swapping().willFailToSendRefund(new Error("refund broadcast refused"));
+    const built = await completedWithPendingRefund(settler);
+    expect(settler.refunds).toHaveLength(0);
+    const [pending] = await built.clearing.engine.listPendingPayerSurplusRefunds();
+    if (pending === undefined) throw new Error("No pending payer-surplus refund");
+
+    settler.recovers();
+    expect(await built.x402.recoverBroadcasts()).toEqual([pending.id]);
+    expect(settler.refunds).toHaveLength(1);
+    expect(await built.x402.recoverBroadcasts()).toHaveLength(0);
   });
 
   test("re-swaps nothing once the payment is done", async () => {

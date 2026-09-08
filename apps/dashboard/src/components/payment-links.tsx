@@ -134,6 +134,44 @@ const CURRENCY_OPTIONS: readonly SelectOption[] = PRICING_CURRENCIES.map((code) 
   label: currencyLabel(code),
 }));
 
+function LinkCurrencyField({
+  value,
+  locked = false,
+  onValueChange,
+}: {
+  readonly value: string;
+  readonly locked?: boolean;
+  readonly onValueChange?: (currency: string) => void;
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor="link-currency">Currency</FieldLabel>
+      <Select
+        items={CURRENCY_OPTIONS}
+        value={value}
+        disabled={locked}
+        {...(onValueChange === undefined ? {} : { onValueChange })}
+      >
+        <SelectTrigger id="link-currency">
+          <SelectValue
+            placeholder={locked && value === "" ? "Select a product first" : "Select a currency"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {CURRENCY_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {locked && (
+        <FieldDescription>Set by the selected product&apos;s catalog price.</FieldDescription>
+      )}
+    </Field>
+  );
+}
+
 interface Draft {
   readonly kind: PaymentLinkKind;
   readonly title: string;
@@ -169,6 +207,19 @@ function amountLabel(link: PaymentLinkDto): string {
   if (link.amount !== null) return link.amount.display;
   if (link.kind === "open") return `Buyer enters (${link.currency ?? "—"})`;
   return `Catalog (${link.currency ?? "—"})`;
+}
+
+interface CatalogPricedProduct {
+  readonly id: string;
+  readonly prices: readonly { readonly asset: string }[];
+}
+
+/** Catalog order defines the primary price a product link is denominated in. */
+export function primaryCatalogCurrency(
+  products: readonly CatalogPricedProduct[],
+  productId: string,
+): string | undefined {
+  return products.find((product) => product.id === productId)?.prices[0]?.asset;
 }
 
 function reasonOf(error: unknown): string {
@@ -388,6 +439,9 @@ function PaymentLinks() {
     value: p.id,
     label: `${p.name} (${p.sku})`,
   }));
+  // Product prices are ordered by the catalog. A catalog link uses that
+  // product's primary price rather than carrying an unrelated form currency.
+  const catalogCurrency = primaryCatalogCurrency(activeProducts, draft.productId);
 
   // A link freezes a merchant snapshot, and the snapshot needs the profile. The
   // server refuses without it; saying so here means the merchant reads it
@@ -409,7 +463,10 @@ function PaymentLinks() {
   const canCreate = match(draft.kind)
     .with("fixed", () => isValidAmount(draft.amount, draft.currency))
     .with("open", () => true)
-    .with("catalog", () => draft.productId !== "" && Number(draft.quantity) > 0)
+    .with(
+      "catalog",
+      () => draft.productId !== "" && catalogCurrency !== undefined && Number(draft.quantity) > 0,
+    )
     .exhaustive();
 
   /**
@@ -442,7 +499,7 @@ function PaymentLinks() {
       .with("open", () => ({ kind: "open" as const, currency: draft.currency }))
       .with("catalog", () => ({
         kind: "catalog" as const,
-        currency: draft.currency,
+        currency: catalogCurrency ?? draft.currency,
         lines: [{ productId: draft.productId, quantity: Number(draft.quantity) }],
       }))
       .exhaustive();
@@ -554,6 +611,7 @@ function PaymentLinks() {
           {rows.length} link{rows.length === 1 ? "" : "s"}
         </p>
         <Button
+          className="h-9"
           onClick={() => {
             setFailure("");
             setCreating(true);
@@ -657,6 +715,7 @@ function PaymentLinks() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setSharing(link)}
+                            disabled={!link.payable}
                             aria-label={`Share the link for ${link.title ?? link.id}`}
                           >
                             <ShareNetworkIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
@@ -690,7 +749,7 @@ function PaymentLinks() {
         )}
 
       <Dialog open={creating} onOpenChange={(next) => !next && setCreating(false)}>
-        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto">
+        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto p-5 sm:p-6">
           <DialogHeader>
             <DialogTitle>New payment link</DialogTitle>
             <DialogDescription>
@@ -735,25 +794,12 @@ function PaymentLinks() {
               />
             </Field>
 
-            <Field>
-              <FieldLabel htmlFor="link-currency">Currency</FieldLabel>
-              <Select
-                items={CURRENCY_OPTIONS}
+            {draft.kind !== "catalog" && (
+              <LinkCurrencyField
                 value={draft.currency}
-                onValueChange={(next) => setDraft({ ...draft, currency: next })}
-              >
-                <SelectTrigger id="link-currency">
-                  <SelectValue placeholder="Select a currency" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+                onValueChange={(currency) => setDraft({ ...draft, currency })}
+              />
+            )}
 
             {draft.kind === "fixed" && (
               <Field>
@@ -819,6 +865,8 @@ function PaymentLinks() {
                     </Select>
                   )}
                 </Field>
+
+                <LinkCurrencyField value={catalogCurrency ?? ""} locked />
 
                 {productOptions.length > 0 && (
                   <Field>
@@ -959,7 +1007,13 @@ function PaymentLinks() {
           )}
 
           <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Close</Button>} />
+            <DialogClose
+              render={
+                <Button variant="secondary" className="px-8">
+                  Close
+                </Button>
+              }
+            />
             {takenPaymentId === null ? (
               <Button
                 onClick={takePayment}

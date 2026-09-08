@@ -120,7 +120,7 @@ export function ValueStrip() {
         "Your customers, paying their way",
         "Your payments, in one place",
       ].map((text, index) => (
-        <Reveal as="p" key={text} delay={index * 90}>
+        <Reveal as="p" class="text-sm" key={text} delay={index * 90}>
           <Check />
           {text}
         </Reveal>

@@ -16,11 +16,14 @@
  */
 
 import type { RateQuote } from "@mayarin/clearing";
+import { rateLimit } from "@mayarin/http";
 import { fromDecimalString, isAssetCode, NotFoundError, ValidationError } from "@mayarin/shared";
+import type { X402ResourceListCursor } from "@mayarin/x402";
 import {
   decodePaymentPayload,
   encodePaymentRequired,
   encodeSettleResponse,
+  isPayableKind,
   PAYMENT_REQUIRED_HEADER,
   PAYMENT_REQUIRED_STATUS,
   PAYMENT_RESPONSE_HEADER,
@@ -30,7 +33,13 @@ import type { Context, MiddlewareHandler } from "hono";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
+import {
+  decodePayableCursor,
+  encodePayableCursor,
+  toPayableEntryDto,
+} from "../dto/x402-payable.ts";
 import type { X402Service } from "../services/x402.ts";
+import type { X402PayableService } from "../services/x402-payables.ts";
 
 /**
  * The x402 service, or a 404 saying this deployment does not run one.
@@ -45,6 +54,30 @@ export function requireX402(container: Container): X402Service {
     throw new NotFoundError("x402 is not enabled on this deployment", {});
   }
   return service;
+}
+
+/** The payables service, or the same 404 shape as the rail it settles through. */
+export function requireX402Payables(container: Container): X402PayableService {
+  const service = container.x402Payables;
+  if (service === undefined) {
+    throw new NotFoundError("x402 payables are not enabled on this deployment", {});
+  }
+  return service;
+}
+
+/**
+ * `limit` query parameter: default 50, capped at 100.
+ *
+ * The cap is the whole point — an index with no cap is a scrape, and this one
+ * is public and cross-merchant.
+ */
+function pageLimitOf(raw: string | undefined): number {
+  if (raw === undefined) return 50;
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed) || parsed < 1) {
+    throw new ValidationError("limit must be a positive integer", { limit: raw });
+  }
+  return Math.min(parsed, 100);
 }
 
 /**
@@ -156,25 +189,134 @@ export function x402Routes(container: Container): Hono<X402Env> {
    * What this deployment will sell, and on what rails.
    *
    * Public and unauthenticated: an agent that has never met Mayarin is the
-   * whole point, and a price is not a secret. It lists resources for one
-   * merchant, named in the query, so a deployment serving many merchants does
-   * not hand every agent the whole catalogue.
+   * whole point, and a price is not a secret.
+   *
+   * Two reads share the path. With `?merchant=` it is the per-merchant list
+   * this route has always served. Without one it is the cross-merchant
+   * discovery index (#273): every listed resource, keyset-paginated, so an
+   * agent that has not met a merchant can still find what one sells. The
+   * `listed` flag is the merchant's opt-in — absent means it never appears
+   * here, because the requirement to name a merchant was accidental privacy
+   * some are relying on without knowing it.
    */
   app.get("/resources", async (c) => {
     const service = requireX402(container);
     const merchantId = c.req.query("merchant");
-    if (merchantId === undefined) {
-      return c.json({ error: "merchant query parameter is required" }, 400);
+    if (merchantId !== undefined) {
+      const resources = await service.listByMerchant(merchantId);
+      return c.json({
+        resources: resources.map((resource) => ({
+          id: resource.id,
+          url: resource.url,
+          ...(resource.description === undefined ? {} : { description: resource.description }),
+          ...(resource.mimeType === undefined ? {} : { mimeType: resource.mimeType }),
+        })),
+      });
     }
 
-    const resources = await service.listByMerchant(merchantId);
+    const limit = pageLimitOf(c.req.query("limit"));
+    const cursor = decodeResourceCursor(c.req.query("cursor"));
+    const entries = await service.listListed({
+      limit: limit + 1,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    const page = entries.slice(0, limit);
+    const last = page.at(-1);
     return c.json({
-      resources: resources.map((resource) => ({
+      resources: page.map(({ resource }) => ({
         id: resource.id,
         url: resource.url,
         ...(resource.description === undefined ? {} : { description: resource.description }),
         ...(resource.mimeType === undefined ? {} : { mimeType: resource.mimeType }),
       })),
+      // Emitted only when the probe found a row beyond the page, so an agent
+      // walking the index stops on an empty page instead of looping forever.
+      ...(entries.length > limit && last !== undefined
+        ? {
+            nextCursor: encodeResourceCursor({
+              id: last.resource.id,
+              createdAt: last.createdAt,
+            }),
+          }
+        : {}),
+    });
+  });
+
+  /**
+   * Every listed payable across every merchant (#273) — the discovery surface
+   * an agent reads before it has met anyone: invoices with an outstanding
+   * balance, fixed-amount payment links, each with the price a `402` would
+   * actually quote.
+   *
+   * Rate-limited on its own, tighter than nothing: this is the one route that
+   * answers for every merchant at once, and an index is a thing worth
+   * crawling. Process-local, like every limit this deployment has.
+   */
+  app.use(
+    "/payables/*",
+    // Armed at the first request rather than at construction: the values are
+    // the deployment's own, and a container that is still assembling reads
+    // them once, when they are certain to be there. One bucket set per
+    // process either way — the second request onward shares the first.
+    lazyRateLimit(container),
+  );
+
+  app.get("/payables", async (c) => {
+    const payables = requireX402Payables(container);
+    const limit = pageLimitOf(c.req.query("limit"));
+    const cursor = decodePayableCursor(c.req.query("cursor"));
+    const entries = await payables.listPayables({
+      limit: limit + 1,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    const page = entries.slice(0, limit);
+    const last = page.at(-1);
+    return c.json({
+      payables: page.map(toPayableEntryDto),
+      ...(entries.length > limit && last !== undefined
+        ? {
+            nextCursor: encodePayableCursor({
+              kind: last.kind,
+              id: last.id,
+              createdAt: last.createdAt,
+            }),
+          }
+        : {}),
+    });
+  });
+
+  /**
+   * One payable, addressed the way the `402` names it — the same shape as the
+   * gated resource routes, minus the thing behind the gate: there is no
+   * handler to run, because the payable *is* the thing being paid.
+   *
+   * No `PAYMENT-SIGNATURE` means a `402` carrying the full outstanding price.
+   * A signature means verify, settle, then say what was paid — the intent id
+   * is in the body because the header is base64 and not every client wants to
+   * decode it to learn what to ask the merchant about.
+   */
+  app.get("/payables/:kind/:id", async (c) => {
+    const payables = requireX402Payables(container);
+    const kindParam = c.req.param("kind");
+    if (!isPayableKind(kindParam)) {
+      throw new ValidationError(`Unknown x402 payable kind "${kindParam}"`, { kind: kindParam });
+    }
+    const id = c.req.param("id");
+
+    const header = c.req.header(PAYMENT_SIGNATURE_HEADER);
+    if (header === undefined) {
+      return respondPaymentRequired(
+        c,
+        encodePaymentRequired(await payables.paymentRequired(kindParam, id)),
+      );
+    }
+
+    const payment = decodePaymentPayload(header);
+    const settlement = await payables.settle(kindParam, id, payment);
+    c.res.headers.set(PAYMENT_RESPONSE_HEADER, encodeSettleResponse(settlement.response));
+    return c.json({
+      paymentIntent: settlement.intent.id,
+      payable: { kind: kindParam, id },
     });
   });
 
@@ -265,4 +407,50 @@ export function x402Routes(container: Container): Hono<X402Env> {
  */
 function encodeJson(value: unknown): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64");
+}
+
+/**
+ * The public payable index's rate limiter, built on first use.
+ *
+ * The values are the deployment's own; reading them lazily keeps the route
+ * constructible against a container that has not assembled the config (tests
+ * build minimal ones) without weakening the limit on any real deployment.
+ */
+function lazyRateLimit(container: Container): MiddlewareHandler {
+  let limiter: MiddlewareHandler | undefined;
+  return async (c, next) => {
+    limiter ??= rateLimit({
+      limit: container.config.rateLimitRequests,
+      windowMs: container.config.rateLimitWindowSeconds * 1_000,
+      clientIpSource: container.config.rateLimitClientIpSource,
+      blockDurationMs: container.config.rateLimitBlockSeconds * 1_000,
+      maxClients: container.config.rateLimitMaxClients,
+    });
+    return limiter(c, next);
+  };
+}
+
+/** The listed-resources index cursor: the resource's own `{id, createdAt}`. */
+function encodeResourceCursor(cursor: X402ResourceListCursor): string {
+  const json = JSON.stringify({ id: cursor.id, createdAt: cursor.createdAt.toISOString() });
+  return btoa(json).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+
+function decodeResourceCursor(value: string | undefined): X402ResourceListCursor | undefined {
+  if (value === undefined) return undefined;
+  try {
+    const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
+    const json = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
+    const parsed: unknown = JSON.parse(json);
+    if (parsed === null || typeof parsed !== "object") throw new Error("invalid cursor");
+    const row = parsed as Record<string, unknown>;
+    if (typeof row.id !== "string" || typeof row.createdAt !== "string") {
+      throw new Error("invalid cursor");
+    }
+    const createdAt = new Date(row.createdAt);
+    if (Number.isNaN(createdAt.getTime())) throw new Error("invalid cursor");
+    return { id: row.id, createdAt };
+  } catch {
+    throw new ValidationError("Invalid pagination cursor");
+  }
 }

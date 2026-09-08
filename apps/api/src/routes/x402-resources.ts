@@ -42,6 +42,9 @@ export function x402ResourceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       price: fromDecimalString(body.price.amount, body.price.asset),
       accepts: body.accepts,
       maxTimeoutSeconds: body.maxTimeoutSeconds,
+      // Omitted means unchanged: re-registering a resource must not silently
+      // unlist it (#273).
+      ...(body.listed === undefined ? {} : { listed: body.listed }),
     });
 
     return c.json({ resource: toX402ResourceDto(resource) }, 201);
@@ -63,6 +66,32 @@ export function x402ResourceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     }
     await service.remove(id);
     return c.body(null, 204);
+  });
+
+  /**
+   * The discovery opt-in, same shape as the one on invoices and links (#273):
+   * a listed resource appears in the public cross-merchant index, an unlisted
+   * one stops appearing. `manage` scope, and a foreign resource answers 404 —
+   * the id was not the caller's to know.
+   */
+  app.post("/:id/list", manage, async (c) => {
+    const service = requireX402(container);
+    const id = c.req.param("id");
+    const resource = await service.resourceById(id).catch(() => undefined);
+    if (resource === undefined || resource.merchantId !== c.get("scope").merchantId) {
+      throw new NotFoundError(`Resource ${id} not found`, { id });
+    }
+    return c.json({ resource: toX402ResourceDto(await service.listResource(id)) });
+  });
+
+  app.post("/:id/unlist", manage, async (c) => {
+    const service = requireX402(container);
+    const id = c.req.param("id");
+    const resource = await service.resourceById(id).catch(() => undefined);
+    if (resource === undefined || resource.merchantId !== c.get("scope").merchantId) {
+      throw new NotFoundError(`Resource ${id} not found`, { id });
+    }
+    return c.json({ resource: toX402ResourceDto(await service.unlistResource(id)) });
   });
 
   return app;

@@ -43,6 +43,7 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
         : { merchantReference: body.merchantReference }),
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
       ...(body.expiresAt === undefined ? {} : { expiresAt: body.expiresAt }),
+      ...(body.listed === undefined ? {} : { listed: body.listed }),
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     });
 
@@ -93,6 +94,30 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       throw new NotFoundError(`Payment link ${existing.id} not found`, { id: existing.id });
     }
     const link = await container.catalog.disableLink(c.req.param("id"));
+    return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()) });
+  });
+
+  /**
+   * The two halves of the discovery opt-in (#273): a listed link appears in
+   * the public payable index, an unlisted one stops appearing. `manage`
+   * scope, like `/disable` — being findable is a decision about the link,
+   * and a foreign link answers 404 for the same reason.
+   */
+  app.post("/:id/list", manage, async (c) => {
+    const existing = await container.catalog.getLink(c.req.param("id"));
+    if (existing.merchant.id !== c.get("scope").merchantId) {
+      throw new NotFoundError(`Payment link ${existing.id} not found`, { id: existing.id });
+    }
+    const link = await container.catalog.listLink(c.req.param("id"));
+    return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()) });
+  });
+
+  app.post("/:id/unlist", manage, async (c) => {
+    const existing = await container.catalog.getLink(c.req.param("id"));
+    if (existing.merchant.id !== c.get("scope").merchantId) {
+      throw new NotFoundError(`Payment link ${existing.id} not found`, { id: existing.id });
+    }
+    const link = await container.catalog.unlistLink(c.req.param("id"));
     return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()) });
   });
 

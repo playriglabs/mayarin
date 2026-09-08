@@ -32,7 +32,13 @@
 import type { ChainId } from "@mayarin/chain";
 import type { SwapRouteSource } from "@mayarin/execution";
 import { ConfigurationError, type Money, money, ProviderError } from "@mayarin/shared";
-import type { CrossAssetSettler, CrossAssetSwap, CrossAssetSwapRequest } from "@mayarin/x402";
+import type {
+  CrossAssetSettler,
+  CrossAssetSwap,
+  CrossAssetSwapRequest,
+  PayerSurplusRefund,
+  PayerSurplusRefundRequest,
+} from "@mayarin/x402";
 import {
   type Account,
   type Address,
@@ -48,6 +54,7 @@ import type { ChainClients } from "./treasury-executor.ts";
 const erc20Abi = parseAbi([
   "function allowance(address owner, address spender) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
+  "function transfer(address to, uint256 amount) returns (bool)",
   "event Transfer(address indexed from, address indexed to, uint256 value)",
 ]);
 
@@ -107,7 +114,7 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
       });
     }
 
-    return this.#broadcast(request.chain, router, route.callData);
+    return this.#broadcast(request.chain, router, route.callData, "cross-asset swap");
   }
 
   async confirm(transaction: string, request: CrossAssetSwapRequest): Promise<CrossAssetSwap> {
@@ -159,6 +166,56 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
       spent: money(spent, request.held.asset),
       delivered: money(delivered, request.exactOut.asset),
     };
+  }
+
+  async sendRefund(request: PayerSurplusRefundRequest): Promise<string> {
+    const token = this.#tokenFor(request.chain, request.amount.asset);
+    return this.#broadcast(
+      request.chain,
+      token,
+      encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "transfer",
+        args: [getAddress(request.recipient), request.amount.amount],
+      }),
+      "payer-surplus refund",
+    );
+  }
+
+  async confirmRefund(
+    transaction: string,
+    request: PayerSurplusRefundRequest,
+  ): Promise<PayerSurplusRefund> {
+    const { account } = this.#options;
+    const { publicClient } = this.#clientsFor(request.chain);
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: transaction as Hex,
+      confirmations: this.#confirmations(request.chain),
+    });
+    if (receipt.status !== "success") {
+      throw new ProviderError(
+        `The payer-surplus refund ${transaction} reverted on ${request.chain}`,
+        { transaction, chain: request.chain },
+        { retryable: false },
+      );
+    }
+
+    const token = this.#tokenFor(request.chain, request.amount.asset);
+    const recipient = getAddress(request.recipient);
+    const returned = this.#sum(
+      receipt.logs,
+      token,
+      (from) => from === account.address,
+      (to) => to === recipient,
+    );
+    if (returned !== request.amount.amount) {
+      throw new ProviderError(
+        `The payer-surplus refund ${transaction} returned ${returned} of ${request.amount.asset}, not the owed ${request.amount.amount}`,
+        { transaction, returned: returned.toString() },
+        { retryable: false },
+      );
+    }
+    return { transaction, amount: money(returned, request.amount.asset) };
   }
 
   /**
@@ -216,7 +273,12 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
     return total;
   }
 
-  async #broadcast(chain: ChainId, to: Address, data: Hex): Promise<Hex> {
+  async #broadcast(
+    chain: ChainId,
+    to: Address,
+    data: Hex,
+    operation = "cross-asset swap",
+  ): Promise<Hex> {
     const { account } = this.#options;
     const { publicClient, walletClient } = this.#clientsFor(chain);
 
@@ -246,7 +308,7 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
         });
       } catch (error) {
         throw new ProviderError(
-          `Broadcasting the cross-asset swap failed: ${shortReason(error)}`,
+          `Broadcasting the ${operation} failed: ${shortReason(error)}`,
           { chain },
           { cause: error, retryable: true },
         );

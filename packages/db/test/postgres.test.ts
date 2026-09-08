@@ -8,7 +8,7 @@
  *
  * ```
  * bun run db:up && bun run db:migrate
- * TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
+ * TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin_test bun test packages/db
  * ```
  *
  * Skipped when `TEST_DATABASE_URL` is not set. The suite truncates every table
@@ -64,8 +64,9 @@ import {
   DrizzleWalletWithdrawalRepository,
 } from "../src/repositories/wallet.ts";
 import { DrizzleX402ResourceRepository } from "../src/repositories/x402.ts";
+import { guardedTestDatabaseUrl } from "./database-guard.ts";
 
-const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+const TEST_DATABASE_URL = guardedTestDatabaseUrl(process.env);
 
 describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
   const handle = createDatabase({ url: TEST_DATABASE_URL as string, maxConnections: 4 });
@@ -610,6 +611,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
           },
         ],
         maxTimeoutSeconds: 60,
+        listed: false,
         ...overrides,
       };
     }

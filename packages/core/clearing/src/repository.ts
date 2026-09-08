@@ -41,4 +41,6 @@ export interface ClearingRepository {
   listEvents(clearingTransactionId: string): Promise<ClearingEvent[]>;
   /** Transactions stuck in a non-terminal state, oldest first. Drives recovery sweeps. */
   listResumable(limit: number): Promise<ClearingTransaction[]>;
+  /** Successful payments with refundable payer surplus not yet confirmed as returned. */
+  listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]>;
 }

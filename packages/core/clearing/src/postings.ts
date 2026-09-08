@@ -77,7 +77,12 @@ import type { ClearingState, ClearingTransaction } from "./types.ts";
  * something the executor already knows. The idempotency key still has to
  * distinguish it, so the label widens instead of the state machine.
  */
-export type PostingStep = ClearingState | "SWAPPED" | "GAS" | "PAYER_SURPLUS";
+export type PostingStep =
+  | ClearingState
+  | "SWAPPED"
+  | "GAS"
+  | "PAYER_SURPLUS"
+  | "PAYER_SURPLUS_REFUND";
 
 export function postingIdempotencyKey(transaction: ClearingTransaction, step: PostingStep): string {
   return `${transaction.id}:${step}`;
@@ -142,6 +147,19 @@ export function payerSurplusPosting(
       debit("PAYER_ASSET_HELD", surplus),
       disposition === "dust" ? credit("FEE_REVENUE", surplus) : credit("PAYER_SURPLUS", surplus),
     ],
+  };
+}
+
+/** Clears both sides of refundable change once its return is confirmed on-chain. */
+export function payerSurplusRefundPosting(
+  transaction: ClearingTransaction,
+  refund: Money,
+): DraftTransaction {
+  return {
+    description: `Payer surplus returned for payment ${transaction.paymentIntentId}`,
+    reference: transaction.id,
+    idempotencyKey: postingIdempotencyKey(transaction, "PAYER_SURPLUS_REFUND"),
+    entries: [debit("PAYER_SURPLUS", refund), credit("PAYER_ASSET_HELD", refund)],
   };
 }
 

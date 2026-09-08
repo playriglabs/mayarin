@@ -69,12 +69,46 @@ No key and no chain code run on your side. Mayarin rebuilds the payment requirem
 
 That last point is worth stating plainly: the facilitator verifies against **its own** requirements. A facilitator that verified a payment against the requirements handed to it would be verifying a payment against its own claims.
 
+## Payables: what an agent can find, and pay
+
+An endpoint is not the only thing an agent can buy. An invoice or a payment link you already sell — the same ones a person pays through the hosted checkout — can be paid by an agent over x402, at the URL of the obligation itself:
+
+```text
+GET /x402/payables/invoice/invc_123        → 402 quoting the outstanding balance
+GET /x402/payables/link/plnk_abc          → 402 quoting the link's total
+```
+
+The `402` always quotes the **full** outstanding amount. An agent cannot decide to pay part of an invoice: an authorization for less than what is owed is refused, and the remedy is a new `402` for the whole balance.
+
+Discovery is the other half. `GET /x402/payables` lists every payable across every merchant that opted in — newest first, cursor-paginated — so an agent that has not met anyone yet can find what to pay without being told a merchant id. An entry carries what an agent needs to decide: merchant, title, the price a `402` would quote, the payment URL, and the due date when there is one.
+
+Nothing is listed by default. Opt in per obligation:
+
+| Endpoint | Effect |
+| --- | --- |
+| `POST /v1/invoices/:id/list` | The invoice appears in the payable index |
+| `POST /v1/payment-links/:id/list` | The link appears in the payable index |
+| `POST /v1/x402/resources/:id/list` | The endpoint appears in the resource index |
+
+Each has an `/unlist` twin. Listing is only about being *found*: an unlisted invoice is still payable by anyone holding its id, because the unguessable id is the access control — the same rule a payment link already follows. Draft, void and paid-in-full invoices, disabled and expired links, and open-amount links never appear and never quote, listed or not.
+
+### The quote lock
+
+A payable's price is held for a short window (default sixty seconds) in a quote row, together with the exact rails the `402` offered. Two consequences an agent will meet:
+
+**A quote expires.** Signing later than the window gets a `410` with the remedy in it: request a new `402` at the same URL.
+
+**One authorization at a time.** Two agents quoting the same invoice and both signing is a race the lock decides: the first signature to settle claims it, the second is refused with a `409`. A signature for a different amount than was quoted — the balance changed in between — is also a `409`, because the payer signed a number nobody honoured any more.
+
 ## Endpoints
 
 Both are public and unauthenticated. An agent that has never met Mayarin is the entire point, and a price is not a secret.
 
 | Endpoint | What it answers |
 | --- | --- |
+| `GET /x402/payables` | Every listed payable across every merchant, newest first |
+| `GET /x402/payables/:kind/:id` | The `402` for one invoice or link — or, with a signature, settlement |
+| `GET /x402/resources` | Every listed resource across every merchant, newest first |
 | `GET /x402/resources/:id/payment-required` | The price and rails, without making the call you are deciding about |
 | `GET /x402/resources/:id/rail` | Which rail was listed first, and the measurements behind that ordering |
 | `POST /x402/resources/:id/verify` | Would this authorization go through? |

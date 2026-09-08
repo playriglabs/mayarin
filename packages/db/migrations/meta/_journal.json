@@ -204,6 +204,13 @@
       "when": 1788652800000,
       "tag": "0028_payment_payer_address",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1788739200000,
+      "tag": "0029_x402_payables",
+      "breakpoints": true
     }
   ]
 }

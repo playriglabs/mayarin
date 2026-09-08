@@ -170,6 +170,23 @@ export class InMemoryClearingRepository implements ClearingRepository {
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit);
   }
+
+  async listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]> {
+    return [...this.#byId.values()]
+      .filter((transaction) => {
+        if (transaction.state !== "SUCCESS") return false;
+        const events = this.#events.get(transaction.id) ?? [];
+        const refundable = events.some(
+          (event) =>
+            (event.payload as { payerSurplusDisposition?: unknown }).payerSurplusDisposition ===
+            "refundable",
+        );
+        const confirmed = events.some((event) => event.type === "payer-surplus.refund.confirmed");
+        return refundable && !confirmed;
+      })
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit);
+  }
 }
 
 /**

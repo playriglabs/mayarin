@@ -64,6 +64,8 @@ export interface CreateResourceInput {
   readonly maxTimeoutSeconds: number;
   /** Which of the offered rails to register. Anything else is refused. */
   readonly rails: readonly RailChoice[];
+  /** Whether the resource appears in the public x402 index (#273). */
+  readonly listed?: boolean;
 }
 
 export interface X402ResourceServiceOptions {
@@ -172,6 +174,9 @@ export class X402ResourceService {
       price: input.price,
       accepts,
       maxTimeoutSeconds: input.maxTimeoutSeconds,
+      // A new resource starts unlisted: the merchant decides to be
+      // discoverable, never discovers they already were.
+      listed: input.listed ?? false,
     };
 
     // A resource id is the payer's handle on a price, so taking one that
@@ -220,6 +225,11 @@ export class X402ResourceService {
       price: input.price,
       accepts: await this.#accepts(scope, input.rails),
       maxTimeoutSeconds: input.maxTimeoutSeconds,
+      // Omitted means unchanged — this method is the form's whole save, and the
+      // form does not know about the public index: an edit that silently
+      // unlisted a resource would pull it out of an index the merchant never
+      // meant to leave.
+      listed: input.listed ?? existing.listed,
     };
 
     await this.#options.resources.save(resource);

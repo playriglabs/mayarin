@@ -88,19 +88,19 @@
   }
 
   .checkout-shell {
-    @apply grid min-h-dvh w-full max-w-none grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(32rem,1fr)];
+    @apply grid min-h-dvh w-full max-w-none grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(32rem,1fr)];
   }
   body:has(.checkout-shell) {
     @apply block bg-paper p-0;
   }
   .checkout-summary {
-    @apply flex justify-center border-b border-line bg-surface px-5 py-6 lg:justify-end lg:border-r lg:border-b-0 lg:px-[clamp(2rem,5vw,5rem)] lg:py-12;
+    @apply flex justify-center border-b border-line bg-surface px-5 py-6 xl:justify-end xl:border-r xl:border-b-0 xl:px-[clamp(2rem,5vw,5rem)] xl:py-12;
   }
   .summary-inner {
-    @apply flex min-h-0 w-full max-w-lg flex-col lg:min-h-[calc(100dvh-6rem)];
+    @apply flex min-h-0 w-full max-w-lg flex-col xl:min-h-[calc(100dvh-6rem)];
   }
   .checkout-summary .brand {
-    @apply mb-7 lg:mb-14;
+    @apply mb-7 xl:mb-14;
   }
   .merchant-name {
     @apply m-0 mb-2 text-[15px] font-medium text-muted;
@@ -109,7 +109,7 @@
     @apply m-0 text-lg leading-tight font-medium text-muted md:text-2xl;
   }
   .summary-total {
-    @apply mt-1 mb-6 text-4xl leading-none font-semibold tracking-[-0.04em] tabular-nums text-ink lg:mb-10 lg:text-5xl;
+    @apply mt-1 mb-6 text-4xl leading-none font-semibold tracking-[-0.04em] tabular-nums text-ink xl:mb-10 xl:text-5xl;
   }
   .product-list {
     @apply grid gap-5;
@@ -147,7 +147,7 @@
     @apply line-clamp-2;
   }
   .summary-spacer {
-    @apply min-h-7 flex-1 lg:min-h-12;
+    @apply min-h-7 flex-1 xl:min-h-12;
   }
   .powered-by {
     @apply w-fit text-xs text-subtle no-underline;
@@ -160,13 +160,13 @@
   }
 
   .checkout-panel {
-    @apply flex items-center px-5 py-9 lg:px-[clamp(2rem,6vw,6rem)] lg:py-12;
+    @apply flex items-center px-5 py-9 xl:px-[clamp(2rem,6vw,6rem)] xl:py-12;
   }
   .payment-form {
     @apply mx-auto w-full max-w-md;
   }
   .pay-detail {
-    @apply max-w-lg;
+    @apply max-w-xl;
   }
   .section-kicker {
     @apply m-0 mb-2 text-[11px] font-bold tracking-widest text-brand uppercase;
@@ -200,32 +200,77 @@
   .field input {
     @apply min-w-0 flex-1 border-0 bg-transparent p-3 text-2xl text-ink tabular-nums outline-0;
   }
-  .assets {
-    @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2;
-  }
-  .networks {
-    @apply flex flex-wrap gap-2;
-  }
-  .network {
-    @apply inline-flex min-h-10 items-center rounded-control border border-field bg-transparent px-3.5 py-2 text-xs font-medium text-ink transition-[border-color,background-color,box-shadow] duration-200;
-  }
-  .network:hover {
-    @apply border-muted;
-  }
-  .network[aria-pressed="true"] {
-    @apply border-brand bg-brand/10 shadow-[0_0_0_1px_var(--color-brand)];
-  }
   .rail-note {
     @apply mt-5 mb-0 text-xs leading-relaxed text-muted;
   }
-  .asset {
-    @apply flex min-h-13 items-center justify-start gap-2.5 rounded-control border border-field bg-transparent px-3.5 py-2.5 text-ink transition-[border-color,background-color,box-shadow] duration-200;
+  .rail-picker-trigger,
+  .rail-option {
+    @apply flex w-full items-center gap-3 bg-transparent text-left text-ink;
   }
-  .asset:hover {
-    @apply border-muted;
+  .rail-picker-trigger {
+    @apply min-h-15 rounded-control border border-field px-3.5 py-2.5 transition-[border-color,box-shadow] duration-200;
   }
-  .asset[aria-pressed="true"] {
-    @apply border-brand bg-brand/10 shadow-[0_0_0_1px_var(--color-brand)];
+  .rail-picker-trigger:hover,
+  .rail-picker-trigger[aria-expanded="true"] {
+    @apply border-brand shadow-[0_0_0_1px_var(--color-brand)];
+  }
+  .rail-picker-copy {
+    @apply grid min-w-0 flex-1 leading-tight;
+  }
+  .rail-picker-copy strong {
+    @apply text-sm font-semibold;
+  }
+  .rail-picker-copy span {
+    @apply mt-1 text-xs text-muted;
+  }
+  .rail-picker-change {
+    @apply text-xs font-medium text-muted;
+  }
+  .rail-picker-chevron {
+    @apply size-2 shrink-0 rotate-45 border-r border-b border-muted transition-transform duration-200;
+  }
+  .rail-picker-trigger[aria-expanded="true"] .rail-picker-chevron {
+    @apply -rotate-135;
+  }
+  .rail-options-collapse {
+    @apply grid grid-rows-[0fr] opacity-0 motion-reduce:transition-none;
+    transition:
+      grid-template-rows 200ms ease-out,
+      opacity 150ms ease-out,
+      margin-top 200ms ease-out;
+  }
+  .rail-options-collapse.open {
+    @apply mt-2 grid-rows-[1fr] opacity-100;
+  }
+  .rail-options-clip {
+    @apply min-h-0 overflow-hidden;
+  }
+  .rail-options {
+    @apply max-h-72 -translate-y-1 overflow-y-auto overscroll-contain rounded-control border border-line bg-paper p-1 transition-transform duration-200 ease-out motion-reduce:translate-y-0 motion-reduce:transition-none;
+  }
+  .rail-options-collapse.open .rail-options {
+    @apply translate-y-0;
+  }
+  .rail-option {
+    @apply min-h-13 cursor-pointer rounded-md px-3 py-2 transition-colors duration-150;
+  }
+  .rail-option input {
+    @apply sr-only;
+  }
+  .rail-option:hover {
+    @apply bg-surface;
+  }
+  .rail-option:has(input:focus-visible) {
+    @apply outline-2 outline-offset-1 outline-brand;
+  }
+  .rail-option:has(input:checked) {
+    @apply bg-brand/10;
+  }
+  .rail-option-check {
+    @apply size-4 shrink-0 rounded-full border border-field;
+  }
+  .rail-option:has(input:checked) .rail-option-check {
+    @apply border-[5px] border-brand;
   }
   .asset-logo {
     @apply shrink-0 rounded-full object-contain;
@@ -268,7 +313,7 @@
     @apply size-full;
   }
   .payment-estimate {
-    @apply mt-6 flex items-baseline justify-between gap-4 border-y border-line py-4;
+    @apply mt-5 flex items-baseline justify-between gap-4 border-y border-line py-3.5;
   }
   .payment-estimate span {
     @apply text-xs text-muted;
@@ -276,17 +321,11 @@
   .payment-estimate strong {
     @apply text-xl font-semibold tabular-nums;
   }
-  .payment-steps {
-    @apply mt-5.5 mb-0 grid list-none gap-3 p-0;
-    counter-reset: checkout-step;
+  .checkout-note {
+    @apply mt-4 mb-0 text-xs leading-relaxed text-muted;
   }
-  .payment-steps li {
-    @apply grid grid-cols-[1.625rem_1fr] items-center gap-2.5 text-xs leading-5 text-muted;
-    counter-increment: checkout-step;
-  }
-  .payment-steps li::before {
-    content: counter(checkout-step);
-    @apply grid size-6 place-items-center rounded-full border border-field text-[11px] font-semibold text-ink;
+  .checkout-note strong {
+    @apply font-semibold text-ink;
   }
   .estimate-note {
     @apply mt-5.5 mb-0 text-xs leading-relaxed text-muted;
@@ -390,7 +429,7 @@
     @apply size-5.5 animate-spin rounded-full border-2 border-line border-t-brand motion-reduce:animate-none;
   }
   .send-amount {
-    @apply rounded-panel border border-line p-4.5 text-center;
+    @apply flex min-h-44 flex-col items-center justify-center rounded-panel border border-line p-4.5 text-center;
   }
   .send-amount > span {
     @apply block text-xs text-muted;
@@ -401,11 +440,23 @@
   .send-amount .amount-row {
     @apply mt-2 flex flex-wrap items-center justify-center gap-x-3.5 gap-y-2;
   }
+  .send-rail {
+    @apply mt-3 mb-0 text-xs text-muted;
+  }
+  .deposit-primary {
+    @apply grid gap-3.5 sm:grid-cols-[minmax(0,1fr)_12rem];
+  }
+  .qr-block {
+    @apply rounded-panel border border-line p-3 text-center;
+  }
+  .qr-block > span {
+    @apply text-xs text-muted;
+  }
   .qr {
     @apply mt-6 flex justify-center bg-white p-3;
   }
   .pay-detail .qr {
-    @apply mx-auto my-4.5 w-full max-w-60 rounded-panel border border-line;
+    @apply mx-auto mt-2 mb-0 w-full max-w-60 rounded-control;
   }
   .qr img,
   .qr svg {
@@ -413,6 +464,42 @@
   }
   .payment-data {
     @apply m-0 border-t border-line;
+  }
+  .payment-details {
+    @apply mt-3.5 rounded-control border border-line;
+  }
+  .payment-details-trigger {
+    @apply flex min-h-11 w-full cursor-pointer items-center justify-between gap-4 rounded-control border-0 bg-transparent px-3.5 py-2.5 text-left text-xs font-medium text-ink transition-colors duration-200;
+  }
+  .payment-details-trigger:hover {
+    @apply bg-surface;
+  }
+  .payment-details-trigger:focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+  .details-chevron {
+    @apply size-2 shrink-0 rotate-45 border-r border-b border-muted transition-transform duration-200;
+  }
+  .payment-details-trigger[aria-expanded="true"] .details-chevron {
+    @apply -rotate-135;
+  }
+  .payment-details-collapse {
+    @apply grid grid-rows-[0fr] opacity-0 motion-reduce:transition-none;
+    transition:
+      grid-template-rows 200ms ease-out,
+      opacity 150ms ease-out;
+  }
+  .payment-details-collapse.open {
+    @apply grid-rows-[1fr] opacity-100;
+  }
+  .payment-details-clip {
+    @apply min-h-0 overflow-hidden;
+  }
+  .payment-details .payment-data {
+    @apply mx-3.5 mb-2.5 -translate-y-1 transition-transform duration-200 ease-out motion-reduce:translate-y-0 motion-reduce:transition-none;
+  }
+  .payment-details-collapse.open .payment-data {
+    @apply translate-y-0;
   }
   .payment-data > div {
     @apply grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2.5 border-b border-line py-2.5 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4;
@@ -435,7 +522,7 @@
   /* The amount's copy sits beside the figure as an icon, so it drops the block
      layout the address button below the details still uses. */
   .copy-inline {
-    @apply mt-0 grid size-9 min-h-0 shrink-0 place-items-center p-0 text-muted;
+    @apply mt-0 grid size-11 min-h-11 shrink-0 place-items-center p-0 text-muted;
   }
   .copy-inline svg {
     @apply block size-4;
@@ -451,7 +538,7 @@
     @apply py-3 text-center;
   }
   .mark {
-    @apply mx-auto mb-4 flex size-11 items-center justify-center bg-brand text-paper;
+    @apply mx-auto mb-4 flex size-11 rounded-full items-center justify-center bg-brand text-paper;
   }
   .mark.bad {
     @apply bg-danger;
@@ -466,13 +553,10 @@
     @apply m-0 text-xs text-muted;
   }
 
-  @media (min-width: 64rem) {
-    body:has(.pay-detail) {
-      @apply overflow-hidden;
-    }
-    .checkout-shell:has(.pay-detail) {
-      @apply h-dvh min-h-0 overflow-hidden;
-    }
+  /* The split checkout needs more than an iPad landscape width. At 1024px a
+     two-column shell leaves the payment task only half a screen and forces the
+     exact amount to wrap; tablets keep the full-width, stacked flow. */
+  @media (min-width: 80rem) {
     .checkout-panel:has(.pay-detail) {
       @apply py-5;
     }
@@ -483,7 +567,7 @@
       @apply mt-4 mb-4;
     }
     .pay-detail .send-amount {
-      @apply p-3;
+      @apply p-3.5;
     }
     .pay-detail .send-amount strong {
       @apply text-xl;
@@ -492,14 +576,11 @@
       @apply mt-1;
     }
     .pay-detail .qr {
-      @apply my-3 max-w-48 p-2;
+      @apply mt-2 mb-0 max-w-44 p-2;
     }
     .pay-detail .qr img,
     .pay-detail .qr svg {
       @apply max-w-44;
-    }
-    .pay-detail .payment-data > div {
-      @apply py-1.5;
     }
     .pay-detail .copy {
       @apply mt-2;

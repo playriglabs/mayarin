@@ -73,6 +73,7 @@ export function createInvoice(input: CreateInvoiceInput): Invoice {
     total: total.total,
     ...(input.notes === undefined ? {} : { notes: input.notes }),
     metadata: input.metadata ?? {},
+    listed: false,
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: input.idempotencyKey }),
     createdAt,
     updatedAt: createdAt,
@@ -148,6 +149,25 @@ export function voidInvoice(invoice: Invoice, now: Date): Invoice {
     updatedAt: new Date(now),
     version: invoice.version + 1,
   };
+}
+
+/**
+ * Lists an invoice in the public x402 payable index (#273).
+ *
+ * Settable in any state, because the read layer already owns which states a
+ * discovery reader is shown — refusing here would invent state that filter
+ * expresses, and a voided invoice that a merchant unlists has done nothing a
+ * reader could see.
+ */
+export function listInvoice(invoice: Invoice, now: Date): Invoice {
+  if (invoice.listed) return invoice;
+  return { ...invoice, listed: true, updatedAt: new Date(now), version: invoice.version + 1 };
+}
+
+/** Withdraws an invoice from the public index. Payability is untouched. */
+export function unlistInvoice(invoice: Invoice, now: Date): Invoice {
+  if (!invoice.listed) return invoice;
+  return { ...invoice, listed: false, updatedAt: new Date(now), version: invoice.version + 1 };
 }
 
 /** Whether another Payment Intent may be minted against this invoice. */

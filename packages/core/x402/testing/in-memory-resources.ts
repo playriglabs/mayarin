@@ -11,6 +11,7 @@ import type { AssetCode, Money } from "@mayarin/shared";
 import { money } from "@mayarin/shared";
 import type {
   AcceptedAsset,
+  ListListedX402ResourcesOptions,
   ListX402ResourcesOptions,
   PaginatedX402ResourceRepository,
   PricedAsset,
@@ -35,8 +36,23 @@ export class InMemoryResourceRepository implements PaginatedX402ResourceReposito
   async listPageByMerchant(
     options: ListX402ResourcesOptions,
   ): Promise<readonly X402ResourceListEntry[]> {
-    return [...this.#byId.values()]
-      .filter((entry) => entry.resource.merchantId === options.merchantId)
+    return this.#page([...this.#byId.values()], options).filter(
+      (entry) => entry.resource.merchantId === options.merchantId,
+    );
+  }
+
+  async listPageListed(
+    options: ListListedX402ResourcesOptions,
+  ): Promise<readonly X402ResourceListEntry[]> {
+    return this.#page([...this.#byId.values()], options).filter((entry) => entry.resource.listed);
+  }
+
+  /** The shared keyset window: newest first, ties by id, bounded by `limit`. */
+  #page(
+    entries: readonly X402ResourceListEntry[],
+    options: { limit: number; cursor?: { id: string; createdAt: Date } },
+  ): readonly X402ResourceListEntry[] {
+    return entries
       .filter((entry) => {
         if (options.cursor === undefined) return true;
         const created = entry.createdAt.getTime();
@@ -120,6 +136,7 @@ export function exampleResource(overrides: Partial<X402Resource> = {}): X402Reso
     price: money(1_500n, "IDR"),
     accepts: [USDC_BASE_SEPOLIA],
     maxTimeoutSeconds: 60,
+    listed: false,
     ...overrides,
   };
 }

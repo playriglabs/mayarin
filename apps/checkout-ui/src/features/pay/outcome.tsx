@@ -52,7 +52,7 @@ export function Outcome({
           </svg>
         </div>
         <h2>{heading}</h2>
-        <p className="pt-2">{note}</p>
+        <p className="pt-3">{note}</p>
         <p className="reference">
           Reference ID <code>{intentId}</code>
         </p>

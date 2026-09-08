@@ -29,6 +29,8 @@ export interface CreatePaymentLinkInput {
   readonly merchantReference?: string;
   readonly metadata?: Readonly<Record<string, string>>;
   readonly expiresAt?: Date;
+  /** Whether the link is listed in the public x402 payable index (#273). */
+  readonly listed?: boolean;
   readonly idempotencyKey?: string;
   readonly now: Date;
 }
@@ -53,6 +55,7 @@ export function createPaymentLink(input: CreatePaymentLinkInput): PaymentLink {
       ? {}
       : { merchantReference: input.merchantReference }),
     metadata: input.metadata ?? {},
+    listed: input.listed ?? false,
     ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: input.idempotencyKey }),
     createdAt,
@@ -69,6 +72,18 @@ export function disablePaymentLink(link: PaymentLink, now: Date): PaymentLink {
     updatedAt: new Date(now),
     version: link.version + 1,
   };
+}
+
+/** Lists a link in the public x402 payable index (#273). Payability is untouched. */
+export function listPaymentLink(link: PaymentLink, now: Date): PaymentLink {
+  if (link.listed) return link;
+  return { ...link, listed: true, updatedAt: new Date(now), version: link.version + 1 };
+}
+
+/** Withdraws a link from the index. Payability is untouched. */
+export function unlistPaymentLink(link: PaymentLink, now: Date): PaymentLink {
+  if (!link.listed) return link;
+  return { ...link, listed: false, updatedAt: new Date(now), version: link.version + 1 };
 }
 
 export function isLinkExpired(link: PaymentLink, now: Date): boolean {

@@ -242,7 +242,7 @@ export function PlatformInAction() {
     <section id="platform" class="overflow-hidden bg-v2-mist py-20 md:py-28">
       <div class="mx-auto grid w-full max-w-300 gap-8 px-6 md:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:gap-20">
         <Reveal>
-          <p class="text-sm mb-6 text-forest">Mayarin platform</p>
+          <p class="text-sm mb-4 font-medium text-forest">Mayarin platform</p>
           <h2>
             See every payment.
             <br />

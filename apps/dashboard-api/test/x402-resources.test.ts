@@ -194,6 +194,7 @@ describe("remove", () => {
       url: "https://elsewhere.example/quote",
       price: { amount: 10_000n, asset: "USD" },
       maxTimeoutSeconds: 60,
+      listed: false,
       accepts: [],
     });
 
@@ -242,6 +243,7 @@ describe("create", () => {
       url: "https://elsewhere.example/quote",
       price: { amount: 10_000n, asset: "USD" },
       maxTimeoutSeconds: 60,
+      listed: false,
       accepts: [],
     });
 
@@ -278,6 +280,32 @@ describe("update", () => {
     expect(await resources.findById("fx-quote")).toMatchObject({ maxTimeoutSeconds: 120 });
   });
 
+  // `save()` upserts every column, so an edit that did not default `listed`
+  // to the stored value would silently unlist a resource on every unrelated
+  // dashboard change (#273).
+  test("an edit that omits listed keeps the resource in the public index", async () => {
+    const { service, resources } = await serviceWith({});
+    await resources.save({
+      id: "fx-quote",
+      merchantId: SCOPE.merchantId,
+      url: "https://merchant.example/quote",
+      price: { amount: 10_000n, asset: "USD" },
+      maxTimeoutSeconds: 60,
+      listed: true,
+      accepts: [],
+    });
+
+    const updated = await service.update(SCOPE, "fx-quote", {
+      url: "https://merchant.example/quote",
+      price: { amount: 20_000n, asset: "USD" },
+      maxTimeoutSeconds: 60,
+      rails: [{ chain: "arc-testnet", asset: "USDC" }],
+    });
+
+    expect(updated.listed).toBe(true);
+    expect(await resources.findById("fx-quote")).toMatchObject({ listed: true });
+  });
+
   // A rail's payTo and transfer method come from the wallet and the token, so
   // carrying the old ones forward would keep paying an address the merchant may
   // since have replaced.
@@ -303,6 +331,7 @@ describe("update", () => {
       url: "https://elsewhere.example/quote",
       price: { amount: 10_000n, asset: "USD" },
       maxTimeoutSeconds: 60,
+      listed: false,
       accepts: [],
     });
 

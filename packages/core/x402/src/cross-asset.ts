@@ -55,12 +55,27 @@ export interface CrossAssetSwap {
   readonly delivered: Money;
 }
 
+/** The payer's change, returned after an exact-output swap consumed less than authorised. */
+export interface PayerSurplusRefundRequest {
+  readonly chain: ChainId;
+  readonly amount: Money;
+  readonly recipient: string;
+}
+
+export interface PayerSurplusRefund {
+  /** The refund transaction, read back off the chain. */
+  readonly transaction: string;
+  /** Exactly what the operator returned to the payer. */
+  readonly amount: Money;
+}
+
 /**
  * Swaps a payer's asset into the merchant's, exact-output.
  *
  * Implemented in `packages/providers/*` over a route source and a wallet, so
- * the network stays out of core. Three methods rather than one, and the split
- * is the same one the facilitator already has for the same reasons:
+ * the network stays out of core. The swap has three methods rather than one,
+ * and the split is the same one the facilitator already has for the same
+ * reasons:
  *
  * - `plan` runs **before the payer's money moves**. A route that would need
  *   more than the authorization carries is unexecutable, and finding that out
@@ -71,6 +86,9 @@ export interface CrossAssetSwap {
  *   re-sending spends the operator's own balance and pays the merchant twice.
  * - `confirm` reads the transaction back. Everything it reports comes off the
  *   receipt, which is what makes it evidence rather than a claim.
+ *
+ * Returning surplus repeats the durable half of that shape: send yields a hash
+ * for the caller to persist, and confirm proves the exact payer received it.
  */
 export interface CrossAssetSettler {
   /**
@@ -87,4 +105,11 @@ export interface CrossAssetSettler {
    * anything other than `exactOut` — none of which is a settled payment.
    */
   confirm(transaction: string, request: CrossAssetSwapRequest): Promise<CrossAssetSwap>;
+  /** Broadcasts the payer-surplus return and yields its hash before confirmation. */
+  sendRefund(request: PayerSurplusRefundRequest): Promise<string>;
+  /** Reads back and verifies the exact amount and recipient of a sent refund. */
+  confirmRefund(
+    transaction: string,
+    request: PayerSurplusRefundRequest,
+  ): Promise<PayerSurplusRefund>;
 }

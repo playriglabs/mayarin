@@ -15,6 +15,23 @@ export interface ListInvoicesOptions {
 }
 
 /**
+ * The bounded, newest-first read behind the public x402 payable index (#273).
+ *
+ * Cross-merchant on purpose: an agent that has never met a merchant is the
+ * whole point. The keyset cursor matches the one the x402 resource listing
+ * uses, so both indexes paginate identically.
+ */
+export interface ListListedInvoicesOptions {
+  readonly limit: number;
+  readonly cursor?: ListedInvoicesCursor;
+}
+
+export interface ListedInvoicesCursor {
+  readonly id: string;
+  readonly createdAt: Date;
+}
+
+/**
  * Turns a draft into an issued invoice, given the number it was allocated.
  *
  * Pure, and called by the adapter rather than before it — see `issue`.
@@ -29,6 +46,8 @@ export interface InvoiceRepository {
   findByIdempotencyKey(key: string): Promise<Invoice | null>;
   update(invoice: Invoice, expectedVersion: number): Promise<void>;
   list(options: ListInvoicesOptions): Promise<readonly Invoice[]>;
+  /** Listed invoices across every merchant, newest first, keyset-paginated. */
+  listListed(options: ListListedInvoicesOptions): Promise<readonly Invoice[]>;
 
   /**
    * Allocates the merchant's next invoice number and stores the issued invoice

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ChainLabel } from "../../shared/chain-logo.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import { currencySymbol } from "../../shared/currency.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
@@ -104,7 +103,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
               ? `Pay ${bootstrap.merchant.name}.`
               : rails.length === 1
                 ? `Pay ${bootstrap.merchant.name} with ${railSummary(rail)}.`
-                : `Pay ${bootstrap.merchant.name} on any network below.`}
+                : `Select an asset and network to pay ${bootstrap.merchant.name}.`}
           </p>
 
           {total === null && (
@@ -137,25 +136,9 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                 <strong>{estimate}</strong>
               </div>
 
-              <ol className="payment-steps">
-                {rails.length > 1 && <li>Pick the network and asset you want to send.</li>}
-                <li>Continue to lock the price for {lockMinutes} minutes.</li>
-                <li>Scan the QR code or copy the address, then wait for confirmation.</li>
-              </ol>
-
-              {/* True of a choice the payer made, not one the deployment made
-                  for them — which is what makes it worth stating twice. */}
-              <p className="rail-note">
-                Send {rail.asset} on{" "}
-                <span className="pl-1">
-                  <ChainLabel chain={rail.chain} size={18} />
-                </span>{" "}
-                only. Anything else, or the same asset on another network, cannot be recovered.
-              </p>
-
-              <p className="estimate-note">
-                Estimated, final price may change. Prices are locked for {lockMinutes} minutes once
-                you press the button below.
+              <p className="checkout-note">
+                The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
+                <strong>{railSummary(rail)}</strong> to the address shown there.
               </p>
               <button type="button" className="primary" disabled={busy} onClick={() => void pay()}>
                 {busy ? "Preparing payment…" : `Continue with ${rail.asset}`}

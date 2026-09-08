@@ -45,6 +45,10 @@
       "description": "Numbered requests with buyers and due dates."
     },
     {
+      "name": "x402 resources",
+      "description": "Per-call resources an agent pays for over the x402 rail."
+    },
+    {
       "name": "Webhooks",
       "description": "Provider signals into Mayarin."
     },
@@ -756,6 +760,10 @@
           "payable": {
             "type": "boolean"
           },
+          "listed": {
+            "type": "boolean",
+            "description": "Whether it appears in the public x402 payable index."
+          },
           "expiresAt": {
             "type": ["string", "null"]
           },
@@ -784,6 +792,7 @@
           "metadata",
           "url",
           "payable",
+          "listed",
           "expiresAt",
           "disabledAt",
           "createdAt",
@@ -887,6 +896,10 @@
           },
           "version": {
             "type": "integer"
+          },
+          "listed": {
+            "type": "boolean",
+            "description": "Whether it appears in the public x402 payable index."
           }
         },
         "required": [
@@ -908,7 +921,8 @@
           "voidedAt",
           "createdAt",
           "updatedAt",
-          "version"
+          "version",
+          "listed"
         ]
       },
       "InvoiceView": {
@@ -933,6 +947,65 @@
             "required": ["status", "paid", "outstanding"]
           }
         ]
+      },
+      "X402Resource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "maxTimeoutSeconds": {
+            "type": "integer"
+          },
+          "listed": {
+            "type": "boolean",
+            "description": "Whether it appears in the public x402 resource index."
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "chain": {
+                  "type": "string"
+                },
+                "asset": {
+                  "type": "string"
+                },
+                "contract": {
+                  "type": "string"
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "transferMethod": {
+                  "type": "string"
+                },
+                "domain": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["chain", "asset", "contract", "payTo", "transferMethod", "domain"]
+            }
+          }
+        },
+        "required": ["id", "merchantId", "url", "price", "maxTimeoutSeconds", "listed", "accepts"]
       }
     },
     "parameters": {}
@@ -1007,7 +1080,18 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -1017,11 +1101,29 @@
                     "properties": {
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       },
                       "chain": {
                         "type": "string",
-                        "enum": ["base", "base-sepolia"]
+                        "enum": [
+                          "base",
+                          "base-sepolia",
+                          "arbitrum",
+                          "arbitrum-sepolia",
+                          "robinhood-testnet",
+                          "arc-testnet"
+                        ]
                       },
                       "payerAddress": {
                         "type": "string",
@@ -1032,11 +1134,22 @@
                   },
                   "settlementAsset": {
                     "type": "string",
-                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "USDC",
+                      "USDT",
+                      "EURC",
+                      "ETH",
+                      "BTC"
+                    ]
                   },
                   "executionPath": {
                     "type": "string",
-                    "enum": ["deposit-match", "on-chain-contract"]
+                    "enum": ["deposit-match", "on-chain-contract", "x402"]
                   },
                   "provider": {
                     "type": "string",
@@ -1378,7 +1491,18 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -1463,7 +1587,18 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -1472,7 +1607,18 @@
                     "type": "array",
                     "items": {
                       "type": "string",
-                      "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                      "enum": [
+                        "IDR",
+                        "USD",
+                        "SGD",
+                        "THB",
+                        "MYR",
+                        "USDC",
+                        "USDT",
+                        "EURC",
+                        "ETH",
+                        "BTC"
+                      ]
                     },
                     "minItems": 1,
                     "maxItems": 16
@@ -1611,7 +1757,18 @@
                         },
                         "asset": {
                           "type": "string",
-                          "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                          "enum": [
+                            "IDR",
+                            "USD",
+                            "SGD",
+                            "THB",
+                            "MYR",
+                            "USDC",
+                            "USDT",
+                            "EURC",
+                            "ETH",
+                            "BTC"
+                          ]
                         }
                       },
                       "required": ["amount", "asset"]
@@ -1759,7 +1916,18 @@
                         },
                         "asset": {
                           "type": "string",
-                          "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                          "enum": [
+                            "IDR",
+                            "USD",
+                            "SGD",
+                            "THB",
+                            "MYR",
+                            "USDC",
+                            "USDT",
+                            "EURC",
+                            "ETH",
+                            "BTC"
+                          ]
                         }
                       },
                       "required": ["amount", "asset"]
@@ -1836,7 +2004,18 @@
                 "properties": {
                   "settlementAsset": {
                     "type": "string",
-                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "USDC",
+                      "USDT",
+                      "EURC",
+                      "ETH",
+                      "BTC"
+                    ]
                   },
                   "provider": {
                     "type": "string",
@@ -1847,11 +2026,29 @@
                     "properties": {
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       },
                       "chain": {
                         "type": "string",
-                        "enum": ["base", "base-sepolia"]
+                        "enum": [
+                          "base",
+                          "base-sepolia",
+                          "arbitrum",
+                          "arbitrum-sepolia",
+                          "robinhood-testnet",
+                          "arc-testnet"
+                        ]
                       },
                       "payerAddress": {
                         "type": "string",
@@ -1862,7 +2059,7 @@
                   },
                   "executionPath": {
                     "type": "string",
-                    "enum": ["deposit-match", "on-chain-contract"]
+                    "enum": ["deposit-match", "on-chain-contract", "x402"]
                   },
                   "metadata": {
                     "type": "object",
@@ -1907,7 +2104,18 @@
                   },
                   "currency": {
                     "type": "string",
-                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "USDC",
+                      "USDT",
+                      "EURC",
+                      "ETH",
+                      "BTC"
+                    ]
                   },
                   "lines": {
                     "type": "array",
@@ -1951,6 +2159,7 @@
                                     "MYR",
                                     "USDC",
                                     "USDT",
+                                    "EURC",
                                     "ETH",
                                     "BTC"
                                   ]
@@ -2122,14 +2331,36 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       }
                     },
                     "required": ["amount", "asset"]
                   },
                   "currency": {
                     "type": "string",
-                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "USDC",
+                      "USDT",
+                      "EURC",
+                      "ETH",
+                      "BTC"
+                    ]
                   },
                   "lines": {
                     "type": "array",
@@ -2168,6 +2399,9 @@
                   "expiresAt": {
                     "type": "string",
                     "format": "date-time"
+                  },
+                  "listed": {
+                    "type": "boolean"
                   }
                 },
                 "required": ["kind", "merchant"],
@@ -2306,6 +2540,95 @@
         }
       }
     },
+    "/v1/payment-links/{id}/list": {
+      "post": {
+        "tags": ["Payment links"],
+        "operationId": "listPaymentLink",
+        "summary": "List a payment link in the public payable index",
+        "description": "Opts the link into the public x402 payable index, where agents discover and pay it. The link stays payable by anyone holding its URL either way; listing only decides whether a discovery reader is shown it.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listed payment link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentLink"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No link with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment-links/{id}/unlist": {
+      "post": {
+        "tags": ["Payment links"],
+        "operationId": "unlistPaymentLink",
+        "summary": "Remove a payment link from the public payable index",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unlisted payment link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentLink"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No link with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/payment-links/{id}/checkout": {
       "post": {
         "tags": ["Payment links"],
@@ -2342,7 +2665,18 @@
                 "properties": {
                   "settlementAsset": {
                     "type": "string",
-                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "USDC",
+                      "USDT",
+                      "EURC",
+                      "ETH",
+                      "BTC"
+                    ]
                   },
                   "provider": {
                     "type": "string",
@@ -2353,11 +2687,29 @@
                     "properties": {
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       },
                       "chain": {
                         "type": "string",
-                        "enum": ["base", "base-sepolia"]
+                        "enum": [
+                          "base",
+                          "base-sepolia",
+                          "arbitrum",
+                          "arbitrum-sepolia",
+                          "robinhood-testnet",
+                          "arc-testnet"
+                        ]
                       },
                       "payerAddress": {
                         "type": "string",
@@ -2368,7 +2720,7 @@
                   },
                   "executionPath": {
                     "type": "string",
-                    "enum": ["deposit-match", "on-chain-contract"]
+                    "enum": ["deposit-match", "on-chain-contract", "x402"]
                   },
                   "metadata": {
                     "type": "object",
@@ -2393,7 +2745,18 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -2560,7 +2923,18 @@
                   },
                   "currency": {
                     "type": "string",
-                    "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                    "enum": [
+                      "IDR",
+                      "USD",
+                      "SGD",
+                      "THB",
+                      "MYR",
+                      "USDC",
+                      "USDT",
+                      "EURC",
+                      "ETH",
+                      "BTC"
+                    ]
                   },
                   "lines": {
                     "type": "array",
@@ -2592,6 +2966,7 @@
                                 "MYR",
                                 "USDC",
                                 "USDT",
+                                "EURC",
                                 "ETH",
                                 "BTC"
                               ]
@@ -2791,6 +3166,7 @@
                                 "MYR",
                                 "USDC",
                                 "USDT",
+                                "EURC",
                                 "ETH",
                                 "BTC"
                               ]
@@ -2984,6 +3360,95 @@
         }
       }
     },
+    "/v1/invoices/{id}/list": {
+      "post": {
+        "tags": ["Invoices"],
+        "operationId": "listInvoice",
+        "summary": "List an invoice in the public payable index",
+        "description": "Opts the invoice into the public x402 payable index, where agents discover and pay it. The invoice stays payable by anyone holding its id either way; listing only decides whether a discovery reader is shown it.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listed invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invoice with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/invoices/{id}/unlist": {
+      "post": {
+        "tags": ["Invoices"],
+        "operationId": "unlistInvoice",
+        "summary": "Remove an invoice from the public payable index",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unlisted invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invoice with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/invoices/{id}/checkout": {
       "post": {
         "tags": ["Invoices"],
@@ -3023,11 +3488,29 @@
                     "properties": {
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       },
                       "chain": {
                         "type": "string",
-                        "enum": ["base", "base-sepolia"]
+                        "enum": [
+                          "base",
+                          "base-sepolia",
+                          "arbitrum",
+                          "arbitrum-sepolia",
+                          "robinhood-testnet",
+                          "arc-testnet"
+                        ]
                       },
                       "payerAddress": {
                         "type": "string",
@@ -3038,7 +3521,7 @@
                   },
                   "executionPath": {
                     "type": "string",
-                    "enum": ["deposit-match", "on-chain-contract"]
+                    "enum": ["deposit-match", "on-chain-contract", "x402"]
                   },
                   "amount": {
                     "type": "object",
@@ -3048,7 +3531,18 @@
                       },
                       "asset": {
                         "type": "string",
-                        "enum": ["IDR", "USD", "SGD", "THB", "MYR", "USDC", "USDT", "ETH", "BTC"]
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
                       }
                     },
                     "required": ["amount", "asset"]
@@ -3123,6 +3617,95 @@
                     }
                   },
                   "required": ["ok"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/x402/resources/{id}/list": {
+      "post": {
+        "tags": ["x402 resources"],
+        "operationId": "listX402Resource",
+        "summary": "List a resource in the public index",
+        "description": "Opts the resource into the public cross-merchant x402 index. The resource stays sellable by URL either way; listing only decides whether an agent browsing the index is shown it.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listed resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402Resource"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No resource with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/x402/resources/{id}/unlist": {
+      "post": {
+        "tags": ["x402 resources"],
+        "operationId": "unlistX402Resource",
+        "summary": "Remove a resource from the public index",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unlisted resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402Resource"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No resource with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }

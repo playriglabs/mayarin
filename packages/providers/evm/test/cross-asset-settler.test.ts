@@ -11,8 +11,17 @@
 import { describe, expect, test } from "bun:test";
 import type { RouteRequest } from "@mayarin/execution";
 import { money } from "@mayarin/shared";
-import type { CrossAssetSwapRequest } from "@mayarin/x402";
-import { type Address, encodeEventTopics, getAddress, type Hex, pad, parseAbi, toHex } from "viem";
+import type { CrossAssetSwapRequest, PayerSurplusRefundRequest } from "@mayarin/x402";
+import {
+  type Address,
+  decodeFunctionData,
+  encodeEventTopics,
+  getAddress,
+  type Hex,
+  pad,
+  parseAbi,
+  toHex,
+} from "viem";
 import { EvmCrossAssetSettler } from "../src/cross-asset-settler.ts";
 
 const OPERATOR = getAddress("0x209693Bc6afc0C5328bA36FaF03C514EF312287C");
@@ -24,6 +33,7 @@ const USDC = getAddress("0x036CbD53842c5426634e7929541eC2318f3dCF7e");
 /** Arc's native view of the same USDC balance — a different contract, same money. */
 const USDC_NATIVE_VIEW = getAddress("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfE");
 const SWAP_TX = `0x${"cd".repeat(32)}`;
+const PAYER = getAddress("0x2222222222222222222222222222222222222222");
 
 const transferAbi = parseAbi([
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -42,6 +52,12 @@ const REQUEST: CrossAssetSwapRequest = {
   held: money(20_101n, "EURC"),
   exactOut: money(20_000n, "USDC"),
   recipient: MERCHANT,
+};
+
+const REFUND: PayerSurplusRefundRequest = {
+  chain: "base-sepolia",
+  amount: money(121n, "EURC"),
+  recipient: PAYER,
 };
 
 function settler(
@@ -252,5 +268,41 @@ describe("sending a cross-asset swap", () => {
 
     expect(await instance.plan(REQUEST)).toEqual(money(19_980n, "EURC"));
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe("returning payer surplus", () => {
+  test("sends an ERC-20 transfer to the recorded payer", async () => {
+    const { settler: instance, sent } = settler();
+
+    await instance.sendRefund(REFUND);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.to).toBe(EURC);
+    expect(
+      decodeFunctionData({
+        abi: parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]),
+        data: sent[0]?.data as Hex,
+      }),
+    ).toMatchObject({ functionName: "transfer", args: [PAYER, 121n] });
+  });
+
+  test("confirms the exact return from operator to payer", async () => {
+    const { settler: instance } = settler({
+      logs: [transferLog(EURC, OPERATOR, PAYER, 121n)],
+    });
+
+    expect(await instance.confirmRefund(SWAP_TX, REFUND)).toEqual({
+      transaction: SWAP_TX,
+      amount: money(121n, "EURC"),
+    });
+  });
+
+  test("refuses a receipt that returned the wrong amount", async () => {
+    const { settler: instance } = settler({
+      logs: [transferLog(EURC, OPERATOR, PAYER, 120n)],
+    });
+
+    await expect(instance.confirmRefund(SWAP_TX, REFUND)).rejects.toThrow(/not the owed 121/);
   });
 });

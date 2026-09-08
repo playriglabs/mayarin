@@ -10,7 +10,7 @@
  *
  * ```
  * bun run db:up && bun run db:migrate
- * TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
+ * TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin_test bun test packages/db
  * ```
  *
  * Skipped when `TEST_DATABASE_URL` is not set. This suite truncates the tables
@@ -29,8 +29,9 @@ import { sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
 import { DrizzleInvoiceRepository } from "../src/repositories/invoice.ts";
 import { DrizzlePaymentIntentRepository } from "../src/repositories/payment-intent.ts";
+import { guardedTestDatabaseUrl } from "./database-guard.ts";
 
-const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+const TEST_DATABASE_URL = guardedTestDatabaseUrl(process.env);
 
 const merchant = { id: "mrc_inv_1", name: "Warung Kopi", city: "Jakarta", countryCode: "ID" };
 const buyer = { name: "PT Sumber Rejeki", email: "finance@sumberrejeki.co.id" };

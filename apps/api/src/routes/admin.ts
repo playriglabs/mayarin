@@ -264,6 +264,9 @@ export function adminRoutes(container: Container, token: string): Hono {
       price: fromDecimalString(body.price.amount, body.price.asset),
       accepts: body.accepts,
       maxTimeoutSeconds: body.maxTimeoutSeconds,
+      // Omitted means unchanged: an operator re-registering a resource must
+      // not silently unlist it (#273).
+      ...(body.listed === undefined ? {} : { listed: body.listed }),
     });
 
     return c.json({ resource: toX402ResourceDto(resource) }, 201);

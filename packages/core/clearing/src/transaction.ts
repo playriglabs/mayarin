@@ -182,6 +182,68 @@ export function recordCrossAssetSwap(
   };
 }
 
+function recordPayerSurplusRefundEvent(
+  transaction: ClearingTransaction,
+  type: "payer-surplus.refund.broadcast" | "payer-surplus.refund.confirmed",
+  providerReference: string,
+  amount: Money,
+  payer: string,
+  now: Date,
+): TransitionResult {
+  const updatedAt = new Date(now);
+  const next: ClearingTransaction = {
+    ...transaction,
+    updatedAt,
+    version: transaction.version + 1,
+  };
+  return {
+    transaction: next,
+    event: {
+      id: generateId("evt", updatedAt.getTime()),
+      clearingTransactionId: transaction.id,
+      sequence: next.version,
+      type,
+      toState: transaction.state,
+      payload: { providerReference, amount: serializeMoney(amount), payer },
+      occurredAt: updatedAt,
+    },
+  };
+}
+
+export function recordPayerSurplusRefundBroadcast(
+  transaction: ClearingTransaction,
+  providerReference: string,
+  amount: Money,
+  payer: string,
+  now: Date,
+): TransitionResult {
+  return recordPayerSurplusRefundEvent(
+    transaction,
+    "payer-surplus.refund.broadcast",
+    providerReference,
+    amount,
+    payer,
+    now,
+  );
+}
+
+export function recordPayerSurplusRefundConfirmed(
+  transaction: ClearingTransaction,
+  providerReference: string,
+  amount: Money,
+  payer: string,
+  now: Date,
+): TransitionResult {
+  return recordPayerSurplusRefundEvent(
+    transaction,
+    "payer-surplus.refund.confirmed",
+    providerReference,
+    amount,
+    payer,
+    now,
+  );
+}
+
 export function failTransaction(
   transaction: ClearingTransaction,
   failure: ClearingFailure,

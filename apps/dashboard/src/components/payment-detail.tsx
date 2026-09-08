@@ -70,6 +70,11 @@ const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
  * cart writes the `cart` snapshot, and an agent endpoint writes
  * `x402Resource`. A payment with none of those was created straight through the
  * API — by a QR scan or a server integration.
+ *
+ * An agent can also pay an obligation that already existed (#273): the same
+ * `invoiceId`/`paymentLinkId` metadata carries an `x402PayableKind` marker,
+ * and the label names the rail rather than the obligation, because the
+ * merchant's first question about an agent payment is that it *was* one.
  */
 interface Purchase {
   readonly label: string;
@@ -87,6 +92,20 @@ function purchaseOf(intent: {
   const invoiceId = intent.metadata.invoiceId;
   const linkId = intent.metadata.paymentLinkId;
 
+  // An x402 payment is a machine paying for one endpoint or one obligation, and
+  // its source is `manual` only because nobody scanned anything. Calling it
+  // "Direct API" describes a server integration holding a key — the opposite
+  // of a payer that has never registered with anyone.
+  if (intent.metadata.x402PayableKind !== undefined) {
+    const payableId = intent.metadata.x402PayableId;
+    return {
+      label: "Agent · x402",
+      ...(payableId === undefined ? {} : { reference: payableId }),
+    };
+  }
+  if (intent.metadata.x402Resource !== undefined) {
+    return { label: "Agent · x402", reference: intent.metadata.x402Resource };
+  }
   if (invoiceId !== undefined) {
     return { label: "Invoice", reference: invoiceId, ...(cart === undefined ? {} : { cart }) };
   }
@@ -95,14 +114,6 @@ function purchaseOf(intent: {
   }
   if (cart !== undefined) {
     return { label: "Product catalog", cart };
-  }
-  // An x402 payment is a machine paying for one endpoint, and its source is
-  // `manual` only because nobody scanned anything. Calling it "Direct API"
-  // describes a server integration holding a key — the opposite of a payer that
-  // has never registered with anyone.
-  const resourceId = intent.metadata.x402Resource;
-  if (resourceId !== undefined) {
-    return { label: "Agent · x402", reference: resourceId };
   }
   return intent.source.type === "qr"
     ? { label: `QR scan · ${intent.source.scheme}` }

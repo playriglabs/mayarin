@@ -9,20 +9,31 @@
  */
 
 import { type Money, money, ProviderError, ValidationError } from "@mayarin/shared";
-import type { CrossAssetSettler, CrossAssetSwap, CrossAssetSwapRequest } from "../src/index.ts";
+import type {
+  CrossAssetSettler,
+  CrossAssetSwap,
+  CrossAssetSwapRequest,
+  PayerSurplusRefund,
+  PayerSurplusRefundRequest,
+} from "../src/index.ts";
 
 export class FakeCrossAssetSettler implements CrossAssetSettler {
   /** Every request it was asked to plan, in order. */
   readonly planned: CrossAssetSwapRequest[] = [];
   /** Every request it actually broadcast, in order. */
   readonly sent: CrossAssetSwapRequest[] = [];
+  /** Every payer-surplus return it actually broadcast, in order. */
+  readonly refunds: PayerSurplusRefundRequest[] = [];
 
   #expectedIn: ((request: CrossAssetSwapRequest) => Money) | undefined;
   #spent: ((request: CrossAssetSwapRequest) => Money) | undefined;
   #delivered: ((request: CrossAssetSwapRequest) => Money) | undefined;
   #transaction = `0x${"cd".repeat(32)}`;
+  #refundTransaction = `0x${"ef".repeat(32)}`;
   #sendFails: Error | undefined;
   #confirmFails: Error | undefined;
+  #refundSendFails: Error | undefined;
+  #refundConfirmFails: Error | undefined;
 
   /** What the route says it will consume. Defaults to the whole authorization. */
   willPlan(expectedIn: Money | ((request: CrossAssetSwapRequest) => Money)): this {
@@ -59,6 +70,21 @@ export class FakeCrossAssetSettler implements CrossAssetSettler {
     return this;
   }
 
+  willUseRefundTransaction(transaction: string): this {
+    this.#refundTransaction = transaction;
+    return this;
+  }
+
+  willFailToSendRefund(error: Error): this {
+    this.#refundSendFails = error;
+    return this;
+  }
+
+  willFailToConfirmRefund(error: Error): this {
+    this.#refundConfirmFails = error;
+    return this;
+  }
+
   /**
    * The interruption is over.
    *
@@ -69,6 +95,8 @@ export class FakeCrossAssetSettler implements CrossAssetSettler {
   recovers(): this {
     this.#sendFails = undefined;
     this.#confirmFails = undefined;
+    this.#refundSendFails = undefined;
+    this.#refundConfirmFails = undefined;
     return this;
   }
 
@@ -105,5 +133,19 @@ export class FakeCrossAssetSettler implements CrossAssetSettler {
     }
     const spent = this.#spent?.(request) ?? this.#expectedIn?.(request) ?? request.held;
     return { transaction, spent: money(spent.amount, request.held.asset), delivered };
+  }
+
+  async sendRefund(request: PayerSurplusRefundRequest): Promise<string> {
+    if (this.#refundSendFails !== undefined) throw this.#refundSendFails;
+    this.refunds.push(request);
+    return this.#refundTransaction;
+  }
+
+  async confirmRefund(
+    transaction: string,
+    request: PayerSurplusRefundRequest,
+  ): Promise<PayerSurplusRefund> {
+    if (this.#refundConfirmFails !== undefined) throw this.#refundConfirmFails;
+    return { transaction, amount: request.amount };
   }
 }

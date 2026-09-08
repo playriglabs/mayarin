@@ -1,8 +1,26 @@
 import { Reveal } from "../reveal.tsx";
 
+function Chevron() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
+
 export function EarlyAccessCta() {
   return (
-    <section class="relative isolate flex min-h-120 items-center overflow-hidden border-y border-white/15 bg-plate py-20 text-paper md:py-28">
+    <section class="relative isolate flex min-h-128 items-center overflow-hidden border-y border-white/15 bg-plate py-20 text-paper md:py-28">
       <svg
         aria-hidden="true"
         class="pointer-events-none absolute inset-0 hidden size-full text-accent/50 md:block"
@@ -46,10 +64,11 @@ export function EarlyAccessCta() {
           product.
         </p>
         <a
-          class="mt-9 inline-flex min-h-14 items-center justify-center rounded-lg bg-accent px-8 py-3 font-medium text-plate transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+          class="mt-9 inline-flex min-h-12 gap-1.5 items-center justify-center rounded-full bg-accent px-6 py-2 font-medium text-plate transition-colors hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
           href="#footer-early-access"
         >
           Get early access
+          <Chevron />
         </a>
       </Reveal>
     </section>

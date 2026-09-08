@@ -33,6 +33,8 @@ export const x402ResourceSchema = z
       )
       .min(1),
     maxTimeoutSeconds: z.number().int().positive(),
+    /** Whether it appears in the public cross-merchant index (#273). */
+    listed: z.boolean().optional(),
   })
   .strict();
 
@@ -47,6 +49,8 @@ export function toX402ResourceDto(resource: X402Resource): Record<string, unknow
     ...(resource.mimeType === undefined ? {} : { mimeType: resource.mimeType }),
     price: toMoneyDto(resource.price),
     maxTimeoutSeconds: resource.maxTimeoutSeconds,
+    /** Whether it appears in the public cross-merchant index (#273). */
+    listed: resource.listed,
     accepts: resource.accepts.map((accept) => ({
       chain: accept.chain,
       asset: accept.asset,

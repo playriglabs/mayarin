@@ -28,10 +28,16 @@ import {
   type EditInvoiceInput,
   editInvoice,
   issueInvoice,
+  listInvoice,
+  unlistInvoice,
   voidInvoice,
 } from "./invoice.ts";
 import { formatInvoiceNumber, type InvoiceNumberFormat } from "./number.ts";
-import type { InvoiceRepository, ListInvoicesOptions } from "./repository.ts";
+import type {
+  InvoiceRepository,
+  ListInvoicesOptions,
+  ListListedInvoicesOptions,
+} from "./repository.ts";
 import type { Invoice, InvoiceView } from "./types.ts";
 
 /**
@@ -166,6 +172,34 @@ export class InvoiceService {
     if (next === invoice) return invoice;
     await this.#invoices.update(next, invoice.version);
     return next;
+  }
+
+  /** Lists an invoice in the public x402 payable index (#273). See `listInvoice`. */
+  async listInvoice(id: string): Promise<Invoice> {
+    const invoice = await this.#require(id);
+    const next = listInvoice(invoice, this.#clock.now());
+    if (next === invoice) return invoice;
+    await this.#invoices.update(next, invoice.version);
+    return next;
+  }
+
+  /** Withdraws an invoice from the index. Payability is untouched. */
+  async unlistInvoice(id: string): Promise<Invoice> {
+    const invoice = await this.#require(id);
+    const next = unlistInvoice(invoice, this.#clock.now());
+    if (next === invoice) return invoice;
+    await this.#invoices.update(next, invoice.version);
+    return next;
+  }
+
+  /**
+   * The listed invoices, newest first — the merchant rows behind the public
+   * x402 payable index. Which of them a discovery reader is shown is decided
+   * by the caller: this returns every listed invoice, and payability (draft,
+   * void, already paid) is a read-time fact this layer does not re-derive.
+   */
+  async listListedInvoices(options: ListListedInvoicesOptions): Promise<readonly Invoice[]> {
+    return this.#invoices.listListed(options);
   }
 
   /**

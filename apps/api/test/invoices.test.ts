@@ -121,6 +121,22 @@ describe("POST /invoices/:id/issue", () => {
   });
 });
 
+describe("POST /invoices/:id/list and /unlist", () => {
+  test("opts an invoice into and out of public payable discovery", async () => {
+    const harness = createApiHarness();
+    const issued = await createIssued(harness);
+    expect(issued.listed).toBe(false);
+
+    const listed = await harness.request("POST", `/v1/invoices/${issued.id}/list`);
+    const unlisted = await harness.request("POST", `/v1/invoices/${issued.id}/unlist`);
+
+    expect(listed.status).toBe(200);
+    expect(listed.body.invoice.listed).toBe(true);
+    expect(unlisted.status).toBe(200);
+    expect(unlisted.body.invoice.listed).toBe(false);
+  });
+});
+
 describe("POST /invoices/:id/checkout", () => {
   test("mints an intent carrying the invoice number", async () => {
     const harness = createApiHarness();

@@ -86,10 +86,15 @@ guard refuses non-local database hosts.
 
 The Postgres integration suite runs the full clearing flow against real
 repositories. It truncates every table it touches, so it keys on its own
-variable — `DATABASE_URL` from `.env` never runs it:
+variable — `DATABASE_URL` from `.env` never runs it. The target must end in
+`_test` and must not be the development database:
 
 ```bash
-TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin bun test packages/db
+docker exec mayarin-postgres createdb -U mayarin mayarin_test
+DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin_test \
+  bun run packages/db/src/migrate.ts
+TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin_test \
+  bun test packages/db
 ```
 
 ---

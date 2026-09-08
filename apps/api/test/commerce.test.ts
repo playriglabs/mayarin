@@ -165,6 +165,29 @@ describe("payment links", () => {
     expect(paid.body.paymentIntent.amount).toMatchObject({ amount: "5000000", asset: "IDR" });
   });
 
+  test("can opt into discovery at creation and withdraw or restore that listing", async () => {
+    const harness = createApiHarness();
+    const created = await harness.request("POST", "/v1/payment-links", {
+      body: {
+        kind: "fixed",
+        merchant,
+        amount: { amount: "50000.00", asset: "IDR" },
+        listed: true,
+      },
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.paymentLink.listed).toBe(true);
+
+    const id = created.body.paymentLink.id as string;
+    const unlisted = await harness.request("POST", `/v1/payment-links/${id}/unlist`);
+    const relisted = await harness.request("POST", `/v1/payment-links/${id}/list`);
+
+    expect(unlisted.status).toBe(200);
+    expect(unlisted.body.paymentLink.listed).toBe(false);
+    expect(relisted.status).toBe(200);
+    expect(relisted.body.paymentLink.listed).toBe(true);
+  });
+
   test("an open link takes the amount the buyer enters, twice over", async () => {
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/v1/payment-links", {

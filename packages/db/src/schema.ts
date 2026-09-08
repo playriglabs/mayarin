@@ -523,6 +523,8 @@ export const paymentLinks = pgTable(
 
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
     disabledAt: timestamp("disabled_at", { withTimezone: true, mode: "date" }),
+    /** Whether the link appears in the public x402 payable index (#273). */
+    listed: boolean("listed").notNull().default(false),
     idempotencyKey: text("idempotency_key"),
 
     createdAt: createdAt(),
@@ -532,6 +534,7 @@ export const paymentLinks = pgTable(
   (table) => [
     uniqueIndex("payment_links_idempotency_key_idx").on(table.idempotencyKey),
     index("payment_links_merchant_idx").on(table.merchantId, table.createdAt),
+    index("payment_links_listed_idx").on(table.listed, table.createdAt),
   ],
 );
 
@@ -581,6 +584,8 @@ export const invoices = pgTable(
     issuedAt: timestamp("issued_at", { withTimezone: true, mode: "date" }),
     dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }),
     voidedAt: timestamp("voided_at", { withTimezone: true, mode: "date" }),
+    /** Whether the invoice appears in the public x402 payable index (#273). */
+    listed: boolean("listed").notNull().default(false),
     idempotencyKey: text("idempotency_key"),
 
     createdAt: createdAt(),
@@ -593,6 +598,7 @@ export const invoices = pgTable(
     // once. An allocator bug must surface as a failed write, not a duplicate.
     uniqueIndex("invoices_number_idx").on(table.merchantId, table.number),
     index("invoices_merchant_idx").on(table.merchantId, table.createdAt),
+    index("invoices_listed_idx").on(table.listed, table.createdAt),
   ],
 );
 
@@ -980,12 +986,50 @@ export const x402Resources = pgTable(
     /** `AcceptedAsset[]` — chain, contract, payTo, EIP-712 domain, transfer method. */
     accepts: jsonb("accepts").notNull(),
     maxTimeoutSeconds: integer("max_timeout_seconds").notNull(),
+    /** Whether the resource appears in the public cross-merchant index (#273). */
+    listed: boolean("listed").notNull().default(false),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [
     index("x402_resources_merchant_idx").on(table.merchantId),
     uniqueIndex("x402_resources_merchant_url_idx").on(table.merchantId, table.url),
+    index("x402_resources_listed_idx").on(table.listed, table.createdAt),
+  ],
+);
+
+/**
+ * The price lock between a payable 402 and its settle (#273).
+ *
+ * One live row per `(kind, obligation_id)`. A resource's price is static
+ * registry config, so the registry row itself is the lock; an invoice's
+ * outstanding balance moves as payments land, so the lock is this row — the
+ * quoted amount, the rails exactly as offered when it was (the payer signs
+ * against them), and the EIP-3009 nonce claim that serialises two agents
+ * racing one obligation.
+ */
+export const x402PayableQuotes = pgTable(
+  "x402_payable_quotes",
+  {
+    /** `PayableKind` — `invoice` or `link`, CHECK-constrained, no postgres enum. */
+    kind: text("kind").notNull(),
+    obligationId: text("obligation_id").notNull(),
+    merchantId: text("merchant_id").notNull(),
+    amount: minorUnits("amount").notNull(),
+    asset: text("asset").notNull(),
+    /** `AcceptedAsset[]` — the rails as derived and probed at quote time. */
+    accepts: jsonb("accepts").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    /** `PayableQuoteStatus` — `quoted`, `claimed` or `settled`. */
+    status: text("status").notNull(),
+    claimedNonce: text("claimed_nonce"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true, mode: "date" }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.kind, table.obligationId] }),
+    index("x402_payable_quotes_merchant_idx").on(table.merchantId, table.createdAt),
   ],
 );
 
@@ -1020,4 +1064,5 @@ export const schema = {
   webhookDeliveries,
   webhookCursors,
   x402Resources,
+  x402PayableQuotes,
 };

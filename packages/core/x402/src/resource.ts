@@ -73,6 +73,41 @@ export interface X402Resource {
    * the quote lock can always be shorter, and then it wins.
    */
   readonly maxTimeoutSeconds: number;
+  /**
+   * Whether this resource appears in the public cross-merchant index (#273).
+   * Not a payability fact: an unlisted resource still answers a `402` to an
+   * agent that knows its id. The default is `false` — today's requirement to
+   * name a merchant in the discovery query is accidental privacy some merchants
+   * are relying on without knowing it.
+   */
+  readonly listed: boolean;
+}
+
+/**
+ * Anything a `402` can be built from: a registered resource, or a payable
+ * obligation an agent addresses by id (#273).
+ *
+ * A resource is one of these — `X402Resource` is structurally assignable — and
+ * everything downstream (`buildPaymentRequired`, `selectRequirements`, the
+ * settle guards) prices the offer, not the registry row. A payable differs in
+ * where `price` comes from (an invoice's outstanding balance, a link's total)
+ * and in nothing else that the `402` cares about.
+ */
+export interface PricedOffer {
+  readonly id: string;
+  readonly merchantId: string;
+  readonly url: string;
+  readonly description?: string;
+  readonly mimeType?: string;
+  /** The price, in the merchant's own currency. */
+  readonly price: Money;
+  readonly accepts: readonly AcceptedAsset[];
+  /**
+   * The longest this offer's price will be held. For a resource, the merchant's
+   * ceiling; for a payable, the quote lock itself — the same single-number rule
+   * `timeoutSecondsFor` already enforces.
+   */
+  readonly maxTimeoutSeconds: number;
 }
 
 export interface X402ResourceListCursor {
@@ -87,6 +122,12 @@ export interface X402ResourceListEntry {
 
 export interface ListX402ResourcesOptions {
   readonly merchantId: string;
+  readonly limit: number;
+  readonly cursor?: X402ResourceListCursor;
+}
+
+/** The cross-merchant index read (#273): listed resources only, keyset-paginated. */
+export interface ListListedX402ResourcesOptions {
   readonly limit: number;
   readonly cursor?: X402ResourceListCursor;
 }
@@ -118,19 +159,23 @@ export interface X402ResourceRepository {
 /** The bounded, newest-first read used by merchant management surfaces. */
 export interface PaginatedX402ResourceRepository extends X402ResourceRepository {
   listPageByMerchant(options: ListX402ResourcesOptions): Promise<readonly X402ResourceListEntry[]>;
+  /** Listed resources across every merchant, newest first, keyset-paginated. */
+  listPageListed(
+    options: ListListedX402ResourcesOptions,
+  ): Promise<readonly X402ResourceListEntry[]>;
 }
 
-export function resourceInfoOf(resource: X402Resource): ResourceInfo {
+export function resourceInfoOf(offer: PricedOffer): ResourceInfo {
   return {
-    url: resource.url,
-    ...(resource.description === undefined ? {} : { description: resource.description }),
-    ...(resource.mimeType === undefined ? {} : { mimeType: resource.mimeType }),
+    url: offer.url,
+    ...(offer.description === undefined ? {} : { description: offer.description }),
+    ...(offer.mimeType === undefined ? {} : { mimeType: offer.mimeType }),
   };
 }
 
 /**
- * Build the `402` body for a resource whose price has been quoted into each
- * asset it accepts.
+ * Build the `402` body for an offer whose price has been quoted into each asset
+ * it accepts.
  *
  * Pricing happens outside — the caller holds the `QuoteEngine` — so this stays
  * pure and the quote layer stays the only thing that knows how a price becomes
@@ -141,21 +186,21 @@ export function resourceInfoOf(resource: X402Resource): ResourceInfo {
  * has to guess whether it forgot the header or sent a bad one.
  */
 export function buildPaymentRequired(
-  resource: X402Resource,
+  offer: PricedOffer,
   priced: readonly PricedAsset[],
   now: Date,
   error = "PAYMENT-SIGNATURE header is required",
 ): PaymentRequired {
   if (priced.length === 0) {
-    throw new ValidationError(`x402 resource ${resource.id} has no priced asset to offer`);
+    throw new ValidationError(`x402 offer ${offer.id} has no priced asset to offer`);
   }
 
-  const maxTimeoutSeconds = timeoutSecondsFor(resource, priced, now);
+  const maxTimeoutSeconds = timeoutSecondsFor(offer, priced, now);
 
   return {
     x402Version: X402_VERSION,
     error,
-    resource: resourceInfoOf(resource),
+    resource: resourceInfoOf(offer),
     accepts: priced.map((entry) => requirementsFor(entry, maxTimeoutSeconds)),
   };
 }
@@ -169,18 +214,14 @@ export function buildPaymentRequired(
  * here costs a payer a few seconds; being generous means advertising a window
  * during which one of the offered prices has already stopped being real.
  */
-function timeoutSecondsFor(
-  resource: X402Resource,
-  priced: readonly PricedAsset[],
-  now: Date,
-): number {
+function timeoutSecondsFor(offer: PricedOffer, priced: readonly PricedAsset[], now: Date): number {
   const remaining = priced.map((entry) =>
     Math.floor((entry.expiresAt.getTime() - now.getTime()) / 1000),
   );
-  const seconds = Math.min(resource.maxTimeoutSeconds, ...remaining);
+  const seconds = Math.min(offer.maxTimeoutSeconds, ...remaining);
   if (seconds <= 0) {
     throw new ValidationError(
-      `x402 resource ${resource.id} was priced against a quote that has already expired`,
+      `x402 offer ${offer.id} was priced against a quote that has already expired`,
     );
   }
   return seconds;

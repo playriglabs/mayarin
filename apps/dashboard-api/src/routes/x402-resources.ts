@@ -33,6 +33,8 @@ const createBodySchema = z
     price: z.object({ amount: z.string().min(1), asset: assetCodeSchema }),
     maxTimeoutSeconds: z.number().int().positive().max(3_600),
     rails: z.array(z.object({ chain: z.enum(CHAIN_IDS), asset: assetCodeSchema }).strict()).min(1),
+    /** Whether the resource appears in the public x402 index (#273). */
+    listed: z.boolean().optional(),
   })
   .strict();
 
@@ -52,6 +54,8 @@ function toResourceDto(resource: X402Resource): Record<string, unknown> {
     ...(resource.mimeType === undefined ? {} : { mimeType: resource.mimeType }),
     price: toMoneyDto(resource.price),
     maxTimeoutSeconds: resource.maxTimeoutSeconds,
+    /** Whether the resource appears in the public x402 index (#273). */
+    listed: resource.listed,
     accepts: resource.accepts.map((accept) => ({
       chain: accept.chain,
       asset: accept.asset,
@@ -100,6 +104,7 @@ export function x402ResourceRoutes(container: Container): Hono<{ Variables: Auth
       price: fromDecimalString(body.price.amount, body.price.asset),
       maxTimeoutSeconds: body.maxTimeoutSeconds,
       rails: body.rails,
+      ...(body.listed === undefined ? {} : { listed: body.listed }),
     });
     return c.json({ resource: toResourceDto(resource) }, 201);
   });
@@ -121,6 +126,7 @@ export function x402ResourceRoutes(container: Container): Hono<{ Variables: Auth
       price: fromDecimalString(body.price.amount, body.price.asset),
       maxTimeoutSeconds: body.maxTimeoutSeconds,
       rails: body.rails,
+      ...(body.listed === undefined ? {} : { listed: body.listed }),
     });
     return c.json({ resource: toResourceDto(resource) });
   });

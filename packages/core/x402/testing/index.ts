@@ -13,4 +13,5 @@
 export * from "./fake-cross-asset-settler.ts";
 export * from "./fake-facilitator.ts";
 export * from "./fixtures.ts";
+export * from "./in-memory-payable-quotes.ts";
 export * from "./in-memory-resources.ts";

@@ -316,6 +316,7 @@ const paymentLinkSchema = z
     metadata: z.record(z.string(), z.string()),
     url: z.string(),
     payable: z.boolean(),
+    listed: z.boolean().describe("Whether it appears in the public x402 payable index."),
     expiresAt: z.string().nullable(),
     disabledAt: z.string().nullable(),
     createdAt: z.string(),
@@ -357,6 +358,7 @@ const invoiceSchema = z
     createdAt: z.string(),
     updatedAt: z.string(),
     version: z.number().int(),
+    listed: z.boolean().describe("Whether it appears in the public x402 payable index."),
   })
   .openapi("Invoice");
 
@@ -369,6 +371,31 @@ const invoiceViewSchema = invoiceSchema
     outstanding: moneySchema,
   })
   .openapi("InvoiceView");
+
+// The merchant x402 resource surface's wire shape (#208, #273). The register
+// request is the live DTO; the response is authored here like every response.
+const x402ResourceRespSchema = z
+  .object({
+    id: z.string(),
+    merchantId: z.string(),
+    url: z.string(),
+    description: z.string().optional(),
+    mimeType: z.string().optional(),
+    price: moneySchema,
+    maxTimeoutSeconds: z.number().int(),
+    listed: z.boolean().describe("Whether it appears in the public x402 resource index."),
+    accepts: z.array(
+      z.object({
+        chain: z.string(),
+        asset: z.string(),
+        contract: z.string(),
+        payTo: z.string(),
+        transferMethod: z.string(),
+        domain: z.record(z.string(), z.unknown()),
+      }),
+    ),
+  })
+  .openapi("X402Resource");
 
 // --- Request schemas --------------------------------------------------------
 
@@ -641,6 +668,36 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
+  path: "/v1/payment-links/{id}/list",
+  tags: ["Payment links"],
+  operationId: "listPaymentLink",
+  summary: "List a payment link in the public payable index",
+  description:
+    "Opts the link into the public x402 payable index, where agents discover and pay it. The link stays payable by anyone holding its URL either way; listing only decides whether a discovery reader is shown it.",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(paymentLinkSchema, "Listed payment link."),
+    "404": errorResponse("No link with that id, or not this merchant's."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/payment-links/{id}/unlist",
+  tags: ["Payment links"],
+  operationId: "unlistPaymentLink",
+  summary: "Remove a payment link from the public payable index",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(paymentLinkSchema, "Unlisted payment link."),
+    "404": errorResponse("No link with that id, or not this merchant's."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
   path: "/v1/payment-links/{id}/checkout",
   tags: ["Payment links"],
   operationId: "checkoutPaymentLink",
@@ -748,6 +805,36 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
+  path: "/v1/invoices/{id}/list",
+  tags: ["Invoices"],
+  operationId: "listInvoice",
+  summary: "List an invoice in the public payable index",
+  description:
+    "Opts the invoice into the public x402 payable index, where agents discover and pay it. The invoice stays payable by anyone holding its id either way; listing only decides whether a discovery reader is shown it.",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(invoiceSchema, "Listed invoice."),
+    "404": errorResponse("No invoice with that id, or not this merchant's."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/invoices/{id}/unlist",
+  tags: ["Invoices"],
+  operationId: "unlistInvoice",
+  summary: "Remove an invoice from the public payable index",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(invoiceSchema, "Unlisted invoice."),
+    "404": errorResponse("No invoice with that id, or not this merchant's."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
   path: "/v1/invoices/{id}/checkout",
   tags: ["Invoices"],
   operationId: "checkoutInvoice",
@@ -786,6 +873,39 @@ registry.registerPath({
 });
 
 // --- Unversioned public routes (root, never moved by a version bump) -------
+
+// The merchant x402 resource surface (#208). Documented from the list/unlist
+// pair down: the register call is an operator act, and this reference is for
+// the merchant deciding what is discoverable (#273).
+registry.registerPath({
+  method: "post",
+  path: "/v1/x402/resources/{id}/list",
+  tags: ["x402 resources"],
+  operationId: "listX402Resource",
+  summary: "List a resource in the public index",
+  description:
+    "Opts the resource into the public cross-merchant x402 index. The resource stays sellable by URL either way; listing only decides whether an agent browsing the index is shown it.",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(x402ResourceRespSchema, "Listed resource."),
+    "404": errorResponse("No resource with that id, or not this merchant's."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/x402/resources/{id}/unlist",
+  tags: ["x402 resources"],
+  operationId: "unlistX402Resource",
+  summary: "Remove a resource from the public index",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(x402ResourceRespSchema, "Unlisted resource."),
+    "404": errorResponse("No resource with that id, or not this merchant's."),
+  },
+});
 
 registry.registerPath({
   method: "get",
@@ -916,6 +1036,10 @@ const document = generator.generateDocument({
     { name: "Catalog", description: "Merchant products and cart checkout." },
     { name: "Payment links", description: "Shareable hosted checkout links." },
     { name: "Invoices", description: "Numbered requests with buyers and due dates." },
+    {
+      name: "x402 resources",
+      description: "Per-call resources an agent pays for over the x402 rail.",
+    },
     { name: "Webhooks", description: "Provider signals into Mayarin." },
     {
       name: "Unversioned",

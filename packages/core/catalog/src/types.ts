@@ -89,6 +89,13 @@ export interface PaymentLink {
   readonly expiresAt?: Date;
   /** Set when the merchant retires the link. Independent of expiry. */
   readonly disabledAt?: Date;
+  /**
+   * Whether this link appears in the public x402 payable index (#273). A
+   * property of the link, not of its payability: an unlisted link is still
+   * payable by an agent that knows its id. The default is `false` — listing is
+   * consent, and consent must be given.
+   */
+  readonly listed: boolean;
   readonly idempotencyKey?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;

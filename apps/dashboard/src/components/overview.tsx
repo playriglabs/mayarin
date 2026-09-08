@@ -312,10 +312,11 @@ function MovementCard({
   href: string;
 }) {
   const total = points.reduce((sum, point) => sum + point.total, 0n);
+  const hasMovement = total > 0n;
   // `balanceDisplay`, not the raw locale format: a settlement figure belongs in
   // the same money as the balance above it, and `8,375196 USDC` beside `$ 8,39`
   // is one page quoting itself two ways.
-  const formatted = asset === undefined ? "—" : balanceDisplay(total, asset);
+  const formatted = !hasMovement || asset === undefined ? "—" : balanceDisplay(total, asset);
 
   return (
     <Card className="gap-4">
@@ -323,7 +324,7 @@ function MovementCard({
         <div className="flex flex-col gap-1">
           <span className="font-medium text-foreground text-sm">{title}</span>
           <span className="font-medium text-2xl text-foreground">{formatted}</span>
-          <span className="text-subtle-foreground text-xs">{hint}</span>
+          <span className="text-subtle-foreground text-xs mt-1">{hint}</span>
         </div>
         <a
           href={href}
@@ -333,17 +334,22 @@ function MovementCard({
         </a>
       </div>
 
-      <TrendBars
-        points={points.map((point) => ({
-          date: point.date,
-          value: Number(point.total),
-          label: asset === undefined ? "—" : balanceDisplay(point.total, asset),
-          detail: title,
-        }))}
-        formatTick={() => ""}
-        className="h-20"
-        showAxes={false}
-      />
+      {/* `dailyTotals` deliberately fills the thirty-day window with zeroes,
+          so `points.length` cannot distinguish no activity from real data.
+          An all-zero chart adds only a misleading baseline and hover dates. */}
+      {hasMovement && (
+        <TrendBars
+          points={points.map((point) => ({
+            date: point.date,
+            value: Number(point.total),
+            label: asset === undefined ? "—" : balanceDisplay(point.total, asset),
+            detail: title,
+          }))}
+          formatTick={() => ""}
+          className="h-20"
+          showAxes={false}
+        />
+      )}
     </Card>
   );
 }

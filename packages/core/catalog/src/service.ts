@@ -27,9 +27,12 @@ import {
   type CreatePaymentLinkInput,
   createPaymentLink,
   disablePaymentLink,
+  listPaymentLink,
+  unlistPaymentLink,
 } from "./link.ts";
 import { type CreateProductInput, createProduct, updateProduct } from "./product.ts";
 import type {
+  ListListedLinksOptions,
   ListPaymentLinksOptions,
   ListProductsOptions,
   PaymentLinkRepository,
@@ -155,6 +158,34 @@ export class CatalogService {
     if (next === link) return link;
     await this.#links.update(next, link.version);
     return next;
+  }
+
+  /** Lists a link in the public x402 payable index (#273). Payability is untouched. */
+  async listLink(id: string): Promise<PaymentLink> {
+    const link = await this.getLink(id);
+    const next = listPaymentLink(link, this.#clock.now());
+    if (next === link) return link;
+    await this.#links.update(next, link.version);
+    return next;
+  }
+
+  /** Withdraws a link from the index. Payability is untouched. */
+  async unlistLink(id: string): Promise<PaymentLink> {
+    const link = await this.getLink(id);
+    const next = unlistPaymentLink(link, this.#clock.now());
+    if (next === link) return link;
+    await this.#links.update(next, link.version);
+    return next;
+  }
+
+  /**
+   * The listed links, newest first — the rows behind the public x402 payable
+   * index. Every listed link is returned; which of them a discovery reader is
+   * shown (disabled, expired, open-amount) is a read-time fact this layer does
+   * not re-derive.
+   */
+  async listListedLinks(options: ListListedLinksOptions): Promise<readonly PaymentLink[]> {
+    return this.#links.listListed(options);
   }
 }
 

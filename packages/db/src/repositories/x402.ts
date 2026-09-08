@@ -12,6 +12,7 @@ import { isChainId } from "@mayarin/chain";
 import { ValidationError } from "@mayarin/shared";
 import type {
   AcceptedAsset,
+  ListListedX402ResourcesOptions,
   ListX402ResourcesOptions,
   PaginatedX402ResourceRepository,
   X402Resource,
@@ -71,6 +72,29 @@ export class DrizzleX402ResourceRepository implements PaginatedX402ResourceRepos
     return rows.map((row) => ({ resource: toResource(row), createdAt: row.createdAt }));
   }
 
+  /** The public cross-merchant index read (#273): listed only, keyset-paginated. */
+  async listPageListed(
+    options: ListListedX402ResourcesOptions,
+  ): Promise<readonly X402ResourceListEntry[]> {
+    const cursorFilter =
+      options.cursor === undefined
+        ? undefined
+        : or(
+            lt(x402Resources.createdAt, options.cursor.createdAt),
+            and(
+              eq(x402Resources.createdAt, options.cursor.createdAt),
+              lt(x402Resources.id, options.cursor.id),
+            ),
+          );
+    const rows = await this.#db
+      .select()
+      .from(x402Resources)
+      .where(and(eq(x402Resources.listed, true), cursorFilter))
+      .orderBy(desc(x402Resources.createdAt), desc(x402Resources.id))
+      .limit(options.limit);
+    return rows.map((row) => ({ resource: toResource(row), createdAt: row.createdAt }));
+  }
+
   async remove(id: string): Promise<void> {
     await this.#db.delete(x402Resources).where(eq(x402Resources.id, id));
   }
@@ -94,6 +118,7 @@ export class DrizzleX402ResourceRepository implements PaginatedX402ResourceRepos
       priceAsset: price.asset,
       accepts: [...resource.accepts],
       maxTimeoutSeconds: resource.maxTimeoutSeconds,
+      listed: resource.listed,
       updatedAt: now,
     };
 
@@ -116,6 +141,7 @@ function toResource(row: Row): X402Resource {
     price: toMoney(row.priceAmount, row.priceAsset),
     accepts: toAccepts(row.accepts, row.id),
     maxTimeoutSeconds: row.maxTimeoutSeconds,
+    listed: row.listed,
   };
 }
 
@@ -129,7 +155,7 @@ function toResource(row: Row): X402Resource {
  * to pay: silently dropping an option would make a resource cheaper to serve
  * and impossible to diagnose.
  */
-function toAccepts(value: unknown, resourceId: string): readonly AcceptedAsset[] {
+export function toAccepts(value: unknown, resourceId: string): readonly AcceptedAsset[] {
   if (!Array.isArray(value)) {
     throw new ValidationError(`x402 resource ${resourceId} has a malformed accepts column`, {
       resourceId,
@@ -138,7 +164,7 @@ function toAccepts(value: unknown, resourceId: string): readonly AcceptedAsset[]
   return value.map((entry, index) => toAcceptedAsset(entry, resourceId, index));
 }
 
-function toAcceptedAsset(value: unknown, resourceId: string, index: number): AcceptedAsset {
+export function toAcceptedAsset(value: unknown, resourceId: string, index: number): AcceptedAsset {
   const refuse = (why: string): never => {
     throw new ValidationError(`x402 resource ${resourceId} accepts[${index}] ${why}`, {
       resourceId,

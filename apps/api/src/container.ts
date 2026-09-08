@@ -39,6 +39,7 @@ import {
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantRepository,
   DrizzleMerchantWalletRepository,
+  DrizzlePayableQuoteRepository,
   DrizzlePaymentIntentRepository,
   DrizzlePaymentLinkRepository,
   DrizzleProductRepository,
@@ -117,6 +118,7 @@ import { PaymentStream } from "./services/payment-stream.ts";
 import { CachedRailObservations } from "./services/rail-observations.ts";
 import { FetchWebhookTransport } from "./services/webhook-transport.ts";
 import { X402Service } from "./services/x402.ts";
+import { X402PayableService } from "./services/x402-payables.ts";
 
 export interface Container {
   readonly config: Config;
@@ -238,6 +240,12 @@ export interface Container {
    * does not serve one.
    */
   readonly x402?: X402Service;
+  /**
+   * Payables on the x402 rail (#273): invoices and payment links an agent can
+   * quote and pay without meeting the merchant first. Present with `x402`,
+   * which is the only thing it can settle through.
+   */
+  readonly x402Payables?: X402PayableService;
   close(): Promise<void>;
 }
 
@@ -273,6 +281,10 @@ function createX402(deps: {
   quote: (() => Promise<QuoteLayer>) | undefined;
   /** Absent unless `SUBGRAPH_ENDPOINTS` names a chain. Shared with the MCP route. */
   railObservations: RailObservationSource | undefined;
+  /** The merchant's rails, as a payable's `402` derives its `accepts` from. */
+  merchantRails: DerivedRailCatalog;
+  /** The quote lock behind a payable (#273). Shared with `x402Payables`. */
+  payableQuotes: DrizzlePayableQuoteRepository;
   clock: Clock;
 }): X402Service | undefined {
   const {
@@ -286,6 +298,8 @@ function createX402(deps: {
     settlementAddresses,
     quote,
     railObservations,
+    merchantRails,
+    payableQuotes,
     clock,
   } = deps;
 
@@ -372,6 +386,8 @@ function createX402(deps: {
     engine,
     clock,
     quoteTtlSeconds: config.x402QuoteTtlSeconds,
+    merchantRails,
+    payableQuotes,
     /**
      * A merchant, as an intent records them.
      *
@@ -974,6 +990,8 @@ export function createContainer({
   // cache. Two would double a query budget that is 3,000 a day account-wide.
   const railObservations = createRailObservations(config, clock);
 
+  const payableQuotes = new DrizzlePayableQuoteRepository(handle.db);
+
   const x402 = createX402({
     config,
     handle,
@@ -985,8 +1003,24 @@ export function createContainer({
     settlementAddresses,
     quote: config.quote === undefined ? undefined : resolveQuote,
     railObservations,
+    merchantRails: railCatalog,
+    payableQuotes,
     clock,
   });
+
+  // The commerce side of the x402 rail (#273). Built from the same quote rows
+  // the service settles through, and absent with the rail itself.
+  const x402Payables =
+    x402 === undefined
+      ? undefined
+      : new X402PayableService({
+          x402,
+          quotes: payableQuotes,
+          invoices,
+          links: catalog,
+          clock,
+          quoteTtlSeconds: config.x402QuoteTtlSeconds,
+        });
 
   return {
     config,
@@ -1018,6 +1052,7 @@ export function createContainer({
     ...(webhookEndpoints === undefined ? {} : { webhookEndpoints }),
     ...(webhookDeliveries === undefined ? {} : { webhookDeliveries }),
     ...(x402 === undefined ? {} : { x402 }),
+    ...(x402Payables === undefined ? {} : { x402Payables }),
     close: () => handle.close(),
   };
 }

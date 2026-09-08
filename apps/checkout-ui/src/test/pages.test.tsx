@@ -91,18 +91,17 @@ const invoiceBootstrap: InvoiceBootstrap = {
 };
 
 describe("link page", () => {
-  test("shows the priced total, the assets, and the lock note — and no QR", () => {
+  test("shows the priced total, compact rail picker, and lock note — and no QR", () => {
     const html = renderToStaticMarkup(<LinkPage bootstrap={linkBootstrap} />);
     expect(html).toContain("Rp 50.000,00");
     expect(html).toContain("Paket");
     expect(html).toContain("Warung Kopi — Jakarta");
     expect(html).toContain('alt="Mayarin"');
-    // One network carrying two assets: the asset is the only question left to
-    // ask, so the network row is not rendered (#244).
-    expect(html).not.toContain("Network");
     expect(html).toContain("Pay with");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('type="radio"');
     expect(html).toContain("USDC");
-    expect(html).toContain("Prices are locked for 15 minutes");
+    expect(html).toContain("exact price is locked for 15 minutes");
     // The QR that used to sit here encoded the page's own URL. It belongs to
     // the counter — the dashboard's "Take payment" — not to the buyer.
     expect(html).not.toContain("<svg");
@@ -118,7 +117,7 @@ describe("link page", () => {
     expect(html).toContain('inputMode="decimal"');
   });
 
-  test("offers the network first when a deployment has more than one", () => {
+  test("offers each valid asset and network combination in one rail picker", () => {
     const html = renderToStaticMarkup(
       <LinkPage
         bootstrap={{
@@ -131,17 +130,12 @@ describe("link page", () => {
         }}
       />,
     );
-    expect(html).toContain("Network");
+    expect(html).toContain("Pay with");
     expect(html).toContain("Base Sepolia");
     expect(html).toContain("Arc Testnet");
-    // Assets belong to the selected network, never unioned across them (#244):
-    // the default selection is Base, which has both.
     expect(html).toContain("USDC");
     expect(html).toContain("ETH");
-    // Read as a sentence rather than as markup: what matters is that the note
-    // names the *selected* rail's chain, not how many spans wrap the label.
-    // Asserting the nesting made a styling change fail as a behaviour change.
-    expect(html.replace(/<[^>]+>/g, "")).toContain("Send USDC on Base Sepolia only");
+    expect(html.replace(/<[^>]+>/g, "")).toContain("Only send USDC on Base Sepolia");
     expect(html).toContain("https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png");
   });
 
@@ -154,7 +148,6 @@ describe("link page", () => {
         }}
       />,
     );
-    expect(html).not.toContain("Network");
     expect(html).not.toContain("Pay with");
     expect(html).toContain("with USDC on Arc Testnet");
   });
@@ -236,6 +229,9 @@ describe("deposit card", () => {
     expect(html).not.toContain("3,50");
     expect(html).toContain("Rp 50.000,00");
     expect(html).toContain("0 USDC");
+    expect(html).toContain("Payment details");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-hidden="true"');
   });
 
   test("both values a wallet needs carry a copy button", () => {
@@ -298,9 +294,8 @@ describe("invoice page", () => {
     expect(html).toContain("Amount due");
     expect(html).toContain("Rp 125.000,00");
     expect(html).toContain("Powered by <strong>mayarin.xyz</strong>");
-    // Two networks carrying one asset each: the network is the only question
-    // left to ask, so the asset row is not rendered (#244).
-    expect(html).toContain("Network");
+    // Asset and network stay one valid, selectable pair (#244).
+    expect(html).toContain("Pay with");
     expect(html).toContain("Arc Testnet");
     expect(html).toContain("Pay Rp 125.000,00");
   });

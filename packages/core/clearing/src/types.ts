@@ -185,5 +185,9 @@ export const CLEARING_EVENT_TYPES = [
    * own balance and pay the merchant twice.
    */
   "settlement.swap",
+  /** A refundable payer surplus was sent back and awaits chain confirmation. */
+  "payer-surplus.refund.broadcast",
+  /** The payer-surplus return was read back and its liability was cleared. */
+  "payer-surplus.refund.confirmed",
 ] as const;
 export type ClearingEventType = (typeof CLEARING_EVENT_TYPES)[number];

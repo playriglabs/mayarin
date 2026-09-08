@@ -32,12 +32,23 @@ export interface ListPaymentLinksOptions {
   readonly cursor?: { readonly id: string; readonly createdAt: Date };
 }
 
+/**
+ * The bounded, newest-first read behind the public x402 payable index (#273) —
+ * cross-merchant, keyset-paginated, same cursor shape as the merchant listing.
+ */
+export interface ListListedLinksOptions {
+  readonly limit: number;
+  readonly cursor?: { readonly id: string; readonly createdAt: Date };
+}
+
 export interface PaymentLinkRepository {
   insert(link: PaymentLink): Promise<void>;
   findById(id: string): Promise<PaymentLink | null>;
   findByIdempotencyKey(key: string): Promise<PaymentLink | null>;
   update(link: PaymentLink, expectedVersion: number): Promise<void>;
   list(options: ListPaymentLinksOptions): Promise<readonly PaymentLink[]>;
+  /** Listed links across every merchant, newest first, keyset-paginated. */
+  listListed(options: ListListedLinksOptions): Promise<readonly PaymentLink[]>;
 }
 
 export interface ListCustomersOptions {

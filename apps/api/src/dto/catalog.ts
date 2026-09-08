@@ -107,6 +107,8 @@ export const createPaymentLinkBodySchema = z
     merchantReference: merchantReferenceSchema,
     metadata: metadataSchema,
     expiresAt: timestampSchema.optional(),
+    /** Whether this link appears in the public x402 payable index (#273). */
+    listed: z.boolean().optional(),
   })
   // The per-kind shape is enforced by `createPaymentLink`, which is where the
   // rule belongs — the route would otherwise carry a second copy that can drift.
@@ -180,6 +182,8 @@ export function toPaymentLinkDto(link: PaymentLink, baseUrl: string, now: Date) 
     metadata: link.metadata,
     url: `${baseUrl}/checkout/${link.id}`,
     payable: isLinkPayable(link, now),
+    /** Whether it appears in the public x402 payable index (#273). */
+    listed: link.listed,
     expiresAt: link.expiresAt?.toISOString() ?? null,
     disabledAt: link.disabledAt?.toISOString() ?? null,
     createdAt: link.createdAt.toISOString(),

@@ -627,12 +627,18 @@ bun run test:woocommerce # PHP lint and plugin tests through Docker
 ```
 
 Postgres integration tests are opt-in because they truncate every table they
-touch. Point them only at the dedicated test database:
+touch. Create, migrate, and point them only at the dedicated test database:
 
 ```bash
-TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin \
+docker exec mayarin-postgres createdb -U mayarin mayarin_test
+DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin_test \
+  bun run packages/db/src/migrate.ts
+TEST_DATABASE_URL=postgres://mayarin:mayarin@localhost:5433/mayarin_test \
   bun test packages/db
 ```
+
+The test runner refuses a target that does not end in `_test` or resolves to
+the same database as `DATABASE_URL`.
 
 Git hooks are installed by `bun install`:
 

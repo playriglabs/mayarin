@@ -112,6 +112,25 @@ export function invoiceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     return c.json({ invoice: toInvoiceDto(invoice, baseUrl) });
   });
 
+  /**
+   * The two halves of the discovery opt-in (#273): an invoice the merchant
+   * lists appears in the public payable index, an unlisted one stops
+   * appearing. `manage` scope, like `/void` — being findable is a decision
+   * about the document, and a foreign invoice answers 404 for the same
+   * reason.
+   */
+  app.post("/:id/list", manage, async (c) => {
+    await ownInvoice(c.req.param("id"), c.get("scope").merchantId);
+    const invoice = await container.invoices.listInvoice(c.req.param("id"));
+    return c.json({ invoice: toInvoiceDto(invoice, baseUrl) });
+  });
+
+  app.post("/:id/unlist", manage, async (c) => {
+    await ownInvoice(c.req.param("id"), c.get("scope").merchantId);
+    const invoice = await container.invoices.unlistInvoice(c.req.param("id"));
+    return c.json({ invoice: toInvoiceDto(invoice, baseUrl) });
+  });
+
   app.post("/:id/checkout", async (c) => {
     // A buyer paying the whole balance sends no body, so an absent one is not
     // an error — the same reasoning as a fixed payment link.

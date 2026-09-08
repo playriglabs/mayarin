@@ -3,6 +3,7 @@ export * from "./capability.ts";
 export * from "./cross-asset.ts";
 export * from "./facilitator.ts";
 export * from "./idempotency.ts";
+export * from "./payable.ts";
 export * from "./rail.ts";
 export * from "./resource.ts";
 export * from "./scheme/exact-evm.ts";

@@ -12,7 +12,7 @@ import {
 } from "@mayarin/clearing";
 import type { ExecutionPath } from "@mayarin/payment-intent";
 import { type AssetCode, ConcurrencyError, ValidationError } from "@mayarin/shared";
-import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import {
   present,
@@ -147,6 +147,28 @@ export class DrizzleClearingRepository implements ClearingRepository {
       .select()
       .from(clearingTransactions)
       .where(notInArray(clearingTransactions.state, [...TERMINAL_CLEARING_STATES]))
+      .orderBy(asc(clearingTransactions.createdAt))
+      .limit(limit);
+    return rows.map(toDomain);
+  }
+
+  async listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]> {
+    const rows = await this.#db
+      .select()
+      .from(clearingTransactions)
+      .where(sql`
+        ${clearingTransactions.state} = 'SUCCESS'
+        and exists (
+          select 1 from ${clearingEvents}
+          where ${clearingEvents.clearingTransactionId} = ${clearingTransactions.id}
+            and ${clearingEvents.payload} ->> 'payerSurplusDisposition' = 'refundable'
+        )
+        and not exists (
+          select 1 from ${clearingEvents}
+          where ${clearingEvents.clearingTransactionId} = ${clearingTransactions.id}
+            and ${clearingEvents.type} = 'payer-surplus.refund.confirmed'
+        )
+      `)
       .orderBy(asc(clearingTransactions.createdAt))
       .limit(limit);
     return rows.map(toDomain);

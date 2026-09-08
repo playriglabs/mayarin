@@ -1,25 +1,16 @@
 import { chainLabel } from "@mayarin/chain";
-import { ChainLabel } from "./chain-logo.tsx";
+import { useId, useRef, useState } from "react";
 import { RailMark } from "./rail-mark.tsx";
 import type { Rail } from "./types.ts";
 
 /**
- * Which rail the payer pays on: the network first, then the asset (#244).
+ * A rail is one valid asset + network pair, so it is selected as one thing.
  *
- * Network first because it is the choice that narrows the other one — Base can
- * take ETH and Arc cannot, and offering a payer an asset that does not exist on
- * the network they are about to send from is how funds go somewhere nobody
- * watches.
- *
- * **One rail renders no chooser at all.** A single-chain deployment must look
- * exactly as it did before this existed; a chooser with one option is a
- * question with one answer, and asking it makes the page slower to read for
- * everyone it does not help. The same rule applies one level down: one network
- * with several assets shows the assets and no network row.
- *
- * `aria-pressed` rather than a radio group, matching the asset control this
- * grew out of: these are toggles in the visual design, and the pressed state is
- * what a screen reader has to read back.
+ * Keeping the pair together prevents invalid combinations and scales without
+ * turning checkout into two walls of buttons. The selected rail is the only
+ * row visible at rest; opening it reveals a bounded, scrollable radio list.
+ * Server order is preserved so the merchant can put preferred rails first.
+ * One rail renders no chooser because a question with one answer adds friction.
  */
 export function RailPicker({
   rails,
@@ -33,62 +24,72 @@ export function RailPicker({
   /** Extra classes on the block — the invoice hides it from the printed page. */
   readonly className?: string;
 }) {
-  const chains = [...new Set(rails.map((rail) => rail.chain))];
-  const chain = selected?.chain ?? chains[0];
-  const assets = rails.filter((rail) => rail.chain === chain);
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const current = selected ?? rails[0];
 
-  // Nothing to choose. The page states the one rail in prose instead.
-  if (rails.length <= 1) return null;
+  if (rails.length <= 1 || current === undefined) return null;
 
   const block = className === "" ? "form-block" : `form-block ${className}`;
 
   return (
-    <>
-      {chains.length > 1 && (
-        <div className={block}>
-          <span className="label">Network</span>
-          <div className="networks">
-            {chains.map((choice) => (
-              <button
-                type="button"
-                className="network"
-                key={choice}
-                aria-pressed={choice === chain}
-                onClick={() => {
-                  // Switching network switches asset too: the previous asset may
-                  // not exist here, and carrying it over would leave the page
-                  // showing a pair that cannot be paid.
-                  const first = rails.find((rail) => rail.chain === choice);
-                  if (first !== undefined) onSelect(first);
-                }}
-              >
-                <ChainLabel chain={choice} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className={block}>
+      <span className="label" id={`${listId}-label`}>
+        Pay with
+      </span>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="rail-picker-trigger"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <RailMark asset={current.asset} chain={current.chain} size={30} />
+        <span className="rail-picker-copy">
+          <strong>{current.asset}</strong>
+          <span>{chainLabel(current.chain)}</span>
+        </span>
+        <span className="rail-picker-change">Change</span>
+        <span className="rail-picker-chevron" aria-hidden="true" />
+      </button>
 
-      {assets.length > 1 && (
-        <div className={block}>
-          <span className="label">Pay with</span>
-          <div className="assets">
-            {assets.map((rail) => (
-              <button
-                type="button"
-                className="asset"
-                key={`${rail.chain}:${rail.asset}`}
-                aria-pressed={rail.asset === selected?.asset && rail.chain === selected?.chain}
-                onClick={() => onSelect(rail)}
-              >
-                <RailMark asset={rail.asset} chain={rail.chain} size={26} />
-                {rail.asset}
-              </button>
-            ))}
+      <div
+        id={listId}
+        className={`rail-options-collapse${open ? " open" : ""}`}
+        aria-hidden={!open}
+        inert={!open}
+      >
+        <div className="rail-options-clip">
+          <div className="rail-options" role="radiogroup" aria-labelledby={`${listId}-label`}>
+            {rails.map((rail) => {
+              const checked = rail.asset === current.asset && rail.chain === current.chain;
+              return (
+                <label className="rail-option" key={`${rail.chain}:${rail.asset}`}>
+                  <input
+                    type="radio"
+                    name={listId}
+                    checked={checked}
+                    onChange={() => {
+                      onSelect(rail);
+                      setOpen(false);
+                      triggerRef.current?.focus();
+                    }}
+                  />
+                  <RailMark asset={rail.asset} chain={rail.chain} size={28} />
+                  <span className="rail-picker-copy">
+                    <strong>{rail.asset}</strong>
+                    <span>{chainLabel(rail.chain)}</span>
+                  </span>
+                  <span className="rail-option-check" aria-hidden="true" />
+                </label>
+              );
+            })}
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   );
 }
 

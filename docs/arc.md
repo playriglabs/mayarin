@@ -102,7 +102,33 @@ mainnet payments to satisfy a testnet demo.
 CLI syntax: [Circle command reference](https://developers.circle.com/agent-stack/circle-cli/command-reference).
 Authentication and testnet funding: [Circle quickstart](https://developers.circle.com/agent-stack/agent-wallets/quickstart).
 
-## Submission recording
+## x402 payables (#273)
+
+An agent can now pay an invoice or payment link over the same Arc rail, at the
+obligation's own URL (`/x402/payables/:kind/:id`), and discover what to pay in
+a public cross-merchant index (`GET /x402/payables`, opt-in per obligation).
+
+The price lock for a payable is a quote row (`x402_payable_quotes`,
+migration `0029`), not an intent: the intent is minted at settle, nonce-keyed
+like a resource payment, carrying the obligation's provenance in metadata
+(`x402PayableKind`/`x402PayableId`/`x402Nonce` plus `invoiceId` or
+`paymentLinkId`). Rails derive from the merchant's own settings — same-asset
+rails pay the merchant's settlement address, cross-asset rails pay the
+operator, exactly as `#requireCrossAssetRail` already rules.
+
+Refusals are part of the contract, not error noise: an expired quote is `410`
+with the remedy in it, a balance that moved since the quote is `409`, a second
+authorization racing a live claim is `409`, and a partial authorization is
+refused outright — a payable must be paid in full. A same-nonce replay resumes
+a broadcast that never confirmed, even past expiry, because the nonce is spent
+on-chain either way.
+
+What is verified so far: the concurrent-claim race is proven against real
+Postgres (one winner, two refused, stored claim matches the winner's nonce —
+`packages/db/test/x402-payable-quotes.postgres.test.ts`), and the app-level
+suites cover the refusal mapping. What is not yet recorded here: a live agent
+payment of an Arc invoice or link with an Arcscan receipt. Add that evidence
+before citing the payable flow as Arc-verified.
 
 The architecture diagram and README link are present. A completed demo video is
 still outstanding. Record the unpaid/paid x402 response, Arcscan receipt,

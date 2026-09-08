@@ -162,6 +162,8 @@ export function toInvoiceDto(invoice: Invoice, baseUrl: string) {
     createdAt: invoice.createdAt.toISOString(),
     updatedAt: invoice.updatedAt.toISOString(),
     version: invoice.version,
+    /** Whether it appears in the public x402 payable index (#273). */
+    listed: invoice.listed,
   };
 }
 

@@ -18,6 +18,7 @@ function resourceFor(merchantId: string, id = "fx-quote"): X402Resource {
     url: "https://merchant.example/quote",
     price: { amount: 20_000n, asset: "USD" } as Money,
     maxTimeoutSeconds: 60,
+    listed: false,
     accepts: [
       {
         chain: "arc-testnet",
@@ -33,21 +34,31 @@ function resourceFor(merchantId: string, id = "fx-quote"): X402Resource {
 
 interface Registered {
   readonly merchantIds: string[];
+  readonly listedInputs: (boolean | undefined)[];
   readonly removed: string[];
+  readonly listed: string[];
+  readonly unlisted: string[];
 }
 
 function appFor(
   permissions: readonly Permission[],
   merchantId = MERCHANT,
 ): { app: Hono; registered: Registered } {
-  const registered: Registered = { merchantIds: [], removed: [] };
+  const registered: Registered = {
+    merchantIds: [],
+    listedInputs: [],
+    removed: [],
+    listed: [],
+    unlisted: [],
+  };
   const service = {
     async listByMerchant(id: string) {
       return id === MERCHANT ? [resourceFor(MERCHANT)] : [];
     },
-    async register(input: { merchantId: string }) {
+    async register(input: { merchantId: string; listed?: boolean }) {
       registered.merchantIds.push(input.merchantId);
-      return resourceFor(input.merchantId);
+      registered.listedInputs.push(input.listed);
+      return { ...resourceFor(input.merchantId), listed: input.listed ?? false };
     },
     async resourceById(id: string) {
       if (id !== "fx-quote") throw new Error(`unknown resource ${id}`);
@@ -55,6 +66,14 @@ function appFor(
     },
     async remove(id: string) {
       registered.removed.push(id);
+    },
+    async listResource(id: string) {
+      registered.listed.push(id);
+      return { ...resourceFor(MERCHANT, id), listed: true };
+    },
+    async unlistResource(id: string) {
+      registered.unlisted.push(id);
+      return resourceFor(MERCHANT, id);
     },
   } as unknown as X402Service;
 
@@ -103,6 +122,17 @@ describe("POST /v1/x402/resources", () => {
 
     expect(response.status).toBe(201);
     expect(registered.merchantIds).toEqual([MERCHANT]);
+    expect(registered.listedInputs).toEqual([undefined]);
+  });
+
+  test("can opt into public discovery at registration", async () => {
+    const { app, registered } = appFor(["catalog:manage"]);
+
+    const response = await post(app, { ...body, listed: true });
+
+    expect(response.status).toBe(201);
+    expect(registered.listedInputs).toEqual([true]);
+    expect(await response.json()).toMatchObject({ resource: { listed: true } });
   });
 
   // The whole point of this route existing beside the admin one. A body that
@@ -131,6 +161,51 @@ describe("POST /v1/x402/resources", () => {
     const { app } = appFor(["catalog:manage"]);
 
     expect((await post(app, body, "nope")).status).toBe(401);
+  });
+});
+
+describe("POST /v1/x402/resources/:id/list and /unlist", () => {
+  const setListing = (app: Hono, id: string, action: "list" | "unlist") =>
+    app.request(`/x402/resources/${id}/${action}`, {
+      method: "POST",
+      headers: { authorization: "Bearer sk_live" },
+    });
+
+  test("lets the owner opt a resource in and out of discovery", async () => {
+    const { app, registered } = appFor(["catalog:manage"]);
+
+    const listed = await setListing(app, "fx-quote", "list");
+    const unlisted = await setListing(app, "fx-quote", "unlist");
+
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toMatchObject({ resource: { listed: true } });
+    expect(unlisted.status).toBe(200);
+    expect(await unlisted.json()).toMatchObject({ resource: { listed: false } });
+    expect(registered.listed).toEqual(["fx-quote"]);
+    expect(registered.unlisted).toEqual(["fx-quote"]);
+  });
+
+  test("does not reveal or mutate another merchant's resource", async () => {
+    const { app, registered } = appFor(["catalog:manage"], OTHER);
+
+    const [listed, unlisted] = await Promise.all([
+      setListing(app, "fx-quote", "list"),
+      setListing(app, "fx-quote", "unlist"),
+    ]);
+
+    expect(listed.status).toBe(404);
+    expect(unlisted.status).toBe(404);
+    expect(registered.listed).toEqual([]);
+    expect(registered.unlisted).toEqual([]);
+  });
+
+  test("requires catalog:manage", async () => {
+    const { app, registered } = appFor(["payments:read"]);
+
+    expect((await setListing(app, "fx-quote", "list")).status).toBe(403);
+    expect((await setListing(app, "fx-quote", "unlist")).status).toBe(403);
+    expect(registered.listed).toEqual([]);
+    expect(registered.unlisted).toEqual([]);
   });
 });
 

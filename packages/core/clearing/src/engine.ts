@@ -39,6 +39,7 @@ import {
   ConfigurationError,
   convert,
   type DomainEvent,
+  deserializeMoney,
   type EventPublisher,
   InvalidStateTransitionError,
   isDustAmount,
@@ -50,6 +51,7 @@ import {
   ProviderError,
   QuoteExpiredError,
   roundUpToPayerPrecision,
+  type SerializedMoney,
   serializeMoney,
   subtract,
   ValidationError,
@@ -64,6 +66,7 @@ import {
   depositAssetReceivedPosting,
   internalSettledPosting,
   payerSurplusPosting,
+  payerSurplusRefundPosting,
   type SurplusDisposition,
   settledPosting,
 } from "./postings.ts";
@@ -74,6 +77,8 @@ import {
   createClearingTransaction,
   failTransaction,
   recordCrossAssetSwap,
+  recordPayerSurplusRefundBroadcast,
+  recordPayerSurplusRefundConfirmed,
   recordSettlementBroadcast,
   type TransitionResult,
   transition,
@@ -296,6 +301,11 @@ export class ClearingEngine {
     return this.#repository.listResumable(limit);
   }
 
+  /** Successful x402 payments whose refundable change still needs returning. */
+  listPendingPayerSurplusRefunds(limit = 100): Promise<ClearingTransaction[]> {
+    return this.#repository.listPendingPayerSurplusRefunds(limit);
+  }
+
   /**
    * Fails clearing transactions abandoned at `PAYMENT_PENDING` past their
    * intent's deadline. A payer who scanned the QR and walked away leaves the
@@ -426,6 +436,74 @@ export class ClearingEngine {
     const { transaction: next, event } = recordCrossAssetSwap(
       transaction,
       txHash,
+      this.#clock.now(),
+    );
+    await this.#repository.update(next, transaction.version, [event]);
+    return next;
+  }
+
+  /** Persists the payer-surplus refund hash before trusting its receipt. */
+  async recordPayerSurplusRefundBroadcast(
+    id: string,
+    txHash: string,
+    amount: Money,
+    payer: string,
+  ): Promise<ClearingTransaction> {
+    const transaction = await this.getById(id);
+    assertPayerSurplusRefundable(transaction, amount, payer);
+    assertTransactionHash(txHash, "Payer-surplus refund");
+    const events = await this.history(id);
+    const previous = events.findLast((event) => event.type === "payer-surplus.refund.broadcast");
+    if (previous !== undefined) {
+      if (eventReference(previous) === txHash) return transaction;
+      throw new ValidationError("Payer surplus already has a different refund transaction", {
+        id,
+      });
+    }
+
+    const claim = payerSurplusClaim(events);
+    assertPayerSurplusClaim(id, claim, amount, payer);
+    const { transaction: next, event } = recordPayerSurplusRefundBroadcast(
+      transaction,
+      txHash,
+      amount,
+      payer,
+      this.#clock.now(),
+    );
+    await this.#repository.update(next, transaction.version, [event]);
+    return next;
+  }
+
+  /** Clears the payer-surplus liability only after the exact return is confirmed. */
+  async recordPayerSurplusRefundConfirmed(
+    id: string,
+    txHash: string,
+    amount: Money,
+    payer: string,
+  ): Promise<ClearingTransaction> {
+    const transaction = await this.getById(id);
+    assertPayerSurplusRefundable(transaction, amount, payer);
+    const events = await this.history(id);
+    const confirmed = events.findLast((event) => event.type === "payer-surplus.refund.confirmed");
+    if (confirmed !== undefined) {
+      if (eventReference(confirmed) === txHash) return transaction;
+      throw new ValidationError("Payer surplus already has a different confirmed refund", { id });
+    }
+    const broadcast = events.findLast((event) => event.type === "payer-surplus.refund.broadcast");
+    if (broadcast === undefined || eventReference(broadcast) !== txHash) {
+      throw new ValidationError("Payer-surplus refund must be broadcast before it is confirmed", {
+        id,
+        txHash,
+      });
+    }
+    assertPayerSurplusClaim(id, payerSurplusClaim(events), amount, payer);
+
+    await this.#ledger.post(payerSurplusRefundPosting(transaction, amount));
+    const { transaction: next, event } = recordPayerSurplusRefundConfirmed(
+      transaction,
+      txHash,
+      amount,
+      payer,
       this.#clock.now(),
     );
     await this.#repository.update(next, transaction.version, [event]);
@@ -1465,4 +1543,69 @@ function requireContract(transaction: ClearingTransaction) {
     );
   }
   return contract;
+}
+
+interface PayerSurplusClaim {
+  readonly amount: Money;
+  readonly payer: string;
+}
+
+function payerSurplusClaim(events: readonly ClearingEvent[]): PayerSurplusClaim | undefined {
+  const receipt = events.findLast((event) => {
+    const payload = event.payload as { payerSurplusDisposition?: unknown };
+    return payload.payerSurplusDisposition === "refundable";
+  });
+  const payload = receipt?.payload as
+    | { payerSurplus?: SerializedMoney; payerRefundAddress?: unknown }
+    | undefined;
+  if (payload?.payerSurplus === undefined || typeof payload.payerRefundAddress !== "string") {
+    return undefined;
+  }
+  return { amount: deserializeMoney(payload.payerSurplus), payer: payload.payerRefundAddress };
+}
+
+function assertPayerSurplusRefundable(
+  transaction: ClearingTransaction,
+  amount: Money,
+  payer: string,
+): void {
+  if (
+    transaction.state !== "SUCCESS" ||
+    !awaitsFacilitatorSettlement(transaction.executionPath) ||
+    amount.amount <= 0n ||
+    payer.length === 0
+  ) {
+    throw new ValidationError("Only refundable surplus on a successful x402 payment can be sent", {
+      id: transaction.id,
+    });
+  }
+}
+
+function assertPayerSurplusClaim(
+  id: string,
+  claim: PayerSurplusClaim | undefined,
+  amount: Money,
+  payer: string,
+): void {
+  if (
+    claim === undefined ||
+    claim.amount.asset !== amount.asset ||
+    claim.amount.amount !== amount.amount ||
+    claim.payer.toLowerCase() !== payer.toLowerCase()
+  ) {
+    throw new ValidationError("Payer-surplus refund disagrees with the recorded liability", {
+      id,
+    });
+  }
+}
+
+function eventReference(event: ClearingEvent): string | undefined {
+  const reference = (event.payload as { providerReference?: unknown }).providerReference;
+  return typeof reference === "string" ? reference : undefined;
+}
+
+function assertTransactionHash(value: string, label: string): void {
+  if (!/^0x[\da-f]{64}$/i.test(value)) {
+    throw new ValidationError(`${label} is not a transaction hash`, { value });
+  }
 }

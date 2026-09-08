@@ -110,6 +110,17 @@ export interface Invoice {
   readonly dueAt?: Date;
   readonly voidedAt?: Date;
   readonly metadata: Readonly<Record<string, string>>;
+  /**
+   * Whether this invoice appears in the public x402 payable index (#273).
+   *
+   * A property of the document, not of its payability: an unlisted invoice is
+   * still payable by an agent that knows its id, because the unguessable id is
+   * the access control — the same rule a payment link already follows. Listing
+   * only decides whether a discovery reader is shown it, which is why the
+   * default is `false`: today's requirement to name a merchant is accidental
+   * privacy some merchants are relying on without knowing it.
+   */
+  readonly listed: boolean;
   readonly idempotencyKey?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;

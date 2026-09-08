@@ -13,6 +13,7 @@ import type {
   InvoiceRepository,
   IssueWithSequence,
   ListInvoicesOptions,
+  ListListedInvoicesOptions,
 } from "../src/index.ts";
 
 const DEFAULT_LIMIT = 100;
@@ -101,5 +102,20 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
       .filter((invoice) => options.state === undefined || invoice.state === options.state)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, options.limit ?? DEFAULT_LIMIT);
+  }
+
+  /** Same keyset semantics as the Postgres adapter: newest first, ties by id. */
+  async listListed(options: ListListedInvoicesOptions): Promise<readonly Invoice[]> {
+    return [...this.#byId.values()]
+      .filter((invoice) => invoice.listed)
+      .filter(
+        (invoice) =>
+          options.cursor === undefined ||
+          invoice.createdAt.getTime() < options.cursor.createdAt.getTime() ||
+          (invoice.createdAt.getTime() === options.cursor.createdAt.getTime() &&
+            invoice.id < options.cursor.id),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1))
+      .slice(0, options.limit);
   }
 }
