@@ -6,6 +6,7 @@ function link(overrides: Partial<PaymentLinkDto> & Pick<PaymentLinkDto, "id">): 
   const { id, ...rest } = overrides;
   return {
     id,
+    listed: false,
     kind: "catalog",
     merchant: { id: "mrc_1", name: "Toko", city: "Jakarta", countryCode: "ID" },
     amount: null,
