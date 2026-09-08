@@ -269,21 +269,21 @@ on the public endpoint. Documentation is deferred until the end.
 | [#228](https://github.com/playriglabs/mayarin/pull/228) | Astro 5 → 7 and the Node 22 floor it brings                                      |
 | [#229](https://github.com/playriglabs/mayarin/pull/229) | `.nvmrc` names the major, so `nvm use` resolves                                  |
 
-### In the window — 4 to 7 September
+### In the window — 4 to 8 September
 
 Everything below was written during the event, which is the distinction each
 submission README has to draw. Grouped by what it serves rather than by date; the
 per-slot sections further down carry the detail and the evidence.
 
-| Slot               | PRs                                                        | What landed                                                                                                                                               |
-| ------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Arc** (#208)     | #236, #243, #246, #248, #251, #252, #270                   | Arc testnet deploy, per-chain merchant Safes, one facilitator per chain, deposits derived on their own chain, Circle agent wallet paying through EIP-1271 |
-| **Graph** (#231)   | #237, #238, #241, #271                                     | Both subgraphs live, `chooseRail` on median headroom, the indexer reading the subgraph clamped to `indexedHead`, and its query budget                     |
-| **Uniswap** (#211) | #258, #262, #263, #264, #265, #266, #267, #268, #275, #276 | Exact-output quoting, cross-asset x402 end to end on two chains, the payer's change and what becomes of it, the interrupted-payment resume, `FEEDBACK.md` |
-| Rail correctness   | #255, #257, #261                                           | Paid quotes delivered, direct settlements reconciled, a broadcast persisted before it is trusted, the estimate priced on the payer's rail                 |
-| Product            | #239, #274                                                 | A running deployment can have a resource at all; then merchants register their own, on the API and in the dashboard                                       |
-| Tooling, deploy    | #240, #242, #245, #249, #250                               | e2e takes a chain, asks the chain what gas costs, and the Railway sync has a dry run                                                                      |
-| The entry itself   | #230, #233, #234, #247, #253, #256, #272                   | This file, the three-slot decision, the corrected deadline, and Hedera removed                                                                            |
+| Slot               | PRs                                                        | What landed                                                                                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Arc** (#208)     | #236, #243, #246, #248, #251, #252, #270                   | Arc testnet deploy, per-chain merchant Safes, one facilitator per chain, deposits derived on their own chain, Circle agent wallet paying through EIP-1271                                                    |
+| **Graph** (#231)   | #237, #238, #241, #271, #278                               | Both subgraphs live, `chooseRail` on median headroom, the indexer reading the subgraph clamped to `indexedHead`, its query budget, and the MCP selling rail intelligence per call — paid for on Base Sepolia |
+| **Uniswap** (#211) | #258, #262, #263, #264, #265, #266, #267, #268, #275, #276 | Exact-output quoting, cross-asset x402 end to end on two chains, the payer's change and what becomes of it, the interrupted-payment resume, `FEEDBACK.md`                                                    |
+| Rail correctness   | #255, #257, #261                                           | Paid quotes delivered, direct settlements reconciled, a broadcast persisted before it is trusted, the estimate priced on the payer's rail                                                                    |
+| Product            | #239, #274                                                 | A running deployment can have a resource at all; then merchants register their own, on the API and in the dashboard                                                                                          |
+| Tooling, deploy    | #240, #242, #245, #249, #250                               | e2e takes a chain, asks the chain what gas costs, and the Railway sync has a dry run                                                                                                                         |
+| The entry itself   | #230, #233, #234, #247, #253, #256, #272                   | This file, the three-slot decision, the corrected deadline, and Hedera removed                                                                                                                               |
 
 ### Where the code lives
 
@@ -528,8 +528,8 @@ unverifiable against a live endpoint.
 
 ## Next
 
-**Six days, not nine.** Submissions close 13 September, 12:00 EDT, and it is the
-7th. Everything below — code, videos, diagrams, per-submission READMEs — lands
+**Five days, not nine.** Submissions close 13 September, 12:00 EDT, and it is the
+8th. Everything below — code, videos, diagrams, per-submission READMEs — lands
 before then.
 
 ### Before writing code
@@ -565,8 +565,13 @@ not make the slot, not because the issue is unfinished.
       `apps/api/src/index.ts` before traffic, and `X402Service.paymentRequired`
       now takes the token's domain and transfer method from the chain rather
       than from the resource row.
-- [ ] Audit the native-decimal assumption at the four sites `docs/chain.md`
-      names, before trusting any Arc balance.
+- [x] Audit the native-decimal assumption — done, and the record is
+      [`docs/arc.md`](docs/arc.md): one USDC `AssetCode` with the 18-decimal
+      native view and the 6-decimal ERC-20 view kept as one holding, Arc
+      **rejected** from `CHAIN_NATIVE_ASSETS` before RPC, balances read through
+      `balanceOf` with a regression test round-tripping `1.234567 USDC`, and
+      the native mirror log kept out of x402 confirmation (#255). Arc balances
+      have been trusted on that basis since the 6 September paid runs.
 - [x] Merchant wallets can be provisioned on Arc: `SAFE_ARC_TESTNET` (factory,
       singleton and fallback handler all read off Arc, not inherited from Base)
       and one `TurnkeyWalletProvider` per chain in `WALLET_PROVISION_CHAINS`,
@@ -581,9 +586,11 @@ not make the slot, not because the issue is unfinished.
       when the merchant can actually be paid on it. Today the chain is whichever
       key comes first in `CHAIN_ASSETS` and the asset list is a union across
       chains — invisible with one chain, wrong with two.
-- [ ] Surface per-chain balances in the dashboard. The reader is already keyed by
-      chain and now gets every RPC the deployment has; `WalletService` still
-      takes one chain, so the UI cannot ask for another yet.
+- [x] Surface per-chain balances in the dashboard — shipped with the #244 work:
+      `GET /wallets/balance` returns **one entry per chain the deployment
+      settles on**, including the chains where this merchant has no address yet,
+      because a row that is absent and a row that is empty read the same to a
+      merchant and only one of them says there is something to do.
 - [x] Circle Agent Stack as the payer. **Done and paid for; the Circle-policy
       half is abandoned rather than pending** — see the note under it: a Circle agent wallet paid the gated endpoint on Arc testnet,
       6 September —
@@ -697,6 +704,14 @@ settlements`.
 
   The sentence worth saying on camera is what that payment was _for_: the agent paid ten cents to find out which rail to pay on. Nobody in the entry pool is selling a decision. And the payer's gas was zero — the operator broadcasts what the wallet signed, and the wallet is a contract account whose signature the token accepts through EIP-1271.
 
+- [x] **The submission README requirement — 8 September.** The root README now
+      carries the two lists the Continuity pool requires: pre-existing work
+      against work done in the window, with the x402 spine (#220–#230, merged
+      3 September) listed as pre-existing rather than claimed for the event, and
+      a per-partner table whose every claim is a transaction hash or an evidence
+      file. `docs/chain.md` carries the Studio query URLs beside the contract
+      addresses they index, per this RFC's own spec. The video and the
+      per-submission READMEs remain, under **Submission** below.
 - [x] `SettlementSource` port so `SettlementIndexer` can read the subgraph instead
       of polling `eth_getLogs`. Per chain: a chain named in `SUBGRAPH_ENDPOINTS`
       is served by `SubgraphSettlementSource`, every other chain polls exactly as
@@ -820,35 +835,43 @@ given a resource at all, and nothing could serve a `402`. `POST
 EIP-712 domain or transfer method: both are probed off the contract, so a
 resource cannot be created advertising terms no payer could sign.
 
-- [ ] Measure `eth_getLogs` through HashIO before running `SettlementIndexer`
-      against it.
-- [ ] Contracts verified on HashScan; video ≤5 min showing a paid request execute.
+- [x] ~~Measure `eth_getLogs` through HashIO before running `SettlementIndexer`
+      against it.~~ Not entered: Hedera lost its slot on 6 September and its
+      chain entries are out of the code — there is no Hedera `SettlementIndexer`
+      to measure for.
+- [x] ~~Contracts verified on HashScan; video ≤5 min showing a paid request
+      execute.~~ Not entered, same reason — no Hedera contracts exist to verify,
+      and the video is the three-slot one under **Submission**.
 
 ### Next, in order
 
-**Two of the three slots are built.** Arc (#208) and Uniswap (#211) both have a
-real payment on a real chain with evidence committed; The Graph has a subgraph
-serving the rail choice but not yet the second product its Composable track
-requires. Six days remain, and what is left is mostly not code:
+**All three slots are built.** Arc (#208) and Uniswap (#211) each have a real
+payment on a real chain with evidence committed; The Graph (#231) has both of
+its products — the subgraph serving the rail choice, and the MCP paid per call
+on Base Sepolia. Five days remain, and what is left is mostly not code:
 
 1. **Continuity registration with The Graph, Arc and Uniswap.** Not code, and
    still first, because answers take hours and a wrong pool is a
    disqualification discovered at judging.
-2. **The Subgraph MCP behind x402**
-   ([#231](https://github.com/playriglabs/mayarin/issues/231)). The only item
-   left that _opens_ a track rather than improving one: a second Graph product
-   is the whole condition on the Composable pool, and an MCP paid per query is
-   the AI track's own description of itself. Give it a per-process budget — see
-   the 3,000-a-day account-wide cap under **Subgraphs live**.
+2. **Turn the deployment on**
+   ([#231](https://github.com/playriglabs/mayarin/issues/231)). The MCP and the
+   subgraph-fed indexer exist but the public deployment has neither configured:
+   `SUBGRAPH_ENDPOINTS` has to reach the Railway env (the sync script already
+   carries it), the `rail-intelligence` resource has to be registered through
+   `POST /admin/x402/resources`, and then the indexer is confirmed running
+   against the subgraph source there — the last open box on that RFC.
 3. **`scripts/demo-agent.ts`** ([#232](https://github.com/playriglabs/mayarin/issues/232)) —
    the trace, the refusal run, and the no-signup `curl`. The refusal comes from
    the deviation guard or an unpayable rail, not from Circle: `circle wallet
-limit set` needs a mainnet chain and Circle lists Arc on testnet only.
+limit set` needs a mainnet chain and Circle lists Arc on testnet only. The
+   deletion run — subgraph removed, agent falls back and says so — is #231's
+   last load-bearing box and it is filmed here.
 4. **Record and cut the video.** Two to four minutes, 720p or better, narrated
    by a person — an AI voice is disqualifying. Film the **Arc cross-asset run**
    under #211: one payment carrying three sponsors, with change that is actually
    owed back. Plus the Arc architecture diagram and a README per submission
-   separating pre-existing work from work done in the window.
+   separating pre-existing work from work done in the window — the root README
+   carries the two lists as of 8 September; the per-submission ones remain.
 5. **Submit the Uniswap Developer Feedback Form.** Five minutes. `FEEDBACK.md`
    is written and the form is a separate deliverable the track names.
 6. **Send the payer's refund** ([#211](https://github.com/playriglabs/mayarin/issues/211)),
@@ -861,9 +884,9 @@ limit set` needs a mainnet chain and Circle lists Arc on testnet only.
    `bun run docs:openapi:check`. Deferred work, not a reason to reopen
    [#207](https://github.com/playriglabs/mayarin/issues/207).
 
-**Cut order if the window tightens:** the refund first, then Arc's mainnet push,
-then the Composable half of The Graph. The MCP, the demo agent and the video are
-never cut — without them all three slots go in empty.
+**Cut order if the window tightens:** the refund first, then Arc's mainnet push.
+The demo agent and the video are never cut — without them all three slots go in
+empty.
 
 **Outside the three slots, and not to be pulled into them.**
 [#269](https://github.com/playriglabs/mayarin/issues/269) (merchants gating their
@@ -935,7 +958,7 @@ EURC` is the repeatable form.
       landed, and swapping for one that did not spends the operator's own
       balance. What the payer signed is read off the `settlement.broadcast`
       event, because on a cross-asset payment nothing else records it.
-- [ ] Send the refund. The threshold is set and the address is on the receipt
+- [x] Send the refund. The threshold is set and the address is on the receipt
       event, so above dust the change is a liability with a payee — but no
       transaction returns it yet, and that is a broadcast with its own nonce,
       resume and idempotency story rather than a posting.
