@@ -644,10 +644,17 @@ one `DEPOSIT_FORWARDER_INIT_CODE_HASH` correct for every chain.
       codegen and build green against `base-sepolia`. It also records
       `headroomSeconds` per settlement, which is the number the rail choice is
       about. **Deploying it needs a Studio key**, so that step is manual.
-- [ ] Decide how x402 settlements are indexed. They never touch `PaymentRouter`,
-      so `PaymentCompleted` carries none of them, and the token's
-      `AuthorizationUsed` carries no `validBefore` — there is no headroom to read
-      off it. Decide with the Arc deployment, not before.
+- [x] **x402 settlements are not indexed — decided 8 September, with the Arc
+      deployment live.** They never touch `PaymentRouter`, so `PaymentCompleted`
+      carries none of them, and the token's `AuthorizationUsed` carries no
+      `validBefore` — there is no headroom to read off it, and headroom is the
+      one number the rail choice reasons over. Indexing them would add sample
+      counts that measure nothing the selector ranks on. The rail statistics
+      stand on contract-path and deposit-path settlements only, and the agent
+      sees that basis rather than assuming it: both MCP tools state their sample
+      counts, and `chooseRail` already requires `minSamples` before a rail is
+      ranked at all, so a rail whose traffic is all x402 is announced as
+      unobserved rather than silently ranked.
 - [x] Same subgraph for `arc-testnet`, deployed and indexing.
 - [x] `chooseRail` in `packages/core/x402/src/rail.ts` — pure, 11 tests, one per
       rule, including the fallback that announces itself. Ranks on **median**
@@ -690,17 +697,6 @@ settlements`.
 
   The sentence worth saying on camera is what that payment was _for_: the agent paid ten cents to find out which rail to pay on. Nobody in the entry pool is selling a decision. And the payer's gas was zero — the operator broadcasts what the wallet signed, and the wallet is a contract account whose signature the token accepts through EIP-1271.
 
-- [ ] ~~**The Subgraph MCP, served behind x402.**~~ One artifact, and the highest
-      leverage item left. It is a second Graph product beside Subgraph Studio,
-      which is the only thing standing between us and the Composable track's
-      $5,000 — that track states outright that querying one Subgraph without
-      composition does not qualify. It is simultaneously the AI track's own
-      words: an MCP server for AI environments, x402 payment tooling, and an
-      agent paying per query autonomously. Both halves already exist — the gated
-      endpoint is live and paid on two chains (`/x402/fx/quote`), and the live
-      subgraph reader is `SubgraphRailObservations`. What is new is the MCP layer
-      and one resource registered through `POST /admin/x402/resources`. Two
-      things to watch, both below.
 - [x] `SettlementSource` port so `SettlementIndexer` can read the subgraph instead
       of polling `eth_getLogs`. Per chain: a chain named in `SUBGRAPH_ENDPOINTS`
       is served by `SubgraphSettlementSource`, every other chain polls exactly as

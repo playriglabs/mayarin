@@ -522,6 +522,19 @@ A redeploy changes the EIP-712 domain — `verifyingContract` is part of it — 
 every previously signed order becomes invalid, not merely aimed at the old
 address. Cheap on testnet, a migration on mainnet.
 
+### Settlement subgraphs
+
+One subgraph, deployed once per network to Subgraph Studio. These query URLs are
+what `SUBGRAPH_ENDPOINTS` names, and they index the throwaway router deployments
+above — they are throwaway alongside them. A deployment still on `v0.0.1` cannot
+serve `SubgraphSettlementSource`; see
+[`packages/subgraph/README.md`](../packages/subgraph/README.md).
+
+| Network        | Query URL (v0.0.2)                                                          |
+| -------------- | --------------------------------------------------------------------------- |
+| `base-sepolia` | `https://api.studio.thegraph.com/query/1758657/mayarin-base-sepolia/v0.0.2` |
+| `arc-testnet`  | `https://api.studio.thegraph.com/query/1758657/mayarin-arc-testnet/v0.0.2`  |
+
 ---
 
 ## Related

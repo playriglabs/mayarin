@@ -41,6 +41,7 @@ unprovisioned until the documented security and deployment gates are satisfied.
 - [Project status](#project-status)
 - [Features](#features)
 - [Agent payments](#agent-payments)
+- [The ETHOnline 2026 entry](#the-ethonline-2026-entry)
 - [Architecture](#architecture)
 - [How a payment moves](#how-a-payment-moves)
 - [Design principles](#design-principles)
@@ -296,7 +297,48 @@ bun run scripts/e2e-x402.ts --url $API/x402/mcp --pay-to 0x… \
 | Ranking and summarising rails, pure        | `packages/core/x402/src/rail.ts` |
 | Reading settlements from the subgraph      | `packages/providers/subgraph/`   |
 
-See [ROADMAP.md](./ROADMAP.md) for the ETHOnline 2026 work built on this.
+See [ROADMAP.md](./ROADMAP.md) for the working state of the ETHOnline 2026 entry.
+
+### The ETHOnline 2026 entry
+
+Mayarin is entered in [ETHOnline 2026](https://ethglobal.com/events/ethonline2026)
+in the **Continuity** pool: the project predates the event, which is why its work
+is documented in two lists rather than one.
+
+**Pre-existing — merged before the event opened on 4 September 2026.** The
+clearing engine, double-entry ledger, deposit matching, `PaymentRouter` and
+factory contracts, quoting and liquidity routing, the commerce surfaces
+(catalog, links, invoices, hosted checkout), the merchant dashboard, the
+TypeScript SDK, the WooCommerce plugin, and the documentation set — Phases 1–3.
+The x402 protocol spine (#220–#230: facilitator port, resource registry, replay
+key, HTTP surface) merged on 3 September, the day before the window opened, and
+is listed here rather than claimed for the event.
+
+**Built during the event, 4–8 September 2026.** Three partners, each occupying a
+position the flow actually needs:
+
+| Partner      | Built in the window                                                                                                                                                                               | Measured on chain                                                                                                                                                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The Graph    | The settlements subgraph (`v0.0.2` on Base Sepolia and Arc testnet), the settlement indexer reading it, rail statistics, and the MCP server above — a second Graph product beside Subgraph Studio | A Circle agent wallet paid $0.10 for one `choose_rail` call: [`0xdce241e2…`](https://sepolia.basescan.org/tx/0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b), answered from live Studio data                                                     |
+| Arc (Circle) | USDC-native settlement on Arc testnet, a merchant Safe per chain, and Circle Agent Stack contract-account payers whose EIP-1271 signatures the token accepts                                      | Paid x402 runs on Arc, payer's gas zero: [`docs/evidence/`](./docs/evidence/)                                                                                                                                                                                        |
+| Uniswap      | Cross-asset x402 — exact-output swaps priced backwards from the invoice, so an agent holding any listed asset pays a merchant settled in another                                                  | EURC payer, USDC merchant: [`0x254b93ce…`](https://sepolia.basescan.org/tx/0x254b93cec1a73279e12968938c1c491133c5556b4adb9e71cea070e0abc8affa) / [`0xb1436735…`](https://sepolia.basescan.org/tx/0xb143673599a6b05cd95676f0bbec7ffc35f9f99563bf45c6f26468944eb38a07) |
+
+The same window also shipped the multichain counter (#244) and merchant-owned
+agent endpoints (#269, #274) — no sponsor, load-bearing regardless.
+
+**The Graph is load-bearing, and checkable by deletion.** Remove the subgraph and
+the rail choice does not become a worse guess silently — it announces itself:
+`choose_rail` reports an unobserved rail rather than presenting the first offered
+one as a decision, and with no settlements observed at all the call is refused
+free rather than sold, because charging an agent for "no rail has been observed"
+is charging it for our own outage. And the settlement indexer, for its part,
+reads the chain directly again the moment a chain is no longer named in
+`SUBGRAPH_ENDPOINTS` — the subgraph is an index over `PaymentCompleted`, never
+the record itself. Every claim above traces to a transaction hash or an evidence
+file, not to a screenshot.
+
+What shipped with which PR, and what remains before submissions close on
+13 September, lives in [ROADMAP.md](./ROADMAP.md).
 
 ## Architecture
 
