@@ -415,6 +415,31 @@ describe("hosted checkout", () => {
     expect(await response.text()).toContain("<svg");
   });
 
+  test("serves a self-contained branded payment-link QR as a PNG download", async () => {
+    const harness = createApiHarness();
+    const svgResponse = await harness.app.request(
+      "/checkout/qr?value=https%3A%2F%2Fmayarin.xyz%2Fcheckout%2Flnk_test&brand=mayarin",
+    );
+    const downloadResponse = await harness.app.request(
+      "/checkout/qr?value=https%3A%2F%2Fmayarin.xyz%2Fcheckout%2Flnk_test&brand=mayarin&format=png&download=true",
+    );
+    const svg = await svgResponse.text();
+    const png = new Uint8Array(await downloadResponse.arrayBuffer());
+
+    expect(downloadResponse.status).toBe(200);
+    expect(downloadResponse.headers.get("content-type")).toContain("image/png");
+    expect(downloadResponse.headers.get("content-disposition")).toBe(
+      'attachment; filename="mayarin-payment-qr.png"',
+    );
+    expect([...png.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(svg).toContain(
+      "Mayarin brand mark source: https://mayarin.xyz/brand-kit/mayarin-white.png",
+    );
+    expect(svg).toMatch(/<image x="\d+" y="\d+" width="\d+" height="\d+"/);
+    expect(svg).toContain('href="data:image/png;base64,');
+    expect(svg).toContain('rx="0.4" fill="none" stroke="#d4d4d4"');
+  });
+
   test("refuses a QR value long enough to be a payload", async () => {
     const harness = createApiHarness();
     const response = await harness.app.request(`/checkout/qr?value=${"a".repeat(513)}`);

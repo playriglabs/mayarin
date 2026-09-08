@@ -67,8 +67,11 @@ function volumeOf(settlements: readonly SettlementDto[]): {
 
   const counted = amounts.filter((a) => a.asset === asset).length;
   const skipped = amounts.length - counted;
+  const total = totalIn(amounts, asset);
   return {
-    value: display(totalIn(amounts, asset)),
+    value: DOLLAR_PEGGED.has(asset)
+      ? approximateDollarDisplay(total.amount, asset)
+      : display(total),
     hint:
       skipped === 0
         ? `Across ${counted} completed payment${counted === 1 ? "" : "s"}.`
@@ -133,6 +136,14 @@ function balanceDisplay(total: bigint, asset: string): string {
 
   const scale = 10n ** BigInt(assetDecimals(asset) - assetDecimals("USD"));
   return formatMoneyLocale(money(total / scale, "USD"));
+}
+
+/** A dollar-pegged volume at dashboard precision, marked as an approximation. */
+function approximateDollarDisplay(total: bigint, asset: string): string {
+  if (!isAssetCode(asset)) return "—";
+  const scale = 10n ** BigInt(assetDecimals(asset) - assetDecimals("USD"));
+  const digits = formatMoneyLocale(money(total / scale, "USD"), { symbol: false });
+  return `≈ $${digits}`;
 }
 
 /**
@@ -235,7 +246,7 @@ function BalanceOverview({
   if (asset === undefined) {
     return (
       <Card className="gap-2">
-        <span className="text-muted-foreground text-xs uppercase tracking-wide">Balance</span>
+        <span className="text-muted-foreground text-xs tracking-wide">Balance</span>
         <span className="font-medium text-2xl text-foreground">—</span>
         <span className="text-subtle-foreground text-xs">No settlement asset configured.</span>
       </Card>
@@ -252,9 +263,9 @@ function BalanceOverview({
   return (
     <Card className="gap-5">
       <div className="flex flex-wrap items-start justify-between gap-6">
-        <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-xs uppercase tracking-wide">Balance</span>
-          <span className="font-medium text-[30px] my-2 text-foreground tracking-tight">
+        <div className="flex flex-col gap-3">
+          <span className="text-muted-foreground text-xs tracking-wide">Balance</span>
+          <span className="font-medium text-[30px] text-foreground tracking-tight pb-1">
             {balanceDisplay(total, asset)}
           </span>
           <span className="text-subtle-foreground text-xs">
@@ -342,7 +353,8 @@ function MovementCard({
  *
  * A table needs four columns to say what it knows and this sits in a third of
  * the width, so it drops to what a merchant scans for: which payment, how much,
- * and whether it landed. The full table is one link away and still has the
+ * and whether it landed. On a phone the amount is omitted so the payment id and
+ * status remain readable. The full table is one link away and still has the
  * created time, the reference and the rest.
  *
  * The id is truncated from the left. A payment id is a ULID whose leading
@@ -380,7 +392,7 @@ function RecentPayments({ payments }: { payments: readonly PaymentIntentDto[] })
               <a
                 href={`/payments/${encodeURIComponent(payment.id)}`}
                 title={payment.id}
-                className="inline-flex min-w-0 items-center gap-1.5 font-mono text-foreground text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
+                className="inline-flex min-w-0 flex-1 items-center gap-1.5 font-mono text-foreground text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
               >
                 <ReceiptIcon size={12} aria-hidden="true" className="shrink-0" />
                 <span dir="rtl" className="min-w-0 truncate">
@@ -388,7 +400,9 @@ function RecentPayments({ payments }: { payments: readonly PaymentIntentDto[] })
                 </span>
               </a>
               <span className="flex shrink-0 items-center gap-2">
-                <span className="text-foreground text-xs">{payment.amount.display}</span>
+                <span className="hidden text-foreground text-xs sm:inline">
+                  {payment.amount.display}
+                </span>
                 <Badge variant={toneOf(payment.status)}>{intentStatusLabel(payment.status)}</Badge>
               </span>
             </li>

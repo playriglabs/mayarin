@@ -38,6 +38,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CursorPagination } from "@/components/ui/cursor-pagination";
 import {
   Dialog,
   DialogClose,
@@ -69,6 +70,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useCursorPagination } from "@/hooks/cursor-pagination";
 import {
   useCreateX402Resource,
   useDeleteX402Resource,
@@ -78,6 +80,7 @@ import {
 } from "@/hooks/x402";
 import { ApiError } from "@/lib/api/client";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
+import { PAGE_SIZE } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
 import type { X402Accept, X402RailOption, X402ResourceDto } from "@/types/x402";
@@ -152,7 +155,8 @@ function RailBadges({ accepts }: { readonly accepts: readonly X402Accept[] }) {
 }
 
 function X402Resources() {
-  const resources = useX402Resources();
+  const pagination = useCursorPagination();
+  const resources = useX402Resources(PAGE_SIZE, pagination.cursor);
   const rails = useX402Rails();
   const create = useCreateX402Resource();
   const update = useUpdateX402Resource();
@@ -275,7 +279,7 @@ function X402Resources() {
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <p className="font-mono text-xs text-subtle-foreground">
-          {rows.length} endpoint{rows.length === 1 ? "" : "s"}
+          {rows.length} endpoint{rows.length === 1 ? "" : "s"} on this page
         </p>
         <Button onClick={open} disabled={offered.length === 0}>
           <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
@@ -293,7 +297,7 @@ function X402Resources() {
       {failure !== "" && !creating && <Alert variant="destructive">{failure}</Alert>}
 
       {match(resources)
-        .with({ isPending: true }, () => <TableSkeleton rows={5} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={PAGE_SIZE} />)
         .with({ isError: true }, ({ error }) => (
           <QueryError
             message={reasonOf(error)}
@@ -302,7 +306,7 @@ function X402Resources() {
           />
         ))
         .otherwise(() =>
-          rows.length === 0 ? (
+          rows.length === 0 && !pagination.canPrevious ? (
             <Empty>
               <EmptyMedia>
                 <GlobeIcon size={ICON_CARD} aria-hidden="true" />
@@ -320,67 +324,78 @@ function X402Resources() {
               </EmptyAction>
             </Empty>
           ) : (
-            <Table>
-              <TableCaption>Endpoints agents can pay for</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Endpoint</TableHead>
-                  <TableHead>URL</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Rails</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((resource) => (
-                  <TableRow key={resource.id}>
-                    <TableCell>
-                      <span className="font-mono text-xs text-foreground">{resource.id}</span>
-                      {resource.description !== undefined && (
-                        <p className="text-xs mt-0.5 text-subtle-foreground">
-                          {resource.description}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
-                      {resource.url}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">{resource.price.display}</TableCell>
-                    <TableCell>
-                      <RailBadges accepts={resource.accepts} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setGuide(resource)}
-                          aria-label={`How to gate ${resource.id}`}
-                        >
-                          <TerminalWindowIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEdit(resource)}
-                          aria-label={`Edit ${resource.id}`}
-                        >
-                          <PencilSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setPendingRemove(resource)}
-                          aria-label={`Remove ${resource.id}`}
-                        >
-                          <TrashIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="flex flex-col gap-3">
+              <Table>
+                <TableCaption>Endpoints agents can pay for</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Endpoint</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Rails</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((resource) => (
+                    <TableRow key={resource.id}>
+                      <TableCell>
+                        <span className="font-mono text-xs text-foreground">{resource.id}</span>
+                        {resource.description !== undefined && (
+                          <p className="text-xs mt-0.5 text-subtle-foreground">
+                            {resource.description}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
+                        {resource.url}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{resource.price.display}</TableCell>
+                      <TableCell>
+                        <RailBadges accepts={resource.accepts} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setGuide(resource)}
+                            aria-label={`How to gate ${resource.id}`}
+                          >
+                            <TerminalWindowIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEdit(resource)}
+                            aria-label={`Edit ${resource.id}`}
+                          >
+                            <PencilSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setPendingRemove(resource)}
+                            aria-label={`Remove ${resource.id}`}
+                          >
+                            <TrashIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <CursorPagination
+                label="Agent endpoint pages"
+                page={pagination.page}
+                canPrevious={pagination.canPrevious}
+                nextCursor={resources.data?.nextCursor}
+                busy={resources.isFetching}
+                onPrevious={pagination.previous}
+                onNext={pagination.next}
+              />
+            </div>
           ),
         )}
 
@@ -433,7 +448,7 @@ function X402Resources() {
                     className="pr-12"
                   />
                   <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-3 font-mono text-subtle-foreground text-xs">
-                    USD
+                    USD($)
                   </span>
                 </div>
                 <FieldDescription>Charged per request.</FieldDescription>

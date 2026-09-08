@@ -75,6 +75,22 @@ export interface X402Resource {
   readonly maxTimeoutSeconds: number;
 }
 
+export interface X402ResourceListCursor {
+  readonly id: string;
+  readonly createdAt: Date;
+}
+
+export interface X402ResourceListEntry {
+  readonly resource: X402Resource;
+  readonly createdAt: Date;
+}
+
+export interface ListX402ResourcesOptions {
+  readonly merchantId: string;
+  readonly limit: number;
+  readonly cursor?: X402ResourceListCursor;
+}
+
 /** An `AcceptedAsset` with the price converted into it, and the lock that holds. */
 export interface PricedAsset {
   readonly accept: AcceptedAsset;
@@ -97,6 +113,11 @@ export interface X402ResourceRepository {
    * an old quote for it is refused rather than charged for something withdrawn.
    */
   remove(id: string): Promise<void>;
+}
+
+/** The bounded, newest-first read used by merchant management surfaces. */
+export interface PaginatedX402ResourceRepository extends X402ResourceRepository {
+  listPageByMerchant(options: ListX402ResourcesOptions): Promise<readonly X402ResourceListEntry[]>;
 }
 
 export function resourceInfoOf(resource: X402Resource): ResourceInfo {

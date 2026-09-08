@@ -13,6 +13,7 @@
  * stream must still be able to pay.
  */
 
+import { Buffer } from "node:buffer";
 import {
   CART_METADATA_KEY,
   isLinkPayable,
@@ -26,6 +27,7 @@ import { type AssetCode, money, NotFoundError, ValidationError, zero } from "@ma
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { toString as qrToString } from "qrcode";
+import sharp from "sharp";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import { toRailDto } from "../dto/rails.ts";
@@ -44,6 +46,18 @@ const KEEPALIVE_MS = 25_000;
 
 /** Statuses after which nothing further will ever be sent. */
 const TERMINAL_STATUSES: readonly string[] = ["COMPLETED", "FAILED", "EXPIRED"];
+
+/** Canonical source for the mark embedded in branded payment-link QR codes. */
+const MAYARIN_MARK_SOURCE = "https://mayarin.xyz/brand-kit/mayarin-white.png";
+
+/**
+ * The API image contains the landing app too, so both surfaces read the same
+ * official asset. Embedding its bytes keeps a downloaded QR self-contained.
+ */
+const MAYARIN_MARK_FILE = new URL(
+  "../../../landing/public/brand-kit/mayarin-white.png",
+  import.meta.url,
+);
 
 export function checkoutPageRoutes(container: Container): Hono {
   const app = new Hono();
@@ -64,7 +78,19 @@ export function checkoutPageRoutes(container: Container): Hono {
         length: value.length,
       });
     }
-    return c.body(await qrSvg(value), 200, { "Content-Type": "image/svg+xml" });
+
+    const branded = c.req.query("brand") === "mayarin";
+    const png = c.req.query("format") === "png";
+    c.header("Content-Type", png ? "image/png" : "image/svg+xml");
+    if (c.req.query("download") === "true") {
+      c.header(
+        "Content-Disposition",
+        `attachment; filename="mayarin-payment-qr.${png ? "png" : "svg"}"`,
+      );
+    }
+    const svg = await qrSvg(value, branded);
+    if (png) return c.body(await qrPng(svg));
+    return c.body(svg);
   });
 
   /**
@@ -206,8 +232,49 @@ export function checkoutPageRoutes(container: Container): Hono {
   return app;
 }
 
-async function qrSvg(value: string): Promise<string> {
-  return qrToString(value, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+async function qrSvg(value: string, branded = false): Promise<string> {
+  const svg = await qrToString(value, {
+    type: "svg",
+    margin: 1,
+    errorCorrectionLevel: branded ? "H" : "M",
+  });
+  return branded ? withMayarinMark(svg, await mayarinMarkDataUri()) : svg;
+}
+
+/** Adds the official mark without changing the QR's encoded value. */
+function withMayarinMark(svg: string, dataUri: string): string {
+  const side = qrViewBoxSide(svg);
+  const roundedMarkSide = Math.round(side * 0.25);
+  // Matching parity keeps an integer-sized badge exactly centred on the QR's
+  // integer module grid. Fractional edges render as a faint grey border.
+  const markSide = roundedMarkSide % 2 === side % 2 ? roundedMarkSide : roundedMarkSide + 1;
+  const markOffset = (side - markSide) / 2;
+  const mark = [
+    `<metadata>Mayarin brand mark source: ${MAYARIN_MARK_SOURCE}</metadata>`,
+    `<defs><clipPath id="mayarin-mark-clip"><rect x="${markOffset}" y="${markOffset}" width="${markSide}" height="${markSide}" rx="0.4"/></clipPath></defs>`,
+    `<image x="${markOffset}" y="${markOffset}" width="${markSide}" height="${markSide}" href="${dataUri}" preserveAspectRatio="xMidYMid meet" clip-path="url(#mayarin-mark-clip)"/>`,
+    `<rect x="${markOffset}" y="${markOffset}" width="${markSide}" height="${markSide}" rx="0.4" fill="none" stroke="#d4d4d4" stroke-width="0.15"/>`,
+  ].join("");
+  return svg.replace("</svg>", `${mark}</svg>`);
+}
+
+function qrViewBoxSide(svg: string): number {
+  const side = svg.match(/viewBox="0 0 (\d+) \d+"/)?.[1];
+  if (side === undefined) throw new Error("QR SVG is missing its square viewBox");
+  return Number(side);
+}
+
+async function mayarinMarkDataUri(): Promise<string> {
+  const bytes = await Bun.file(MAYARIN_MARK_FILE).arrayBuffer();
+  return `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
+}
+
+async function qrPng(svg: string): Promise<Uint8Array<ArrayBuffer>> {
+  const png = await sharp(Buffer.from(svg))
+    .resize(1200, 1200, { fit: "fill", kernel: "nearest" })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  return Uint8Array.from(png);
 }
 
 export function checkoutSuccessUrl(base: string | undefined, intentId: string): string | undefined {

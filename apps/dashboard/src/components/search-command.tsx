@@ -100,7 +100,7 @@ export default function SearchCommand({ permissions }: { permissions: readonly P
       </button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <DialogTitle className="sr-only">Search the dashboard</DialogTitle>
 
           <div className="flex items-center gap-2 border-b border-border px-3">

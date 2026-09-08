@@ -5,7 +5,7 @@ import type { MerchantWallet } from "@mayarin/wallet";
 import { InMemoryMerchantWalletRepository } from "@mayarin/wallet/testing";
 import type { AssetCapability } from "@mayarin/x402";
 import { AssetCapabilities } from "@mayarin/x402";
-import { InMemoryResourceRepository } from "@mayarin/x402/testing";
+import { exampleResource, InMemoryResourceRepository } from "@mayarin/x402/testing";
 import type { Scope } from "../src/dto/auth.ts";
 import { X402ResourceService } from "../src/services/x402-resource-service.ts";
 
@@ -142,6 +142,35 @@ describe("rails", () => {
       "arc-testnet",
       "base-sepolia",
     ]);
+  });
+});
+
+describe("list", () => {
+  test("paginates the merchant's endpoints newest-first without duplicates", async () => {
+    const { service, resources } = await serviceWith({});
+    await Promise.all(
+      Array.from({ length: 8 }, (_, index) =>
+        resources.save(
+          exampleResource({
+            id: `resource-${index}`,
+            merchantId: MERCHANT_ID,
+            url: `https://merchant.example/resource/${index}`,
+          }),
+        ),
+      ),
+    );
+
+    const first = await service.list(SCOPE);
+    expect(first.items).toHaveLength(7);
+    expect(first.items[0]?.id).toBe("resource-7");
+    expect(typeof first.nextCursor).toBe("string");
+    if (first.nextCursor === null) throw new Error("Expected another resource page");
+
+    const second = await service.list(SCOPE, { cursor: first.nextCursor });
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0]?.id).toBe("resource-0");
+    expect(second.nextCursor).toBeNull();
+    expect(new Set([...first.items, ...second.items].map((resource) => resource.id)).size).toBe(8);
   });
 });
 

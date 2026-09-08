@@ -160,6 +160,7 @@ function CreateUserForm() {
                   type="email"
                   required
                   autoComplete="off"
+                  placeholder="teammate@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={submitting}
@@ -172,6 +173,7 @@ function CreateUserForm() {
                   id="new-user-password"
                   type="text"
                   autoComplete="new-password"
+                  placeholder="Leave blank to auto-generate"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={submitting}

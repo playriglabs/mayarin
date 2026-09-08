@@ -1,11 +1,13 @@
 import { useEffect } from "preact/hooks";
 import { Footer } from "../components/footer.tsx";
 import { Capabilities } from "../components/landing/capabilities.tsx";
+import { EarlyAccessCta } from "../components/landing/early-access-cta.tsx";
 import { Facts } from "../components/landing/facts.tsx";
 import { Navigation } from "../components/landing/nav.tsx";
+import { PlatformInAction } from "../components/landing/platform-in-action.tsx";
 import { Principles } from "../components/landing/principles.tsx";
 import { Reach } from "../components/landing/reach.tsx";
-import { Hero, PoweredBy, ValueStrip } from "../components/landing/sections.tsx";
+import { Hero, ValueStrip } from "../components/landing/sections.tsx";
 import { UseCases } from "../components/landing/use-cases.tsx";
 import { startSmoothScroll } from "../lib/smooth-scroll.ts";
 
@@ -28,11 +30,12 @@ export function Landing() {
           <Hero />
           <ValueStrip />
           <Capabilities />
+          <PlatformInAction />
           <UseCases />
-          <PoweredBy />
           <Reach />
           <Principles />
           <Facts />
+          <EarlyAccessCta />
         </main>
       </div>
       <Footer />

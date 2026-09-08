@@ -9,6 +9,7 @@
 
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
+import { listPath } from "@/lib/api/list-path";
 import type {
   CreateX402ResourceRequest,
   UpdateX402ResourceRequest,
@@ -18,8 +19,10 @@ import type {
 } from "@/types/x402";
 
 export const x402Api = {
-  list: (): Effect.Effect<X402ResourceListResponse, ApiError> =>
-    request<X402ResourceListResponse>("/x402-resources"),
+  list: (limit?: number, cursor?: string): Effect.Effect<X402ResourceListResponse, ApiError> =>
+    request<X402ResourceListResponse>(
+      listPath("/x402-resources", limit === undefined ? {} : { limit }, cursor),
+    ),
 
   rails: (): Effect.Effect<X402RailsResponse, ApiError> =>
     request<X402RailsResponse>("/x402-resources/rails"),

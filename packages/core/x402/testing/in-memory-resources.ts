@@ -11,24 +11,53 @@ import type { AssetCode, Money } from "@mayarin/shared";
 import { money } from "@mayarin/shared";
 import type {
   AcceptedAsset,
+  ListX402ResourcesOptions,
+  PaginatedX402ResourceRepository,
   PricedAsset,
   X402Resource,
-  X402ResourceRepository,
+  X402ResourceListEntry,
 } from "../src/index.ts";
 
-export class InMemoryResourceRepository implements X402ResourceRepository {
-  readonly #byId = new Map<string, X402Resource>();
+export class InMemoryResourceRepository implements PaginatedX402ResourceRepository {
+  readonly #byId = new Map<string, X402ResourceListEntry>();
+  #nextCreatedAt = 0;
 
   async findById(id: string): Promise<X402Resource | undefined> {
-    return this.#byId.get(id);
+    return this.#byId.get(id)?.resource;
   }
 
   async listByMerchant(merchantId: string): Promise<readonly X402Resource[]> {
-    return [...this.#byId.values()].filter((resource) => resource.merchantId === merchantId);
+    return [...this.#byId.values()]
+      .map((entry) => entry.resource)
+      .filter((resource) => resource.merchantId === merchantId);
+  }
+
+  async listPageByMerchant(
+    options: ListX402ResourcesOptions,
+  ): Promise<readonly X402ResourceListEntry[]> {
+    return [...this.#byId.values()]
+      .filter((entry) => entry.resource.merchantId === options.merchantId)
+      .filter((entry) => {
+        if (options.cursor === undefined) return true;
+        const created = entry.createdAt.getTime();
+        const cursorCreated = options.cursor.createdAt.getTime();
+        return (
+          created < cursorCreated ||
+          (created === cursorCreated && entry.resource.id < options.cursor.id)
+        );
+      })
+      .sort(
+        (left, right) =>
+          right.createdAt.getTime() - left.createdAt.getTime() ||
+          right.resource.id.localeCompare(left.resource.id),
+      )
+      .slice(0, options.limit);
   }
 
   async save(resource: X402Resource): Promise<void> {
-    this.#byId.set(resource.id, resource);
+    const existing = this.#byId.get(resource.id);
+    const createdAt = existing?.createdAt ?? new Date(this.#nextCreatedAt++);
+    this.#byId.set(resource.id, { resource, createdAt });
   }
 
   async remove(id: string): Promise<void> {

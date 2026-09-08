@@ -23,8 +23,13 @@ import type { MerchantRepository } from "@mayarin/auth";
 import type { ChainId } from "@mayarin/chain";
 import { type AssetCode, type Money, NotFoundError, ValidationError } from "@mayarin/shared";
 import type { MerchantWalletRepository } from "@mayarin/wallet";
-import type { AssetCapabilities, X402Resource, X402ResourceRepository } from "@mayarin/x402";
+import type {
+  AssetCapabilities,
+  PaginatedX402ResourceRepository,
+  X402Resource,
+} from "@mayarin/x402";
 import type { Scope } from "../dto/auth.ts";
+import { cursorPage, DEFAULT_PAGE_SIZE, decodeCursor } from "../pagination.ts";
 
 /** One rail a merchant could offer, with nothing left for them to type. */
 export interface RailOption {
@@ -62,7 +67,7 @@ export interface CreateResourceInput {
 }
 
 export interface X402ResourceServiceOptions {
-  readonly resources: X402ResourceRepository;
+  readonly resources: PaginatedX402ResourceRepository;
   readonly merchants: MerchantRepository;
   readonly wallets: MerchantWalletRepository;
   readonly capabilities: AssetCapabilities;
@@ -76,6 +81,16 @@ export interface X402ResourceServiceOptions {
   readonly tokens: Partial<Record<ChainId, Partial<Record<AssetCode, string>>>>;
 }
 
+export interface X402ResourceListFilter {
+  readonly limit?: number;
+  readonly cursor?: string;
+}
+
+export interface X402ResourcePage {
+  readonly items: readonly X402Resource[];
+  readonly nextCursor: string | null;
+}
+
 export class X402ResourceService {
   readonly #options: X402ResourceServiceOptions;
 
@@ -83,8 +98,22 @@ export class X402ResourceService {
     this.#options = options;
   }
 
-  list(scope: Scope): Promise<readonly X402Resource[]> {
-    return this.#options.resources.listByMerchant(scope.merchantId);
+  async list(scope: Scope, filter: X402ResourceListFilter = {}): Promise<X402ResourcePage> {
+    const limit = Math.min(filter.limit ?? DEFAULT_PAGE_SIZE, DEFAULT_PAGE_SIZE);
+    const cursor = decodeCursor(filter.cursor);
+    const rows = await this.#options.resources.listPageByMerchant({
+      merchantId: scope.merchantId,
+      limit: limit + 1,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    const page = cursorPage(rows, limit, (last) => ({
+      id: last.resource.id,
+      createdAt: last.createdAt,
+    }));
+    return {
+      items: page.items.map((entry) => entry.resource),
+      nextCursor: page.nextCursor,
+    };
   }
 
   /**

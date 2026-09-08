@@ -14,10 +14,10 @@ import type {
 const RESOURCES_KEY = ["x402-resources", "list"];
 const RAILS_KEY = ["x402-resources", "rails"];
 
-export function useX402Resources() {
+export function useX402Resources(limit?: number, cursor?: string) {
   return useEffectQuery<X402ResourceListResponse, ApiError>({
-    queryKey: RESOURCES_KEY,
-    query: () => x402Api.list(),
+    queryKey: [...RESOURCES_KEY, limit ?? null, cursor ?? null],
+    query: () => x402Api.list(limit, cursor),
   });
 }
 

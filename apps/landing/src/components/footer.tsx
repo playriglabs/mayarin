@@ -13,7 +13,7 @@ const COLUMNS = [
   {
     heading: "Platform",
     links: [
-      { label: "Clearing engine", href: "#capabilities" },
+      { label: "How it works", href: "#platform" },
       { label: "Agent payments", href: "https://docs.mayarin.xyz/guides/x402" },
       { label: "Storefront plugin", href: "https://docs.mayarin.xyz/guides/woocommerce" },
       { label: "Webhooks", href: "https://docs.mayarin.xyz/guides/webhooks" },

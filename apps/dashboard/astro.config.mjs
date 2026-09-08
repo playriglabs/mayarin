@@ -11,6 +11,7 @@ const localDev = process.env.MAYARIN_DASHBOARD_LOCAL_DEV === "true";
 
 export default defineConfig({
   output: "server",
+  devToolbar: { enabled: false },
   // The Cloudflare Vite runner currently crashes during Astro development with
   // `Missing field moduleType` (workers-sdk#15129). Local development uses the
   // Vite API proxy below and no Worker bindings, so keep the production adapter

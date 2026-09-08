@@ -350,6 +350,7 @@ function Customers() {
               <FieldLabel htmlFor="customer-name">Name</FieldLabel>
               <Input
                 id="customer-name"
+                placeholder="Rina Wijaya"
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
@@ -360,6 +361,7 @@ function Customers() {
               <Input
                 id="customer-email"
                 type="email"
+                placeholder="rina@company.com"
                 value={draft.email}
                 onChange={(e) => setDraft({ ...draft, email: e.target.value })}
               />
@@ -369,6 +371,7 @@ function Customers() {
               <FieldLabel htmlFor="customer-notes">Notes</FieldLabel>
               <Textarea
                 id="customer-notes"
+                placeholder="Billing preferences or internal notes"
                 value={draft.notes}
                 onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
               />

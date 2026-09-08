@@ -26,9 +26,11 @@
  * counter flow mints a payment first.
  */
 
+import { chainLabel } from "@mayarin/chain";
 import {
   CheckIcon,
   CopyIcon,
+  DownloadSimpleIcon,
   LinkIcon,
   PackageIcon,
   PlusIcon,
@@ -39,8 +41,8 @@ import {
 } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
-import { AssetLabel } from "@/components/asset-logo";
-import { ChainLabel } from "@/components/chain-logo";
+import { AssetLogo } from "@/components/asset-logo";
+import { ChainLogo } from "@/components/chain-logo";
 import { DepositQr } from "@/components/deposit-qr";
 import { Alert } from "@/components/ui/alert";
 import {
@@ -153,9 +155,14 @@ const EMPTY_DRAFT: Draft = {
 };
 
 /** The QR endpoint lives beside the link, on the payment API that serves it. */
-function qrSrc(link: PaymentLinkDto): string {
+function qrSrc(link: PaymentLinkDto, download = false): string {
   const origin = new URL(link.url).origin;
-  return `${origin}/checkout/qr?value=${encodeURIComponent(link.url)}`;
+  const query = new URLSearchParams({ value: link.url, brand: "mayarin" });
+  if (download) {
+    query.set("download", "true");
+    query.set("format", "png");
+  }
+  return `${origin}/checkout/qr?${query.toString()}`;
 }
 
 function amountLabel(link: PaymentLinkDto): string {
@@ -166,6 +173,55 @@ function amountLabel(link: PaymentLinkDto): string {
 
 function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load payment links";
+}
+
+function RailMark({ asset, chain }: { readonly asset: string; readonly chain: string }) {
+  return (
+    <span className="relative size-6 shrink-0" aria-hidden="true">
+      <AssetLogo symbol={asset} size={20} className="absolute top-0 left-0 size-5" />
+      <ChainLogo
+        chain={chain}
+        size={10}
+        className="absolute right-0 bottom-0 size-2.5 rounded-full ring-2 ring-card"
+      />
+    </span>
+  );
+}
+
+function CheckoutLinkCard({
+  url,
+  copied,
+  onCopy,
+}: {
+  readonly url: string;
+  readonly copied: boolean;
+  readonly onCopy: () => void;
+}) {
+  const parsed = new URL(url);
+  const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+
+  return (
+    <div className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-2.5">
+      <span className="grid size-9 shrink-0 place-items-center rounded-md border border-border bg-muted text-muted-foreground">
+        <LinkIcon size={18} weight="bold" aria-hidden="true" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+        <span className="text-subtle-foreground text-xs">Checkout link</span>
+        <span className="block min-w-0 truncate font-mono text-xs" title={url}>
+          <span className="font-medium text-foreground">{parsed.host}</span>
+          <span className="text-muted-foreground">{path}</span>
+        </span>
+      </span>
+      <Button variant="secondary" size="sm" onClick={onCopy}>
+        {copied ? (
+          <CheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+        ) : (
+          <CopyIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+        )}
+        {copied ? "Copied" : "Copy"}
+      </Button>
+    </div>
+  );
 }
 
 /**
@@ -226,15 +282,8 @@ function RailChoice({
             <label
               key={key}
               className={cn(
-                // A grid, not a flex row: the asset, the network and the
-                // figure each need their own column, or the network mark
-                // starts at a different x on every row because "ETH" is
-                // shorter than "USDC" and the eye reads the list as jumbled.
-                // The rail reads as one run — mark, code, dash, mark, network
-                // — so those share a cell and sit tight against each other. A
-                // fixed column per part lined the dashes up but opened a gap
-                // after every short code, which is the more obvious wrong.
-                // Only the figure gets its own track, right-aligned.
+                // The asset and its chain badge share one cell. Only the figure
+                // gets its own track, right-aligned.
                 "grid grid-cols-[1fr_auto_0.875rem] items-center gap-x-3 px-3 py-2 transition-colors",
                 "has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-inset",
                 refused ? "cursor-not-allowed opacity-55" : "cursor-pointer hover:bg-accent/50",
@@ -252,21 +301,9 @@ function RailChoice({
               />
 
               <span className="flex min-w-0 items-center gap-2">
-                <AssetLabel symbol={rail.asset} size={18} />
-                {/* Two logo-and-name pairs side by side read as one run of four
-                    things. The separator says which two belong together, and is
-                    hidden from a screen reader because it is punctuation, not
-                    content. */}
-                <span aria-hidden="true" className="text-subtle-foreground">
-                  —
-                </span>
-                {/* A flex item, so the label's own `align-[-0.25em]` — which is
-                    for sitting inside a sentence — cannot drop it off the row. */}
-                <ChainLabel
-                  chain={rail.chain}
-                  size={14}
-                  className="truncate text-muted-foreground text-xs"
-                />
+                <RailMark asset={rail.asset} chain={rail.chain} />
+                <span>{rail.asset}</span>
+                <span className="sr-only"> on {chainLabel(rail.chain)}</span>
               </span>
 
               {refused ? (
@@ -378,8 +415,8 @@ function PaymentLinks() {
   /**
    * Clipboard access is refused on an insecure origin and by a denied
    * permission, and a merchant who gets neither the tick nor a message is
-   * looking at a button that appears broken. The URL is on screen either way,
-   * so the fallback is to say so rather than to retry.
+   * looking at a button that appears broken. The fallback points them to the
+   * browser address bar, which still exposes the exact URL.
    */
   async function copy(value: string, id: string) {
     try {
@@ -388,7 +425,7 @@ function PaymentLinks() {
       setNotice("Link copied.");
       window.setTimeout(() => setCopied(null), 2_000);
     } catch {
-      setFailure("Could not reach the clipboard — copy the link from the dialog instead.");
+      setFailure("Could not reach the clipboard — open checkout and copy its browser URL.");
     }
   }
 
@@ -789,6 +826,7 @@ function PaymentLinks() {
                     <Input
                       id="link-quantity"
                       inputMode="numeric"
+                      placeholder="1"
                       value={draft.quantity}
                       onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
                     />
@@ -955,7 +993,7 @@ function PaymentLinks() {
 
       {/* Sharing the link itself: a web address, for sending to someone. */}
       <Dialog open={sharing !== null} onOpenChange={(next) => !next && setSharing(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{sharing?.title ?? "Payment link"}</DialogTitle>
             <DialogDescription>
@@ -972,23 +1010,25 @@ function PaymentLinks() {
               <img
                 src={qrSrc(sharing)}
                 alt={`QR code that opens ${sharing.url}`}
-                className="size-56 bg-white p-2"
+                className="size-60 bg-white p-2"
               />
+              <a
+                href={qrSrc(sharing, true)}
+                download="mayarin-payment-qr.png"
+                className={buttonVariants({ variant: "secondary", size: "sm" })}
+              >
+                <DownloadSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                Download QR
+              </a>
               <p className="text-center text-sm text-muted-foreground">
                 Opens the checkout page. To be paid by a wallet scan instead, use{" "}
                 <strong className="font-medium text-foreground">Take payment</strong>.
               </p>
-              <p className="w-full break-all text-center font-mono text-xs text-muted-foreground">
-                {sharing.url}
-              </p>
-              <Button variant="secondary" onClick={() => void copy(sharing.url, sharing.id)}>
-                {copied === sharing.id ? (
-                  <CheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                ) : (
-                  <CopyIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                )}
-                Copy link
-              </Button>
+              <CheckoutLinkCard
+                url={sharing.url}
+                copied={copied === sharing.id}
+                onCopy={() => void copy(sharing.url, sharing.id)}
+              />
             </div>
           )}
 

@@ -57,7 +57,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
             <span class="mx-auto flex size-8 items-center justify-center rounded-full bg-v2-sage text-forest">
               <Check />
             </span>
-            <p class="mt-3 text-xs font-medium text-ink">Payment received</p>
+            <p class="mt-3 text-xs font-medium text-ink">Equivalent in local currency</p>
             <strong class="mt-1 block text-2xl font-medium tracking-tight">Rp 1.500.000</strong>
           </div>
         </div>
@@ -127,19 +127,29 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
 
   return (
     <Frame>
-      <div class="w-full max-w-70 space-y-2 font-mono text-[11px]">
-        <div class="rounded-lg border border-line bg-paper p-3">
-          <p class="text-slate">GET /premium/fx-quote</p>
-          <p class="mt-1.5 text-ink">402 Payment Required</p>
-        </div>
-        <div class="flex justify-center text-slate" aria-hidden="true">
-          ↓
-        </div>
-        <div class="rounded-lg border border-line bg-paper p-3">
-          <p class="text-slate">PAYMENT-SIGNATURE: 0x…</p>
-          <p class="mt-1.5 text-forest">200 OK</p>
-        </div>
-        <p class="pt-1 text-center font-sans text-[10px] text-slate">One signature. No account.</p>
+      <div class="w-full max-w-75 font-mono text-[10px]">
+        {[
+          { label: "Request", detail: "GET /premium/fx-quote", success: false },
+          { label: "Terms", detail: "402 · $0.10 USDC · Base", success: false },
+          { label: "Authorize", detail: "Sign the exact amount", success: false },
+          { label: "Retry", detail: "PAYMENT-SIGNATURE: 0x…", success: false },
+          { label: "Complete", detail: "200 OK · settlement queued", success: true },
+        ].map((step, index, steps) => (
+          <div key={step.label}>
+            <div class="flex items-center gap-3 rounded-lg border border-line bg-paper px-3 py-2.5">
+              <span class="w-18 shrink-0 text-slate">{step.label}</span>
+              <span class={step.success ? "text-forest" : "text-ink"}>{step.detail}</span>
+            </div>
+            {index < steps.length - 1 && (
+              <div class="flex h-4 items-center justify-center text-slate" aria-hidden="true">
+                ↓
+              </div>
+            )}
+          </div>
+        ))}
+        <p class="pt-3 text-center font-sans text-[10px] text-slate">
+          Five steps. One signature. No account.
+        </p>
       </div>
     </Frame>
   );

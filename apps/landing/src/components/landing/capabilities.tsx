@@ -210,7 +210,19 @@ function CodeDialog({
 
 export function Capabilities() {
   const [open, setOpen] = useState<CapabilityKind | undefined>(undefined);
+  const [interactive, setInteractive] = useState(false);
   const opener = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px) and (hover: hover) and (pointer: fine)");
+    const sync = () => {
+      setInteractive(query.matches);
+      if (!query.matches) setOpen(undefined);
+    };
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
 
   const close = useCallback(() => {
     setOpen(undefined);
@@ -242,21 +254,28 @@ export function Capabilities() {
             <button
               key={item.id}
               type="button"
+              disabled={!interactive}
               onClick={(event) => {
+                if (!interactive) return;
                 opener.current = event.currentTarget;
                 setOpen(item.id);
               }}
-              aria-haspopup="dialog"
-              class="group relative flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-line bg-v2-mist/60 p-7 text-left transition-colors duration-380 ease-out-expo hover:border-forest/25 md:p-9"
+              aria-haspopup={interactive ? "dialog" : undefined}
+              class={clsx(
+                "relative flex flex-col overflow-hidden rounded-3xl border border-line bg-v2-mist/60 p-7 text-left transition-colors duration-380 ease-out-expo md:p-9",
+                interactive && "group cursor-pointer hover:border-forest/25",
+              )}
             >
               <div class="flex items-start justify-between gap-5">
                 <h4 class="text-2xl font-sans md:text-[1.75rem] font-normal">{item.title}</h4>
-                <span
-                  aria-hidden="true"
-                  class="flex size-9 shrink-0 items-center justify-center rounded-full border border-line bg-paper text-ink transition-colors duration-300 group-hover:border-ink group-hover:bg-ink group-hover:text-paper"
-                >
-                  <Arrow />
-                </span>
+                {interactive && (
+                  <span
+                    aria-hidden="true"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-full border border-line bg-paper text-ink transition-colors duration-300 group-hover:border-ink group-hover:bg-ink group-hover:text-paper"
+                  >
+                    <Arrow />
+                  </span>
+                )}
               </div>
               <p class="mt-3 max-w-[46ch] text-sm leading-relaxed text-slate">{item.description}</p>
 

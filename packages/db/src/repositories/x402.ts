@@ -10,16 +10,22 @@
 
 import { isChainId } from "@mayarin/chain";
 import { ValidationError } from "@mayarin/shared";
-import type { AcceptedAsset, X402Resource, X402ResourceRepository } from "@mayarin/x402";
+import type {
+  AcceptedAsset,
+  ListX402ResourcesOptions,
+  PaginatedX402ResourceRepository,
+  X402Resource,
+  X402ResourceListEntry,
+} from "@mayarin/x402";
 import { isAssetTransferMethod } from "@mayarin/x402";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { fromMoney, present, toAsset, toMoney } from "../mapping.ts";
 import { x402Resources } from "../schema.ts";
 
 type Row = typeof x402Resources.$inferSelect;
 
-export class DrizzleX402ResourceRepository implements X402ResourceRepository {
+export class DrizzleX402ResourceRepository implements PaginatedX402ResourceRepository {
   readonly #db: Executor;
 
   constructor(db: Executor) {
@@ -41,6 +47,28 @@ export class DrizzleX402ResourceRepository implements X402ResourceRepository {
       .from(x402Resources)
       .where(eq(x402Resources.merchantId, merchantId));
     return rows.map(toResource);
+  }
+
+  async listPageByMerchant(
+    options: ListX402ResourcesOptions,
+  ): Promise<readonly X402ResourceListEntry[]> {
+    const cursorFilter =
+      options.cursor === undefined
+        ? undefined
+        : or(
+            lt(x402Resources.createdAt, options.cursor.createdAt),
+            and(
+              eq(x402Resources.createdAt, options.cursor.createdAt),
+              lt(x402Resources.id, options.cursor.id),
+            ),
+          );
+    const rows = await this.#db
+      .select()
+      .from(x402Resources)
+      .where(and(eq(x402Resources.merchantId, options.merchantId), cursorFilter))
+      .orderBy(desc(x402Resources.createdAt), desc(x402Resources.id))
+      .limit(options.limit);
+    return rows.map((row) => ({ resource: toResource(row), createdAt: row.createdAt }));
   }
 
   async remove(id: string): Promise<void> {

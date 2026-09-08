@@ -39,6 +39,11 @@ const createBodySchema = z
 /** An edit takes everything creation does except the id, which never moves. */
 const updateBodySchema = createBodySchema.omit({ id: true });
 
+const listQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  cursor: z.string().min(1).optional(),
+});
+
 function toResourceDto(resource: X402Resource): Record<string, unknown> {
   return {
     id: resource.id,
@@ -68,8 +73,15 @@ export function x402ResourceRoutes(container: Container): Hono<{ Variables: Auth
   };
 
   app.get("/", async (c) => {
-    const resources = await container.x402Resources.list(scopeOf(c));
-    return c.json({ resources: resources.map(toResourceDto) });
+    const query = listQuerySchema.parse(c.req.query());
+    const page = await container.x402Resources.list(scopeOf(c), {
+      ...(query.limit === undefined ? {} : { limit: query.limit }),
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+    });
+    return c.json({
+      resources: page.items.map(toResourceDto),
+      nextCursor: page.nextCursor,
+    });
   });
 
   /** Where this merchant can be paid today. An empty list is the answer too. */

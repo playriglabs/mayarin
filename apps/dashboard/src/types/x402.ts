@@ -30,6 +30,7 @@ export interface X402ResourceDto {
 
 export interface X402ResourceListResponse {
   readonly resources: readonly X402ResourceDto[];
+  readonly nextCursor: string | null;
 }
 
 export interface X402RailsResponse {

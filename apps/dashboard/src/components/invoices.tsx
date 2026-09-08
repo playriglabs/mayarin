@@ -518,6 +518,7 @@ function Invoices() {
               <FieldLabel htmlFor="invoice-buyer-name">Client name</FieldLabel>
               <Input
                 id="invoice-buyer-name"
+                placeholder="PT Nusantara Digital"
                 value={draft.buyerName}
                 onChange={(event) => setDraft({ ...draft, buyerName: event.target.value })}
                 autoComplete="organization"
@@ -529,6 +530,7 @@ function Invoices() {
               <Input
                 id="invoice-buyer-email"
                 type="email"
+                placeholder="finance@company.com"
                 value={draft.buyerEmail}
                 onChange={(event) => setDraft({ ...draft, buyerEmail: event.target.value })}
                 autoComplete="email"
@@ -539,6 +541,7 @@ function Invoices() {
               <FieldLabel htmlFor="invoice-tax-id">Tax ID / NPWP</FieldLabel>
               <Input
                 id="invoice-tax-id"
+                placeholder="01.234.567.8-901.000"
                 value={draft.buyerTaxId}
                 onChange={(event) => setDraft({ ...draft, buyerTaxId: event.target.value })}
               />
@@ -555,6 +558,7 @@ function Invoices() {
               <FieldLabel htmlFor="invoice-buyer-address">Billing address</FieldLabel>
               <Textarea
                 id="invoice-buyer-address"
+                placeholder="Street, city, and postal code"
                 value={draft.buyerAddress}
                 onChange={(event) => setDraft({ ...draft, buyerAddress: event.target.value })}
                 autoComplete="street-address"
@@ -612,6 +616,7 @@ function Invoices() {
                   <CurrencyInput
                     id={`invoice-line-price-${line.id}`}
                     asset={draft.currency}
+                    placeholder="1.000.000,00"
                     value={line.amount}
                     onValueChange={(amount) => updateLine(line.id, { amount })}
                   />
@@ -622,6 +627,7 @@ function Invoices() {
                     id={`invoice-line-quantity-${line.id}`}
                     type="number"
                     inputMode="numeric"
+                    placeholder="1"
                     min={1}
                     step={1}
                     value={line.quantity}
