@@ -14,12 +14,12 @@
  */
 
 import type { InvoiceView } from "@mayarin/invoicing";
-import type { OfferedRail } from "@mayarin/payment-intent";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toInvoicePaymentDto } from "../dto/invoice.ts";
 import { toMoneyDto } from "../dto/money.ts";
-import { toRailDto } from "../dto/rails.ts";
+import type { RailDto } from "../dto/rails.ts";
+import { payerRails } from "../rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
 
 export function invoicePageRoutes(container: Container): Hono {
@@ -29,13 +29,18 @@ export function invoicePageRoutes(container: Container): Hono {
   app.get("/:id/view", async (c) => {
     const view = await container.invoices.viewInvoice(c.req.param("id"));
     // The same rail catalog the hosted checkout reads (#244), so an invoice
-    // cannot offer a pair the link page would refuse.
-    const rails = await container.rails.railsFor(view.invoice.merchantId);
+    // cannot offer a pair the link page would refuse — ranked the same way
+    // (#260), so it cannot offer an order the link page would not either.
+    const report = await container.rails.describe(view.invoice.merchantId);
     const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
     return c.html(
       await renderShell(
         distDir,
-        invoiceBootstrap(view, `${origin}/v1/invoices/${view.invoice.id}/checkout`, rails),
+        invoiceBootstrap(
+          view,
+          `${origin}/v1/invoices/${view.invoice.id}/checkout`,
+          await payerRails(container, report),
+        ),
       ),
     );
   });
@@ -49,7 +54,7 @@ export function invoicePageRoutes(container: Container): Hono {
  * Line totals are computed here, not in the browser: money is bigint minor
  * units, and the SPA renders `display` strings without ever doing arithmetic.
  */
-function invoiceBootstrap(view: InvoiceView, checkoutUrl: string, rails: readonly OfferedRail[]) {
+function invoiceBootstrap(view: InvoiceView, checkoutUrl: string, rails: readonly RailDto[]) {
   const { invoice, status, paid, outstanding, payments } = view;
   return {
     page: "invoice",
@@ -79,7 +84,7 @@ function invoiceBootstrap(view: InvoiceView, checkoutUrl: string, rails: readonl
     issuedAt: invoice.issuedAt?.toISOString() ?? null,
     dueAt: invoice.dueAt?.toISOString() ?? null,
     payable: status !== "void" && status !== "draft" && outstanding.amount > 0n,
-    rails: rails.map(toRailDto),
+    rails,
     /**
      * What was paid, and on what. A paid document that names only a figure
      * makes a buyer open a block explorer to answer "did my USDC on Arc land

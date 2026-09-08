@@ -23,8 +23,11 @@ import {
   money,
   ValidationError,
 } from "@mayarin/shared";
+import { type RailObservation, rankRails } from "@mayarin/x402";
 import type { Config } from "./config.ts";
 import type { Container } from "./container.ts";
+import type { RailDto } from "./dto/rails.ts";
+import { toRailDto } from "./dto/rails.ts";
 import type { PricingContext } from "./pricing.ts";
 
 /**
@@ -169,6 +172,60 @@ export class QuotePricingSource implements RailPricingSource {
 
 function oneWholeUnit(asset: AssetCode): bigint {
   return 10n ** BigInt(assetDecimals(asset));
+}
+
+/**
+ * How long a link page will wait for rail observations before giving up on
+ * ranking (#260).
+ *
+ * The observation read rides the bootstrap, which must paint. There is no
+ * timeout anywhere beneath it — the subgraph client fetches bare — so without
+ * a deadline here, one hung query would hang every checkout page in the
+ * deployment.
+ */
+const OBSERVE_TIMEOUT_MS = 2_000;
+
+/**
+ * The payer's rail list, ranked by what the rails have been doing (#260).
+ *
+ * The same evidence the `402` path steers an agent with (`chooseRail`), applied
+ * to the list a human is offered: `healthy` rails first, then `unobserved`, then
+ * `degraded` — which stays offered and carries its standing so the page can say
+ * so. Catalog order survives every tie.
+ *
+ * One list for every payer-facing surface — the checkout bootstrap, the invoice
+ * bootstrap, `GET /v1/payment-links/:id/rails` — so the embed cannot offer an
+ * order the hosted page would not.
+ *
+ * A single rail is returned untouched: there is nothing to rank, nothing to
+ * say, and no observation worth spending a subgraph query on (#244 criterion 7).
+ * An observation source that fails, hangs, or is not wired leaves the list in
+ * catalog order, every rail unobserved: an outage in the observer must not
+ * become an opinion about the rails.
+ */
+export async function payerRails(
+  container: Pick<Container, "railObservations">,
+  report: RailReport,
+): Promise<RailDto[]> {
+  if (report.rails.length <= 1) return report.rails.map((rail) => toRailDto(rail));
+
+  const source = container.railObservations;
+  const chains = [...new Set(report.rails.map((rail) => rail.chain))];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const observations =
+    source === undefined
+      ? []
+      : await Promise.race([
+          source.observe(chains).catch(() => [] as readonly RailObservation[]),
+          new Promise<readonly RailObservation[]>((resolve) => {
+            timer = setTimeout(() => resolve([]), OBSERVE_TIMEOUT_MS);
+          }),
+        ]);
+  clearTimeout(timer);
+
+  return rankRails(report.rails, observations).map(({ rail, standing }) =>
+    toRailDto(rail, standing),
+  );
 }
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ChainId } from "@mayarin/chain";
 import type { RailObservation } from "../src/rail.ts";
-import { chooseRail, summariseRails } from "../src/rail.ts";
+import { chooseRail, rankRails, summariseRails } from "../src/rail.ts";
 
 const ARC: ChainId = "arc-testnet";
 const BASE: ChainId = "base-sepolia";
@@ -110,6 +110,81 @@ describe("chooseRail", () => {
 
   test("refuses to choose from nothing", () => {
     expect(() => chooseRail([], [observed(ARC, 58, 340)])).toThrow(/at least one accepted rail/);
+  });
+});
+
+describe("rankRails", () => {
+  const arcRail = { chain: ARC, asset: "USDC" };
+  const baseRail = { chain: BASE, asset: "USDC" };
+
+  test("orders healthy before unobserved before degraded", () => {
+    const ranked = rankRails(
+      [baseRail, arcRail, { chain: "arbitrum-sepolia" as ChainId, asset: "USDC" }],
+      [observed(BASE, 12, 112), observed(ARC, 58, 340)],
+    );
+
+    expect(ranked.map((entry) => entry.standing)).toEqual(["healthy", "unobserved", "degraded"]);
+    expect(ranked.map((entry) => entry.rail.chain)).toEqual([ARC, "arbitrum-sepolia", BASE]);
+  });
+
+  test("a rail below the minimum sample count is unobserved, never degraded", () => {
+    // Four settlements at 1 second each: grim, but not yet evidence.
+    const ranked = rankRails([baseRail], [{ chain: BASE, headroomSeconds: [1, 1, 1, 1] }], {
+      minSamples: 5,
+    });
+
+    expect(ranked[0]?.standing).toBe("unobserved");
+  });
+
+  test("keeps catalog order among rails with the same standing", () => {
+    const ranked = rankRails([baseRail, arcRail], [observed(BASE, 58, 90), observed(ARC, 58, 90)]);
+
+    expect(ranked.map((entry) => entry.rail.chain)).toEqual([BASE, ARC]);
+    expect(ranked.every((entry) => entry.standing === "healthy")).toBe(true);
+  });
+
+  test("ranks within healthy by the chooseRail rule: median, then samples", () => {
+    const byMedian = rankRails(
+      [baseRail, arcRail],
+      [observed(BASE, 40, 10), observed(ARC, 58, 90)],
+    );
+    expect(byMedian.map((entry) => entry.rail.chain)).toEqual([ARC, BASE]);
+
+    const bySamples = rankRails(
+      [baseRail, arcRail],
+      [observed(BASE, 58, 10), observed(ARC, 58, 90)],
+    );
+    expect(bySamples.map((entry) => entry.rail.chain)).toEqual([ARC, BASE]);
+  });
+
+  test("keeps the rails it is given, including unobserved ones", () => {
+    const ranked = rankRails([baseRail, arcRail], []);
+
+    expect(ranked).toHaveLength(2);
+    expect(ranked.map((entry) => entry.standing)).toEqual(["unobserved", "unobserved"]);
+  });
+
+  test("the degraded cut is configurable", () => {
+    const ranked = rankRails([baseRail], [observed(BASE, 58, 90)], { degradedBelowSeconds: 60 });
+
+    expect(ranked[0]?.standing).toBe("degraded");
+  });
+
+  test("rails on one chain share that chain's standing", () => {
+    const ranked = rankRails([arcRail, { chain: ARC, asset: "ETH" }], [observed(ARC, 12, 112)]);
+
+    expect(ranked.map((entry) => entry.standing)).toEqual(["degraded", "degraded"]);
+  });
+
+  test("does not rank on recorded failures", () => {
+    // Arc has the failures but the headroom; headroom is what decides.
+    const ranked = rankRails(
+      [baseRail, arcRail],
+      [observed(BASE, 58, 90), observed(ARC, 12, 90, 7)],
+    );
+
+    expect(ranked.map((entry) => entry.rail.chain)).toEqual([BASE, ARC]);
+    expect(ranked.map((entry) => entry.standing)).toEqual(["healthy", "degraded"]);
   });
 });
 

@@ -22,7 +22,6 @@ import {
   type Product,
   parseCartSnapshot,
 } from "@mayarin/catalog";
-import type { OfferedRail } from "@mayarin/payment-intent";
 import { type AssetCode, money, NotFoundError, ValidationError, zero } from "@mayarin/shared";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -30,7 +29,8 @@ import { toString as qrToString } from "qrcode";
 import sharp from "sharp";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
-import { toRailDto } from "../dto/rails.ts";
+import type { RailDto } from "../dto/rails.ts";
+import { payerRails } from "../rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
 
 /**
@@ -211,6 +211,9 @@ export function checkoutPageRoutes(container: Container): Hono {
     // this deployment, filtered per chain, with the reasons already applied.
     // `describe` rather than `railsFor` because the page also needs what the
     // merchant settles in: it decides whether an estimate has a swap leg.
+    // Ranked by what the rails have been doing (#260), on this same read —
+    // the observation source is an injected port, so the page gains no second
+    // round trip.
     const report = await container.rails.describe(link.merchant.id);
 
     return c.html(
@@ -220,7 +223,7 @@ export function checkoutPageRoutes(container: Container): Hono {
           link,
           payable,
           preview,
-          rails: report.rails,
+          rails: await payerRails(container, report),
           settlementAsset: report.settlementAsset,
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
@@ -293,13 +296,15 @@ interface LinkBootstrapOptions {
   /** Priced lines and total, for a link that prices itself. Absent for `open`. */
   readonly preview: LinkPreview | undefined;
   /**
-   * Every `(chain, asset)` pair this merchant can be paid on (#244).
+   * Every `(chain, asset)` pair this merchant can be paid on (#244), ranked by
+   * how each rail has been behaving (#260).
    *
    * The payer picks one, and that choice mints the intent — so the deposit
    * address and the price lock belong to the rail they chose rather than to one
-   * the deployment picked for them.
+   * the deployment picked for them. The ranking orders the menu; it never
+   * removes a rail the merchant accepts.
    */
-  readonly rails: readonly OfferedRail[];
+  readonly rails: readonly RailDto[];
   /**
    * What the merchant is paid in. The estimate is quoted against it, because
    * whether a payer asset has a swap leg at all is decided by this and not by
@@ -367,7 +372,7 @@ async function linkBootstrap(options: LinkBootstrapOptions) {
     currency: currency ?? null,
     total,
     lines,
-    rails: rails.map(toRailDto),
+    rails,
     settlementAsset,
     lockMinutes: Math.max(1, Math.round(ttlSeconds / 60)),
   };

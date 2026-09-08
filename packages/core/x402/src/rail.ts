@@ -114,12 +114,7 @@ export function chooseRail(
       if (samples.length < minSamples) return [];
       return [{ ...candidate, samples, median: medianOf(samples) }];
     })
-    .sort(
-      (left, right) =>
-        right.median - left.median ||
-        right.samples.length - left.samples.length ||
-        left.position - right.position,
-    );
+    .sort(byHeadroom);
 
   const best = ranked[0];
   if (best === undefined) {
@@ -199,6 +194,106 @@ export function summariseRails(
       ...(failures === undefined ? {} : { failures }),
     };
   });
+}
+
+/**
+ * What one rail looks like to a payer holding a list of them (#260).
+ *
+ * `healthy` and `degraded` both require `minSamples` observed settlements;
+ * below that a rail is `unobserved`, which is a statement about Mayarin's
+ * records, not about the rail. A new chain is not a bad chain.
+ */
+export type RailStanding = "healthy" | "degraded" | "unobserved";
+
+/** One rail, placed in a payer's list, with what the observations said about it. */
+export interface RankedRail<T extends { readonly chain: ChainId }> {
+  readonly rail: T;
+  readonly standing: RailStanding;
+}
+
+export interface RankRailsOptions extends ChooseRailOptions {
+  /**
+   * Median headroom below this many seconds marks a rail `degraded`.
+   *
+   * The same line `chooseRail`'s doc draws — a rail settling with seconds to
+   * spare is one network hiccup away from an `ExpiredOrder` revert — held
+   * still long enough to tell a payer which of their options it is.
+   */
+  readonly degradedBelowSeconds?: number;
+}
+
+const DEFAULT_DEGRADED_BELOW_SECONDS = 30;
+
+/**
+ * Rank every rail a payer is offered, rather than pick one.
+ *
+ * The same evidence `chooseRail` ranks on — median headroom, the same
+ * minimum-sample rule — applied to a list. Rails order `healthy`, then
+ * `unobserved`, then `degraded`; within `healthy` and `degraded` the
+ * `chooseRail` comparator applies (median, then samples, then catalog
+ * position), and `unobserved` keeps catalog order, because a rail Mayarin
+ * has not measured has no rank to keep.
+ *
+ * Generic over the rail so this stays in `@mayarin/x402` without a sideways
+ * dependency on the package that defines `OfferedRail` — anything carrying a
+ * `ChainId` can be ranked.
+ *
+ * **Failures are carried in the observations and ignored here**, exactly as
+ * `chooseRail` ignores them: a failure count reflects how well Mayarin
+ * recorded, not how the rail behaved.
+ */
+export function rankRails<T extends { readonly chain: ChainId }>(
+  rails: readonly T[],
+  observations: readonly RailObservation[],
+  options: Partial<RankRailsOptions> = {},
+): readonly RankedRail<T>[] {
+  const { minSamples, degradedBelowSeconds } = {
+    ...DEFAULT_OPTIONS,
+    degradedBelowSeconds: DEFAULT_DEGRADED_BELOW_SECONDS,
+    ...options,
+  };
+
+  const healthy: { rail: T; median: number; samples: readonly number[]; position: number }[] = [];
+  const degraded: typeof healthy = [];
+  const unobserved: RankedRail<T>[] = [];
+
+  for (const [position, rail] of rails.entries()) {
+    const samples = observationOf(observations, rail.chain)?.headroomSeconds ?? [];
+    if (samples.length < minSamples) {
+      unobserved.push({ rail, standing: "unobserved" });
+      continue;
+    }
+    const entry = { rail, median: medianOf(samples), samples, position };
+    if (entry.median < degradedBelowSeconds) degraded.push(entry);
+    else healthy.push(entry);
+  }
+
+  return [
+    ...healthy.sort(byHeadroom).map(({ rail }) => ({ rail, standing: "healthy" as const })),
+    ...unobserved,
+    ...degraded.sort(byHeadroom).map(({ rail }) => ({ rail, standing: "degraded" as const })),
+  ];
+}
+
+/**
+ * The one ranking rule `chooseRail` and `rankRails` both sort on: median
+ * headroom, then sample count, then the order the caller listed them. Every
+ * tie-break is deterministic, because an order that moves between two
+ * identical inputs cannot be explained to anyone.
+ */
+function byHeadroom(
+  left: { readonly median: number; readonly samples: readonly number[]; readonly position: number },
+  right: {
+    readonly median: number;
+    readonly samples: readonly number[];
+    readonly position: number;
+  },
+): number {
+  return (
+    right.median - left.median ||
+    right.samples.length - left.samples.length ||
+    left.position - right.position
+  );
 }
 
 function observationOf(

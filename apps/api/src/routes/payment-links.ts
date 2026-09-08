@@ -16,9 +16,8 @@ import {
   toPaymentLinkDto,
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
-import { toRailDto } from "../dto/rails.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
-import { assertRailOffered } from "../rails.ts";
+import { assertRailOffered, payerRails } from "../rails.ts";
 
 export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
@@ -75,13 +74,13 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    *
    * The same list the hosted checkout inlines — one implementation serving the
    * page, the embed and the SDK, so an embed cannot offer a rail the hosted
-   * page would refuse.
+   * page would refuse, or an order it would not show (#260).
    */
   app.get("/:id/rails", async (c) => {
     const link = await container.catalog.getLink(c.req.param("id"));
     const report = await container.rails.describe(link.merchant.id);
     return c.json({
-      rails: report.rails.map(toRailDto),
+      rails: await payerRails(container, report),
       settlementAsset: report.settlementAsset,
     });
   });
