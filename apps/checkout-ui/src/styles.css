@@ -34,7 +34,8 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  @theme {
+  :root {
+    color-scheme: dark;
     --color-paper: #0a0a0a;
     --color-ink: #fafafa;
     --color-muted: #a3a3a3;
@@ -50,7 +51,7 @@
 
 @layer base {
   :root {
-    color-scheme: light dark;
+    color-scheme: light;
   }
   * {
     @apply box-border;

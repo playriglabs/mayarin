@@ -110,14 +110,27 @@ const PLATFORM_VIEWS: readonly PlatformView[] = [
   },
 ] as const;
 
+const PREVIEW_VIEWS = PLATFORM_VIEWS.filter((view) => view.contain !== true);
+
 const reducedMotionBehavior = (): ScrollBehavior =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
 
 function ProductImage({ view }: { readonly view: PlatformView }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const swipeStart = useRef<number | null>(null);
+  const initialPreviewIndex = Math.max(0, PREVIEW_VIEWS.indexOf(view));
+  const [previewIndex, setPreviewIndex] = useState(initialPreviewIndex);
+  const previewView = PREVIEW_VIEWS[previewIndex] ?? view;
+
+  const movePreview = (direction: -1 | 1) => {
+    setPreviewIndex((current) =>
+      Math.max(0, Math.min(PREVIEW_VIEWS.length - 1, current + direction)),
+    );
+  };
   const open = () => {
     const element = dialog.current;
     if (!element) return;
+    setPreviewIndex(initialPreviewIndex);
     element.showModal();
     document.documentElement.style.overflow = "hidden";
     element.addEventListener(
@@ -180,20 +193,64 @@ function ProductImage({ view }: { readonly view: PlatformView }) {
       >
         {thumbnail}
       </button>
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: Escape is native to <dialog>; clicking anywhere is a pointer-only shortcut on top of it. */}
       <dialog
         ref={dialog}
-        onClick={() => dialog.current?.close()}
-        aria-label={`${view.alt} — zoomed`}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) dialog.current?.close();
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          movePreview(event.key === "ArrowLeft" ? -1 : 1);
+        }}
+        aria-label={`${previewView.alt} — zoomed preview`}
         class="fixed inset-0 m-0 h-dvh w-screen max-h-none max-w-none bg-transparent p-0 backdrop:bg-ink/70 backdrop:backdrop-blur-sm open:flex open:items-center open:justify-center"
       >
-        <img
-          src={view.image}
-          alt={view.alt}
-          width={view.width}
-          height={view.height}
-          class="max-h-[86dvh] w-auto max-w-[94vw] rounded-lg object-contain shadow-2xl"
-        />
+        <div
+          class="flex max-h-[86dvh] max-w-[calc(100vw-7rem)] touch-pan-y items-center justify-center md:max-w-[calc(100vw-12rem)]"
+          onPointerDown={(event) => {
+            swipeStart.current = event.clientX;
+          }}
+          onPointerUp={(event) => {
+            const start = swipeStart.current;
+            swipeStart.current = null;
+            if (start === null) return;
+            const distance = event.clientX - start;
+            if (Math.abs(distance) < 48) return;
+            movePreview(distance < 0 ? 1 : -1);
+          }}
+          onPointerCancel={() => {
+            swipeStart.current = null;
+          }}
+        >
+          <img
+            src={previewView.image}
+            alt={previewView.alt}
+            width={previewView.width}
+            height={previewView.height}
+            decoding="async"
+            draggable={false}
+            class="max-h-[86dvh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+          />
+        </div>
+        <button
+          type="button"
+          aria-label="Previous preview image"
+          disabled={previewIndex === 0}
+          onClick={() => movePreview(-1)}
+          class="absolute top-1/2 left-3 flex size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-white/60 hover:bg-white hover:text-ink disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/25 disabled:hover:bg-black/45 disabled:hover:text-white md:left-8"
+        >
+          <ArrowRight class="size-5 rotate-180" />
+        </button>
+        <button
+          type="button"
+          aria-label="Next preview image"
+          disabled={previewIndex === PREVIEW_VIEWS.length - 1}
+          onClick={() => movePreview(1)}
+          class="absolute top-1/2 right-3 flex size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-white/60 hover:bg-white hover:text-ink disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/25 disabled:hover:bg-black/45 disabled:hover:text-white md:right-8"
+        >
+          <ArrowRight class="size-5" />
+        </button>
       </dialog>
     </>
   );

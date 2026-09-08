@@ -10,12 +10,30 @@
  * in.
  *
  * Tailwind v4's default `dark:` is `prefers-color-scheme`, which this product
- * deliberately does not follow: a pre-paint script stamps `data-theme` from the
- * user's own choice, and dark is the default rather than the OS's answer. Left
- * alone, `dark:` would fire for someone whose machine is dark and whose
- * dashboard is light — the exact case it is used to guard against.
+ * deliberately does not follow directly: a pre-paint script stamps
+ * `data-theme` from the user's choice, falling back to the OS when no choice is
+ * stored. Left alone, `dark:` would still fire for someone whose machine is
+ * dark and whose explicit dashboard preference is light.
  */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+html[data-testnet-notice-dismissed="true"] [data-testnet-notice] {
+  display: none;
+}
+
+html[data-testnet-notice-dismissed="true"] [data-dashboard-frame] {
+  padding-top: 0;
+}
+
+html[data-testnet-notice-dismissed="true"] [data-sidebar] {
+  top: 0;
+}
+
+@media (min-width: 48rem) {
+  html[data-testnet-notice-dismissed="true"] [data-sidebar] {
+    height: 100dvh;
+  }
+}
 
 /**
  * Theme tokens, on shadcn's naming.
@@ -126,9 +144,9 @@
  * Dark theme — the landing's dark tone as a full surface, not just a sidebar.
  *
  * The pre-paint script in each layout stamps `data-theme` on <html> before
- * first paint, so there is no flash. Dark is the default; light is the
- * opt-out. Only the semantic values change — every component reads tokens, so
- * nothing below this file knows which theme is on.
+ * first paint, so there is no flash. A fresh browser follows the OS, while an
+ * explicit selection wins. Only the semantic values change — every component
+ * reads tokens, so nothing below this file knows which theme is on.
  *
  * Colour notes:
  *   - Ink inverts: filled buttons become paper on void.

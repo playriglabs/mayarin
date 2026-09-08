@@ -18,18 +18,40 @@ import SocialMeta from "../components/social-meta.astro";
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <script is:inline>
+      const storedTheme = localStorage.getItem("mayarin-theme");
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+      document.documentElement.dataset.theme =
+        storedTheme === "light" || storedTheme === "dark" ? storedTheme : systemTheme;
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute(
+          "content",
+          document.documentElement.dataset.theme === "light" ? "#ffffff" : "#0a0a0a",
+        );
+    </script>
   </head>
   <body class="h-screen overflow-hidden bg-background text-foreground">
     <main class="grid h-screen md:grid-cols-2">
       <section class="flex min-h-72 flex-col justify-between bg-sidebar p-6 text-sidebar-foreground md:min-h-svh md:p-10 lg:p-14">
         <a href="https://mayarin.xyz" aria-label="Mayarin home" class="inline-flex w-fit items-center">
           <img
+            src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
+            alt=""
+            aria-hidden="true"
+            width="52"
+            height="52"
+            class="size-11 dark:hidden"
+          />
+          <img
             src="https://mayarin.xyz/brand-kit/mayarin-logo-white.svg"
             alt=""
             aria-hidden="true"
             width="52"
             height="52"
-            class="size-11"
+            class="hidden size-11 dark:block"
           />
           <span class="-ml-0.5 self-center text-2xl font-medium leading-none tracking-[-0.06em]">
             mayarin

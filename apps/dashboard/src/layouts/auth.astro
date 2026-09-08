@@ -21,9 +21,13 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <script is:inline>
-      // Before first paint. Dark is the default; "light" is the stored opt-out.
+      // Before first paint. A stored choice wins; a fresh browser follows the OS.
+      const storedTheme = localStorage.getItem("mayarin-theme");
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
       document.documentElement.dataset.theme =
-        localStorage.getItem("mayarin-theme") === "light" ? "light" : "dark";
+        storedTheme === "light" || storedTheme === "dark" ? storedTheme : systemTheme;
       document
         .querySelector('meta[name="theme-color"]')
         ?.setAttribute(

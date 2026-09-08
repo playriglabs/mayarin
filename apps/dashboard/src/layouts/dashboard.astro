@@ -8,6 +8,7 @@ import { Avatar, Style } from "@dicebear/core";
 import loopsDefinition from "@dicebear/styles/loops.json" with { type: "json" };
 import {
   BellIcon,
+  InfoIcon,
   UserIcon,
   XIcon,
 } from "@phosphor-icons/react";
@@ -56,11 +57,19 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <script is:inline>
-      // Before first paint. Dark is the default; "light" is the stored opt-out.
+      // Before first paint. A stored choice wins; a fresh browser follows the OS.
+      const storedTheme = localStorage.getItem("mayarin-theme");
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
       document.documentElement.dataset.theme =
-        localStorage.getItem("mayarin-theme") === "light" ? "light" : "dark";
+        storedTheme === "light" || storedTheme === "dark" ? storedTheme : systemTheme;
       document.documentElement.dataset.sidebarCollapsed =
         localStorage.getItem("mayarin-sidebar-collapsed") === "true" ? "true" : "false";
+      document.documentElement.dataset.testnetNoticeDismissed =
+        localStorage.getItem("mayarin-testnet-notice-v1-dismissed") === "true"
+          ? "true"
+          : "false";
       document
         .querySelector('meta[name="theme-color"]')
         ?.setAttribute(
@@ -74,10 +83,32 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
     <LiveUpdates client:load />
     <a
       href="#main"
-      class="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-70 focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
     >
       Skip to content
     </a>
+
+    <aside
+      data-testnet-notice
+      aria-label="Testnet notice"
+      class="fixed inset-x-0 top-0 z-60 flex h-11 items-center justify-center border-b border-brand/20 bg-brand-muted px-14 text-brand"
+    >
+      <p class="flex min-w-0 items-center gap-2 text-center text-xs font-medium sm:text-sm">
+        <InfoIcon size={16} weight="bold" aria-hidden="true" className="shrink-0" />
+        <span class="truncate">
+          <strong class="font-medium">Mayarin Testnet {" "}</strong>
+          — Transactions use test assets and have no real-world value.
+        </span>
+      </p>
+      <button
+        type="button"
+        data-testnet-notice-close
+        aria-label="Dismiss testnet notice"
+        class="absolute right-0 top-0 flex size-11 items-center justify-center text-brand/70 transition-colors hover:bg-brand/10 hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-ring"
+      >
+        <XIcon size={17} weight="regular" aria-hidden="true" />
+      </button>
+    </aside>
 
     <button
       type="button"
@@ -87,13 +118,13 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       tabindex="-1"
     ></button>
 
-    <div class="flex min-h-screen md:flex-row">
+    <div data-dashboard-frame class="flex min-h-screen pt-11 md:flex-row">
       <!-- The landing's dark tone, brought into the product as its anchor. -->
       <aside
         id="dashboard-sidebar"
         data-sidebar
         data-tone="dark"
-        class="fixed inset-y-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shrink-0 -translate-x-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-0 md:h-screen md:w-72 md:translate-x-0"
+        class="fixed top-11 bottom-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shrink-0 -translate-x-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-11 md:h-[calc(100dvh-2.75rem)] md:w-72 md:translate-x-0"
       >
         <div
           data-sidebar-header
@@ -219,6 +250,9 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       const openButton = document.querySelector<HTMLButtonElement>("[data-sidebar-open]");
       const closeButton = document.querySelector<HTMLButtonElement>("[data-sidebar-close]");
       const backdrop = document.querySelector<HTMLButtonElement>("[data-sidebar-backdrop]");
+      const testnetNoticeClose = document.querySelector<HTMLButtonElement>(
+        "[data-testnet-notice-close]",
+      );
       const desktop = window.matchMedia("(min-width: 48rem)");
 
       function setMobileSidebar(open: boolean) {
@@ -235,6 +269,10 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       );
       closeButton?.addEventListener("click", () => setMobileSidebar(false));
       backdrop?.addEventListener("click", () => setMobileSidebar(false));
+      testnetNoticeClose?.addEventListener("click", () => {
+        localStorage.setItem("mayarin-testnet-notice-v1-dismissed", "true");
+        root.dataset.testnetNoticeDismissed = "true";
+      });
       desktop.addEventListener("change", ({ matches }) => {
         if (matches && root.dataset.sidebarMobileOpen === "true") setMobileSidebar(false);
       });
