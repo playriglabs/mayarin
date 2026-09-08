@@ -31,7 +31,7 @@ const CURRENCIES = [
 
 export function Reach() {
   return (
-    <section id="reach" class="mx-auto w-full max-w-300 px-6 py-20 md:px-10 md:py-28">
+    <section id="reach" class="mx-auto w-full max-w-300 px-5 py-20 md:px-10 md:py-28">
       <Reveal class="mx-auto max-w-155 text-center">
         <h2>
           <span class="text-forest">One clearing layer.</span>
@@ -45,16 +45,22 @@ export function Reach() {
           the sphere stops being worth showing. */}
       <div class="mt-14 grid items-center gap-10 md:mt-16 lg:grid-cols-[1fr_1.6fr_1fr] lg:gap-8">
         <div>
-          <p class="text-sm text-slate">Priced in</p>
+          <p class="text-sm text-slate-600">Priced in</p>
           <ul class="mt-7 space-y-6">
             {CURRENCIES.map((item) => (
               <li key={item.name}>
                 <strong class="block text-base font-medium">{item.name}</strong>
-                <span class="mt-1 block text-xs text-slate">
+                <span class="mt-1 block text-xs text-slate-600">
                   {item.detail} ({assetSymbol(item.code)})
                 </span>
               </li>
             ))}
+            <li class="flex items-center gap-2 text-slate-600">
+              <span aria-hidden="true" class="text-xl leading-none">
+                +
+              </span>
+              <strong class="text-base font-medium">Other currencies</strong>
+            </li>
           </ul>
         </div>
 
@@ -66,7 +72,7 @@ export function Reach() {
         />
 
         <div>
-          <p class="text-sm text-slate">Settled in</p>
+          <p class="text-sm text-slate-600">Settled in</p>
 
           {/* One line, wrapping as a whole: the asset, then the networks it can
               land on. The marks carry their own overlap, so the row's gap is
@@ -83,11 +89,11 @@ export function Reach() {
               class="size-6.5 shrink-0 rounded-full object-contain"
             />
             <strong class="text-base font-medium">USDC</strong>
-            <span class="text-xs text-slate">On</span>
+            <span class="text-xs text-slate-600">On</span>
             <NetworkMarks ring="ring-paper" />
           </div>
 
-          <p class="mt-5 text-xs text-slate">
+          <p class="mt-5 text-xs text-slate-600">
             Whatever the payer brought, converted as part of the payment
           </p>
         </div>

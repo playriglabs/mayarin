@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import { LOGOS } from "../powered-by.tsx";
 import { Reveal } from "../reveal.tsx";
-import { ArrowRight } from "../ui.tsx";
 import { PaymentOrbits } from "./payment-orbits.tsx";
 import { ScrollTilt } from "./scroll-tilt.tsx";
 import { Action, Check, DashboardPreview } from "./ui.tsx";
@@ -21,23 +20,19 @@ export function Hero() {
             </h1>
           </Reveal>
           <Reveal delay={120}>
-            <p class="mx-auto mt-7 max-w-155 text-base leading-relaxed text-slate md:text-[17px]">
+            <p class="mx-auto mt-7 max-w-155 text-base leading-relaxed text-slate-600 md:text-[17px]">
               Accept crypto. Price in your local currency. Get paid in stablecoins.
               <br class="hidden md:block" /> All the tools to bring your next sale closer.
             </p>
           </Reveal>
-          <Reveal delay={240} class="mt-8 flex items-center justify-center gap-3">
-            <Action href="#footer-early-access">Get early access</Action>
-            {/* A round arrow on a phone, where a second worded pill would wrap
-                the pair onto two lines; the full label from `sm` up. The label
-                is only visually hidden, so the link is never unnamed. */}
+          <Reveal delay={240} class="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a
               href="#use-cases"
-              class="inline-flex size-12 shrink-0 items-center justify-center gap-3 rounded-full bg-v2-mist text-sm font-medium text-ink ring-1 ring-inset ring-line transition-colors duration-200 hover:bg-ink hover:text-paper hover:ring-ink sm:size-auto sm:min-h-12 sm:px-6 sm:py-3"
+              class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full bg-forest px-5 py-3 text-sm font-medium text-paper ring-1 ring-inset ring-forest transition-colors duration-200 hover:bg-paper hover:text-ink hover:ring-line focus-visible:outline-ink sm:px-6"
             >
-              <span class="sr-only sm:not-sr-only">See the use cases</span>
-              <ArrowRight />
+              See the use cases
             </a>
+            <Action href="#footer-early-access">Get early access</Action>
           </Reveal>
         </div>
         <div class="relative z-0 isolate mx-auto mt-14 max-w-255 px-1 pt-3 md:mt-24 md:max-w-290 md:px-4">
@@ -114,7 +109,7 @@ export function PoweredBy() {
 
 export function ValueStrip() {
   return (
-    <div class="grid gap-5 border-b border-line py-8 text-xs text-slate md:grid-cols-3 md:gap-8 [&_p]:flex [&_p]:items-center [&_p]:justify-center [&_p]:gap-2 [&_svg]:shrink-0 [&_svg]:text-forest mx-auto w-full max-w-300 px-6 md:px-10">
+    <div class="grid gap-5 border-b border-line py-8 text-xs text-slate-600 md:grid-cols-3 md:gap-8 [&_p]:flex [&_p]:items-center [&_p]:justify-center [&_p]:gap-2 [&_svg]:shrink-0 [&_svg]:text-forest mx-auto w-full max-w-300 px-6 md:px-10">
       {[
         "Your prices, in local currency",
         "Your customers, paying their way",

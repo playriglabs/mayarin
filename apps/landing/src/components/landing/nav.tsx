@@ -119,7 +119,7 @@ function ExternalArrow() {
       stroke="currentColor"
       stroke-width="1.25"
       aria-hidden="true"
-      class="size-3 text-slate/60"
+      class="size-3 text-slate-600/60"
     >
       <path d="M4 12 12 4M6 4h6v6" stroke-linecap="square" />
     </svg>
@@ -231,7 +231,7 @@ export function Navigation() {
                   : "invisible -translate-y-2 opacity-0",
               )}
             >
-              <p class="px-3 pt-2 pb-3 text-slate">Developers</p>
+              <p class="px-3 pt-2 pb-3 text-slate-600">Developers</p>
               <div class="grid gap-1">
                 {DEVELOPER_LINKS.map((item) => (
                   <a
@@ -242,7 +242,7 @@ export function Navigation() {
                     onClick={() => setDevelopersOpen(false)}
                     class="group flex items-center gap-4 rounded-xl p-3 transition-colors hover:bg-v2-mist"
                   >
-                    <span class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-line text-slate transition-colors group-hover:border-ink group-hover:text-ink [&>svg]:size-6">
+                    <span class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-line text-slate-600 transition-colors group-hover:border-ink group-hover:text-ink [&>svg]:size-6">
                       {item.icon}
                     </span>
                     <span class="min-w-0 flex-1">
@@ -250,7 +250,7 @@ export function Navigation() {
                         {item.label}
                         <ExternalArrow />
                       </span>
-                      <span class="mt-0.5 block text-xs leading-5 text-slate">
+                      <span class="mt-0.5 block text-xs leading-5 text-slate-600">
                         {item.description}
                       </span>
                     </span>
@@ -367,7 +367,7 @@ export function Navigation() {
                         setDevelopersOpen(false);
                         setOpen(false);
                       }}
-                      class="flex items-center gap-3 py-3 pl-4 text-sm text-slate transition-colors hover:text-ink"
+                      class="flex items-center gap-3 py-3 pl-4 text-sm text-slate-600 transition-colors hover:text-ink"
                     >
                       <span class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-line [&>svg]:size-5">
                         {item.icon}

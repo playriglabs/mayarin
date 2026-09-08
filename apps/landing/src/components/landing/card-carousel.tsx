@@ -166,7 +166,7 @@ export function CardCarousel<T>({
         ))}
       </section>
       <div class="mt-7 flex items-center justify-between gap-5">
-        <p class="text-xs text-slate" aria-live="polite" aria-atomic="true">
+        <p class="text-xs text-slate-600" aria-live="polite" aria-atomic="true">
           {position.first * pageSize + 1}–{Math.min(items.length, (position.first + 1) * pageSize)}{" "}
           <span class="mx-1">/</span> {items.length} {noun}
         </p>

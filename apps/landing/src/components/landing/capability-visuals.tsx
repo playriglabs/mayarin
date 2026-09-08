@@ -15,7 +15,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
       <Frame>
         <div class="w-full max-w-95 rounded-2xl bg-paper p-6 shadow-[0_18px_50px_#142b1612]">
           <div class="flex items-start justify-between gap-4 text-center">
-            <div class="flex-1 [&_p]:mt-1 [&_p]:text-[10px] [&_p]:text-slate [&_strong]:mt-3 [&_strong]:block [&_strong]:text-xs [&_strong]:font-medium">
+            <div class="flex-1 [&_p]:mt-1 [&_p]:text-[10px] [&_p]:text-slate-600 [&_strong]:mt-3 [&_strong]:block [&_strong]:text-xs [&_strong]:font-medium">
               <span class="mx-auto flex size-9 items-center justify-center">
                 <RailMark asset="ETH" chain="base" size={36} />
               </span>
@@ -44,7 +44,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
               <span class="h-px flex-1 border-t border-dashed border-line" />
             </div>
 
-            <div class="flex-1 [&_p]:mt-1 [&_p]:text-[10px] [&_p]:text-slate [&_strong]:mt-3 [&_strong]:block [&_strong]:text-xs [&_strong]:font-medium">
+            <div class="flex-1 [&_p]:mt-1 [&_p]:text-[10px] [&_p]:text-slate-600 [&_strong]:mt-3 [&_strong]:block [&_strong]:text-xs [&_strong]:font-medium">
               <span class="mx-auto flex size-9 items-center justify-center rounded-full bg-v2-sage text-sm font-medium text-forest">
                 S
               </span>
@@ -81,7 +81,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
               <RailMark asset={rail.asset} chain={rail.chain} size={28} />
               <div>
                 <p>{rail.asset}</p>
-                <p class="text-[10px] text-slate">{networkName(rail.chain)}</p>
+                <p class="text-[10px] text-slate-600">{networkName(rail.chain)}</p>
               </div>
               <span
                 class={clsx(
@@ -91,7 +91,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
               />
             </div>
           ))}
-          <p class="pt-1 text-center text-[10px] text-slate">All priced into USDC</p>
+          <p class="pt-1 text-center text-[10px] text-slate-600">All priced into USDC</p>
         </div>
       </Frame>
     );
@@ -104,10 +104,10 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
           <span class="mx-auto flex size-9 items-center justify-center">
             <RailMark asset="USDC" chain="base" size={36} />
           </span>
-          <p class="mt-3 text-[10px] text-slate">Settled to your wallet</p>
+          <p class="mt-3 text-[10px] text-slate-600">Settled to your wallet</p>
           <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDC</strong>
           <div class="my-5 h-px bg-line" />
-          <div class="space-y-2 text-left text-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&_span]:text-slate">
+          <div class="space-y-2 text-left text-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&_span]:text-slate-600">
             <div>
               <span>Debit · Clearing</span>
               <strong>1,500.00</strong>
@@ -137,17 +137,17 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
         ].map((step, index, steps) => (
           <div key={step.label}>
             <div class="flex items-center gap-3 rounded-lg border border-line bg-paper px-3 py-2.5">
-              <span class="w-18 shrink-0 text-slate">{step.label}</span>
+              <span class="w-18 shrink-0 text-slate-600">{step.label}</span>
               <span class={step.success ? "text-forest" : "text-ink"}>{step.detail}</span>
             </div>
             {index < steps.length - 1 && (
-              <div class="flex h-4 items-center justify-center text-slate" aria-hidden="true">
+              <div class="flex h-4 items-center justify-center text-slate-600" aria-hidden="true">
                 ↓
               </div>
             )}
           </div>
         ))}
-        <p class="pt-3 text-center font-sans text-[10px] text-slate">
+        <p class="pt-3 text-center font-sans text-[10px] text-slate-600">
           Five steps. One signature. No account.
         </p>
       </div>

@@ -13,10 +13,10 @@ export function Action({
   return (
     <a
       href={href}
-      class="inline-flex min-h-12 items-center justify-center gap-3 rounded-full bg-ink px-6 py-3 text-sm font-medium text-white transition-colors duration-200 hover:bg-forest"
+      class="inline-flex size-12 shrink-0 items-center justify-center gap-3 rounded-full bg-ink p-0 text-sm font-medium text-white transition-colors duration-200 hover:bg-forest sm:size-auto sm:min-h-12 sm:px-6 sm:py-3"
     >
-      {children}
-      <ArrowRight class="hidden sm:block" />
+      <span class="sr-only sm:not-sr-only">{children}</span>
+      <ArrowRight />
     </a>
   );
 }
@@ -41,7 +41,7 @@ export function SectionIntro({
       <p class="mb-5 text-xs font-medium tracking-[0.08em] text-forest">{label}</p>
       <h2>{title}</h2>
       {children && (
-        <p class="mt-6 max-w-135 text-base leading-relaxed text-slate md:text-lg in-[[class*=text-center]]:mx-auto">
+        <p class="mt-6 max-w-135 text-base leading-relaxed text-slate-600 md:text-lg in-[[class*=text-center]]:mx-auto">
           {children}
         </p>
       )}

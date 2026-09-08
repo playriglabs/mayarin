@@ -110,7 +110,7 @@ function CodePanel({ snippet, class: className = "" }: { snippet: Snippet; class
     <div class={clsx("flex min-h-0 flex-col bg-code-panel", className)}>
       <div class="flex shrink-0 items-center gap-3 border-b border-line-inverse px-5 py-3.5">
         <LanguageMark lang={snippet.lang} />
-        <span class="text-[13px] font-sans text-slate-inverse">{snippet.filename}</span>
+        <span class="font-sans text-[13px] text-slate-inverse">{snippet.filename}</span>
       </div>
       {/* Shiki output, generated at build time from a checked-in file. */}
       <div
@@ -171,17 +171,17 @@ function CodeDialog({
       class="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none bg-transparent p-0 backdrop:bg-ink/70 backdrop:backdrop-blur-sm open:flex open:items-center open:justify-center"
     >
       {snippet && (
-        <div class="flex h-full max-h-full w-full flex-col overflow-hidden md:h-[min(84vh,760px)] md:w-[min(92vw,1040px)] rounded-xs md:shadow-2xl">
+        <div class="flex h-full max-h-full w-full flex-col overflow-hidden rounded-xs bg-code-panel text-slate-inverse md:h-[min(84vh,760px)] md:w-[min(92vw,1040px)] md:shadow-2xl">
           <div class="flex shrink-0 items-center justify-between gap-5 border-b border-line-inverse bg-code-panel px-5 py-3.5">
             <div class="flex items-center gap-3">
               <LanguageMark lang={snippet.lang} />
-              <span class="text-[13px] font-sans text-slate-inverse">{snippet.filename}</span>
+              <span class="font-sans text-[13px] text-slate-inverse">{snippet.filename}</span>
             </div>
             <div class="flex items-center gap-5">
               <button
                 type="button"
                 onClick={copy}
-                class="label inline-flex cursor-pointer items-center gap-2 text-slate-inverse transition-colors duration-200 hover:text-white"
+                class="label inline-flex cursor-pointer items-center gap-2 text-slate-inverse transition-colors duration-200 hover:text-paper focus-visible:outline-accent"
               >
                 <CopyIcon copied={copied} />
                 {copied ? "Copied" : "Copy"}
@@ -190,7 +190,7 @@ function CodeDialog({
                 type="button"
                 onClick={() => ref.current?.close()}
                 aria-label="Close the example"
-                class="label inline-flex cursor-pointer items-center gap-2 text-slate-inverse transition-colors duration-200 hover:text-white"
+                class="label inline-flex cursor-pointer items-center gap-2 text-slate-inverse transition-colors duration-200 hover:text-paper focus-visible:outline-accent"
               >
                 Esc
                 <CloseIcon />
@@ -233,7 +233,7 @@ export function Capabilities() {
   const active = open ? CAPABILITIES.find((item) => item.id === open) : undefined;
 
   return (
-    <section id="capabilities" class="mx-auto w-full max-w-300 px-6 py-20 md:px-10 md:py-28">
+    <section id="capabilities" class="mx-auto w-full max-w-300 px-5 py-20 md:px-10 md:py-28">
       <Reveal>
         <SectionIntro
           centered={false}
@@ -277,13 +277,15 @@ export function Capabilities() {
                   </span>
                 )}
               </div>
-              <p class="mt-3 max-w-[46ch] text-sm leading-relaxed text-slate">{item.description}</p>
+              <p class="mt-3 max-w-[46ch] text-sm leading-relaxed text-slate-600">
+                {item.description}
+              </p>
 
               <div class="mt-6 flex flex-wrap gap-2">
                 {item.chips.map((chip) => (
                   <span
                     key={chip}
-                    class="rounded-full bg-paper px-3.5 py-1.5 text-xs text-slate ring-1 ring-inset ring-line"
+                    class="rounded-full bg-paper px-3.5 py-1.5 text-xs text-slate-600 ring-1 ring-inset ring-line"
                   >
                     {chip}
                   </span>

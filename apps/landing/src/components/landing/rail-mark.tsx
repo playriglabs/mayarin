@@ -51,7 +51,7 @@ export function RailMark({
       ) : (
         <span
           aria-hidden="true"
-          class="inline-grid size-full place-items-center rounded-full border border-line bg-paper text-[10px] font-semibold text-slate"
+          class="inline-grid size-full place-items-center rounded-full border border-line bg-paper text-[10px] font-semibold text-slate-600"
         >
           {asset.slice(0, 1).toUpperCase()}
         </span>

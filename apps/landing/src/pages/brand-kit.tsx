@@ -51,7 +51,7 @@ function DownloadLink({ file }: { file: string }) {
     <a
       href={`${BRAND_KIT_PATH}/${file}`}
       download
-      class="label inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-slate transition-colors duration-200 hover:text-forest"
+      class="label inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-slate-600 transition-colors duration-200 hover:text-forest"
     >
       <span>Download PNG</span>
       <DownloadIcon />
@@ -76,10 +76,10 @@ function AssetCard({ index, label, file, surface, imageClass, description }: Bra
       </div>
       <div class="mt-4 flex items-start justify-between gap-6">
         <div>
-          <p class="label text-slate">
+          <p class="label text-slate-600">
             {index} · {label}
           </p>
-          <p class="mt-3 max-w-[34ch] text-sm leading-6 text-slate">{description}</p>
+          <p class="mt-3 max-w-[34ch] text-sm leading-6 text-slate-600">{description}</p>
         </div>
         <DownloadLink file={file} />
       </div>
@@ -91,11 +91,11 @@ export function BrandKit() {
   return (
     <main class="min-h-screen bg-paper text-ink">
       <section class="shell pt-16 pb-20 md:pt-20 md:pb-28">
-        <p class="label text-slate">/mayarin/ · visual system</p>
+        <p class="label text-slate-600">/mayarin/ · visual system</p>
         <h1 class="mt-8 max-w-[13ch] text-[clamp(4rem,9vw,8.5rem)] leading-[0.88]">
           Built for value in motion.
         </h1>
-        <p class="mt-10 max-w-[58ch] text-lg leading-[1.65] text-slate md:text-xl">
+        <p class="mt-10 max-w-[58ch] text-lg leading-[1.65] text-slate-600 md:text-xl">
           A compact set of marks for the infrastructure that moves money across assets, chains and
           borders. Use the files below as the starting point for Mayarin communications and product
           surfaces.
@@ -107,7 +107,7 @@ export function BrandKit() {
           <p id="marks-heading" class="text-xs font-medium tracking-[0.16em] uppercase">
             Core identifiers
           </p>
-          <span class="label hidden text-slate sm:block">SVG and PNG · transparent</span>
+          <span class="label hidden text-slate-600 sm:block">SVG and PNG · transparent</span>
         </div>
 
         <div class="grid gap-x-8 gap-y-16 md:grid-cols-3 md:gap-y-24">
@@ -134,7 +134,7 @@ export function BrandKit() {
             </span>
           </div>
           <div class="self-center">
-            <p class="text-lg leading-[1.7] text-slate">
+            <p class="text-lg leading-[1.7] text-slate-600">
               There is no lockup file. The lockup is the mark set beside the name in Geist at medium
               weight, optically kerned so the wordmark tucks under the mark's overhang. Building it
               from the two parts keeps one source of truth for the mark and lets the name inherit
@@ -147,12 +147,12 @@ export function BrandKit() {
       <section class="bg-void text-white">
         <div class="shell grid gap-12 py-20 md:grid-cols-[1fr_1.5fr] md:py-28">
           <div>
-            <p class="label text-slate-inverse">Usage</p>
+            <p class="label text-slate-600-inverse">Usage</p>
             <h2 class="mt-7 max-w-[11ch] text-[clamp(3rem,6vw,5.5rem)] leading-[0.9]">
               Keep it clear.
             </h2>
           </div>
-          <div class="max-w-xl text-lg leading-[1.7] text-slate-inverse">
+          <div class="max-w-xl text-lg leading-[1.7] text-slate-600-inverse">
             <p>
               Give the mark room to work. Prefer the black mark on light surfaces and the white mark
               on dark surfaces. Do not stretch, rotate, recolour or place the mark over noisy
@@ -168,9 +168,9 @@ export function BrandKit() {
         </div>
       </section>
 
-      <footer class="shell flex flex-col gap-4 py-8 text-sm text-slate sm:flex-row sm:items-center sm:justify-between">
+      <footer class="shell flex flex-col gap-4 py-8 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <span>© {new Date().getFullYear()} Mayarin</span>
-        <a href="/" class="text-slate transition-colors hover:text-forest">
+        <a href="/" class="text-slate-600 transition-colors hover:text-forest">
           mayarin.xyz
         </a>
       </footer>

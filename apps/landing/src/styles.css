@@ -174,23 +174,6 @@ h3 {
   mask-image: radial-gradient(120% 90% at 50% 0%, #000 10%, transparent 72%);
 }
 
-/* Entrance states are driven by JS, so they only apply once JS is running.
-   The page now ships prerendered, and without this guard its whole body would
-   sit at opacity: 0 for anything that does not execute the script. */
-.js .reveal {
-  opacity: 0;
-  transform: translate3d(0, 18px, 0);
-  transition:
-    opacity 700ms var(--ease-out-expo),
-    transform 700ms var(--ease-out-expo);
-  transition-delay: var(--reveal-delay, 0ms);
-}
-
-.js .reveal[data-in="true"] {
-  opacity: 1;
-  transform: none;
-}
-
 /* The plane fades out at the horizon and at the edges of the frame; the type
    sits far enough above it in contrast that no clearing is needed. */
 .wave-canvas {
@@ -333,7 +316,6 @@ h3 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal,
   .wordmark-letter {
     opacity: 1;
     transform: none;

@@ -45,7 +45,7 @@ const PRINCIPLES = [
 
 export function Principles() {
   return (
-    <section id="principles" class="mx-auto w-full max-w-300 px-6 py-20 md:px-10 md:py-28">
+    <section id="principles" class="mx-auto w-full max-w-300 px-5 py-20 md:px-10 md:py-28">
       <div class="grid items-start gap-12 lg:grid-cols-[0.85fr_1.4fr] lg:gap-16">
         <Reveal>
           <SectionIntro
@@ -82,7 +82,7 @@ export function Principles() {
                 </span>
                 <h3 class="pt-1 text-[1.5rem]">{item.title}</h3>
               </div>
-              <p class="mt-6 text-[15px] leading-relaxed text-slate">{item.body}</p>
+              <p class="mt-6 text-[15px] leading-relaxed text-slate-600">{item.body}</p>
             </article>
           )}
         />

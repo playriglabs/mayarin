@@ -72,7 +72,7 @@ function EarlyAccessCapture() {
 
   return (
     <form id="footer-early-access" class="scroll-mt-24" onSubmit={(event) => void submit(event)}>
-      <label for="footer-early-access-email" class="text-sm text-slate">
+      <label for="footer-early-access-email" class="text-sm text-slate-600">
         Get early access
       </label>
       <div class="mt-5 flex h-12 items-center border border-line bg-paper transition-colors duration-200 focus-within:border-forest">
@@ -84,7 +84,7 @@ function EarlyAccessCapture() {
           autocomplete="email"
           placeholder="you@company.com"
           disabled={disabled}
-          class="h-full min-w-0 flex-1 bg-transparent px-4 text-sm text-ink outline-none placeholder:text-slate disabled:cursor-not-allowed disabled:opacity-60"
+          class="h-full min-w-0 flex-1 bg-transparent px-4 text-sm text-ink outline-none placeholder:text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
         />
         <button
           type="submit"
@@ -128,7 +128,7 @@ export function Footer() {
             <div class="grid grid-cols-2 gap-x-8 gap-y-10 lg:grid-cols-4">
               {COLUMNS.map((column) => (
                 <div key={column.heading}>
-                  <p class="text-[14px] text-slate">{column.heading}</p>
+                  <p class="text-[14px] text-slate-600">{column.heading}</p>
                   <ul class="mt-5 space-y-2">
                     {column.links.map((link) => (
                       <li key={link.label}>
@@ -146,7 +146,7 @@ export function Footer() {
             </div>
 
             <div class="mt-10">
-              <p class="label mt-4 text-slate">/maɪˈjɑːrɪn/ · “My-ar-in”</p>
+              <p class="label mt-4 text-slate-600">/maɪˈjɑːrɪn/ · “My-ar-in”</p>
             </div>
           </div>
 
@@ -154,14 +154,14 @@ export function Footer() {
             <EarlyAccessCapture />
 
             <div class="mt-8 flex items-center justify-between gap-6 border-t border-line pt-6">
-              <p class="text-sm text-slate">Find us on social</p>
+              <p class="text-sm text-slate-600">Find us on social</p>
               <div class="flex items-center gap-2">
                 <a
                   href="https://x.com/mayarinxyz"
                   target="_blank"
                   rel="noreferrer"
                   aria-label="Mayarin on X"
-                  class="inline-flex size-10 items-center justify-center border border-line text-slate transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
+                  class="inline-flex size-10 items-center justify-center border border-line text-slate-600 transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
                 >
                   <XIcon />
                 </a>
@@ -170,7 +170,7 @@ export function Footer() {
                   target="_blank"
                   rel="noreferrer"
                   aria-label="Mayarin on LinkedIn"
-                  class="inline-flex size-10 items-center justify-center border border-line text-slate transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
+                  class="inline-flex size-10 items-center justify-center border border-line text-slate-600 transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
                 >
                   <LinkedInIcon />
                 </a>
@@ -180,10 +180,10 @@ export function Footer() {
         </div>
 
         <div class="mt-14 flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-xs font-medium text-slate">
+          <p class="text-xs font-medium text-slate-600">
             © {new Date().getFullYear()} Mayarin. All rights reserved.
           </p>
-          <p class="text-slate leading-5 text-sm font-medium">
+          <p class="text-slate-600 leading-5 text-sm font-medium">
             Money moves – Infrastructure orchestrates
           </p>
         </div>

@@ -1,4 +1,5 @@
 import Lenis from "lenis";
+import { gsap, registerGsap, ScrollTrigger } from "./gsap.ts";
 
 /** Roughly the height of the fixed header, so anchors don't land underneath it. */
 const HEADER_OFFSET = -88;
@@ -18,13 +19,12 @@ export function startSmoothScroll(): () => void {
     easing: (t) => 1 - (1 - t) ** 3,
     smoothWheel: true,
   });
+  registerGsap();
 
-  let raf = 0;
-  const frame = (time: number) => {
-    lenis.raf(time);
-    raf = window.requestAnimationFrame(frame);
-  };
-  raf = window.requestAnimationFrame(frame);
+  const syncScrollTrigger = () => ScrollTrigger.update();
+  const frame = (time: number) => lenis.raf(time * 1000);
+  lenis.on("scroll", syncScrollTrigger);
+  gsap.ticker.add(frame);
 
   const onClick = (event: MouseEvent) => {
     if (event.defaultPrevented || event.button !== 0) return;
@@ -49,7 +49,8 @@ export function startSmoothScroll(): () => void {
 
   return () => {
     document.removeEventListener("click", onClick);
-    window.cancelAnimationFrame(raf);
+    lenis.off("scroll", syncScrollTrigger);
+    gsap.ticker.remove(frame);
     lenis.destroy();
   };
 }

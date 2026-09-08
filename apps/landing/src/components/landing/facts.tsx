@@ -84,7 +84,7 @@ export function Facts() {
               <strong class="block font-sans text-[clamp(3.5rem,7vw,5.5rem)] leading-[0.95] font-light tracking-[-0.04em] text-forest">
                 {fact.value}
               </strong>
-              <p class="mx-auto mt-5 max-w-[26ch] text-sm leading-relaxed text-slate">
+              <p class="mx-auto mt-5 max-w-[26ch] text-sm leading-relaxed text-slate-600">
                 {fact.label}
               </p>
               {"marks" in fact ? (
@@ -92,13 +92,13 @@ export function Facts() {
               ) : "currencies" in fact ? (
                 <CurrencyMarks />
               ) : (
-                <p class="text-sm mt-3 text-slate/70">{fact.detail}</p>
+                <p class="text-sm mt-3 text-slate-600/70">{fact.detail}</p>
               )}
             </Reveal>
           ))}
         </div>
 
-        <p class="mt-16 text-center text-xs text-slate">
+        <p class="mt-16 text-center text-xs text-slate-600">
           Running on testnet today — so these are facts about the system, not about its traffic.
         </p>
       </div>

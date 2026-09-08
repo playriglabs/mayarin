@@ -1,5 +1,6 @@
 import { type ComponentChildren, createElement } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
+import { gsap, registerGsap } from "../lib/gsap.ts";
 
 type RevealProps = {
   children: ComponentChildren;
@@ -10,44 +11,54 @@ type RevealProps = {
 };
 
 /**
- * Fade-and-rise on first entry. The observer disconnects once the element has
- * been shown, so the animation never replays on scroll-back — which is what
- * keeps the page feeling calm rather than reactive.
- *
- * The hidden state lives behind `.js` in `styles.css`, so a page that never
- * runs the script still renders every section.
+ * GSAP fade-and-rise on first entry. ScrollTrigger tears itself down after the
+ * reveal, so scrolling back never replays it. The prerendered element stays
+ * visible until JavaScript enhances it, preserving a useful no-JS page.
  */
 export function Reveal({ children, delay = 0, class: className = "", as = "div" }: RevealProps) {
   const ref = useRef<HTMLElement | null>(null);
-  const [shown, setShown] = useState(false);
 
   useEffect(() => {
     const node = ref.current;
-    if (!node || shown) return;
+    if (!node) return;
+    registerGsap();
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setShown(true);
-            observer.disconnect();
-          }
-        }
-      },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
-    );
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) {
+      gsap.set(node, { clearProps: "all" });
+      return;
+    }
 
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [shown]);
+    const context = gsap.context(() => {
+      gsap.fromTo(
+        node,
+        { autoAlpha: 0, y: 28, clipPath: "inset(0 0 12% 0)" },
+        {
+          autoAlpha: 1,
+          y: 0,
+          clipPath: "inset(0 0 0% 0)",
+          delay: delay / 1000,
+          duration: 0.9,
+          ease: "expo.out",
+          clearProps: "transform,clipPath,willChange",
+          scrollTrigger: {
+            trigger: node,
+            start: "top 88%",
+            once: true,
+          },
+        },
+      );
+    }, node);
+
+    return () => context.revert();
+  }, [delay]);
 
   return createElement(
     as,
     {
       ref,
-      class: `reveal ${className}`,
-      "data-in": shown ? "true" : "false",
-      style: `--reveal-delay:${delay}ms`,
+      class: className,
+      "data-gsap-reveal": "",
     },
     children,
   );

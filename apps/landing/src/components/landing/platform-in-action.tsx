@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "preact/hooks";
-import { Reveal } from "../reveal.tsx";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { gsap, registerGsap, ScrollTrigger } from "../../lib/gsap.ts";
 import { ArrowRight } from "../ui.tsx";
 
 interface PlatformView {
@@ -16,7 +16,7 @@ interface PlatformView {
 const PLATFORM_VIEWS: readonly PlatformView[] = [
   {
     eyebrow: "Control center",
-    title: "Every payment, in one view",
+    title: "Every payment, all in one view",
     description: "Balances, payment status, and volume stay together from the first sale onward.",
     image: "/images/pitch-deck/mayarin-overview.png",
     alt: "Mayarin overview showing balance, recent payments, and payment volume",
@@ -73,7 +73,7 @@ const PLATFORM_VIEWS: readonly PlatformView[] = [
   },
   {
     eyebrow: "Wallets",
-    title: "Choose where funds settle",
+    title: "Choose where funds can settle",
     description: "Connect or provision verified wallets and see which assets each network accepts.",
     image: "/images/pitch-deck/mayarin-wallet.png",
     alt: "Mayarin wallets and payment availability",
@@ -200,19 +200,48 @@ function ProductImage({ view }: { readonly view: PlatformView }) {
 }
 
 export function PlatformInAction() {
+  const section = useRef<HTMLElement>(null);
   const track = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ atStart: true, atEnd: false });
+  const platformTrigger = useRef<ScrollTrigger | null>(null);
+  const activeIndex = useRef(0);
+  const [position, setPosition] = useState({ index: 0, atStart: true, atEnd: false });
 
-  const move = (direction: -1 | 1) => {
+  const updatePosition = useCallback((index: number) => {
+    const next = Math.max(0, Math.min(PLATFORM_VIEWS.length - 1, index));
+    if (next === activeIndex.current) return;
+    activeIndex.current = next;
+    setPosition({
+      index: next,
+      atStart: next === 0,
+      atEnd: next === PLATFORM_VIEWS.length - 1,
+    });
+  }, []);
+
+  const move = useCallback((direction: -1 | 1) => {
     const element = track.current;
     const card = element?.querySelector<HTMLElement>("[data-platform-card]");
     if (!element || !card) return;
+
+    const trigger = platformTrigger.current;
+    if (trigger) {
+      const next = Math.max(
+        0,
+        Math.min(PLATFORM_VIEWS.length - 1, activeIndex.current + direction),
+      );
+      const progress = next / (PLATFORM_VIEWS.length - 1);
+      window.scrollTo({
+        top: trigger.start + (trigger.end - trigger.start) * progress,
+        behavior: reducedMotionBehavior(),
+      });
+      return;
+    }
+
     const gap = Number.parseFloat(getComputedStyle(element).columnGap) || 20;
     element.scrollBy({
       left: direction * (card.getBoundingClientRect().width + gap),
       behavior: reducedMotionBehavior(),
     });
-  };
+  }, []);
 
   useEffect(() => {
     const element = track.current;
@@ -221,10 +250,11 @@ export function PlatformInAction() {
 
     const measure = () => {
       frame = 0;
-      setPosition({
-        atStart: element.scrollLeft <= 2,
-        atEnd: element.scrollLeft >= element.scrollWidth - element.clientWidth - 2,
-      });
+      if (platformTrigger.current) return;
+      const card = element.querySelector<HTMLElement>("[data-platform-card]");
+      if (!card) return;
+      const gap = Number.parseFloat(getComputedStyle(element).columnGap) || 12;
+      updatePosition(Math.round(element.scrollLeft / (card.getBoundingClientRect().width + gap)));
     };
     const scheduleMeasure = () => {
       if (!frame) frame = window.requestAnimationFrame(measure);
@@ -246,28 +276,123 @@ export function PlatformInAction() {
       element.removeEventListener("scroll", scheduleMeasure);
       element.removeEventListener("keydown", keyDown);
     };
-  }, []);
+  }, [move, updatePosition]);
+
+  useEffect(() => {
+    const root = section.current;
+    const element = track.current;
+    if (!root || !element) return;
+    registerGsap();
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const context = gsap.context(() => {
+      if (!reducedMotion) {
+        gsap
+          .timeline({
+            defaults: { ease: "expo.out" },
+            scrollTrigger: { trigger: root, start: "top 78%", once: true },
+          })
+          .from("[data-platform-kicker]", { autoAlpha: 0, y: 16, duration: 0.6 })
+          .from(
+            "[data-platform-line]",
+            { autoAlpha: 0, yPercent: 115, rotateX: -12, duration: 1.05, stagger: 0.1 },
+            "-=0.35",
+          )
+          .from("[data-platform-copy]", { autoAlpha: 0, y: 28, duration: 0.85 }, "-=0.75")
+          .from(
+            element,
+            { autoAlpha: 0, y: 52, clipPath: "inset(0 0 14% 0)", duration: 1.05 },
+            "-=0.65",
+          )
+          .from("[data-platform-controls]", { autoAlpha: 0, y: 12, duration: 0.55 }, "-=0.45");
+      }
+    }, root);
+
+    const media = gsap.matchMedia();
+    media.add("(min-width: 64rem) and (prefers-reduced-motion: no-preference)", () => {
+      const distance = () => Math.max(0, element.scrollWidth - element.clientWidth);
+      const progressBar = root.querySelector<HTMLElement>("[data-platform-progress]");
+      const tween = gsap.to(element, {
+        scrollLeft: distance,
+        ease: "none",
+        scrollTrigger: {
+          trigger: root,
+          start: "top top",
+          end: () => `+=${Math.max(distance(), window.innerWidth * 1.5)}`,
+          pin: true,
+          pinSpacing: true,
+          scrub: 0.8,
+          anticipatePin: 1,
+          invalidateOnRefresh: true,
+          snap: {
+            snapTo: 1 / (PLATFORM_VIEWS.length - 1),
+            duration: { min: 0.15, max: 0.45 },
+            delay: 0.08,
+            ease: "power2.inOut",
+          },
+          onUpdate: (self) => {
+            updatePosition(Math.round(self.progress * (PLATFORM_VIEWS.length - 1)));
+            if (progressBar) gsap.set(progressBar, { scaleX: self.progress });
+          },
+        },
+      });
+      platformTrigger.current = tween.scrollTrigger ?? null;
+
+      return () => {
+        platformTrigger.current = null;
+        element.scrollLeft = 0;
+        if (progressBar) gsap.set(progressBar, { clearProps: "transform" });
+        updatePosition(0);
+      };
+    });
+
+    const refresh = () => ScrollTrigger.refresh();
+    const refreshFrame = window.requestAnimationFrame(refresh);
+    document.fonts?.ready.then(refresh).catch(() => {});
+
+    return () => {
+      window.cancelAnimationFrame(refreshFrame);
+      media.revert();
+      context.revert();
+    };
+  }, [updatePosition]);
 
   return (
-    <section id="platform" class="overflow-hidden bg-v2-mist py-20 md:py-28">
+    <section
+      ref={section}
+      id="platform"
+      class="overflow-hidden bg-v2-mist py-20 md:py-28 lg:flex lg:h-svh lg:flex-col lg:justify-center lg:py-10"
+    >
       <div class="mx-auto grid w-full max-w-300 gap-8 px-6 md:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:gap-20">
-        <Reveal>
-          <p class="text-sm mb-4 font-medium text-forest">Mayarin platform</p>
-          <h2>
-            See every payment.
-            <br />
-            Shape every flow.
+        <div>
+          <p data-platform-kicker class="mb-4 text-sm font-medium text-forest">
+            Mayarin platform
+          </p>
+          <h2 class="perspective-midrange">
+            <span class="block overflow-hidden pb-[0.08em]">
+              <span data-platform-line class="inline-block will-change-transform">
+                See every payment.
+              </span>
+            </span>
+            <span class="block overflow-hidden pb-[0.08em]">
+              <span data-platform-line class="inline-block will-change-transform">
+                Shape every flow.
+              </span>
+            </span>
           </h2>
-        </Reveal>
-        <Reveal delay={100}>
-          <p class="max-w-135 text-base leading-relaxed text-slate md:text-lg">
+        </div>
+        <div>
+          <p
+            data-platform-copy
+            class="max-w-135 text-base leading-relaxed text-slate-600 md:text-lg"
+          >
             From a first payment link to final settlement, every step lives in one operating
             surface. Your customers pay their way while your business keeps one clear view.
           </p>
-        </Reveal>
+        </div>
       </div>
 
-      <Reveal delay={160} class="mt-14 md:mt-18">
+      <div class="mt-14 md:mt-18 lg:mt-[clamp(2rem,5vh,4.5rem)]">
         <section
           ref={track}
           id="platform-track"
@@ -276,31 +401,37 @@ export function PlatformInAction() {
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The scrollable carousel supports keyboard navigation.
           tabIndex={0}
           data-lenis-prevent-horizontal
-          class="grid snap-x snap-mandatory auto-cols-[min(84vw,28rem)] grid-flow-col gap-5 overflow-x-auto overscroll-x-contain px-6 outline-offset-4 scrollbar-none md:px-10 [&::-webkit-scrollbar]:hidden"
+          class="grid snap-x snap-mandatory auto-cols-[min(84vw,28rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-6 outline-offset-4 scrollbar-none md:px-10 lg:snap-none [&::-webkit-scrollbar]:hidden"
         >
           {PLATFORM_VIEWS.map((view) => (
             <article
               key={view.title}
               data-platform-card
-              class="flex min-h-130 snap-start flex-col overflow-hidden rounded-3xl border border-line bg-paper/60"
+              class="flex min-h-130 snap-start flex-col overflow-hidden rounded-3xl border border-line bg-paper/60 lg:h-[52vh] lg:min-h-112 lg:max-h-136"
             >
-              <div class="flex h-82 items-center justify-center overflow-hidden border-b border-line bg-paper">
+              <div class="flex h-82 items-center justify-center overflow-hidden border-b border-line bg-paper lg:h-[55%]">
                 <ProductImage view={view} />
               </div>
               <div class="flex flex-1 flex-col p-7 md:p-8">
                 <p class="font-sans text-sm text-forest">{view.eyebrow}</p>
                 <h4 class="mt-5 font-sans text-[1.75rem] md:text-[2rem]">{view.title}</h4>
-                <p class="mt-4 max-w-[38ch] text-[15px] leading-relaxed text-slate">
+                <p class="mt-4 max-w-[38ch] text-[15px] leading-relaxed text-slate-600">
                   {view.description}
                 </p>
               </div>
             </article>
           ))}
         </section>
-      </Reveal>
+      </div>
 
-      <div class="mx-auto mt-8 flex w-full max-w-300 justify-end px-6 md:px-10">
-        <div class="flex gap-2">
+      <div
+        data-platform-controls
+        class="mx-auto mt-8 flex w-full max-w-300 items-center gap-6 px-6 md:px-10"
+      >
+        <div aria-hidden="true" class="h-px flex-1 overflow-hidden bg-line">
+          <span data-platform-progress class="block h-full origin-left bg-forest lg:scale-x-0" />
+        </div>
+        <div class="flex shrink-0 gap-2">
           <button
             type="button"
             aria-label="Previous platform view"

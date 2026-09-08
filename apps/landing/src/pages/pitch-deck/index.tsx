@@ -1,6 +1,6 @@
 import clsx from "clsx";
-import { animate, inView, stagger } from "motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { gsap, registerGsap } from "../../lib/gsap.ts";
 import { SLIDES, type Slide } from "./slides.tsx";
 
 /*
@@ -17,8 +17,6 @@ const TOTAL_SECONDS = CORE.reduce((sum, slide) => sum + (slide.seconds ?? 0), 0)
 const WHEEL_THRESHOLD = 24;
 /** One page per wheel gesture: ignore further deltas for this long. */
 const WHEEL_LOCK_MS = 700;
-const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
-
 function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -55,11 +53,16 @@ function formatClock(seconds: number): string {
 /** Plays a slide's reveal once. What moves depends on what the slide is. */
 function reveal(section: HTMLElement, slide: Slide) {
   if (reducedMotion()) return;
+  registerGsap();
 
   if (slide.reveal.headline) {
     const headline = section.querySelector<HTMLElement>("[data-headline]");
     if (headline) {
-      animate(headline, { opacity: [0, 1], x: [24, 0] }, { duration: 0.8, ease: EASE_OUT_EXPO });
+      gsap.fromTo(
+        headline,
+        { autoAlpha: 0, x: 24 },
+        { autoAlpha: 1, x: 0, duration: 0.8, ease: "expo.out", clearProps: "transform" },
+      );
     }
   }
 
@@ -67,17 +70,21 @@ function reveal(section: HTMLElement, slide: Slide) {
   if (!visual) return;
 
   if (slide.reveal.visual === "fade") {
-    animate(visual, { opacity: [0, 1] }, { duration: 0.9, ease: EASE_OUT_EXPO });
+    gsap.fromTo(visual, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.9, ease: "expo.out" });
   } else if (slide.reveal.visual === "stagger") {
     const items = visual.querySelectorAll<HTMLElement>("[data-reveal]");
     if (items.length > 0) {
-      animate(
+      gsap.fromTo(
         items,
-        { opacity: [0, 1], x: [20, 0] },
+        { autoAlpha: 0, x: 20 },
         {
-          delay: stagger(slide.reveal.stagger ?? 0.08, { startDelay: 0.15 }),
+          autoAlpha: 1,
+          x: 0,
+          delay: 0.15,
+          stagger: slide.reveal.stagger ?? 0.08,
           duration: 0.55,
-          ease: EASE_OUT_EXPO,
+          ease: "expo.out",
+          clearProps: "transform",
         },
       );
     }
@@ -155,34 +162,35 @@ export function PitchDeck() {
   }, []);
 
   // A slide that scrolls into view (by key, wheel, swipe, or touch) becomes
-  // active, owns the hash, and plays its reveal once. The callback returns a
-  // leave handler on purpose: without one, `inView` unobserves the slide after
-  // its first entry, and going back would never update the hash again.
+  // active, owns the hash, and plays its GSAP reveal once.
   useEffect(() => {
     const root = track.current;
-    const stops = sections.current.map((section, index) => {
-      if (!section) return () => {};
-      return inView(
-        section,
-        () => {
-          activeRef.current = index;
-          setActive(index);
-          const slide = SLIDES[index];
-          if (!slide) return () => {};
-          window.history.replaceState(null, "", `#${slide.id}`);
-          if (!shown.current.has(index)) {
-            shown.current.add(index);
-            reveal(section, slide);
-            section.dataset.shown = "true";
-          }
-          return () => {};
-        },
-        root ? { root, amount: 0.5 } : { amount: 0.5 },
-      );
-    });
-    return () => {
-      for (const stop of stops) stop();
-    };
+    const indexedSections = new Map(
+      sections.current.flatMap((section, index) => (section ? [[section, index] as const] : [])),
+    );
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+        if (!(visible?.target instanceof HTMLElement)) return;
+        const index = indexedSections.get(visible.target);
+        const slide = index === undefined ? undefined : SLIDES[index];
+        if (index === undefined || !slide) return;
+
+        activeRef.current = index;
+        setActive(index);
+        window.history.replaceState(null, "", `#${slide.id}`);
+        if (shown.current.has(index)) return;
+
+        shown.current.add(index);
+        visible.target.dataset.shown = "true";
+        reveal(visible.target, slide);
+      },
+      { root, threshold: [0.5, 0.75] },
+    );
+    for (const section of indexedSections.keys()) observer.observe(section);
+    return () => observer.disconnect();
   }, []);
 
   // Keyboard: right and down next, left and up previous, Home/End jump,
