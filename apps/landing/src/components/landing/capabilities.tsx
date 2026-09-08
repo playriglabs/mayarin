@@ -247,7 +247,7 @@ export function Capabilities() {
         />
       </Reveal>
 
-      <Reveal delay={120} class="mt-14 grid gap-5 md:grid-cols-2">
+      <Reveal delay={120} class="mt-14 grid min-w-0 gap-5 md:grid-cols-2">
         {CAPABILITIES.map((item) => {
           const snippet = SNIPPETS.get(item.id);
           return (
@@ -262,11 +262,11 @@ export function Capabilities() {
               }}
               aria-haspopup={interactive ? "dialog" : undefined}
               class={clsx(
-                "relative flex flex-col overflow-hidden rounded-3xl border border-line bg-v2-mist/60 p-7 text-left transition-colors duration-380 ease-out-expo md:p-9",
+                "relative flex w-full min-w-0 appearance-none flex-col overflow-hidden rounded-3xl border border-line bg-v2-mist/60 p-7 text-left transition-colors duration-380 ease-out-expo md:p-9",
                 interactive && "group cursor-pointer hover:border-forest/25",
               )}
             >
-              <div class="flex items-start justify-between gap-5">
+              <div class="flex w-full min-w-0 items-start justify-between gap-5">
                 <h4 class="text-2xl font-sans md:text-[1.75rem] font-normal">{item.title}</h4>
                 {interactive && (
                   <span
@@ -293,7 +293,7 @@ export function Capabilities() {
               </div>
 
               {/* Two layers on one cell: the illustration rests, the code answers. */}
-              <div class="relative mt-8 flex-1">
+              <div class="relative mt-8 w-full min-w-0 flex-1">
                 <div class="transform-gpu transition-[opacity,transform] duration-380 ease-out-expo group-hover:-translate-y-1 group-hover:opacity-0 group-focus-visible:-translate-y-1 group-focus-visible:opacity-0 motion-safe:will-change-[opacity,transform] motion-reduce:transition-none">
                   <CapabilityVisual kind={item.id} />
                 </div>

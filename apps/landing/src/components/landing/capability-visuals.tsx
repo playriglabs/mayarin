@@ -156,5 +156,5 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
 }
 
 function Frame({ children }: { readonly children: ComponentChildren }) {
-  return <div class="flex justify-center">{children}</div>;
+  return <div class="flex w-full min-w-0 justify-center">{children}</div>;
 }
