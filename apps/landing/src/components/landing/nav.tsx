@@ -199,7 +199,7 @@ export function Navigation() {
         {/* Beside the wordmark rather than centred: the bar reads left to right,
             so the sections sit next to the name they belong to. */}
         <nav
-          class="ml-10 hidden items-center gap-8 mt-px text-sm lg:flex"
+          class="ml-10 hidden items-center gap-8 mt-px text-sm xl:flex"
           aria-label="Main navigation"
         >
           {LINKS.map((link) => (
@@ -261,7 +261,7 @@ export function Navigation() {
           </div>
         </nav>
 
-        <div class="ml-auto hidden items-center gap-6 text-sm md:flex mt-px">
+        <div class="ml-auto hidden items-center gap-6 text-sm xl:flex mt-px">
           <a class="transition-colors hover:text-forest" href={LOGIN_URL}>
             Log in
           </a>
@@ -277,7 +277,7 @@ export function Navigation() {
         <button
           ref={toggle}
           type="button"
-          class="ml-auto flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-v2-mist lg:hidden"
+          class="ml-auto flex size-11 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-v2-mist xl:hidden"
           aria-expanded={open}
           aria-controls="v2-mobile-menu"
           aria-label={open ? "Close navigation" : "Open navigation"}
@@ -309,14 +309,14 @@ export function Navigation() {
         aria-label="Close navigation"
         onClick={() => setOpen(false)}
         class={clsx(
-          "fixed inset-0 top-16 cursor-default bg-ink/40 backdrop-blur-sm transition-[opacity,visibility] duration-300 ease-out motion-reduce:transition-none lg:hidden",
+          "fixed inset-0 top-16 cursor-default bg-ink/40 backdrop-blur-sm transition-[opacity,visibility] duration-300 ease-out motion-reduce:transition-none xl:hidden",
           open ? "visible opacity-100" : "invisible opacity-0",
         )}
       />
 
       <div
         class={clsx(
-          "relative grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none lg:hidden",
+          "relative grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none xl:hidden",
           open ? "grid-rows-[1fr] border-t border-line opacity-100" : "grid-rows-[0fr] opacity-0",
         )}
       >

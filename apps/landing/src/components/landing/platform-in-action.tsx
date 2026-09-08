@@ -158,7 +158,7 @@ function ProductImage({ view }: { readonly view: PlatformView }) {
 
   const thumbnail =
     view.contain === true ? (
-      <span class="relative grid size-[min(80%,18rem)] place-items-center">
+      <span class="relative grid h-[min(80%,18rem)] w-auto aspect-square place-items-center">
         <span
           aria-hidden="true"
           class="absolute top-0 left-0 size-10 rounded-tl-2xl border-t-2 border-l-2 border-forest/35"
@@ -366,42 +366,48 @@ export function PlatformInAction() {
     }, root);
 
     const media = gsap.matchMedia();
-    media.add("(min-width: 64rem) and (prefers-reduced-motion: no-preference)", () => {
-      const distance = () => Math.max(0, element.scrollWidth - element.clientWidth);
-      const progressBar = root.querySelector<HTMLElement>("[data-platform-progress]");
-      const tween = gsap.to(element, {
-        scrollLeft: distance,
-        ease: "none",
-        scrollTrigger: {
-          trigger: root,
-          start: "top top",
-          end: () => `+=${Math.max(distance(), window.innerWidth * 1.5)}`,
-          pin: true,
-          pinSpacing: true,
-          scrub: 0.8,
-          anticipatePin: 1,
-          invalidateOnRefresh: true,
-          snap: {
-            snapTo: 1 / (PLATFORM_VIEWS.length - 1),
-            duration: { min: 0.15, max: 0.45 },
-            delay: 0.08,
-            ease: "power2.inOut",
+    media.add(
+      "(min-width: 80rem) and (min-height: 48rem) and (prefers-reduced-motion: no-preference)",
+      () => {
+        const distance = () => Math.max(0, element.scrollWidth - element.clientWidth);
+        const progressBar = root.querySelector<HTMLElement>("[data-platform-progress]");
+        const tween = gsap.to(element, {
+          scrollLeft: distance,
+          ease: "none",
+          scrollTrigger: {
+            trigger: root,
+            // The fixed navigation owns the first four rem of the viewport. Pin
+            // below it so the kicker and first headline never sit underneath it
+            // on short landscape screens.
+            start: "top top+=64",
+            end: () => `+=${Math.max(distance(), window.innerWidth * 1.5)}`,
+            pin: true,
+            pinSpacing: true,
+            scrub: 0.8,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+            snap: {
+              snapTo: 1 / (PLATFORM_VIEWS.length - 1),
+              duration: { min: 0.15, max: 0.45 },
+              delay: 0.08,
+              ease: "power2.inOut",
+            },
+            onUpdate: (self) => {
+              updatePosition(Math.round(self.progress * (PLATFORM_VIEWS.length - 1)));
+              if (progressBar) gsap.set(progressBar, { scaleX: self.progress });
+            },
           },
-          onUpdate: (self) => {
-            updatePosition(Math.round(self.progress * (PLATFORM_VIEWS.length - 1)));
-            if (progressBar) gsap.set(progressBar, { scaleX: self.progress });
-          },
-        },
-      });
-      platformTrigger.current = tween.scrollTrigger ?? null;
+        });
+        platformTrigger.current = tween.scrollTrigger ?? null;
 
-      return () => {
-        platformTrigger.current = null;
-        element.scrollLeft = 0;
-        if (progressBar) gsap.set(progressBar, { clearProps: "transform" });
-        updatePosition(0);
-      };
-    });
+        return () => {
+          platformTrigger.current = null;
+          element.scrollLeft = 0;
+          if (progressBar) gsap.set(progressBar, { clearProps: "transform" });
+          updatePosition(0);
+        };
+      },
+    );
 
     const refresh = () => ScrollTrigger.refresh();
     const refreshFrame = window.requestAnimationFrame(refresh);
@@ -418,7 +424,8 @@ export function PlatformInAction() {
     <section
       ref={section}
       id="platform"
-      class="overflow-hidden bg-v2-mist py-20 md:py-28 lg:flex lg:h-svh lg:flex-col lg:justify-center lg:py-10"
+      data-platform-stage
+      class="overflow-hidden bg-v2-mist py-20 md:py-28"
     >
       <div class="mx-auto grid w-full max-w-300 gap-8 px-6 md:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:gap-20">
         <div>
@@ -449,7 +456,7 @@ export function PlatformInAction() {
         </div>
       </div>
 
-      <div class="mt-14 md:mt-18 lg:mt-[clamp(2rem,5vh,4.5rem)]">
+      <div data-platform-carousel class="mt-14 md:mt-18">
         <section
           ref={track}
           id="platform-track"
@@ -458,15 +465,18 @@ export function PlatformInAction() {
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The scrollable carousel supports keyboard navigation.
           tabIndex={0}
           data-lenis-prevent-horizontal
-          class="grid snap-x snap-mandatory auto-cols-[min(84vw,28rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-6 outline-offset-4 scrollbar-none md:px-10 lg:snap-none [&::-webkit-scrollbar]:hidden"
+          class="grid snap-x snap-mandatory auto-cols-[min(84vw,28rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-6 outline-offset-4 scrollbar-none md:px-10 [&::-webkit-scrollbar]:hidden"
         >
           {PLATFORM_VIEWS.map((view) => (
             <article
               key={view.title}
               data-platform-card
-              class="flex min-h-130 snap-start flex-col overflow-hidden rounded-3xl border border-line bg-paper/60 lg:h-[52vh] lg:min-h-112 lg:max-h-136"
+              class="flex min-h-130 snap-start flex-col overflow-hidden rounded-3xl border border-line bg-paper/60"
             >
-              <div class="flex h-82 items-center justify-center overflow-hidden border-b border-line bg-paper lg:h-[55%]">
+              <div
+                data-platform-media
+                class="flex h-82 items-center justify-center overflow-hidden border-b border-line bg-paper"
+              >
                 <ProductImage view={view} />
               </div>
               <div class="flex flex-1 flex-col p-7 md:p-8">
@@ -486,7 +496,7 @@ export function PlatformInAction() {
         class="mx-auto mt-8 flex w-full max-w-300 items-center gap-6 px-6 md:px-10"
       >
         <div aria-hidden="true" class="h-px flex-1 overflow-hidden bg-line">
-          <span data-platform-progress class="block h-full origin-left bg-forest lg:scale-x-0" />
+          <span data-platform-progress class="block h-full origin-left bg-forest" />
         </div>
         <div class="flex shrink-0 gap-2">
           <button

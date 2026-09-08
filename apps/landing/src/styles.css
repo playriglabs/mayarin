@@ -323,6 +323,43 @@ h3 {
   }
 }
 
+/* The platform rail becomes scroll-driven only when both axes can hold the
+   complete pinned composition. Width alone is insufficient: at 1280 × 720 the
+   fixed navigation otherwise covers the kicker while the controls fall below
+   the viewport. Short desktops keep the same native carousel tablets use. */
+@media (width >= 80rem) and (height >= 48rem) and (prefers-reduced-motion: no-preference) {
+  [data-platform-stage] {
+    display: flex;
+    height: calc(100svh - 4rem);
+    flex-direction: column;
+    justify-content: center;
+    padding-block: 1rem;
+  }
+
+  [data-platform-carousel] {
+    margin-top: clamp(1.5rem, 3vh, 3rem);
+  }
+
+  [data-platform-card] {
+    height: 52vh;
+    min-height: 28rem;
+    max-height: 34rem;
+    scroll-snap-align: none;
+  }
+
+  [data-platform-media] {
+    height: 55%;
+  }
+
+  [data-platform-progress] {
+    transform: scaleX(0);
+  }
+
+  #platform-track {
+    scroll-snap-type: none;
+  }
+}
+
 /* The pitch deck (`/pitch-deck`). From `md` up the track is a horizontal
    scroll-snap row: each slide is one viewport wide, `scrollIntoView` lands a
    slide, and a trackpad swipe snaps natively. Below `md` it is a long page. */
