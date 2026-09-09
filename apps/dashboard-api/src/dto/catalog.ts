@@ -130,7 +130,12 @@ export function toProductDto(product: Product) {
  * have to be told the checkout origin separately and would get it wrong in
  * exactly the deployment where the two are not on the same host.
  */
-export function toPaymentLinkDto(link: PaymentLink, checkoutBaseUrl: string, now: Date) {
+export function toPaymentLinkDto(
+  link: PaymentLink,
+  checkoutBaseUrl: string,
+  now: Date,
+  priceable = true,
+) {
   return {
     id: link.id,
     kind: link.kind,
@@ -143,7 +148,7 @@ export function toPaymentLinkDto(link: PaymentLink, checkoutBaseUrl: string, now
     /** `null` means the link inherits every rail the merchant can offer. */
     rails: link.rails ?? null,
     url: `${checkoutBaseUrl}/checkout/${link.id}`,
-    payable: isLinkPayable(link, now),
+    payable: isLinkPayable(link, now) && priceable,
     expiresAt: link.expiresAt?.toISOString() ?? null,
     disabledAt: link.disabledAt?.toISOString() ?? null,
     createdAt: link.createdAt.toISOString(),

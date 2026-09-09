@@ -82,6 +82,26 @@ export class MerchantCatalogService {
     return priceLink(this.#products, link, amount);
   }
 
+  /**
+   * Whether the link's current catalog dependencies can still produce a price.
+   *
+   * A catalog link deliberately stores product references rather than a frozen
+   * amount. Removing its currency or archiving one of its products therefore
+   * makes it temporarily unavailable; restoring the dependency makes it
+   * available again. Infrastructure failures still surface instead of being
+   * mislabeled as a retired link.
+   */
+  async isLinkPriceable(link: PaymentLink): Promise<boolean> {
+    if (link.kind === "open") return true;
+    try {
+      await priceLink(this.#products, link);
+      return true;
+    } catch (error) {
+      if (error instanceof NotFoundError || error instanceof ValidationError) return false;
+      throw error;
+    }
+  }
+
   async listProducts(
     scope: Scope,
     filter: { readonly active?: boolean; readonly limit?: number; readonly cursor?: string } = {},

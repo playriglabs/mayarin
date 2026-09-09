@@ -144,18 +144,22 @@ const CURRENCY_OPTIONS: readonly SelectOption[] = PRICING_CURRENCIES.map((code) 
 
 function LinkCurrencyField({
   value,
+  options = CURRENCY_OPTIONS,
   locked = false,
+  description,
   onValueChange,
 }: {
   readonly value: string;
+  readonly options?: readonly SelectOption[];
   readonly locked?: boolean;
+  readonly description?: string;
   readonly onValueChange?: (currency: string) => void;
 }) {
   return (
     <Field>
       <FieldLabel htmlFor="link-currency">Currency</FieldLabel>
       <Select
-        items={CURRENCY_OPTIONS}
+        items={options}
         value={value}
         disabled={locked}
         {...(onValueChange === undefined ? {} : { onValueChange })}
@@ -166,16 +170,14 @@ function LinkCurrencyField({
           />
         </SelectTrigger>
         <SelectContent>
-          {CURRENCY_OPTIONS.map((option) => (
+          {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {locked && (
-        <FieldDescription>Set by the selected product&apos;s catalog price.</FieldDescription>
-      )}
+      {description !== undefined && <FieldDescription>{description}</FieldDescription>}
     </Field>
   );
 }
@@ -227,7 +229,17 @@ export function primaryCatalogCurrency(
   products: readonly CatalogPricedProduct[],
   productId: string,
 ): string | undefined {
-  return products.find((product) => product.id === productId)?.prices[0]?.asset;
+  return catalogCurrencies(products, productId)[0];
+}
+
+/** Every explicit currency the selected product can price a catalog link in. */
+export function catalogCurrencies(
+  products: readonly CatalogPricedProduct[],
+  productId: string,
+): readonly string[] {
+  return (
+    products.find((product) => product.id === productId)?.prices.map((price) => price.asset) ?? []
+  );
 }
 
 function reasonOf(error: unknown): string {
@@ -521,9 +533,13 @@ function PaymentLinks() {
     value: p.id,
     label: `${p.name} (${p.sku})`,
   }));
-  // Product prices are ordered by the catalog. A catalog link uses that
-  // product's primary price rather than carrying an unrelated form currency.
-  const catalogCurrency = primaryCatalogCurrency(activeProducts, draft.productId);
+  const availableCatalogCurrencies = catalogCurrencies(activeProducts, draft.productId);
+  const catalogCurrency = availableCatalogCurrencies.includes(draft.currency)
+    ? draft.currency
+    : availableCatalogCurrencies[0];
+  const catalogCurrencyOptions: readonly SelectOption[] = availableCatalogCurrencies.map(
+    (currency) => ({ value: currency, label: currencyLabel(currency) }),
+  );
 
   // A link freezes a merchant snapshot, and the snapshot needs the profile. The
   // server refuses without it; saying so here means the merchant reads it
@@ -945,7 +961,13 @@ function PaymentLinks() {
                     <Select
                       items={productOptions}
                       value={draft.productId}
-                      onValueChange={(next) => setDraft({ ...draft, productId: next })}
+                      onValueChange={(next) =>
+                        setDraft({
+                          ...draft,
+                          productId: next,
+                          currency: primaryCatalogCurrency(activeProducts, next) ?? draft.currency,
+                        })
+                      }
                     >
                       <SelectTrigger id="link-product">
                         <SelectValue placeholder="Select a product" />
@@ -961,7 +983,17 @@ function PaymentLinks() {
                   )}
                 </Field>
 
-                <LinkCurrencyField value={catalogCurrency ?? ""} locked />
+                <LinkCurrencyField
+                  value={catalogCurrency ?? ""}
+                  options={catalogCurrencyOptions}
+                  locked={catalogCurrencyOptions.length < 2}
+                  description={
+                    catalogCurrencyOptions.length < 2
+                      ? "Set by the selected product's catalog price."
+                      : "Choose which of this product's prices the link will use."
+                  }
+                  onValueChange={(currency) => setDraft({ ...draft, currency })}
+                />
 
                 {productOptions.length > 0 && (
                   <Field>

@@ -445,6 +445,28 @@ describe("hosted checkout", () => {
     expect(after.length).toBe(before.length);
   });
 
+  test("makes a catalog checkout unavailable when its currency price was removed", async () => {
+    const harness = createApiHarness();
+    const product = await createCoffee(harness);
+    const { body } = await harness.request("POST", "/v1/payment-links", {
+      body: {
+        kind: "catalog",
+        merchant,
+        currency: "IDR",
+        lines: [{ productId: product.id, quantity: 1 }],
+      },
+    });
+
+    const updated = await harness.request("PATCH", `/v1/catalog/products/${product.id}`, {
+      body: { prices: [{ amount: "7.50", asset: "MYR" }] },
+    });
+    expect(updated.status).toBe(200);
+
+    const page = await harness.requestBootstrap(`/checkout/${body.paymentLink.id}`);
+    expect(page.bootstrap.payable).toBe(false);
+    expect(page.bootstrap.unpayableReason).toContain("catalog price is no longer available");
+  });
+
   test("the payment page counts down to the price lock's expiry", async () => {
     // A payer who sends the asset a minute after the lock expired has sent
     // funds against a payment that will not accept them, so the deadline is on

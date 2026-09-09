@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  catalogCurrencies,
   displayedRailsForLink,
   paymentRailsForLink,
   primaryCatalogCurrency,
@@ -20,6 +21,14 @@ describe("catalog payment-link currency", () => {
   test("returns no currency when the product has no price", () => {
     expect(primaryCatalogCurrency([{ id: "unpriced", prices: [] }], "unpriced")).toBeUndefined();
     expect(primaryCatalogCurrency([], "missing")).toBeUndefined();
+  });
+
+  test("offers every explicit price when a product has multiple currencies", () => {
+    const products = [
+      { id: "multi-currency", prices: [{ asset: "SGD" }, { asset: "USD" }] },
+    ] as const;
+
+    expect(catalogCurrencies(products, "multi-currency")).toEqual(["SGD", "USD"]);
   });
 });
 

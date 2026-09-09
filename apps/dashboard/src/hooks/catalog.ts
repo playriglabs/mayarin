@@ -53,7 +53,9 @@ export function useUpdateProduct() {
   return useEffectMutation<ProductResponse, UpdateProductVars, ApiError>({
     mutation: ({ id, patch }) => catalogApi.updateProduct(id, patch),
     toast: { loading: "Updating product…", success: "Product updated" },
-    invalidate: [PRODUCTS_KEY, PRODUCT_OPTIONS_KEY],
+    // Catalog links are priced from their products. Removing or restoring a
+    // currency can retire or reactivate a link without changing the link row.
+    invalidate: [PRODUCTS_KEY, PRODUCT_OPTIONS_KEY, LINKS_KEY],
   });
 }
 

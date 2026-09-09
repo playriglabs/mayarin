@@ -124,7 +124,16 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
     });
     const now = new Date();
     return c.json({
-      paymentLinks: page.items.map((link) => toPaymentLinkDto(link, checkoutBaseUrl, now)),
+      paymentLinks: await Promise.all(
+        page.items.map(async (link) =>
+          toPaymentLinkDto(
+            link,
+            checkoutBaseUrl,
+            now,
+            await container.catalog.isLinkPriceable(link),
+          ),
+        ),
+      ),
       nextCursor: page.nextCursor,
     });
   });
@@ -152,7 +161,14 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
 
   app.get("/:id", async (c) => {
     const link = await container.catalog.getLink(scopeOf(c), c.req.param("id"));
-    return c.json({ paymentLink: toPaymentLinkDto(link, checkoutBaseUrl, new Date()) });
+    return c.json({
+      paymentLink: toPaymentLinkDto(
+        link,
+        checkoutBaseUrl,
+        new Date(),
+        await container.catalog.isLinkPriceable(link),
+      ),
+    });
   });
 
   /**

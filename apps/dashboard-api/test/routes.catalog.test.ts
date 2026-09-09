@@ -344,6 +344,50 @@ describe("payment link routes", () => {
     expect(listed.body?.paymentLinks).toHaveLength(1);
   });
 
+  test("a catalog link follows the availability of its selected currency", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const createdProduct = await post(harness, auth, "/v1/catalog/products", {
+      ...PRODUCT,
+      prices: [
+        { amount: "25000", asset: "IDR" },
+        { amount: "2", asset: "USD" },
+      ],
+    });
+    const productId = createdProduct.body?.product.id as string;
+    const createdLink = await post(harness, auth, "/v1/payment-links", {
+      kind: "catalog",
+      currency: "USD",
+      lines: [{ productId, quantity: 1 }],
+    });
+    const linkId = createdLink.body?.paymentLink.id as string;
+
+    const removeUsd = await harness.request("PATCH", `/v1/catalog/products/${productId}`, {
+      body: { prices: [{ amount: "25000", asset: "IDR" }] },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+    expect(removeUsd.status).toBe(200);
+
+    const unavailable = await get(harness, auth, `/v1/payment-links/${linkId}`);
+    expect(unavailable.body?.paymentLink.payable).toBe(false);
+
+    const restoreUsd = await harness.request("PATCH", `/v1/catalog/products/${productId}`, {
+      body: {
+        prices: [
+          { amount: "25000", asset: "IDR" },
+          { amount: "3", asset: "USD" },
+        ],
+      },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+    expect(restoreUsd.status).toBe(200);
+
+    const availableAgain = await get(harness, auth, `/v1/payment-links/${linkId}`);
+    expect(availableAgain.body?.paymentLink.payable).toBe(true);
+  });
+
   test("another merchant's link is 404, not 403", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);

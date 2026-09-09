@@ -4,9 +4,9 @@
  * A product carries one amount per currency it is priced in, entered by the
  * merchant. Nothing is converted at read time: converting would make a
  * displayed price move with an FX feed between the moment a buyer reads it and
- * the moment they pay. This form edits one currency at a time, which is what a
- * merchant actually does; the wire shape is a list, so pricing in a second
- * currency later is a change to this form and not to the API.
+ * the moment they pay. The form exposes that full list: adding, updating and
+ * removing a currency are distinct, visible actions rather than an implicit
+ * merge hidden behind a single price field.
  *
  * Amounts are typed and sent as decimal strings and parsed server-side by the
  * schema that owns minor units. No `bigint` arithmetic happens here, so there
@@ -16,7 +16,7 @@
  * product row can still take every payment, through an open or fixed link.
  */
 
-import { PackageIcon, PencilSimpleIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { PackageIcon, PencilSimpleIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
@@ -51,7 +51,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { QueryError } from "@/components/ui/query-error";
 import {
@@ -83,7 +83,6 @@ import { PAGE_SIZE } from "@/lib/pagination";
 import { currencyLabel, isValidAmount, PRICING_CURRENCIES } from "@/lib/pricing";
 import { withQuery } from "@/lib/with-query";
 import type { DecimalMoneyRequest, ProductDto } from "@/types/catalog";
-import type { MoneyDto } from "@/types/payment";
 
 const CURRENCY_OPTIONS: readonly SelectOption[] = PRICING_CURRENCIES.map((code) => ({
   value: code,
@@ -105,9 +104,8 @@ interface Draft {
   readonly name: string;
   readonly sku: string;
   readonly description: string;
-  /** Decimal as typed — `"25000"`, `"25000.50"`. Parsed server-side. */
-  readonly amount: string;
-  readonly currency: string;
+  /** One explicit merchant-entered amount per currency. */
+  readonly prices: readonly DecimalMoneyRequest[];
   readonly pairs: readonly MetadataPair[];
 }
 
@@ -115,8 +113,7 @@ const EMPTY_DRAFT: Draft = {
   name: "",
   sku: "",
   description: "",
-  amount: "",
-  currency: PRICING_CURRENCIES[0] ?? "IDR",
+  prices: [{ amount: "", asset: PRICING_CURRENCIES[0] ?? "IDR" }],
   pairs: [],
 };
 
@@ -125,13 +122,11 @@ function draftOf(editing: Editing): Draft {
   const { product } = editing;
   // `formatted` is the machine form: ungrouped, dot-separated, round-trips
   // exactly. `display` is for reading and would come back as `50.000,00`.
-  const first = product.prices[0];
   return {
     name: product.name,
     sku: product.sku,
     description: product.description ?? "",
-    amount: first?.formatted ?? "",
-    currency: first?.asset ?? EMPTY_DRAFT.currency,
+    prices: product.prices.map((price) => ({ amount: price.formatted, asset: price.asset })),
     pairs: Object.entries(product.metadata).map(([key, value]) => ({ key, value })),
   };
 }
@@ -152,26 +147,6 @@ function reasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load products";
 }
 
-/**
- * The edited price folded into what the product already carries.
- *
- * `prices` is replaced wholesale by the API, and this form edits one currency at
- * a time — so sending only the edited one would delete every other currency the
- * product was priced in. A merchant renaming an item would silently lose its MYR
- * price, and a catalog link denominated in MYR would then fail for every buyer.
- */
-function mergePrice(
-  existing: readonly MoneyDto[],
-  edited: DecimalMoneyRequest,
-): readonly DecimalMoneyRequest[] {
-  const others = existing
-    .filter((price) => price.asset !== edited.asset)
-    // `formatted` is the machine form and round-trips exactly; `display` would
-    // come back as `50.000,00` and parse as something else entirely.
-    .map((price) => ({ amount: price.formatted, asset: price.asset }));
-  return [edited, ...others];
-}
-
 function Catalog() {
   const pagination = useCursorPagination();
   const products = useProducts(PAGE_SIZE, pagination.cursor);
@@ -187,7 +162,9 @@ function Catalog() {
   const canSave =
     draft.name.trim() !== "" &&
     draft.sku.trim() !== "" &&
-    isValidAmount(draft.amount, draft.currency);
+    draft.prices.length > 0 &&
+    new Set(draft.prices.map((price) => price.asset)).size === draft.prices.length &&
+    draft.prices.every((price) => isValidAmount(price.amount, price.asset));
   const saving = create.isPending || update.isPending;
 
   function open(next: Editing) {
@@ -198,7 +175,10 @@ function Catalog() {
 
   async function save() {
     if (editing === null || !canSave) return;
-    const edited = { amount: draft.amount.trim(), asset: draft.currency };
+    const prices = draft.prices.map((price) => ({
+      amount: price.amount.trim(),
+      asset: price.asset,
+    }));
     const description = draft.description.trim();
     const metadata = metadataOf(draft.pairs);
 
@@ -207,7 +187,7 @@ function Catalog() {
         await create.mutateAsync({
           sku: draft.sku.trim(),
           name: draft.name.trim(),
-          prices: [edited],
+          prices,
           ...(description === "" ? {} : { description }),
           ...(Object.keys(metadata).length === 0 ? {} : { metadata }),
         });
@@ -217,7 +197,9 @@ function Catalog() {
           id: editing.product.id,
           patch: {
             name: draft.name.trim(),
-            prices: mergePrice(editing.product.prices, edited),
+            // The editor shows the complete price set, so removal is explicit
+            // and the API's wholesale replacement semantics are visible.
+            prices,
             // `null` clears it, an absent field leaves it alone — so emptying
             // the field actually empties it rather than reverting on refetch.
             description: description === "" ? null : description,
@@ -234,6 +216,27 @@ function Catalog() {
       // not have to retype the whole product to find out which field it was.
       setFailure(error instanceof ApiError ? error.message : "Could not save the product");
     }
+  }
+
+  function updatePrice(index: number, patch: Partial<DecimalMoneyRequest>) {
+    setDraft({
+      ...draft,
+      prices: draft.prices.map((price, priceIndex) =>
+        priceIndex === index ? { ...price, ...patch } : price,
+      ),
+    });
+  }
+
+  function addPrice() {
+    const used = new Set(draft.prices.map((price) => price.asset));
+    const asset = PRICING_CURRENCIES.find((currency) => !used.has(currency));
+    if (asset === undefined) return;
+    setDraft({ ...draft, prices: [...draft.prices, { amount: "", asset }] });
+  }
+
+  function removePrice(index: number) {
+    if (draft.prices.length === 1) return;
+    setDraft({ ...draft, prices: draft.prices.filter((_, priceIndex) => priceIndex !== index) });
   }
 
   /** Archiving retires a product. Payments already taken for it are untouched. */
@@ -315,11 +318,13 @@ function Catalog() {
                         {p.sku}
                       </TableCell>
                       <TableCell className="text-right">
-                        {/* One line per priced currency: a product priced in two
-                          currencies has two prices, not an average. */}
-                        <span className="flex flex-col items-end">
+                        {/* Keep prices on one row while space allows, then wrap
+                          without letting a long catalog widen the table. */}
+                        <span className="flex flex-wrap justify-end gap-x-3 gap-y-1">
                           {p.prices.map((price) => (
-                            <span key={price.asset}>{price.display}</span>
+                            <span key={price.asset} className="whitespace-nowrap">
+                              {price.display}
+                            </span>
                           ))}
                         </span>
                       </TableCell>
@@ -412,40 +417,88 @@ function Catalog() {
                 />
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="product-currency">Currency</FieldLabel>
-                <Select
-                  items={CURRENCY_OPTIONS}
-                  value={draft.currency}
-                  onValueChange={(next) => setDraft({ ...draft, currency: next })}
-                >
-                  <SelectTrigger id="product-currency">
-                    <SelectValue placeholder="Select a currency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="product-price">Price</FieldLabel>
-                <CurrencyInput
-                  id="product-price"
-                  asset={draft.currency}
-                  value={draft.amount}
-                  onValueChange={(amount) => setDraft({ ...draft, amount })}
-                  aria-describedby="product-price-hint"
-                  placeholder="25.000,00"
-                />
-                <FieldDescription id="product-price-hint">
-                  Use local currency format, e.g. 25.000,00.
+              <FieldSet>
+                <FieldLegend>Prices</FieldLegend>
+                <FieldDescription id="product-prices-hint" className="mt-px mb-3">
+                  Add one explicit price for each currency you accept. Removing a currency can make
+                  existing catalog payment links in that currency unavailable.
                 </FieldDescription>
-              </Field>
+                <div className="flex flex-col gap-3">
+                  {draft.prices.map((price, index) => {
+                    const currencyId = `product-currency-${index}`;
+                    const priceId = `product-price-${index}`;
+                    const usedByAnotherRow = new Set(
+                      draft.prices
+                        .filter((_, priceIndex) => priceIndex !== index)
+                        .map((entry) => entry.asset),
+                    );
+
+                    return (
+                      <div
+                        key={price.asset}
+                        className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_2.5rem] items-end gap-2"
+                      >
+                        <Field>
+                          <FieldLabel htmlFor={currencyId}>Currency {index + 1}</FieldLabel>
+                          <Select
+                            items={CURRENCY_OPTIONS}
+                            value={price.asset}
+                            onValueChange={(asset) => updatePrice(index, { asset, amount: "" })}
+                          >
+                            <SelectTrigger id={currencyId}>
+                              <SelectValue placeholder="Select a currency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CURRENCY_OPTIONS.map((option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                  disabled={usedByAnotherRow.has(option.value)}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor={priceId}>Amount</FieldLabel>
+                          <CurrencyInput
+                            id={priceId}
+                            asset={price.asset}
+                            value={price.amount}
+                            onValueChange={(amount) => updatePrice(index, { amount })}
+                            aria-describedby="product-prices-hint"
+                            placeholder="25.000,00"
+                          />
+                        </Field>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-10"
+                          aria-label={`Remove ${price.asset} price`}
+                          disabled={draft.prices.length === 1}
+                          onClick={() => removePrice(index)}
+                        >
+                          <TrashIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {draft.prices.length < PRICING_CURRENCIES.length && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="self-start"
+                    onClick={addPrice}
+                  >
+                    <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                    Add price
+                  </Button>
+                )}
+              </FieldSet>
 
               <Field>
                 <FieldLabel htmlFor="product-description">Description</FieldLabel>

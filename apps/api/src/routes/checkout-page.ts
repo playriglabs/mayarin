@@ -198,7 +198,7 @@ export function checkoutPageRoutes(container: Container): Hono {
    */
   app.get("/:linkId", async (c) => {
     const link = await container.catalog.getLink(c.req.param("linkId"));
-    const payable = isLinkPayable(link, new Date());
+    const offeredByLink = isLinkPayable(link, new Date());
 
     // A catalog link's total lives in the products, so the page cannot add it
     // up; an open link has no total until the buyer types one. Both are the
@@ -207,6 +207,8 @@ export function checkoutPageRoutes(container: Container): Hono {
       link.kind === "open"
         ? undefined
         : await container.commerce.previewLink(link.id).catch(() => undefined);
+    const priceable = link.kind === "open" || preview !== undefined;
+    const payable = offeredByLink && priceable;
 
     // The rails, not a chain and a union of assets (#244): this merchant on
     // this deployment, filtered per chain, with the reasons already applied.
@@ -228,9 +230,11 @@ export function checkoutPageRoutes(container: Container): Hono {
           preview,
           rails: await payerRails(container, offered),
           unpayableReason:
-            payable && offered.length === 0 && link.rails !== undefined
-              ? `This link only accepts ${link.rails.map((rail) => `${rail.asset} on ${chainLabel(rail.chain)}`).join(", ")}, which the merchant cannot be paid on right now.`
-              : null,
+            offeredByLink && !priceable
+              ? "This catalog price is no longer available. Contact the merchant for an updated payment link."
+              : payable && offered.length === 0 && link.rails !== undefined
+                ? `This link only accepts ${link.rails.map((rail) => `${rail.asset} on ${chainLabel(rail.chain)}`).join(", ")}, which the merchant cannot be paid on right now.`
+                : null,
           settlementAsset: report.settlementAsset,
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
