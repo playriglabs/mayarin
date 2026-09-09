@@ -641,15 +641,37 @@ try {
         operatorAfter - operatorBefore === amount - spent,
         "The operator's balance disagrees with what the swap consumed",
       );
-      // Held and booked have to be the same number. Change at the operator that
-      // the ledger does not know about, or a credit to the payer that no
-      // balance backs, are the two ways this rail quietly takes their money.
-      const surplus = (evidence.entries as readonly { account_code: string; amount: string }[])
-        .filter((entry) => entry.account_code === `PAYER_SURPLUS:${payWith}`)
-        .reduce((sum, entry) => sum + BigInt(entry.amount), 0n);
+      // Held and booked have to be the same number. Refundable change is a
+      // PAYER_SURPLUS liability; change below the asset's dust threshold is
+      // explicitly taken as FEE_REVENUE instead. Both use the PAYER_SURPLUS
+      // posting idempotency key and credit exactly one disposition account.
+      const changeCredits = (
+        evidence.entries as readonly {
+          account_code: string;
+          amount: string;
+          asset: string;
+          direction: string;
+          idempotency_key: string;
+        }[]
+      ).filter(
+        (entry) =>
+          entry.idempotency_key.endsWith(":PAYER_SURPLUS") &&
+          entry.direction === "CREDIT" &&
+          entry.asset === payWith &&
+          (entry.account_code === `PAYER_SURPLUS:${payWith}` ||
+            entry.account_code === `FEE_REVENUE:${payWith}`),
+      );
+      const bookedChange = changeCredits.reduce((sum, entry) => sum + BigInt(entry.amount), 0n);
+      const disposition = changeCredits.some(
+        (entry) => entry.account_code === `PAYER_SURPLUS:${payWith}`,
+      )
+        ? "refundable"
+        : "dust";
+      evidence.payerChange = { amount: bookedChange.toString(), asset: payWith, disposition };
+      await save();
       assert(
-        surplus === amount - spent,
-        `The payer's change is at the operator but not on the books: ${surplus} booked, ${amount - spent} held`,
+        bookedChange === amount - spent,
+        `The payer's change is at the operator but not on the books: ${bookedChange} booked, ${amount - spent} held`,
       );
     } else {
       assert(
