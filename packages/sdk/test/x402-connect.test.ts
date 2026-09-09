@@ -10,14 +10,17 @@ import {
 } from "@mayarin/x402";
 import { EXAMPLE_PAYMENT_PAYLOAD, EXAMPLE_PAYMENT_REQUIRED } from "@mayarin/x402/testing";
 import { createX402Gate } from "../src/x402.ts";
-import { x402Connect } from "../src/x402-connect.ts";
+import { type X402ConnectOptions, x402Connect } from "../src/x402-connect.ts";
 
 /**
  * The adapter over a real socket: connect middleware is a `node:http` shape,
  * so it is tested against one. Mayarin is still faked — the gate's `fetch` is
  * injected, and the fake records what the payer's HTTP did.
  */
-function startApp(routes: Record<string, () => Response | undefined>): Promise<Server> {
+function startApp(
+  routes: Record<string, () => Response | undefined>,
+  options: X402ConnectOptions = {},
+): Promise<Server> {
   const mayarin = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const route = routes[`${init?.method ?? "GET"} ${String(input)}`];
     const response = route?.();
@@ -33,7 +36,7 @@ function startApp(routes: Record<string, () => Response | undefined>): Promise<S
   let handlerRuns = 0;
 
   const server = createServer((req, res) => {
-    x402Connect(gate)(req, res, () => {
+    x402Connect(gate, options)(req, res, () => {
       handlerRuns++;
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json");
@@ -91,10 +94,32 @@ describe("x402Connect", () => {
     const response = await fetch(urlOf(server));
     expect(response.status).toBe(402);
     expect(response.headers.get(PAYMENT_REQUIRED_HEADER)).not.toBeNull();
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(decodePaymentRequired(response.headers.get(PAYMENT_REQUIRED_HEADER) ?? "")).toEqual(
       EXAMPLE_PAYMENT_REQUIRED,
     );
     expect(await response.text()).toBe("");
+  });
+
+  test("an unpaid browser request may receive a human-facing body", async () => {
+    const server = await startApp(
+      { [QUOTE_URL]: quote },
+      {
+        paymentRequiredView: (decision, req) =>
+          req.headers.accept?.includes("text/html")
+            ? {
+                body: `<h1>${decision.paymentRequired.resource.description}</h1>`,
+                contentType: "text/html; charset=utf-8",
+              }
+            : undefined,
+      },
+    );
+    servers.push(server);
+    const response = await fetch(urlOf(server), { headers: { Accept: "text/html" } });
+    expect(response.status).toBe(402);
+    expect(response.headers.get(PAYMENT_REQUIRED_HEADER)).not.toBeNull();
+    expect(response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
+    expect(await response.text()).toBe(`<h1>${EXAMPLE_PAYMENT_REQUIRED.resource.description}</h1>`);
   });
 
   test("a paid request runs the handler once and carries PAYMENT-RESPONSE", async () => {

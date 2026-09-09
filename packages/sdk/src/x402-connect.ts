@@ -15,7 +15,8 @@
  *
  * Semantics, all decided by the core (`./x402.ts`) and only spelled here:
  *
- * - unpaid → `402` with `PAYMENT-REQUIRED`, empty body — the spec's shape.
+ * - unpaid → `402` with `PAYMENT-REQUIRED`; an adapter option may add a
+ *   human-facing body while the default remains empty.
  * - replayed → the recorded response again, verbatim; `next` never runs.
  * - settled → `PAYMENT-RESPONSE` is set first, then the merchant's handler
  *   runs, then the response is recorded for replay once it has finished.
@@ -35,7 +36,7 @@ import {
   PAYMENT_RESPONSE_HEADER,
   PAYMENT_SIGNATURE_HEADER,
 } from "@mayarin/x402";
-import type { X402Gate, X402ServedResponse } from "./x402.ts";
+import type { X402Gate, X402GateDecision, X402ServedResponse } from "./x402.ts";
 import { MayarinX402Error } from "./x402.ts";
 
 type NextHandleFunction = (
@@ -44,7 +45,26 @@ type NextHandleFunction = (
   next: (err?: unknown) => void,
 ) => void;
 
-export function x402Connect(gate: X402Gate): NextHandleFunction {
+type PaymentRequiredDecision = Extract<X402GateDecision, { readonly kind: "payment-required" }>;
+
+/** Optional representation for a human visiting a paid endpoint in a browser. */
+export interface X402PaymentRequiredView {
+  readonly body: string;
+  readonly contentType: string;
+}
+
+export interface X402ConnectOptions {
+  /**
+   * Render a body for an unpaid request, or return `undefined` to keep the
+   * protocol-only empty response. The `PAYMENT-REQUIRED` header is always set.
+   */
+  readonly paymentRequiredView?: (
+    decision: PaymentRequiredDecision,
+    req: IncomingMessage,
+  ) => X402PaymentRequiredView | undefined;
+}
+
+export function x402Connect(gate: X402Gate, options: X402ConnectOptions = {}): NextHandleFunction {
   return (req, res, next) => {
     const signature = req.headers[PAYMENT_SIGNATURE_HEADER.toLowerCase()];
     if (Array.isArray(signature)) {
@@ -59,7 +79,14 @@ export function x402Connect(gate: X402Gate): NextHandleFunction {
         if (decision.kind === "payment-required") {
           res.statusCode = PAYMENT_REQUIRED_STATUS;
           res.setHeader(PAYMENT_REQUIRED_HEADER, decision.paymentRequiredHeader);
-          res.end();
+          res.setHeader("Cache-Control", "no-store");
+          const view = options.paymentRequiredView?.(decision, req);
+          if (view === undefined) {
+            res.end();
+            return;
+          }
+          res.setHeader("Content-Type", view.contentType);
+          res.end(view.body);
           return;
         }
 
