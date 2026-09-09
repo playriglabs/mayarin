@@ -48,4 +48,15 @@ export {
   verifyWebhook,
   type WebhookVerificationCode,
 } from "./webhooks.ts";
+export {
+  createReplayStore,
+  createX402Gate,
+  MayarinX402Error,
+  type X402Gate,
+  type X402GateConfig,
+  type X402GateDecision,
+  type X402GateErrorCode,
+  type X402ReplayStore,
+  type X402ServedResponse,
+} from "./x402.ts";
 export type { X402ResourcesModule } from "./x402-resources.ts";
