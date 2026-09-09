@@ -5,13 +5,15 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./browser": "./src/browser.ts"
+    "./browser": "./src/browser.ts",
+    "./x402/connect": "./src/x402-connect.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mayarin/qr-parser": "workspace:*"
+    "@mayarin/qr-parser": "workspace:*",
+    "@mayarin/x402": "workspace:*"
   },
   "devDependencies": {
     "@mayarin/api": "workspace:*"

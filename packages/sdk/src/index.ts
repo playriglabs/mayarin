@@ -33,6 +33,7 @@ export function createMayarin(config: MayarinConfig): MayarinClient {
   };
 }
 
+export type { X402ResourceBody, X402ResourceDto } from "@mayarin/api/dto";
 export type { ClientConfig } from "./client.ts";
 export type { CommerceModule } from "./commerce.ts";
 export { isMayarinApiError, MayarinApiError } from "./errors.ts";
@@ -48,4 +49,15 @@ export {
   verifyWebhook,
   type WebhookVerificationCode,
 } from "./webhooks.ts";
+export {
+  createReplayStore,
+  createX402Gate,
+  MayarinX402Error,
+  type X402Gate,
+  type X402GateConfig,
+  type X402GateDecision,
+  type X402GateErrorCode,
+  type X402ReplayStore,
+  type X402ServedResponse,
+} from "./x402.ts";
 export type { X402ResourcesModule } from "./x402-resources.ts";
