@@ -1,4 +1,4 @@
 {
   "title": "TypeScript",
-  "pages": ["index", "server", "browser", "payments", "commerce", "webhooks", "reference"]
+  "pages": ["index", "server", "browser", "payments", "commerce", "webhooks", "x402", "reference"]
 }

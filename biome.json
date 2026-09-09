@@ -14,6 +14,7 @@
       "**/*.mjs",
       "**/*.json",
       "!**/migrations",
+      "!apps/docs/src/lib/openapi.json",
       "!packages/contracts/*/lib",
       "!packages/subgraph/abis",
       "!packages/subgraph/generated",
