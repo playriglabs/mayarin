@@ -860,10 +860,10 @@ function PaymentLinks() {
         )}
 
       <Dialog open={creating} onOpenChange={(next) => !next && setCreating(false)}>
-        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto p-5 sm:p-6">
+        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
           <DialogHeader>
             <DialogTitle>New payment link</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="mt-px">
               Every buyer who opens this link gets their own payment, priced when they open it.
             </DialogDescription>
           </DialogHeader>
@@ -1037,8 +1037,8 @@ function PaymentLinks() {
                         className={cn(
                           "flex min-h-11 cursor-pointer items-center gap-3 border p-3 transition-colors",
                           picked
-                            ? "border-subtle-foreground bg-primary/5"
-                            : "border-border hover:border-subtle-foreground",
+                            ? "border-brand bg-brand-muted dark:border-subtle-foreground dark:bg-primary/5"
+                            : "border-border bg-card hover:border-subtle-foreground hover:bg-muted/50",
                         )}
                       >
                         <Checkbox

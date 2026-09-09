@@ -429,7 +429,7 @@ export function PlatformInAction() {
     >
       <div class="mx-auto grid w-full max-w-300 gap-8 px-6 md:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:gap-20">
         <div>
-          <p data-platform-kicker class="mb-3 ml-1 text-[15px] font-medium text-forest">
+          <p data-platform-kicker class="mb-2 ml-1 text-[15px] font-medium text-forest">
             Mayarin platform
           </p>
           <h2 class="perspective-midrange">

@@ -103,6 +103,8 @@ describe("link page", () => {
     expect(html).toContain('type="radio"');
     expect(html).toContain("USDC");
     expect(html).toContain("exact price is locked for 15 minutes");
+    expect(html).toContain("Calculating price…");
+    expect(html).toContain("disabled");
     // The QR that used to sit here encoded the page's own URL. It belongs to
     // the counter — the dashboard's "Take payment" — not to the buyer.
     expect(html).not.toContain("<svg");

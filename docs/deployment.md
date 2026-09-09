@@ -97,8 +97,9 @@ value deliberately and verify it against the mainnet deployment record.
 ## Manual Deployment
 
 `bun run deploy:testnet` runs steps 1–7 below in order. Its flags map onto the
-steps: `--migrate` enables step 4, `--only services,dashboard,demo` narrows
-steps 5–6, `--skip-gate` skips step 1 after a just-green local run. The
+steps: `--migrate` enables step 4 for schema and stored-data migrations,
+`--only services,dashboard,demo` narrows steps 5–6, `--skip-gate` skips step 1
+after a just-green local run. The
 sections below remain the reference for what each step means and for running
 any step by hand.
 

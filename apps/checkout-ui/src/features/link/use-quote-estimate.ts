@@ -1,5 +1,44 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Rail } from "../../shared/types.ts";
+
+export type QuoteEstimate =
+  | { readonly status: "idle"; readonly display: "Enter an amount" }
+  | { readonly status: "loading"; readonly display: "Calculating…" }
+  | { readonly status: "available"; readonly display: string }
+  | { readonly status: "unavailable"; readonly display: "Unavailable"; readonly message: string };
+
+const CALCULATING: QuoteEstimate = { status: "loading", display: "Calculating…" };
+const ENTER_AMOUNT: QuoteEstimate = { status: "idle", display: "Enter an amount" };
+const QUOTE_UNAVAILABLE =
+  "This payment method cannot be priced right now. Choose another option or refresh the page.";
+const QUOTE_REQUEST_FAILED =
+  "We couldn't calculate this price. Check your connection, then refresh the page.";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/** Turns an untrusted quote response into the only states the checkout can render. */
+export function quoteEstimateFrom(payload: unknown): QuoteEstimate {
+  if (!isRecord(payload) || !Array.isArray(payload.quotes)) {
+    return { status: "unavailable", display: "Unavailable", message: QUOTE_UNAVAILABLE };
+  }
+
+  const line: unknown = payload.quotes[0];
+  if (!isRecord(line) || line.available !== true) {
+    return { status: "unavailable", display: "Unavailable", message: QUOTE_UNAVAILABLE };
+  }
+
+  const amount = line.amount;
+  const display = isRecord(amount) ? amount.display : undefined;
+  return typeof display === "string" && display !== ""
+    ? { status: "available", display }
+    : { status: "unavailable", display: "Unavailable", message: QUOTE_UNAVAILABLE };
+}
+
+export function canContinueWithQuote(estimate: QuoteEstimate): boolean {
+  return estimate.status === "available";
+}
 
 /**
  * The body `POST /v1/quotes` is asked with.
@@ -41,32 +80,41 @@ export function useQuoteEstimate(
   currency: string | null,
   rail: Rail | undefined,
   settlementAsset: string,
-): string {
-  const [estimate, setEstimate] = useState("Calculating…");
-  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+): QuoteEstimate {
+  const [estimate, setEstimate] = useState<QuoteEstimate>(CALCULATING);
 
   useEffect(() => {
     if (currency === null || rail === undefined || Number(typedAmount) <= 0) {
-      setEstimate("Enter an amount");
+      setEstimate(ENTER_AMOUNT);
       return;
     }
-    clearTimeout(debounce.current);
-    setEstimate("Calculating…");
-    debounce.current = setTimeout(async () => {
+
+    const controller = new AbortController();
+    setEstimate(CALCULATING);
+    const debounce = setTimeout(async () => {
       try {
         const response = await fetch("/v1/quotes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(quoteBody(typedAmount, currency, rail, settlementAsset)),
+          signal: controller.signal,
         });
-        const payload = await response.json();
-        const line = payload?.quotes?.[0];
-        setEstimate(line?.available ? line.amount.display : "Unavailable");
-      } catch {
-        setEstimate("Unavailable");
+        const payload: unknown = await response.json();
+        setEstimate(quoteEstimateFrom(payload));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setEstimate({
+          status: "unavailable",
+          display: "Unavailable",
+          message: QUOTE_REQUEST_FAILED,
+        });
       }
     }, 400);
-    return () => clearTimeout(debounce.current);
+
+    return () => {
+      clearTimeout(debounce);
+      controller.abort();
+    };
   }, [typedAmount, currency, rail, settlementAsset]);
 
   return estimate;

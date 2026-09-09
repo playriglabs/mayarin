@@ -58,7 +58,7 @@ export interface AssetDefinition {
 }
 
 const DEFINITIONS = {
-  // Fiat
+  // Southeast Asian fiat
   IDR: {
     kind: "fiat",
     decimals: 2,
@@ -66,15 +66,7 @@ const DEFINITIONS = {
     symbol: "Rp",
     name: "Indonesian Rupiah",
   },
-  USD: {
-    kind: "fiat",
-    decimals: 2,
-    iso4217Numeric: "840",
-    symbol: "$",
-    name: "United States Dollar",
-  },
   SGD: { kind: "fiat", decimals: 2, iso4217Numeric: "702", symbol: "S$", name: "Singapore Dollar" },
-  THB: { kind: "fiat", decimals: 2, iso4217Numeric: "764", symbol: "฿", name: "Thai Baht" },
   MYR: {
     kind: "fiat",
     decimals: 2,
@@ -82,6 +74,55 @@ const DEFINITIONS = {
     symbol: "RM",
     name: "Malaysian Ringgit",
   },
+  THB: { kind: "fiat", decimals: 2, iso4217Numeric: "764", symbol: "฿", name: "Thai Baht" },
+  PHP: { kind: "fiat", decimals: 2, iso4217Numeric: "608", symbol: "₱", name: "Philippine Peso" },
+  VND: { kind: "fiat", decimals: 0, iso4217Numeric: "704", symbol: "₫", name: "Vietnamese Dong" },
+  BND: { kind: "fiat", decimals: 2, iso4217Numeric: "096", symbol: "B$", name: "Brunei Dollar" },
+  MMK: { kind: "fiat", decimals: 2, iso4217Numeric: "104", symbol: "K", name: "Myanmar Kyat" },
+  KHR: { kind: "fiat", decimals: 2, iso4217Numeric: "116", symbol: "៛", name: "Cambodian Riel" },
+  LAK: { kind: "fiat", decimals: 2, iso4217Numeric: "418", symbol: "₭", name: "Lao Kip" },
+
+  // Global and East Asian fiat
+  USD: {
+    kind: "fiat",
+    decimals: 2,
+    iso4217Numeric: "840",
+    symbol: "$",
+    name: "United States Dollar",
+  },
+  JPY: { kind: "fiat", decimals: 0, iso4217Numeric: "392", symbol: "¥", name: "Japanese Yen" },
+  CNY: { kind: "fiat", decimals: 2, iso4217Numeric: "156", symbol: "CN¥", name: "Chinese Yuan" },
+  HKD: {
+    kind: "fiat",
+    decimals: 2,
+    iso4217Numeric: "344",
+    symbol: "HK$",
+    name: "Hong Kong Dollar",
+  },
+  EUR: { kind: "fiat", decimals: 2, iso4217Numeric: "978", symbol: "€", name: "Euro" },
+  GBP: { kind: "fiat", decimals: 2, iso4217Numeric: "826", symbol: "£", name: "Pound Sterling" },
+  AUD: {
+    kind: "fiat",
+    decimals: 2,
+    iso4217Numeric: "036",
+    symbol: "A$",
+    name: "Australian Dollar",
+  },
+  CAD: { kind: "fiat", decimals: 2, iso4217Numeric: "124", symbol: "C$", name: "Canadian Dollar" },
+
+  // Middle Eastern fiat
+  AED: {
+    kind: "fiat",
+    decimals: 2,
+    iso4217Numeric: "784",
+    symbol: "د.إ",
+    name: "UAE Dirham",
+  },
+  SAR: { kind: "fiat", decimals: 2, iso4217Numeric: "682", symbol: "ر.س", name: "Saudi Riyal" },
+
+  // Latin American fiat
+  BRL: { kind: "fiat", decimals: 2, iso4217Numeric: "986", symbol: "R$", name: "Brazilian Real" },
+  MXN: { kind: "fiat", decimals: 2, iso4217Numeric: "484", symbol: "MX$", name: "Mexican Peso" },
 
   // Settlement assets
   // One cent of change, which is below the smallest unit any of this is

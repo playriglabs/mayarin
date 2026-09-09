@@ -336,6 +336,9 @@
   .checkout-note strong {
     @apply font-semibold text-ink;
   }
+  .quote-error {
+    @apply mt-3 mb-0 text-xs leading-relaxed text-danger;
+  }
   .estimate-note {
     @apply mt-5.5 mb-0 text-xs leading-relaxed text-muted;
   }

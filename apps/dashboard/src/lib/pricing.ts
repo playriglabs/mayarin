@@ -50,6 +50,7 @@ export function isPricingCurrency(asset: string): asset is AssetCode {
 export function isValidAmount(value: string, asset: string): boolean {
   if (!isPricingCurrency(asset)) return false;
   const decimals = assetDecimals(asset);
+  if (decimals === 0) return /^\d+$/.test(value.trim());
   const pattern = new RegExp(`^\\d+(?:\\.\\d{1,${decimals}})?$`);
   return pattern.test(value.trim());
 }
@@ -82,13 +83,15 @@ export function normalizeAmountInput(value: string, asset: string): string | und
 
   if (commaFraction === undefined) {
     const decimals = assetDecimals(asset);
-    const canonicalDecimal = new RegExp(`^(\\d+)\\.(\\d{1,${decimals}})$`).exec(rawWhole);
+    const canonicalDecimal =
+      decimals === 0 ? null : new RegExp(`^(\\d+)\\.(\\d{1,${decimals}})$`).exec(rawWhole);
     if (canonicalDecimal !== null && !/^\d{1,3}(?:\.\d{3})+$/.test(rawWhole)) {
       [, whole = "", fraction] = canonicalDecimal;
     } else {
       whole = rawWhole.replaceAll(".", "");
     }
   } else {
+    if (assetDecimals(asset) === 0) return undefined;
     whole = rawWhole.replaceAll(".", "");
   }
 

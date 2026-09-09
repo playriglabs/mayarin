@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { checkoutBody } from "../features/link/checkout-body.ts";
 import type { LinkBootstrap } from "../features/link/types.ts";
-import { quoteBody } from "../features/link/use-quote-estimate.ts";
+import {
+  canContinueWithQuote,
+  quoteBody,
+  quoteEstimateFrom,
+} from "../features/link/use-quote-estimate.ts";
 import { remainingAt } from "../features/pay/countdown.ts";
 import { usableDeposit } from "../features/pay/payment-status.ts";
 import { isTerminal, paymentStage, statusWording } from "../features/pay/status-wording.ts";
@@ -30,7 +34,7 @@ describe("currency symbols", () => {
   });
 
   test("falls back to the currency code when no symbol is registered", () => {
-    expect(currencySymbol("EUR")).toBe("EUR");
+    expect(currencySymbol("XYZ")).toBe("XYZ");
     expect(currencySymbol(null)).toBe("");
   });
 });
@@ -145,12 +149,12 @@ describe("checkout body", () => {
       " 25000 ",
       USDC_ON_BASE,
     );
-    expect(body["amount"]).toEqual({ amount: "25000", asset: "IDR" });
+    expect(body.amount).toEqual({ amount: "25000", asset: "IDR" });
   });
 
   test("a priced link never sends an amount of its own", () => {
     const body = checkoutBody(linkBootstrap(), "999", USDC_ON_BASE);
-    expect(body["amount"]).toBeUndefined();
+    expect(body.amount).toBeUndefined();
   });
 });
 
@@ -171,5 +175,26 @@ describe("quote body", () => {
       chain: "arc-testnet",
       settlementAsset: "USDC",
     });
+  });
+
+  test("only a quote with a display amount can enable checkout", () => {
+    const available = quoteEstimateFrom({
+      quotes: [{ available: true, amount: { display: "154 USDC" } }],
+    });
+    const unavailable = quoteEstimateFrom({
+      quotes: [{ available: false, amount: null, reason: "JPY/USDC is not configured" }],
+    });
+
+    expect(available).toEqual({ status: "available", display: "154 USDC" });
+    expect(canContinueWithQuote(available)).toBe(true);
+    expect(unavailable.status).toBe("unavailable");
+    expect(canContinueWithQuote(unavailable)).toBe(false);
+  });
+
+  test("a malformed successful quote stays unavailable", () => {
+    const estimate = quoteEstimateFrom({ quotes: [{ available: true, amount: null }] });
+
+    expect(estimate.status).toBe("unavailable");
+    expect(canContinueWithQuote(estimate)).toBe(false);
   });
 });
