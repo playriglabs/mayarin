@@ -33,6 +33,7 @@ export function createMayarin(config: MayarinConfig): MayarinClient {
   };
 }
 
+export type { X402ResourceBody, X402ResourceDto } from "@mayarin/api/dto";
 export type { ClientConfig } from "./client.ts";
 export type { CommerceModule } from "./commerce.ts";
 export { isMayarinApiError, MayarinApiError } from "./errors.ts";
