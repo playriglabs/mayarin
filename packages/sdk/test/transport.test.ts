@@ -81,6 +81,20 @@ describe("idempotency keys", () => {
     await t.patch("/catalog/products/prd_1", { name: "Kopi" });
     expect(calls[0]?.headers.get("Idempotency-Key")).toBe("gen-2");
   });
+
+  test("a delete is a write and gets a key", async () => {
+    const { t, calls } = transport(
+      { generateIdempotencyKey: () => "gen-3" },
+      () => new Response(null, { status: 204 }),
+    );
+    await t.delete("/x402/resources/premium");
+    expect(calls[0]?.headers.get("Idempotency-Key")).toBe("gen-3");
+  });
+
+  test("a 204 delete resolves to undefined", async () => {
+    const { t } = transport({}, () => new Response(null, { status: 204 }));
+    expect(await t.delete("/x402/resources/premium")).toBeUndefined();
+  });
 });
 
 describe("requests", () => {
