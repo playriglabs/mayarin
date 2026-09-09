@@ -1,17 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { LogoLockup, LogoMark } from "./brand.tsx";
-import { CartDrawer, type CartLine } from "./CartDrawer.tsx";
-import { loadCart, type StoredCartLine, saveCart } from "./cart-storage.ts";
+import { useMemo, useState } from "react";
+import { LogoMark } from "./brand.tsx";
 import { Hero } from "./Hero.tsx";
-import { formatTime, loadHistory, type PurchaseEntry } from "./history.ts";
 import { ProductCard } from "./ProductCard.tsx";
 import { ProductDialog } from "./ProductDialog.tsx";
-import type { DemoProduct } from "./types.ts";
-
-type CatalogState =
-  | { readonly status: "loading" }
-  | { readonly status: "error"; readonly message: string }
-  | { readonly status: "ready"; readonly products: readonly DemoProduct[] };
+import type { CatalogState, DemoProduct } from "./types.ts";
 
 const SKELETON_SLOTS = ["s1", "s2", "s3", "s4", "s5", "s6"] as const;
 const ALL = "All";
@@ -20,49 +12,17 @@ const ALL = "All";
 const WORKSHOP_IMAGE =
   "https://images.unsplash.com/photo-1561578428-c59823044e25?auto=format&fit=crop&w=1200&q=82";
 
-export function Marketplace() {
-  const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" });
+export function Marketplace({
+  catalog,
+  addToCart,
+  onBuyNow,
+}: {
+  readonly catalog: CatalogState;
+  readonly addToCart: (product: DemoProduct, quantity: number) => void;
+  readonly onBuyNow: (product: DemoProduct, quantity: number) => void;
+}) {
   const [category, setCategory] = useState<string>(ALL);
   const [selected, setSelected] = useState<DemoProduct | undefined>(undefined);
-  const [history, setHistory] = useState<readonly PurchaseEntry[]>([]);
-  const [cart, setCart] = useState<readonly StoredCartLine[]>(loadCart);
-  const [cartOpen, setCartOpen] = useState(false);
-
-  useEffect(() => {
-    saveCart(cart);
-  }, [cart]);
-
-  useEffect(() => {
-    setHistory(loadHistory());
-    let cancelled = false;
-    fetch("/api/products")
-      .then(async (response) => {
-        if (!response.ok) {
-          const body = (await response.json().catch(() => undefined)) as
-            | { error?: string }
-            | undefined;
-          throw new Error(body?.error ?? `HTTP ${response.status}`);
-        }
-        return (await response.json()) as { products: readonly DemoProduct[] };
-      })
-      .then((body) => {
-        if (!cancelled) setCatalog({ status: "ready", products: body.products });
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setCatalog({
-            status: "error",
-            message:
-              error instanceof Error
-                ? `The catalog could not be loaded. ${error.message}`
-                : "The catalog could not be loaded.",
-          });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const products = catalog.status === "ready" ? catalog.products : [];
 
@@ -84,58 +44,12 @@ export function Marketplace() {
 
   const visible =
     category === ALL ? products : products.filter((p) => p.metadata.category === category);
-  /** The stored ids joined against the catalog; a product that is gone drops out. */
-  const cartLines: readonly CartLine[] = useMemo(
-    () =>
-      cart.flatMap((line) => {
-        const product = products.find((p) => p.id === line.productId);
-        return product === undefined ? [] : [{ product, quantity: line.quantity }];
-      }),
-    [cart, products],
-  );
-  const cartCount = cartLines.reduce((sum, line) => sum + line.quantity, 0);
-
-  const addToCart = (product: DemoProduct, quantity: number) => {
-    setCart((current) => {
-      const existing = current.find((line) => line.productId === product.id);
-      return existing === undefined
-        ? [...current, { productId: product.id, quantity }]
-        : current.map((line) =>
-            line.productId === product.id
-              ? { ...line, quantity: Math.min(9, line.quantity + quantity) }
-              : line,
-          );
-    });
-    setCartOpen(true);
-  };
 
   return (
     <>
       <a className="skip-link" href="#koleksi">
         Skip to the collection
       </a>
-      <p className="announce">
-        Demo store — orders do not ship. Payments run on the Mayarin testnet.
-      </p>
-
-      <header className="masthead">
-        <a href="#atas" className="brand-link" aria-label="Parahyangan Supply">
-          <LogoLockup />
-        </a>
-        <nav aria-label="Primary" className="site-nav">
-          <a href="#koleksi">Collection</a>
-          <a href="#riwayat">History</a>
-          <a href="#tentang">About</a>
-        </nav>
-        <button
-          type="button"
-          className="cart-trigger"
-          aria-label={`Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}
-          onClick={() => setCartOpen(true)}
-        >
-          Cart <span aria-hidden="true">{cartCount}</span>
-        </button>
-      </header>
 
       <Hero products={products} onView={setSelected} />
 
@@ -265,52 +179,6 @@ export function Marketplace() {
         )}
       </main>
 
-      <section className="history" id="riwayat">
-        <h2>Purchase history</h2>
-        <p className="notice mt-2">
-          Recent checkouts made in this browser. This is not a customer account — the history lives
-          only on this device.
-        </p>
-        {history.length === 0 ? (
-          <p className="notice mt-4">No purchases have been made on this device yet.</p>
-        ) : (
-          <>
-            <ol className="receipts">
-              {history.map((entry) => (
-                <li key={entry.paymentId ?? entry.linkId}>
-                  <div className="receipt-main">
-                    <span className="receipt-name">
-                      {entry.name} × {entry.quantity}
-                    </span>
-                    <time dateTime={entry.at}>{formatTime(entry.at)}</time>
-                  </div>
-                  <div className="receipt-side">
-                    <span className="price">{entry.total}</span>
-                    {entry.paymentId === undefined ? (
-                      <span className="payment-status pending">Pending payment</span>
-                    ) : (
-                      <>
-                        <span className="payment-status successful">Completed</span>
-                        <a
-                          href={`/checkout/success/${encodeURIComponent(entry.paymentId)}`}
-                          className="payment-reference"
-                        >
-                          View payment status
-                        </a>
-                        <code>{entry.paymentId}</code>
-                      </>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="notice">
-              An entry is marked completed after the signed payment webhook is verified.
-            </p>
-          </>
-        )}
-      </section>
-
       <section className="about" id="tentang">
         <figure className="about-media">
           <img
@@ -348,33 +216,20 @@ export function Marketplace() {
         <span className="colophon-mark">
           <LogoMark size={28} />
         </span>
-        <p>© 2026 Parahyangan Supply, Bandung. Payments powered by Mayarin.</p>
+        <p>© 2026 Parahyangan Supply, Bandung.</p>
       </footer>
 
       {selected !== undefined && (
         <ProductDialog
           product={selected}
           onAddToCart={addToCart}
+          onBuyNow={(product, quantity) => {
+            setSelected(undefined);
+            onBuyNow(product, quantity);
+          }}
           onClose={() => setSelected(undefined)}
         />
       )}
-      <CartDrawer
-        lines={cartLines}
-        open={cartOpen}
-        onClose={() => setCartOpen(false)}
-        onQuantity={(productId, quantity) =>
-          setCart((current) =>
-            quantity <= 0
-              ? current.filter((line) => line.productId !== productId)
-              : current.map((line) =>
-                  line.productId === productId ? { ...line, quantity } : line,
-                ),
-          )
-        }
-        onRemove={(productId) =>
-          setCart((current) => current.filter((line) => line.productId !== productId))
-        }
-      />
     </>
   );
 }

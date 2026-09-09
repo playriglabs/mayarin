@@ -5,13 +5,11 @@
  * for names and prices, so a stored line whose product no longer exists
  * drops out when the cart is joined against the loaded catalog.
  *
- * A cart checkout marks itself in sessionStorage before the redirect. The
- * success page clears the stored cart only when that mark is present, so a
- * single-product "Buy now" never empties an unrelated cart.
+ * A cart-sourced order is cleared at the shipping step, once the order is
+ * persisted — a "Buy now" checkout never touches the cart at all.
  */
 
 const STORAGE_KEY = "parahyangan-supply:cart";
-const CART_CHECKOUT_KEY = "parahyangan-supply:cart-checkout";
 
 export interface StoredCartLine {
   readonly productId: string;
@@ -46,23 +44,5 @@ export function saveCart(lines: readonly StoredCartLine[]): void {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
   } catch {
     // A full or blocked storage must not break the cart.
-  }
-}
-
-export function markCartCheckout(): void {
-  try {
-    window.sessionStorage.setItem(CART_CHECKOUT_KEY, "1");
-  } catch {
-    // Without the mark the cart survives the checkout — annoying, not fatal.
-  }
-}
-
-export function clearCartAfterCheckout(): void {
-  try {
-    if (window.sessionStorage.getItem(CART_CHECKOUT_KEY) === null) return;
-    window.sessionStorage.removeItem(CART_CHECKOUT_KEY);
-    window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Storage failure must not hide the payment success page.
   }
 }

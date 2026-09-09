@@ -24,3 +24,8 @@ export interface DemoProduct {
    */
   readonly metadata: Readonly<Record<string, string>>;
 }
+
+export type CatalogState =
+  | { readonly status: "loading" }
+  | { readonly status: "error"; readonly message: string }
+  | { readonly status: "ready"; readonly products: readonly DemoProduct[] };

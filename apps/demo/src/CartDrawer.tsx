@@ -1,6 +1,4 @@
 import { useEffect, useRef } from "react";
-import { CheckoutButton } from "./CheckoutButton.tsx";
-import { markCartCheckout } from "./cart-storage.ts";
 import { formatIdrMinorUnits } from "./money.ts";
 import { CURRENCY } from "./ProductCard.tsx";
 import type { DemoProduct } from "./types.ts";
@@ -26,12 +24,15 @@ export function CartDrawer({
   onClose,
   onQuantity,
   onRemove,
+  onCheckout,
 }: {
   readonly lines: readonly CartLine[];
   readonly open: boolean;
   readonly onClose: () => void;
   readonly onQuantity: (productId: string, quantity: number) => void;
   readonly onRemove: (productId: string) => void;
+  /** Parks the cart lines as a checkout draft and moves to the shipping step. */
+  readonly onCheckout: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -138,14 +139,9 @@ export function CartDrawer({
             <span>Total</span>
             <strong>{formatIdrMinorUnits(total)}</strong>
           </div>
-          <CheckoutButton
-            lines={lines.map((line) => ({ productId: line.product.id, quantity: line.quantity }))}
-            label="Checkout cart"
-            purchaseName={`${lines.length} products`}
-            purchaseQuantity={itemCount}
-            total={formatIdrMinorUnits(total)}
-            onRedirect={markCartCheckout}
-          />
+          <button type="button" className="btn-primary" onClick={onCheckout}>
+            Checkout cart
+          </button>
         </>
       )}
     </dialog>

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckoutButton } from "./CheckoutButton.tsx";
 import { lineTotal } from "./money.ts";
 import { CURRENCY } from "./ProductCard.tsx";
 import { ProductImage } from "./product-art.tsx";
@@ -9,16 +8,19 @@ const MAX_QUANTITY = 9;
 
 /**
  * The product detail view: bigger art, the full description, a quantity
- * stepper, and the one action that matters. Native `<dialog>` carries the
- * focus trap and the Escape key.
+ * stepper, and the two actions that matter. "Buy now" starts a transient
+ * checkout for this line alone — the cart is never touched. Native
+ * `<dialog>` carries the focus trap and the Escape key.
  */
 export function ProductDialog({
   product,
   onAddToCart,
+  onBuyNow,
   onClose,
 }: {
   readonly product: DemoProduct;
   readonly onAddToCart: (product: DemoProduct, quantity: number) => void;
+  readonly onBuyNow: (product: DemoProduct, quantity: number) => void;
   readonly onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -88,12 +90,16 @@ export function ProductDialog({
                   <span className="price total">{lineTotal(price.amount, quantity)}</span>
                 </p>
                 <div className="dialog-actions">
-                  <CheckoutButton
-                    lines={[{ productId: product.id, quantity }]}
-                    purchaseName={product.name}
-                    purchaseQuantity={quantity}
-                    total={lineTotal(price.amount, quantity)}
-                  />
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => {
+                      ref.current?.close();
+                      onBuyNow(product, quantity);
+                    }}
+                  >
+                    Buy now
+                  </button>
                   <button
                     type="button"
                     className="add-to-cart"

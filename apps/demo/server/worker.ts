@@ -71,6 +71,22 @@ const json = (body: unknown, status = 200): Response =>
 const paymentIdFrom = (pathname: string): string | undefined =>
   /^\/api\/payment-status\/([^/]+)$/.exec(pathname)?.[1];
 
+/**
+ * The storefront is a single-page app with real paths (`/history`,
+ * `/checkout/shipping`). With `_worker.js` mounted there is no automatic
+ * SPA fallback, so a deep link that matches no asset serves index.html.
+ */
+async function assetsResponse(request: Request, env: WorkerEnv): Promise<Response> {
+  const assets = await env.ASSETS.fetch(request);
+  if (assets.status !== 404 || request.method !== "GET") return assets;
+  const url = new URL(request.url);
+  if (url.pathname.includes(".")) return assets;
+  const index = await env.ASSETS.fetch(new Request(new URL("/", url)));
+  return index.status === 200
+    ? new Response(index.body, { status: 200, headers: index.headers })
+    : assets;
+}
+
 async function apiResponse(request: Request, env: WorkerEnv): Promise<Response | undefined> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/")) return undefined;
@@ -161,6 +177,6 @@ async function apiResponse(request: Request, env: WorkerEnv): Promise<Response |
 
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
-    return (await apiResponse(request, env)) ?? env.ASSETS.fetch(request);
+    return (await apiResponse(request, env)) ?? (await assetsResponse(request, env));
   },
 };

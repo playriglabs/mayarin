@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { clearCartAfterCheckout } from "./cart-storage.ts";
-import { recordSuccessfulPayment } from "./history.ts";
+import { markOrderPaid } from "./orders.ts";
 
 type PaymentState = "waiting" | "success" | "not-found" | "error";
 
@@ -83,8 +82,7 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
         if (!response.ok) throw new Error("Could not verify payment");
         if (stopped) return;
         if (body.success === true) {
-          recordSuccessfulPayment(referencePaymentId);
-          clearCartAfterCheckout();
+          markOrderPaid(referencePaymentId);
           setDetails(readDetails(body));
           setState("success");
         } else timer = setTimeout(() => void check(), 1_500);
@@ -163,9 +161,9 @@ export function PaymentSuccess({ referencePaymentId }: { readonly referencePayme
         <code className="block wrap-anywhere bg-mist px-4 py-3 text-sm">{referencePaymentId}</code>
         <a
           className="mt-8 inline-flex min-h-12 items-center justify-center border border-ink bg-ink px-6 font-bold text-white no-underline transition-colors hover:border-accent hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-          href="/"
+          href="/history"
         >
-          Back to the marketplace
+          View order history
         </a>
       </section>
     </main>
