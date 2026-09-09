@@ -12,6 +12,13 @@
  * that does not advertise it. `--check` stops after the preflight, before an
  * authorization is signed and before anything is spent.
  *
+ * **`--repeat N`** (#269), the delivery-policy evidence: the payer's HTTP
+ * response can be lost on the way back, and the retry carries the identical
+ * signature. The gate must re-serve the recorded response — same status, same
+ * `PAYMENT-RESPONSE`, same body — while the ledger still holds exactly one
+ * intent. Against a merchant-side gate; Mayarin's own `/x402` has no replay
+ * store, so a repeat there settles idempotently and serves fresh content.
+ *
  * **Cross-asset** (#211), where the agent holds one asset and the merchant is
  * paid another:
  *
@@ -374,12 +381,10 @@ try {
     // Keep the nonce even if the connection drops after the server broadcasts.
     await save();
     console.log("Signing one authorization and retrying the resource without an API key.");
+    const signatureHeader = Buffer.from(JSON.stringify(payment)).toString("base64");
     const paid = await fetch(
       url,
-      requestInit(
-        { [PAYMENT_SIGNATURE_HEADER]: Buffer.from(JSON.stringify(payment)).toString("base64") },
-        120_000,
-      ),
+      requestInit({ [PAYMENT_SIGNATURE_HEADER]: signatureHeader }, 120_000),
     );
     evidence.httpStatus = paid.status;
     evidence.body = await paid.text();
@@ -390,6 +395,40 @@ try {
     console.log(
       JSON.stringify({ phase: "response", status: paid.status, settlement, body: evidence.body }),
     );
+
+    // `--repeat N`: the identical signature again, N times in all. A gate that
+    // honours the delivery policy re-serves the recorded response verbatim —
+    // and the intent count asserted below is the charge side of the same claim.
+    const repeatCount = Number(argument("repeat") ?? 1);
+    assert(
+      Number.isInteger(repeatCount) && repeatCount >= 1,
+      "--repeat must be an integer of at least 1",
+    );
+    for (let attempt = 2; attempt <= repeatCount; attempt++) {
+      const again = await fetch(
+        url,
+        requestInit({ [PAYMENT_SIGNATURE_HEADER]: signatureHeader }, 120_000),
+      );
+      const againBody = await again.text();
+      assert(
+        again.status === paid.status,
+        `Retry ${attempt} answered HTTP ${again.status}; the first answered ${paid.status}`,
+      );
+      const againHeader = again.headers.get(PAYMENT_RESPONSE_HEADER);
+      assert(
+        againHeader === responseHeader,
+        `Retry ${attempt} carried a different PAYMENT-RESPONSE — it was not the recorded delivery`,
+      );
+      assert(
+        againBody === evidence.body,
+        `Retry ${attempt} served a different body — it was not the recorded delivery`,
+      );
+    }
+    if (repeatCount > 1) {
+      evidence.replays = repeatCount - 1;
+      await save();
+      console.log(JSON.stringify({ phase: "replay", repeated: repeatCount - 1, reServed: true }));
+    }
 
     const intents = await sql`
       select id,status,payment_chain,execution_path,clearing_transaction_id,failure_reason
