@@ -9,6 +9,7 @@
 import { type BaseMayarinClient, buildClient, type ClientConfig } from "./client.ts";
 import { type CommerceModule, createCommerceModule } from "./commerce.ts";
 import { createPaymentModule, type PaymentModule } from "./payment.ts";
+import { createX402ResourcesModule, type X402ResourcesModule } from "./x402-resources.ts";
 
 export interface MayarinConfig extends ClientConfig {
   /** Secret key minted on the dashboard (`/api-keys`). Server-side only. */
@@ -18,6 +19,8 @@ export interface MayarinConfig extends ClientConfig {
 export interface MayarinClient extends BaseMayarinClient {
   readonly commerce: CommerceModule;
   readonly payment: PaymentModule;
+  /** Agent-endpoint management (#269). Registration only — the request-time surface is keyless. */
+  readonly x402: { readonly resources: X402ResourcesModule };
 }
 
 export function createMayarin(config: MayarinConfig): MayarinClient {
@@ -26,6 +29,7 @@ export function createMayarin(config: MayarinConfig): MayarinClient {
     ...client,
     commerce: createCommerceModule(client.transport),
     payment: createPaymentModule(client.transport),
+    x402: { resources: createX402ResourcesModule(client.transport) },
   };
 }
 
@@ -44,3 +48,4 @@ export {
   verifyWebhook,
   type WebhookVerificationCode,
 } from "./webhooks.ts";
+export type { X402ResourcesModule } from "./x402-resources.ts";

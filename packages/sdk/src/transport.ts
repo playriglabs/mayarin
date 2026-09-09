@@ -42,6 +42,8 @@ export interface Transport {
   get<T>(path: string, options?: RequestOptions): Promise<T>;
   post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
   patch<T>(path: string, body: unknown, options?: RequestOptions): Promise<T>;
+  /** A write: gets an `Idempotency-Key` like every non-GET. A 204 resolves to `undefined`. */
+  delete<T>(path: string, options?: RequestOptions): Promise<T>;
 }
 
 export function createTransport(config: TransportConfig): Transport {
@@ -51,7 +53,7 @@ export function createTransport(config: TransportConfig): Transport {
   const baseUrl = `${config.baseUrl.replace(/\/+$/, "")}/v1`;
 
   async function request<T>(
-    method: "GET" | "POST" | "PATCH",
+    method: "GET" | "POST" | "PATCH" | "DELETE",
     path: string,
     body: unknown,
     options: RequestOptions,
@@ -103,6 +105,7 @@ export function createTransport(config: TransportConfig): Transport {
     get: (path, options = {}) => request("GET", path, undefined, options),
     post: (path, body, options = {}) => request("POST", path, body, options),
     patch: (path, body, options = {}) => request("PATCH", path, body, options),
+    delete: (path, options = {}) => request("DELETE", path, undefined, options),
   };
 }
 

@@ -10,9 +10,9 @@
 
 import { CHAIN_IDS } from "@mayarin/chain";
 import { assetCodeSchema } from "@mayarin/shared";
-import type { X402Resource } from "@mayarin/x402";
+import type { AssetTransferMethod, X402Resource } from "@mayarin/x402";
 import { z } from "zod";
-import { toMoneyDto } from "./money.ts";
+import { type MoneyDto, toMoneyDto } from "./money.ts";
 
 export const x402ResourceSchema = z
   .object({
@@ -41,7 +41,38 @@ export const x402ResourceSchema = z
 /** The merchant surface takes its merchant from the key, not from the body. */
 export const merchantX402ResourceSchema = x402ResourceSchema.omit({ merchantId: true });
 
-export function toX402ResourceDto(resource: X402Resource): Record<string, unknown> {
+/** The body both registration surfaces parse — one definition for API and SDK. */
+export type X402ResourceBody = z.infer<typeof merchantX402ResourceSchema>;
+
+/** One accepted payer rail, as the API answers it: the token's own terms echoed back. */
+export interface X402AcceptedAssetDto {
+  readonly chain: string;
+  readonly asset: string;
+  readonly contract: string;
+  readonly payTo: string;
+  /**
+   * Read off the contract at registration, never entered — the only place
+   * these two values ever come from is the token itself.
+   */
+  readonly transferMethod: AssetTransferMethod;
+  /** The token's EIP-712 name and version, as the token reports them. */
+  readonly domain: { readonly name: string; readonly version: string };
+}
+
+/** A registered x402 resource, as the merchant and admin surfaces answer it. */
+export interface X402ResourceDto {
+  readonly id: string;
+  readonly url: string;
+  readonly description?: string;
+  readonly mimeType?: string;
+  readonly price: MoneyDto;
+  readonly maxTimeoutSeconds: number;
+  /** Whether it appears in the public cross-merchant index (#273). */
+  readonly listed: boolean;
+  readonly accepts: readonly X402AcceptedAssetDto[];
+}
+
+export function toX402ResourceDto(resource: X402Resource): X402ResourceDto {
   return {
     id: resource.id,
     url: resource.url,
