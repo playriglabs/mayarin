@@ -11,8 +11,9 @@
  *   1. Local gate — `bun run check`, then build the checkout UI the API image
  *      must carry (`apps/checkout-ui`).
  *   2. Target validation — the project ID must name `mayarin-testnet`.
- *   3. Database migration — only with `--migrate`, through the checked-in
- *      Railway proxy helper.
+ *   3. Database migrations — only with `--migrate`, through the checked-in
+ *      Railway proxy helper. This includes data upgrades, not only schema
+ *      changes.
  *   4. Railway services, in dependency order: core-api, dashboard-api,
  *      chain-worker.
  *   5. Cloudflare surfaces: the dashboard (after its API answers healthy),
@@ -218,7 +219,7 @@ await validateTarget();
 if (flags.migrate) {
   await run("Migrate the testnet database", ["bun", "run", "db:migrate:railway"]);
 } else {
-  console.log("\n▶ Migration skipped. Pass --migrate when the schema changed.");
+  console.log("\n▶ Migration skipped. Pass --migrate when schema or stored data changed.");
 }
 
 if (wants("services")) {

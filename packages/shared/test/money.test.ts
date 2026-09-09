@@ -34,6 +34,12 @@ describe("fromDecimalString", () => {
     );
   });
 
+  test("supports zero-decimal currencies without inventing minor units", () => {
+    expect(fromDecimalString("1500", "JPY")).toEqual(money(1_500n, "JPY"));
+    expect(fromDecimalString("250000", "VND")).toEqual(money(250_000n, "VND"));
+    expect(() => fromDecimalString("1500.5", "JPY")).toThrow(ValidationError);
+  });
+
   test("rejects precision the asset cannot represent", () => {
     expect(() => fromDecimalString("1.234", "IDR")).toThrow(ValidationError);
   });
@@ -52,6 +58,7 @@ describe("toDecimalString", () => {
       ["0.000001", "USDC"],
       ["-12.34", "IDR"],
       ["1.000000000000000001", "ETH"],
+      ["1500", "JPY"],
     ] as const) {
       expect(toDecimalString(fromDecimalString(value, asset))).toBe(value);
     }

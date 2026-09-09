@@ -1,5 +1,6 @@
 import { assetSymbol } from "@mayarin/shared";
 import { Reveal } from "../reveal.tsx";
+import { CURRENCY_MARKETS } from "./currency-markets.ts";
 import { NetworkMarks } from "./network-marks.tsx";
 
 /**
@@ -7,12 +8,12 @@ import { NetworkMarks } from "./network-marks.tsx";
  * the page cannot show a currency Mayarin does not price in — or the wrong mark
  * for one it does.
  */
-const CURRENCIES = ["IDR", "USD", "SGD", "THB", "MYR"] as const;
+const CURRENCY_PREVIEW = CURRENCY_MARKETS.slice(0, 6);
 
 function CurrencyMarks() {
   return (
     <div class="mt-4 flex items-center justify-center -space-x-2">
-      {CURRENCIES.map((code) => (
+      {CURRENCY_PREVIEW.map(({ code }) => (
         <span
           key={code}
           title={code}
@@ -23,10 +24,13 @@ function CurrencyMarks() {
         </span>
       ))}
       <span
-        aria-hidden="true"
-        class="flex size-6.5 shrink-0 items-center justify-center rounded-full bg-v2-sage text-[11px] font-medium text-forest ring-2 ring-v2-mist"
+        title={`${CURRENCY_MARKETS.length - CURRENCY_PREVIEW.length} more currencies`}
+        class="flex h-6.5 min-w-8 shrink-0 items-center justify-center rounded-full bg-v2-sage px-1 text-[10px] font-medium text-forest ring-2 ring-v2-mist"
       >
-        +
+        <span aria-hidden="true">+{CURRENCY_MARKETS.length - CURRENCY_PREVIEW.length}</span>
+        <span class="sr-only">
+          {CURRENCY_MARKETS.length - CURRENCY_PREVIEW.length} more currencies
+        </span>
       </span>
     </div>
   );
@@ -39,9 +43,9 @@ function CurrencyMarks() {
  * open:
  *
  *   4      distinct networks in `CHAIN_IDS` (six ids, mainnet + testnet pairs)
- *   5      fiat entries in `packages/shared/src/asset.ts`
+ *   22     fiat entries in `packages/shared/src/asset.ts`
  *   3      `EXECUTION_PATHS` in `packages/core/payment-intent/src/types.ts`
- *   0.52s  Arc block time, measured over 1000 blocks — see ROADMAP.md
+ *   0      floating-point calculations in the money path
  */
 const FACTS = [
   {
@@ -50,7 +54,7 @@ const FACTS = [
     marks: true,
   },
   {
-    value: "5+",
+    value: `${CURRENCY_MARKETS.length}+`,
     label: "local currencies to price in",
     currencies: true,
   },
@@ -60,9 +64,9 @@ const FACTS = [
     detail: "Contract · Deposit · x402",
   },
   {
-    value: "0.52s",
-    label: "Arc block time, measured over 1,000 blocks",
-    detail: "",
+    value: "0",
+    label: "floating-point calculations",
+    detail: "Integer minor units, from price to settlement",
   },
 ] as const;
 
@@ -72,9 +76,9 @@ export function Facts() {
       <div class="mx-auto w-full max-w-300 px-6 md:px-10">
         <Reveal class="mx-auto max-w-155 text-center">
           <h2>
-            Countless currencies.
+            Local prices in.
             <br />
-            <span class="text-forest">No borders to cross.</span>
+            <span class="text-forest">Stable settlement out.</span>
           </h2>
         </Reveal>
 

@@ -511,8 +511,8 @@ function X402Resources() {
                         className={cn(
                           "flex cursor-pointer items-center gap-3 border p-3 transition-colors",
                           picked
-                            ? "border-subtle-foreground bg-primary/5"
-                            : "border-border hover:border-subtle-foreground",
+                            ? "border-brand bg-brand-muted dark:border-subtle-foreground dark:bg-primary/5"
+                            : "border-border bg-card hover:border-subtle-foreground hover:bg-muted/50",
                         )}
                       >
                         <Checkbox

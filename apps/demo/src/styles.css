@@ -54,6 +54,11 @@
   a {
     @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink;
   }
+  /* Tailwind v4's preflight resets buttons to `cursor: default` — a button
+     that does something should still point. */
+  button:not(:disabled) {
+    @apply cursor-pointer;
+  }
 }
 
 @layer components {

@@ -4,7 +4,7 @@ import { currencySymbol } from "../../shared/currency.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
 import { checkoutBody } from "./checkout-body.ts";
 import type { LinkBootstrap } from "./types.ts";
-import { useQuoteEstimate } from "./use-quote-estimate.ts";
+import { canContinueWithQuote, useQuoteEstimate } from "./use-quote-estimate.ts";
 
 /**
  * The link page: what is being bought, on which rail, and one button.
@@ -39,8 +39,10 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   // A merchant with no rail cannot be paid at all — say so, rather than
   // offering a button whose only outcome is a refusal.
   const payableNow = payable && rail !== undefined;
+  const quoteReady = canContinueWithQuote(estimate);
 
   async function pay() {
+    if (!payableNow || !quoteReady || busy) return;
     if (total === null && Number(amount) <= 0) {
       setError("Enter an amount first.");
       return;
@@ -132,17 +134,40 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
             <>
               <RailPicker rails={rails} selected={rail} onSelect={setRail} />
 
-              <div className="payment-estimate" aria-live="polite">
+              <div
+                className="payment-estimate"
+                aria-busy={estimate.status === "loading"}
+                aria-live="polite"
+              >
                 <span>Estimated total in {rail.asset}</span>
-                <strong>{estimate}</strong>
+                <strong>{estimate.display}</strong>
               </div>
+
+              {estimate.status === "unavailable" && (
+                <p className="quote-error" role="alert">
+                  {estimate.message}
+                </p>
+              )}
 
               <p className="checkout-note">
                 The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
                 <strong>{railSummary(rail)}</strong> to the address shown there.
               </p>
-              <button type="button" className="primary" disabled={busy} onClick={() => void pay()}>
-                {busy ? "Preparing payment…" : `Continue with ${rail.asset}`}
+              <button
+                type="button"
+                className="primary"
+                disabled={busy || !quoteReady}
+                onClick={() => void pay()}
+              >
+                {busy
+                  ? "Preparing payment…"
+                  : estimate.status === "unavailable"
+                    ? "Payment unavailable"
+                    : estimate.status === "idle"
+                      ? "Enter an amount to continue"
+                      : estimate.status === "loading"
+                        ? "Calculating price…"
+                        : `Continue with ${rail.asset}`}
               </button>
               {error !== "" && (
                 <p className="error" role="alert">

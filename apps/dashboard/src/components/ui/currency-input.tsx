@@ -1,3 +1,4 @@
+import { assetDecimals, isAssetCode } from "@mayarin/shared/asset";
 import type * as React from "react";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { formatAmountInput, normalizeAmountInput, symbolOf } from "@/lib/pricing";
@@ -11,11 +12,12 @@ interface CurrencyInputProps
 
 /** A locale-aware money field whose external value stays API-safe and exact. */
 function CurrencyInput({ asset, value, onValueChange, ...props }: CurrencyInputProps) {
+  const inputMode = isAssetCode(asset) && assetDecimals(asset) === 0 ? "numeric" : "decimal";
   return (
     <InputGroup>
       <InputGroupAddon aria-hidden={false}>{symbolOf(asset)}</InputGroupAddon>
       <InputGroupInput
-        inputMode="decimal"
+        inputMode={inputMode}
         value={formatAmountInput(value)}
         onChange={(event) => {
           const normalized = normalizeAmountInput(event.target.value, asset);

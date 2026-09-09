@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   ConfigurationError,
+  convert,
   FixedClock,
   isMayarinError,
   ProviderError,
@@ -70,6 +71,17 @@ describe("FxRatesPriceOracle", () => {
 
     // SGD settles in 2-decimal minor units: 1.2669 dollars -> 126.69 cents.
     expect(price.scaledRate).toBe(scaledRateFrom(12_669n, 100n));
+  });
+
+  test("converts a zero-decimal yen price through to USDC settlement", async () => {
+    const { fn } = stubFetch(() => json(fxBody({ rates: { JPY: 147.5 } })));
+    const price = await oracle(fn, {
+      "JPY/USDC": { symbol: "USD/JPY", invert: true },
+    }).reference("JPY", "USDC");
+
+    const settled = convert({ amount: 1_500n, asset: "JPY" }, "USDC", price.scaledRate);
+    expect(settled.amount).toBeGreaterThan(10_169_000n);
+    expect(settled.amount).toBeLessThan(10_170_000n);
   });
 
   test("asks the API for the series' own base and quote", async () => {
@@ -227,6 +239,32 @@ describe("FxRatesPriceOracle batching", () => {
   };
 
   const RATES = { IDR: 17635.003032099, SGD: 1.2841, THB: 32.15 };
+
+  test("prices the configured Middle East and Latin America series", async () => {
+    const feeds: Record<string, FxFeed> = {
+      "AED/USDC": { symbol: "USD/AED", invert: true },
+      "SAR/USDC": { symbol: "USD/SAR", invert: true },
+      "BRL/USDC": { symbol: "USD/BRL", invert: true },
+      "MXN/USDC": { symbol: "USD/MXN", invert: true },
+    };
+    const rates = { AED: 3.6729, SAR: 3.75, BRL: 5.41, MXN: 18.62 };
+    const { calls, fn } = stubFetch(() => json(fxBody({ rates })));
+    const fx = oracle(fn, feeds);
+
+    const aed = await fx.reference("AED", "USDC");
+    const sar = await fx.reference("SAR", "USDC");
+    const brl = await fx.reference("BRL", "USDC");
+    const mxn = await fx.reference("MXN", "USDC");
+
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]?.url ?? "").searchParams.get("currencies")?.split(",").sort()).toEqual([
+      "AED",
+      "BRL",
+      "MXN",
+      "SAR",
+    ]);
+    expect([aed, sar, brl, mxn].every(({ scaledRate }) => scaledRate > 0n)).toBe(true);
+  });
 
   test("asks for every currency configured against the base, in one request", async () => {
     const { calls, fn } = stubFetch(() => json(fxBody({ rates: RATES })));

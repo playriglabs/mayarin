@@ -143,7 +143,7 @@ describe("parseQr — rejections", () => {
   });
 
   test("rejects an unsupported currency", () => {
-    expect(() => parseQr(dynamicQris({ currency: "978" }))).toThrow(
+    expect(() => parseQr(dynamicQris({ currency: "756" }))).toThrow(
       /Unsupported transaction currency/,
     );
   });

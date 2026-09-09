@@ -66,7 +66,8 @@ describe("formatMoneyLocale", () => {
   });
 
   test("renders zero-decimal grouping without a decimal separator", () => {
-    expect(formatMoneyLocale(money(5_043_200n, "IDR"), { symbol: false })).toBe("50.432,00");
+    expect(formatMoneyLocale(money(5_043_200n, "JPY"))).toBe("¥ 5.043.200");
+    expect(formatMoneyLocale(money(250_000n, "VND"))).toBe("₫ 250.000");
   });
 });
 
@@ -86,6 +87,12 @@ describe("parseMoneyLocale", () => {
       const value = money(amount, "IDR");
       expect(parseMoneyLocale(formatMoneyLocale(value), "IDR")).toEqual(value);
     }
+  });
+
+  test("round-trips zero-decimal currencies", () => {
+    const value = money(5_043_200n, "JPY");
+    expect(parseMoneyLocale(formatMoneyLocale(value), "JPY")).toEqual(value);
+    expect(() => parseMoneyLocale("¥ 5.043.200,50", "JPY")).toThrow(ValidationError);
   });
 
   test("strips a trailing asset code", () => {

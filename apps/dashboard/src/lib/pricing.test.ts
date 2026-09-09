@@ -24,4 +24,12 @@ describe("localized currency input", () => {
     expect(formatAmountInput("15000.")).toBe("15.000,");
     expect(isValidAmount("15000.", "IDR")).toBe(false);
   });
+
+  test("accepts grouped whole amounts and refuses fractions for JPY and VND", () => {
+    expect(normalizeAmountInput("5.000", "JPY")).toBe("5000");
+    expect(normalizeAmountInput("250.000", "VND")).toBe("250000");
+    expect(normalizeAmountInput("5.000,50", "JPY")).toBeUndefined();
+    expect(isValidAmount("5000", "JPY")).toBe(true);
+    expect(isValidAmount("5000.50", "JPY")).toBe(false);
+  });
 });

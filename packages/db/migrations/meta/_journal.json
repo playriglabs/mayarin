@@ -218,6 +218,20 @@
       "when": 1788912000000,
       "tag": "0030_payment_link_rails",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788959396000,
+      "tag": "0031_add_fiat_fx_feeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788966000000,
+      "tag": "0032_add_middle_east_latam_fx_feeds",
+      "breakpoints": true
     }
   ]
 }

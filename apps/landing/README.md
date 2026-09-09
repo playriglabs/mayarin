@@ -138,7 +138,7 @@ chains Trust Wallet's CDN does not carry.
 Sections do not animate in. What moves is deliberate and small.
 
 `components/landing/payment-orbits.tsx` is the hero's backdrop: three dashed
-orbits carrying the five currencies a merchant can price in, each disc following
+orbits carrying a representative set of pricing currencies, each disc following
 its path with native SVG `animateMotion` so it stays upright. The symbols come
 from `assetSymbol` in `@mayarin/shared`, so the hero cannot advertise a currency
 the registry does not carry. The whole SVG pauses when it scrolls out of view,
@@ -160,5 +160,12 @@ The `Globe` is `cobe` on a canvas. It holds off creating its WebGL context until
 the section is near, and stops drawing once it leaves. City labels are projected
 with the same maths cobe uses internally, so a label cannot drift off its marker,
 and overlapping ones are culled per frame.
+
+The landing's complete fiat coverage lives in
+`components/landing/currency-markets.ts`. `Reach` uses it for the supported-currency
+list, while its regional globe markers summarize that coverage without crowding
+the sphere; `Facts` derives its public currency count and preview from the same
+array. Symbols and currency names still come from `@mayarin/shared`, keeping
+marketing copy aligned with the product registry.
 
 All of it is disabled under `prefers-reduced-motion`.
