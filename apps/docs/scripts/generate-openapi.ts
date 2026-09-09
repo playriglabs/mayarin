@@ -22,6 +22,7 @@ import {
   OpenApiGeneratorV31,
 } from "@asteasolutions/zod-to-openapi";
 import { assetCodeSchema, decimalMoneySchema } from "@mayarin/shared";
+import { INVALID_REASONS } from "@mayarin/x402";
 import { z } from "zod";
 import {
   checkoutCartBodySchema,
@@ -39,6 +40,7 @@ import {
 // Live API request schemas — the single source for request shapes.
 import { createBodySchema } from "../../api/src/dto/payment-intent.ts";
 import { refundBodySchema } from "../../api/src/dto/refund.ts";
+import { merchantX402ResourceSchema } from "../../api/src/dto/x402-resource.ts";
 
 // Adds `.openapi()` to every Zod schema so response schemas can be registered
 // as named components. Must run before any `.openapi()` call.
@@ -396,6 +398,105 @@ const x402ResourceRespSchema = z
     ),
   })
   .openapi("X402Resource");
+
+// The payer-facing facilitator surface (#269) — what an SDK gate drives, and
+// what a non-TS stack drives by hand. Authored here from the core's own types
+// (`packages/core/x402/src/types.ts`), which are the specification of record.
+const resourceInfoSchema = z.object({
+  url: z.string(),
+  description: z.string().optional(),
+  mimeType: z.string().optional(),
+});
+
+const paymentRequirementsRespSchema = z
+  .object({
+    scheme: z.string(),
+    network: z.string().describe("CAIP-2, e.g. `eip155:84532`."),
+    amount: z.string().describe("Atomic units, as a decimal string."),
+    asset: z.string().describe("ERC-20 contract address."),
+    payTo: z.string().describe("Recipient. The operator, not the merchant, on a cross-asset rail."),
+    maxTimeoutSeconds: z.number().int(),
+    extra: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe("Scheme data: the token's EIP-712 domain, and `assetTransferMethod` when stated."),
+  })
+  .openapi("X402PaymentRequirements");
+
+const paymentRequiredRespSchema = z
+  .object({
+    x402Version: z.number().int(),
+    error: z
+      .string()
+      .optional()
+      .describe("Why a carried payment was refused — read it before retrying."),
+    resource: resourceInfoSchema,
+    accepts: z
+      .array(paymentRequirementsRespSchema)
+      .describe("One price, several ways to pay; the payer picks."),
+    extensions: z.record(z.string(), z.unknown()).optional(),
+  })
+  .openapi("X402PaymentRequired");
+
+const verifyResponseSchema = z
+  .object({
+    isValid: z.boolean(),
+    invalidReason: z
+      .enum(INVALID_REASONS)
+      .optional()
+      .describe("A closed set a payer's client can branch on."),
+    payer: z.string().optional(),
+  })
+  .openapi("X402VerifyResponse");
+
+const settleResponseSchema = z
+  .object({
+    success: z.boolean(),
+    errorReason: z.string().optional().describe("Free text, unlike a verify's closed set."),
+    payer: z.string().optional(),
+    transaction: z.string().describe("Transaction hash; the empty string when settlement failed."),
+    network: z.string(),
+    amount: z.string().optional(),
+    extensions: z.record(z.string(), z.unknown()).optional(),
+  })
+  .openapi("X402SettleResponse");
+
+// The facilitator request body, authored inline because it lives inline in the
+// route (apps/api/src/routes/x402.ts): `{x402Version, paymentPayload,
+// paymentRequirements}` per the specification. The carried requirements are not
+// what gets verified — Mayarin rebuilds them from the resource — they identify
+// which quoted option the payer chose.
+const eip3009PayloadSchema = z
+  .object({
+    signature: z.string(),
+    authorization: z.object({
+      from: z.string(),
+      to: z.string(),
+      value: z.string(),
+      validAfter: z.string(),
+      validBefore: z.string(),
+      nonce: z.string().describe("32 bytes, `0x`-prefixed. Also the idempotency key server-side."),
+    }),
+  })
+  .openapi("X402Eip3009Payload");
+
+const paymentPayloadSchema = z
+  .object({
+    x402Version: z.number().int(),
+    resource: resourceInfoSchema.optional(),
+    accepted: paymentRequirementsRespSchema.describe("The quoted option the payer chose."),
+    payload: eip3009PayloadSchema,
+    extensions: z.record(z.string(), z.unknown()).optional(),
+  })
+  .openapi("X402PaymentPayload");
+
+const facilitatorBodySchema = z
+  .object({
+    x402Version: z.literal(2),
+    paymentPayload: paymentPayloadSchema,
+    paymentRequirements: paymentRequirementsRespSchema,
+  })
+  .strict();
 
 // --- Request schemas --------------------------------------------------------
 
@@ -878,6 +979,54 @@ registry.registerPath({
 // pair down: the register call is an operator act, and this reference is for
 // the merchant deciding what is discoverable (#273).
 registry.registerPath({
+  method: "get",
+  path: "/v1/x402/resources",
+  tags: ["x402 resources"],
+  operationId: "listX402Resources",
+  summary: "List your registered resources",
+  security: secretKey,
+  responses: {
+    "200": jsonResponse(
+      z.object({ resources: z.array(x402ResourceRespSchema) }),
+      "This merchant's resources.",
+    ),
+    "401": errorResponse("Missing or unknown API key."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/x402/resources",
+  tags: ["x402 resources"],
+  operationId: "registerX402Resource",
+  summary: "Register a resource",
+  description:
+    "Register or re-register an endpoint this merchant hosts, so Mayarin can quote it and settle for it. The `url` must be the exact URL an agent will call — scheme, host and path all count, because a resource is identified by it. The token's EIP-712 domain and transfer method are read off the contracts at registration, never entered.",
+  security: secretKey,
+  request: { headers: idempotencyHeaders, body: jsonBody(merchantX402ResourceSchema) },
+  responses: {
+    "201": jsonResponse(z.object({ resource: x402ResourceRespSchema }), "Registered resource."),
+    "400": errorResponse("Validation error, or a rail this deployment refuses."),
+    "401": errorResponse("Missing or unknown API key."),
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/v1/x402/resources/{id}",
+  tags: ["x402 resources"],
+  operationId: "removeX402Resource",
+  summary: "Remove a resource",
+  description: "Stops offering the `402`. Nothing already paid is undone.",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "204": { description: "Removed." },
+    "404": errorResponse("No resource with that id, or not this merchant's."),
+  },
+});
+
+registry.registerPath({
   method: "post",
   path: "/v1/x402/resources/{id}/list",
   tags: ["x402 resources"],
@@ -904,6 +1053,65 @@ registry.registerPath({
   responses: {
     "200": jsonResponse(x402ResourceRespSchema, "Unlisted resource."),
     "404": errorResponse("No resource with that id, or not this merchant's."),
+  },
+});
+
+// The payer-facing facilitator surface (#269): public, unversioned, keyless —
+// an agent that has never met Mayarin is the entire point, and a price is not
+// a secret. This is what an SDK gate drives and what a non-TS stack drives by
+// hand (see the guide's HTTP contract).
+registry.registerPath({
+  method: "get",
+  path: "/x402/resources/{id}/payment-required",
+  tags: ["x402"],
+  operationId: "getX402PaymentRequired",
+  summary: "Quote a resource without calling it",
+  description:
+    "The price and rails, without making the call being decided about. Not part of the x402 specification — the price normally rides a `402` — but a client deciding whether to pay should not have to make the call first.",
+  security: noAuth,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(paymentRequiredRespSchema, "The price and the rails that offer it."),
+    "404": errorResponse("No resource with that id, or x402 is not enabled on this deployment."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/x402/resources/{id}/verify",
+  tags: ["x402"],
+  operationId: "verifyX402Payment",
+  summary: "Would this authorization go through?",
+  description:
+    "Checks the signature against the chain without broadcasting. The body's `paymentRequirements` is not what gets verified — Mayarin rebuilds the requirements from the resource and uses the carried copy only to identify which quoted option the payer chose. A facilitator that verified against the requirements handed to it would verify a payment against its own claims.",
+  security: noAuth,
+  request: { params: idParams, body: jsonBody(facilitatorBodySchema) },
+  responses: {
+    "200": jsonResponse(
+      verifyResponseSchema,
+      "The verdict — `isValid`, and the closed-set reason when false.",
+    ),
+    "400": errorResponse("Validation error."),
+    "404": errorResponse("No resource with that id, or x402 is not enabled on this deployment."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/x402/resources/{id}/settle",
+  tags: ["x402"],
+  operationId: "settleX402Payment",
+  summary: "Broadcast it, and credit the merchant",
+  description:
+    "The one that moves money: verifies authoritatively, broadcasts the transfer, confirms it on-chain, and posts the double-entry records that credit the merchant. The payment's nonce is the idempotency key server-side, so a second settle of the same authorization is refused rather than charged twice. An authorization that was valid but did not settle answers `200` with `success: false` and the reason in `errorReason`.",
+  security: noAuth,
+  request: { params: idParams, body: jsonBody(facilitatorBodySchema) },
+  responses: {
+    "200": jsonResponse(settleResponseSchema, "The settlement outcome — check `success`."),
+    "400": errorResponse("Validation error, or a signature the chain did not accept."),
+    "404": errorResponse("No resource with that id, or x402 is not enabled on this deployment."),
+    "409": errorResponse("Quote conflict — the price or rails changed under the authorization."),
+    "410": errorResponse("Quote expired — request a new `402` at the same URL."),
   },
 });
 
@@ -1039,6 +1247,11 @@ const document = generator.generateDocument({
     {
       name: "x402 resources",
       description: "Per-call resources an agent pays for over the x402 rail.",
+    },
+    {
+      name: "x402",
+      description:
+        "The payer-facing facilitator surface: public, unversioned, keyless. Quote, verify, settle.",
     },
     { name: "Webhooks", description: "Provider signals into Mayarin." },
     {

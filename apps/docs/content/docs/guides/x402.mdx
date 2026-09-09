@@ -12,14 +12,32 @@ Register the endpoint in the dashboard under **Agent endpoints** first. That pri
 Three steps, in this order:
 
 1. A request with no payment: fetch the price from Mayarin and return `402` carrying it.
-2. A request carrying `PAYMENT-SIGNATURE`: verify it, then settle it.
+2. A request carrying `PAYMENT-SIGNATURE`: settle it. Verification is part of settling — Mayarin checks the signature against the chain as it broadcasts, so a separate `verify` round-trip is only for a payer's "would this go through?" question.
 3. Only then serve the content.
 
 The order is not stylistic. A response cannot be un-served, so a handler that ran first would have to be undone if the settlement failed — and there is no undo for bytes already on the wire.
 
-## The gate
+## The SDK gate
 
-Written against `fetch` and the two header names from the specification, so it ports to any framework by changing how a request and a response are spelled.
+In TypeScript the whole thing is two imports and one middleware:
+
+```ts
+import { createX402Gate } from "@mayarin/sdk";
+import { x402Connect } from "@mayarin/sdk/x402/connect";
+
+const gate = createX402Gate({
+  baseUrl: "https://api.mayarin.xyz",
+  resourceId: "your-resource-id",
+});
+
+app.get("/premium", x402Connect(gate), paidHandler);
+```
+
+Unpaid is answered with the price in the standard `PAYMENT-REQUIRED` header; a settled payment runs the handler once with `PAYMENT-RESPONSE` on the answer; a replayed signature is re-served without a second charge or a second handler run; and if Mayarin cannot be reached the answer is `502` and the handler never runs. The [SDK page](/sdk/typescript/x402) covers registration, the decision table, and the delivery policy. A runnable server lives in the repo as [`apps/x402-merchant`](https://github.com/playriglabs/mayarin/blob/main/apps/x402-merchant).
+
+## The HTTP contract, for stacks without a gate
+
+Written against `fetch` and the two header names from the specification, so it ports to any language or framework by changing how a request and a response are spelled.
 
 ```js
 const MAYARIN = "https://api.mayarin.xyz";
@@ -40,20 +58,18 @@ export async function handle(request) {
     });
   }
 
-  // 2. Verify, then settle. Never serve first.
+  // 2. Settle. Verification is part of settling; never serve first.
   const paymentPayload = JSON.parse(atob(signature));
-  const body = { x402Version: 2, paymentPayload, paymentRequirements: paymentPayload.accepted };
-  const call = (step) =>
-    fetch(`${MAYARIN}/x402/resources/${RESOURCE}/${step}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((r) => r.json());
+  const settled = await fetch(`${MAYARIN}/x402/resources/${RESOURCE}/settle`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      x402Version: 2,
+      paymentPayload,
+      paymentRequirements: paymentPayload.accepted,
+    }),
+  }).then((r) => r.json());
 
-  const verified = await call("verify");
-  if (!verified.isValid) return new Response(null, { status: 402 });
-
-  const settled = await call("settle");
   if (!settled.success) return new Response(null, { status: 402 });
 
   // 3. Paid. Serve it, and say which transaction paid for it.
@@ -68,6 +84,16 @@ export async function handle(request) {
 No key and no chain code run on your side. Mayarin rebuilds the payment requirements from the registered resource rather than trusting the copy the payer sent, checks the signature against the chain, broadcasts the transfer, and posts the double-entry records that credit you.
 
 That last point is worth stating plainly: the facilitator verifies against **its own** requirements. A facilitator that verified a payment against the requirements handed to it would be verifying a payment against its own claims.
+
+Nothing secret rides on a payment either. The request-time surface is public and keyless — your secret key registers the resource and never appears in a gate. A payer who has captured every byte of a request has captured nothing that spends.
+
+## Delivery and replay policy
+
+One authorization buys one execution. A payer whose HTTP response was lost on the way back retries with the identical signature, and the gate re-serves the recorded response — no second charge, no second handler run. Replays are keyed by the payment's nonce and expire at the authorization's `validBefore`, the whole window in which a retry is legal.
+
+The SDK's store is in memory, per process, bounded by live payments. After a restart it is empty: a replayed signature reaches Mayarin, which refuses the spent nonce fail-closed — still no second charge, but no re-serve either. Your handler's own side effects are your idempotency to own: the gate guarantees one execution per authorization, not one execution per retry.
+
+The recorded response is re-served in full, so gate content that streams or answers range requests.
 
 ## Payables: what an agent can find, and pay
 
@@ -123,4 +149,4 @@ Both are public and unauthenticated. An agent that has never met Mayarin is the 
 
 **Cross-asset rails pay the operator, not you.** `transferWithAuthorization` names one recipient, chosen before the payer signs, so a payer holding an asset you do not settle in sends it somewhere Mayarin can swap from. You are still paid your own asset, in full, and the difference is booked as the payer's surplus.
 
-**A contract account is a valid payer.** An agent wallet from a provider like Circle is a smart account: its signature validates through EIP-1271 and recovers to its signer rather than to itself. Mayarin asks the chain rather than recovering locally, so these payments verify — but a gate of your own that tried to check the signature would reject every one of them as forged. Do not check it; that is what `verify` is for.
+**A contract account is a valid payer.** An agent wallet from a provider like Circle is a smart account: its signature validates through EIP-1271 and recovers to its signer rather than to itself. Mayarin asks the chain rather than recovering locally, so these payments verify — but a gate of your own that tried to check the signature would reject every one of them as forged. Do not check it; asking the chain is what settling is for.

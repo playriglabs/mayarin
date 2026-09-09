@@ -1,0 +1,76 @@
+---
+title: x402 gate
+description: Sell an endpoint you host, per request — one middleware between your framework and your handler.
+---
+
+A resource registered under **Agent endpoints** prices a URL, but your server still answers every request for free. The gate is the part that closes it: a request with no payment is answered with Mayarin's price in the standard `PAYMENT-REQUIRED` header, a request carrying one is settled by Mayarin **before** your handler runs — a response cannot be un-served, so nothing runs before the charge.
+
+The whole gate is two imports and one middleware:
+
+```ts
+import { createX402Gate } from "@mayarin/sdk";
+import { x402Connect } from "@mayarin/sdk/x402/connect";
+
+const gate = createX402Gate({
+  baseUrl: "https://api.mayarin.xyz",
+  resourceId: "your-resource-id",
+});
+
+app.get("/premium", x402Connect(gate), paidHandler);
+```
+
+`x402Connect` is connect middleware over `node:http` types, so it runs under Express, Connect, a raw `node:http` server, or a Vite dev server — nothing in it is Express-specific, and the SDK carries no framework dependency.
+
+## Register the resource
+
+The only step that needs the secret key, and the only place it is ever used — the request-time surface is keyless:
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const mayarin = createMayarin({ baseUrl: "https://api.mayarin.xyz", secretKey: sk });
+
+await mayarin.x402.resources.register({
+  id: "your-resource-id",
+  url: "https://your.server/premium", // must byte-match what an agent calls
+  price: { amount: "2000", asset: "USDC" },
+  maxTimeoutSeconds: 3600,
+  accepts: [{ chain: "base-sepolia", asset: "USDC", contract: "0x…", payTo: "0x…" }],
+  listed: true,
+});
+```
+
+`mayarin.x402.resources` also lists (`list`), removes (`remove`), and opts in or out of the public index (`listInIndex` / `unlistFromIndex`). The token's EIP-712 domain and transfer method are read off the contracts at registration, never entered.
+
+## What the middleware does
+
+| Request | Answer |
+| --- | --- |
+| No `PAYMENT-SIGNATURE` header | `402` with `PAYMENT-REQUIRED` (base64 of the price JSON), empty body |
+| Structurally bad signature | `402` with a fresh price and the reason on its `error` field |
+| A signature Mayarin refuses | `402` with a fresh price and the refusal reason on its `error` field |
+| A settled payment | Your handler runs once, with `PAYMENT-RESPONSE` set on the answer |
+| The same signature again | The recorded response, verbatim — no second charge, no second handler run |
+| Mayarin unreachable | `502` — the handler never runs. Paid content is not served on Mayarin's say-so being *missing* |
+
+The happy path is one `settle` with no `verify` round-trip: Mayarin rebuilds the payment requirements from the registered resource and reads the transfer back off the chain, so verification is part of settling. `verify` exists for a payer's separate "would this go through?" question.
+
+Failures of Mayarin itself throw `MayarinX402Error` with a `code` — `PRICE_UNAVAILABLE` or `SETTLE_UNAVAILABLE`, both `retryable` — which the middleware answers with `502`. Fail-closed is the rule: a merchant does not serve paid content when the settlement layer cannot be reached.
+
+## Delivery and replay policy
+
+One authorization buys one execution. A payer whose HTTP response was lost on the way back retries with the identical signature, and the gate re-serves the recorded response — keyed by the payment's idempotency key (its nonce), expiring at the authorization's `validBefore`, the whole window in which a retry is legal. Your handler's own side effects are your idempotency to own: the gate guarantees one execution per authorization, not one execution per retry.
+
+The store is in memory, per process, bounded by live payments. After a restart it is empty: a replayed signature reaches Mayarin, which refuses the spent nonce fail-closed — still no second charge, but no re-serve either.
+
+The recorded response is re-served in full, so gate content that streams or answers range requests.
+
+Inject `fetch` and `now` for tests, and `replays` for a store of your own:
+
+```ts
+const gate = createX402Gate({ baseUrl, resourceId, fetch, now, replays });
+```
+
+## A runnable example
+
+[`apps/x402-merchant`](https://github.com/playriglabs/mayarin/blob/main/apps/x402-merchant) in the repo is this page as a working server: register, serve, and prove unpaid / paid / replayed with the repo's `scripts/e2e-x402.ts`, including `--repeat 2` for the delivery policy.

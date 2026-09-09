@@ -49,6 +49,10 @@
       "description": "Per-call resources an agent pays for over the x402 rail."
     },
     {
+      "name": "x402",
+      "description": "The payer-facing facilitator surface: public, unversioned, keyless. Quote, verify, settle."
+    },
+    {
       "name": "Webhooks",
       "description": "Provider signals into Mayarin."
     },
@@ -90,7 +94,12 @@
             "type": "string"
           }
         },
-        "required": ["id", "name", "city", "countryCode"]
+        "required": [
+          "id",
+          "name",
+          "city",
+          "countryCode"
+        ]
       },
       "Money": {
         "type": "object",
@@ -112,10 +121,18 @@
             "description": "Localized display text. Never parse this value."
           }
         },
-        "required": ["amount", "asset", "formatted", "display"]
+        "required": [
+          "amount",
+          "asset",
+          "formatted",
+          "display"
+        ]
       },
       "PaymentRail": {
-        "type": ["object", "null"],
+        "type": [
+          "object",
+          "null"
+        ],
         "properties": {
           "asset": {
             "type": "string"
@@ -127,7 +144,10 @@
             "type": "string"
           }
         },
-        "required": ["asset", "chain"]
+        "required": [
+          "asset",
+          "chain"
+        ]
       },
       "PaymentIntent": {
         "type": "object",
@@ -149,13 +169,19 @@
             "type": "string"
           },
           "provider": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "payment": {
             "$ref": "#/components/schemas/PaymentRail"
           },
           "executionPath": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source": {
             "type": "string"
@@ -167,13 +193,22 @@
             }
           },
           "merchantReference": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clearingTransactionId": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "failureReason": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -185,10 +220,16 @@
             "type": "string"
           },
           "confirmedAt": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "completedAt": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -232,13 +273,22 @@
                 "additionalProperties": {}
               }
             },
-            "required": ["code", "message", "retryable"]
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ]
           }
         },
-        "required": ["error"]
+        "required": [
+          "error"
+        ]
       },
       "Clearing": {
-        "type": ["object", "null"],
+        "type": [
+          "object",
+          "null"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -251,10 +301,16 @@
             "type": "string"
           },
           "providerReference": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "transactionHash": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "sourceAmount": {
             "$ref": "#/components/schemas/Money"
@@ -265,7 +321,10 @@
                 "$ref": "#/components/schemas/Money"
               },
               {
-                "type": ["object", "null"]
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             ]
           },
@@ -275,7 +334,10 @@
                 "$ref": "#/components/schemas/Money"
               },
               {
-                "type": ["object", "null"]
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             ]
           },
@@ -285,12 +347,18 @@
                 "$ref": "#/components/schemas/Money"
               },
               {
-                "type": ["object", "null"]
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             ]
           },
           "rate": {
-            "type": ["object", "null"],
+            "type": [
+              "object",
+              "null"
+            ],
             "properties": {
               "from": {
                 "type": "string"
@@ -308,10 +376,19 @@
                 "type": "string"
               }
             },
-            "required": ["from", "to", "scaledRate", "source", "lockedAt"]
+            "required": [
+              "from",
+              "to",
+              "scaledRate",
+              "source",
+              "lockedAt"
+            ]
           },
           "failure": {
-            "type": ["object", "null"],
+            "type": [
+              "object",
+              "null"
+            ],
             "properties": {
               "reason": {
                 "type": "string"
@@ -323,7 +400,11 @@
                 "type": "string"
               }
             },
-            "required": ["reason", "code", "at"]
+            "required": [
+              "reason",
+              "code",
+              "at"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -349,7 +430,10 @@
         ]
       },
       "Deposit": {
-        "type": ["object", "null"],
+        "type": [
+          "object",
+          "null"
+        ],
         "properties": {
           "address": {
             "type": "string"
@@ -364,7 +448,10 @@
             "$ref": "#/components/schemas/Money"
           },
           "uri": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "EIP-681 payment URI for a QR, or null when none can be built safely."
           },
           "received": {
@@ -382,7 +469,10 @@
               "type": "object",
               "properties": {
                 "txHash": {
-                  "type": ["string", "null"]
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "logIndex": {
                   "type": "integer"
@@ -400,7 +490,14 @@
                   "type": "string"
                 }
               },
-              "required": ["txHash", "logIndex", "amount", "status", "confirmations", "firstSeenAt"]
+              "required": [
+                "txHash",
+                "logIndex",
+                "amount",
+                "status",
+                "confirmations",
+                "firstSeenAt"
+              ]
             }
           }
         },
@@ -440,17 +537,30 @@
                   "type": "string"
                 },
                 "from": {
-                  "type": ["string", "null"]
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "occurredAt": {
                   "type": "string"
                 }
               },
-              "required": ["sequence", "state", "from", "occurredAt"]
+              "required": [
+                "sequence",
+                "state",
+                "from",
+                "occurredAt"
+              ]
             }
           }
         },
-        "required": ["paymentIntent", "clearing", "deposit", "timeline"]
+        "required": [
+          "paymentIntent",
+          "clearing",
+          "deposit",
+          "timeline"
+        ]
       },
       "ContractCall": {
         "type": "object",
@@ -503,7 +613,10 @@
             "type": "string"
           },
           "route": {
-            "type": ["object", "null"],
+            "type": [
+              "object",
+              "null"
+            ],
             "properties": {
               "router": {
                 "type": "string"
@@ -518,10 +631,17 @@
                 "type": "string"
               }
             },
-            "required": ["router", "callData", "expectedIn"]
+            "required": [
+              "router",
+              "callData",
+              "expectedIn"
+            ]
           },
           "transaction": {
-            "type": ["object", "null"],
+            "type": [
+              "object",
+              "null"
+            ],
             "properties": {
               "to": {
                 "type": "string"
@@ -533,7 +653,11 @@
                 "type": "string"
               }
             },
-            "required": ["to", "data", "value"],
+            "required": [
+              "to",
+              "data",
+              "value"
+            ],
             "description": "Ready payEth call for a native payer; null for an ERC-20 payer."
           },
           "payerEstimate": {
@@ -571,13 +695,22 @@
             "type": "string"
           },
           "reason": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "providerReference": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "failureReason": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -618,12 +751,18 @@
                       "$ref": "#/components/schemas/Money"
                     },
                     {
-                      "type": ["object", "null"]
+                      "type": [
+                        "object",
+                        "null"
+                      ]
                     }
                   ]
                 },
                 "rate": {
-                  "type": ["object", "null"],
+                  "type": [
+                    "object",
+                    "null"
+                  ],
                   "properties": {
                     "scaledRate": {
                       "type": "string"
@@ -632,17 +771,27 @@
                       "type": "string"
                     }
                   },
-                  "required": ["source"]
+                  "required": [
+                    "source"
+                  ]
                 },
                 "available": {
                   "type": "boolean"
                 }
               },
-              "required": ["asset", "amount", "rate", "available"]
+              "required": [
+                "asset",
+                "amount",
+                "rate",
+                "available"
+              ]
             }
           }
         },
-        "required": ["source", "quotes"]
+        "required": [
+          "source",
+          "quotes"
+        ]
       },
       "Product": {
         "type": "object",
@@ -660,7 +809,10 @@
             "type": "string"
           },
           "description": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "prices": {
             "type": "array",
@@ -720,15 +872,24 @@
                 "$ref": "#/components/schemas/Money"
               },
               {
-                "type": ["object", "null"]
+                "type": [
+                  "object",
+                  "null"
+                ]
               }
             ]
           },
           "currency": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lines": {
-            "type": ["array", "null"],
+            "type": [
+              "array",
+              "null"
+            ],
             "items": {
               "type": "object",
               "properties": {
@@ -739,14 +900,23 @@
                   "type": "integer"
                 }
               },
-              "required": ["productId", "quantity"]
+              "required": [
+                "productId",
+                "quantity"
+              ]
             }
           },
           "title": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "merchantReference": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "metadata": {
             "type": "object",
@@ -765,10 +935,16 @@
             "description": "Whether it appears in the public x402 payable index."
           },
           "expiresAt": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "disabledAt": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -813,10 +989,16 @@
             "$ref": "#/components/schemas/Merchant"
           },
           "number": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "sequence": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "state": {
             "type": "string",
@@ -829,16 +1011,30 @@
                 "type": "string"
               },
               "email": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "taxId": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "address": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
-            "required": ["name", "email", "taxId", "address"]
+            "required": [
+              "name",
+              "email",
+              "taxId",
+              "address"
+            ]
           },
           "currency": {
             "type": "string"
@@ -849,7 +1045,10 @@
               "type": "object",
               "properties": {
                 "productId": {
-                  "type": ["string", "null"]
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "name": {
                   "type": "string"
@@ -861,14 +1060,22 @@
                   "type": "integer"
                 }
               },
-              "required": ["productId", "name", "unitPrice", "quantity"]
+              "required": [
+                "productId",
+                "name",
+                "unitPrice",
+                "quantity"
+              ]
             }
           },
           "total": {
             "$ref": "#/components/schemas/Money"
           },
           "notes": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "metadata": {
             "type": "object",
@@ -880,13 +1087,22 @@
             "type": "string"
           },
           "issuedAt": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "dueAt": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "voidedAt": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -944,7 +1160,11 @@
                 "$ref": "#/components/schemas/Money"
               }
             },
-            "required": ["status", "paid", "outstanding"]
+            "required": [
+              "status",
+              "paid",
+              "outstanding"
+            ]
           }
         ]
       },
@@ -1001,11 +1221,269 @@
                   "additionalProperties": {}
                 }
               },
-              "required": ["chain", "asset", "contract", "payTo", "transferMethod", "domain"]
+              "required": [
+                "chain",
+                "asset",
+                "contract",
+                "payTo",
+                "transferMethod",
+                "domain"
+              ]
             }
           }
         },
-        "required": ["id", "merchantId", "url", "price", "maxTimeoutSeconds", "listed", "accepts"]
+        "required": [
+          "id",
+          "merchantId",
+          "url",
+          "price",
+          "maxTimeoutSeconds",
+          "listed",
+          "accepts"
+        ]
+      },
+      "X402PaymentRequirements": {
+        "type": "object",
+        "properties": {
+          "scheme": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string",
+            "description": "CAIP-2, e.g. `eip155:84532`."
+          },
+          "amount": {
+            "type": "string",
+            "description": "Atomic units, as a decimal string."
+          },
+          "asset": {
+            "type": "string",
+            "description": "ERC-20 contract address."
+          },
+          "payTo": {
+            "type": "string",
+            "description": "Recipient. The operator, not the merchant, on a cross-asset rail."
+          },
+          "maxTimeoutSeconds": {
+            "type": "integer"
+          },
+          "extra": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Scheme data: the token's EIP-712 domain, and `assetTransferMethod` when stated."
+          }
+        },
+        "required": [
+          "scheme",
+          "network",
+          "amount",
+          "asset",
+          "payTo",
+          "maxTimeoutSeconds"
+        ]
+      },
+      "X402PaymentRequired": {
+        "type": "object",
+        "properties": {
+          "x402Version": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string",
+            "description": "Why a carried payment was refused — read it before retrying."
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "mimeType": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ]
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/X402PaymentRequirements"
+            },
+            "description": "One price, several ways to pay; the payer picks."
+          },
+          "extensions": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "x402Version",
+          "resource",
+          "accepts"
+        ]
+      },
+      "X402VerifyResponse": {
+        "type": "object",
+        "properties": {
+          "isValid": {
+            "type": "boolean"
+          },
+          "invalidReason": {
+            "type": "string",
+            "enum": [
+              "insufficient_funds",
+              "invalid_signature",
+              "invalid_amount",
+              "invalid_network",
+              "invalid_scheme",
+              "invalid_asset",
+              "invalid_recipient",
+              "expired_authorization",
+              "authorization_not_yet_valid",
+              "authorization_already_used",
+              "simulation_failed",
+              "unsupported_asset_transfer_method",
+              "PERMIT2_ALLOWANCE_REQUIRED"
+            ],
+            "description": "A closed set a payer's client can branch on."
+          },
+          "payer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "isValid"
+        ]
+      },
+      "X402Eip3009Payload": {
+        "type": "object",
+        "properties": {
+          "signature": {
+            "type": "string"
+          },
+          "authorization": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "validAfter": {
+                "type": "string"
+              },
+              "validBefore": {
+                "type": "string"
+              },
+              "nonce": {
+                "type": "string",
+                "description": "32 bytes, `0x`-prefixed. Also the idempotency key server-side."
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "value",
+              "validAfter",
+              "validBefore",
+              "nonce"
+            ]
+          }
+        },
+        "required": [
+          "signature",
+          "authorization"
+        ]
+      },
+      "X402PaymentPayload": {
+        "type": "object",
+        "properties": {
+          "x402Version": {
+            "type": "integer"
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "mimeType": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ]
+          },
+          "accepted": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/X402PaymentRequirements"
+              },
+              {
+                "description": "The quoted option the payer chose."
+              }
+            ]
+          },
+          "payload": {
+            "$ref": "#/components/schemas/X402Eip3009Payload"
+          },
+          "extensions": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "x402Version",
+          "accepted",
+          "payload"
+        ]
+      },
+      "X402SettleResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errorReason": {
+            "type": "string",
+            "description": "Free text, unlike a verify's closed set."
+          },
+          "payer": {
+            "type": "string"
+          },
+          "transaction": {
+            "type": "string",
+            "description": "Transaction hash; the empty string when settlement failed."
+          },
+          "network": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "extensions": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "success",
+          "transaction",
+          "network"
+        ]
       }
     },
     "parameters": {}
@@ -1013,7 +1491,9 @@
   "paths": {
     "/v1/payment-intents": {
       "post": {
-        "tags": ["Payment intents"],
+        "tags": [
+          "Payment intents"
+        ],
         "operationId": "createPaymentIntent",
         "summary": "Create a payment intent",
         "description": "Creates an immutable fiat-denominated payment request. Reusing an idempotency key with the same body returns the original intent; the same key with different parameters is a 409.",
@@ -1070,7 +1550,12 @@
                         "type": "string"
                       }
                     },
-                    "required": ["id", "name", "city", "countryCode"]
+                    "required": [
+                      "id",
+                      "name",
+                      "city",
+                      "countryCode"
+                    ]
                   },
                   "amount": {
                     "type": "object",
@@ -1094,7 +1579,10 @@
                         ]
                       }
                     },
-                    "required": ["amount", "asset"]
+                    "required": [
+                      "amount",
+                      "asset"
+                    ]
                   },
                   "payment": {
                     "type": "object",
@@ -1130,7 +1618,10 @@
                         "pattern": "^0x[0-9a-fA-F]{40}$"
                       }
                     },
-                    "required": ["asset", "chain"]
+                    "required": [
+                      "asset",
+                      "chain"
+                    ]
                   },
                   "settlementAsset": {
                     "type": "string",
@@ -1149,7 +1640,11 @@
                   },
                   "executionPath": {
                     "type": "string",
-                    "enum": ["deposit-match", "on-chain-contract", "x402"]
+                    "enum": [
+                      "deposit-match",
+                      "on-chain-contract",
+                      "x402"
+                    ]
                   },
                   "provider": {
                     "type": "string",
@@ -1221,7 +1716,9 @@
     },
     "/v1/payment-intents/{id}": {
       "get": {
-        "tags": ["Payment intents"],
+        "tags": [
+          "Payment intents"
+        ],
         "operationId": "getPaymentIntent",
         "summary": "Get a payment intent",
         "security": [],
@@ -1261,7 +1758,9 @@
     },
     "/v1/payment-intents/{id}/confirm": {
       "post": {
-        "tags": ["Payment intents"],
+        "tags": [
+          "Payment intents"
+        ],
         "operationId": "confirmPaymentIntent",
         "summary": "Confirm a payment intent",
         "description": "Confirms the intent and hands it to the clearing engine. Safe to retry: confirming an intent that is already clearing returns its current position rather than starting a second one.",
@@ -1314,7 +1813,9 @@
     },
     "/v1/payments/{id}": {
       "get": {
-        "tags": ["Payments"],
+        "tags": [
+          "Payments"
+        ],
         "operationId": "getPayment",
         "summary": "Get payment status",
         "description": "Accepts a payment intent id (`pi_…`) or clearing transaction id (`clr_…`).",
@@ -1355,7 +1856,9 @@
     },
     "/v1/payments/{id}/contract-call": {
       "get": {
-        "tags": ["Payments"],
+        "tags": [
+          "Payments"
+        ],
         "operationId": "getPaymentContractCall",
         "summary": "Get fresh contract call data",
         "description": "Returns the signed EIP-712 order, the deployed PaymentRouter address and chain, and a fresh executable route for an on-chain-contract payment. A 404 means the contract path is not enabled; a 410 means the quote lock expired — request a new payment.",
@@ -1406,7 +1909,9 @@
     },
     "/v1/payments/{id}/refunds": {
       "get": {
-        "tags": ["Payments"],
+        "tags": [
+          "Payments"
+        ],
         "operationId": "listPaymentRefunds",
         "summary": "List refunds for a payment",
         "security": [],
@@ -1447,7 +1952,9 @@
         }
       },
       "post": {
-        "tags": ["Payments"],
+        "tags": [
+          "Payments"
+        ],
         "operationId": "createPaymentRefund",
         "summary": "Create a refund",
         "security": [
@@ -1505,7 +2012,10 @@
                         ]
                       }
                     },
-                    "required": ["amount", "asset"]
+                    "required": [
+                      "amount",
+                      "asset"
+                    ]
                   },
                   "reason": {
                     "type": "string",
@@ -1554,7 +2064,9 @@
     },
     "/v1/quotes": {
       "post": {
-        "tags": ["Quotes"],
+        "tags": [
+          "Quotes"
+        ],
         "operationId": "createQuote",
         "summary": "Preview payer-asset quotes",
         "description": "Indicative preview of what a payment would cost in each payer asset. An asset the rate provider cannot price is returned as an unavailable line rather than failing the request.",
@@ -1601,7 +2113,10 @@
                         ]
                       }
                     },
-                    "required": ["amount", "asset"]
+                    "required": [
+                      "amount",
+                      "asset"
+                    ]
                   },
                   "assets": {
                     "type": "array",
@@ -1624,7 +2139,10 @@
                     "maxItems": 16
                   }
                 },
-                "required": ["amount", "assets"],
+                "required": [
+                  "amount",
+                  "assets"
+                ],
                 "additionalProperties": false
               }
             }
@@ -1656,7 +2174,9 @@
     },
     "/v1/catalog/products": {
       "get": {
-        "tags": ["Catalog"],
+        "tags": [
+          "Catalog"
+        ],
         "operationId": "listProducts",
         "summary": "List catalog products",
         "security": [
@@ -1701,7 +2221,9 @@
         }
       },
       "post": {
-        "tags": ["Catalog"],
+        "tags": [
+          "Catalog"
+        ],
         "operationId": "createProduct",
         "summary": "Create a product",
         "security": [
@@ -1771,7 +2293,10 @@
                           ]
                         }
                       },
-                      "required": ["amount", "asset"]
+                      "required": [
+                        "amount",
+                        "asset"
+                      ]
                     },
                     "minItems": 1
                   },
@@ -1782,7 +2307,12 @@
                     }
                   }
                 },
-                "required": ["merchantId", "sku", "name", "prices"]
+                "required": [
+                  "merchantId",
+                  "sku",
+                  "name",
+                  "prices"
+                ]
               }
             }
           }
@@ -1823,7 +2353,9 @@
     },
     "/v1/catalog/products/{id}": {
       "get": {
-        "tags": ["Catalog"],
+        "tags": [
+          "Catalog"
+        ],
         "operationId": "getProduct",
         "summary": "Get a product",
         "security": [],
@@ -1861,7 +2393,9 @@
         }
       },
       "patch": {
-        "tags": ["Catalog"],
+        "tags": [
+          "Catalog"
+        ],
         "operationId": "updateProduct",
         "summary": "Update a product",
         "security": [
@@ -1903,7 +2437,10 @@
                     "maxLength": 255
                   },
                   "description": {
-                    "type": ["string", "null"],
+                    "type": [
+                      "string",
+                      "null"
+                    ],
                     "maxLength": 2000
                   },
                   "prices": {
@@ -1930,7 +2467,10 @@
                           ]
                         }
                       },
-                      "required": ["amount", "asset"]
+                      "required": [
+                        "amount",
+                        "asset"
+                      ]
                     },
                     "minItems": 1
                   },
@@ -1974,7 +2514,9 @@
     },
     "/v1/carts/checkout": {
       "post": {
-        "tags": ["Catalog"],
+        "tags": [
+          "Catalog"
+        ],
         "operationId": "checkoutCart",
         "summary": "Check out a cart",
         "security": [
@@ -2055,11 +2597,18 @@
                         "pattern": "^0x[0-9a-fA-F]{40}$"
                       }
                     },
-                    "required": ["asset", "chain"]
+                    "required": [
+                      "asset",
+                      "chain"
+                    ]
                   },
                   "executionPath": {
                     "type": "string",
-                    "enum": ["deposit-match", "on-chain-contract", "x402"]
+                    "enum": [
+                      "deposit-match",
+                      "on-chain-contract",
+                      "x402"
+                    ]
                   },
                   "metadata": {
                     "type": "object",
@@ -2100,7 +2649,12 @@
                         "type": "string"
                       }
                     },
-                    "required": ["id", "name", "city", "countryCode"]
+                    "required": [
+                      "id",
+                      "name",
+                      "city",
+                      "countryCode"
+                    ]
                   },
                   "currency": {
                     "type": "string",
@@ -2133,7 +2687,10 @@
                               "exclusiveMinimum": 0
                             }
                           },
-                          "required": ["productId", "quantity"]
+                          "required": [
+                            "productId",
+                            "quantity"
+                          ]
                         },
                         {
                           "type": "object",
@@ -2165,21 +2722,32 @@
                                   ]
                                 }
                               },
-                              "required": ["amount", "asset"]
+                              "required": [
+                                "amount",
+                                "asset"
+                              ]
                             },
                             "quantity": {
                               "type": "integer",
                               "exclusiveMinimum": 0
                             }
                           },
-                          "required": ["name", "unitPrice", "quantity"]
+                          "required": [
+                            "name",
+                            "unitPrice",
+                            "quantity"
+                          ]
                         }
                       ]
                     },
                     "minItems": 1
                   }
                 },
-                "required": ["merchant", "currency", "lines"]
+                "required": [
+                  "merchant",
+                  "currency",
+                  "lines"
+                ]
               }
             }
           }
@@ -2220,7 +2788,9 @@
     },
     "/v1/payment-links": {
       "get": {
-        "tags": ["Payment links"],
+        "tags": [
+          "Payment links"
+        ],
         "operationId": "listPaymentLinks",
         "summary": "List payment links",
         "security": [
@@ -2265,7 +2835,9 @@
         }
       },
       "post": {
-        "tags": ["Payment links"],
+        "tags": [
+          "Payment links"
+        ],
         "operationId": "createPaymentLink",
         "summary": "Create a payment link",
         "security": [
@@ -2295,7 +2867,11 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": ["fixed", "open", "catalog"]
+                    "enum": [
+                      "fixed",
+                      "open",
+                      "catalog"
+                    ]
                   },
                   "merchant": {
                     "type": "object",
@@ -2321,7 +2897,12 @@
                         "type": "string"
                       }
                     },
-                    "required": ["id", "name", "city", "countryCode"]
+                    "required": [
+                      "id",
+                      "name",
+                      "city",
+                      "countryCode"
+                    ]
                   },
                   "amount": {
                     "type": "object",
@@ -2345,7 +2926,10 @@
                         ]
                       }
                     },
-                    "required": ["amount", "asset"]
+                    "required": [
+                      "amount",
+                      "asset"
+                    ]
                   },
                   "currency": {
                     "type": "string",
@@ -2376,7 +2960,10 @@
                           "exclusiveMinimum": 0
                         }
                       },
-                      "required": ["productId", "quantity"]
+                      "required": [
+                        "productId",
+                        "quantity"
+                      ]
                     },
                     "minItems": 1
                   },
@@ -2402,9 +2989,51 @@
                   },
                   "listed": {
                     "type": "boolean"
+                  },
+                  "rails": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "chain": {
+                          "type": "string",
+                          "enum": [
+                            "base",
+                            "base-sepolia",
+                            "arbitrum",
+                            "arbitrum-sepolia",
+                            "robinhood-testnet",
+                            "arc-testnet"
+                          ]
+                        },
+                        "asset": {
+                          "type": "string",
+                          "enum": [
+                            "IDR",
+                            "USD",
+                            "SGD",
+                            "THB",
+                            "MYR",
+                            "USDC",
+                            "USDT",
+                            "EURC",
+                            "ETH",
+                            "BTC"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "chain",
+                        "asset"
+                      ]
+                    },
+                    "minItems": 1
                   }
                 },
-                "required": ["kind", "merchant"],
+                "required": [
+                  "kind",
+                  "merchant"
+                ],
                 "additionalProperties": false
               }
             }
@@ -2446,7 +3075,9 @@
     },
     "/v1/payment-links/{id}": {
       "get": {
-        "tags": ["Payment links"],
+        "tags": [
+          "Payment links"
+        ],
         "operationId": "getPaymentLink",
         "summary": "Get a payment link",
         "security": [],
@@ -2486,7 +3117,9 @@
     },
     "/v1/payment-links/{id}/disable": {
       "post": {
-        "tags": ["Payment links"],
+        "tags": [
+          "Payment links"
+        ],
         "operationId": "disablePaymentLink",
         "summary": "Disable a payment link",
         "security": [
@@ -2542,7 +3175,9 @@
     },
     "/v1/payment-links/{id}/list": {
       "post": {
-        "tags": ["Payment links"],
+        "tags": [
+          "Payment links"
+        ],
         "operationId": "listPaymentLink",
         "summary": "List a payment link in the public payable index",
         "description": "Opts the link into the public x402 payable index, where agents discover and pay it. The link stays payable by anyone holding its URL either way; listing only decides whether a discovery reader is shown it.",
@@ -2587,7 +3222,9 @@
     },
     "/v1/payment-links/{id}/unlist": {
       "post": {
-        "tags": ["Payment links"],
+        "tags": [
+          "Payment links"
+        ],
         "operationId": "unlistPaymentLink",
         "summary": "Remove a payment link from the public payable index",
         "security": [
@@ -2631,7 +3268,9 @@
     },
     "/v1/payment-links/{id}/checkout": {
       "post": {
-        "tags": ["Payment links"],
+        "tags": [
+          "Payment links"
+        ],
         "operationId": "checkoutPaymentLink",
         "summary": "Check out a payment link",
         "security": [],
@@ -2716,11 +3355,18 @@
                         "pattern": "^0x[0-9a-fA-F]{40}$"
                       }
                     },
-                    "required": ["asset", "chain"]
+                    "required": [
+                      "asset",
+                      "chain"
+                    ]
                   },
                   "executionPath": {
                     "type": "string",
-                    "enum": ["deposit-match", "on-chain-contract", "x402"]
+                    "enum": [
+                      "deposit-match",
+                      "on-chain-contract",
+                      "x402"
+                    ]
                   },
                   "metadata": {
                     "type": "object",
@@ -2759,7 +3405,10 @@
                         ]
                       }
                     },
-                    "required": ["amount", "asset"]
+                    "required": [
+                      "amount",
+                      "asset"
+                    ]
                   }
                 }
               }
@@ -2792,7 +3441,9 @@
     },
     "/v1/invoices": {
       "get": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "listInvoices",
         "summary": "List invoices",
         "security": [
@@ -2837,7 +3488,9 @@
         }
       },
       "post": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "createInvoice",
         "summary": "Create a draft invoice",
         "security": [
@@ -2893,7 +3546,12 @@
                         "type": "string"
                       }
                     },
-                    "required": ["id", "name", "city", "countryCode"]
+                    "required": [
+                      "id",
+                      "name",
+                      "city",
+                      "countryCode"
+                    ]
                   },
                   "buyer": {
                     "type": "object",
@@ -2919,7 +3577,9 @@
                         "maxLength": 1000
                       }
                     },
-                    "required": ["name"]
+                    "required": [
+                      "name"
+                    ]
                   },
                   "currency": {
                     "type": "string",
@@ -2972,14 +3632,21 @@
                               ]
                             }
                           },
-                          "required": ["amount", "asset"]
+                          "required": [
+                            "amount",
+                            "asset"
+                          ]
                         },
                         "quantity": {
                           "type": "integer",
                           "exclusiveMinimum": 0
                         }
                       },
-                      "required": ["name", "unitPrice", "quantity"]
+                      "required": [
+                        "name",
+                        "unitPrice",
+                        "quantity"
+                      ]
                     },
                     "minItems": 1
                   },
@@ -2994,7 +3661,13 @@
                     }
                   }
                 },
-                "required": ["merchantId", "merchant", "buyer", "currency", "lines"],
+                "required": [
+                  "merchantId",
+                  "merchant",
+                  "buyer",
+                  "currency",
+                  "lines"
+                ],
                 "additionalProperties": false
               }
             }
@@ -3036,7 +3709,9 @@
     },
     "/v1/invoices/{id}": {
       "get": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "getInvoice",
         "summary": "Get an invoice",
         "security": [],
@@ -3074,7 +3749,9 @@
         }
       },
       "patch": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "updateInvoice",
         "summary": "Update a draft invoice",
         "security": [
@@ -3134,7 +3811,9 @@
                         "maxLength": 1000
                       }
                     },
-                    "required": ["name"]
+                    "required": [
+                      "name"
+                    ]
                   },
                   "lines": {
                     "type": "array",
@@ -3172,14 +3851,21 @@
                               ]
                             }
                           },
-                          "required": ["amount", "asset"]
+                          "required": [
+                            "amount",
+                            "asset"
+                          ]
                         },
                         "quantity": {
                           "type": "integer",
                           "exclusiveMinimum": 0
                         }
                       },
-                      "required": ["name", "unitPrice", "quantity"]
+                      "required": [
+                        "name",
+                        "unitPrice",
+                        "quantity"
+                      ]
                     },
                     "minItems": 1
                   },
@@ -3225,7 +3911,9 @@
     },
     "/v1/invoices/{id}/issue": {
       "post": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "issueInvoice",
         "summary": "Issue an invoice",
         "security": [
@@ -3274,7 +3962,9 @@
                     "type": "boolean"
                   }
                 },
-                "required": ["dueAt"],
+                "required": [
+                  "dueAt"
+                ],
                 "additionalProperties": false
               }
             }
@@ -3306,7 +3996,9 @@
     },
     "/v1/invoices/{id}/void": {
       "post": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "voidInvoice",
         "summary": "Void an invoice",
         "security": [
@@ -3362,7 +4054,9 @@
     },
     "/v1/invoices/{id}/list": {
       "post": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "listInvoice",
         "summary": "List an invoice in the public payable index",
         "description": "Opts the invoice into the public x402 payable index, where agents discover and pay it. The invoice stays payable by anyone holding its id either way; listing only decides whether a discovery reader is shown it.",
@@ -3407,7 +4101,9 @@
     },
     "/v1/invoices/{id}/unlist": {
       "post": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "unlistInvoice",
         "summary": "Remove an invoice from the public payable index",
         "security": [
@@ -3451,7 +4147,9 @@
     },
     "/v1/invoices/{id}/checkout": {
       "post": {
-        "tags": ["Invoices"],
+        "tags": [
+          "Invoices"
+        ],
         "operationId": "checkoutInvoice",
         "summary": "Check out an issued invoice",
         "security": [],
@@ -3517,11 +4215,18 @@
                         "pattern": "^0x[0-9a-fA-F]{40}$"
                       }
                     },
-                    "required": ["asset", "chain"]
+                    "required": [
+                      "asset",
+                      "chain"
+                    ]
                   },
                   "executionPath": {
                     "type": "string",
-                    "enum": ["deposit-match", "on-chain-contract", "x402"]
+                    "enum": [
+                      "deposit-match",
+                      "on-chain-contract",
+                      "x402"
+                    ]
                   },
                   "amount": {
                     "type": "object",
@@ -3545,7 +4250,10 @@
                         ]
                       }
                     },
-                    "required": ["amount", "asset"]
+                    "required": [
+                      "amount",
+                      "asset"
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -3579,7 +4287,9 @@
     },
     "/v1/webhooks/{provider}": {
       "post": {
-        "tags": ["Webhooks"],
+        "tags": [
+          "Webhooks"
+        ],
         "operationId": "receiveProviderWebhook",
         "summary": "Receive a provider webhook",
         "description": "Provider callback surface. Integrators normally configure outbound merchant webhooks in the dashboard instead of calling this operation. The raw body is passed to the adapter so signatures verify over exactly the signed bytes.",
@@ -3616,7 +4326,282 @@
                       "type": "boolean"
                     }
                   },
-                  "required": ["ok"]
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/x402/resources": {
+      "get": {
+        "tags": [
+          "x402 resources"
+        ],
+        "operationId": "listX402Resources",
+        "summary": "List your registered resources",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "This merchant's resources.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/X402Resource"
+                      }
+                    }
+                  },
+                  "required": [
+                    "resources"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "x402 resources"
+        ],
+        "operationId": "registerX402Resource",
+        "summary": "Register a resource",
+        "description": "Register or re-register an endpoint this merchant hosts, so Mayarin can quote it and settle for it. The `url` must be the exact URL an agent will call — scheme, host and path all count, because a resource is identified by it. The token's EIP-712 domain and transfer method are read off the contracts at registration, never entered.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Stable unique key for this logical write. Keep it unchanged when retrying."
+            },
+            "required": true,
+            "description": "Stable unique key for this logical write. Keep it unchanged when retrying.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "price": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "USD",
+                          "SGD",
+                          "THB",
+                          "MYR",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "ETH",
+                          "BTC"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "asset"
+                    ]
+                  },
+                  "accepts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "chain": {
+                          "type": "string",
+                          "enum": [
+                            "base",
+                            "base-sepolia",
+                            "arbitrum",
+                            "arbitrum-sepolia",
+                            "robinhood-testnet",
+                            "arc-testnet"
+                          ]
+                        },
+                        "asset": {
+                          "type": "string",
+                          "enum": [
+                            "IDR",
+                            "USD",
+                            "SGD",
+                            "THB",
+                            "MYR",
+                            "USDC",
+                            "USDT",
+                            "EURC",
+                            "ETH",
+                            "BTC"
+                          ]
+                        },
+                        "contract": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "payTo": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "chain",
+                        "asset",
+                        "contract",
+                        "payTo"
+                      ]
+                    },
+                    "minItems": 1
+                  },
+                  "maxTimeoutSeconds": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "listed": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "url",
+                  "price",
+                  "accepts",
+                  "maxTimeoutSeconds"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registered resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resource": {
+                      "$ref": "#/components/schemas/X402Resource"
+                    }
+                  },
+                  "required": [
+                    "resource"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or a rail this deployment refuses.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/x402/resources/{id}": {
+      "delete": {
+        "tags": [
+          "x402 resources"
+        ],
+        "operationId": "removeX402Resource",
+        "summary": "Remove a resource",
+        "description": "Stops offering the `402`. Nothing already paid is undone.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed."
+          },
+          "404": {
+            "description": "No resource with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -3626,7 +4611,9 @@
     },
     "/v1/x402/resources/{id}/list": {
       "post": {
-        "tags": ["x402 resources"],
+        "tags": [
+          "x402 resources"
+        ],
         "operationId": "listX402Resource",
         "summary": "List a resource in the public index",
         "description": "Opts the resource into the public cross-merchant x402 index. The resource stays sellable by URL either way; listing only decides whether an agent browsing the index is shown it.",
@@ -3671,7 +4658,9 @@
     },
     "/v1/x402/resources/{id}/unlist": {
       "post": {
-        "tags": ["x402 resources"],
+        "tags": [
+          "x402 resources"
+        ],
         "operationId": "unlistX402Resource",
         "summary": "Remove a resource from the public index",
         "security": [
@@ -3713,9 +4702,238 @@
         }
       }
     },
+    "/x402/resources/{id}/payment-required": {
+      "get": {
+        "tags": [
+          "x402"
+        ],
+        "operationId": "getX402PaymentRequired",
+        "summary": "Quote a resource without calling it",
+        "description": "The price and rails, without making the call being decided about. Not part of the x402 specification — the price normally rides a `402` — but a client deciding whether to pay should not have to make the call first.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The price and the rails that offer it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequired"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No resource with that id, or x402 is not enabled on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/resources/{id}/verify": {
+      "post": {
+        "tags": [
+          "x402"
+        ],
+        "operationId": "verifyX402Payment",
+        "summary": "Would this authorization go through?",
+        "description": "Checks the signature against the chain without broadcasting. The body's `paymentRequirements` is not what gets verified — Mayarin rebuilds the requirements from the resource and uses the carried copy only to identify which quoted option the payer chose. A facilitator that verified against the requirements handed to it would verify a payment against its own claims.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x402Version": {
+                    "type": "number",
+                    "enum": [
+                      2
+                    ]
+                  },
+                  "paymentPayload": {
+                    "$ref": "#/components/schemas/X402PaymentPayload"
+                  },
+                  "paymentRequirements": {
+                    "$ref": "#/components/schemas/X402PaymentRequirements"
+                  }
+                },
+                "required": [
+                  "x402Version",
+                  "paymentPayload",
+                  "paymentRequirements"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The verdict — `isValid`, and the closed-set reason when false.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402VerifyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No resource with that id, or x402 is not enabled on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/resources/{id}/settle": {
+      "post": {
+        "tags": [
+          "x402"
+        ],
+        "operationId": "settleX402Payment",
+        "summary": "Broadcast it, and credit the merchant",
+        "description": "The one that moves money: verifies authoritatively, broadcasts the transfer, confirms it on-chain, and posts the double-entry records that credit the merchant. The payment's nonce is the idempotency key server-side, so a second settle of the same authorization is refused rather than charged twice. An authorization that was valid but did not settle answers `200` with `success: false` and the reason in `errorReason`.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x402Version": {
+                    "type": "number",
+                    "enum": [
+                      2
+                    ]
+                  },
+                  "paymentPayload": {
+                    "$ref": "#/components/schemas/X402PaymentPayload"
+                  },
+                  "paymentRequirements": {
+                    "$ref": "#/components/schemas/X402PaymentRequirements"
+                  }
+                },
+                "required": [
+                  "x402Version",
+                  "paymentPayload",
+                  "paymentRequirements"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The settlement outcome — check `success`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402SettleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, or a signature the chain did not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No resource with that id, or x402 is not enabled on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Quote conflict — the price or rails changed under the authorization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Quote expired — request a new `402` at the same URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
-        "tags": ["Unversioned"],
+        "tags": [
+          "Unversioned"
+        ],
         "operationId": "getHealth",
         "summary": "Deployment health probe",
         "description": "Intentionally unversioned. Stays at the root forever.",
@@ -3732,7 +4950,9 @@
                       "type": "string"
                     }
                   },
-                  "required": ["status"]
+                  "required": [
+                    "status"
+                  ]
                 }
               }
             }
@@ -3742,7 +4962,9 @@
     },
     "/checkout/{id}": {
       "get": {
-        "tags": ["Unversioned"],
+        "tags": [
+          "Unversioned"
+        ],
         "operationId": "getCheckoutPage",
         "summary": "Hosted checkout page",
         "description": "Intentionally unversioned. Renders the hosted checkout for a payment link. A printed QR and a shared link encode this URL, so a version bump must never move it.",
@@ -3783,7 +5005,9 @@
     },
     "/checkout/pay/{intentId}": {
       "get": {
-        "tags": ["Unversioned"],
+        "tags": [
+          "Unversioned"
+        ],
         "operationId": "getCheckoutPayPage",
         "summary": "Hosted pay page for one intent",
         "description": "Intentionally unversioned. Renders the pay flow for a single payment intent.",
@@ -3814,7 +5038,9 @@
     },
     "/checkout/qr": {
       "get": {
-        "tags": ["Unversioned"],
+        "tags": [
+          "Unversioned"
+        ],
         "operationId": "getCheckoutQr",
         "summary": "Render a QR as SVG",
         "description": "Intentionally unversioned. Renders an SVG QR for a `value` query string.",
@@ -3845,7 +5071,9 @@
     },
     "/checkout/events/{intentId}": {
       "get": {
-        "tags": ["Unversioned"],
+        "tags": [
+          "Unversioned"
+        ],
         "operationId": "getCheckoutEvents",
         "summary": "Live payment status stream",
         "description": "Intentionally unversioned. Server-Sent Events: the first frame carries the current status; later frames are a nudge (`event: payment`) that tells the client to re-read the payment. The stream closes once the payment is terminal.",
@@ -3876,7 +5104,9 @@
     },
     "/invoices/{id}/view": {
       "get": {
-        "tags": ["Unversioned"],
+        "tags": [
+          "Unversioned"
+        ],
         "operationId": "getInvoiceViewPage",
         "summary": "Hosted invoice page",
         "description": "Intentionally unversioned. Renders the hosted invoice a buyer sees.",
