@@ -15,6 +15,7 @@ function link(overrides: Partial<PaymentLinkDto> & Pick<PaymentLinkDto, "id">): 
     title: null,
     merchantReference: null,
     metadata: {},
+    rails: null,
     url: `https://pay.test/checkout/${id}`,
     payable: true,
     expiresAt: null,

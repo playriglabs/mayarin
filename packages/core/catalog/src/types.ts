@@ -7,7 +7,7 @@
  * product.
  */
 
-import type { MerchantSnapshot } from "@mayarin/payment-intent";
+import type { LinkRail, MerchantSnapshot } from "@mayarin/payment-intent";
 import type { AssetCode, Money } from "@mayarin/shared";
 
 /**
@@ -96,6 +96,16 @@ export interface PaymentLink {
    * consent, and consent must be given.
    */
   readonly listed: boolean;
+  /**
+   * Rails this link may be paid on (#259). Absent means every rail the catalog
+   * offers the merchant — which is the default, and stays today's behaviour.
+   *
+   * Never widens the catalog: the payer is offered the intersection, so a rail
+   * the merchant cannot currently be paid on is not offered even where it is
+   * named here. Stored on the link, so changing merchant-wide accepted assets
+   * does not rewrite what an issued link exposes.
+   */
+  readonly rails?: readonly LinkRail[];
   readonly idempotencyKey?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;

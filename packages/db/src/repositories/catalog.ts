@@ -19,7 +19,8 @@ import type {
   Product,
   ProductRepository,
 } from "@mayarin/catalog";
-import { ConcurrencyError, type Money } from "@mayarin/shared";
+import { isChainId } from "@mayarin/chain";
+import { ConcurrencyError, type Money, ValidationError } from "@mayarin/shared";
 import { and, asc, desc, eq, gte, ilike, inArray, lt, or } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction, toAsset, toMoney } from "../mapping.ts";
@@ -286,6 +287,7 @@ function toLinkRow(link: PaymentLink): typeof paymentLinks.$inferInsert {
     title: link.title ?? null,
     merchantReference: link.merchantReference ?? null,
     metadata: { ...link.metadata },
+    rails: link.rails === undefined ? null : link.rails.map((rail) => ({ ...rail })),
     expiresAt: link.expiresAt ?? null,
     disabledAt: link.disabledAt ?? null,
     listed: link.listed,
@@ -313,6 +315,7 @@ function toLink(row: LinkRow): PaymentLink {
     ...present("title", row.title),
     ...present("merchantReference", row.merchantReference),
     metadata: row.metadata,
+    ...present("rails", row.rails === null ? undefined : toLinkRails(row.rails)),
     ...present("expiresAt", row.expiresAt),
     ...present("disabledAt", row.disabledAt),
     listed: row.listed,
@@ -333,6 +336,25 @@ function toLink(row: LinkRow): PaymentLink {
 function linkAmount(row: LinkRow): Money | undefined {
   if (row.amount === null || row.amountAsset === null) return undefined;
   return toMoney(row.amount, row.amountAsset);
+}
+
+/**
+ * A link's rail restriction, hard-validated like every other stored code.
+ *
+ * The jsonb column is typed only as strings, so a rail that is not a known
+ * chain or asset is a corrupt row — and a hard error is the honest answer,
+ * because guessing (dropping the entry) would silently narrow what the link
+ * offers, which is a merchant-visible change made by nobody's decision.
+ */
+function toLinkRails(rails: NonNullable<LinkRow["rails"]>): PaymentLink["rails"] {
+  return rails.map((rail) => {
+    if (!isChainId(rail.chain)) {
+      throw new ValidationError(`Stored link rail chain "${rail.chain}" is not a chain`, {
+        chain: rail.chain,
+      });
+    }
+    return { chain: rail.chain, asset: toAsset(rail.asset) };
+  });
 }
 
 export class DrizzleCustomerRepository implements CustomerRepository {

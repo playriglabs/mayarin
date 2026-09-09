@@ -29,5 +29,10 @@ export interface LinkBootstrap {
    * it shows the pure FX rate for a payment that will take the swap.
    */
   readonly settlementAsset: string;
+  /**
+   * Why the rails list is empty when the link itself narrowed it to nothing
+   * (#259). `null` when there is nothing specific to say.
+   */
+  readonly unpayableReason: string | null;
   readonly lockMinutes: number;
 }

@@ -8,7 +8,7 @@
  * lifecycle, the link only decides whether another intent may be minted.
  */
 
-import type { MerchantSnapshot } from "@mayarin/payment-intent";
+import type { LinkRail, MerchantSnapshot } from "@mayarin/payment-intent";
 import {
   type AssetCode,
   generateId,
@@ -31,6 +31,8 @@ export interface CreatePaymentLinkInput {
   readonly expiresAt?: Date;
   /** Whether the link is listed in the public x402 payable index (#273). */
   readonly listed?: boolean;
+  /** Rails this link may be paid on (#259). Absent means no restriction. */
+  readonly rails?: readonly LinkRail[];
   readonly idempotencyKey?: string;
   readonly now: Date;
 }
@@ -54,6 +56,7 @@ export function createPaymentLink(input: CreatePaymentLinkInput): PaymentLink {
     ...(input.merchantReference === undefined
       ? {}
       : { merchantReference: input.merchantReference }),
+    ...(input.rails === undefined ? {} : { rails: assertRails(input.rails) }),
     metadata: input.metadata ?? {},
     listed: input.listed ?? false,
     ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
@@ -115,6 +118,26 @@ export function assertPayable(link: PaymentLink, now: Date): void {
       expiresAt: link.expiresAt?.toISOString(),
     });
   }
+}
+
+/**
+ * The rails a link restricts itself to, checked once at creation (#259).
+ *
+ * Only the shape lives here — a rail the catalog does not offer is the
+ * merchant's to name (a chain they are about to provision on is legitimate),
+ * so the routes warn rather than refuse, and the intersection at read time is
+ * what actually enforces the set. An empty array, though, is refused: it is
+ * not a restriction but a link that can never be paid, and "no preference"
+ * is already spelled by leaving the field out.
+ */
+function assertRails(rails: readonly LinkRail[]): readonly LinkRail[] {
+  if (rails.length === 0) {
+    throw new ValidationError(
+      "A payment link cannot restrict to zero rails — leave the restriction out to offer every rail the merchant accepts",
+      {},
+    );
+  }
+  return rails.map((rail) => ({ ...rail }));
 }
 
 /** The currency a link denominates, whichever shape it takes. */

@@ -14,7 +14,14 @@
  */
 
 import { type ChainId, isChainId } from "@mayarin/chain";
-import type { ChainReceipt, RailPricingSource, RailReport } from "@mayarin/payment-intent";
+import {
+  type ChainReceipt,
+  type LinkRail,
+  type OfferedRail,
+  type RailPricingSource,
+  type RailReport,
+  restrictRails,
+} from "@mayarin/payment-intent";
 import {
   type AssetCode,
   assetDecimals,
@@ -205,12 +212,12 @@ const OBSERVE_TIMEOUT_MS = 2_000;
  */
 export async function payerRails(
   container: Pick<Container, "railObservations">,
-  report: RailReport,
+  catalog: readonly OfferedRail[],
 ): Promise<RailDto[]> {
-  if (report.rails.length <= 1) return report.rails.map((rail) => toRailDto(rail));
+  if (catalog.length <= 1) return catalog.map((rail) => toRailDto(rail));
 
   const source = container.railObservations;
-  const chains = [...new Set(report.rails.map((rail) => rail.chain))];
+  const chains = [...new Set(catalog.map((rail) => rail.chain))];
   let timer: ReturnType<typeof setTimeout> | undefined;
   const observations =
     source === undefined
@@ -223,9 +230,7 @@ export async function payerRails(
         ]);
   clearTimeout(timer);
 
-  return rankRails(report.rails, observations).map(({ rail, standing }) =>
-    toRailDto(rail, standing),
-  );
+  return rankRails(catalog, observations).map(({ rail, standing }) => toRailDto(rail, standing));
 }
 
 /**
@@ -276,4 +281,88 @@ function refusalFor(
   return offered.length === 0
     ? `${rail.asset} on ${rail.chain} cannot be paid, and this merchant has no payment rail available`
     : `${rail.asset} on ${rail.chain} cannot be paid; available rails are ${offered}`;
+}
+
+/**
+ * The rails a link exposes: the catalog's offer intersected with the link's own
+ * set (#259).
+ *
+ * The one place the narrowing happens, so a payer reading the page, an embed
+ * reading `GET /:id/rails`, and a buyer minting an intent are all refused by
+ * the same list. The intersection never widens: a rail the catalog does not
+ * offer is dropped, not offered.
+ */
+export function linkRails(
+  report: RailReport,
+  link: { readonly rails?: readonly LinkRail[] },
+): readonly OfferedRail[] {
+  return restrictRails(report.rails, link.rails);
+}
+
+/**
+ * `assertRailOffered`, narrowed to one link.
+ *
+ * The catalog's refusal comes first — a pair the merchant cannot be paid on is
+ * refused whatever the link says. A pair the catalog offers but the link
+ * restricts away is then refused with the link's own list, so the payer who
+ * holds the wrong asset learns what this link does take.
+ */
+export async function assertLinkRailOffered(
+  container: Container,
+  link: { readonly merchant: { readonly id: string }; readonly rails?: readonly LinkRail[] },
+  rail: { readonly asset: AssetCode; readonly chain: ChainId } | undefined,
+): Promise<void> {
+  if (rail === undefined) return;
+  await assertRailOffered(container, link.merchant.id, rail);
+
+  if (
+    link.rails !== undefined &&
+    !link.rails.some((entry) => entry.chain === rail.chain && entry.asset === rail.asset)
+  ) {
+    throw new ValidationError(
+      `This payment link does not accept ${rail.asset} on ${rail.chain}; it only accepts ${link.rails.map((entry) => `${entry.asset} on ${entry.chain}`).join(", ")}`,
+      {
+        asset: rail.asset,
+        chain: rail.chain,
+        rails: link.rails.map((entry) => `${entry.chain}:${entry.asset}`),
+      },
+    );
+  }
+}
+
+/**
+ * The write-time warning for a link's rail restriction (#259).
+ *
+ * A restriction names rails the catalog may not currently offer, and that is
+ * legitimate — a merchant may be about to provision on the chain — so the write
+ * is allowed and the response carries one line per unoffered rail, with the
+ * catalog's reason where it has one. Never a refusal: the restriction is a
+ * preference, and the intersection at read time is what enforces it.
+ */
+export async function unofferedRailWarnings(
+  container: Container,
+  merchantId: string,
+  rails: readonly LinkRail[],
+): Promise<readonly string[]> {
+  if (rails.length === 0) return [];
+
+  const report = await container.rails.describe(merchantId);
+  const warnings: string[] = [];
+  for (const rail of rails) {
+    const offered = report.rails.some(
+      (entry) => entry.chain === rail.chain && entry.asset === rail.asset,
+    );
+    if (offered) continue;
+
+    const exclusion =
+      report.unavailable.find(
+        (entry) => entry.chain === rail.chain && "asset" in entry && entry.asset === rail.asset,
+      ) ?? report.unavailable.find((entry) => entry.chain === rail.chain);
+    warnings.push(
+      exclusion === undefined
+        ? `${rail.asset} on ${rail.chain} is not offered to payers right now, so this link will not be payable on it until it is`
+        : `${rail.asset} on ${rail.chain} is not offered to payers right now: ${exclusion.reason}`,
+    );
+  }
+  return warnings;
 }

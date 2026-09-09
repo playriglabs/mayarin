@@ -17,7 +17,7 @@ import {
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
-import { assertRailOffered, payerRails } from "../rails.ts";
+import { assertLinkRailOffered, linkRails, payerRails, unofferedRailWarnings } from "../rails.ts";
 
 export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
@@ -43,10 +43,18 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
       ...(body.expiresAt === undefined ? {} : { expiresAt: body.expiresAt }),
       ...(body.listed === undefined ? {} : { listed: body.listed }),
+      ...(body.rails === undefined ? {} : { rails: body.rails }),
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     });
 
-    return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()) }, 201);
+    // The restriction is validated as a warning, not a refusal (#259): a
+    // merchant may legitimately name a chain they are about to provision on.
+    const warnings =
+      body.rails === undefined
+        ? []
+        : await unofferedRailWarnings(container, link.merchant.id, body.rails);
+
+    return c.json({ paymentLink: toPaymentLinkDto(link, baseUrl, new Date()), warnings }, 201);
   });
 
   // Keyed by a guessable merchant id, so the listing requires a key — and only
@@ -80,7 +88,7 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     const link = await container.catalog.getLink(c.req.param("id"));
     const report = await container.rails.describe(link.merchant.id);
     return c.json({
-      rails: await payerRails(container, report),
+      rails: await payerRails(container, linkRails(report, link)),
       settlementAsset: report.settlementAsset,
     });
   });
@@ -130,9 +138,11 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
 
     // Refused here rather than at price-lock: by then the payer has chosen, a
     // deposit address has been issued, and the message names a merchant
-    // setting they have never seen.
+    // setting they have never seen. The link's own restriction narrows the
+    // check (#259): a pair the catalog offers but the link excludes is
+    // refused with what the link does take.
     const link = await container.catalog.getLink(c.req.param("id"));
-    await assertRailOffered(container, link.merchant.id, options.payment);
+    await assertLinkRailOffered(container, link, options.payment);
 
     const intent = await container.commerce.checkoutLink(c.req.param("id"), {
       ...toIntentOptions(options),

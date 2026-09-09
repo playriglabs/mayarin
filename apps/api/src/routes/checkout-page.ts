@@ -22,6 +22,7 @@ import {
   type Product,
   parseCartSnapshot,
 } from "@mayarin/catalog";
+import { chainLabel } from "@mayarin/chain";
 import { type AssetCode, money, NotFoundError, ValidationError, zero } from "@mayarin/shared";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -30,7 +31,7 @@ import sharp from "sharp";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
-import { payerRails } from "../rails.ts";
+import { linkRails, payerRails } from "../rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
 
 /**
@@ -211,10 +212,12 @@ export function checkoutPageRoutes(container: Container): Hono {
     // this deployment, filtered per chain, with the reasons already applied.
     // `describe` rather than `railsFor` because the page also needs what the
     // merchant settles in: it decides whether an estimate has a swap leg.
-    // Ranked by what the rails have been doing (#260), on this same read —
-    // the observation source is an injected port, so the page gains no second
-    // round trip.
+    // Then narrowed to what this link exposes (#259) — the intersection never
+    // widens the catalog — and ranked by what the rails have been doing
+    // (#260), on this same read: the observation source is an injected port,
+    // so the page gains no second round trip.
     const report = await container.rails.describe(link.merchant.id);
+    const offered = linkRails(report, link);
 
     return c.html(
       await renderShell(
@@ -223,7 +226,11 @@ export function checkoutPageRoutes(container: Container): Hono {
           link,
           payable,
           preview,
-          rails: await payerRails(container, report),
+          rails: await payerRails(container, offered),
+          unpayableReason:
+            payable && offered.length === 0 && link.rails !== undefined
+              ? `This link only accepts ${link.rails.map((rail) => `${rail.asset} on ${chainLabel(rail.chain)}`).join(", ")}, which the merchant cannot be paid on right now.`
+              : null,
           settlementAsset: report.settlementAsset,
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
@@ -296,8 +303,8 @@ interface LinkBootstrapOptions {
   /** Priced lines and total, for a link that prices itself. Absent for `open`. */
   readonly preview: LinkPreview | undefined;
   /**
-   * Every `(chain, asset)` pair this merchant can be paid on (#244), ranked by
-   * how each rail has been behaving (#260).
+   * Every `(chain, asset)` pair this link may be paid on (#244, #259), ranked
+   * by how each rail has been behaving (#260).
    *
    * The payer picks one, and that choice mints the intent — so the deposit
    * address and the price lock belong to the rail they chose rather than to one
@@ -305,6 +312,13 @@ interface LinkBootstrapOptions {
    * removes a rail the merchant accepts.
    */
   readonly rails: readonly RailDto[];
+  /**
+   * Why the rails list is empty, when the link itself narrowed it to nothing
+   * (#259). The page states the reason rather than showing a chooser with
+   * nothing in it; `null` when the list is empty because the merchant has no
+   * rail at all, which the page already knows how to say.
+   */
+  readonly unpayableReason: string | null;
   /**
    * What the merchant is paid in. The estimate is quoted against it, because
    * whether a payer asset has a swap leg at all is decided by this and not by
@@ -329,7 +343,8 @@ interface LinkBootstrapOptions {
  *   `POST /v1/quotes` — the same rate provider the lock will read.
  */
 async function linkBootstrap(options: LinkBootstrapOptions) {
-  const { link, payable, preview, rails, settlementAsset, ttlSeconds, products } = options;
+  const { link, payable, preview, rails, unpayableReason, settlementAsset, ttlSeconds, products } =
+    options;
   const currency = link.currency ?? link.amount?.asset;
 
   // An open link has no total until the buyer types one; everything else shows
@@ -373,6 +388,7 @@ async function linkBootstrap(options: LinkBootstrapOptions) {
     total,
     lines,
     rails,
+    unpayableReason,
     settlementAsset,
     lockMinutes: Math.max(1, Math.round(ttlSeconds / 60)),
   };

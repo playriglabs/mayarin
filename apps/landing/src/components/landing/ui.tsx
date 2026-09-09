@@ -41,7 +41,7 @@ export function SectionIntro({
       <p class="mb-5 text-xs font-medium tracking-[0.08em] text-forest">{label}</p>
       <h2>{title}</h2>
       {children && (
-        <p class="mt-6 max-w-135 text-base leading-relaxed text-slate-600 md:text-lg in-[[class*=text-center]]:mx-auto">
+        <p class="mt-6 max-w-135 text-base leading-relaxed text-slate-600 md:text-lg :mx-auto">
           {children}
         </p>
       )}

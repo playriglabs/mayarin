@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { CursorPagination } from "@/components/ui/cursor-pagination";
 import {
@@ -75,8 +76,9 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
 import {
@@ -114,7 +116,13 @@ import { PAGE_SIZE } from "@/lib/pagination";
 import { currencyLabel, isValidAmount, PRICING_CURRENCIES } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
-import type { PaymentLinkDto, PaymentLinkKind, QuoteLine, QuoteResponse } from "@/types/catalog";
+import type {
+  PaymentLinkDto,
+  PaymentLinkKind,
+  PaymentLinkRail,
+  QuoteLine,
+  QuoteResponse,
+} from "@/types/catalog";
 import type { MerchantRailDto } from "@/types/settings";
 
 const KIND_OPTIONS: readonly SelectOption[] = [
@@ -236,6 +244,78 @@ function RailMark({ asset, chain }: { readonly asset: string; readonly chain: st
         className="absolute right-0 bottom-0 size-2.5 rounded-full ring-2 ring-card"
       />
     </span>
+  );
+}
+
+/** A pair is the identity: one network can offer several payer assets. */
+const railKey = (rail: { readonly chain: string; readonly asset: string }) =>
+  `${rail.chain}:${rail.asset}`;
+
+/** The merchant's live offer narrowed by an immutable link restriction (#259). */
+export function paymentRailsForLink(
+  rails: readonly MerchantRailDto[],
+  allowed: readonly PaymentLinkRail[] | null,
+): readonly MerchantRailDto[] {
+  if (allowed === null) return rails;
+  const selected = new Set(allowed.map(railKey));
+  return rails.filter((rail) => selected.has(railKey(rail)));
+}
+
+/** What the merchant configured on the link, or today's live set for an unrestricted link. */
+export function displayedRailsForLink(
+  rails: readonly MerchantRailDto[],
+  allowed: readonly PaymentLinkRail[] | null,
+): readonly PaymentLinkRail[] {
+  const configured = allowed ?? rails;
+  return [
+    ...new Map(
+      configured.map((rail) => [railKey(rail), { chain: rail.chain, asset: rail.asset }]),
+    ).values(),
+  ];
+}
+
+/** A dense table cell: two chips are enough to identify the set, then a count. */
+export function railChipSummary(rails: readonly PaymentLinkRail[], limit = 2) {
+  return {
+    shown: rails.slice(0, limit),
+    remaining: Math.max(0, rails.length - limit),
+  } as const;
+}
+
+function AcceptedRailChips({ rails }: { readonly rails: readonly PaymentLinkRail[] }) {
+  if (rails.length === 0) {
+    return <span className="text-muted-foreground text-sm">No rails available</span>;
+  }
+
+  const { shown, remaining } = railChipSummary(rails);
+  const hidden = rails.slice(shown.length);
+
+  return (
+    <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
+      {shown.map((rail) => (
+        <span
+          key={railKey(rail)}
+          className="inline-flex h-7 items-center gap-1.5 bg-muted px-2 text-muted-foreground text-xs"
+        >
+          <ChainLogo chain={rail.chain} size={14} className="size-3.5 rounded-full" />
+          <span>
+            {chainLabel(rail.chain)} · {rail.asset}
+          </span>
+        </span>
+      ))}
+      {remaining > 0 && (
+        <span
+          className="inline-flex h-7 items-center bg-muted px-2 text-muted-foreground text-xs"
+          title={hidden.map((rail) => `${chainLabel(rail.chain)} · ${rail.asset}`).join(", ")}
+        >
+          <span aria-hidden="true">+{remaining}</span>
+          <span className="sr-only">
+            {remaining} more accepted rails:{` `}
+            {hidden.map((rail) => `${chainLabel(rail.chain)} · ${rail.asset}`).join(", ")}
+          </span>
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -403,6 +483,8 @@ function PaymentLinks() {
 
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  /** The rails the new link exposes, keyed as `chain:asset` (#259). */
+  const [selectedRailKeys, setSelectedRailKeys] = useState<readonly string[]>([]);
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
   const [sharing, setSharing] = useState<PaymentLinkDto | null>(null);
@@ -457,10 +539,11 @@ function PaymentLinks() {
    * the price lock leaves a FAILED payment behind for every press of the button.
    */
   const payerRails = rails.data?.rails ?? [];
-  /** Every network with a rail, in catalog order — what a quote is asked for. */
-  const railChains = [...new Set(payerRails.map((rail) => rail.chain))];
+  const chargingRails = charging === null ? [] : paymentRailsForLink(payerRails, charging.rails);
+  /** Every network this link permits, in catalog order — what a quote is asked for. */
+  const chargingRailChains = [...new Set(chargingRails.map((rail) => rail.chain))];
 
-  const canCreate = match(draft.kind)
+  const validShape = match(draft.kind)
     .with("fixed", () => isValidAmount(draft.amount, draft.currency))
     .with("open", () => true)
     .with(
@@ -468,6 +551,20 @@ function PaymentLinks() {
       () => draft.productId !== "" && catalogCurrency !== undefined && Number(draft.quantity) > 0,
     )
     .exhaustive();
+  const canCreate = validShape && rails.isSuccess && selectedRailKeys.length > 0;
+
+  function openCreate() {
+    setFailure("");
+    setSelectedRailKeys(payerRails.map(railKey));
+    setCreating(true);
+  }
+
+  function toggleCreateRail(key: string) {
+    setSelectedRailKeys((current) =>
+      current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key],
+    );
+    setFailure("");
+  }
 
   /**
    * Clipboard access is refused on an insecure origin and by a denied
@@ -509,9 +606,13 @@ function PaymentLinks() {
         ...shape,
         ...(title === "" ? {} : { title }),
         ...(reference === "" ? {} : { merchantReference: reference }),
+        rails: payerRails
+          .filter((rail) => selectedRailKeys.includes(railKey(rail)))
+          .map(({ chain, asset }) => ({ chain, asset })),
       });
       setCreating(false);
       setDraft(EMPTY_DRAFT);
+      setSelectedRailKeys([]);
       setNotice("Payment link created.");
       // Straight to the share sheet: the merchant made this link in order to
       // put it somewhere, and a row in a table is not that. Taking a payment is
@@ -528,12 +629,15 @@ function PaymentLinks() {
     setTakenPaymentId(null);
     setChargeAmount("");
     setQuotedByChain({});
-    const first = payerRails[0];
+    const allowed = paymentRailsForLink(payerRails, link.rails);
+    const first = allowed[0];
     setChargeRail(first === undefined ? "" : `${first.chain}:${first.asset}`);
     setCharging(link);
     // A link that carries its own amount can be priced immediately. An open one
     // has nothing to price until the counter types a figure.
-    if (link.kind !== "open") void priceIt(link, undefined, railChains);
+    if (link.kind !== "open") {
+      void priceIt(link, undefined, [...new Set(allowed.map((rail) => rail.chain))]);
+    }
   }
 
   /**
@@ -610,14 +714,7 @@ function PaymentLinks() {
         <p className="font-mono text-xs text-subtle-foreground">
           {rows.length} link{rows.length === 1 ? "" : "s"}
         </p>
-        <Button
-          className="h-9"
-          onClick={() => {
-            setFailure("");
-            setCreating(true);
-          }}
-          disabled={!profileReady}
-        >
+        <Button className="h-9" onClick={openCreate} disabled={!profileReady || !rails.isSuccess}>
           <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
           New link
         </Button>
@@ -655,13 +752,7 @@ function PaymentLinks() {
               <EmptyTitle>No payment links yet.</EmptyTitle>
               <EmptyDescription>Create a reusable checkout link or counter QR.</EmptyDescription>
               <EmptyAction>
-                <Button
-                  onClick={() => {
-                    setFailure("");
-                    setCreating(true);
-                  }}
-                  disabled={!profileReady}
-                >
+                <Button onClick={openCreate} disabled={!profileReady || !rails.isSuccess}>
                   <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
                   Create your first link
                 </Button>
@@ -676,6 +767,7 @@ function PaymentLinks() {
                     <TableHead>Title</TableHead>
                     <TableHead>Kind</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Accepted rails</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -689,6 +781,9 @@ function PaymentLinks() {
                         <Badge>{KIND_LABEL[link.kind]}</Badge>
                       </TableCell>
                       <TableCell className="text-right">{amountLabel(link)}</TableCell>
+                      <TableCell>
+                        <AcceptedRailChips rails={displayedRailsForLink(payerRails, link.rails)} />
+                      </TableCell>
                       <TableCell>
                         <Badge variant={link.payable ? "success" : "default"}>
                           {link.payable ? "Payable" : "Retired"}
@@ -883,6 +978,62 @@ function PaymentLinks() {
               </>
             )}
 
+            <FieldSet>
+              <FieldLegend className="mb-1">Accepted payment rails</FieldLegend>
+              <FieldDescription className="mb-3">
+                Choose where buyers may pay this link. The link can only narrow the rails available
+                in your wallet settings.
+              </FieldDescription>
+              {payerRails.length === 0 ? (
+                <Alert role="status">
+                  No payment rail is available yet. Configure a verified destination in{" "}
+                  <a href="/wallets" className="underline">
+                    wallets
+                  </a>
+                  .
+                </Alert>
+              ) : (
+                <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+                  {payerRails.map((rail) => {
+                    const key = railKey(rail);
+                    const inputId = `link-rail-${key.replace(":", "-")}`;
+                    const picked = selectedRailKeys.includes(key);
+                    return (
+                      <Label
+                        key={key}
+                        htmlFor={inputId}
+                        className={cn(
+                          "flex min-h-11 cursor-pointer items-center gap-3 border p-3 transition-colors",
+                          picked
+                            ? "border-subtle-foreground bg-primary/5"
+                            : "border-border hover:border-subtle-foreground",
+                        )}
+                      >
+                        <Checkbox
+                          id={inputId}
+                          checked={picked}
+                          onCheckedChange={() => toggleCreateRail(key)}
+                          disabled={create.isPending}
+                        />
+                        <RailMark asset={rail.asset} chain={rail.chain} />
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="font-medium text-foreground text-xs">{rail.asset}</span>
+                          <span className="text-subtle-foreground text-xs">
+                            {chainLabel(rail.chain)}
+                          </span>
+                        </span>
+                      </Label>
+                    );
+                  })}
+                </div>
+              )}
+              {payerRails.length > 0 && selectedRailKeys.length === 0 && (
+                <p role="alert" className="mt-2 text-destructive text-xs">
+                  Select at least one payment rail.
+                </p>
+              )}
+            </FieldSet>
+
             <Field>
               <FieldLabel htmlFor="link-reference">Your reference</FieldLabel>
               <Input
@@ -958,7 +1109,7 @@ function PaymentLinks() {
                         charging !== null &&
                         isValidAmount(chargeAmount, charging.currency ?? "IDR")
                       ) {
-                        void priceIt(charging, chargeAmount.trim(), railChains);
+                        void priceIt(charging, chargeAmount.trim(), chargingRailChains);
                       }
                     }}
                     onValueChange={setChargeAmount}
@@ -979,7 +1130,7 @@ function PaymentLinks() {
                 </div>
               )}
 
-              {payerRails.length === 0 ? (
+              {chargingRails.length === 0 ? (
                 <Alert role="status">
                   No network can take a payment for you yet — see which ones and why in{" "}
                   <a href="/wallets" className="underline">
@@ -994,7 +1145,7 @@ function PaymentLinks() {
                 // actually be asked for. Here a row *is* the choice, and it
                 // carries its own number.
                 <RailChoice
-                  rails={payerRails}
+                  rails={chargingRails}
                   value={chargeRail}
                   onSelect={setChargeRail}
                   lineFor={lineFor}
@@ -1101,7 +1252,7 @@ function PaymentLinks() {
         open={pendingDisable !== null}
         onOpenChange={(next) => !next && setPendingDisable(null)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Retire this link?</AlertDialogTitle>
             <AlertDialogDescription>

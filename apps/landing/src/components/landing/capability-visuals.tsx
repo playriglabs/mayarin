@@ -71,6 +71,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
         <div class="w-full max-w-70 space-y-2">
           {[
             { asset: "ETH", chain: "base", selected: true },
+            { asset: "PYUSD", chain: "ethereum", selected: false },
             { asset: "EURC", chain: "arbitrum", selected: false },
             { asset: "EURC", chain: "arc-testnet", selected: false },
           ].map((rail) => (

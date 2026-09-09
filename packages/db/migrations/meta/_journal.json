@@ -211,6 +211,13 @@
       "when": 1788739200000,
       "tag": "0029_x402_payables",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788912000000,
+      "tag": "0030_payment_link_rails",
+      "breakpoints": true
     }
   ]
 }

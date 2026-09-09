@@ -39,7 +39,7 @@ export function invoicePageRoutes(container: Container): Hono {
         invoiceBootstrap(
           view,
           `${origin}/v1/invoices/${view.invoice.id}/checkout`,
-          await payerRails(container, report),
+          await payerRails(container, report.rails),
         ),
       ),
     );

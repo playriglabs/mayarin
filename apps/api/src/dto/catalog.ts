@@ -17,6 +17,17 @@ import { merchantSchema } from "./payment-intent.ts";
 const metadataSchema = z.record(z.string(), z.string()).optional();
 const merchantReferenceSchema = z.string().min(1).max(255).optional();
 
+/**
+ * A rail a link may be paid on (#259): a `(chain, asset)` pair, never a chain
+ * alone. Not validated against the catalog — a merchant may legitimately name
+ * a chain they are about to provision on, so the route warns rather than
+ * refuses, and the intersection at read time is what enforces the set.
+ */
+export const linkRailSchema = z.object({
+  chain: z.enum(CHAIN_IDS),
+  asset: assetCodeSchema,
+});
+
 export const createProductBodySchema = z.object({
   merchantId: z.string().min(1),
   sku: z.string().min(1).max(64),
@@ -109,6 +120,8 @@ export const createPaymentLinkBodySchema = z
     expiresAt: timestampSchema.optional(),
     /** Whether this link appears in the public x402 payable index (#273). */
     listed: z.boolean().optional(),
+    /** Rails this link may be paid on (#259). Absent means no restriction. */
+    rails: z.array(linkRailSchema).min(1).optional(),
   })
   // The per-kind shape is enforced by `createPaymentLink`, which is where the
   // rule belongs — the route would otherwise carry a second copy that can drift.
@@ -180,6 +193,8 @@ export function toPaymentLinkDto(link: PaymentLink, baseUrl: string, now: Date) 
     title: link.title ?? null,
     merchantReference: link.merchantReference ?? null,
     metadata: link.metadata,
+    /** The link's own allowlist (#259). `null` means no restriction. */
+    rails: link.rails ?? null,
     url: `${baseUrl}/checkout/${link.id}`,
     payable: isLinkPayable(link, now),
     /** Whether it appears in the public x402 payable index (#273). */

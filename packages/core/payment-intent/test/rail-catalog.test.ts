@@ -6,6 +6,7 @@ import {
   type ChainReceipt,
   DerivedRailCatalog,
   type RailPricingSource,
+  restrictRails,
   type SettlementDestinationSource,
 } from "../src/rail-catalog.ts";
 
@@ -246,5 +247,41 @@ describe("DerivedRailCatalog", () => {
 
     expect(report.rails).toEqual([]);
     expect(report.unavailable).toEqual([]);
+  });
+});
+
+describe("restrictRails", () => {
+  const USDC_BASE = { chain: BASE, asset: "USDC" } as const;
+  const ETH_BASE = { chain: BASE, asset: "ETH" } as const;
+  const USDC_ARC = { chain: ARC, asset: "USDC" } as const;
+  const rails = [
+    { ...USDC_BASE, contract: "0xusdc" },
+    { ...ETH_BASE },
+    { ...USDC_ARC, contract: "0xusdc" },
+  ];
+
+  test("no restriction offers every rail the catalog does", () => {
+    expect(restrictRails(rails, undefined)).toEqual(rails);
+  });
+
+  test("a restriction offers exactly the named rails, no more", () => {
+    expect(restrictRails(rails, [{ chain: BASE, asset: "USDC" }])).toEqual([
+      { ...USDC_BASE, contract: "0xusdc" },
+    ]);
+  });
+
+  test("a named rail the catalog does not offer is dropped, not offered", () => {
+    expect(restrictRails(rails, [{ chain: ARC, asset: "ETH" }])).toEqual([]);
+  });
+
+  test("the intersection keeps catalog order, not the restriction's", () => {
+    expect(restrictRails(rails, [USDC_ARC, USDC_BASE])).toEqual([
+      { ...USDC_BASE, contract: "0xusdc" },
+      { ...USDC_ARC, contract: "0xusdc" },
+    ]);
+  });
+
+  test("an empty intersection is a link that cannot be paid", () => {
+    expect(restrictRails(rails, [{ chain: BASE, asset: "EURC" }])).toEqual([]);
   });
 });

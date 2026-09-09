@@ -26,7 +26,8 @@ import { useQuoteEstimate } from "./use-quote-estimate.ts";
  * `RailPicker` asks nothing when there is nothing to ask.
  */
 export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
-  const { payable, currency, total, lines, rails, settlementAsset, lockMinutes } = bootstrap;
+  const { payable, currency, total, lines, rails, settlementAsset, unpayableReason, lockMinutes } =
+    bootstrap;
   const [rail, setRail] = useState(rails[0]);
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
@@ -156,7 +157,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                   ? "This merchant has no payment method available"
                   : "This payment link is no longer available"}
               </h3>
-              <p>Contact the merchant for a new payment link.</p>
+              <p>{unpayableReason ?? "Contact the merchant for a new payment link."}</p>
             </div>
           )}
         </div>

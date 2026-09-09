@@ -1,0 +1,12 @@
+-- A merchant restricts which rails a link exposes (#259).
+--
+-- `rails` is the link's own allowlist of `(chain, asset)` pairs, intersected
+-- with the rail catalog at read time — the intersection is the rule, so a link
+-- can never name its way past what the merchant can actually be paid on. Null
+-- means no restriction, which is the default and today's behaviour: nullable
+-- rather than an empty array because "no preference" and "no rail at all" are
+-- different statements, and only the first is a sane default.
+--
+-- Written by hand like every migration since 0009: drizzle-kit's snapshot chain
+-- ends at 0008 and otherwise re-proposes 0009's settled rate rename.
+ALTER TABLE "payment_links" ADD COLUMN IF NOT EXISTS "rails" jsonb;
