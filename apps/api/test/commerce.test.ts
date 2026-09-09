@@ -188,6 +188,35 @@ describe("payment links", () => {
     expect(relisted.body.paymentLink.listed).toBe(true);
   });
 
+  test("a rail restriction reaches reads and refuses an excluded checkout rail", async () => {
+    const harness = createApiHarness();
+    const created = await harness.request("POST", "/v1/payment-links", {
+      body: {
+        kind: "fixed",
+        merchant,
+        amount: { amount: "50000.00", asset: "IDR" },
+        rails: [{ chain: "arc-testnet", asset: "USDC" }],
+      },
+    });
+    const link = created.body.paymentLink;
+
+    expect(link.rails).toEqual([{ chain: "arc-testnet", asset: "USDC" }]);
+    expect(created.body.warnings).toHaveLength(1);
+
+    const offered = await harness.request("GET", `/v1/payment-links/${link.id}/rails`);
+    expect(offered.body.rails).toEqual([]);
+
+    const page = await harness.requestBootstrap(`/checkout/${link.id}`);
+    expect(page.bootstrap.rails).toEqual([]);
+    expect(page.bootstrap.unpayableReason).toContain("Arc Testnet");
+
+    const paid = await harness.request("POST", `/v1/payment-links/${link.id}/checkout`, {
+      body: { payment: { chain: "base-sepolia", asset: "USDC" } },
+    });
+    expect(paid.status).toBe(400);
+    expect(String(paid.body.error.message)).toContain("does not accept");
+  });
+
   test("an open link takes the amount the buyer enters, twice over", async () => {
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/v1/payment-links", {
@@ -239,9 +268,17 @@ describe("payment links", () => {
   test("a disabled link cannot be paid", async () => {
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/v1/payment-links", {
-      body: { kind: "open", merchant, currency: "IDR" },
+      body: {
+        kind: "open",
+        merchant,
+        currency: "IDR",
+        rails: [{ chain: "arc-testnet", asset: "USDC" }],
+      },
     });
     await harness.request("POST", `/v1/payment-links/${body.paymentLink.id}/disable`);
+
+    const page = await harness.requestBootstrap(`/checkout/${body.paymentLink.id}`);
+    expect(page.bootstrap.unpayableReason).toBeNull();
 
     const paid = await harness.request(
       "POST",

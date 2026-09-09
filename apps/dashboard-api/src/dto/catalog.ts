@@ -10,6 +10,7 @@
 
 import type { PaymentLink, Product } from "@mayarin/catalog";
 import { isLinkPayable, PAYMENT_LINK_KINDS } from "@mayarin/catalog";
+import { CHAIN_IDS } from "@mayarin/chain";
 import { assetCodeSchema, decimalMoneySchema, timestampSchema } from "@mayarin/shared";
 import { z } from "zod";
 import { toMoneyDto } from "./money.ts";
@@ -73,6 +74,11 @@ export const createLinkBodySchema = z
     customerId: z.string().min(1).optional(),
     metadata: metadataSchema,
     expiresAt: timestampSchema.optional(),
+    /** Rails this link may be paid on (#259). At least one when restricted. */
+    rails: z
+      .array(z.object({ chain: z.enum(CHAIN_IDS), asset: assetCodeSchema }).strict())
+      .min(1)
+      .optional(),
   })
   // The per-kind shape is enforced by `createPaymentLink`, which is where the
   // rule belongs — a second copy here would be a second copy to get wrong.
@@ -96,6 +102,7 @@ export function toCreateLinkInput(body: CreateLinkBody) {
     ...(body.merchantReference === undefined ? {} : { merchantReference: body.merchantReference }),
     ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
     ...(body.expiresAt === undefined ? {} : { expiresAt: body.expiresAt }),
+    ...(body.rails === undefined ? {} : { rails: body.rails }),
   };
 }
 
@@ -133,6 +140,8 @@ export function toPaymentLinkDto(link: PaymentLink, checkoutBaseUrl: string, now
     title: link.title ?? null,
     merchantReference: link.merchantReference ?? null,
     metadata: link.metadata,
+    /** `null` means the link inherits every rail the merchant can offer. */
+    rails: link.rails ?? null,
     url: `${checkoutBaseUrl}/checkout/${link.id}`,
     payable: isLinkPayable(link, now),
     expiresAt: link.expiresAt?.toISOString() ?? null,

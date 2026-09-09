@@ -282,6 +282,28 @@ describe("payment link routes", () => {
     expect(res.body?.paymentLink.currency).toBe("IDR");
   });
 
+  test("a link carries its rail restriction and the counter cannot bypass it", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+      rails: [{ chain: "arc-testnet", asset: "USDC" }],
+    });
+    const link = created.body?.paymentLink;
+
+    expect(created.status).toBe(201);
+    expect(link.rails).toEqual([{ chain: "arc-testnet", asset: "USDC" }]);
+
+    const charged = await post(harness, auth, `/v1/payment-links/${link.id}/charge`, {
+      chain: "base-sepolia",
+      asset: "USDC",
+      amount: { amount: "75000", asset: "IDR" },
+    });
+    expect(charged.status).toBe(400);
+    expect(String(charged.body?.error.message)).toContain("cannot be paid");
+  });
+
   test("a merchant with no city or country cannot mint a link", async () => {
     const harness = await seed();
     // A merchant created before anyone filled in the profile — the ordinary

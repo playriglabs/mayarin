@@ -7,6 +7,7 @@ import { assetLogoUrl } from "@mayarin/shared";
  * network, not the deployment it currently runs against.
  */
 function networkName(chain: string): string {
+  if (chain === "ethereum") return "Ethereum";
   return chainLabel(chain).replace(/ (Testnet|Sepolia)$/, "");
 }
 
@@ -27,9 +28,10 @@ export function RailMark({
   readonly size?: number;
 }) {
   const assetLogo = assetLogoUrl(asset);
-  // `/chains/arc.svg` is the default, and is the same round mark the dashboard
-  // and the hosted checkout serve — not the wordmark in `/images/logos/`.
-  const chainLogo = chainLogoUrl(chain);
+  // Ethereum is a marketing-only rail today, so it uses the same local mark as
+  // `NetworkMarks` without pretending it is already a product `ChainId`.
+  // Everything the product supports continues through the canonical helper.
+  const chainLogo = chain === "ethereum" ? "/chains/ethereum.svg" : chainLogoUrl(chain);
   const badge = Math.round(size * 0.45);
 
   return (

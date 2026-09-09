@@ -118,8 +118,9 @@ export const ASSET_CODES = Object.keys(DEFINITIONS) as readonly AssetCode[];
  * Token artwork from Trust Wallet's public asset registry.
  *
  * The components accept strings from API responses, so EURC is kept ready here
- * even before it joins Mayarin's settlement registry. Fiat values deliberately
- * have no remote logo and render as a compact monogram in the UI.
+ * even before it joins Mayarin's settlement registry, and PYUSD is available
+ * for the landing's Ethereum rail illustration. Fiat values deliberately have
+ * no remote logo and render as a compact monogram in the UI.
  *
  * USDT is the one Trust Wallet logo that ships without an alpha channel — a flat
  * white square — so it is overridden with a self-hosted transparent mark. The
@@ -130,6 +131,8 @@ const TRUST_WALLET_ASSET_LOGOS: Readonly<Record<string, string>> = {
   BTC: "https://assets-cdn.trustwallet.com/blockchains/bitcoin/info/logo.png",
   ETH: "https://assets-cdn.trustwallet.com/blockchains/ethereum/info/logo.png",
   EURC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
+  PYUSD:
+    "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x6c3ea9036406852006290770BEdFcAbA0e23A0e8/logo.png",
   USDC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",
 };
 

@@ -520,6 +520,10 @@ export const paymentLinks = pgTable(
     title: text("title"),
     merchantReference: text("merchant_reference"),
     metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
+    // Rails this link may be paid on (#259). Null means no restriction — every
+    // rail the catalog offers. Nullable rather than an empty array because "no
+    // preference" and "no rail at all" are different statements.
+    rails: jsonb("rails").$type<{ chain: string; asset: string }[]>(),
 
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
     disabledAt: timestamp("disabled_at", { withTimezone: true, mode: "date" }),

@@ -251,7 +251,7 @@ async function issuedInvoice(
 /** A fixed-amount payment link for 100.00 USD, listed or not as asked. */
 async function fixedLink(
   h: Awaited<ReturnType<typeof harness>>,
-  options: { listed?: boolean } = {},
+  options: { listed?: boolean; rails?: PaymentLink["rails"] } = {},
 ): Promise<PaymentLink> {
   return h.catalog.createLink({
     kind: "fixed",
@@ -259,6 +259,7 @@ async function fixedLink(
     amount: HUNDRED_DOLLARS,
     title: "Satu kilo kopi",
     ...(options.listed === true ? { listed: true } : {}),
+    ...(options.rails === undefined ? {} : { rails: options.rails }),
   });
 }
 
@@ -488,7 +489,21 @@ describe("x402 payables: quoting", () => {
 
     expect(response.status).toBe(400);
     expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
-      "no way to be paid right now",
+      "the merchant has no rails",
+    );
+  });
+
+  test("a payment link's restriction also narrows its x402 payable rails", async () => {
+    const h = await harness();
+    const link = await fixedLink(h, {
+      rails: [{ chain: "arc-testnet", asset: "USDC" }],
+    });
+
+    const response = await h.app.request(`/x402/payables/link/${link.id}`);
+
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toContain(
+      "none of the payment link's selected rails is currently offered",
     );
   });
 

@@ -64,6 +64,7 @@ function linkBootstrap(overrides: Partial<LinkBootstrap> = {}): LinkBootstrap {
     lines: null,
     rails: [{ chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" }],
     settlementAsset: "USDC",
+    unpayableReason: null,
     lockMinutes: 15,
     ...overrides,
   };

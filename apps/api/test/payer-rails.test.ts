@@ -8,17 +8,12 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { OfferedRail, RailReport } from "@mayarin/payment-intent";
+import type { OfferedRail } from "@mayarin/payment-intent";
 import type { RailObservation } from "@mayarin/x402";
 import { payerRails } from "../src/rails.ts";
 
 const BASE_RAIL: OfferedRail = { chain: "base-sepolia", asset: "USDC", contract: "0x3600" };
 const ARC_RAIL: OfferedRail = { chain: "arc-testnet", asset: "USDC", contract: "0x3600" };
-
-/** A catalog report offering the rails it is given, as `describe` returns one. */
-function report(rails: readonly OfferedRail[]): RailReport {
-  return { rails, unavailable: [], settlementAsset: "USDC" };
-}
 
 /** An observation source that answers with the given observations. */
 function source(observations: readonly RailObservation[]) {
@@ -42,7 +37,7 @@ describe("payerRails", () => {
     // deadline and Arc 58s, so the payer is offered Arc first.
     const rails = await payerRails(
       source([settled("base-sepolia", 12), settled("arc-testnet", 58)]),
-      report([BASE_RAIL, ARC_RAIL]),
+      [BASE_RAIL, ARC_RAIL],
     );
 
     expect(rails.map((rail) => rail.chain)).toEqual(["arc-testnet", "base-sepolia"]);
@@ -50,10 +45,10 @@ describe("payerRails", () => {
   });
 
   test("a rail below the minimum sample count keeps its catalog position", async () => {
-    const rails = await payerRails(
-      source([{ chain: "arc-testnet", headroomSeconds: [300] }]),
-      report([BASE_RAIL, ARC_RAIL]),
-    );
+    const rails = await payerRails(source([{ chain: "arc-testnet", headroomSeconds: [300] }]), [
+      BASE_RAIL,
+      ARC_RAIL,
+    ]);
 
     expect(rails.map((rail) => rail.chain)).toEqual(["base-sepolia", "arc-testnet"]);
     expect(rails.map((rail) => rail.standing)).toEqual(["unobserved", "unobserved"]);
@@ -70,7 +65,7 @@ describe("payerRails", () => {
           },
         },
       },
-      report([BASE_RAIL]),
+      [BASE_RAIL],
     );
 
     expect(rails).toEqual([{ chain: "base-sepolia", asset: "USDC", contract: "0x3600" }]);
@@ -86,7 +81,7 @@ describe("payerRails", () => {
           },
         },
       },
-      report([BASE_RAIL, ARC_RAIL]),
+      [BASE_RAIL, ARC_RAIL],
     );
 
     expect(rails.map((rail) => rail.chain)).toEqual(["base-sepolia", "arc-testnet"]);
@@ -101,7 +96,7 @@ describe("payerRails", () => {
           observe: () => new Promise<readonly RailObservation[]>(() => {}),
         },
       },
-      report([BASE_RAIL, ARC_RAIL]),
+      [BASE_RAIL, ARC_RAIL],
     );
 
     expect(rails.map((rail) => rail.chain)).toEqual(["base-sepolia", "arc-testnet"]);
@@ -109,7 +104,7 @@ describe("payerRails", () => {
   }, 5_000);
 
   test("no observation source leaves the list in catalog order", async () => {
-    const rails = await payerRails({}, report([BASE_RAIL, ARC_RAIL]));
+    const rails = await payerRails({}, [BASE_RAIL, ARC_RAIL]);
 
     expect(rails.map((rail) => rail.chain)).toEqual(["base-sepolia", "arc-testnet"]);
     expect(rails.map((rail) => rail.standing)).toEqual(["unobserved", "unobserved"]);

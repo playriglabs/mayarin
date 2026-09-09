@@ -13,6 +13,7 @@
 
 import { acceptedAssetsOn } from "@mayarin/auth";
 import { CHAIN_IDS } from "@mayarin/chain";
+import { restrictRails } from "@mayarin/payment-intent";
 import {
   type AssetCode,
   assetCodeSchema,
@@ -175,9 +176,20 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
     // the set the payment can actually be taken in. The merchant-wide list is
     // what a chain without its own row inherits anyway.
     const merchant = await container.settings.get(scope);
+    const link = await container.catalog.getLink(scope, c.req.param("id"));
     const amount = await chargeableAmount(container, scope, c.req.param("id"), body.amount);
-    const assets =
+    const configuredAssets =
       body.chain === undefined ? merchant.acceptedAssets : acceptedAssetsOn(merchant, body.chain);
+    const assets =
+      link.rails === undefined
+        ? configuredAssets
+        : [
+            ...new Set(
+              restrictRails(await container.rails.railsFor(scope.merchantId), link.rails)
+                .filter((rail) => body.chain === undefined || rail.chain === body.chain)
+                .map((rail) => rail.asset),
+            ),
+          ];
 
     return c.json(
       await container.paymentApi.quote(amount, assets, body.chain, merchant.settlementAsset),
@@ -216,7 +228,7 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
     // refused here, before a record exists.
     // The rail comes from the catalog, so a counter cannot start a sale on a
     // pair a payer would be refused (#244).
-    const rails = await container.rails.railsFor(scope.merchantId);
+    const rails = restrictRails(await container.rails.railsFor(scope.merchantId), link.rails);
     const rail = rails.find(
       (entry) =>
         entry.asset === body.asset && (body.chain === undefined || entry.chain === body.chain),

@@ -222,7 +222,7 @@
     @apply text-sm font-semibold;
   }
   .rail-picker-copy span {
-    @apply mt-1 text-xs text-muted;
+    @apply mt-0.5 text-xs text-muted;
   }
   .rail-picker-change {
     @apply text-xs font-medium text-muted;

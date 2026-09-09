@@ -181,16 +181,15 @@ function CodeDialog({
               <button
                 type="button"
                 onClick={copy}
-                class="label inline-flex cursor-pointer items-center gap-2 text-slate-inverse transition-colors duration-200 hover:text-paper focus-visible:outline-accent"
+                class="text-xs uppercase inline-flex cursor-pointer items-center gap-2 text-slate-inverse transition-colors duration-200 hover:text-paper focus-visible:outline-accent"
               >
                 <CopyIcon copied={copied} />
-                {copied ? "Copied" : "Copy"}
               </button>
               <button
                 type="button"
                 onClick={() => ref.current?.close()}
                 aria-label="Close the example"
-                class="label inline-flex cursor-pointer items-center gap-2 text-slate-inverse transition-colors duration-200 hover:text-paper focus-visible:outline-accent"
+                class="text-xs uppercase inline-flex cursor-pointer items-center gap-2 text-slate-inverse transition-colors duration-200 hover:text-paper focus-visible:outline-accent"
               >
                 Esc
                 <CloseIcon />
@@ -247,7 +246,7 @@ export function Capabilities() {
         />
       </Reveal>
 
-      <Reveal delay={120} class="mt-14 grid min-w-0 gap-5 md:grid-cols-2">
+      <Reveal delay={120} class="mt-14 grid min-w-0 gap-3 md:grid-cols-2 lg:gap-5">
         {CAPABILITIES.map((item) => {
           const snippet = SNIPPETS.get(item.id);
           return (

@@ -18,6 +18,7 @@ import type { LinkPreview, PaymentLink } from "@mayarin/catalog";
 import { assertPayable, isLinkPayable } from "@mayarin/catalog";
 import type { Invoice, InvoiceView } from "@mayarin/invoicing";
 import { assertInvoicePayable } from "@mayarin/invoicing";
+import { type LinkRail, restrictRails } from "@mayarin/payment-intent";
 import type { Clock, Money } from "@mayarin/shared";
 import { ValidationError } from "@mayarin/shared";
 import type {
@@ -109,6 +110,8 @@ interface PayableFacts {
   readonly description?: string;
   readonly price: Money;
   readonly provenance: PayableProvenance;
+  /** A payment link's own rail allowlist. Invoices carry no restriction. */
+  readonly rails?: readonly LinkRail[];
 }
 
 /** An index entry before the sort keys are stripped for the wire. */
@@ -249,11 +252,24 @@ export class X402PayableService {
    */
   async paymentRequired(kind: PayableKind, id: string): Promise<PaymentRequired> {
     const facts = await this.#payableFor(kind, id);
-    const accepts = await this.#options.x402.merchantAccepts(facts.merchantId);
+    const accepts = restrictRails(
+      await this.#options.x402.merchantAccepts(facts.merchantId),
+      facts.rails,
+    );
     if (accepts.length === 0) {
+      const reason =
+        facts.rails === undefined
+          ? "the merchant has no rails"
+          : "none of the payment link's selected rails is currently offered";
       throw new ValidationError(
-        `x402 payable ${kind} ${id} has no way to be paid right now: the merchant has no rails`,
-        { kind, obligationId: id },
+        `x402 payable ${kind} ${id} has no way to be paid right now: ${reason}`,
+        {
+          kind,
+          obligationId: id,
+          ...(facts.rails === undefined
+            ? {}
+            : { rails: facts.rails.map((rail) => `${rail.chain}:${rail.asset}`) }),
+        },
       );
     }
 
@@ -378,6 +394,7 @@ export class X402PayableService {
       url: payableUrl("link", id),
       ...(link.title === undefined ? {} : { description: link.title }),
       price,
+      ...(link.rails === undefined ? {} : { rails: link.rails }),
       provenance: {
         kind: "link",
         obligationId: id,

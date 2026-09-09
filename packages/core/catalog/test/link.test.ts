@@ -64,6 +64,28 @@ describe("createPaymentLink", () => {
       }),
     ).toThrow(ValidationError);
   });
+
+  test("carries a rail restriction onto the link", () => {
+    const link = createPaymentLink({
+      kind: "open",
+      merchant,
+      currency: "IDR",
+      rails: [{ chain: "base-sepolia", asset: "USDC" }],
+      now: NOW,
+    });
+    expect(link.rails).toEqual([{ chain: "base-sepolia", asset: "USDC" }]);
+  });
+
+  test("a link without a restriction carries none — the default", () => {
+    const link = createPaymentLink({ kind: "open", merchant, currency: "IDR", now: NOW });
+    expect(link.rails).toBeUndefined();
+  });
+
+  test("refuses a restriction to zero rails", () => {
+    expect(() =>
+      createPaymentLink({ kind: "open", merchant, currency: "IDR", rails: [], now: NOW }),
+    ).toThrow(/zero rails/);
+  });
 });
 
 describe("payability", () => {

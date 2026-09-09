@@ -88,7 +88,7 @@ export default function SearchCommand({ permissions }: { permissions: readonly P
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-10 w-36 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 text-sm text-subtle-foreground transition-colors hover:bg-muted hover:text-foreground md:w-88"
+        className="flex h-10 w-36 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 text-sm text-subtle-foreground transition-colors hover:bg-muted hover:text-foreground md:w-92"
       >
         <span className="flex min-w-0 items-center gap-2">
           <MagnifyingGlassIcon size={16} aria-hidden="true" className="shrink-0" />

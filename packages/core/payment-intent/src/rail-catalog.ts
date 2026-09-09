@@ -51,6 +51,40 @@ export interface OfferedRail {
 }
 
 /**
+ * One rail a link may expose (#259): a pair, never a chain alone.
+ *
+ * A merchant restricting a link names whole rails — the same `(chain, asset)`
+ * pairs the catalog offers — because restricting by chain with the assets
+ * implied would be the union bug of #244 in a smaller box: a payer on Arc
+ * offered "ETH" is the same error as one offered a chain the merchant
+ * cannot be paid on.
+ */
+export interface LinkRail {
+  readonly chain: ChainId;
+  readonly asset: AssetCode;
+}
+
+/**
+ * The rails a link may expose: the catalog intersected with the link's own set.
+ *
+ * The intersection is the rule (#259): a link cannot name a rail the merchant
+ * has no settlement destination on, cannot re-enable an asset they stopped
+ * accepting, and cannot outlive a chain the deployment stopped watching. An
+ * entry the catalog does not offer is dropped, not offered.
+ *
+ * `undefined` means no restriction — every rail the catalog offers, which is
+ * the default and today's behaviour.
+ */
+export function restrictRails<Rail extends LinkRail>(
+  rails: readonly Rail[],
+  allowed: readonly LinkRail[] | undefined,
+): readonly Rail[] {
+  if (allowed === undefined) return rails;
+  const wanted = new Set(allowed.map((rail) => `${rail.chain}:${rail.asset}`));
+  return rails.filter((rail) => wanted.has(`${rail.chain}:${rail.asset}`));
+}
+
+/**
  * What this deployment can receive on one chain.
  *
  * Assembled by the composition root from configuration and from what is

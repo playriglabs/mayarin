@@ -67,6 +67,12 @@ export interface PaymentLinkLine {
   readonly quantity: number;
 }
 
+/** One `(chain, asset)` pair a payment link allows. */
+export interface PaymentLinkRail {
+  readonly chain: string;
+  readonly asset: string;
+}
+
 export interface PaymentLinkDto {
   readonly id: string;
   readonly kind: PaymentLinkKind;
@@ -76,6 +82,8 @@ export interface PaymentLinkDto {
   readonly title: string | null;
   readonly merchantReference: string | null;
   readonly metadata: Readonly<Record<string, string>>;
+  /** `null` means every rail the merchant can currently offer. */
+  readonly rails: readonly PaymentLinkRail[] | null;
   /** Hosted checkout URL on the payment API — what a QR encodes. */
   readonly url: string;
   /** False once disabled or expired. A link is a template, not a payment. */
@@ -110,6 +118,8 @@ export interface CreateLinkRequest {
   readonly lines?: readonly PaymentLinkLine[];
   readonly title?: string;
   readonly merchantReference?: string;
+  /** At least one pair. Omit to leave the link unrestricted. */
+  readonly rails?: readonly PaymentLinkRail[];
 }
 
 /** What a counter sale needs beyond the link: the asset the payer will send. */

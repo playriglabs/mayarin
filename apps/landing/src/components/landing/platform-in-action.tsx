@@ -429,7 +429,7 @@ export function PlatformInAction() {
     >
       <div class="mx-auto grid w-full max-w-300 gap-8 px-6 md:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-end lg:gap-20">
         <div>
-          <p data-platform-kicker class="mb-4 text-sm font-medium text-forest">
+          <p data-platform-kicker class="mb-3 ml-1 text-[15px] font-medium text-forest">
             Mayarin platform
           </p>
           <h2 class="perspective-midrange">
@@ -456,7 +456,7 @@ export function PlatformInAction() {
         </div>
       </div>
 
-      <div data-platform-carousel class="mt-14 md:mt-18">
+      <div data-platform-carousel class="mt-12 md:mt-16">
         <section
           ref={track}
           id="platform-track"
@@ -465,7 +465,7 @@ export function PlatformInAction() {
           // biome-ignore lint/a11y/noNoninteractiveTabindex: The scrollable carousel supports keyboard navigation.
           tabIndex={0}
           data-lenis-prevent-horizontal
-          class="grid snap-x snap-mandatory auto-cols-[min(84vw,28rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-6 outline-offset-4 scrollbar-none md:px-10 [&::-webkit-scrollbar]:hidden"
+          class="grid snap-x mt-6 snap-mandatory auto-cols-[min(84vw,28rem)] grid-flow-col gap-3 overflow-x-auto overscroll-x-contain px-6 outline-offset-4 scrollbar-none md:px-10 [&::-webkit-scrollbar]:hidden"
         >
           {PLATFORM_VIEWS.map((view) => (
             <article
