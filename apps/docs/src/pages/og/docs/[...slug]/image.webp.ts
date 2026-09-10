@@ -38,6 +38,13 @@ const TEXT_COLUMN = 620;
 // the plate's own wordmark.
 const TITLE_LIMIT = 54;
 
+// The text hangs off the plate's own wordmark, not off the canvas: the mark's
+// leftmost ink sits at x=62, and both faces carry about 3px of left side
+// bearing at these sizes, so a box at 59 puts the title's stem and the footer's
+// first letter on the wordmark's edge. Measured off a render, not guessed —
+// the 80px it replaced left both lines visibly inset from the mark above them.
+const TEXT_INSET = 59;
+
 export const GET: APIRoute = async ({ params }) => {
   const slugs = typeof params.slug === "string" ? params.slug.split("/") : [];
   const page = source.getPage(slugs);
@@ -48,16 +55,24 @@ export const GET: APIRoute = async ({ params }) => {
   // an http(s) source it can fetch — handed a `data:` URI it paints nothing and
   // reports no error, which reads exactly like a broken asset. An `<img>` takes
   // the same URI and draws it.
-  const markup = `
-<div style="display:flex;position:relative;width:1200px;height:630px;background-color:#ffffff;color:#0a0a0a;font-family:HB Set,Helvetica,Arial,sans-serif;">
+  //
+  // The root is pinned to the canvas origin and the markup is trimmed for the
+  // same reason: production rendered this tree 21px down the canvas — a
+  // transparent strip along the top and the plate's bottom 21px cut off —
+  // where the identical markup renders flush here on both the native and the
+  // wasm backend. A root that states its own origin cannot be placed after
+  // anything, and a string with no leading newline gives the HTML parser no
+  // stray text node to lay out before it.
+  const markup =
+    `<div style="display:flex;position:absolute;top:0;left:0;width:1200px;height:630px;background-color:#ffffff;color:#0a0a0a;font-family:HB Set,Helvetica,Arial,sans-serif;">
   <img src="${backgroundUrl}" alt="" style="position:absolute;top:0;left:0;width:1200px;height:630px;" />
-  <div style="display:flex;flex-direction:column;justify-content:flex-end;width:1200px;height:630px;padding:72px 80px;">
+  <div style="display:flex;flex-direction:column;justify-content:flex-end;width:1200px;height:630px;padding:72px 80px 72px ${TEXT_INSET}px;">
     <div style="display:flex;flex-direction:column;gap:26px;flex-shrink:0;">
       <div style="display:flex;font-size:76px;font-weight:300;line-height:1.04;letter-spacing:-0.035em;max-width:${TEXT_COLUMN}px;word-break:break-word;overflow:hidden;">${escapeHtml(title)}</div>
       <div style="display:flex;font-family:Geist Variable,sans-serif;font-size:21px;color:#64748b;">docs.mayarin.xyz</div>
     </div>
   </div>
-</div>`;
+</div>`.trim();
 
   const { node } = fromHtml(markup);
   const image = await render(node, {

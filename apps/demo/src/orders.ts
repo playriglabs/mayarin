@@ -48,12 +48,10 @@ export interface Order {
   readonly shipping: ShippingAddress | null;
   readonly status: OrderStatus;
   readonly source: OrderSource;
-  /** The payment link id this order was minted through. */
-  readonly linkId?: string;
-  /** The hosted checkout URL for a `pending_payment` order. */
-  readonly paymentUrl?: string;
-  /** The verified payment-intent id, set once the webhook is confirmed. */
+  /** The Payment Intent this order was checked out as. */
   readonly paymentId?: string;
+  /** The hosted payment page for a `pending_payment` order. */
+  readonly paymentUrl?: string;
 }
 
 const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -152,8 +150,7 @@ function migrateLegacyHistory(): readonly Order[] {
         ? ("paid" as const)
         : ("pending_payment" as const),
       source: "legacy" as const,
-      ...(first.linkId !== "" ? { linkId: first.linkId } : {}),
-      ...(first.paymentId !== undefined ? { paymentId: first.paymentId } : {}),
+      ...(first.paymentId === undefined ? {} : { paymentId: first.paymentId }),
     };
   });
 }
@@ -185,18 +182,20 @@ export function addOrder(order: Order): void {
 
 /**
  * Flips the matching order to `paid` when the signed payment webhook is
- * verified on the success route. Prefers the order this payment link was
- * minted for; falls back to the newest pending order the way the old
- * history did.
+ * verified on the success route. The order stores the intent it was checked
+ * out as, so the match is exact; the fallback to the newest pending order is
+ * only there for records migrated from before the order model.
  */
 export function markOrderPaid(paymentId: string): void {
   try {
     const orders = [...loadOrders()];
-    const byLink = orders.findIndex(
-      (order) => order.linkId === paymentId && order.status === "pending_payment",
+    const byPayment = orders.findIndex(
+      (order) => order.paymentId === paymentId && order.status === "pending_payment",
     );
     const target =
-      byLink === -1 ? orders.findIndex((order) => order.status === "pending_payment") : byLink;
+      byPayment === -1
+        ? orders.findIndex((order) => order.status === "pending_payment")
+        : byPayment;
     const current = target === -1 ? undefined : orders[target];
     if (current === undefined) return;
     orders[target] = { ...current, status: "paid", paymentId };

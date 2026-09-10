@@ -1,247 +1,26 @@
 /**
- * The thin server behind the demo marketplace (#137).
+ * The Vite-dev adapter for the demo API.
  *
- * A merchant storefront never ships its secret key to the browser, so the two
- * calls that need one — list products, mint a payment link — run here, inside
- * the Vite dev server, as connect middleware mounted at `/api`. The browser
- * bundle sees only the two demo routes; the secret stays in `process.env`.
+ * The handlers live in `server/api.ts` against the Fetch API; this file is
+ * only the connect-middleware shim Vite needs, so the dev server and the
+ * deployed Worker run identical route code.
  */
 
+import { Buffer } from "node:buffer";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { PaymentLinkDto } from "@mayarin/api/dto";
-import { createMayarin, isMayarinApiError, type MayarinClient } from "@mayarin/sdk";
+import { type DemoConfig, demoRoutes } from "./api.ts";
 
-/** The one currency the demo prices in. The point of #137 is the IDR-native flow. */
-export const DEMO_CURRENCY = "IDR";
-const WEBHOOK_SIGNATURE_HEADER = "webhook-signature";
-const WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS = 300;
-
-async function verifyWebhook(options: {
-  readonly header: string;
-  readonly body: string;
-  readonly secrets: readonly string[];
-  readonly now: Date;
-}): Promise<boolean> {
-  let timestamp: number | undefined;
-  const signatures: string[] = [];
-  for (const part of options.header.split(",")) {
-    const [key, value] = part.split("=", 2);
-    if (key === "t" && value !== undefined) timestamp = Number(value);
-    if (key === "v1" && value !== undefined) signatures.push(value);
-  }
-  if (
-    timestamp === undefined ||
-    !Number.isInteger(timestamp) ||
-    signatures.length === 0 ||
-    Math.abs(Math.floor(options.now.getTime() / 1_000) - timestamp) >
-      WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS
-  ) {
-    return false;
-  }
-
-  const message = new TextEncoder().encode(`${timestamp}.${options.body}`);
-  return Promise.all(
-    options.secrets.map(async (secret) => {
-      const key = await crypto.subtle.importKey(
-        "raw",
-        new TextEncoder().encode(secret),
-        { name: "HMAC", hash: "SHA-256" },
-        false,
-        ["sign"],
-      );
-      const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, message));
-      const expected = [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-      return signatures.includes(expected);
-    }),
-  ).then((matches) => matches.some(Boolean));
-}
-
-export interface DemoConfig {
-  readonly apiUrl: string;
-  readonly merchant: {
-    readonly id: string;
-    readonly name: string;
-    readonly city: string;
-    readonly countryCode: string;
-  };
-  readonly secretKey: string;
-  readonly publicUrl: string;
-  readonly webhookSecret?: string;
-}
-
-/**
- * Reads the demo configuration, or throws naming every missing variable — a
- * demo that silently mints no links is worse than one that says why.
- */
-export function loadDemoConfig(env: Record<string, string | undefined>): DemoConfig {
-  const secretKey = env.MAYARIN_SECRET_KEY;
-  const merchantId = env.MAYARIN_MERCHANT_ID;
-  const missing = [
-    ...(secretKey === undefined || secretKey === "" ? ["MAYARIN_SECRET_KEY"] : []),
-    ...(merchantId === undefined || merchantId === "" ? ["MAYARIN_MERCHANT_ID"] : []),
-  ];
-  if (
-    secretKey === undefined ||
-    secretKey === "" ||
-    merchantId === undefined ||
-    merchantId === ""
-  ) {
-    throw new Error(
-      `Missing ${missing.join(" and ")}. Run \`bun run seed\` in apps/demo, ` +
-        "or copy the values from `bun run seed:merchant`.",
-    );
-  }
-  return {
-    apiUrl: env.MAYARIN_API_URL ?? "http://localhost:3000",
-    merchant: {
-      id: merchantId,
-      name: env.MAYARIN_MERCHANT_NAME ?? "Parahyangan Supply",
-      city: env.MAYARIN_MERCHANT_CITY ?? "Bandung",
-      countryCode: env.MAYARIN_MERCHANT_COUNTRY ?? "ID",
-    },
-    secretKey,
-    publicUrl: (env.DEMO_PUBLIC_URL ?? "http://localhost:5173").replace(/\/+$/, ""),
-    ...(env.MAYARIN_WEBHOOK_SECRET === undefined || env.MAYARIN_WEBHOOK_SECRET === ""
-      ? {}
-      : { webhookSecret: env.MAYARIN_WEBHOOK_SECRET }),
-  };
-}
-
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.statusCode = status;
-  res.setHeader("content-type", "application/json");
-  res.end(JSON.stringify(body));
-}
-
-async function readText(req: IncomingMessage): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(chunk as Buffer);
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-async function readJson(req: IncomingMessage): Promise<unknown> {
-  return JSON.parse(await readText(req));
-}
-
-interface DemoWebhookEvent {
-  readonly paymentIntentId: string;
-  readonly state: string;
-}
-
-export function parseWebhookEvent(rawBody: string): DemoWebhookEvent | undefined {
-  const parsed: unknown = JSON.parse(rawBody);
-  if (typeof parsed !== "object" || parsed === null) return undefined;
-  const data = (parsed as { data?: unknown }).data;
-  if (typeof data !== "object" || data === null) return undefined;
-  const { paymentIntentId, state } = data as {
-    paymentIntentId?: unknown;
-    state?: unknown;
-  };
-  return typeof paymentIntentId === "string" && typeof state === "string"
-    ? { paymentIntentId, state }
-    : undefined;
-}
-
-interface CheckoutRequest {
-  readonly lines: readonly { readonly productId: string; readonly quantity: number }[];
-}
-
-const canonicalLines = (lines: CheckoutRequest["lines"]) =>
-  [...lines].sort((left, right) => left.productId.localeCompare(right.productId));
-
-function sameLines(left: CheckoutRequest["lines"], right: CheckoutRequest["lines"]): boolean {
-  const a = canonicalLines(left);
-  const b = canonicalLines(right);
-  return (
-    a.length === b.length &&
-    a.every((line, index) => {
-      const other = b[index];
-      return other?.productId === line.productId && other.quantity === line.quantity;
-    })
-  );
-}
-
-export function findReusableCatalogLink(
-  links: readonly PaymentLinkDto[],
-  request: CheckoutRequest,
-  successBaseUrl?: string,
-  merchant?: DemoConfig["merchant"],
-): PaymentLinkDto | undefined {
-  return links.find(
-    (link) =>
-      link.kind === "catalog" &&
-      link.payable &&
-      link.currency === DEMO_CURRENCY &&
-      (successBaseUrl === undefined || link.metadata.checkoutSuccessBaseUrl === successBaseUrl) &&
-      (merchant === undefined ||
-        (link.merchant.id === merchant.id &&
-          link.merchant.name === merchant.name &&
-          link.merchant.city === merchant.city &&
-          link.merchant.countryCode === merchant.countryCode)) &&
-      link.lines !== null &&
-      sameLines(link.lines, request.lines),
-  );
-}
-
-function catalogLinkIdempotencyKey(config: DemoConfig, request: CheckoutRequest): string {
-  const cart = canonicalLines(request.lines)
-    .map((line) => `${line.productId}:${line.quantity}`)
-    .join(",");
-  return [
-    "demo-catalog-v3",
-    config.merchant.id,
-    config.merchant.name,
-    config.merchant.city,
-    config.merchant.countryCode,
-    config.publicUrl,
-    cart,
-    DEMO_CURRENCY,
-  ].join(":");
-}
-
-export async function reusableOrNewCatalogLink(
-  mayarin: MayarinClient,
-  config: DemoConfig,
-  request: CheckoutRequest,
-): Promise<PaymentLinkDto> {
-  const existing = findReusableCatalogLink(
-    await mayarin.commerce.paymentLinks.list(config.merchant.id),
-    request,
-    `${config.publicUrl}/checkout/success`,
-    config.merchant,
-  );
-  if (existing !== undefined) return existing;
-
-  return mayarin.commerce.paymentLinks.create(
-    {
-      kind: "catalog",
-      merchant: config.merchant,
-      currency: DEMO_CURRENCY,
-      lines: [...request.lines],
-      metadata: { checkoutSuccessBaseUrl: `${config.publicUrl}/checkout/success` },
-    },
-    { idempotencyKey: catalogLinkIdempotencyKey(config, request) },
-  );
-}
-
-export function parseCheckoutRequest(body: unknown): CheckoutRequest | undefined {
-  if (typeof body !== "object" || body === null) return undefined;
-  const { lines } = body as { lines?: unknown };
-  if (!Array.isArray(lines) || lines.length === 0) return undefined;
-  const valid = lines.every(
-    (line) =>
-      typeof line === "object" &&
-      line !== null &&
-      typeof (line as { productId?: unknown }).productId === "string" &&
-      (line as { productId: string }).productId !== "" &&
-      typeof (line as { quantity?: unknown }).quantity === "number" &&
-      Number.isInteger((line as { quantity: number }).quantity) &&
-      (line as { quantity: number }).quantity > 0,
-  );
-  return valid ? { lines: lines as CheckoutRequest["lines"] } : undefined;
-}
+export {
+  type CheckoutRequest,
+  cartCheckoutBody,
+  DEMO_CURRENCY,
+  type DemoConfig,
+  demoRoutes,
+  hostedPaymentUrl,
+  loadDemoConfig,
+  parseCheckoutRequest,
+  parseWebhookEvent,
+} from "./api.ts";
 
 type NextHandleFunction = (
   req: IncomingMessage,
@@ -250,102 +29,53 @@ type NextHandleFunction = (
 ) => void;
 
 /**
- * The demo API, mounted at `/api` so `req.url` arrives with the prefix
- * stripped: `GET /products` lists the catalog, `POST /checkout` mints a
- * `catalog` payment link and returns its hosted-checkout `url`.
+ * The body as the exact text that was sent. A webhook signature covers those
+ * bytes, so the shim must not re-encode or re-serialise them on the way in.
+ */
+async function readBody(req: IncomingMessage): Promise<string | undefined> {
+  if (req.method === "GET" || req.method === "HEAD") return undefined;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/** Rebuilds the incoming request as a `Request` the shared routes can read. */
+async function toRequest(req: IncomingMessage, mountedAt: string): Promise<Request> {
+  const url = new URL(`${mountedAt}${req.url ?? "/"}`, "http://localhost");
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (typeof value === "string") headers.set(name, value);
+    else if (Array.isArray(value)) for (const entry of value) headers.append(name, entry);
+  }
+  const body = await readBody(req);
+  return new Request(url, {
+    method: req.method ?? "GET",
+    headers,
+    ...(body === undefined || body === "" ? {} : { body }),
+  });
+}
+
+async function send(res: ServerResponse, response: Response): Promise<void> {
+  res.statusCode = response.status;
+  for (const [name, value] of response.headers) res.setHeader(name, value);
+  res.end(Buffer.from(await response.arrayBuffer()));
+}
+
+/**
+ * The demo API as connect middleware, mounted at `/api` — so `req.url` arrives
+ * with the prefix stripped and this shim puts it back before routing.
  */
 export function demoApi(config: DemoConfig): NextHandleFunction {
-  const mayarin: MayarinClient = createMayarin({
-    baseUrl: config.apiUrl,
-    secretKey: config.secretKey,
-  });
-  const successfulPayments = new Set<string>();
+  const routes = demoRoutes(config);
 
   return (req, res, next) => {
-    const path = req.url?.split("?")[0];
-
-    const successMatch = /^\/payment-status\/([^/]+)$/.exec(path ?? "");
-    const referencePaymentId = successMatch?.[1];
-    const handler =
-      req.method === "GET" && path === "/products"
-        ? async () => {
-            const products = await mayarin.commerce.products.list(config.merchant.id);
-            sendJson(res, 200, { products });
-          }
-        : req.method === "POST" && path === "/checkout"
-          ? async () => {
-              const request = parseCheckoutRequest(await readJson(req));
-              if (request === undefined) {
-                sendJson(res, 400, {
-                  error: "Expected { lines: [{ productId, quantity: positive integer }] }",
-                });
-                return;
-              }
-              const link = await reusableOrNewCatalogLink(mayarin, config, request);
-              sendJson(res, 200, { id: link.id, url: link.url });
-            }
-          : req.method === "POST" && path === "/webhooks/mayarin"
-            ? async () => {
-                if (config.webhookSecret === undefined) {
-                  sendJson(res, 503, { error: "MAYARIN_WEBHOOK_SECRET is not configured" });
-                  return;
-                }
-                const rawBody = await readText(req);
-                const signature = req.headers[WEBHOOK_SIGNATURE_HEADER];
-                if (
-                  typeof signature !== "string" ||
-                  !(await verifyWebhook({
-                    header: signature,
-                    body: rawBody,
-                    secrets: [config.webhookSecret],
-                    now: new Date(),
-                  }))
-                ) {
-                  sendJson(res, 401, { error: "Invalid webhook signature" });
-                  return;
-                }
-                const event = parseWebhookEvent(rawBody);
-                if (event?.state === "SUCCESS") {
-                  const intent = await mayarin.payment.getIntent(event.paymentIntentId);
-                  if (intent.status === "COMPLETED" && intent.merchant.id === config.merchant.id) {
-                    successfulPayments.add(event.paymentIntentId);
-                  }
-                }
-                sendJson(res, 202, { received: true });
-              }
-            : req.method === "GET" && referencePaymentId !== undefined
-              ? async () => {
-                  const intent = await mayarin.payment.getIntent(referencePaymentId);
-                  const success =
-                    intent.merchant.id === config.merchant.id && intent.status === "COMPLETED";
-                  if (success) successfulPayments.add(referencePaymentId);
-                  // The intent is fetched every poll anyway, so the success page
-                  // can show what was paid without a second round-trip: the
-                  // priced amount, the rail the payer used, and when it settled.
-                  sendJson(res, 200, {
-                    referencePaymentId,
-                    success: success || successfulPayments.has(referencePaymentId),
-                    merchantName: intent.merchant.name,
-                    amount: intent.amount,
-                    payment: intent.payment,
-                    completedAt: intent.completedAt,
-                    merchantReference: intent.merchantReference,
-                  });
-                }
-              : undefined;
-
-    if (handler === undefined) {
-      next();
-      return;
-    }
-
-    handler().catch((error: unknown) => {
-      if (isMayarinApiError(error)) {
-        sendJson(res, error.status === 0 ? 502 : error.status, { error: error.message });
+    void (async () => {
+      const response = await routes(await toRequest(req, "/api"));
+      if (response === undefined) {
+        next();
         return;
       }
-      console.error("[storefront] unexpected error:", error);
-      sendJson(res, 500, { error: "Terjadi kesalahan pada server. Coba lagi." });
-    });
+      await send(res, response);
+    })().catch(next);
   };
 }

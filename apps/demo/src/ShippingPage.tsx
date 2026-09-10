@@ -1,5 +1,5 @@
 import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
-import { mintCheckoutLink } from "./checkout.ts";
+import { checkoutOrder } from "./checkout.ts";
 import { type CheckoutDraft, clearDraft, loadDraft } from "./checkout-draft.ts";
 import { formatIdrMinorUnits } from "./money.ts";
 import { addOrder, mostRecentShippingAddress, newOrderId, type Order } from "./orders.ts";
@@ -129,8 +129,8 @@ type SubmitState =
 /**
  * The shipping step both entry points converge on. The draft carries the
  * lines; the catalog carries the names and prices. Continue runs the one
- * checkout handler — mint the payment link, persist the order, then hand
- * the browser to the history with the new order highlighted.
+ * checkout handler — check the order out, persist it, then hand the browser
+ * to the history with the new order highlighted.
  */
 export function ShippingPage({
   catalog,
@@ -200,11 +200,15 @@ export function ShippingPage({
     if (draft === null || !canPlace || state.status === "submitting") return;
     setState({ status: "submitting" });
     try {
-      const link = await mintCheckoutLink(
+      // The order id exists before the payment does: it is what the checkout
+      // is keyed by, and what comes back on the intent as `merchantReference`.
+      const orderId = newOrderId();
+      const payment = await checkoutOrder(
+        orderId,
         draft.items.map((line) => ({ productId: line.productId, quantity: line.quantity })),
       );
       const order: Order = {
-        id: newOrderId(),
+        id: orderId,
         createdAt: Date.now(),
         items: lines.map((line) => ({
           productId: line.product.id,
@@ -226,8 +230,8 @@ export function ShippingPage({
         },
         status: "pending_payment",
         source: draft.source,
-        linkId: link.id,
-        paymentUrl: link.url,
+        paymentId: payment.id,
+        paymentUrl: payment.url,
       };
       addOrder(order);
       if (draft.source === "cart") onCartCleared();
