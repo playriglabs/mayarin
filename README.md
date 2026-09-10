@@ -716,25 +716,28 @@ follow its environment-isolation and key-handling rules.
 
 ## Documentation
 
-| Document                                             | Covers                                                  |
-| ---------------------------------------------------- | ------------------------------------------------------- |
-| [Documentation index](./docs/README.md)              | Orientation and the complete design record              |
-| [Vision and rationale](./docs/vision.md)             | Problem, goals, and explicit non-goals                  |
-| [Architecture](./docs/architecture.md)               | System layers, execution paths, and code boundaries     |
-| [REST API](./docs/api.md)                            | Public reference, versioning, and dashboard API         |
-| [Payment Intent](./docs/payment-intent.md)           | Immutable payment request and lifecycle                 |
-| [Money](./docs/money.md)                             | Assets, precision, parsing, and formatting              |
-| [Liquidity and routing](./docs/liquidity-routing.md) | Quotes, oracles, venues, locks, and execution           |
-| [Chain Layer](./docs/chain.md)                       | Contract events, deposit matching, finality, and reorgs |
-| [Clearing Engine](./docs/clearing-engine.md)         | State machine, idempotency, and recovery                |
-| [Double-entry ledger](./docs/ledger.md)              | Accounts, postings, and reconciliation                  |
-| [Merchant wallets](./docs/wallet.md)                 | Safe provisioning, proof of control, and custody        |
-| [Compliance](./docs/compliance.md)                   | Audit records and ledger-to-chain reconciliation        |
-| [Threat Model](./docs/threat-model.md)               | Security assumptions, mitigations, and accepted risks   |
-| [Embeddable checkout](./docs/embed.md)               | Checkout integration on merchant sites                  |
-| [WooCommerce](./docs/woocommerce.md)                 | Plugin setup and payment lifecycle                      |
-| [Deployment](./docs/deployment.md)                   | Testnet topology and guarded deployment process         |
-| [Roadmap](./docs/roadmap.md)                         | Shipped status, limitations, and future phases          |
+| Document                                             | Covers                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| [Documentation index](./docs/README.md)              | Orientation and the complete design record                 |
+| [Vision and rationale](./docs/vision.md)             | Problem, goals, and explicit non-goals                     |
+| [Architecture](./docs/architecture.md)               | System layers, execution paths, and code boundaries        |
+| [REST API](./docs/api.md)                            | Public reference, versioning, and dashboard API            |
+| [Payment Intent](./docs/payment-intent.md)           | Immutable payment request and lifecycle                    |
+| [Money](./docs/money.md)                             | Assets, precision, parsing, and formatting                 |
+| [Liquidity and routing](./docs/liquidity-routing.md) | Quotes, oracles, venues, locks, and execution              |
+| [Chain Layer](./docs/chain.md)                       | Contract events, deposit matching, finality, and reorgs    |
+| [Clearing Engine](./docs/clearing-engine.md)         | State machine, idempotency, and recovery                   |
+| [Agent payments (x402)](./docs/x402.md)              | The agent rail, cross-asset settlement, and the MCP server |
+| [Arc payment rail](./docs/arc.md)                    | Arc native-decimal audit and the reproduction guide        |
+| [Configuration](./docs/configuration.md)             | Where a value belongs: env, merchant row, or market data   |
+| [Double-entry ledger](./docs/ledger.md)              | Accounts, postings, and reconciliation                     |
+| [Merchant wallets](./docs/wallet.md)                 | Safe provisioning, proof of control, and custody           |
+| [Compliance](./docs/compliance.md)                   | Audit records and ledger-to-chain reconciliation           |
+| [Threat Model](./docs/threat-model.md)               | Security assumptions, mitigations, and accepted risks      |
+| [Embeddable checkout](./docs/embed.md)               | Checkout integration on merchant sites                     |
+| [WooCommerce](./docs/woocommerce.md)                 | Plugin setup and payment lifecycle                         |
+| [Deployment](./docs/deployment.md)                   | Testnet topology and guarded deployment process            |
+| [Roadmap](./docs/roadmap.md)                         | Shipped status, limitations, and future phases             |
 
 The canonical interactive API reference is published at
 [docs.mayarin.xyz](https://docs.mayarin.xyz).

@@ -126,6 +126,33 @@ A payable's price is held for a short window (default sixty seconds) in a quote 
 
 **One authorization at a time.** Two agents quoting the same invoice and both signing is a race the lock decides: the first signature to settle claims it, the second is refused with a `409`. A signature for a different amount than was quoted — the balance changed in between — is also a `409`, because the payer signed a number nobody honoured any more.
 
+## Buying over MCP, not just over HTTP
+
+`POST /x402/mcp` is an MCP server on the same rail — the shape an agent's tooling already speaks. It connects, reads what the tools do, calls one, receives a `402`, signs one authorization, and gets its answer.
+
+| Method                     | Costs             |
+| -------------------------- | ----------------- |
+| `initialize`, `tools/list` | Free              |
+| `tools/call`               | One authorization |
+
+**Discovery is free and answers are paid.** An agent cannot decide a price is worth paying for a tool it has not been allowed to read the description of; a `402` on the catalogue is a shop with the lights off.
+
+The server sells rail intelligence — how each payment rail has actually been settling, measured rather than asserted. `rail_stats` reports samples, median headroom, and the worst and best observed per rail; `choose_rail` ranks them and returns the one to pay on with the reason in a line. *Headroom* is the seconds an order had left before its deadline when it landed, so the minimum is the number that matters — a median on its own calls a rail comfortable when its worst settlement landed with seconds to spare.
+
+Three refusals never charge, and they are worth knowing if you build against it:
+
+- Arguments the tool will not accept — a chain this deployment has never heard of — are refused **before** the gate. `exact` gives a payer one signature and no way to get it back, and a resource server cannot un-serve a response.
+- No settlements observed at all is refused rather than sold. Charging for "no rail has been observed" is charging for an outage.
+- A tool that does not exist is a **tool error**, not a JSON-RPC error, so a model can tell "the server said no" from "the call never arrived" and decide whether retrying is worth anything.
+
+Trying the free half needs no wallet:
+
+```bash
+curl -X POST https://api.mayarin.xyz/x402/mcp   -H 'content-type: application/json'   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+When you pay, send the **same body** in both the request that receives the `402` and the retry carrying the signature. A different one would be a different purchase settled against the first one's authorization.
+
 ## Endpoints
 
 Both are public and unauthenticated. An agent that has never met Mayarin is the entire point, and a price is not a secret.
@@ -140,6 +167,7 @@ Both are public and unauthenticated. An agent that has never met Mayarin is the 
 | `POST /x402/resources/:id/verify` | Would this authorization go through? |
 | `POST /x402/resources/:id/settle` | Broadcast it, and credit the merchant |
 | `GET /x402/resources?merchant=<id>` | What one merchant sells, for an agent shopping |
+| `POST /x402/mcp` | The MCP server — free discovery, paid `tools/call` |
 
 ## Things that will cost you an afternoon
 

@@ -15,20 +15,22 @@ remains the repository's architecture and design record.
 
 ## Orientation
 
-| Document                                         | Read it when                                                                 |
-| ------------------------------------------------ | ---------------------------------------------------------------------------- |
-| [Vision & Rationale](./vision.md)                | You want the problem, the goals, and what Mayarin refuses to be              |
-| [Architecture](./architecture.md)                | You need the layers, the payment flow, and where code lives                  |
-| [Development](./development.md)                  | You are running it locally or touching the tooling                           |
-| [Deployment Targets](./deployment.md)            | You are manually deploying testnet or preparing the mainnet perimeter        |
-| [REST API](./api.md)                             | Contributor pointer to the public reference, plus the internal dashboard API |
-| [Embeddable Checkout](./embed.md)                | You are putting the checkout on a merchant's own page                        |
-| [WooCommerce Plugin](./woocommerce.md)           | You are taking payments in a WooCommerce store                               |
-| [Roadmap](./roadmap.md)                          | You want to know what is shipped and what is next                            |
-| [Threat Model](./threat-model.md)                | You want the risks the design carries, and the ones it does not yet answer   |
-| [Quote Signing](./quote-signing.md)              | You are touching the EIP-712 order or the signing key                        |
-| [Pitch Deck](./pitch-deck.md)                    | You are presenting Mayarin — the slide spec behind `mayarin.xyz/pitch-deck`  |
-| [Live Demo Runbook](./hackathon-demo-runbook.md) | You are rehearsing the timed deck-to-payment-to-proof stage demo             |
+| Document                               | Read it when                                                                 |
+| -------------------------------------- | ---------------------------------------------------------------------------- |
+| [Vision & Rationale](./vision.md)      | You want the problem, the goals, and what Mayarin refuses to be              |
+| [Architecture](./architecture.md)      | You need the layers, the payment flow, and where code lives                  |
+| [Development](./development.md)        | You are running it locally or touching the tooling                           |
+| [Configuration](./configuration.md)    | You are adding a value and must decide where it belongs                      |
+| [Deployment Targets](./deployment.md)  | You are manually deploying testnet or preparing the mainnet perimeter        |
+| [REST API](./api.md)                   | Contributor pointer to the public reference, plus the internal dashboard API |
+| [Agent Payments (x402)](./x402.md)     | An agent is the payer — the protocol, the rail, the MCP server               |
+| [Arc payment rail](./arc.md)           | You are working on Arc — the audit and the reproduction guide                |
+| [Embeddable Checkout](./embed.md)      | You are putting the checkout on a merchant's own page                        |
+| [WooCommerce Plugin](./woocommerce.md) | You are taking payments in a WooCommerce store                               |
+| [Roadmap](./roadmap.md)                | You want to know what is shipped and what is next                            |
+| [Threat Model](./threat-model.md)      | You want the risks the design carries, and the ones it does not yet answer   |
+| [Quote Signing](./quote-signing.md)    | You are touching the EIP-712 order or the signing key                        |
+| [Pitch Deck](./pitch-deck.md)          | You are presenting Mayarin — the slide spec behind `mayarin.xyz/pitch-deck`  |
 
 ---
 
@@ -46,6 +48,7 @@ moves through them.
 | [Stablecoin Registry](./stablecoin.md)        | The admissible stablecoins and their on-chain identities                   |
 | [Liquidity & Routing](./liquidity-routing.md) | Converting assets into the settlement asset via a pluggable price source   |
 | [Clearing Engine](./clearing-engine.md)       | The state machine every payment passes through                             |
+| [Agent Payments (x402)](./x402.md)            | The third execution path, and everything specific to it                    |
 | [Double Entry Ledger](./ledger.md)            | Recording every movement of value                                          |
 | [Settlement](./settlement.md)                 | Handing value to a payment rail                                            |
 | [Merchant Wallets](./wallet.md)               | Proving control of a payout address, and provisioning a self-custodial one |
@@ -62,6 +65,15 @@ moves through them.
   concrete one. See [Architecture](./architecture.md).
 - **Nothing mutates a balance directly.** Value moves only through balanced
   ledger postings. See [Double Entry Ledger](./ledger.md).
+- **Three execution paths, chosen per payer.** `deposit-match`,
+  `on-chain-contract` and `x402` are not fallbacks for one another. Anything
+  branching on how a payment is funded must say which it means. See
+  [Architecture](./architecture.md#system-architecture).
+- **Aggregates are immutable.** A transition returns a new value with an
+  incremented `version`, which is also the optimistic-locking token. See
+  [Payment Intent](./payment-intent.md).
+- **A webhook is a signal, not truth.** It wakes the clearing engine, which then
+  asks the adapter for the authoritative status.
 
 ---
 

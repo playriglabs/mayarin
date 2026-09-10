@@ -10,7 +10,12 @@ stablecoin; the payer brings any supported asset. Mayarin bridges the two withou
 requiring merchants to understand blockchain.
 
 The phases below expand the layer along one axis at a time. An autonomous agent
-is a payer class rather than a product line — see [vision](./vision.md#the-payer-class).
+is a payer class rather than a product line — see [vision](./vision.md#the-payer-class)
+and [Agent Payments](./x402.md).
+
+**Phases 1 through 4 are shipped; Phase 5 is partly shipped** — the agent rail,
+the indexing layer, the venues and the additional chains are live, while Solana,
+TRON and split settlement are not.
 
 The platform is developed in layers. Each phase expands the platform without
 changing the core payment intent, allowing new assets, chains, liquidity
@@ -104,14 +109,20 @@ The off-chain settlement seams. Phase 3's on-chain settlement (contract →
 merchant Safe) supersedes these for the contract path; the adapter port is
 retained for the fallback deposit-address path and the future fiat off-ramp.
 
-### Architecture note — two execution paths
+### Architecture note — the execution paths
 
-Phase 2 shipped the **off-chain orchestration** path (deposit address →
-watcher → off-chain clearing → settlement adapter). Phase 3 introduces the
-**on-chain execution** path (PaymentRouter → atomic swap → settle to merchant
-Safe → event → indexer → ledger). The contract path is primary for supported
-assets and chains; the deposit-address path remains as fallback. The ledger
-and stablecoin registry are shared by both.
+Phase 2 shipped the **deposit-matching** path (deposit address → watcher →
+clearing → settlement adapter). Phase 3 added the **on-chain execution** path
+(PaymentRouter → atomic swap → settle to merchant Safe → event → indexer →
+ledger). Phase 5 added the **x402** path (one signed authorization → facilitator
+broadcast → settlement read back off the chain).
+
+There are now three, and **none is a fallback for another** — they are chosen per
+payer, because they serve different payers. The contract path needs a connected
+wallet; deposit-matching is the only path open to someone who can only send a
+transfer; an x402 payer is a program that never sees an address. The intent,
+clearing engine, ledger and stablecoin registry are shared by all three. See
+[Architecture](./architecture.md#system-architecture).
 
 ---
 
@@ -256,7 +267,7 @@ configuration are in [`docs/chain.md`](./chain.md).
 
 ---
 
-## Phase 4 — Commerce Platform
+## Phase 4 — Commerce Platform ✅ Shipped
 
 Expose the commerce and developer surface on top of the execution layer.
 
@@ -347,13 +358,22 @@ this repository. See `docs/wallet.md`.
 
 ### Settlement
 
-- ☐ On-chain settlement to merchant smart account
-- ☐ Fee extraction on-chain (`minOut − fee` to merchant, fee to treasury)
-- ☐ Excess refund to customer (`refundTo`)
+- ☑ On-chain settlement to merchant smart account — `PaymentRouter` transfers the
+  settlement asset to `merchantSafe`
+- ☑ Fee extraction on-chain (`minOut − fee` to merchant, fee to the treasury
+  `feeRecipient`, separate buckets)
+- ☑ Excess refund to customer — settlement-asset excess above `minOut` as
+  `PaymentCompleted.refundAmount`, and input the router did not consume as a
+  separate `ResidueRefunded`, both to `refundTo`
+- ☑ Refund API — `POST /payments/:id/refund` and refund summaries. Idempotent:
+  a repeated key returns the refund it made rather than issuing a second one, and
+  an omitted amount refunds everything still refundable
+- ☐ Multi-recipient settlement splitting — the one pending `Order` struct change
+  (#12). It stands alone rather than waiting to be batched with #9
 
-All three are #12, in flight — the multi-recipient split is the one pending
-`Order` struct change on the board, and it now stands alone rather than waiting
-to be batched with #9.
+A refund on the **deposit path** is a transfer the operator sends. A refund on
+the **contract path** needs the operator to move value it does not hold, which is
+why it waits on gas (#9) rather than on #11.
 
 ### Gas Abstraction
 
@@ -455,7 +475,7 @@ stop once nothing can. The hosted checkout has a real event stream (#13); the
 merchant side does not, and a poll that switches itself off is the honest version
 of live rather than a pretence of one.
 
-So we have this feature for our product
+The dashboard's surfaces, as they are grouped:
 
 Commerce
 ├── Overview
@@ -504,25 +524,94 @@ Not done: freeze handling, an export format, and a retention policy.
 
 ---
 
-## Phase 5 — Multi-Asset, Multi-Chain
+## Phase 5 — Agent Payments, Multi-Asset, Multi-Chain ◐ Partly shipped
 
-Expand the execution surface across assets, venues, and chains.
+Widen who may be a payer, and what they may pay with, on how many chains.
+
+### Agent payments (x402) — ✅ Shipped, off by default
+
+An autonomous agent is a **payer class, not a product line**. It reaches the same
+clearing engine, the same ledger and the same merchant as a person at a checkout.
+Full documentation: [Agent Payments](./x402.md).
+
+- ☑ x402 protocol v2 types, HTTP transport, and the `exact`/EVM scheme
+- ☑ Third `ExecutionPath` (`x402`) on the clearing engine, with the two named
+  predicates the branches ask through
+- ☑ Facilitator port and a local implementation — Mayarin broadcasts the payer's
+  authorization, or delegates to somebody else's facilitator
+- ☑ Settlement confirmed by reading the transaction back off the chain; a
+  facilitator's `success` is never enough
+- ☑ Resource registry, priced once in the merchant's currency and offered on
+  every rail the deployment can serve; `maxTimeoutSeconds` derived from the quote
+  lock rather than configured beside it
+- ☑ Replay key scoped by network, asset and nonce — the window before the chain
+  has recorded it
+- ☑ Token capability probed from the contract at boot, with a control call, never
+  configured
+- ☑ `requirePayment` middleware — any handler becomes machine-payable
+- ☑ Merchant-owned agent endpoints, on the API and in the dashboard
+- ☑ Payables (#273) — an invoice's outstanding balance or a payment link's total,
+  locked by a live quote row so two agents racing one obligation refuse rather
+  than double-pay
+- ☑ Cross-asset payments — exact-output swaps priced backwards from the invoice,
+  so an agent holding any listed asset pays a merchant settled in another; the
+  payer's change is a liability (`PAYER_SURPLUS`) or dust revenue, never absorbed
+- ☑ Browser-friendly merchant paywall, and the SDK gate + connect adapter
+- ☑ An MCP server at `POST /x402/mcp` selling rail intelligence per call —
+  discovery free, answers paid, and three refusals that never charge
+- ☐ Permit2 / EIP-2612 fallback for tokens without EIP-3009 — specified and
+  probed for, not built
+- ☐ Gas sponsorship, so sub-cent resources stop inverting the economics (#9)
+
+Only the `exact` scheme is implemented, and only over EVM. x402 never touches
+`PaymentRouter`, so an agent payment emits no `PaymentCompleted` and adds nothing
+to the settlement subgraph.
+
+### Indexing
+
+- ☑ Settlements subgraph (`packages/subgraph`), deployed for Base Sepolia and Arc
+  testnet, indexing `PaymentCompleted`
+- ☑ `SettlementIndexer` reads it, clamped to how far it has indexed, and falls
+  back to reading the chain directly the moment a chain leaves
+  `SUBGRAPH_ENDPOINTS` — the subgraph is an index, never the record
+- ☑ Rail statistics and the rail choice derived from it, cached rather than
+  queried per call: Subgraph Studio allows 3,000 queries a day _account-wide_
 
 ### Payer Assets
 
-- ☐ ERC-20 payer assets via Permit2 (USDT, other stablecoins)
-- ☐ Native assets beyond ETH
-- ☐ Asset whitelist governance
+- ☑ ERC-20 payer assets — same-asset deposits, and Permit2 on the contract path
+- ☑ Native ETH
+- ☑ EURC as a payer asset against a USDC merchant, cross-asset
+- ☑ Asset admissibility governed by the `stablecoins` market-config key rather
+  than a redeploy
+- ☐ Configurable per-merchant payer-asset governance beyond `accepted_assets`
 
 ### Execution Venues
 
-- ☐ Uniswap, 0x Protocol
-- ☐ Strategy selection by latency tolerance and MEV exposure
+- ☑ Uniswap v3 (`QuoterV2` + `SwapRouter02`, exact-output)
+- ☑ Uniswap v2, for chains with no v3 deployment
+- ☑ 0x Protocol
+- ☑ LiFi (quote only — it has no exact-output API)
+- ☑ Strategy selection by latency tolerance, with failure fallback
+- ☐ MEV exposure enforced at submission — the policy travels with the selection
+  (`DEFAULT_STRATEGY_POLICIES`) but nothing routes through a private mempool; the
+  payer sends their own transaction, so that needs the relayer in #9
 - ☐ Smart routing — liquidity, fee, and network optimization
 
 ### Blockchain Networks
 
-- ☐ Additional EVM chains
+`CHAIN_IDS` is the list; what a deployment runs is narrower. See
+[Chain Layer → Supported chains](./chain.md#supported-chains).
+
+- ☑ Base and Base Sepolia — primary, contracts deployed and verified
+- ☑ Ethereum Sepolia
+- ☑ Arbitrum and Arbitrum Sepolia
+- ☑ Arc testnet (Circle) — the first chain whose native asset is not ETH, with
+  USDC-native settlement and a merchant Safe per chain
+- ☑ Robinhood testnet (an Orbit chain)
+- ☑ Chain-aware, exact-output quoting and the multichain counter (#244)
+- ☑ Checkout ranks the payer's rail list by observed rail liveness (#260)
+- ☑ Per-link rail restrictions (#282)
 - ☐ Solana
 - ☐ TRON
 
@@ -532,21 +621,35 @@ PaymentRouter deployment — design the cross-chain path explicitly when reached
 
 ### Wallet Providers
 
-- ☐ Turnkey (MPC policy engine — the wallet provider)
-- ☐ Tempo (MPC wallet infra — alternative backend, considered)
-- ☐ Connect-existing (Safe, EOA)
+- ☑ Turnkey (MPC policy engine — the wallet provider)
+- ☑ Connect-existing (Safe, EOA), with proof of control by signature
+- ☑ Passkey-held merchant key, in a Turnkey sub-organization Mayarin is not a
+  user of
+- ☑ Circle Agent Stack contract accounts as **payers** — EIP-1271 signatures the
+  token accepts. Not a wallet Mayarin provisions; a payer class it serves
+- ☐ Tempo (MPC wallet infra — considered as an alternative behind the same port,
+  not wired)
+- ☐ The browser half of the passkey ceremony
 
 ### Settlement Assets
 
-- ☐ Configurable settlement asset per merchant
-- ☐ Settlement policy (single default; split settlement as additive extension)
+- ☑ Configurable settlement asset per merchant (`settlement_asset`, through
+  `PATCH /settings`)
+- ☑ USDC, USDT, EURC admitted through the `stablecoins` market-config key
+- ☐ Settlement policy — split settlement, as an additive extension (#12)
+
+### Fiat coverage
+
+- ☑ Expanded fiat currency coverage (#288) — a product carries one explicit
+  amount per currency, and the FX leg is priced by an oracle, never converted at
+  read time
 
 Each provider implements a common interface, allowing Mayarin to remain
 provider-agnostic while supporting multiple execution paths.
 
 ---
 
-## Phase 6 — Scale & Open Infrastructure
+## Phase 6 — Scale & Open Infrastructure ☐ Not started
 
 Harden and open the platform.
 
@@ -584,7 +687,7 @@ later phase with its own regulatory perimeter, not an MVP assumption.
 
 # Long-term Vision
 
-Mayarin aims to become programmable Programmable clearing infrastructure..
+Mayarin aims to become programmable clearing infrastructure.
 
 ```
                 Integrate Once
@@ -600,6 +703,7 @@ Mayarin aims to become programmable Programmable clearing infrastructure..
       • Quote Engine
       • Execution Engine
       • PaymentRouter (on-chain)
+      • x402 rail (agent payers)
       • Double-entry Ledger (derived)
       • Wallet Infrastructure
 
@@ -628,27 +732,21 @@ the customer pays with whatever asset they hold.
 
 ---
 
-# Hackathon Alignment
+# The ETHOnline 2026 entry
 
-## Track 1 — Payments & Financial Infrastructure
+Mayarin is entered in the **Continuity** pool: the project predates the event, so
+its work is documented in two lists rather than one — what merged before
+4 September 2026, and what was built in the window. Three partner slots are
+taken: **The Graph** (the settlements subgraph, the rail statistics, and the MCP
+server that is a second Graph product), **Arc/Circle** (USDC-native settlement, a
+merchant Safe per chain, Circle Agent Stack payers), and **Uniswap** (cross-asset
+exact-output swaps priced backwards from the invoice).
 
-- Payment orchestration
-- On-chain settlement
-- Stablecoin commerce
-- Merchant infrastructure
-- POS infrastructure
-- Treasury management
-
----
-
-## Track 2 — Web3 Applications & AI
-
-- Stablecoin payments
-- Crypto-to-crypto payments
-- On-chain payment routing
-- Modular blockchain infrastructure
-- Smart payment execution
-- Multi-venue liquidity routing
+[`ROADMAP.md`](../ROADMAP.md) at the repository root is the working state of that
+entry — what shipped with which PR, what is next per sponsor, the facts measured
+off Arc rather than read from its documentation, and the things about the x402
+rail that are expensive to rediscover. Read it before touching
+`packages/core/x402` or anything under `x402` in the API.
 
 ---
 
@@ -657,7 +755,9 @@ the customer pays with whatever asset they hold.
 - [Architecture](./architecture.md)
 - [Vision & Rationale](./vision.md)
 - [Chain Layer](./chain.md)
+- [Agent Payments (x402)](./x402.md)
 - [Liquidity Routing](./liquidity-routing.md)
 - [Stablecoin Registry](./stablecoin.md)
+- [Configuration](./configuration.md)
 
 [← Documentation index](./README.md)

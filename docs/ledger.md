@@ -28,6 +28,19 @@ no migration:
 | `FX_RESULT:<asset>`              | Revenue   | Locked price vs the swap achieved; debit is a loss   |
 | `GAS_EXPENSE:<asset>`            | Expense   | Network fees Mayarin pays on a payer's behalf        |
 | `OPERATOR_GAS:<asset>`           | Asset     | Native balance the executor spends gas from          |
+| `PAYER_SURPLUS:<asset>`          | Liability | Change an exact-output swap did not spend, owed back |
+
+`PAYER_SURPLUS` exists because of the cross-asset x402 path. `exact` gives the
+payer one signature and no way to top it up, so the amount they sign is the
+exact-output quote plus a slippage bound, and that bound is also the ceiling the
+swap may consume. Whatever it does not consume is theirs. Above the asset's
+`dustThreshold` it is credited here, a liability owed back to the address that
+signed; below it, returning the change would cost more than the change — an
+ERC-20 transfer the operator pays gas for and a liability row somebody
+reconciles — so it goes to `FEE_REVENUE` and the receipt event says so. Neither
+case absorbs it into a balance nothing explains, which is the property; the
+threshold only decides which account carries it. See
+[Agent Payments](./x402.md#cross-asset-the-agent-pays-with-what-it-holds).
 
 Three postings describe a payment end to end. The first two are the same for
 every settlement; the SETTLED posting depends on whether the rail takes value

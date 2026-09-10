@@ -158,6 +158,19 @@ a[href] {
   margin-top: 0;
 }
 
+/* The sidebar footer.
+   fumadocs boxes the icon links and the theme toggle together in one bordered
+   pill, and flattens the toggle into its right edge. We want the landing site's
+   arrangement instead: bare social marks on the left, the toggle as its own
+   rounded pill on the right. Selecting the wrapper by the toggle it contains is
+   the only handle available — the slot API hands us the children, never the box
+   around them. */
+#nd-sidebar div:has(> [data-theme-toggle]) {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

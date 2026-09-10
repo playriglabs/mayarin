@@ -9,7 +9,6 @@
  */
 import { Docs } from "@/components/docs";
 import Layout from "@/components/layout.astro";
-import { commitHash } from "@/lib/version";
 import { source } from "@/lib/source";
 import "@/styles/global.css";
 
@@ -26,7 +25,6 @@ Astro.response.statusText = "Not found";
     pathname={Astro.url.pathname}
     params={Astro.params}
     page={{ toc: [] }}
-    commitHash={commitHash}
     client:load
   >
     <header class="mb-10 border-b border-fd-border pb-8">

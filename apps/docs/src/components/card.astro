@@ -1,0 +1,83 @@
+---
+/**
+ * A linked card for the docs landing grid.
+ *
+ * An Astro component rather than fumadocs' React `Card`, for the same reason
+ * `TypeTable` is one: authored MDX compiles through Astro's JSX runtime, so a
+ * JSX island passed into a React component's prop arrives as an
+ * `{astro:jsx, type, props}` object that React refuses to render. An Astro
+ * component takes those nodes natively.
+ *
+ * The class names are fumadocs' own (`components/card.tsx`), so a card here
+ * picks up the theme's card, border and accent tokens in both schemes instead
+ * of carrying a second set of colors that drift.
+ *
+ * `icon` names one of the glyphs below rather than taking markup: the set is
+ * small, shared, and a name cannot arrive malformed the way pasted SVG can.
+ */
+
+type IconName = "rocket" | "bolt" | "layers" | "code" | "clock" | "calendar";
+
+type Props = {
+  readonly title: string;
+  readonly description?: string;
+  readonly href: string;
+  readonly icon?: IconName;
+};
+
+const { title, description, href, icon } = Astro.props;
+
+// Traced from Lucide's 24×24 outline set, inlined because `lucide-react` is
+// only a transitive dependency of fumadocs here — nothing in this workspace
+// declares it, and six glyphs are not worth taking one on.
+const PATHS: Record<IconName, readonly string[]> = {
+  rocket: [
+    "M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91 0z",
+    "m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z",
+    "M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0",
+    "M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5",
+  ],
+  bolt: [
+    "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z",
+  ],
+  layers: [
+    "M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z",
+    "M2 12.5a1 1 0 0 0 .6.9l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 .58-.91",
+    "M2 17.5a1 1 0 0 0 .6.9l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 .58-.91",
+  ],
+  code: ["m16 18 6-6-6-6", "m8 6-6 6 6 6"],
+  clock: ["M12 6v6l4 2"],
+  calendar: ["M8 2v4", "M16 2v4", "M3 10h18"],
+};
+
+const paths = icon === undefined ? [] : PATHS[icon];
+---
+
+<a
+  href={href}
+  data-card
+  class="block rounded-xl border bg-fd-card p-4 text-fd-card-foreground transition-colors hover:bg-fd-accent/80 @max-lg:col-span-full"
+>
+  {
+    icon !== undefined && (
+      <div class="not-prose mb-2 w-fit rounded-lg border bg-fd-muted p-1.5 text-fd-muted-foreground shadow-md [&_svg]:size-4">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          {icon === "clock" && <circle cx="12" cy="12" r="10" />}
+          {icon === "calendar" && <rect width="18" height="18" x="3" y="4" rx="2" />}
+          {paths.map((d) => <path d={d} />)}
+        </svg>
+      </div>
+    )
+  }
+  <h3 class="not-prose mb-1 text-sm font-medium">{title}</h3>
+  {description && <p class="my-0! text-sm text-fd-muted-foreground">{description}</p>}
+</a>

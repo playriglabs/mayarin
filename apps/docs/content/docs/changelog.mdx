@@ -41,8 +41,40 @@ A buyer page has no version. It renders whatever the current API serves.
 
 ## Revisions
 
-### 2026-08-11
+### 2026-08-11 — current
 
 Initial public revision of the `/v1` merchant API. Covers payment intents,
 payments and refunds, quotes, catalog and carts, payment links, invoices,
 provider webhooks, and the intentionally unversioned buyer surfaces.
+
+This is still the current revision. Everything below shipped **additively**
+inside it — a new route or a new optional field never removes anything a pinned
+client reads, so none of it moved the date.
+
+## Additive since 2026-08-11
+
+**Agent payments (x402).** `/v1/x402/resources` registers, lists and unlists an
+endpoint you sell per request. The buyer-facing half is unversioned and keyless:
+`GET /x402/resources/:id/payment-required`, `POST …/verify`, `POST …/settle`, the
+`GET /x402/resources` and `GET /x402/payables` discovery indexes, and an MCP
+server at `POST /x402/mcp`. See [the guide](/guides/x402).
+
+**A third execution path.** `executionPath` accepts `x402` beside
+`deposit-match` and `on-chain-contract`, on payment intents, cart checkout and
+invoice checkout, and reports back which path a payment took. See
+[execution paths](/concepts/execution-paths).
+
+**Listing an obligation to agents.** `POST /v1/invoices/:id/list` and
+`POST /v1/payment-links/:id/list`, each with an `/unlist` twin. Nothing is listed
+by default, and listing only affects whether something is *found*.
+
+**Refunds.** `POST /v1/payments/:id/refunds` and `GET /v1/payments/:id/refunds`.
+Idempotent: a repeated key returns the refund it made rather than issuing a
+second one, and an omitted amount refunds everything still refundable.
+
+**Wider currency and rail coverage.** More pricing currencies, EURC as a
+settlement and payer asset, and additional chains including Arc testnet. See
+[currencies, assets and chains](/concepts/rails).
+
+None of these require a client change. A client pinned to `2026-08-11` keeps
+working and simply does not see the new fields.

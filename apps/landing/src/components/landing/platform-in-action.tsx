@@ -43,6 +43,15 @@ const PLATFORM_VIEWS: readonly PlatformView[] = [
     contain: true,
   },
   {
+    eyebrow: "Payments",
+    title: "Get payment from your buyer",
+    description: "Get paid and see how customer pay you with their money.",
+    image: "/images/pitch-deck/mayarin-payments.png",
+    alt: "Mayarin payments",
+    width: 3420,
+    height: 2038,
+  },
+  {
     eyebrow: "Catalog",
     title: "Price products the way you sell",
     description: "Keep products, SKUs, and local prices ready for links, carts, and invoices.",
@@ -480,7 +489,7 @@ export function PlatformInAction() {
                 <ProductImage view={view} />
               </div>
               <div class="flex flex-1 flex-col p-7 md:p-8">
-                <p class="font-sans text-sm text-forest">{view.eyebrow}</p>
+                <p class="font-sans text-[15px] text-forest font-medium">{view.eyebrow}</p>
                 <h4 class="mt-5 font-sans text-[1.75rem] md:text-[2rem]">{view.title}</h4>
                 <p class="mt-4 max-w-[38ch] text-[15px] leading-relaxed text-slate-600">
                   {view.description}

@@ -1242,6 +1242,114 @@
           "accepts"
         ]
       },
+      "X402DiscoveredResource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "The URL an agent calls. A resource is looked up by it."
+          },
+          "description": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url"
+        ]
+      },
+      "X402PayableEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "invoice",
+              "link"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601."
+          },
+          "merchant": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "amount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "description": "The price a `402` on this payable would quote."
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Where to send the `402` request."
+          },
+          "dueAt": {
+            "type": "string",
+            "description": "ISO 8601. Present on an invoice with a due date."
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "createdAt",
+          "merchant",
+          "amount",
+          "url"
+        ]
+      },
+      "X402RailChoice": {
+        "type": "object",
+        "properties": {
+          "chain": {
+            "type": "string",
+            "description": "The rail to pay on."
+          },
+          "reason": {
+            "type": "string",
+            "description": "One line: why this rail, in the terms it was chosen on."
+          },
+          "medianHeadroomSeconds": {
+            "type": "number",
+            "description": "Absent when nothing about this rail was observed."
+          },
+          "samples": {
+            "type": "integer",
+            "description": "Settlements the choice was made over."
+          },
+          "failures": {
+            "type": "integer",
+            "description": "As recorded. Absent means nobody looked, not none."
+          },
+          "unobserved": {
+            "type": "boolean",
+            "description": "True when no rail had enough observations and the first accepted rail was taken. Say so rather than presenting a fallback as a decision."
+          }
+        },
+        "required": [
+          "chain",
+          "reason",
+          "samples",
+          "unobserved"
+        ]
+      },
       "X402PaymentRequirements": {
         "type": "object",
         "properties": {
@@ -1592,8 +1700,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       }
                     },
@@ -1634,8 +1742,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       },
                       "chain": {
@@ -1689,8 +1797,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH",
-                      "BTC"
+                      "ETH"
+
                     ]
                   },
                   "executionPath": {
@@ -2080,8 +2188,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       }
                     },
@@ -2199,8 +2307,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       }
                     },
@@ -2240,8 +2348,8 @@
                         "USDT",
                         "EURC",
                         "PYUSD",
-                        "ETH",
-                        "BTC"
+                        "ETH"
+
                       ]
                     },
                     "minItems": 1,
@@ -2415,8 +2523,7 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
-                            "ETH",
-                            "BTC"
+                            "ETH"
                           ]
                         }
                       },
@@ -2607,8 +2714,7 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
-                            "ETH",
-                            "BTC"
+                            "ETH"
                           ]
                         }
                       },
@@ -2718,8 +2824,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH",
-                      "BTC"
+                      "ETH"
+
                     ]
                   },
                   "provider": {
@@ -2758,8 +2864,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       },
                       "chain": {
@@ -2867,8 +2973,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH",
-                      "BTC"
+                      "ETH"
+
                     ]
                   },
                   "lines": {
@@ -2935,8 +3041,7 @@
                                     "USDT",
                                     "EURC",
                                     "PYUSD",
-                                    "ETH",
-                                    "BTC"
+                                    "ETH"
                                   ]
                                 }
                               },
@@ -3157,8 +3262,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       }
                     },
@@ -3196,8 +3301,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH",
-                      "BTC"
+                      "ETH"
+
                     ]
                   },
                   "lines": {
@@ -3290,8 +3395,7 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
-                            "ETH",
-                            "BTC"
+                            "ETH"
                           ]
                         }
                       },
@@ -3604,8 +3708,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH",
-                      "BTC"
+                      "ETH"
+
                     ]
                   },
                   "provider": {
@@ -3644,8 +3748,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       },
                       "chain": {
@@ -3728,8 +3832,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       }
                     },
@@ -3938,8 +4042,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH",
-                      "BTC"
+                      "ETH"
+
                     ]
                   },
                   "lines": {
@@ -3991,8 +4095,7 @@
                                 "USDT",
                                 "EURC",
                                 "PYUSD",
-                                "ETH",
-                                "BTC"
+                                "ETH"
                               ]
                             }
                           },
@@ -4228,8 +4331,7 @@
                                 "USDT",
                                 "EURC",
                                 "PYUSD",
-                                "ETH",
-                                "BTC"
+                                "ETH"
                               ]
                             }
                           },
@@ -4595,8 +4697,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       },
                       "chain": {
@@ -4664,8 +4766,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       }
                     },
@@ -4885,8 +4987,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH",
-                          "BTC"
+                          "ETH"
+
                         ]
                       }
                     },
@@ -4941,8 +5043,7 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
-                            "ETH",
-                            "BTC"
+                            "ETH"
                           ]
                         },
                         "contract": {
@@ -5147,6 +5248,460 @@
           },
           "404": {
             "description": "No resource with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/resources": {
+      "get": {
+        "tags": [
+          "x402"
+        ],
+        "operationId": "discoverX402Resources",
+        "summary": "What is for sale, across every merchant",
+        "description": "The cross-merchant discovery index: every resource a merchant has opted into the public index, newest first. Pass `merchant` instead to read one merchant's resources — the per-merchant read is not paginated and is not limited to listed ones.\n\nNothing is listed by default. Listing only decides whether a discovery reader is shown a resource; an unlisted resource is still payable by anyone holding its URL, because the URL is the access control.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "Page size. Defaults to 50, capped at 100."
+            },
+            "required": false,
+            "description": "Page size. Defaults to 50, capped at 100.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous page's `nextCursor`."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous page's `nextCursor`.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "merchant",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of resources.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/X402DiscoveredResource"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Present only when another page exists. Absent means the walk is done."
+                    }
+                  },
+                  "required": [
+                    "resources"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit` or cursor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "x402 is not enabled on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/payables": {
+      "get": {
+        "tags": [
+          "x402"
+        ],
+        "operationId": "listX402Payables",
+        "summary": "Every listed obligation an agent can pay",
+        "description": "Invoices with an outstanding balance and fixed-amount payment links, across every merchant, newest first — what an agent reads before it has met anyone. Each entry carries the price a `402` would actually quote, so a reader deciding whether to pay need not ask each one.\n\nDraft, void and paid-in-full invoices, disabled and expired links, and open-amount links never appear and never quote, listed or not.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "Page size. Defaults to 50, capped at 100."
+            },
+            "required": false,
+            "description": "Page size. Defaults to 50, capped at 100.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous page's `nextCursor`."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous page's `nextCursor`.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of payables.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payables": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/X402PayableEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "payables"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit` or cursor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "x402 payables are not enabled on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/payables/{kind}/{id}": {
+      "get": {
+        "tags": [
+          "x402"
+        ],
+        "operationId": "payX402Payable",
+        "summary": "Quote one invoice or link — or settle it",
+        "description": "One endpoint, two answers, decided by the `PAYMENT-SIGNATURE` header. Without one: a `402` whose `PAYMENT-REQUIRED` header quotes the **full** outstanding amount — an authorization for less than what is owed is refused, and the remedy is a new `402` for the whole balance. With one: verify, settle, and answer `200` naming the payment intent the settlement created.\n\nA payable's price is held in a quote row for a short window together with the exact rails it offered, which is what the `409` and `410` are about.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "invoice",
+                "link"
+              ]
+            },
+            "required": true,
+            "name": "kind",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settled. `PAYMENT-RESPONSE` carries the facilitator's receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "paymentIntent": {
+                      "type": "string",
+                      "description": "The intent this settlement created."
+                    },
+                    "payable": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "invoice",
+                            "link"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "paymentIntent",
+                    "payable"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown payable kind, or a signature the chain did not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. The price and rails ride the `PAYMENT-REQUIRED` header, base64-encoded."
+          },
+          "404": {
+            "description": "No such payable, or it is not payable over x402.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another authorization claimed this obligation first, or the amount signed is no longer the amount owed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Quote expired — request a new `402` at the same URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/resources/{id}/rail": {
+      "get": {
+        "tags": [
+          "x402"
+        ],
+        "operationId": "getX402Rail",
+        "summary": "Which rail to pay on, and why",
+        "description": "The ordering inside a `402` already carries the answer, but an agent reading `accepts[0]` cannot see what the order was based on. This is that reasoning in the open: median headroom, how many settlements it is over, and whether the choice was a choice at all.\n\n_Headroom_ is the seconds an order had left before its deadline when it landed. `unobserved: true` means no rail had enough observations and the first accepted rail was taken.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The chosen rail and the measurements behind it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402RailChoice"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No resource with that id, or x402 is not enabled on this deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/mcp": {
+      "post": {
+        "tags": [
+          "x402"
+        ],
+        "operationId": "callX402Mcp",
+        "summary": "The MCP server — free discovery, paid tools/call",
+        "description": "An MCP server over the same rail, speaking JSON-RPC 2.0. `initialize` and `tools/list` are free; `tools/call` costs one authorization and answers `402` until it carries one.\n\nDiscovery is free and answers are paid by design: an agent cannot decide a price is worth paying for a tool it has not been allowed to read the description of.\n\nTwo tools. `rail_stats` reports samples, median headroom, and the worst and best observed per rail; `choose_rail` ranks them and returns the one to pay on. Three refusals never charge — arguments the tool will not accept (refused **before** the gate, since a response cannot be un-served), no settlements observed at all, and a tool that does not exist, which is a tool error rather than a JSON-RPC error so a model can tell 'the server said no' from 'the call never arrived'.\n\nSend the **same body** in both the request that receives the `402` and the retry carrying the signature; a different one is a different purchase settled against the first one's authorization. A JSON-RPC notification (no `id`) is answered `202` with no body.",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jsonrpc": {
+                    "type": "string",
+                    "enum": [
+                      "2.0"
+                    ]
+                  },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "description": "Omit for a notification."
+                  },
+                  "method": {
+                    "type": "string",
+                    "description": "`initialize`, `tools/list`, or `tools/call` — the paid one."
+                  },
+                  "params": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The JSON-RPC response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "type": "string",
+                      "enum": [
+                        "2.0"
+                      ]
+                    },
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "description": "A JSON-RPC error. A refused tool is `result.isError` instead."
+                    }
+                  },
+                  "required": [
+                    "jsonrpc",
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "A notification — no id, so no response."
+          },
+          "402": {
+            "description": "`tools/call` with no payment. The price rides `PAYMENT-REQUIRED`."
+          },
+          "404": {
+            "description": "x402 is not enabled on this deployment.",
             "content": {
               "application/json": {
                 "schema": {

@@ -1,6 +1,6 @@
 ---
 title: Payment lifecycle
-description: Understand payment intent state, clearing progress, and terminal outcomes.
+description: Understand payment intent state, clearing progress, and what wakes a payment that is waiting.
 ---
 
 A payment intent is the immutable request. The clearing transaction records how that request moves through execution and settlement.
@@ -13,3 +13,30 @@ CREATED → QR_PARSED → PRICE_LOCKED → PAYMENT_PENDING
 Any non-terminal clearing state can move to `FAILED`. Steps are idempotent and resumable: a retry uses persisted state and cannot duplicate ledger postings or provider calls.
 
 Use `GET /v1/payments/:id` with either a payment intent ID (`pi_…`) or clearing transaction ID (`clr_…`) to render current status and the ordered timeline.
+
+## Where a payment waits
+
+Two states can hold for a while, and `PAYMENT_PENDING` is woken by a different thing on each [execution path](/concepts/execution-paths):
+
+| State             | Waiting for                       | Path                | Woken by                                          |
+| ----------------- | --------------------------------- | ------------------- | ------------------------------------------------- |
+| `PAYMENT_PENDING` | the payer's transfer to confirm   | `deposit-match`     | the wallet watcher, at the configured depth       |
+| `PAYMENT_PENDING` | a `PaymentCompleted` log          | `on-chain-contract` | the settlement indexer                            |
+| `PAYMENT_PENDING` | the authorization to be broadcast | `x402`              | the settle step, after reading the chain back     |
+| `SETTLING`        | the payment rail to confirm       | any                 | the provider, or a resume                         |
+
+This is why a status poll is not a substitute for a webhook: how long `PAYMENT_PENDING` holds is a property of the payer's behaviour and the chain, not of your request.
+
+## What a status means
+
+- **`SUCCESS`** is terminal and means the merchant is credited and the postings balance.
+- **`FAILED`** is terminal and records why. A quote that expired past its deadline fails with `QUOTE_EXPIRED`; it never re-quotes, because a new price needs the payer's consent.
+- Everything else can still move.
+
+An expired lock on the contract path is enforced on-chain as well, so a payment failed here cannot settle later behind your back.
+
+## Treat a webhook as a signal
+
+A webhook wakes your integration; it is not the authoritative record. Mayarin applies the same rule internally — a provider webhook wakes the clearing engine, which then asks for the authoritative status, so a spoofed or replayed delivery cannot settle a payment on its own.
+
+Do the same: verify the signature, then re-query `GET /v1/payments/:id` and act on what it says. See [webhooks](/guides/webhooks).

@@ -399,6 +399,58 @@ const x402ResourceRespSchema = z
   })
   .openapi("X402Resource");
 
+// The public discovery surfaces (#273). Both indexes are cross-merchant,
+// keyset-paginated and capped at 100 a page: an index with no cap is a scrape,
+// and these answer for every merchant at once.
+const x402DiscoveredResourceSchema = z
+  .object({
+    id: z.string(),
+    url: z.string().describe("The URL an agent calls. A resource is looked up by it."),
+    description: z.string().optional(),
+    mimeType: z.string().optional(),
+  })
+  .openapi("X402DiscoveredResource");
+
+const x402PayableEntrySchema = z
+  .object({
+    kind: z.enum(["invoice", "link"]),
+    id: z.string(),
+    createdAt: z.string().describe("ISO 8601."),
+    merchant: z.string(),
+    title: z.string().optional(),
+    amount: moneySchema.describe("The price a `402` on this payable would quote."),
+    url: z.string().describe("Where to send the `402` request."),
+    dueAt: z.string().optional().describe("ISO 8601. Present on an invoice with a due date."),
+  })
+  .openapi("X402PayableEntry");
+
+const x402RailChoiceSchema = z
+  .object({
+    chain: z.string().describe("The rail to pay on."),
+    reason: z.string().describe("One line: why this rail, in the terms it was chosen on."),
+    medianHeadroomSeconds: z
+      .number()
+      .optional()
+      .describe("Absent when nothing about this rail was observed."),
+    samples: z.number().int().describe("Settlements the choice was made over."),
+    failures: z
+      .number()
+      .int()
+      .optional()
+      .describe("As recorded. Absent means nobody looked, not none."),
+    unobserved: z
+      .boolean()
+      .describe(
+        "True when no rail had enough observations and the first accepted rail was taken. Say so rather than presenting a fallback as a decision.",
+      ),
+  })
+  .openapi("X402RailChoice");
+
+const pageQuery = z.object({
+  limit: z.coerce.number().int().optional().describe("Page size. Defaults to 50, capped at 100."),
+  cursor: z.string().optional().describe("Opaque cursor from the previous page's `nextCursor`."),
+});
+
 // The payer-facing facilitator surface (#269) — what an SDK gate drives, and
 // what a non-TS stack drives by hand. Authored here from the core's own types
 // (`packages/core/x402/src/types.ts`), which are the specification of record.
@@ -1060,6 +1112,147 @@ registry.registerPath({
 // an agent that has never met Mayarin is the entire point, and a price is not
 // a secret. This is what an SDK gate drives and what a non-TS stack drives by
 // hand (see the guide's HTTP contract).
+registry.registerPath({
+  method: "get",
+  path: "/x402/resources",
+  tags: ["x402"],
+  operationId: "discoverX402Resources",
+  summary: "What is for sale, across every merchant",
+  description:
+    "The cross-merchant discovery index: every resource a merchant has opted into the public index, newest first. Pass `merchant` instead to read one merchant's resources — the per-merchant read is not paginated and is not limited to listed ones.\n\nNothing is listed by default. Listing only decides whether a discovery reader is shown a resource; an unlisted resource is still payable by anyone holding its URL, because the URL is the access control.",
+  security: noAuth,
+  request: { query: pageQuery.extend({ merchant: z.string().optional() }) },
+  responses: {
+    "200": jsonResponse(
+      z.object({
+        resources: z.array(x402DiscoveredResourceSchema),
+        nextCursor: z
+          .string()
+          .optional()
+          .describe("Present only when another page exists. Absent means the walk is done."),
+      }),
+      "A page of resources.",
+    ),
+    "400": errorResponse("Invalid `limit` or cursor."),
+    "404": errorResponse("x402 is not enabled on this deployment."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/x402/payables",
+  tags: ["x402"],
+  operationId: "listX402Payables",
+  summary: "Every listed obligation an agent can pay",
+  description:
+    "Invoices with an outstanding balance and fixed-amount payment links, across every merchant, newest first — what an agent reads before it has met anyone. Each entry carries the price a `402` would actually quote, so a reader deciding whether to pay need not ask each one.\n\nDraft, void and paid-in-full invoices, disabled and expired links, and open-amount links never appear and never quote, listed or not.",
+  security: noAuth,
+  request: { query: pageQuery },
+  responses: {
+    "200": jsonResponse(
+      z.object({
+        payables: z.array(x402PayableEntrySchema),
+        nextCursor: z.string().optional(),
+      }),
+      "A page of payables.",
+    ),
+    "400": errorResponse("Invalid `limit` or cursor."),
+    "404": errorResponse("x402 payables are not enabled on this deployment."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/x402/payables/{kind}/{id}",
+  tags: ["x402"],
+  operationId: "payX402Payable",
+  summary: "Quote one invoice or link — or settle it",
+  description:
+    "One endpoint, two answers, decided by the `PAYMENT-SIGNATURE` header. Without one: a `402` whose `PAYMENT-REQUIRED` header quotes the **full** outstanding amount — an authorization for less than what is owed is refused, and the remedy is a new `402` for the whole balance. With one: verify, settle, and answer `200` naming the payment intent the settlement created.\n\nA payable's price is held in a quote row for a short window together with the exact rails it offered, which is what the `409` and `410` are about.",
+  security: noAuth,
+  request: {
+    params: z.object({
+      kind: z.enum(["invoice", "link"]),
+      id: z.string(),
+    }),
+  },
+  responses: {
+    "200": jsonResponse(
+      z.object({
+        paymentIntent: z.string().describe("The intent this settlement created."),
+        payable: z.object({ kind: z.enum(["invoice", "link"]), id: z.string() }),
+      }),
+      "Settled. `PAYMENT-RESPONSE` carries the facilitator's receipt.",
+    ),
+    "402": {
+      description:
+        "Payment required. The price and rails ride the `PAYMENT-REQUIRED` header, base64-encoded.",
+    },
+    "400": errorResponse("Unknown payable kind, or a signature the chain did not accept."),
+    "404": errorResponse("No such payable, or it is not payable over x402."),
+    "409": errorResponse(
+      "Another authorization claimed this obligation first, or the amount signed is no longer the amount owed.",
+    ),
+    "410": errorResponse("Quote expired — request a new `402` at the same URL."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/x402/resources/{id}/rail",
+  tags: ["x402"],
+  operationId: "getX402Rail",
+  summary: "Which rail to pay on, and why",
+  description:
+    "The ordering inside a `402` already carries the answer, but an agent reading `accepts[0]` cannot see what the order was based on. This is that reasoning in the open: median headroom, how many settlements it is over, and whether the choice was a choice at all.\n\n_Headroom_ is the seconds an order had left before its deadline when it landed. `unobserved: true` means no rail had enough observations and the first accepted rail was taken.",
+  security: noAuth,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(x402RailChoiceSchema, "The chosen rail and the measurements behind it."),
+    "404": errorResponse("No resource with that id, or x402 is not enabled on this deployment."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/x402/mcp",
+  tags: ["x402"],
+  operationId: "callX402Mcp",
+  summary: "The MCP server — free discovery, paid tools/call",
+  description:
+    "An MCP server over the same rail, speaking JSON-RPC 2.0. `initialize` and `tools/list` are free; `tools/call` costs one authorization and answers `402` until it carries one.\n\nDiscovery is free and answers are paid by design: an agent cannot decide a price is worth paying for a tool it has not been allowed to read the description of.\n\nTwo tools. `rail_stats` reports samples, median headroom, and the worst and best observed per rail; `choose_rail` ranks them and returns the one to pay on. Three refusals never charge — arguments the tool will not accept (refused **before** the gate, since a response cannot be un-served), no settlements observed at all, and a tool that does not exist, which is a tool error rather than a JSON-RPC error so a model can tell 'the server said no' from 'the call never arrived'.\n\nSend the **same body** in both the request that receives the `402` and the retry carrying the signature; a different one is a different purchase settled against the first one's authorization. A JSON-RPC notification (no `id`) is answered `202` with no body.",
+  security: noAuth,
+  request: {
+    body: jsonBody(
+      z.object({
+        jsonrpc: z.literal("2.0"),
+        id: z.union([z.string(), z.number()]).optional().describe("Omit for a notification."),
+        method: z.string().describe("`initialize`, `tools/list`, or `tools/call` — the paid one."),
+        params: z.record(z.string(), z.unknown()).optional(),
+      }),
+    ),
+  },
+  responses: {
+    "200": jsonResponse(
+      z.object({
+        jsonrpc: z.literal("2.0"),
+        id: z.union([z.string(), z.number()]),
+        result: z.record(z.string(), z.unknown()).optional(),
+        error: z
+          .object({ code: z.number().int(), message: z.string() })
+          .optional()
+          .describe("A JSON-RPC error. A refused tool is `result.isError` instead."),
+      }),
+      "The JSON-RPC response.",
+    ),
+    "202": { description: "A notification — no id, so no response." },
+    "402": {
+      description: "`tools/call` with no payment. The price rides `PAYMENT-REQUIRED`.",
+    },
+    "404": errorResponse("x402 is not enabled on this deployment."),
+  },
+});
+
 registry.registerPath({
   method: "get",
   path: "/x402/resources/{id}/payment-required",

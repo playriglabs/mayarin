@@ -7,33 +7,71 @@ Mayarin is a programmable clearing layer for merchants who think in local curren
 
 One payment request, three kinds of payer: a human at a checkout, an application paying on their behalf, or an autonomous agent paying per call over x402 with no account of any kind.
 
-## Start with your integration
+## Get started
 
-| If you are building…                      | Begin here                                                     |
-| ----------------------------------------- | -------------------------------------------------------------- |
-| A server-rendered storefront or backend   | [TypeScript SDK quickstart](/quickstart)                       |
-| A browser checkout with a publishable key | [Browser SDK](/sdk/typescript/browser)                         |
-| A platform using raw HTTP                 | [API quickstart](/guides/api-quickstart)                       |
-| A production integration                  | [Webhooks](/guides/webhooks) and [errors and retries](/errors) |
-| Reading a finished integration            | [`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) — storefront, thin server, webhook endpoint |
+Here's a quick guide to help you find what you need:
+
+<Cards>
+  <Card
+    icon="rocket"
+    title="Quickstart"
+    description="Take your first payment with the TypeScript SDK, in about ten minutes."
+    href="/quickstart"
+  />
+  <Card
+    icon="bolt"
+    title="Guides"
+    description="Authentication, webhooks, selling an endpoint to an agent, and WooCommerce."
+    href="/guides/api-quickstart"
+  />
+  <Card
+    icon="layers"
+    title="TypeScript SDK"
+    description="The server and browser clients, the modules they carry, and the x402 gate."
+    href="/sdk/typescript"
+  />
+  <Card
+    icon="code"
+    title="API Reference"
+    description="Every endpoint with its request and response schemas, and a live playground."
+    href="/api-reference"
+  />
+  <Card
+    icon="clock"
+    title="Concepts"
+    description="Exact money, the payment lifecycle, the three execution paths, and the rails."
+    href="/concepts/money"
+  />
+  <Card
+    icon="calendar"
+    title="Changelog"
+    description="What the /v1 revision covers, and what shipped additively since."
+    href="/changelog"
+  />
+</Cards>
+
+Reading a finished integration is often faster than any of the above: [`apps/demo`](https://github.com/playriglabs/mayarin/tree/main/apps/demo) is a complete storefront — thin server, webhook endpoint, and all.
 
 ## The model
 
 ```text
 Merchant prices       its own currency (SGD, MYR, THB, USD, IDR…)
-Customer pays         ETH, USDC, or USDT
+Customer pays         ETH, USDC, USDT, or EURC
 Mayarin executes      quote → pay → swap if needed → settle
 Merchant receives     configured stablecoin
 ```
 
-The merchant does not need to reconcile the payer's asset. The customer does not need to acquire the merchant's settlement asset first.
+The merchant does not need to reconcile the payer's asset. The customer does not need to acquire the merchant's settlement asset first. See [rails](/concepts/rails) for the currencies, assets and chains this covers.
 
-## Two payment paths
+## Three execution paths
 
-- **On-chain contract** — the primary path. `PaymentRouter` atomically receives, swaps when needed, and settles. A hard `minOut` protects the merchant.
-- **Deposit match** — the fallback path. Mayarin gives the payer a per-intent address, watches the chain, and matches the plain transfer to the payment.
+Chosen per payer, not per deployment — none is a fallback for another:
 
-Both paths use the same payment intent, status model, ledger, and merchant-facing API.
+- **On-chain contract** — the payer connects a wallet. `PaymentRouter` atomically receives, swaps when needed, and settles. A hard `minOut` protects the merchant.
+- **Deposit match** — the payer can only send a plain transfer, from a wallet or an exchange. Mayarin gives them a per-intent address, watches the chain, and matches the transfer to the payment.
+- **x402** — the payer is a program. It signs one authorization for an exact amount, a facilitator broadcasts it, and the settlement is read back off the chain before anything is served.
+
+All three use the same payment intent, status model, ledger, and merchant-facing API. See [execution paths](/concepts/execution-paths).
 
 ## Core guarantees
 

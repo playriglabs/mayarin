@@ -66,19 +66,32 @@ cross-merchant id resolves to the same 404 an absent one does.
 Session cookie plus a double-submit CSRF token on every mutating call. Each
 group names the permission that opens it.
 
-| Route                                                                        | Permission        | What it is                                              |
-| ---------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------- |
-| `POST /auth/login`, `/logout`, `GET /me`                                     | —                 | Session lifecycle                                       |
-| `GET /payments`, `/payments/:id`                                             | `payments:read`   | The merchant's own intents, with clearing and timeline  |
-| `GET /audit`, `/audit/:id`                                                   | `payments:read`   | Compliance record with ledger ↔ chain reconciliation    |
-| `GET /settlements`                                                           | `payments:read`   | What clearing booked, plus what the chain reported      |
-| `GET/POST/PATCH /catalog/products[/:id]`                                     | `catalog:manage`  | Products, priced per currency                           |
-| `GET/POST /payment-links`, `/:id/disable`                                    | `catalog:manage`  | Link templates, each carrying its hosted-checkout `url` |
-| `GET/PATCH /settings`, `GET /settings/history`                               | `settings:manage` | Settlement config, merchant profile, change trail       |
-| `GET/POST /wallets`, `/:id/challenge`, `/:id/verify`, `/managed`, `/passkey` | `settings:manage` | Payout addresses and proof of control                   |
-| `GET /wallets/balance`, `GET /wallets/withdrawals`, `POST /wallets/withdraw` | `settings:manage` | Balance, successful withdrawal history, and moving out  |
-| `GET/POST /webhooks/endpoints`, `/deliveries`                                | `settings:manage` | Endpoints, secret rotation, delivery inspection         |
-| `GET/POST /admin/users`                                                      | `admin:access`    | Accounts within the caller's own merchant               |
+| Route                                                                        | Permission        | What it is                                                      |
+| ---------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------- |
+| `POST /auth/login`, `/logout`, `GET /me`                                     | —                 | Session lifecycle                                               |
+| `GET /payments`, `/payments/:id`                                             | `payments:read`   | The merchant's own intents, with clearing and timeline          |
+| `GET /analytics`                                                             | `payments:read`   | Merchant analytics, derived from the payments read              |
+| `GET /audit`, `/audit/:id`                                                   | `payments:read`   | Compliance record with ledger ↔ chain reconciliation            |
+| `GET /settlements`                                                           | `payments:read`   | What clearing booked, plus what the chain reported              |
+| `GET /event-logs`, `/event-logs/events`                                      | `payments:read`   | Clearing, settlement and webhook events in one timeline         |
+| `GET /orders`, `/orders/:id`                                                 | `payments:read`   | The commerce view of a payment — lines, customer, status        |
+| `GET/POST/PATCH /catalog/products[/:id]`                                     | `catalog:manage`  | Products, priced per currency                                   |
+| `GET/POST /payment-links`, `/:id/disable`, `/:id/charge`, `/:id/quote`       | `catalog:manage`  | Link templates, counter sale, and indicative pricing            |
+| `GET/POST /invoices`, `/:id/issue`, `/:id/void`, `/:id/send`                 | `catalog:manage`  | Numbered invoices and their lifecycle                           |
+| `GET/POST/PATCH/DELETE /customers[/:id]`                                     | `catalog:manage`  | Merchant-managed directory, linked to orders                    |
+| `GET/POST /x402-resources`, `/:id/list`, `/:id/unlist`, `DELETE /:id`        | `catalog:manage`  | The merchant's own agent-payable endpoints                      |
+| `GET/PATCH /settings`, `GET /settings/history`                               | `settings:manage` | Settlement config, merchant profile, change trail               |
+| `GET/POST /wallets`, `/:id/challenge`, `/:id/verify`, `/managed`, `/passkey` | `settings:manage` | Payout addresses and proof of control                           |
+| `GET /wallets/balance`, `GET /wallets/withdrawals`, `POST /wallets/withdraw` | `settings:manage` | Balance, successful withdrawal history, and moving out          |
+| `GET/POST /webhooks/endpoints`, `/deliveries`                                | `settings:manage` | Endpoints, secret rotation, delivery inspection                 |
+| `GET/POST/DELETE /api-keys[/:id]`                                            | `settings:manage` | Bearer access to this API, permissions a subset of the caller's |
+| `GET/POST /admin/users`                                                      | `admin:access`    | Accounts within the caller's own merchant                       |
+
+A dashboard **API key** is bearer-token access to this surface, with per-key
+permissions that can only be a subset of the merchant's own. The secret is shown
+once at creation; listings carry a prefix. A bearer request is exempt from CSRF —
+it is not auto-sent cross-origin — and reaches exactly the surfaces its
+permissions allow.
 
 `catalog:manage` is its own permission rather than folded into `settings:manage`:
 minting a link decides what a buyer is charged and never where the money lands, so
@@ -130,10 +143,29 @@ live on the merchant record and are edited through `PATCH /settings`;
 into every payment the link takes. `GET /settings` reports `canCreateLinks` so the
 dashboard can say which field is missing before a form is filled in.
 
+## The x402 surface
+
+Two mounts, and they are not the same thing.
+
+- **`/x402/*` on the payment API, unversioned.** The buyer-facing half: discovery
+  (`GET /x402/resources`, `/x402/payables`), the `402` terms, the facilitator's
+  `verify` and `settle`, and the MCP server at `POST /x402/mcp`. Unversioned for
+  the same reason the hosted checkout is — an agent that discovered a resource
+  must be able to pay it later.
+- **`/v1/x402/resources` on the payment API, merchant-authed**, and
+  `/v1/x402-resources` on the dashboard API. The merchant-owned half: register,
+  list and unlist your own endpoints. Gated on `catalog:manage` for the same
+  reason a payment link is — it decides what a payer is charged, never where the
+  money lands.
+
+The whole surface answers `404` when `X402_ENABLED` is off, rather than
+half-working. See [Agent Payments](./x402.md).
+
 ## Related
 
 - [Payment Intent](./payment-intent.md)
 - [Clearing Engine](./clearing-engine.md)
+- [Agent Payments (x402)](./x402.md)
 - [Development](./development.md)
 
 [← Documentation index](./README.md)

@@ -28,14 +28,19 @@ The only step that needs the secret key, and the only place it is ever used — 
 ```ts
 import { createMayarin } from "@mayarin/sdk";
 
-const mayarin = createMayarin({ baseUrl: "https://api.mayarin.xyz", secretKey: sk });
+const mayarin = createMayarin({
+  baseUrl: "https://api.mayarin.xyz",
+  secretKey: "sk_",
+});
 
 await mayarin.x402.resources.register({
   id: "your-resource-id",
   url: "https://your.server/premium", // must byte-match what an agent calls
   price: { amount: "2000", asset: "USDC" },
   maxTimeoutSeconds: 3600,
-  accepts: [{ chain: "base-sepolia", asset: "USDC", contract: "0x…", payTo: "0x…" }],
+  accepts: [
+    { chain: "base-sepolia", asset: "USDC", contract: "0x…", payTo: "0x…" },
+  ],
   listed: true,
 });
 ```
@@ -44,14 +49,14 @@ await mayarin.x402.resources.register({
 
 ## What the middleware does
 
-| Request | Answer |
-| --- | --- |
-| No `PAYMENT-SIGNATURE` header | `402` with `PAYMENT-REQUIRED` (base64 of the price JSON), empty body |
-| Structurally bad signature | `402` with a fresh price and the reason on its `error` field |
-| A signature Mayarin refuses | `402` with a fresh price and the refusal reason on its `error` field |
-| A settled payment | Your handler runs once, with `PAYMENT-RESPONSE` set on the answer |
-| The same signature again | The recorded response, verbatim — no second charge, no second handler run |
-| Mayarin unreachable | `502` — the handler never runs. Paid content is not served on Mayarin's say-so being *missing* |
+| Request                       | Answer                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| No `PAYMENT-SIGNATURE` header | `402` with `PAYMENT-REQUIRED` (base64 of the price JSON), empty body                           |
+| Structurally bad signature    | `402` with a fresh price and the reason on its `error` field                                   |
+| A signature Mayarin refuses   | `402` with a fresh price and the refusal reason on its `error` field                           |
+| A settled payment             | Your handler runs once, with `PAYMENT-RESPONSE` set on the answer                              |
+| The same signature again      | The recorded response, verbatim — no second charge, no second handler run                      |
+| Mayarin unreachable           | `502` — the handler never runs. Paid content is not served on Mayarin's say-so being _missing_ |
 
 The happy path is one `settle` with no `verify` round-trip: Mayarin rebuilds the payment requirements from the registered resource and reads the transfer back off the chain, so verification is part of settling. `verify` exists for a payer's separate "would this go through?" question.
 

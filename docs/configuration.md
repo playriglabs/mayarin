@@ -1,3 +1,5 @@
+[← Documentation index](./README.md)
+
 # Configuration
 
 Three kinds of configuration live in this system and they are not
@@ -17,7 +19,8 @@ The rule is one question — **when does this value change?**
 
 `PAYMENT_ROUTERS`, `DEPOSIT_FORWARDERS`, `DEPOSIT_FORWARDER_INIT_CODE_HASH`,
 `TREASURY_ADDRESS`, `OPERATOR_PRIVATE_KEY`, `DATABASE_URL`, `PUBLIC_BASE_URL`,
-and the `*_RATE_LIMIT_*` controls.
+`CHAIN_RPC_URLS`, `SUBGRAPH_ENDPOINTS`, `SUBGRAPH_API_KEY`, `X402_ENABLED`,
+`X402_QUOTE_TTL_SECONDS`, and the `*_RATE_LIMIT_*` controls.
 
 These change only on a redeploy, and two of them argue actively **against** ever
 being runtime-editable:
@@ -26,6 +29,15 @@ being runtime-editable:
   issued. Changing it at runtime orphans addresses already handed to payers.
 - `TREASURY_ADDRESS` is where fees are paid. A mutable one is a redirect of
   funds behind a single API call.
+
+`X402_ENABLED` belongs here for a related reason: it decides whether a whole
+execution path exists in this deployment, and it depends on other boot values.
+Without an `OPERATOR_PRIVATE_KEY` there is nothing to broadcast an authorization
+with, so the rail is not built and the routes answer `404` — not a half-working
+`402` for a payment nothing could settle. Enabled _with_ a key but with no chain
+in `CHAIN_RPC_URLS`, the deployment refuses to boot:
+`"X402_ENABLED is true but no chain has a CHAIN_RPC_URLS entry to broadcast
+against"`.
 
 Boot-time and validated is the right shape: a deployment with a bad value should
 fail to start, not fail on its first payment.
@@ -101,14 +113,19 @@ pricing used to mean editing `PYTH_FEEDS` and restarting.
 Keys, all validated by the same zod schema that parses them out of an
 environment string:
 
-| Key              | What it holds                                   |
-| ---------------- | ----------------------------------------------- |
-| `stablecoins`    | admissible assets and their on-chain identities |
-| `exchangeRates`  | the static rate table (development stand-in)    |
-| `pythFeeds`      | crypto pair → Hermes feed                       |
-| `fxFeeds`        | fiat pair → FX API series                       |
-| `chainlinkFeeds` | pair → on-chain aggregator                      |
-| `uniswapPools`   | pair → pool                                     |
+| Key                | What it holds                                   |
+| ------------------ | ----------------------------------------------- |
+| `stablecoins`      | admissible assets and their on-chain identities |
+| `exchangeRates`    | the static rate table (development stand-in)    |
+| `pythFeeds`        | crypto pair → Hermes feed                       |
+| `fxFeeds`          | fiat pair → FX API series                       |
+| `coinbaseProducts` | pair → Coinbase ticker product                  |
+| `chainlinkFeeds`   | pair → on-chain aggregator                      |
+| `uniswapPools`     | pair → pool                                     |
+
+The set is **closed** (`MARKET_CONFIG_KEYS` in `apps/api/src/market.ts`): an
+operator can change what a key means, never invent a key nothing reads. A typo
+would otherwise be accepted, stored, and silently ignored forever.
 
 These split along the two legs a payment has, not along provider preference.
 `QuoteEngine` prices fiat → settlement through the oracle alone (no venue quotes
@@ -169,3 +186,13 @@ Ask when it changes.
   API. If it moves money, audit it.
 - When the market changes → a `market_config` key, with a zod schema, and think
   about what a wrong value does before exposing the endpoint.
+
+## Related
+
+- [Architecture](./architecture.md)
+- [Chain Layer](./chain.md) — the per-chain half of deployment identity
+- [Stablecoin Registry](./stablecoin.md) — what the `stablecoins` key holds
+- [Agent Payments (x402)](./x402.md) — the keys that gate that path
+- [Deployment Targets](./deployment.md)
+
+[← Documentation index](./README.md)

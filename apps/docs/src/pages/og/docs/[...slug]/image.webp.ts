@@ -1,39 +1,75 @@
+// Every asset the card needs is inlined as base64 at build time, so rendering
+// makes no network call at all. That is not an optimisation — it is the whole
+// failure mode. This endpoint used to fetch its artwork over HTTP, and a fetch
+// that failed threw, and a throw here does not surface as a 500: Astro rewrites
+// to the 404 page, so `og:image` answered `404 text/html` and every social
+// card silently broke. Nothing to fetch, nothing to fail.
+
+import geistUrl from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?inline";
+import { Renderer } from "@takumi-rs/core";
 import type { APIRoute } from "astro";
 import { render } from "takumi-js";
 import { fromHtml } from "takumi-js/helpers/html";
-// Inlined as a base64 data URI at build time (Vite `?inline`), so the renderer
-// needs no filesystem or network access — safe on the Cloudflare runtime.
-
 import { source } from "@/lib/source";
+import hbSetUrl from "../../../../../../landing/public/fonts/HBSetv0.96-Light.woff2?inline";
+import backgroundUrl from "../../../../../../landing/public/og-dynamic.jpeg?inline";
 
 // Renders an OpenGraph image per docs page. The URL is emitted by
 // `getPageImageUrl` in src/lib/source.ts: `/og/docs/{slugs}/image.webp`.
-// Stupid simple: white paper, the Mayarin full wordmark, page title +
-// description. White background → black wordmark.
+//
+// The artwork is the landing site's shared OG plate, bundled from its source
+// rather than read off `mayarin.xyz`, so a docs card and a mayarin.xyz card are
+// the same picture and neither waits on the other being deployed.
+//
+// The plate already carries the wordmark, top left, and nothing here redraws
+// it — which is also why there is no scrim over the artwork: anything opaque
+// enough to help the text would wash the wordmark out. The plate's left half is
+// near-white on its own, so dark text needs no help there.
 
-const BRAND_KIT_URL = "https://mayarin.xyz/brand-kit";
+// The plate's green globe fills its right half, so the title is bounded by this
+// column rather than by the canvas. Bottom-anchored, with the footer set
+// directly beneath it, so a one-line card and a three-line card share the same
+// baseline instead of drifting around the middle.
+const TEXT_COLUMN = 620;
+
+// The card carries the page title and nothing else, so the ceiling is what
+// still fits the column at this size. Verified against every real page: the
+// longest title in the docs today is 51 characters, and three lines still clear
+// the plate's own wordmark.
+const TITLE_LIMIT = 54;
 
 export const GET: APIRoute = async ({ params }) => {
   const slugs = typeof params.slug === "string" ? params.slug.split("/") : [];
   const page = source.getPage(slugs);
-  const title = page?.data.title ?? "Mayarin Docs";
-  const description = page?.data.description ?? "Build programmable clearing with Mayarin.";
+  const title = truncate(page?.data.title ?? "Mayarin Docs", TITLE_LIMIT);
 
+  // The plate is an absolutely positioned layer rather than a CSS
+  // `background-image`. Takumi resolves a `background-image: url(...)` only for
+  // an http(s) source it can fetch — handed a `data:` URI it paints nothing and
+  // reports no error, which reads exactly like a broken asset. An `<img>` takes
+  // the same URI and draws it.
   const markup = `
-<div style="display:flex;flex-direction:column;justify-content:space-between;width:1200px;height:630px;padding:80px;background:#ffffff;color:#0a0a0a;font-family:Geist Variable,Helvetica,Arial,sans-serif;">
-  <div style="display:flex;align-items:center;gap:2px;">
-    <img src="${BRAND_KIT_URL}/mayarin-logo-black.svg" alt="" style="height:52px;width:52px;object-fit:contain;" />
-    <span style="font-size:40px;font-weight:500;letter-spacing:-0.06em;line-height:1;">mayarin</span>
+<div style="display:flex;position:relative;width:1200px;height:630px;background-color:#ffffff;color:#0a0a0a;font-family:HB Set,Helvetica,Arial,sans-serif;">
+  <img src="${backgroundUrl}" alt="" style="position:absolute;top:0;left:0;width:1200px;height:630px;" />
+  <div style="display:flex;flex-direction:column;justify-content:flex-end;width:1200px;height:630px;padding:72px 80px;">
+    <div style="display:flex;flex-direction:column;gap:26px;flex-shrink:0;">
+      <div style="display:flex;font-size:76px;font-weight:300;line-height:1.04;letter-spacing:-0.035em;max-width:${TEXT_COLUMN}px;word-break:break-word;overflow:hidden;">${escapeHtml(title)}</div>
+      <div style="display:flex;font-family:Geist Variable,sans-serif;font-size:21px;color:#64748b;">docs.mayarin.xyz</div>
+    </div>
   </div>
-  <div style="display:flex;flex-direction:column;gap:24px;">
-    <div style="font-size:64px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;max-width:1000px;">${escapeHtml(title)}</div>
-    <div style="font-size:30px;line-height:1.4;color:#525252;max-width:980px;">${escapeHtml(description)}</div>
-  </div>
-  <div style="font-size:24px;color:#737373;">docs.mayarin.xyz</div>
 </div>`;
 
   const { node } = fromHtml(markup);
-  const image = await render(node, { width: 1200, height: 630, format: "webp" });
+  const image = await render(node, {
+    width: 1200,
+    height: 630,
+    format: "webp",
+    // Takumi encodes WebP losslessly unless told otherwise, which on this
+    // gradient-heavy plate is ~250KB. A crawler fetches this on every share; 82
+    // is visually indistinguishable here and roughly a fifth of the bytes.
+    quality: 82,
+    renderer: await brandRenderer(),
+  });
 
   return new Response(image, {
     headers: {
@@ -42,6 +78,50 @@ export const GET: APIRoute = async ({ params }) => {
     },
   });
 };
+
+/**
+ * The renderer, built once per process with the brand's two faces.
+ *
+ * HB Set is the landing site's heading face and carries the title; Geist is its
+ * body face and carries the one line of body text on the card. Registering only
+ * these two is also what makes the fallback safe: with no face for a family,
+ * the renderer reaches for whichever it does have.
+ */
+let renderering: Promise<Renderer> | undefined;
+
+function brandRenderer(): Promise<Renderer> {
+  renderering ??= (async () => {
+    const renderer = new Renderer();
+    await renderer.registerFont({ name: "HB Set", data: decodeDataUri(hbSetUrl), weight: 300 });
+    await renderer.registerFont({
+      name: "Geist Variable",
+      data: decodeDataUri(geistUrl),
+      generic: "sans-serif",
+    });
+    return renderer;
+  })();
+  return renderering;
+}
+
+/** Turns a build-time inlined `data:` asset back into the bytes it encodes. */
+function decodeDataUri(uri: string): Uint8Array {
+  const base64 = uri.slice(uri.indexOf(",") + 1);
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+}
+
+/**
+ * Trims to a whole word inside `limit`, so a card never crops mid-word.
+ *
+ * Trailing punctuation goes with it: a title cut at its own comma would
+ * otherwise read `Currencies, assets,…`.
+ */
+function truncate(value: string, limit: number): string {
+  if (value.length <= limit) return value;
+  const clipped = value.slice(0, limit);
+  const lastSpace = clipped.lastIndexOf(" ");
+  const kept = lastSpace > limit * 0.6 ? clipped.slice(0, lastSpace) : clipped;
+  return `${kept.replace(/[\s.,;:—–-]+$/u, "")}…`;
+}
 
 function escapeHtml(value: string): string {
   return value

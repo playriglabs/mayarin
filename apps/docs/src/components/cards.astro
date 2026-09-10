@@ -1,0 +1,11 @@
+---
+/**
+ * The grid the landing cards sit in — fumadocs' own `Cards` classes, so the
+ * two-column-to-one-column behaviour matches every other card grid in the
+ * theme. See `card.astro` for why these are Astro components.
+ */
+---
+
+<div class="not-prose grid grid-cols-2 gap-3 @container">
+  <slot />
+</div>

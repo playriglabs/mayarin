@@ -1,6 +1,6 @@
 ---
 title: TypeScript SDK
-description: Typed access to payments, commerce, QR helpers, and webhook verification.
+description: Typed access to payments, commerce, QR helpers, webhook verification, and the x402 gate.
 ---
 
 `@mayarin/sdk` is Mayarin's hand-written TypeScript client. It pins the API revision, adds `/v1`, generates idempotency keys for writes, maps failures into one typed error, and separates secret-key server usage from publishable-key browser usage.
@@ -9,18 +9,22 @@ description: Typed access to payments, commerce, QR helpers, and webhook verific
 bun add @mayarin/sdk
 ```
 
-## Two entry points
+## Three entry points
 
-| Import                   | Key                       | Surface                                                    |
-| ------------------------ | ------------------------- | ---------------------------------------------------------- |
-| `@mayarin/sdk`           | secret (`sk_…`)           | [`commerce`](/sdk/typescript/commerce) and [`payment`](/sdk/typescript/payments) in full |
-| `@mayarin/sdk/browser`   | publishable (`pk_…`), optional | catalog read and cart checkout only                   |
+| Import                     | Key                            | Surface                                                                                  |
+| -------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------- |
+| `@mayarin/sdk`             | secret (`sk_…`)                | [`commerce`](/sdk/typescript/commerce) and [`payment`](/sdk/typescript/payments) in full |
+| `@mayarin/sdk/browser`     | publishable (`pk_…`), optional | catalog read and cart checkout only                                                      |
+| `@mayarin/sdk/x402/connect` | none                          | connect middleware for the [x402 gate](/sdk/typescript/x402)                              |
 
 The split is enforced by types, not by a runtime check: `MayarinBrowserConfig` has no `secretKey` field, and the browser commerce module has no `create` or `update`. A secret key in browser code does not compile.
 
+The x402 subpath is separate for a different reason: the request-time gate is **keyless**. Your secret key registers a resource once, through `@mayarin/sdk`, and never appears on the path a payer's request takes.
+
 ```ts
-import { createMayarin } from "@mayarin/sdk";           // server
+import { createMayarin } from "@mayarin/sdk"; // server
 import { createMayarinBrowser } from "@mayarin/sdk/browser"; // browser
+import { x402Connect } from "@mayarin/sdk/x402/connect"; // the gate
 ```
 
 ## What the transport does for you
@@ -86,4 +90,5 @@ The browser never sees the secret key — the build fails if it reaches the bund
 - [Payments module](/sdk/typescript/payments) — intents, confirmation, status, contract calldata.
 - [Commerce module](/sdk/typescript/commerce) — products, carts, payment links, invoices.
 - [Webhook helpers](/sdk/typescript/webhooks) — verify a delivery, then re-query the API.
+- [x402 gate](/sdk/typescript/x402) — sell one of your own endpoints per request, to an agent.
 - [SDK reference](/sdk/typescript/reference) — generated type tables.

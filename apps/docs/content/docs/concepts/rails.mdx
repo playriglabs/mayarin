@@ -1,0 +1,71 @@
+---
+title: Currencies, assets and chains
+description: What a merchant can price in, what a payer can pay with, and which chains carry it.
+---
+
+Three separate lists, and conflating them is the usual mistake. A merchant **prices** in a currency, **settles** in a stablecoin, and a payer **pays** with whatever the deployment accepts on a chain it runs.
+
+## Pricing currencies
+
+A merchant prices in its own currency. A product carries one explicit amount per currency — prices are entered, never converted from a base price at read time, because a converted price would move with an FX feed between the moment a buyer reads it and the moment they pay.
+
+| Region              | Currencies                                    |
+| ------------------- | --------------------------------------------- |
+| Southeast Asia      | IDR, SGD, MYR, THB, PHP, VND, BND, MMK, KHR, LAK |
+| Global and East Asia | USD, JPY, CNY, HKD, EUR, GBP, AUD, CAD        |
+| Middle East         | AED, SAR                                      |
+| Latin America       | BRL, MXN                                      |
+
+**JPY and VND have zero decimals.** Their minor unit *is* the whole unit, so `{ "amount": "5000", "asset": "JPY" }` is ¥5,000 — not ¥50.00. Every other currency here has two. Never assume a factor of 100; read the asset's decimals. See [money](/concepts/money).
+
+Pricing a currency needs a reference rate for its leg, so a deployment may serve fewer than the full list. A currency the rate source cannot price comes back as an unavailable line rather than a wrong number.
+
+## Settlement stablecoins
+
+What the merchant is paid in, set per merchant.
+
+| Asset | Decimals | Note                                                                  |
+| ----- | -------- | --------------------------------------------------------------------- |
+| USDC  | 6        | The default                                                           |
+| USDT  | 6        |                                                                       |
+| EURC  | 6        | Euro-denominated — the one stablecoin here that is not a dollar in another representation |
+| PYUSD | 6        |                                                                       |
+
+Which of these a deployment actually admits is configuration, not code — the admissible set and each asset's on-chain identity are one record an operator maintains, so a stablecoin appears here as *supported by the platform* rather than as *enabled on the API you are calling*. Ask `GET /v1/catalog/products` or the hosted checkout what a given merchant offers.
+
+EURC matters for a reason worth stating: `EURC/USDC` is a real exchange rate, not a peg. A merchant settled in EURC and a payer holding USDC are a genuine cross-asset payment, priced through the same FX leg a fiat price uses.
+
+## Payer assets
+
+What a payer can bring. A payer asset is admissible when the deployment has an on-chain identity for it and a way to price it against the merchant's settlement asset.
+
+- **Stablecoins** — USDC, USDT, EURC, PYUSD. Same-asset payments skip the swap entirely.
+- **Native** — ETH. Payer amounts are rounded to eight decimals, which is what wallet entry fields and exchange UIs settle on; the dust given up is far below the transfer fee.
+
+A merchant chooses which of these to accept. `GET /v1/payment-links/:id` and the hosted checkout show what a given payer can actually use.
+
+## Chains
+
+| Chain              | Status                                                                 |
+| ------------------ | ---------------------------------------------------------------------- |
+| `base-sepolia`     | Primary testnet — `PaymentRouter` deployed and verified                 |
+| `base`             | Mainnet, unprovisioned                                                  |
+| `ethereum-sepolia` | Testnet                                                                 |
+| `arbitrum-sepolia` | Testnet                                                                 |
+| `arbitrum`         | Mainnet, unprovisioned                                                  |
+| `arc-testnet`      | Circle's chain — USDC-native, the first whose native asset is not ETH   |
+| `robinhood-testnet`| An Orbit chain                                                          |
+
+Mayarin currently runs on **testnet**. Its Base Sepolia execution contracts are deployed and verified; the mainnet environment stays deliberately unprovisioned until the documented security and deployment gates are satisfied.
+
+What a *deployment* runs is narrower than this list. A chain needs an RPC endpoint, asset identities, and — for the contract path — a deployed `PaymentRouter`. A chain with no router still serves deposit matching and x402.
+
+### Cross-chain is not supported
+
+A payer on chain A cannot pay a merchant settled on chain B. That needs a bridge with its own trust model, and a single `PaymentRouter` deployment does not do it. Both legs of a payment happen on one chain.
+
+## Cross-asset, on one chain
+
+When the payer's asset differs from the merchant's settlement asset, the swap is priced **backwards** — asking what delivering exactly the merchant's amount costs, rather than what one unit buys. The merchant's number is the fixed one.
+
+On the contract path that swap is inside `PaymentRouter`, and a fill that misses `minOut` reverts rather than paying the merchant less. On the x402 path it is a second on-chain movement bounded by what the payer signed, and whatever the swap does not spend is booked back to the payer. Either way the merchant receives exactly the amount they invoiced.

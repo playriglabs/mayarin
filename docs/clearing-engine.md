@@ -60,10 +60,16 @@ Every transaction is:
 
 Where the engine waits
 
-| State             | Waiting for                 | Woken by                                        |
-| ----------------- | --------------------------- | ----------------------------------------------- |
-| `PAYMENT_PENDING` | the payer's asset to arrive | `recordAssetReceived` (Phase 2: wallet watcher) |
-| `SETTLING`        | the payment rail to confirm | provider webhook, or `resume`                   |
+| State             | Waiting for                 | Woken by                                           |
+| ----------------- | --------------------------- | -------------------------------------------------- |
+| `PAYMENT_PENDING` | the payer's asset to arrive | `recordAssetReceived` — the wallet watcher         |
+|                   | a `PaymentCompleted` log    | `recordPaymentCompleted` — the settlement indexer  |
+|                   | a facilitator to broadcast  | the x402 settle step, after reading the chain back |
+| `SETTLING`        | the payment rail to confirm | provider webhook, or `resume`                      |
+
+A webhook is a **signal, not truth**: it wakes the engine, which then asks the
+adapter for the authoritative status, so a spoofed or replayed webhook cannot
+settle a payment on its own.
 
 ### Three assets, two rate locks
 
@@ -94,8 +100,8 @@ plus a hard revert on `minOut` miss removes the treasury FX risk the two-lock
 model carries between lock and receipt. The state machine above is unchanged;
 the difference is where execution happens (contract vs. off-chain) and which
 lock is hard. The path is a discriminator on the payment intent
-(`ExecutionPath`: `deposit-match` | `on-chain-contract`), persisted on the
-clearing transaction and set from the `EXECUTION_PATH` config default.
+(`ExecutionPath`: `deposit-match` | `on-chain-contract` | `x402`), persisted on
+the clearing transaction and set from the `EXECUTION_PATH` config default.
 
 The engine walks the contract path through a port (#61). A
 `ContractPaymentPlanner`, injected like the deposit layer, prices both legs,
@@ -121,12 +127,44 @@ Rules specific to the contract path:
   over with a fresh quote. The contract enforces the same deadline on-chain,
   so a payment failed here cannot settle later.
 
+### x402 execution _(for programs)_
+
+The third path. A program signs one EIP-3009 authorization and a facilitator
+broadcasts it. The state machine is again unchanged; three things differ, and
+each one is a branch in `engine.ts`:
+
+- **No deposit address is derived.** The payment is identified by the
+  authorization nonce, not by where the money landed. `usesDepositAddress` is
+  false, so `#lockDeposit` allocates nothing.
+- **`ASSET_RECEIPT_MODE=auto` never applies.** `awaitsFacilitatorSettlement` is
+  true, and only the settle step — having read the transaction back off the chain
+  and matched token, recipient and full amount — advances the payment. A
+  facilitator's `success` is a claim.
+- **The fee is zero on this rail.** `exact` sends the full amount directly to
+  `payTo` — the authorization names one recipient and one amount, so there is no
+  fee leg in the transfer. Applying the deposit fee here would invent revenue
+  nobody received, so the engine takes `zero` instead.
+
+Both predicates are named rather than spelled `!== "on-chain-contract"`. That
+phrasing was correct with two paths and silently wrong with three — it is the
+reason the predicates exist.
+
+A cross-asset x402 payment is two on-chain movements (authorization, then an
+exact-output swap), planned and persisted before the payer's money moves, so a
+run killed between them resumes into the swap rather than re-taking the
+authorization. `resumeStuck` covers it, and there is a test that kills an intent
+after the broadcast to prove it.
+
+See [Agent Payments](./x402.md) for the protocol, the resource registry, the
+replay key, and the rail choice.
+
 ---
 
 ## Related
 
 - [Payment Intent](./payment-intent.md)
 - [Chain Layer](./chain.md)
+- [Agent Payments (x402)](./x402.md)
 - [Double Entry Ledger](./ledger.md)
 - [Settlement](./settlement.md)
 

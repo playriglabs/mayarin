@@ -810,7 +810,7 @@ function Analytics() {
             <Stat
               label={payOutAsset === undefined ? "Fees" : `Fees · ${payOutAsset}`}
               value={payout(totalFees)}
-              hint="Fees on completed settlements in this period."
+              hint="Fees on completed settlements."
             />
             <Stat
               label="Conversion rate"

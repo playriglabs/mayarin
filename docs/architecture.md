@@ -24,10 +24,29 @@ code lives.
 
 ## System Architecture
 
-Two execution paths share the same intent, ledger, and stablecoin registry. The
-**on-chain** path (Phase 3, primary) routes the customer's payment through a
-smart contract that atomically swaps and settles. The **deposit-matching** path
-(Phase 2, shipped, fallback) watches a per-intent deposit address.
+**Three execution paths** share the same intent, clearing engine, ledger, and
+stablecoin registry. They are chosen **per payer, not per deployment** — none is
+a fallback for another, because they serve different payers:
+
+| Path                | The payer                                  | How it is funded                                       |
+| ------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| `on-chain-contract` | a human or app that can _connect_ a wallet | `PaymentRouter` receives, swaps and settles atomically |
+| `deposit-match`     | anyone who can only send a plain transfer  | a per-intent deposit address, watched                  |
+| `x402`              | a program                                  | one signed EIP-3009 authorization, broadcast           |
+
+The contract path needs the payer to connect a wallet, because it submits
+calldata and because the signed order's `refundTo` must be known before the payer
+pays. A payer who scans a QR or pastes an address into a custodial withdrawal can
+only do a plain transfer, so deposit-matching is the only path open to them. An
+`x402` payer never sees an address at all — the payment is identified by the
+authorization nonce rather than by where the money landed, which is why that path
+derives no deposit address.
+
+Anything branching on how a payment is funded must say which of the three it
+means. Two named predicates exist for exactly that (`usesDepositAddress`,
+`awaitsFacilitatorSettlement`) and replaced a `!== "on-chain-contract"` phrasing
+that was right with two paths and silently wrong with three. See
+[Agent Payments](./x402.md).
 
 ```
                  Client SDK
@@ -55,24 +74,27 @@ smart contract that atomically swaps and settles. The **deposit-matching** path
 
 ────────────────────────────────────────
 
-          PaymentRouter.sol        (on-chain execution, Phase 3)
+          PaymentRouter.sol        (contract path — atomic receive/swap/settle)
+          Deposit address          (deposit-match path — watched)
+          Facilitator              (x402 path — broadcasts one authorization)
 
                      │
 
-              Execution Engine     ── 0x, Uniswap (pluggable)
+              Execution Engine     ── 0x, Uniswap v3/v2, LiFi (pluggable)
 
                      │
 
 ────────────────────────────────────────
 
             Wallet Provider         ── Turnkey (MPC policy engine)
-                                    ── Tempo (MPC, alternative)
+                                    ── Safe (self-custodial account shape)
 
                      │
 
 ────────────────────────────────────────
 
               Indexer               ── observes PaymentCompleted
+                                    ── via the settlements subgraph, or the chain
 
                      │
 
@@ -191,6 +213,48 @@ makes the payment identifiable: an exchange withdrawal leaves an omnibus hot
 wallet with no memo or calldata, so the address is the only thing tying a
 transfer to an intent.
 
+### x402 path _(for programs)_
+
+An agent asks for a gated resource, is told the price in a header, signs one
+authorization, and is served. It never registered with anyone.
+
+```
+Agent requests a gated resource, unpaid
+
+↓
+
+Resource priced through the quote engine, once per accepted rail
+
+↓
+
+402 Payment Required     terms in the PAYMENT-REQUIRED header
+
+↓
+
+Agent signs             EIP-3009 authorization, exact amount
+
+↓
+
+Facilitator             verifies, then broadcasts
+
+↓
+
+Settlement              read back off the chain and matched to this payment
+
+↓
+
+Clearing Engine → Double Entry Ledger → resource served
+```
+
+The price is honoured for a window **derived from the quote lock**, never
+configured beside it, so the two numbers cannot drift apart. No deposit address
+is derived: the payment is identified by the authorization nonce.
+
+A payer that does not hold the merchant's settlement asset is still served —
+the authorization lands at the operator and an **exact-output** swap delivers
+exactly the invoice to the merchant, bounded by what the payer signed. See
+[Agent Payments](./x402.md).
+
 ---
 
 ## Monorepo Structure
@@ -200,60 +264,93 @@ Implemented and shipped (`✓`), planned for later phases (`·`):
 ```
 apps/
 
-  ✓ api/                 payment clearing API (Hono)
+  ✓ api/                 payment clearing API (Hono) — payments, commerce, x402, MCP
+  ✓ chain-worker/        wallet watcher, settlement indexer, deposit-path executor
+  ✓ checkout-ui/         buyer-facing SPA, served by the API from its own image
   ✓ dashboard-api/       merchant dashboard API (Hono + Effect)
   ✓ dashboard/           merchant dashboard UI (Astro + React)
-  ✓ landing/             marketing site
+  ✓ pay-proxy/           restricted buyer-origin proxy for the hosted surfaces
+  ✓ demo/                Parahyangan Supply reference storefront
+  ✓ x402-merchant/       reference merchant app gating its own endpoint over x402
+  ✓ docs/                interactive OpenAPI + SDK documentation (docs.mayarin.xyz)
+  ✓ landing/             marketing site and pitch deck
+  ✓ blog/ studio/        editorial site and content studio
 
 packages/
 
-    core/
+    core/                pure domain — ports only, no Postgres, no HTTP, no vendor
 
       ✓ clearing/         state machine, engine, fees, rate/liquidity ports
       ✓ ledger/           double-entry accounts, entries, balances
-      ✓ payment-intent/   immutable intents and their lifecycle
+      ✓ payment-intent/   immutable intents, their lifecycle, and ExecutionPath
       ✓ qr-parser/        EMVCo TLV decoder + QRIS profile
       ✓ settlement/       SettlementAdapter port (with mode) and registry
       ✓ chain/            chain ports, deposit types, confirmation policy, watcher
       ✓ stablecoin/       StablecoinRegistry port and value types — the admissible set
       ✓ auth/             merchant/user/session domain, PasswordHasher port
       ✓ compliance/       audit trail — reads clearing/ledger/chain, reconciles them, ScreeningProvider port
-      · commerce/         Phase 4 product catalog, prices, carts → payment intents
-      ✓ quote/            quote engine — guarded composition, lock, EIP-712 order assembly + OrderSigner port shipped; signer custody follows (#41)
-      ✓ execution/        execution engine — SwapVenue port, planner, venue selection, exact-output route port (#57)
+      ✓ catalog/          products, prices per currency, stateless carts → payment intents
+      ✓ invoicing/        numbered invoices, lifecycle, due dates, outstanding balance
+      ✓ notifications/    signed webhook delivery, retries, idempotent redelivery
+      ✓ wallet/           WalletProvider port — managed Safe, connect-existing, passkey key
+      ✓ quote/            quote engine — guarded composition, lock, EIP-712 order assembly + OrderSigner port
+      ✓ execution/        execution engine — SwapVenue port, planner, venue selection, exact-output route port
+      ✓ x402/             protocol types, exact/EVM scheme, facilitator port, resource
+                          registry, payables, replay key, cross-asset port, rail ranking
 
-    contracts/            Phase 3 PaymentRouter.sol — on-chain execution layer
-      · payment-router/
+    contracts/
 
-    providers/
+      ✓ payment-router/   PaymentRouter.sol, TimelockController, DepositForwarderFactory
+      ✓ abis/             generated ABI package shared by the providers
+
+    providers/            adapters — the only place a vendor SDK appears
 
       ✓ mock/             MockSettlementAdapter
-      ✓ evm/             viem ChainClient and HdDepositAddressDeriver
+      ✓ evm/              viem ChainClient, HdDepositAddressDeriver, cross-asset settler
+      ✓ viem-chains/      chain definitions keyed by ChainId
       ✓ stablecoin/       StablecoinSettlementAdapter (internal)
       ✓ argon2/           Argon2PasswordHasher
-      ✓ turnkey/          order signer (#41), wallet provider — sub-org, policy, Safe — and
-                          merchant key provider — passkey-only sub-org (#11)
-      · zerodev/          Phase 3 gas abstraction / paymaster / relayer
+      ✓ turnkey/          order signer, wallet provider (sub-org, policy, Safe),
+                          merchant key provider (passkey-only sub-org)
+      ✓ x402-local/       local facilitator — broadcasts the payer's authorization,
+                          probes token capability, reads settlement back off the chain
+      ✓ subgraph/         settlement source and rail observations, read from The Graph
       ✓ swap-0x/          ZeroExSwapVenue + ZeroExRouteSource — price read + exact-output route
-      ✓ swap-uniswap/     UniswapSwapVenue + UniswapRouteSource — QuoterV2 read + exactOutputSingle
-      ✓ swap-lifi/        LifiSwapVenue — LiFi quote, same-chain, price-only (no exact-output API)
+      ✓ swap-uniswap/     UniswapSwapVenue + UniswapRouteSource — QuoterV2 + exactOutputSingle
+      ✓ swap-uniswap-v2/  constant-product venue for chains with no v3 deployment
+      ✓ swap-lifi/        LifiSwapVenue — LiFi quote, same-chain, price-only
       ✓ pyth/             PythPriceOracle — Hermes reference read for the deviation guard
       ✓ fx/               FxRatesPriceOracle — the fiat leg no venue can price
       ✓ coinbase/         CoinbasePriceOracle — public ticker, covers what Pyth's grant denies
       ✓ chainlink/        ChainlinkPriceOracle — AggregatorV3 reference read via viem
+      · zerodev/          gas abstraction / paymaster / relayer (#9)
 
-  ✓ db/                   Drizzle schema, repositories, in-memory adapters
-  · sdk/                  Phase 4 TypeScript client SDK (commerce + payment + QR)
-  ✓ shared/              money, assets, ids, errors, events, clock
+  ✓ db/                   Drizzle schema, migrations, Postgres repositories
+  ✓ http/                 shared HTTP concerns for both API surfaces
+  ✓ sdk/                  TypeScript client SDK — commerce, payment, QR, webhooks, x402
+  ✓ embed/                embeddable checkout web component
+  ✓ subgraph/             the settlements subgraph source, schema, and manifest
+  ✓ shared/               money, assets, ids, errors, events, clock
+
+plugins/
+
+  ✓ woocommerce/          WooCommerce plugin with signed webhook verification
 ```
 
-Two packages worth noting:
+The one-way dependency rule is what the layout exists to protect:
 
-- **`core/qr-parser`** — the QR parser is a core component but was missing from
-  the original tree.
-- **`db`** — the domain packages define repository _ports_; their Drizzle and
-  in-memory implementations live here. Keeping them out of `core` is what lets a
-  domain package be tested, and swapped, without a database.
+- **`core/*` depends on nothing concrete.** No Postgres, no Hono, no viem, no
+  Turnkey. Adding such a dependency breaks the property.
+- **`db`** — the domain packages define repository _ports_; their Drizzle
+  implementations live here. Keeping them out of `core` is what lets a domain
+  package be tested, and swapped, without a database.
+- **The reference in-memory fakes ship with their port**, in each core package's
+  segregated `/testing` subpath (`@mayarin/<pkg>/testing`) — outside domain
+  `src/`, which stays pure. That is what makes a domain package testable without
+  a database _and_ without depending on `@mayarin/db`, which would form a
+  `core ↔ db` cycle and break Turbo's topological `^typecheck` caching.
+- **`apps/api/src/container.ts` is the composition root** — the only file that
+  knows which concrete adapters this deployment runs.
 
 The chain layer respects the same boundary one-way: `packages/core/chain` knows
 the clearing engine's seam (`recordAssetReceived`) only as an injected sink, so
@@ -266,20 +363,24 @@ admits and where each lives on-chain, unioning `SETTLEMENT_ASSETS` with
 `CHAIN_ASSETS`. It is the single source the watcher pairs, the intent
 admissibility check, and (later) the execution engine all read from.
 
-The [Quote / Liquidity](./liquidity-routing.md) ports the clearing engine already
-locks prices through are the seams Phase 3 plugs into: a DEX `PriceSource`
-replaces the static table for the executable `minOut`, an oracle becomes the
-deviation guard, and the `LiquidityRouter`'s same-asset identity stays. Swap
-execution moves on-chain to `PaymentRouter.sol` in Phase 3 — the router only
-prices today.
+The [Quote / Liquidity](./liquidity-routing.md) ports the clearing engine locks
+prices through are the seams the execution layer plugged into, and did without
+redesign: a DEX `PriceSource` serves the executable `minOut` where the quote
+layer is on, an oracle is the deviation guard, and the `LiquidityRouter`'s
+same-asset identity stays. The static `EXCHANGE_RATES` table remains the default
+for a deployment with `QUOTE_ENABLED=false`. Swap **execution** happens on-chain
+— in `PaymentRouter` on the contract path, and in an exact-output swap sent by
+the operator on the cross-asset x402 path. The router prices; it never executes.
 
 The [Settlement Engine](./settlement.md) settles a payment through a
 `SettlementAdapter` whose `mode` says whether value leaves Mayarin
 (`"external"`) or stays as a merchant balance (`"internal"` — the engine credits
-`MERCHANT_HOLDING`, a liability the merchant withdraws on-chain). The on-chain
-path (Phase 3) supersedes the off-chain adapters for supported assets: the
-contract settles directly to the merchant's managed wallet, and the off-chain
-adapters remain as the fallback path's settlement.
+`MERCHANT_HOLDING`, a liability the merchant withdraws on-chain). On-chain
+settlement supersedes the off-chain adapters wherever `PaymentRouter` executes —
+the contract path always, and the deposit path once a treasury executor is wired.
+The adapter port is retained for a deployment with no executor and for the future
+fiat off-ramp. On the x402 path the merchant is paid directly by the
+authorization, or by the exact-output swap when the payer's asset differs.
 
 ---
 
@@ -295,13 +396,21 @@ adapters remain as the fallback path's settlement.
 
 #### Networks
 
-- Base (Primary)
-- Ethereum
-- Arbitrum
-- Optimism
-- Polygon
-- Solana _(future, non-EVM)_
-- TRON _(future, non-EVM)_
+`CHAIN_IDS` in `packages/core/chain/src/types.ts` is the list; widening it is
+what adds a network. What a deployment actually runs is narrower — a chain needs
+an RPC URL, assets, and (for the contract path) a deployed `PaymentRouter`. See
+[Chain Layer → Supported chains](./chain.md#supported-chains).
+
+- `base`, `base-sepolia` — primary; contracts deployed and verified on Sepolia
+- `ethereum-sepolia`
+- `arbitrum`, `arbitrum-sepolia`
+- `arc-testnet` — Circle's chain; the first whose native asset is not ETH
+- `robinhood-testnet` — an Orbit chain
+- Solana, TRON _(future, non-EVM — a different signing and address model)_
+
+Cross-chain payment (payer on chain A, merchant settled on chain B) needs a
+bridge with its own trust model. It is **not** what a single `PaymentRouter`
+deployment does.
 
 #### SDK
 
@@ -311,8 +420,12 @@ adapters remain as the fallback path's settlement.
 #### Wallet Infrastructure
 
 - Turnkey (MPC policy engine — the wallet provider)
-- Tempo (MPC, alternative backend)
 - Safe (smart-account wallet shape, self-custodial)
+- Circle Agent Stack contract accounts, as **payers** — an EIP-1271 signer the
+  token accepts, not a wallet Mayarin provisions
+
+Tempo was considered as an alternative MPC backend behind the same port and is
+not wired.
 
 The backend never holds user keys. Turnkey provisions and signs for managed
 wallets under policy; the merchant's wallet is a self-custodial Safe smart
@@ -355,13 +468,21 @@ This is what separates Mayarin from a custodian.
 
 #### Liquidity
 
-- Uniswap
+- Uniswap v3 (`QuoterV2` + `SwapRouter02`, exact-output)
+- Uniswap v2 (constant product, for chains with no v3 deployment)
 - 0x API
+- LiFi (quote only — no exact-output API)
 
 #### Price Oracles
 
-- Pyth Network (production — pull-based, on-chain verifiable)
-- Chainlink (off-chain reference)
+- Pyth Network (pull-based, on-chain verifiable)
+- Chainlink (off-chain reference, `AggregatorV3` via viem)
+- FX rates (the fiat leg no venue can price)
+- Coinbase public ticker (covers pairs a Pyth grant denies)
+
+Name every source in `QUOTE_ORACLE` and `QUOTE_ORACLE_FALLBACKS`; one with no
+feed for a pair drops out of that read rather than failing it, which is what lets
+three partial sources cover a matrix none of them covers alone.
 
 #### Gas Abstraction
 
@@ -370,10 +491,22 @@ This is what separates Mayarin from a custodian.
 A merchant whose wallet starts empty cannot move their stablecoin. Gas
 abstraction is required for the "no wallet, no seed phrase" experience.
 
+#### Agent Payments
+
+- x402 protocol v2, EIP-3009 `transferWithAuthorization`, EIP-712 typed data
+- Local facilitator (`packages/providers/x402-local`) — Mayarin broadcasts
+- The Graph — the settlements subgraph the rail statistics are read from
+- MCP, over the same rail, at `POST /x402/mcp`
+
 #### Settlement Assets
 
-- USDC
+- USDC (primary)
 - USDT
+- EURC
+
+Which stablecoins a deployment admits is market data, not code: it lives in the
+`stablecoins` key of `market_config`. See
+[Stablecoin Registry](./stablecoin.md) and [Configuration](./configuration.md).
 
 ### Storage
 
@@ -382,13 +515,16 @@ abstraction is required for the "no wallet, no seed phrase" experience.
 
 ### Infrastructure
 
-- BullMQ
-- Upstash Redis
+- `apps/chain-worker` — a **separate process**. The wallet watcher, settlement
+  indexer and deposit-path executor run here, not in the API. `bun run dev` alone
+  never settles a deposit-match payment.
+- Postgres `LISTEN`/`NOTIFY` on the payment write, fanned out over SSE — the
+  hosted checkout's live status, with no broker.
 
-Not yet wired: Phase 1 recovers stalled payments by resuming them on startup and
-on demand (`ClearingEngine.resumeStuck`). A queue turns that into a background
-worker without changing the engine, since resumption is already a pure function
-of persisted state.
+No job queue is wired. Stalled payments are recovered by resuming them on startup
+and on demand (`ClearingEngine.resumeStuck`); a queue would turn that into a
+background worker without changing the engine, since resumption is already a pure
+function of persisted state.
 
 ### Validation
 
@@ -397,17 +533,21 @@ of persisted state.
 ### Deployment
 
 - Docker
-- Railway
-- Fly.io
+- Railway — `core-api`, `dashboard-api`, `chain-worker`, Postgres
+- Cloudflare Workers/Pages — dashboard, pay proxy, demo, docs, landing
+
+See [Deployment Targets](./deployment.md).
 
 ---
 
 ## Related
 
 - [Chain Layer](./chain.md)
+- [Agent Payments (x402)](./x402.md)
 - [Stablecoin Registry](./stablecoin.md)
 - [Clearing Engine](./clearing-engine.md)
 - [Double Entry Ledger](./ledger.md)
+- [Configuration](./configuration.md)
 - [Development](./development.md)
 
 [← Documentation index](./README.md)

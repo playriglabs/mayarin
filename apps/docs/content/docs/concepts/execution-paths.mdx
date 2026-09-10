@@ -1,14 +1,51 @@
 ---
 title: Execution paths
-description: Choose between atomic contract execution and universally compatible deposit matching.
+description: Three ways value moves — atomic contract execution, deposit matching, and a signed authorization from an agent. Chosen per payer, not per deployment.
 ---
+
+Every payment opens the same payment intent, walks the same status model, and posts to the same ledger. What differs is **how the money is funded**, and there are three answers.
+
+They are chosen **per payer, not per deployment**, and none is a fallback for another — each serves a payer the others cannot reach.
+
+| Path                | The payer                                   | Funded by                                                   |
+| ------------------- | ------------------------------------------- | ----------------------------------------------------------- |
+| `on-chain-contract` | a person or app that can *connect* a wallet | `PaymentRouter` receives, swaps and settles in one transaction |
+| `deposit-match`     | anyone who can only send a plain transfer   | a per-intent deposit address, watched on-chain               |
+| `x402`              | a program                                   | one signed authorization, broadcast by a facilitator          |
 
 ## On-chain contract
 
 Use `on-chain-contract` when the payer connects a wallet. Mayarin locks the merchant's settlement amount, signs an EIP-712 order, and returns fresh route calldata. `PaymentRouter` receives, swaps, and settles atomically.
+
+The hard lock is the merchant's settlement amount (`minOut`); the payer's amount is a display estimate, because the contract swaps whatever arrives and reverts if the fill misses `minOut`.
+
+Two consequences worth planning for:
+
+- **The route is fetched at submit, not at lock.** A route goes stale faster than a price, so `GET /v1/payments/:id/contract-call` builds it per attempt.
+- **An expired lock fails; it never re-quotes.** A new `minOut` is a new price, and a new price needs the payer's consent. The contract enforces the same deadline on-chain, so a payment failed here cannot settle later.
 
 ## Deposit match
 
 Use `deposit-match` when the payer sends a plain transfer, including from a custodial exchange. Mayarin derives a per-intent deposit address and returns an EIP-681 URI when the asset has a safe on-chain identity.
 
 Do not reuse an address between intents. An exchange withdrawal has no reliable memo or calldata; the address is the payment identifier.
+
+This is the only path open to a payer who can just send a transfer — a QR scan, or a withdrawal from an exchange. It is not a degraded version of the contract path; it is the one that reaches a payer who will never sign calldata.
+
+## x402
+
+Use `x402` when the payer is a program. It signs one EIP-3009 authorization for an exact amount in an asset it already holds, and a facilitator broadcasts it. The agent never touches gas, never holds the merchant's asset, and never sees an address.
+
+**No deposit address is derived on this path.** The payment is identified by the authorization nonce rather than by where the money landed — an agent never sees an address, so deriving one per `402` would mint an unused address for every request that is never paid.
+
+Nothing advances on a facilitator's word. The transaction is read back off the chain and matched to this payment — right token, right recipient, full amount — before the resource is served.
+
+See [Sell an endpoint to an agent](/guides/x402) for the gate, and the [SDK gate page](/sdk/typescript/x402) for the middleware.
+
+## Which one you get
+
+You do not usually pick. A hosted checkout offers what the payer's situation allows, and a `402` is the x402 path by construction.
+
+Where you do pick, `executionPath` is the field. It is optional on `POST /v1/payment-intents`, on cart checkout, and on invoice checkout; omit it and the deployment's default applies. A payment intent reports the path it took back on `executionPath`, so a webhook consumer never has to infer it.
+
+If you are branching on how a payment was funded, branch on the path itself — not on "is it the contract path or not". That phrasing was correct when there were two paths and became silently wrong when there were three.

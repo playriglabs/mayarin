@@ -171,7 +171,7 @@ function CodeDialog({
       class="fixed inset-0 m-0 h-dvh max-h-none w-screen max-w-none bg-transparent p-0 backdrop:bg-ink/70 backdrop:backdrop-blur-sm open:flex open:items-center open:justify-center"
     >
       {snippet && (
-        <div class="flex h-full max-h-full w-full flex-col overflow-hidden rounded-xs bg-code-panel text-slate-inverse md:h-[min(84vh,760px)] md:w-[min(92vw,1040px)] md:shadow-2xl">
+        <div class="flex h-full max-h-full w-full flex-col overflow-hidden rounded-2xl bg-code-panel text-slate-inverse md:h-[min(84vh,760px)] md:w-[min(92vw,1040px)] md:shadow-2xl">
           <div class="flex shrink-0 items-center justify-between gap-5 border-b border-line-inverse bg-code-panel px-5 py-3.5">
             <div class="flex items-center gap-3">
               <LanguageMark lang={snippet.lang} />

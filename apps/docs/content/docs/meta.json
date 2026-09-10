@@ -1,6 +1,7 @@
 {
   "title": "Mayarin Docs",
   "pages": [
+    "---Introduction---",
     "index",
     "---Getting started---",
     "quickstart",

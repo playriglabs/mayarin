@@ -1,4 +1,4 @@
 {
   "title": "Concepts",
-  "pages": ["money", "payment-lifecycle", "execution-paths", "versioning"]
+  "pages": ["money", "rails", "payment-lifecycle", "execution-paths", "versioning"]
 }
