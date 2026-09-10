@@ -17,8 +17,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // One chunk. A dynamic import would silently reintroduce deploy skew.
-        inlineDynamicImports: true,
+        codeSplitting: true,
       },
     },
   },

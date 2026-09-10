@@ -66,7 +66,7 @@ describe("asset logos", () => {
     expect(assetLogoUrl("USDT", "/assets/usdt.svg")).toBe("/assets/usdt.svg");
   });
 
-  test("keeps non-registry token artwork ready and leaves fiat to the UI fallback", () => {
+  test("keeps token artwork ready and leaves fiat to the UI fallback", () => {
     expect(assetLogoUrl("EURC")?.startsWith("https://assets-cdn.trustwallet.com/")).toBe(true);
     expect(assetLogoUrl("PYUSD")?.startsWith("https://assets-cdn.trustwallet.com/")).toBe(true);
     expect(assetLogoUrl("IDR")).toBeUndefined();

@@ -83,17 +83,17 @@ export class PaymentApiPricingSource implements RailPricingSource {
     // A payer sending exactly what the merchant settles in needs no conversion.
     if (rail.asset === rail.settlementAsset) return true;
 
-    const key = `${rail.asset}:${rail.settlementAsset}`;
+    const key = `${rail.chain}:${rail.asset}:${rail.settlementAsset}`;
     const cached = this.#answers.get(key);
     const now = Date.now();
     if (cached !== undefined && now - cached.at < this.#ttlMs) return cached.priceable;
 
-    const priceable = await this.#ask(rail.settlementAsset, rail.asset);
+    const priceable = await this.#ask(rail.chain, rail.asset);
     this.#answers.set(key, { at: now, priceable });
     return priceable;
   }
 
-  async #ask(_settlementAsset: AssetCode, payerAsset: AssetCode): Promise<boolean> {
+  async #ask(chain: ChainId, payerAsset: AssetCode): Promise<boolean> {
     try {
       // Probed in **fiat**, not in the settlement asset. `POST /v1/quotes`
       // prices a merchant's own currency into what the payer sends, so a
@@ -101,7 +101,13 @@ export class PaymentApiPricingSource implements RailPricingSource {
       // fiat leg needs a fiat price" — which would silently delete the ETH rail
       // from a deployment that offers it. One dollar is a fiat unit every
       // deployment can read, and the leg it exercises is the rail's.
-      const view = await this.#payments.quote({ amount: "1", asset: "USD" }, [payerAsset]);
+      //
+      // With the chain, because the payment API prices a swap leg against the
+      // pool that lives there. Asked chain-less the venue sees one pair across
+      // every configured chain — a pair with pools on two of them is refused
+      // outright, and a testnet pair allowed to self-reference is not, because
+      // the bypass is chain-scoped by design.
+      const view = await this.#payments.quote({ amount: "1", asset: "USD" }, [payerAsset], chain);
       return view.quotes.some((line) => line.asset === payerAsset && line.available);
     } catch {
       // The payment API being unreachable is not evidence that a pair cannot be

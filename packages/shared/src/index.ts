@@ -6,4 +6,5 @@ export * from "./id.ts";
 export * from "./locale.ts";
 export * from "./market-config.ts";
 export * from "./money.ts";
+export * from "./payment-metadata.ts";
 export * from "./schema.ts";

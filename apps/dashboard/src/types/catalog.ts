@@ -122,6 +122,11 @@ export interface CreateLinkRequest {
   readonly rails?: readonly PaymentLinkRail[];
 }
 
+export interface UpdateLinkRequest {
+  /** Replaces the accepted rail set for future checkouts. */
+  readonly rails: readonly PaymentLinkRail[];
+}
+
 /** What a counter sale needs beyond the link: the asset the payer will send. */
 export interface ChargeLinkRequest {
   readonly linkId: string;

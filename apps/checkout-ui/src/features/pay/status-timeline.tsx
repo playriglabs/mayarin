@@ -1,3 +1,4 @@
+import { match, P } from "ts-pattern";
 import type { PaymentStage } from "./status-wording.ts";
 
 /**
@@ -17,7 +18,11 @@ export function StatusTimeline({ stage }: { readonly stage: PaymentStage }) {
     <ol className="status-timeline" aria-label="Payment progress">
       {labels.map((label, index) => (
         <li
-          className={index < current ? "complete" : index === current ? "current" : ""}
+          className={match(current - index)
+            .returnType<string>()
+            .with(P.number.positive(), () => "complete")
+            .with(0, () => "current")
+            .otherwise(() => "")}
           key={label}
           aria-current={index === current ? "step" : undefined}
         >

@@ -22,7 +22,12 @@ import { rateKey } from "@mayarin/clearing";
 import type { ExecutableRoute, RouteRequest, SwapRouteSource } from "@mayarin/execution";
 import { ConfigurationError, money } from "@mayarin/shared";
 import { encodeFunctionData } from "viem";
-import type { UniswapPool } from "./adapter.ts";
+import { type UniswapPool, uniswapPoolKey } from "./adapter.ts";
+
+function configuredPair(key: string): string {
+  const separator = key.indexOf(":");
+  return separator === -1 ? key : key.slice(separator + 1);
+}
 
 /**
  * The one function this adapter encodes. `SwapRouter02` dropped the `deadline`
@@ -67,25 +72,25 @@ export class UniswapRouteSource implements SwapRouteSource {
 
   constructor(options: UniswapRouteSourceOptions) {
     this.#swapRouters = options.swapRouters;
-    this.#pools = new Map(Object.entries(options.pools));
+    this.#pools = new Map(
+      Object.entries(options.pools).map(([key, pool]) => [
+        uniswapPoolKey(pool.chain, configuredPair(key)),
+        pool,
+      ]),
+    );
   }
 
   async route(request: RouteRequest): Promise<ExecutableRoute> {
     const key = rateKey(request.payerAsset, request.settlementAsset);
-    const pool = this.#pools.get(key);
+    const pool = this.#pools.get(uniswapPoolKey(request.chain, key));
     if (pool === undefined) {
-      throw new ConfigurationError(`Uniswap has no configured pool for ${key}`, {
-        pair: key,
-        configured: [...this.#pools.keys()],
-      });
-    }
-    // A V3 pool lives on one chain. Routing it from another chain's
-    // PaymentRouter would call a router that has no code there, so refuse here
-    // and let the caller fall back to a venue whose pool is on this chain.
-    if (pool.chain !== request.chain) {
       throw new ConfigurationError(
-        `Uniswap pool for ${key} is on ${pool.chain}, not ${request.chain}`,
-        { pair: key, poolChain: pool.chain, chain: request.chain },
+        `Uniswap has no configured pool for ${key} on ${request.chain}`,
+        {
+          pair: key,
+          chain: request.chain,
+          configured: [...this.#pools.keys()],
+        },
       );
     }
     const router = this.#swapRouters[pool.chain];

@@ -14,6 +14,7 @@ import { MagnifyingGlassIcon, ReceiptIcon } from "@phosphor-icons/react";
 import { useDeferredValue, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { CursorPagination } from "@/components/ui/cursor-pagination";
@@ -248,6 +249,7 @@ function PaymentsExplorer() {
                     <TableHead>Payment</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Customer amount</TableHead>
+                    <TableHead>Network</TableHead>
                     <TableHead>Settles in</TableHead>
                     <TableHead>Created</TableHead>
                   </TableRow>
@@ -268,6 +270,13 @@ function PaymentsExplorer() {
                         <Badge variant={toneOf(p.status)}>{intentStatusLabel(p.status)}</Badge>
                       </TableCell>
                       <TableCell className="text-right">{p.amount.display}</TableCell>
+                      <TableCell>
+                        {p.payment === null ? (
+                          <span className="text-subtle-foreground text-xs">—</span>
+                        ) : (
+                          <ChainLabel chain={p.payment.chain} size={18} />
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         <AssetLabel symbol={p.settlementAsset} size={18} />
                       </TableCell>

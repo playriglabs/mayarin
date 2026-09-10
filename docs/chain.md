@@ -246,6 +246,7 @@ with it.
 
 | `ChainId`           | EIP-155 id | Explorer                                       |
 | ------------------- | ---------- | ---------------------------------------------- |
+| `ethereum-sepolia`  | 11155111   | `https://sepolia.etherscan.io`                 |
 | `base`              | 8453       | `https://basescan.org`                         |
 | `base-sepolia`      | 84532      | `https://sepolia.basescan.org`                 |
 | `arbitrum`          | 42161      | `https://arbiscan.io`                          |
@@ -442,6 +443,26 @@ entirely, as the contract's no-op path intends.
 ---
 
 ## Deployed addresses
+
+Ethereum Sepolia (chain id 11155111), deployed 2026-09-10 from block 11671894.
+All three contracts are verified on Etherscan.
+
+| Contract                  | Address                                      |
+| ------------------------- | -------------------------------------------- |
+| `PaymentRouter`           | `0xE54E800bfFD1fBb5756B7c5E6A4aa40Dd09210E7` |
+| `TimelockController`      | `0x04CD74e77ac145B18d61c6C8D7939e3241DBB60A` |
+| `DepositForwarderFactory` | `0xCa83514c0bef26B642f7A69b2ab529c2ab5d7958` |
+
+USDC (`0x1c7D…7238`) is the only settlement asset. Native ETH, USDC, EURC
+(`0x0821…94D4`) and PYUSD (`0xCaC5…3bB9`) can be payer assets. V3 SwapRouter02
+(`0x3bFA…e48E`) and V2 Router02 (`0xeE56…CfE3`) are whitelisted DEX routers.
+The local test configuration routes ETH and EURC through V3 and PYUSD through
+V2 into USDC. The V2 router was added through the existing zero-delay timelock
+in block 11672131, without redeploying any contract. Sepolia liquidity is thin
+and its observed prices can be far from market, so
+`QUOTE_UNGUARDED_TESTNET_PAIRS` explicitly self-references ETH/USDC and
+PYUSD/USDC for integration testing. The engine refuses this escape hatch on a
+mainnet; these routes are not production liquidity claims.
 
 Base Sepolia (chain id 84532), deployed 2026-08-07 in block 45164044. Both
 contracts are verified on Basescan.

@@ -33,6 +33,7 @@ import {
   DownloadSimpleIcon,
   LinkIcon,
   PackageIcon,
+  PencilSimpleIcon,
   PlusIcon,
   QrCodeIcon,
   ReceiptIcon,
@@ -106,6 +107,7 @@ import {
   usePaymentLinks,
   useProductOptions,
   useQuoteLink,
+  useUpdateLink,
 } from "@/hooks/catalog";
 import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { useMerchantRails, useSettings } from "@/hooks/settings";
@@ -331,6 +333,75 @@ function AcceptedRailChips({ rails }: { readonly rails: readonly PaymentLinkRail
   );
 }
 
+function RailSelector({
+  idPrefix,
+  rails,
+  selectedKeys,
+  disabled,
+  onToggle,
+}: {
+  readonly idPrefix: string;
+  readonly rails: readonly MerchantRailDto[];
+  readonly selectedKeys: readonly string[];
+  readonly disabled: boolean;
+  readonly onToggle: (key: string) => void;
+}) {
+  return (
+    <FieldSet>
+      <FieldLegend className="mb-1">Accepted payment rails</FieldLegend>
+      <FieldDescription className="mb-3">
+        Choose where buyers may pay this link. Changes apply to new checkouts only.
+      </FieldDescription>
+      {rails.length === 0 ? (
+        <Alert role="status">
+          No payment rail is available yet. Configure a verified destination in{" "}
+          <a href="/wallets" className="underline">
+            wallets
+          </a>
+          .
+        </Alert>
+      ) : (
+        <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+          {rails.map((rail) => {
+            const key = railKey(rail);
+            const inputId = `${idPrefix}-${key.replace(":", "-")}`;
+            const picked = selectedKeys.includes(key);
+            return (
+              <Label
+                key={key}
+                htmlFor={inputId}
+                className={cn(
+                  "flex min-h-11 cursor-pointer items-center gap-3 border p-3 transition-colors",
+                  picked
+                    ? "border-brand bg-brand-muted dark:border-subtle-foreground dark:bg-primary/5"
+                    : "border-border bg-card hover:border-subtle-foreground hover:bg-muted/50",
+                )}
+              >
+                <Checkbox
+                  id={inputId}
+                  checked={picked}
+                  onCheckedChange={() => onToggle(key)}
+                  disabled={disabled}
+                />
+                <RailMark asset={rail.asset} chain={rail.chain} />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-medium text-foreground text-xs">{rail.asset}</span>
+                  <span className="text-subtle-foreground text-xs">{chainLabel(rail.chain)}</span>
+                </span>
+              </Label>
+            );
+          })}
+        </div>
+      )}
+      {rails.length > 0 && selectedKeys.length === 0 && (
+        <p role="alert" className="mt-2 text-destructive text-xs">
+          Select at least one payment rail.
+        </p>
+      )}
+    </FieldSet>
+  );
+}
+
 function CheckoutLinkCard({
   url,
   copied,
@@ -492,6 +563,7 @@ function PaymentLinks() {
   const charge = useChargeLink();
   const quote = useQuoteLink();
   const disable = useDisableLink();
+  const update = useUpdateLink();
 
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -517,6 +589,8 @@ function PaymentLinks() {
    */
   const [quotedByChain, setQuotedByChain] = useState<Record<string, QuoteResponse>>({});
   const [pendingDisable, setPendingDisable] = useState<PaymentLinkDto | null>(null);
+  const [editing, setEditing] = useState<PaymentLinkDto | null>(null);
+  const [editingRailKeys, setEditingRailKeys] = useState<readonly string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
 
   const rows = links.data?.paymentLinks ?? [];
@@ -580,6 +654,39 @@ function PaymentLinks() {
       current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key],
     );
     setFailure("");
+  }
+
+  function openEdit(link: PaymentLinkDto) {
+    setFailure("");
+    const liveRails = paymentRailsForLink(payerRails, link.rails);
+    setEditingRailKeys(liveRails.map(railKey));
+    setEditing(link);
+  }
+
+  function toggleEditRail(key: string) {
+    setEditingRailKeys((current) =>
+      current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key],
+    );
+    setFailure("");
+  }
+
+  async function submitEdit() {
+    if (editing === null || editingRailKeys.length === 0) return;
+    try {
+      await update.mutateAsync({
+        id: editing.id,
+        patch: {
+          rails: payerRails
+            .filter((rail) => editingRailKeys.includes(railKey(rail)))
+            .map(({ chain, asset }) => ({ chain, asset })),
+        },
+      });
+      setEditing(null);
+      setEditingRailKeys([]);
+      setNotice("Payment rails updated.");
+    } catch (error) {
+      setFailure(error instanceof ApiError ? error.message : "Could not update payment rails");
+    }
   }
 
   /**
@@ -825,6 +932,16 @@ function PaymentLinks() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => openEdit(link)}
+                            disabled={!link.payable || !rails.isSuccess || update.isPending}
+                            aria-label={`Edit accepted rails for ${link.title ?? link.id}`}
+                            title="Edit accepted rails"
+                          >
+                            <PencilSimpleIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setSharing(link)}
                             disabled={!link.payable}
                             aria-label={`Share the link for ${link.title ?? link.id}`}
@@ -1010,61 +1127,13 @@ function PaymentLinks() {
               </>
             )}
 
-            <FieldSet>
-              <FieldLegend className="mb-1">Accepted payment rails</FieldLegend>
-              <FieldDescription className="mb-3">
-                Choose where buyers may pay this link. The link can only narrow the rails available
-                in your wallet settings.
-              </FieldDescription>
-              {payerRails.length === 0 ? (
-                <Alert role="status">
-                  No payment rail is available yet. Configure a verified destination in{" "}
-                  <a href="/wallets" className="underline">
-                    wallets
-                  </a>
-                  .
-                </Alert>
-              ) : (
-                <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
-                  {payerRails.map((rail) => {
-                    const key = railKey(rail);
-                    const inputId = `link-rail-${key.replace(":", "-")}`;
-                    const picked = selectedRailKeys.includes(key);
-                    return (
-                      <Label
-                        key={key}
-                        htmlFor={inputId}
-                        className={cn(
-                          "flex min-h-11 cursor-pointer items-center gap-3 border p-3 transition-colors",
-                          picked
-                            ? "border-brand bg-brand-muted dark:border-subtle-foreground dark:bg-primary/5"
-                            : "border-border bg-card hover:border-subtle-foreground hover:bg-muted/50",
-                        )}
-                      >
-                        <Checkbox
-                          id={inputId}
-                          checked={picked}
-                          onCheckedChange={() => toggleCreateRail(key)}
-                          disabled={create.isPending}
-                        />
-                        <RailMark asset={rail.asset} chain={rail.chain} />
-                        <span className="flex min-w-0 flex-col gap-0.5">
-                          <span className="font-medium text-foreground text-xs">{rail.asset}</span>
-                          <span className="text-subtle-foreground text-xs">
-                            {chainLabel(rail.chain)}
-                          </span>
-                        </span>
-                      </Label>
-                    );
-                  })}
-                </div>
-              )}
-              {payerRails.length > 0 && selectedRailKeys.length === 0 && (
-                <p role="alert" className="mt-2 text-destructive text-xs">
-                  Select at least one payment rail.
-                </p>
-              )}
-            </FieldSet>
+            <RailSelector
+              idPrefix="link-rail"
+              rails={payerRails}
+              selectedKeys={selectedRailKeys}
+              disabled={create.isPending}
+              onToggle={toggleCreateRail}
+            />
 
             <Field>
               <FieldLabel htmlFor="link-reference">Your reference</FieldLabel>
@@ -1085,6 +1154,37 @@ function PaymentLinks() {
             <DialogClose render={<Button variant="secondary">Cancel</Button>} />
             <Button onClick={submit} disabled={!canCreate || create.isPending}>
               Create link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
+        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Edit accepted rails</DialogTitle>
+            <DialogDescription className="mt-px">
+              {editing?.title ?? "This payment link"} — changes apply to new checkouts only.
+            </DialogDescription>
+          </DialogHeader>
+
+          {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
+
+          <RailSelector
+            idPrefix="edit-link-rail"
+            rails={payerRails}
+            selectedKeys={editingRailKeys}
+            disabled={update.isPending}
+            onToggle={toggleEditRail}
+          />
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+            <Button
+              onClick={() => void submitEdit()}
+              disabled={editingRailKeys.length === 0 || update.isPending || payerRails.length === 0}
+            >
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>

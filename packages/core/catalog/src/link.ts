@@ -77,6 +77,30 @@ export function disablePaymentLink(link: PaymentLink, now: Date): PaymentLink {
   };
 }
 
+/** Replaces the rails offered by future checkouts without touching minted payments. */
+export function updatePaymentLinkRails(
+  link: PaymentLink,
+  rails: readonly LinkRail[],
+  now: Date,
+): PaymentLink {
+  const nextRails = assertRails(rails);
+  const unchanged =
+    link.rails !== undefined &&
+    link.rails.length === nextRails.length &&
+    link.rails.every(
+      (rail, index) =>
+        rail.chain === nextRails[index]?.chain && rail.asset === nextRails[index]?.asset,
+    );
+  if (unchanged) return link;
+
+  return {
+    ...link,
+    rails: nextRails,
+    updatedAt: new Date(now),
+    version: link.version + 1,
+  };
+}
+
 /** Lists a link in the public x402 payable index (#273). Payability is untouched. */
 export function listPaymentLink(link: PaymentLink, now: Date): PaymentLink {
   if (link.listed) return link;

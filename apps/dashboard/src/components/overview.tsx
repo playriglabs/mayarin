@@ -31,6 +31,7 @@ import { Stat, StatGrid } from "@/components/ui/stat";
 import { type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
 import { useSettings, useWalletBalance, useWalletWithdrawalHistory } from "@/hooks/settings";
+import { payInAmountUsd, settlementsByPaymentIntent } from "@/lib/analytics-movements";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
 import { ICON_CARD } from "@/lib/icons";
@@ -278,6 +279,8 @@ function BalanceOverview({
         {/* The marks alone. A per-chain figure beside them read as a
             reconciliation nobody asked for, and the sentence under the total
             already says how many networks it is spread over. */}
+        {/* `chains` retains the order returned by `/wallets/balance`, whose
+            configured settlement-chain order is the source of truth. */}
         <ChainStack chains={chains.map((holding) => holding.chain)} size={24} />
       </div>
 
@@ -459,9 +462,7 @@ function Overview() {
       const pending = all.filter((p) => IN_PROGRESS.has(p.status)).length;
       const volume = volumeOf(data.settlements);
       const settlementAsset = settings.data?.settings.settlementAsset;
-      const payInAsset = dominantAsset(
-        all.filter((payment) => payment.status === "COMPLETED").map((payment) => payment.amount),
-      );
+      const settlementsByIntent = settlementsByPaymentIntent(data.settlements);
       const holdings = holdingsOf(balance.data?.balances ?? [], settlementAsset);
       const history =
         settlementAsset === undefined
@@ -474,20 +475,15 @@ function Overview() {
             );
       const recent = all.slice(0, 6);
 
-      // Filtered to one asset before anything is added. Minor units are only
-      // comparable within an asset: a rupiah payment has two decimals and a
-      // six-figure amount, and adding it to a dollar one produces a number in
-      // no currency at all — which is exactly what a mixed sum rendered as `$`
-      // was claiming.
       const payInDaily = dailyTotals(
         all
-          .filter(
-            (payment) => payment.status === "COMPLETED" && payment.amount.asset === payInAsset,
-          )
           .map((payment) => ({
-            day: payment.createdAt.slice(0, 10),
-            amount: BigInt(payment.amount.amount),
-          })),
+            payment,
+            amount: payInAmountUsd(payment, settlementsByIntent.get(payment.id)),
+          }))
+          .flatMap(({ payment, amount }) =>
+            amount === null ? [] : [{ day: payment.createdAt.slice(0, 10), amount }],
+          ),
       );
       const payOutDaily = dailyTotals(
         data.settlements
@@ -512,12 +508,23 @@ function Overview() {
               the list is a column of rows and does not want the width. */}
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="min-w-0 lg:col-span-2">
-              <BalanceOverview
-                total={holdings.total}
-                asset={settlementAsset}
-                chains={holdings.chains}
-                history={history}
-              />
+              {/* The balance reads RPC state per chain, so it can still be on
+                  its way when the analytics rows have landed. The skeleton is
+                  the card's own shape — same figure line, same h-40 chart box —
+                  so nothing jumps when the numbers arrive. */}
+              {balance.isPending ? (
+                <div role="status" aria-live="polite">
+                  <span className="sr-only">Loading balance</span>
+                  <BalanceCardSkeleton />
+                </div>
+              ) : (
+                <BalanceOverview
+                  total={holdings.total}
+                  asset={settlementAsset}
+                  chains={holdings.chains}
+                  history={history}
+                />
+              )}
             </div>
             <RecentPayments payments={recent} />
           </div>
@@ -573,9 +580,9 @@ function Overview() {
           <div className="grid gap-4 lg:grid-cols-2">
             <MovementCard
               title="Pay ins"
-              hint="What buyers were charged, over the last thirty days."
+              hint="Gross USD value at the locked rate, over the last thirty days."
               points={payInDaily}
-              asset={payInAsset}
+              asset="USD"
               href="/analytics"
             />
             <MovementCard

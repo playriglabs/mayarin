@@ -17,9 +17,12 @@ export function ConfirmingCard({ deposit }: { readonly deposit: Deposit }) {
       <span className="spinner" aria-hidden="true" />
       <div>
         <h3>Payment detected</h3>
-        <p>
-          Your {deposit.amount.asset} arrived on <ChainLabel chain={deposit.chain} size={18} /> and
-          is being confirmed. This takes a moment.
+        <p className="leading-3">
+          Your {deposit.amount.asset} arrived on{" "}
+          <span className="ml-px">
+            <ChainLabel chain={deposit.chain} size={18} />
+          </span>{" "}
+          and is being confirmed, this takes a moment.
         </p>
         {deposit.received.amount !== "0" && (
           <p className="received-note">

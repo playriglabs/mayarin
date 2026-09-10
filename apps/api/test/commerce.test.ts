@@ -100,6 +100,7 @@ describe("POST /carts/checkout", () => {
     const product = await createCoffee(harness);
 
     const { status, body } = await harness.request("POST", "/v1/carts/checkout", {
+      headers: { "CF-IPCountry": "ID" },
       body: {
         merchant,
         currency: "IDR",
@@ -114,6 +115,7 @@ describe("POST /carts/checkout", () => {
     expect(status).toBe(201);
     expect(body.paymentIntent.amount).toMatchObject({ amount: "6200000", asset: "IDR" });
     expect(body.paymentIntent.merchantReference).toBe("INV-1042");
+    expect(body.paymentIntent.metadata.payerCountryCode).toBe("ID");
     expect(JSON.parse(body.paymentIntent.metadata.cart).lines).toHaveLength(2);
   });
 
@@ -159,10 +161,11 @@ describe("payment links", () => {
     const paid = await harness.request(
       "POST",
       `/v1/payment-links/${created.body.paymentLink.id}/checkout`,
-      { body: {} },
+      { body: {}, headers: { "CF-IPCountry": "SG" } },
     );
     expect(paid.status).toBe(201);
     expect(paid.body.paymentIntent.amount).toMatchObject({ amount: "5000000", asset: "IDR" });
+    expect(paid.body.paymentIntent.metadata.payerCountryCode).toBe("SG");
   });
 
   test("can opt into discovery at creation and withdraw or restore that listing", async () => {

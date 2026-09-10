@@ -74,6 +74,31 @@ describe("QuoteEngine.compose", () => {
     expect(drifted.compose("ETH", "USDC", money(10n ** 18n, "ETH"))).rejects.toThrow(ProviderError);
   });
 
+  test("an explicitly unguarded testnet pair self-references for integration testing", async () => {
+    const drifted = engine({
+      venue: new TablePriceSource({ "ETH/USDC": 39_000_000_000n }, "testnet-dex"),
+      unguardedTestnetPairs: ["ethereum-sepolia:ETH/USDC"],
+    });
+
+    const composed = await drifted.compose(
+      "ETH",
+      "USDC",
+      money(10n ** 18n, "ETH"),
+      "ethereum-sepolia",
+    );
+
+    expect(composed.reference.source).toBe("testnet-self-reference");
+    expect(composed.reference.scaledRate).toBe(composed.executable.scaledRate);
+  });
+
+  test("an unguarded pair is refused on mainnet", async () => {
+    const unsafe = engine({ unguardedTestnetPairs: ["base:ETH/USDC"] });
+
+    expect(unsafe.compose("ETH", "USDC", money(10n ** 18n, "ETH"), "base")).rejects.toThrow(
+      ConfigurationError,
+    );
+  });
+
   test("a swap big enough to move the pool past the bound fails; a small one passes", async () => {
     // 1,000 ETH / 3.7M USDC pool: marginal price equals the oracle reference.
     const pooled = engine({

@@ -20,6 +20,7 @@ import type {
   ProductResponse,
   QuoteRequest,
   QuoteResponse,
+  UpdateLinkRequest,
   UpdateProductRequest,
 } from "@/types/catalog";
 
@@ -54,6 +55,12 @@ export const linksApi = {
 
   create: (body: CreateLinkRequest): Effect.Effect<PaymentLinkResponse, ApiError> =>
     request<PaymentLinkResponse>("/payment-links", { method: "POST", body }),
+
+  update: (id: string, body: UpdateLinkRequest): Effect.Effect<PaymentLinkResponse, ApiError> =>
+    request<PaymentLinkResponse>(`/payment-links/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body,
+    }),
 
   /** What each accepted asset would take. Indicative — nothing is locked. */
   quote: ({ linkId, ...body }: QuoteRequest): Effect.Effect<QuoteResponse, ApiError> =>

@@ -81,7 +81,7 @@ export interface IssueInvoiceCommand {
 }
 
 export interface CheckoutInvoiceCommand
-  extends Pick<CheckoutCartCommand, "payment" | "executionPath"> {
+  extends Pick<CheckoutCartCommand, "payment" | "executionPath" | "metadata"> {
   /** Defaults to the outstanding balance. Never more than it. */
   readonly amount?: Money;
 }
@@ -270,7 +270,7 @@ export class InvoiceService {
       ...(command.payment === undefined ? {} : { payment: command.payment }),
       ...(command.executionPath === undefined ? {} : { executionPath: command.executionPath }),
       ...(invoice.number === undefined ? {} : { merchantReference: invoice.number }),
-      metadata: { ...invoice.metadata, [INVOICE_METADATA_KEY]: invoice.id },
+      metadata: { ...invoice.metadata, ...command.metadata, [INVOICE_METADATA_KEY]: invoice.id },
     });
   }
 

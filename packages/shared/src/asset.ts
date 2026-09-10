@@ -137,6 +137,7 @@ const DEFINITIONS = {
    * error of whatever the pair happens to be worth that day.
    */
   EURC: { kind: "stablecoin", decimals: 6, dustThreshold: 10_000n, name: "Euro Coin" },
+  PYUSD: { kind: "stablecoin", decimals: 6, name: "PayPal USD" },
 
   // Native crypto
   ETH: {
@@ -158,10 +159,8 @@ export const ASSET_CODES = Object.keys(DEFINITIONS) as readonly AssetCode[];
 /**
  * Token artwork from Trust Wallet's public asset registry.
  *
- * The components accept strings from API responses, so EURC is kept ready here
- * even before it joins Mayarin's settlement registry, and PYUSD is available
- * for the landing's Ethereum rail illustration. Fiat values deliberately have
- * no remote logo and render as a compact monogram in the UI.
+ * The components accept strings from API responses. Fiat values deliberately
+ * have no remote logo and render as a compact monogram in the UI.
  *
  * USDT is the one Trust Wallet logo that ships without an alpha channel — a flat
  * white square — so it is overridden with a self-hosted transparent mark. The

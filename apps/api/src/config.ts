@@ -259,6 +259,8 @@ const configSchema = z.object({
   quoteOracleFallbacks: jsonObject<string[]>("QUOTE_ORACLE_FALLBACKS", "[]"),
   /** How far the venue price may sit from the oracle before the quote fails. */
   quoteDeviationBps: z.coerce.number().int().min(1).max(10_000).default(100),
+  /** Chain-scoped testnet pairs allowed to self-reference when public test data is unusable. */
+  quoteUnguardedTestnetPairs: jsonObject<string[]>("QUOTE_UNGUARDED_TESTNET_PAIRS", "[]"),
   /**
    * How far two oracles may disagree before neither is trusted.
    *
@@ -450,6 +452,7 @@ export interface QuoteConfig {
   readonly oracle: OracleName;
   readonly fallbackOracles: readonly OracleName[];
   readonly deviationBps: number;
+  readonly unguardedTestnetPairs: readonly string[];
   /** How far two oracles may disagree before neither is trusted. */
   readonly oracleAgreementBps: number;
   readonly maxReferenceAgeSeconds: number;
@@ -611,6 +614,7 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
     oracle: data.quoteOracle,
     fallbackOracles: data.quoteOracleFallbacks as readonly OracleName[],
     deviationBps: data.quoteDeviationBps,
+    unguardedTestnetPairs: data.quoteUnguardedTestnetPairs,
     oracleAgreementBps: data.quoteOracleAgreementBps,
     maxReferenceAgeSeconds: data.quoteMaxReferenceAgeSeconds,
     peggedPairs: data.quotePeggedPairs,
@@ -957,6 +961,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     quoteOracle: env.QUOTE_ORACLE,
     quoteOracleFallbacks: env.QUOTE_ORACLE_FALLBACKS,
     quoteDeviationBps: env.QUOTE_DEVIATION_BPS,
+    quoteUnguardedTestnetPairs: env.QUOTE_UNGUARDED_TESTNET_PAIRS,
     quoteOracleAgreementBps: env.QUOTE_ORACLE_AGREEMENT_BPS,
     quoteMaxReferenceAgeSeconds: env.QUOTE_MAX_REFERENCE_AGE_SECONDS,
     quotePeggedPairs: env.QUOTE_PEGGED_PAIRS,

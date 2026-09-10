@@ -378,7 +378,12 @@ function createX402(deps: {
     facilitators: facilitatorRegistry(facilitators),
     capabilities: new AssetCapabilities({
       probes,
-      pairs: assetPairs(config.stablecoins, rpcUrls),
+      // CHAIN_ASSETS also contains cross-asset PaymentRouter inputs. Those use
+      // Permit2 and need no token-owned EIP-712 domain, so warming every one as
+      // an x402 token made an otherwise valid PYUSD input prevent API startup.
+      // Warm only assets this deployment admits for direct settlement; other
+      // x402 candidates are still probed on demand and dropped when unsupported.
+      pairs: assetPairs(config.stablecoins, rpcUrls, config.settlementAssets),
     }),
     confirmers,
     rates,
@@ -506,18 +511,18 @@ function createSettlementSource(deps: {
  * pair a probe could describe, and warming it up would only produce an error
  * about configuration that is already absent on purpose.
  */
-function assetPairs(
+export function assetPairs(
   stablecoins: readonly Stablecoin[],
   rpcUrls: Readonly<Partial<Record<ChainId, string>>>,
+  settlementAssets: readonly string[],
 ): readonly AssetPair[] {
-  const pairs: AssetPair[] = [];
-  for (const coin of stablecoins) {
-    for (const entry of coin.onChain) {
-      if (rpcUrls[entry.chain] === undefined) continue;
-      pairs.push({ chain: entry.chain, contract: entry.address });
-    }
-  }
-  return pairs;
+  return stablecoins
+    .filter((coin) => settlementAssets.includes(coin.asset))
+    .flatMap((coin) =>
+      coin.onChain
+        .filter((entry) => rpcUrls[entry.chain] !== undefined)
+        .map((entry) => ({ chain: entry.chain, contract: entry.address })),
+    );
 }
 
 /**

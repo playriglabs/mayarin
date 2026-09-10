@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { match, P } from "ts-pattern";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import { ConfirmingCard } from "./confirming-card.tsx";
 import { DepositCard } from "./deposit-card.tsx";
@@ -16,6 +17,11 @@ import { usePaymentStatus } from "./use-payment-status.ts";
  * A terminal payment replaces the whole live surface: the countdown, the
  * timeline, and the update note all leave with the deposit card, because a
  * decided payment must stop looking like one that is still waiting.
+ *
+ * The live body is one exhaustive match over `{terminal, deposit, stage}` —
+ * the same facts the ternary chain read, but the compiler now proves every
+ * case is covered, so a new payment stage cannot fall through to the deposit
+ * card silently.
  */
 export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const { intentId, expiresAt } = bootstrap;
@@ -52,27 +58,30 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
 
           {!terminal && <StatusTimeline stage={stage} />}
 
-          {terminal ? (
-            <Outcome status={status} intentId={intentId} />
-          ) : deposit === undefined ? (
-            <div className="preparing">
-              <span className="spinner" aria-hidden="true" />
-              <div>
-                <h3>Preparing your payment address…</h3>
-                <p>Your price is being locked. Keep this page open.</p>
+          {match({ terminal, deposit, stage })
+            .with({ terminal: true }, () => <Outcome status={status} intentId={intentId} />)
+            .with({ deposit: P.nullish }, () => (
+              <div className="preparing">
+                <span className="spinner" aria-hidden="true" />
+                <div>
+                  <h3>Preparing your payment address…</h3>
+                  <p>Your price is being locked. Keep this page open.</p>
+                </div>
               </div>
-            </div>
-          ) : stage === "confirming" ? (
-            <ConfirmingCard deposit={deposit} />
-          ) : (
-            <DepositCard
-              deposit={deposit}
-              localPrice={bootstrap.amount.display}
-              intentId={intentId}
-              copied={copied}
-              onCopy={copy}
-            />
-          )}
+            ))
+            .with({ deposit: P.nonNullable, stage: "confirming" }, ({ deposit }) => (
+              <ConfirmingCard deposit={deposit} />
+            ))
+            .with({ deposit: P.nonNullable, stage: "waiting" }, ({ deposit }) => (
+              <DepositCard
+                deposit={deposit}
+                localPrice={bootstrap.amount.display}
+                intentId={intentId}
+                copied={copied}
+                onCopy={copy}
+              />
+            ))
+            .exhaustive()}
 
           {!terminal && <p className="connection-mode">This page updates automatically.</p>}
           {!terminal && (deposit === undefined || stage === "confirming") && (

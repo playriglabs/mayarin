@@ -17,6 +17,7 @@ import {
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
+import { withPayerCountry } from "../payer-country.ts";
 import { assertLinkRailOffered, linkRails, payerRails, unofferedRailWarnings } from "../rails.ts";
 
 export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
@@ -143,9 +144,12 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     // refused with what the link does take.
     const link = await container.catalog.getLink(c.req.param("id"));
     await assertLinkRailOffered(container, link, options.payment);
+    const intentOptions = toIntentOptions(options);
+    const metadata = withPayerCountry(intentOptions.metadata, c.req.header("CF-IPCountry"));
 
     const intent = await container.commerce.checkoutLink(c.req.param("id"), {
-      ...toIntentOptions(options),
+      ...intentOptions,
+      ...(metadata === undefined ? {} : { metadata }),
       ...(amount === undefined ? {} : { amount }),
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     });
