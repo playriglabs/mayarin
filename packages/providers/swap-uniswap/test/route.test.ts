@@ -63,6 +63,28 @@ describe("UniswapRouteSource", () => {
     await expect(source.route(request)).resolves.toBeDefined();
   });
 
+  test("selects the pool by chain when the same pair exists on several networks", async () => {
+    const sepoliaToken = "0x1111111111111111111111111111111111111111";
+    const multiChain = new UniswapRouteSource({
+      swapRouters: { base: SWAP_ROUTER, "ethereum-sepolia": SWAP_ROUTER },
+      pools: {
+        "base:ETH/USDC": { chain: "base", tokenIn: WETH, tokenOut: USDC, fee: 500 },
+        "ethereum-sepolia:ETH/USDC": {
+          chain: "ethereum-sepolia",
+          tokenIn: sepoliaToken,
+          tokenOut: USDC,
+          fee: 3000,
+        },
+      },
+    });
+
+    const route = await multiChain.route({ ...request, chain: "ethereum-sepolia" });
+    const decoded = decodeFunctionData({ abi: swapRouter02Abi, data: route.callData });
+    const params = (decoded.args as readonly unknown[])[0] as Record<string, unknown>;
+    expect(String(params.tokenIn).toLowerCase()).toBe(sepoliaToken.toLowerCase());
+    expect(params.fee).toBe(3000);
+  });
+
   test("an unconfigured pool is a configuration error", async () => {
     await expect(source.route({ ...request, payerAsset: "BTC" })).rejects.toThrow(
       ConfigurationError,

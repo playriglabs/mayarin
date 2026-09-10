@@ -348,6 +348,7 @@ describe("quote configuration", () => {
       oracle: "pyth",
       fallbackOracles: [],
       deviationBps: 100,
+      unguardedTestnetPairs: [],
       oracleAgreementBps: 100,
       maxReferenceAgeSeconds: 60,
       peggedPairs: [],

@@ -8,9 +8,13 @@ const WETH = "0x4200000000000000000000000000000000000006";
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const QUOTER = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";
 
-const ETH_USDC_POOL: Record<string, UniswapPool> = {
-  "ETH/USDC": { chain: "base", tokenIn: WETH, tokenOut: USDC, fee: 500 },
-};
+const ETH_USDC = {
+  chain: "base",
+  tokenIn: WETH,
+  tokenOut: USDC,
+  fee: 500,
+} as const satisfies UniswapPool;
+const ETH_USDC_POOL: Record<string, UniswapPool> = { "ETH/USDC": ETH_USDC };
 
 const ONE_ETH = money(10n ** 18n, "ETH");
 
@@ -103,6 +107,24 @@ describe.skipIf(parsedUrls.base === undefined)("UniswapSwapVenue live", () => {
 });
 
 describe("UniswapSwapVenue chain", () => {
+  test("requires a chain when the same pair is configured on several networks", async () => {
+    const venue = new UniswapSwapVenue({
+      rpcUrls: {},
+      quoters: {},
+      pools: {
+        "base:ETH/USDC": ETH_USDC,
+        "ethereum-sepolia:ETH/USDC": {
+          chain: "ethereum-sepolia",
+          tokenIn: WETH,
+          tokenOut: USDC,
+          fee: 3000,
+        },
+      },
+    });
+
+    expect(venue.quote("ETH", "USDC", ONE_ETH)).rejects.toThrow(/requires a chain/i);
+  });
+
   // The pricing twin of the route source's refusal. A Base pool priced an Arc
   // payment before this, and the lock carried a rate from a pool the swap would
   // never touch.

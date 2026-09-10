@@ -16,6 +16,9 @@ import { z } from "zod";
 import { toMoneyDto } from "./money.ts";
 
 const metadataSchema = z.record(z.string(), z.string()).optional();
+const linkRailsSchema = z
+  .array(z.object({ chain: z.enum(CHAIN_IDS), asset: assetCodeSchema }).strict())
+  .min(1);
 
 export const createProductBodySchema = z
   .object({
@@ -75,14 +78,13 @@ export const createLinkBodySchema = z
     metadata: metadataSchema,
     expiresAt: timestampSchema.optional(),
     /** Rails this link may be paid on (#259). At least one when restricted. */
-    rails: z
-      .array(z.object({ chain: z.enum(CHAIN_IDS), asset: assetCodeSchema }).strict())
-      .min(1)
-      .optional(),
+    rails: linkRailsSchema.optional(),
   })
   // The per-kind shape is enforced by `createPaymentLink`, which is where the
   // rule belongs — a second copy here would be a second copy to get wrong.
   .strict();
+
+export const updateLinkBodySchema = z.object({ rails: linkRailsSchema }).strict();
 
 type CreateLinkBody = z.infer<typeof createLinkBodySchema>;
 

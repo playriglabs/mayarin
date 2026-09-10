@@ -73,6 +73,14 @@ function post(harness: Harness, auth: Auth, path: string, body?: unknown) {
   });
 }
 
+function patch(harness: Harness, auth: Auth, path: string, body: unknown) {
+  return harness.request("PATCH", path, {
+    body,
+    cookies: auth.jar,
+    headers: { "x-csrf-token": auth.csrf },
+  });
+}
+
 function get(harness: Harness, auth: Auth, path: string) {
   return harness.request("GET", path, { cookies: auth.jar });
 }
@@ -302,6 +310,25 @@ describe("payment link routes", () => {
     });
     expect(charged.status).toBe(400);
     expect(String(charged.body?.error.message)).toContain("cannot be paid");
+  });
+
+  test("updates a link's accepted rails for future checkouts", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const created = await post(harness, auth, "/v1/payment-links", {
+      kind: "open",
+      currency: "IDR",
+      rails: [{ chain: "arc-testnet", asset: "USDC" }],
+    });
+    const linkId = created.body?.paymentLink.id as string;
+
+    const updated = await patch(harness, auth, `/v1/payment-links/${linkId}`, {
+      rails: [{ chain: "base-sepolia", asset: "USDC" }],
+    });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body?.paymentLink.rails).toEqual([{ chain: "base-sepolia", asset: "USDC" }]);
+    expect(updated.body?.paymentLink.version).toBeGreaterThan(created.body?.paymentLink.version);
   });
 
   test("a merchant with no city or country cannot mint a link", async () => {

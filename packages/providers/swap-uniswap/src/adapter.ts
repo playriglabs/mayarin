@@ -51,6 +51,20 @@ export interface UniswapPool {
   readonly fee: number;
 }
 
+/**
+ * A pool is unique by chain and pair, not by pair alone. Configuration keys may
+ * use either `PAIR` for a single-chain pair or `CHAIN:PAIR` when the same pair
+ * exists on several chains; the pool's own `chain` remains authoritative.
+ */
+function configuredPair(key: string): string {
+  const separator = key.indexOf(":");
+  return separator === -1 ? key : key.slice(separator + 1);
+}
+
+export function uniswapPoolKey(chain: ChainId, pair: string): string {
+  return `${chain}:${pair}`;
+}
+
 export interface UniswapSwapVenueOptions {
   readonly rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
   /** QuoterV2 contract address per chain. */
@@ -69,7 +83,12 @@ export class UniswapSwapVenue implements SwapVenue {
   constructor(options: UniswapSwapVenueOptions) {
     this.#rpcUrls = options.rpcUrls;
     this.#quoters = options.quoters;
-    this.#pools = new Map(Object.entries(options.pools));
+    this.#pools = new Map(
+      Object.entries(options.pools).map(([key, pool]) => [
+        uniswapPoolKey(pool.chain, configuredPair(key)),
+        pool,
+      ]),
+    );
   }
 
   /**
@@ -148,20 +167,35 @@ export class UniswapSwapVenue implements SwapVenue {
 
   /** The configured pool for a pair, refused when it is on another chain. */
   #poolFor(from: AssetCode, to: AssetCode, chain: ChainId | undefined): UniswapPool {
-    const pool = this.#pools.get(rateKey(from, to));
-    if (pool === undefined) {
+    const pair = rateKey(from, to);
+    const candidates = [...this.#pools.entries()]
+      .filter(([key]) => key.endsWith(`:${pair}`))
+      .map(([, pool]) => pool);
+
+    if (chain === undefined) {
+      const only = candidates[0];
+      if (only !== undefined && candidates.length === 1) return only;
+      if (candidates.length > 1) {
+        throw new ConfigurationError(`Uniswap pool for ${pair} requires a chain`, {
+          pair,
+          chains: candidates.map((pool) => pool.chain),
+        });
+      }
       throw new ConfigurationError(`No Uniswap pool configured for ${from} -> ${to}`, { from, to });
     }
-    // The same refusal `UniswapRouteSource` makes, one step earlier. Pricing a
-    // payment against a pool on another chain locks a rate from a pool the swap
-    // will never touch; the caller falls back to a venue whose pool is here.
-    if (chain !== undefined && pool.chain !== chain) {
-      throw new ConfigurationError(
-        `Uniswap pool for ${rateKey(from, to)} is on ${pool.chain}, not ${chain}`,
-        { pair: rateKey(from, to), poolChain: pool.chain, chain },
-      );
+
+    const pool = this.#pools.get(uniswapPoolKey(chain, pair));
+    if (pool !== undefined) return pool;
+
+    const other = candidates[0];
+    if (other !== undefined) {
+      throw new ConfigurationError(`Uniswap pool for ${pair} is on ${other.chain}, not ${chain}`, {
+        pair,
+        poolChain: other.chain,
+        chain,
+      });
     }
-    return pool;
+    throw new ConfigurationError(`No Uniswap pool configured for ${from} -> ${to}`, { from, to });
   }
 
   async quote(from: AssetCode, to: AssetCode, amount: Money, chain?: ChainId): Promise<PriceQuote> {
@@ -179,20 +213,7 @@ export class UniswapSwapVenue implements SwapVenue {
       });
     }
 
-    const pool = this.#pools.get(rateKey(from, to));
-    if (pool === undefined) {
-      throw new ConfigurationError(`No Uniswap pool configured for ${from} -> ${to}`, { from, to });
-    }
-
-    // The same refusal `UniswapRouteSource` makes, one step earlier. Pricing a
-    // payment against a pool on another chain locks a rate from a pool the swap
-    // will never touch; the caller falls back to a venue whose pool is here.
-    if (chain !== undefined && pool.chain !== chain) {
-      throw new ConfigurationError(
-        `Uniswap pool for ${rateKey(from, to)} is on ${pool.chain}, not ${chain}`,
-        { pair: rateKey(from, to), poolChain: pool.chain, chain },
-      );
-    }
+    const pool = this.#poolFor(from, to, chain);
 
     const quoterAddress = this.#quoters[pool.chain];
     if (quoterAddress === undefined) {

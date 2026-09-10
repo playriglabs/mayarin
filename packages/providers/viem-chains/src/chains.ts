@@ -13,7 +13,7 @@
 
 import type { ChainId } from "@mayarin/chain";
 import { type Chain, defineChain } from "viem";
-import { arbitrum, arbitrumSepolia, arcTestnet, base, baseSepolia } from "viem/chains";
+import { arbitrum, arbitrumSepolia, arcTestnet, base, baseSepolia, sepolia } from "viem/chains";
 
 /**
  * Robinhood Chain testnet — an Arbitrum Orbit L2 with ETH as its gas token.
@@ -41,6 +41,7 @@ export const robinhoodTestnet = defineChain({
 // unrelated to the generic client's block type and would otherwise force a cast
 // at every call site.
 export const VIEM_CHAINS: Readonly<Record<ChainId, Chain>> = {
+  "ethereum-sepolia": sepolia,
   base,
   "base-sepolia": baseSepolia,
   arbitrum,

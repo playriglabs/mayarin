@@ -3,10 +3,11 @@
  *
  * Two sections, because a payment and its settlement are two different facts
  * about the same money and a merchant asks different questions of each. **Pay
- * ins** is what buyers were charged, in the merchant's own currency. **Pay
- * outs** is what actually reached the merchant, net of fee, in the settlement
- * asset. Charting one and calling it both would hide the fee and every payment
- * that was taken and never settled.
+ * ins** is the gross USD value of what buyers were charged, normalized at each
+ * payment's locked settlement rate so several source currencies can share one
+ * chart. **Pay outs** is what actually reached the merchant, net of fee, in the
+ * settlement asset. Charting one and calling it both would hide the fee and
+ * every payment that was taken and never settled.
  *
  * Each section answers the same three questions: how much moved, what state it
  * ended in, and how long it took. Every figure is derived from the unpaginated
@@ -18,13 +19,10 @@
  * identity, and the hue means only "this is data". Shading by value would be
  * colour following rank, repainted the moment a sort changes.
  *
- * **Status overview is the one deliberate exception.** Four states share one
- * stacked bar, so length cannot distinguish them — colour is the only channel
- * left, and it is encoding identity rather than rank. It uses the semantic
- * tokens the rest of the product already reads (`success`, `warning`,
- * `destructive`, and a muted grey for expired), so a status means the same
- * thing here as it does on a payment row. Every segment is also labelled with
- * its name and its share, so the colour is never the only signal.
+ * **Status overview and asset mix are deliberate exceptions.** Categories
+ * share one stacked bar, so colour encodes identity rather than rank. Every
+ * segment is repeated in a labelled legend with its count and share, so colour
+ * is never the only signal.
  *
  * Each chart ships a real table behind a disclosure, so the numbers are
  * reachable without reading a picture.
@@ -36,6 +34,7 @@ import { money } from "@mayarin/shared/money";
 import { ChartBarIcon, InfoIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { match } from "ts-pattern";
+import { AssetLogo } from "@/components/asset-logo";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -61,8 +60,19 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { dayLabel, type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
+import {
+  payerAssetBreakdown,
+  payerCountryBreakdown,
+  paymentsIn,
+  type RankedInsight,
+  reportingPeriods,
+  settlementsIn,
+  summarizePeriod,
+} from "@/lib/analytics-insights";
+import { payInAmountUsd, settlementsByPaymentIntent } from "@/lib/analytics-movements";
 import { ApiError } from "@/lib/api/client";
 import { compactMoney } from "@/lib/compact";
+import { countryLabel } from "@/lib/countries";
 import { ICON_CARD } from "@/lib/icons";
 import { dominantAsset } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -162,18 +172,19 @@ function secondsBetween(from: string, to: string | null): number | null {
 }
 
 /**
- * What buyers were charged.
+ * The locked USD value of what buyers were charged.
  *
  * Dated by creation rather than completion: this is demand, and a payment
  * created on Monday that settles on Tuesday was Monday's.
  */
-function payInMovements(payments: readonly PaymentIntentDto[], asset: AssetCode): Movement[] {
+function payInMovements(
+  payments: readonly PaymentIntentDto[],
+  settlements: readonly SettlementDto[],
+): Movement[] {
+  const byPaymentIntent = settlementsByPaymentIntent(settlements);
   return payments.map((payment) => ({
     day: payment.createdAt.slice(0, 10),
-    amount:
-      payment.status === "COMPLETED" && payment.amount.asset === asset
-        ? BigInt(payment.amount.amount)
-        : null,
+    amount: payInAmountUsd(payment, byPaymentIntent.get(payment.id)),
     seconds: secondsBetween(payment.createdAt, payment.completedAt),
   }));
 }
@@ -259,6 +270,21 @@ const TONE_FILL: Readonly<Record<StatusSlice["tone"], string>> = {
   neutral: "bg-subtle-foreground",
 };
 
+const ASSET_MIX_FILLS = [
+  "bg-chart-1",
+  "bg-chart-2",
+  "bg-chart-3",
+  "bg-chart-4",
+  "bg-chart-5",
+  "bg-chart-6",
+  "bg-chart-7",
+  "bg-chart-8",
+] as const;
+
+function assetMixFill(index: number): string {
+  return ASSET_MIX_FILLS[index % ASSET_MIX_FILLS.length] ?? "bg-chart-1";
+}
+
 /**
  * Every state in one bar, with a legend that names each one.
  *
@@ -313,6 +339,173 @@ function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Part-to-whole asset mix, followed by the complete, scrollable token list. */
+function AssetMix({ rows }: { rows: readonly RankedInsight[] }) {
+  if (rows.length === 0) {
+    return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <motion.div
+        aria-hidden="true"
+        className="flex h-3 w-full overflow-hidden bg-muted"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      >
+        {rows.map((row, index) => (
+          <span
+            key={row.key}
+            className={cn("h-full shrink-0", assetMixFill(index))}
+            style={{ width: `${row.share * 100}%` }}
+          />
+        ))}
+      </motion.div>
+
+      <ul className="grid max-h-56 grid-cols-1 gap-x-6 gap-y-3 overflow-y-auto pr-1 sm:grid-cols-2">
+        {rows.map((row, index) => (
+          <li key={row.key} className="flex min-w-0 items-center justify-between gap-3 text-xs">
+            <span className="flex min-w-0 items-center gap-2">
+              <AssetLogo symbol={row.key} size={20} />
+              <span aria-hidden="true" className={cn("size-2.5 shrink-0", assetMixFill(index))} />
+              <span className="truncate text-foreground">{row.key}</span>
+            </span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">
+              {row.count} · {Math.round(row.share * 100)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function RankedBreakdown({
+  title,
+  hint,
+  rows,
+  labelOf = (value) => value,
+}: {
+  title: string;
+  hint: string;
+  rows: readonly RankedInsight[];
+  labelOf?: (value: string) => string;
+}) {
+  return (
+    <Card className="gap-4">
+      <CardTitle hint={hint}>{title}</CardTitle>
+      {rows.length === 0 ? (
+        <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>
+      ) : (
+        <ol className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
+          {rows.map((row) => (
+            <li key={row.key} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate text-foreground">{labelOf(row.key)}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {row.count} · {Math.round(row.share * 100)}%
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden bg-muted" aria-hidden="true">
+                <div className="h-full bg-chart-1" style={{ width: `${row.share * 100}%` }} />
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Card>
+  );
+}
+
+function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function comparisonChange(current: bigint | number, previous: bigint | number): string {
+  if (typeof current === "bigint" && typeof previous === "bigint") {
+    if (previous === 0n) return current === 0n ? "—" : "New";
+    const tenths = ((current - previous) * 1_000n) / (previous < 0n ? -previous : previous);
+    return `${tenths >= 0n ? "+" : ""}${Number(tenths) / 10}%`;
+  }
+  if (typeof current !== "number" || typeof previous !== "number") return "—";
+  if (previous === 0) return current === 0 ? "—" : "New";
+  const change = ((current - previous) / Math.abs(previous)) * 100;
+  return `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`;
+}
+
+function ComparisonTable({
+  current,
+  previous,
+}: {
+  current: ReturnType<typeof summarizePeriod>;
+  previous: ReturnType<typeof summarizePeriod>;
+}) {
+  const rows = [
+    {
+      label: "Gross volume",
+      current: formatMoneyLocale(money(current.grossUsd, "USD")),
+      previous: formatMoneyLocale(money(previous.grossUsd, "USD")),
+      change: comparisonChange(current.grossUsd, previous.grossUsd),
+    },
+    {
+      label: "Completed payments",
+      current: String(current.completedCount),
+      previous: String(previous.completedCount),
+      change: comparisonChange(current.completedCount, previous.completedCount),
+    },
+    {
+      label: "Conversion rate",
+      current: formatPercent(current.conversionRate),
+      previous: formatPercent(previous.conversionRate),
+      change: comparisonChange(current.conversionRate, previous.conversionRate),
+    },
+    {
+      label: "Average transaction",
+      current: formatMoneyLocale(money(current.averageUsd, "USD")),
+      previous: formatMoneyLocale(money(previous.averageUsd, "USD")),
+      change: comparisonChange(current.averageUsd, previous.averageUsd),
+    },
+    {
+      label: "Median completion",
+      current: formatDuration(current.completion.medianSeconds),
+      previous: formatDuration(previous.completion.medianSeconds),
+      change: comparisonChange(current.completion.medianSeconds, previous.completion.medianSeconds),
+    },
+  ];
+
+  return (
+    <Card className="gap-4">
+      <CardTitle hint="The latest thirty days compared with the thirty days immediately before them.">
+        Previous period comparison
+      </CardTitle>
+      <Table>
+        <TableCaption>Current 30 days versus previous 30 days</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Metric</TableHead>
+            <TableHead className="text-right">Current</TableHead>
+            <TableHead className="text-right">Previous</TableHead>
+            <TableHead className="text-right">Change</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.label}>
+              <TableCell>{row.label}</TableCell>
+              <TableCell className="text-right tabular-nums">{row.current}</TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {row.previous}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{row.change}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Card>
   );
 }
 
@@ -408,6 +601,7 @@ function MovementSection({
   volumeHint,
   statusHint,
   durationHint,
+  durationSummary,
 }: {
   title: string;
   asset: AssetCode;
@@ -417,6 +611,7 @@ function MovementSection({
   volumeHint: string;
   statusHint: string;
   durationHint: string;
+  durationSummary?: string;
 }) {
   const decimals = assetDecimals(asset);
   const symbol = assetSymbol(asset) ?? asset;
@@ -471,6 +666,9 @@ function MovementSection({
         <Card className="gap-4">
           <CardTitle hint={durationHint}>Completion time</CardTitle>
           <TrendChart points={durationPlots(durations)} formatTick={formatDuration} />
+          {durationSummary !== undefined && (
+            <p className="text-xs text-muted-foreground tabular-nums">{durationSummary}</p>
+          )}
           <DataDisclosure summary="Show the numbers">
             <Table containerClassName="max-h-64 overflow-y-auto">
               <TableCaption>Median completion time by day</TableCaption>
@@ -517,19 +715,22 @@ function Analytics() {
     .with({ status: "success" }, ({ data }) => {
       const payments = data.payments;
       const settlements = data.settlements;
+      const periods = reportingPeriods(new Date());
+      const currentPayments = paymentsIn(payments, periods.current);
+      const previousPayments = paymentsIn(payments, periods.previous);
+      const currentSettlements = settlementsIn(settlements, periods.current);
+      const previousSettlements = settlementsIn(settlements, periods.previous);
+      const currentInsight = summarizePeriod(currentPayments, settlements);
+      const previousInsight = summarizePeriod(previousPayments, settlements);
 
       const settledAmounts = settlements
         .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
         .map((row) => row.netAmount)
         .filter((amount) => amount !== null);
       const payOutAsset = dominantAsset(settledAmounts);
-      // Priced in the merchant's own currency, which is a different question
-      // from what they settled in — an IDR merchant settling USDC has two.
-      const payInAsset = dominantAsset(
-        payments.filter((p) => p.status === "COMPLETED").map((p) => p.amount),
-      );
+      const payIns = payInMovements(currentPayments, settlements);
 
-      if (payOutAsset === undefined || payInAsset === undefined) {
+      if (payments.length === 0) {
         return (
           <div className="flex flex-col gap-8">
             <StatGrid>
@@ -556,74 +757,128 @@ function Analytics() {
         );
       }
 
-      const payIns = payInMovements(payments, payInAsset);
-      const payOuts = payOutMovements(settlements, payOutAsset);
+      const payOuts =
+        payOutAsset === undefined ? [] : payOutMovements(currentSettlements, payOutAsset);
       const payInDaily = bucketByDay(payIns);
       const payOutDaily = bucketByDay(payOuts);
-
-      const settledIn = settledAmounts.filter((amount) => amount.asset === payOutAsset);
+      const settledIn = currentSettlements
+        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
+        .map((row) => row.netAmount)
+        .flatMap((amount) => (amount !== null && amount.asset === payOutAsset ? [amount] : []));
       const totalVolume = settledIn.reduce((acc, amount) => acc + BigInt(amount.amount), 0n);
-      const totalCount = settledIn.length;
-      const average = totalCount === 0 ? 0n : totalVolume / BigInt(totalCount);
-      // `reduce` with no seed throws on an empty array, and a seed of
-      // `payOutDaily[0]` is `undefined` to the compiler for exactly that case.
-      const busiest = payOutDaily.reduce<DayPoint | undefined>(
-        (acc, point) => (acc === undefined || point.volume > acc.volume ? point : acc),
-        undefined,
-      );
+      const totalFees = currentSettlements
+        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
+        .map((row) => row.fee)
+        .flatMap((amount) => (amount !== null && amount.asset === payOutAsset ? [amount] : []))
+        .reduce((sum, amount) => sum + BigInt(amount.amount), 0n);
+      const payout = (amount: bigint) =>
+        payOutAsset === undefined
+          ? "—"
+          : formatMoneyLocale(money(amount, payOutAsset), { trimZeroFraction: true });
+      const completion = currentInsight.completion;
+      const durationSummary =
+        completion.count === 0
+          ? "No completed payments in this period."
+          : `Median ${formatDuration(completion.medianSeconds)} · P95 ${formatDuration(completion.p95Seconds)}`;
+      const assetMix = payerAssetBreakdown(currentPayments);
+      const countryMix = payerCountryBreakdown(currentPayments);
+      const previousNet = previousSettlements
+        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
+        .map((row) => row.netAmount)
+        .flatMap((amount) => (amount !== null && amount.asset === payOutAsset ? [amount] : []))
+        .reduce((sum, amount) => sum + BigInt(amount.amount), 0n);
+
+      // Keep the net comparison visible in the headline hint without mixing
+      // settlement-asset minor units into the USD comparison table.
+      const netChange = comparisonChange(totalVolume, previousNet);
 
       return (
         <div className="flex flex-col gap-8">
-          <StatGrid>
+          <StatGrid className="xl:grid-cols-5">
             <Stat
-              label={`Settled volume · ${payOutAsset}`}
-              value={formatMoneyLocale(money(totalVolume, payOutAsset), { trimZeroFraction: true })}
-              hint={`Net of fee, across ${totalCount} completed payment${totalCount === 1 ? "" : "s"}.`}
-            />
-            <Stat label="Payments" value={String(payments.length)} hint="Across all payments." />
-            <Stat
-              label={`Average settlement · ${payOutAsset}`}
-              value={formatMoneyLocale(money(average, payOutAsset), { trimZeroFraction: true })}
-              hint="Net settled volume divided by completed settlements."
+              label="Gross volume · USD"
+              value={formatMoneyLocale(money(currentInsight.grossUsd, "USD"), {
+                trimZeroFraction: true,
+              })}
+              hint={`Before fees, across ${currentInsight.completedCount} completed payment${currentInsight.completedCount === 1 ? "" : "s"}.`}
             />
             <Stat
-              label="Busiest day"
-              value={busiest === undefined ? "—" : dayLabel(busiest.date)}
-              hint={
-                busiest === undefined
-                  ? "No completed payments."
-                  : `${busiest.count} payment${busiest.count === 1 ? "" : "s"}.`
-              }
+              label={payOutAsset === undefined ? "Net settled" : `Net settled · ${payOutAsset}`}
+              value={payout(totalVolume)}
+              hint={`${netChange} versus the previous thirty days.`}
+            />
+            <Stat
+              label={payOutAsset === undefined ? "Fees" : `Fees · ${payOutAsset}`}
+              value={payout(totalFees)}
+              hint="Fees on completed settlements in this period."
+            />
+            <Stat
+              label="Conversion rate"
+              value={formatPercent(currentInsight.conversionRate)}
+              hint={`${currentInsight.completedCount} of ${currentInsight.paymentCount} payment intents completed.`}
+            />
+            <Stat
+              label="Average transaction · USD"
+              value={formatMoneyLocale(money(currentInsight.averageUsd, "USD"), {
+                trimZeroFraction: true,
+              })}
+              hint="Gross USD volume divided by completed payments."
             />
           </StatGrid>
 
           <MovementSection
             title="Pay ins"
-            asset={payInAsset}
+            asset="USD"
             daily={payInDaily}
             statuses={statusesOf(
-              payments.map((payment) => payment.status),
+              currentPayments.map((payment) => payment.status),
               PAY_IN_STATUS,
             )}
             durations={bucketDurations(payIns)}
-            volumeHint="What buyers were charged, dated by when the payment was created."
-            statusHint="Every payment intent by the state it is in now, including the ones nobody paid."
-            durationHint="Median time from created to completed, per day."
+            volumeHint="Gross USD value at each payment's locked settlement rate, dated by when the payment was created."
+            statusHint="Payment intents created in the last thirty days, by their current state."
+            durationHint="Median time from created to completed, per day. P95 exposes the slow tail."
+            durationSummary={durationSummary}
           />
 
-          <MovementSection
-            title="Pay outs"
-            asset={payOutAsset}
-            daily={payOutDaily}
-            statuses={statusesOf(
-              settlements.map((settlement) => settlement.state),
-              PAY_OUT_STATUS,
-            )}
-            durations={bucketDurations(payOuts)}
-            volumeHint="What reached you, net of fee, dated by when it settled."
-            statusHint="Every settlement by clearing state. A payment nobody made never reaches this chart."
-            durationHint="Median time from payment to settlement, per day."
-          />
+          {payOutAsset !== undefined && (
+            <MovementSection
+              title="Pay outs"
+              asset={payOutAsset}
+              daily={payOutDaily}
+              statuses={statusesOf(
+                currentSettlements.map((settlement) => settlement.state),
+                PAY_OUT_STATUS,
+              )}
+              durations={bucketDurations(payOuts)}
+              volumeHint="What reached you, net of fee, dated by when it settled."
+              statusHint="Settlements completed or updated in the last thirty days, by current state."
+              durationHint="Median time from payment to settlement, per day."
+            />
+          )}
+
+          <section className="flex flex-col gap-3">
+            <SectionHeader title="Payment mix" />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card className="gap-4">
+                <CardTitle hint="Assets buyers used for completed payments in the current period.">
+                  Payer assets
+                </CardTitle>
+                <AssetMix rows={assetMix} />
+              </Card>
+              <RankedBreakdown
+                title="Payer countries"
+                hint="Country captured at checkout. Older payments without country metadata remain Unknown."
+                rows={countryMix}
+                labelOf={(value) => (value === "Unknown" ? value : countryLabel(value))}
+              />
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <SectionHeader title="Period comparison" />
+            <ComparisonTable current={currentInsight} previous={previousInsight} />
+          </section>
         </div>
       );
     })

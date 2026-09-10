@@ -63,9 +63,10 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
 
   --radius: 0.5rem;
 
-  /* Paper and ink, matching the landing (`--color-paper`, `--color-ink`,
-     `--color-line`). Surfaces separate by hairline rules, not by fill. */
-  --background: #ffffff;
+  /* A quiet, green-tinted canvas separates working surfaces without turning
+     the dashboard grey. Cards and tables stay white; borders remain the
+     precise edge. Dark mode defines its own canvas below. */
+  --background: #f6f7f6;
   --foreground: #111111;
 
   --card: #ffffff;
@@ -135,8 +136,16 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --destructive-muted: #fdf0ef;
 
   /* Charts are single-hue by design: length carries magnitude, labels carry
-     identity. One series colour is all this needs. */
+     identity. Categorical mix charts use the additional hues below, with a
+     labelled legend so colour is never the only identifier. */
   --chart-1: #1f6f54;
+  --chart-2: #2563eb;
+  --chart-3: #c2410c;
+  --chart-4: #7c3aed;
+  --chart-5: #0f766e;
+  --chart-6: #be123c;
+  --chart-7: #a16207;
+  --chart-8: #4338ca;
   --loader-color: var(--brand);
 }
 
@@ -199,6 +208,13 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --destructive-muted: #2a1113;
 
   --chart-1: #0eeb2e;
+  --chart-2: #60a5fa;
+  --chart-3: #fb923c;
+  --chart-4: #a78bfa;
+  --chart-5: #2dd4bf;
+  --chart-6: #fb7185;
+  --chart-7: #facc15;
+  --chart-8: #818cf8;
   --loader-color: var(--electric);
 
   /* The landing's dark tone, which the sidebar carried in both themes until
@@ -355,6 +371,13 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --color-warning: var(--warning);
   --color-warning-muted: var(--warning-muted);
   --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
 
   /* Tailwind's default scale. `DEFAULT` covers the bare `rounded` utility,
      which Tailwind would otherwise emit at its own 0.25rem — including when it

@@ -25,6 +25,7 @@ import {
   requireApiKey,
   requirePublishableKey,
 } from "../middleware/api-key.ts";
+import { withPayerCountry } from "../payer-country.ts";
 
 export function catalogRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
@@ -110,11 +111,14 @@ export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     const idempotencyKey = c.req.header("Idempotency-Key");
 
     const { merchant, currency, lines, ...options } = body;
+    const intentOptions = toIntentOptions(options);
+    const metadata = withPayerCountry(intentOptions.metadata, c.req.header("CF-IPCountry"));
     const intent = await container.commerce.checkoutCart({
       merchant: toMerchantSnapshot(merchant),
       currency,
       lines,
-      ...toIntentOptions(options),
+      ...intentOptions,
+      ...(metadata === undefined ? {} : { metadata }),
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     });
 

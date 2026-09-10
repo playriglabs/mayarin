@@ -26,6 +26,7 @@ import {
 } from "../dto/invoice.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
+import { withPayerCountry } from "../payer-country.ts";
 
 export function invoiceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
@@ -136,11 +137,13 @@ export function invoiceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     // an error — the same reasoning as a fixed payment link.
     const raw = await c.req.json().catch(() => ({}));
     const body = checkoutInvoiceBodySchema.parse(raw);
+    const metadata = withPayerCountry(undefined, c.req.header("CF-IPCountry"));
 
     const intent = await container.invoices.checkoutInvoice(c.req.param("id"), {
       ...(body.amount === undefined ? {} : { amount: body.amount }),
       ...(body.payment === undefined ? {} : { payment: body.payment }),
       ...(body.executionPath === undefined ? {} : { executionPath: body.executionPath }),
+      ...(metadata === undefined ? {} : { metadata }),
     });
 
     return c.json({ paymentIntent: toPaymentIntentDto(intent) }, 201);

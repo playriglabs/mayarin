@@ -142,11 +142,14 @@ describe("POST /invoices/:id/checkout", () => {
     const harness = createApiHarness();
     const issued = await createIssued(harness);
 
-    const { status, body } = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`);
+    const { status, body } = await harness.request("POST", `/v1/invoices/${issued.id}/checkout`, {
+      headers: { "CF-IPCountry": "MY" },
+    });
 
     expect(status).toBe(201);
     expect(body.paymentIntent.merchantReference).toBe(issued.number);
     expect(body.paymentIntent.amount.amount).toBe("12500000");
+    expect(body.paymentIntent.metadata.payerCountryCode).toBe("MY");
   });
 
   test("carries the payer's selected deposit rail into the intent", async () => {

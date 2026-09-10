@@ -147,11 +147,26 @@ no sweep, so dust sent to it is unsweepable (`test_no_sweep_dust_cannot_be_extra
 
 ## Deployments
 
-| Chain                | `PaymentRouter`                              | `TimelockController`                         |
-| -------------------- | -------------------------------------------- | -------------------------------------------- |
-| Base Sepolia (84532) | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
+| Chain                       | `PaymentRouter`                              | `TimelockController`                         |
+| --------------------------- | -------------------------------------------- | -------------------------------------------- |
+| Ethereum Sepolia (11155111) | `0xE54E800bfFD1fBb5756B7c5E6A4aa40Dd09210E7` | `0x04CD74e77ac145B18d61c6C8D7939e3241DBB60A` |
+| Base Sepolia (84532)        | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
 
-Deployed 2026-08-07, block 45164044, verified on Basescan (solc 0.8.28,
+Ethereum Sepolia was deployed 2026-09-10 at block 11671894 (solc 0.8.28,
+optimizer 200 runs, via-IR). Its `DepositForwarderFactory` is
+`0xCa83514c0bef26B642f7A69b2ab529c2ab5d7958`. USDC is the only settlement
+asset; native ETH, USDC, EURC and PYUSD can be payer assets. V3 SwapRouter02
+`0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E` and V2 Router02
+`0xeE567Fe1712Faf6149d80dA1E6934E354124CfE3` are whitelisted. The local test
+configuration routes ETH and EURC through V3 and PYUSD through V2 into USDC.
+The V2 router was admitted through the existing timelock in block 11672131
+(schedule `0x76b87d…ceb5`, execute `0x762814…ce71`); no redeploy occurred.
+Sepolia pools are for integration tests only: thin liquidity and off-market
+prices are isolated behind `QUOTE_UNGUARDED_TESTNET_PAIRS`, which the quote
+engine refuses on mainnets, and must not be treated as production pricing
+evidence.
+
+Base Sepolia was deployed 2026-08-07, block 45164044, verified on Basescan (solc 0.8.28,
 optimizer 200 runs, via-IR). Whitelisted at deploy: USDC as settlement and
 input asset, SwapRouter02 as the DEX router. Timelock delay is 0 on this
 testnet deployment; mainnet keeps the 48h default.

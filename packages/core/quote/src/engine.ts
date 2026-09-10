@@ -20,7 +20,7 @@
  * `ConfigurationError` — the same stance `TablePriceSource` takes.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, isMainnetChain } from "@mayarin/chain";
 import type {
   DeviationPolicy,
   OraclePrice,
@@ -49,6 +49,8 @@ export interface QuoteEngineOptions {
   /** Reference side: Pyth, Chainlink, or a fake. */
   readonly oracle: PriceOracle;
   readonly policy: DeviationPolicy;
+  /** Explicit chain+pair exceptions for unusable testnet oracle/liquidity data. */
+  readonly unguardedTestnetPairs?: readonly string[];
   /** Governs the fiat leg: which pairs are pegged, and reference staleness. */
   readonly fiat: FiatPricePolicy;
   readonly clock: Clock;
@@ -74,6 +76,7 @@ export class QuoteEngine {
   readonly #venue: PriceSource;
   readonly #oracle: PriceOracle;
   readonly #policy: DeviationPolicy;
+  readonly #unguardedTestnetPairs: readonly string[];
   readonly #fiat: FiatPricePolicy;
   readonly #clock: Clock;
 
@@ -81,6 +84,7 @@ export class QuoteEngine {
     this.#venue = options.venue;
     this.#oracle = options.oracle;
     this.#policy = options.policy;
+    this.#unguardedTestnetPairs = options.unguardedTestnetPairs ?? [];
     this.#fiat = options.fiat;
     this.#clock = options.clock;
   }
@@ -166,7 +170,7 @@ export class QuoteEngine {
     const priceExactOutput = this.#venue.priceExactOutput;
     if (priceExactOutput !== undefined) {
       try {
-        return await this.#composeWith(args.payerAsset, args.settlementAsset, () =>
+        return await this.#composeWith(args.payerAsset, args.settlementAsset, args.chain, () =>
           priceExactOutput.call(
             this.#venue,
             args.payerAsset,
@@ -198,13 +202,14 @@ export class QuoteEngine {
     amount: Money,
     chain?: ChainId,
   ): Promise<ComposedQuote> {
-    return this.#composeWith(from, to, () => this.#venue.price(from, to, amount, chain));
+    return this.#composeWith(from, to, chain, () => this.#venue.price(from, to, amount, chain));
   }
 
   /** The deviation guard, over whichever direction the venue was asked in. */
   async #composeWith(
     from: AssetCode,
     to: AssetCode,
+    chain: ChainId | undefined,
     ask: () => Promise<PriceQuote>,
   ): Promise<ComposedQuote> {
     if (from === to) {
@@ -215,8 +220,29 @@ export class QuoteEngine {
     }
 
     const executable = await ask();
-    const reference = await this.#oracle.reference(from, to);
     const composedAt = this.#clock.now();
+    const unguarded =
+      chain !== undefined && this.#unguardedTestnetPairs.includes(`${chain}:${from}/${to}`);
+
+    if (unguarded) {
+      if (isMainnetChain(chain)) {
+        throw new ConfigurationError(`An unguarded quote pair cannot run on mainnet ${chain}`, {
+          chain,
+          from,
+          to,
+        });
+      }
+      const reference: OraclePrice = {
+        from,
+        to,
+        scaledRate: executable.scaledRate,
+        source: "testnet-self-reference",
+        observedAt: composedAt,
+      };
+      return { from, to, executable, reference, composedAt };
+    }
+
+    const reference = await this.#oracle.reference(from, to);
 
     guardExecutablePrice(executable, reference, this.#policy, composedAt);
 

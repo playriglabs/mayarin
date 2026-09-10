@@ -119,7 +119,7 @@ export function DepositCard({
             <dl className="payment-data">
               <div>
                 <dt>Local price</dt>
-                <dd>{localPrice}</dd>
+                <dd className="text-[13px]">{localPrice}</dd>
               </div>
               <div>
                 <dt>Asset</dt>

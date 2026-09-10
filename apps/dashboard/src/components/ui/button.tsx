@@ -32,9 +32,9 @@ const buttonVariants = cva(
         link: "text-foreground underline decoration-input underline-offset-2 hover:decoration-foreground",
       },
       size: {
-        default: "h-10 px-5",
-        sm: "h-8 px-3 text-xs",
-        icon: "size-8 px-0",
+        default: "h-9 px-5",
+        sm: "h-7 px-3 text-xs",
+        icon: "size-7 px-0",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

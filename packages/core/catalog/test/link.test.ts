@@ -6,6 +6,7 @@ import {
   disablePaymentLink,
   isLinkPayable,
   linkCurrency,
+  updatePaymentLinkRails,
 } from "../src/link.ts";
 
 const NOW = new Date("2026-01-01T00:00:00.000Z");
@@ -85,6 +86,40 @@ describe("createPaymentLink", () => {
     expect(() =>
       createPaymentLink({ kind: "open", merchant, currency: "IDR", rails: [], now: NOW }),
     ).toThrow(/zero rails/);
+  });
+
+  test("updates rails for future checkouts and increments the version", () => {
+    const link = createPaymentLink({
+      kind: "open",
+      merchant,
+      currency: "IDR",
+      rails: [{ chain: "base-sepolia", asset: "USDC" }],
+      now: NOW,
+    });
+    const next = updatePaymentLinkRails(
+      link,
+      [{ chain: "arc-testnet", asset: "USDC" }],
+      new Date("2026-01-02T00:00:00.000Z"),
+    );
+
+    expect(next.rails).toEqual([{ chain: "arc-testnet", asset: "USDC" }]);
+    expect(next.version).toBe(link.version + 1);
+    expect(next.updatedAt.toISOString()).toBe("2026-01-02T00:00:00.000Z");
+  });
+
+  test("refuses an empty replacement and keeps an identical update as a no-op", () => {
+    const link = createPaymentLink({
+      kind: "open",
+      merchant,
+      currency: "IDR",
+      rails: [{ chain: "base-sepolia", asset: "USDC" }],
+      now: NOW,
+    });
+
+    expect(() => updatePaymentLinkRails(link, [], NOW)).toThrow(/zero rails/);
+    expect(updatePaymentLinkRails(link, [{ chain: "base-sepolia", asset: "USDC" }], NOW)).toBe(
+      link,
+    );
   });
 });
 

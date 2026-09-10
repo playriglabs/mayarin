@@ -21,6 +21,7 @@ import type {
   ProductResponse,
   QuoteRequest,
   QuoteResponse,
+  UpdateLinkRequest,
   UpdateProductRequest,
 } from "@/types/catalog";
 
@@ -78,6 +79,19 @@ export function useCreateLink() {
   return useEffectMutation<PaymentLinkResponse, CreateLinkRequest, ApiError>({
     mutation: (body) => linksApi.create(body),
     toast: { loading: "Creating payment link…", success: "Payment link created" },
+    invalidate: [LINKS_KEY],
+  });
+}
+
+export interface UpdateLinkVars {
+  readonly id: string;
+  readonly patch: UpdateLinkRequest;
+}
+
+export function useUpdateLink() {
+  return useEffectMutation<PaymentLinkResponse, UpdateLinkVars, ApiError>({
+    mutation: ({ id, patch }) => linksApi.update(id, patch),
+    toast: { loading: "Updating payment rails…", success: "Payment rails updated" },
     invalidate: [LINKS_KEY],
   });
 }

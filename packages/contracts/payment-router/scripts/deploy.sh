@@ -14,6 +14,7 @@
 # Reads the repo-root .env. Forge only auto-loads a .env sitting next to
 # foundry.toml, so this sources the root one explicitly and exports it.
 #
+#   ./scripts/deploy.sh ethereum-sepolia             # all three steps
 #   ./scripts/deploy.sh base-sepolia                 # all three steps
 #   ./scripts/deploy.sh arc-testnet --dry            # simulate, broadcast nothing
 #   ./scripts/deploy.sh arc-testnet --factory-only   # router already deployed
@@ -30,7 +31,7 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <base-sepolia|arc-testnet> [--dry] [--factory-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arc-testnet> [--dry] [--factory-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
@@ -47,6 +48,12 @@ done
 
 # macOS ships bash 3.2 — no associative arrays. One case, four facts.
 case "$CHAIN" in
+  ethereum-sepolia)
+    CHAIN_ID=11155111
+    RPC_VAR=ETHEREUM_SEPOLIA_RPC_URL
+    EXPLORER="https://sepolia.etherscan.io/address"
+    VERIFIER=etherscan
+    ;;
   base-sepolia)
     CHAIN_ID=84532
     RPC_VAR=BASE_SEPOLIA_RPC_URL
@@ -136,7 +143,10 @@ if [[ -z "${DEX_ROUTERS:-}" ]]; then
   echo "no DEX_ROUTERS for $CHAIN — same-asset settlement only, no swap path"
 fi
 
-RPC_URL="${!RPC_VAR}"
+# A one-run override is useful for preflight/dry-runs when the configured
+# provider is rate-limited or has not enabled this network. It is never written
+# back to .env and the chain-id guard below still proves the target.
+RPC_URL="${RPC_URL_OVERRIDE:-${!RPC_VAR}}"
 
 # A key that signs against the wrong chain deploys a router nobody is looking
 # for, and the failure is silent until the first payment.
@@ -150,6 +160,21 @@ for token in ${SETTLEMENT_TOKENS//,/ }; do
   code="$(cast code "$token" --rpc-url "$RPC_URL")"
   [[ "$code" != "0x" && -n "$code" ]] || {
     echo "SETTLEMENT_TOKENS names $token, which has no code on $CHAIN"; exit 1; }
+done
+
+# Input assets and DEX routers become privileged allowlist entries. Checking
+# their code here prevents a per-chain address copied from another network from
+# being admitted successfully and failing only at the first payer transaction.
+for token in ${INPUT_ASSETS//,/ }; do
+  code="$(cast code "$token" --rpc-url "$RPC_URL")"
+  [[ "$code" != "0x" && -n "$code" ]] || {
+    echo "INPUT_ASSETS names $token, which has no code on $CHAIN"; exit 1; }
+done
+ROUTERS_TO_CHECK="${DEX_ROUTERS:-}"
+for router in ${ROUTERS_TO_CHECK//,/ }; do
+  code="$(cast code "$router" --rpc-url "$RPC_URL")"
+  [[ "$code" != "0x" && -n "$code" ]] || {
+    echo "DEX_ROUTERS names $router, which has no code on $CHAIN"; exit 1; }
 done
 
 command -v forge >/dev/null || { echo "forge not found — install Foundry: foundryup"; exit 1; }

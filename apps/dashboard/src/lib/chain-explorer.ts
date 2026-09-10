@@ -1,11 +1,14 @@
+import type { ChainId } from "@mayarin/chain";
+
 const EXPLORERS = {
+  "ethereum-sepolia": "https://sepolia.etherscan.io/",
   base: "https://basescan.org/",
   "base-sepolia": "https://sepolia.basescan.org/",
   arbitrum: "https://arbiscan.io/",
   "arbitrum-sepolia": "https://sepolia.arbiscan.io/",
   "robinhood-testnet": "https://explorer.testnet.chain.robinhood.com/",
   "arc-testnet": "https://testnet.arcscan.app/",
-} as const satisfies Readonly<Record<string, string>>;
+} as const satisfies Readonly<Record<ChainId, string>>;
 
 type ExplorerChain = keyof typeof EXPLORERS;
 

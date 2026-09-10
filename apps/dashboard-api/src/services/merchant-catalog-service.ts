@@ -27,7 +27,7 @@ import {
   priceLink,
   type UpdateProductCommand,
 } from "@mayarin/catalog";
-import type { MerchantSnapshot } from "@mayarin/payment-intent";
+import type { LinkRail, MerchantSnapshot } from "@mayarin/payment-intent";
 import { type Money, NotFoundError, ValidationError } from "@mayarin/shared";
 import type { Scope } from "../dto/auth.ts";
 import { cursorPage, DEFAULT_PAGE_SIZE, decodeCursor } from "../pagination.ts";
@@ -193,6 +193,15 @@ export class MerchantCatalogService {
   async disableLink(scope: Scope, id: string): Promise<PaymentLink> {
     await this.getLink(scope, id);
     return this.#catalog.disableLink(id);
+  }
+
+  async updateLinkRails(
+    scope: Scope,
+    id: string,
+    rails: readonly LinkRail[],
+  ): Promise<PaymentLink> {
+    await this.getLink(scope, id);
+    return this.#catalog.updateLinkRails(id, rails);
   }
 }
 

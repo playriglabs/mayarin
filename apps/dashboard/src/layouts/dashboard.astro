@@ -81,12 +81,6 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
   <body class="min-h-full">
     <Toaster client:load />
     <LiveUpdates client:load />
-    <a
-      href="#main"
-      class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-70 focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-foreground"
-    >
-      Skip to content
-    </a>
 
     <aside
       data-testnet-notice
@@ -175,7 +169,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 
         <div
           data-sidebar-profile
-          class="mt-auto flex items-center gap-3 border-t border-sidebar-border py-1 px-3 md:p-2"
+          class="mt-auto flex items-center gap-3 border-t border-sidebar-border py-2 px-4 md:p-3"
         >
           <img
             src={avatarUrl}
@@ -198,7 +192,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
 
       <main id="main" class="min-w-0 flex-1">
         <header
-          class="flex h-16 items-center justify-between gap-4 border-border bg-background px-4 md:border-b md:px-8 lg:px-10"
+          class="flex h-16 items-center justify-between gap-4 border-border bg-sidebar px-4 md:border-b md:px-8 lg:px-10 dark:bg-background"
         >
           <div class="flex items-center gap-3">
             <button

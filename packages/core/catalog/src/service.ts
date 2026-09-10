@@ -9,6 +9,7 @@
 
 import type {
   CreatePaymentIntentCommand,
+  LinkRail,
   MerchantSnapshot,
   PaymentIntent,
 } from "@mayarin/payment-intent";
@@ -29,6 +30,7 @@ import {
   disablePaymentLink,
   listPaymentLink,
   unlistPaymentLink,
+  updatePaymentLinkRails,
 } from "./link.ts";
 import { type CreateProductInput, createProduct, updateProduct } from "./product.ts";
 import type {
@@ -155,6 +157,14 @@ export class CatalogService {
   async disableLink(id: string): Promise<PaymentLink> {
     const link = await this.getLink(id);
     const next = disablePaymentLink(link, this.#clock.now());
+    if (next === link) return link;
+    await this.#links.update(next, link.version);
+    return next;
+  }
+
+  async updateLinkRails(id: string, rails: readonly LinkRail[]): Promise<PaymentLink> {
+    const link = await this.getLink(id);
+    const next = updatePaymentLinkRails(link, rails, this.#clock.now());
     if (next === link) return link;
     await this.#links.update(next, link.version);
     return next;

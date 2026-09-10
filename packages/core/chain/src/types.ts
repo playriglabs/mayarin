@@ -10,6 +10,7 @@ import type { AssetCode, Money } from "@mayarin/shared";
 
 /** EVM chains Mayarin runs on. Widening this is what adds a network. */
 export const CHAIN_IDS = [
+  "ethereum-sepolia",
   "base",
   "base-sepolia",
   "arbitrum",
@@ -30,6 +31,7 @@ export function isChainId(value: unknown): value is ChainId {
  * beside `CHAIN_IDS` rather than in any one deployment's config.
  */
 export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
+  "ethereum-sepolia": 11_155_111n,
   base: 8_453n,
   "base-sepolia": 84_532n,
   arbitrum: 42_161n,
@@ -51,6 +53,7 @@ export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
  * a human reads this, so a chain cannot be labelled two ways in two places.
  */
 export const CHAIN_LABELS: Readonly<Record<ChainId, string>> = {
+  "ethereum-sepolia": "Ethereum Sepolia",
   base: "Base",
   "base-sepolia": "Base Sepolia",
   arbitrum: "Arbitrum One",
@@ -65,12 +68,14 @@ export function chainLabel(chain: string): string {
 }
 
 const TRUST_WALLET_CHAIN_LOGOS: Readonly<Record<string, string>> = {
+  ethereum: "https://assets-cdn.trustwallet.com/blockchains/ethereum/info/logo.png",
   base: "https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png",
   arbitrum: "https://assets-cdn.trustwallet.com/blockchains/arbitrum/info/logo.png",
 };
 
 /** A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet. */
 const MAINNET_OF: Readonly<Record<string, string>> = {
+  "ethereum-sepolia": "ethereum",
   "base-sepolia": "base",
   "arbitrum-sepolia": "arbitrum",
 };

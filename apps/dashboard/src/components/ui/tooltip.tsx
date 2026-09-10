@@ -47,10 +47,10 @@ function TooltipContent({
 }) {
   return (
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Positioner sideOffset={sideOffset}>
+      <TooltipPrimitive.Positioner sideOffset={sideOffset} className="z-70">
         <TooltipPrimitive.Popup
           className={cn(
-            "z-70 max-w-xs rounded-lg border border-border bg-popover px-2.5 py-1.5 text-popover-foreground text-xs shadow-md",
+            "max-w-xs rounded-lg border border-border bg-popover px-2.5 py-1.5 text-popover-foreground text-xs shadow-md",
             className,
           )}
           {...props}

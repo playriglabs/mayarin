@@ -673,7 +673,7 @@ function Wallets() {
                   No payment network is configured for this deployment.
                 </p>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                   {networks.map((network) => {
                     const hasRails = network.rails.length > 0;
                     const partiallyAvailable = hasRails && network.unavailable.length > 0;

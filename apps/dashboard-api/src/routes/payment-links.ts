@@ -26,7 +26,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
 import type { Scope } from "../dto/auth.ts";
-import { createLinkBodySchema, toCreateLinkInput, toPaymentLinkDto } from "../dto/catalog.ts";
+import {
+  createLinkBodySchema,
+  toCreateLinkInput,
+  toPaymentLinkDto,
+  updateLinkBodySchema,
+} from "../dto/catalog.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
 
@@ -169,6 +174,13 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
         await container.catalog.isLinkPriceable(link),
       ),
     });
+  });
+
+  app.patch("/:id", csrfMiddleware(), async (c) => {
+    const scope = scopeOf(c);
+    const body = updateLinkBodySchema.parse(await c.req.json());
+    const link = await container.catalog.updateLinkRails(scope, c.req.param("id"), body.rails);
+    return c.json({ paymentLink: toPaymentLinkDto(link, checkoutBaseUrl, new Date()) });
   });
 
   /**

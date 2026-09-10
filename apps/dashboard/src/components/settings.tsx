@@ -367,7 +367,7 @@ function Settings() {
                     {!rails.isPending && !rails.isError && supportedChains.length > 0 && (
                       <Field>
                         <FieldLabel>Accepted assets per network</FieldLabel>
-                        <div className="grid gap-3 pt-1 sm:grid-cols-2">
+                        <div className="flex flex-wrap justify-center gap-3 pt-1">
                           {supportedChains.map((entry) => {
                             const accepted = acceptedOn(draft, entry.chain, entry.assets);
                             const customized =
@@ -375,7 +375,7 @@ function Settings() {
                             return (
                               <div
                                 key={entry.chain}
-                                className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3"
+                                className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3 basis-full md:basis-[calc(50%-0.375rem)] lg:basis-[calc(33.333%-0.5rem)]"
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <p className="font-medium text-sm">
