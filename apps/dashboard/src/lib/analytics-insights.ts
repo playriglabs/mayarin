@@ -122,6 +122,22 @@ function ranked(values: readonly string[]): readonly RankedInsight[] {
     .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
 }
 
+/** Rows a payer mix shows; everything from the fifth rank on folds into "Others". */
+const MIX_LIMIT = 5;
+
+function withOthers(rows: readonly RankedInsight[]): readonly RankedInsight[] {
+  if (rows.length <= MIX_LIMIT) return rows;
+  const rest = rows.slice(MIX_LIMIT - 1);
+  return [
+    ...rows.slice(0, MIX_LIMIT - 1),
+    {
+      key: "Others",
+      count: rest.reduce((sum, row) => sum + row.count, 0),
+      share: rest.reduce((sum, row) => sum + row.share, 0),
+    },
+  ];
+}
+
 function completed(payments: readonly PaymentIntentDto[]): readonly PaymentIntentDto[] {
   return payments.filter((payment) => payment.status === "COMPLETED");
 }
@@ -129,7 +145,9 @@ function completed(payments: readonly PaymentIntentDto[]): readonly PaymentInten
 export function payerAssetBreakdown(
   payments: readonly PaymentIntentDto[],
 ): readonly RankedInsight[] {
-  return ranked(completed(payments).map((payment) => payment.payment?.asset ?? "Unknown"));
+  return withOthers(
+    ranked(completed(payments).map((payment) => payment.payment?.asset ?? "Unknown")),
+  );
 }
 
 function payerCountry(payment: PaymentIntentDto): string {
@@ -140,5 +158,5 @@ function payerCountry(payment: PaymentIntentDto): string {
 export function payerCountryBreakdown(
   payments: readonly PaymentIntentDto[],
 ): readonly RankedInsight[] {
-  return ranked(completed(payments).map(payerCountry));
+  return withOthers(ranked(completed(payments).map(payerCountry)));
 }

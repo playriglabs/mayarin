@@ -19,7 +19,7 @@
  * identity, and the hue means only "this is data". Shading by value would be
  * colour following rank, repainted the moment a sort changes.
  *
- * **Status overview and asset mix are deliberate exceptions.** Categories
+ * **Status overview and the payer mixes are deliberate exceptions.** Categories
  * share one stacked bar, so colour encodes identity rather than rank. Every
  * segment is repeated in a labelled legend with its count and share, so colour
  * is never the only signal.
@@ -342,8 +342,16 @@ function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
   );
 }
 
-/** Part-to-whole asset mix, followed by the complete, scrollable token list. */
-function AssetMix({ rows }: { rows: readonly RankedInsight[] }) {
+/** Part-to-whole payer mix: one stacked bar, then a legend of at most five rows. */
+function PayerMix({
+  rows,
+  labelOf = (value) => value,
+  withLogo = false,
+}: {
+  rows: readonly RankedInsight[];
+  labelOf?: (value: string) => string;
+  withLogo?: boolean;
+}) {
   if (rows.length === 0) {
     return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
   }
@@ -366,13 +374,13 @@ function AssetMix({ rows }: { rows: readonly RankedInsight[] }) {
         ))}
       </motion.div>
 
-      <ul className="grid max-h-56 grid-cols-1 gap-x-6 gap-y-3 overflow-y-auto pr-1 sm:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
         {rows.map((row, index) => (
           <li key={row.key} className="flex min-w-0 items-center justify-between gap-3 text-xs">
             <span className="flex min-w-0 items-center gap-2">
-              <AssetLogo symbol={row.key} size={20} />
+              {withLogo && <AssetLogo symbol={row.key} size={20} />}
               <span aria-hidden="true" className={cn("size-2.5 shrink-0", assetMixFill(index))} />
-              <span className="truncate text-foreground">{row.key}</span>
+              <span className="truncate text-foreground">{labelOf(row.key)}</span>
             </span>
             <span className="shrink-0 tabular-nums text-muted-foreground">
               {row.count} · {Math.round(row.share * 100)}%
@@ -381,43 +389,6 @@ function AssetMix({ rows }: { rows: readonly RankedInsight[] }) {
         ))}
       </ul>
     </div>
-  );
-}
-
-function RankedBreakdown({
-  title,
-  hint,
-  rows,
-  labelOf = (value) => value,
-}: {
-  title: string;
-  hint: string;
-  rows: readonly RankedInsight[];
-  labelOf?: (value: string) => string;
-}) {
-  return (
-    <Card className="gap-4">
-      <CardTitle hint={hint}>{title}</CardTitle>
-      {rows.length === 0 ? (
-        <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>
-      ) : (
-        <ol className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
-          {rows.map((row) => (
-            <li key={row.key} className="flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="truncate text-foreground">{labelOf(row.key)}</span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {row.count} · {Math.round(row.share * 100)}%
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden bg-muted" aria-hidden="true">
-                <div className="h-full bg-chart-1" style={{ width: `${row.share * 100}%` }} />
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-    </Card>
   );
 }
 
@@ -864,14 +835,19 @@ function Analytics() {
                 <CardTitle hint="Assets buyers used for completed payments in the current period.">
                   Payer assets
                 </CardTitle>
-                <AssetMix rows={assetMix} />
+                <PayerMix rows={assetMix} withLogo />
               </Card>
-              <RankedBreakdown
-                title="Payer countries"
-                hint="Country captured at checkout. Older payments without country metadata remain Unknown."
-                rows={countryMix}
-                labelOf={(value) => (value === "Unknown" ? value : countryLabel(value))}
-              />
+              <Card className="gap-4">
+                <CardTitle hint="Country captured at checkout. Older payments without country metadata remain Unknown.">
+                  Payer countries
+                </CardTitle>
+                <PayerMix
+                  rows={countryMix}
+                  labelOf={(value) =>
+                    value === "Unknown" || value === "Others" ? value : countryLabel(value)
+                  }
+                />
+              </Card>
             </div>
           </section>
 

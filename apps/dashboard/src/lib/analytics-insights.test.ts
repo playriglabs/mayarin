@@ -109,4 +109,25 @@ describe("analytics insights", () => {
       ["Unknown", 1],
     ]);
   });
+
+  test("folds everything past the fourth rank into Others", () => {
+    const assets = ["USDC", "USDC", "USDC", "ETH", "ETH", "EURC", "DAI", "WBTC", "USDT"];
+    const rows = assets.map((asset, index) =>
+      payment(`p${index}`, "2026-09-10T00:00:00.000Z", {
+        payment: { asset, chain: "base-sepolia" },
+        metadata: { payerCountryCode: ["ID", "SG", "MY", "TH", "VN", "PH"][index % 6] ?? "ID" },
+      }),
+    );
+    expect(payerAssetBreakdown(rows).map(({ key, count }) => [key, count])).toEqual([
+      ["USDC", 3],
+      ["ETH", 2],
+      ["DAI", 1],
+      ["EURC", 1],
+      ["Others", 2],
+    ]);
+    const countries = payerCountryBreakdown(rows);
+    expect(countries).toHaveLength(5);
+    expect(countries.at(-1)?.key).toBe("Others");
+    expect(countries.reduce((sum, row) => sum + row.count, 0)).toBe(assets.length);
+  });
 });
