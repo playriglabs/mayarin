@@ -30,6 +30,26 @@ const TRANSFER_EVENT = parseAbiItem(
 const BALANCE_OF = parseAbiItem("function balanceOf(address) view returns (uint256)");
 
 /**
+ * Where a token's `Transfer` logs are read, when that is not the token itself.
+ *
+ * Arc's USDC is one balance behind two interfaces (docs/chain.md). A call to
+ * the ERC-20 contract writes a `Transfer` on both; a plain value send — what a
+ * wallet does with Arc's gas coin — writes one only on the 18-decimal native
+ * view. Scanning the token missed every wallet payment. The native view sees
+ * each movement exactly once, and dividing by 10^12 gives the six-decimal
+ * amount `balanceOf` reports, dust below a micro-USDC dropped as it does there.
+ */
+const NATIVE_VIEW_LOGS: Readonly<
+  Partial<Record<ChainId, { asset: AssetCode; address: `0x${string}`; scale: bigint }>>
+> = {
+  "arc-testnet": {
+    asset: "USDC",
+    address: "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfE",
+    scale: 10n ** 12n,
+  },
+};
+
+/**
  * Taken from the generated ABI rather than re-declared: a hand-written
  * signature that drifts from the contract yields the wrong topic hash, and the
  * failure mode is silence — the filter simply matches nothing.
@@ -130,7 +150,11 @@ export class EvmChainClient implements ChainClient {
       return this.#nativeTransfers(query);
     }
 
-    const token = this.#tokenAddress(query.chain, query.asset);
+    const view = NATIVE_VIEW_LOGS[query.chain];
+    const source =
+      view !== undefined && view.asset === query.asset
+        ? view
+        : { address: this.#tokenAddress(query.chain, query.asset), scale: 1n };
     const to = query.addresses.map((address) => getAddress(address));
     const client = this.#clientFor(query.chain);
 
@@ -143,7 +167,7 @@ export class EvmChainClient implements ChainClient {
         ...(await this.#rpc(
           query.chain,
           client.getLogs({
-            address: token,
+            address: source.address,
             event: TRANSFER_EVENT,
             args: { to },
             fromBlock,
@@ -170,7 +194,7 @@ export class EvmChainClient implements ChainClient {
           blockHash: log.blockHash,
           from: (log.args.from ?? "").toLowerCase(),
           to: log.args.to.toLowerCase(),
-          amount: log.args.value,
+          amount: log.args.value / source.scale,
         },
       ];
     });

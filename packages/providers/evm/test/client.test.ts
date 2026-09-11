@@ -238,3 +238,69 @@ describe("native transfers", () => {
     expect(seen).not.toContain("eth_getBlockByNumber");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Arc USDC deposits
+//
+// A wallet sends Arc USDC as the gas coin, a plain value transfer that writes a
+// `Transfer` only on the 18-decimal native view. The token-log scan never saw
+// one (tx 0xa092…cbca6 on Arc testnet, 11 September).
+// ---------------------------------------------------------------------------
+
+const ARC_NATIVE_VIEW = "0xfffffffffffffffffffffffffffffffffffffffe";
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const topic = (address: string) => `0x${address.slice(2).toLowerCase().padStart(64, "0")}`;
+
+describe("Arc USDC transfers", () => {
+  test("are read from the native view and scaled to six decimals", async () => {
+    const requested: { address: string }[] = [];
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const body = (await request.json()) as { id: number; method: string; params: unknown[] };
+        if (body.method !== "eth_getLogs") {
+          return Response.json({ jsonrpc: "2.0", id: body.id, result: null });
+        }
+        requested.push(body.params[0] as { address: string });
+        return Response.json({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: [
+            {
+              address: ARC_NATIVE_VIEW,
+              topics: [TRANSFER_TOPIC, topic(OTHER), topic(DEPOSIT)],
+              data: `0x${9_602_272_000_000_000_000n.toString(16).padStart(64, "0")}`,
+              blockNumber: hex(10n),
+              blockHash: `0x${"0a".repeat(32)}`,
+              transactionHash: `0x${"aa".repeat(32)}`,
+              transactionIndex: "0x7",
+              logIndex: "0xc",
+              removed: false,
+            },
+          ],
+        });
+      },
+    });
+
+    try {
+      const client = new EvmChainClient({
+        rpcUrls: { "arc-testnet": `http://localhost:${server.port}` },
+        tokens: { "arc-testnet": { USDC: "0x3600000000000000000000000000000000000000" } },
+      });
+      const transfers = await client.transfers({
+        chain: "arc-testnet",
+        asset: "USDC",
+        fromBlock: 10n,
+        toBlock: 10n,
+        addresses: [DEPOSIT],
+      });
+
+      expect(requested[0]?.address.toLowerCase()).toBe(ARC_NATIVE_VIEW);
+      expect(transfers).toHaveLength(1);
+      expect(transfers[0]?.amount).toBe(9_602_272n);
+      expect(transfers[0]?.logIndex).toBe(12);
+    } finally {
+      server.stop(true);
+    }
+  });
+});

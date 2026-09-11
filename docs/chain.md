@@ -298,6 +298,15 @@ balance, a factor of 10^12 apart, with the native side canonical. They are not
 two holdings. Modelling them as two `AssetCode`s would count the same money
 twice, and every reconciliation afterwards would be wrong while still balancing.
 
+The deposit watcher follows from that. A wallet sends Arc USDC as the gas coin:
+a plain value transfer, which writes a `Transfer` only on the native view at
+`0xffff…fffe`. A call to the ERC-20 contract writes one on both views. Scanning
+the token's logs therefore missed every wallet payment, silently.
+`EvmChainClient.transfers` reads Arc USDC from the native view instead, which
+sees each movement exactly once, and divides by 10^12 into the six-decimal
+amount `balanceOf` reports. USDC stays an ERC-20 asset everywhere else,
+balances included.
+
 That contract is not a precompile despite its address. It is Circle's
 `FiatTokenV2` behind an EIP-1967 proxy, and — though Arc's documentation
 describes only `transferFrom`, `approve` and allowances — it implements EIP-3009
