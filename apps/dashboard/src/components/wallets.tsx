@@ -237,28 +237,14 @@ function Wallets() {
         wallet.chain === targetChain && wallet.verified && wallet.provenance !== "provisioned",
     );
   /**
-   * Whether there is anything left for the three header actions to add.
+   * Whether the merchant already holds a Mayarin-managed wallet.
    *
-   * All three exist to put an address on a chain: one from the merchant's own
-   * wallet, one typed in, one provisioned by Mayarin. A merchant who already
-   * holds both kinds on every network this deployment provisions on has nothing
-   * to add, and three buttons offering it are noise on the screen that is
-   * meant to show them what they have.
-   *
-   * Existence, not verification: an address that is present but unproven still
-   * needs work, and that work is the row's own "Prove control" — not one of
-   * these. Gated on a non-empty chain list so the actions stay visible while
-   * the list is still loading, when hiding them would be a guess.
+   * One managed wallet is the limit: once it exists, neither the header actions
+   * nor a network card offers to create another. The header's connect actions
+   * go with it — they only ever acted on the default network, which each
+   * network card already covers with its own "Connect on …".
    */
-  const everyChainHasBothWallets =
-    provisionChains.length > 0 &&
-    provisionChains.every(
-      (targetChain) =>
-        rows.some(
-          (wallet) => wallet.chain === targetChain && wallet.provenance !== "provisioned",
-        ) &&
-        rows.some((wallet) => wallet.chain === targetChain && wallet.provenance === "provisioned"),
-    );
+  const hasManagedWallet = rows.some((wallet) => wallet.provenance === "provisioned");
   /** One row per chain this deployment settles on, in the API's order (#244). */
   const chainBalances = balance.data?.balances ?? [];
   /** The assets in the open withdraw dialog: the chosen chain's, never another's. */
@@ -481,25 +467,24 @@ function Wallets() {
         <p className="font-mono text-xs text-subtle-foreground">
           {rows.length} wallet{rows.length === 1 ? "" : "s"}
         </p>
-        <span className="flex flex-wrap justify-end gap-2">
-          {/* The browser's wallet does the whole ceremony, so it is the primary
-              action wherever there is one. The typed-address path stays for a
-              wallet that is not in this browser — a hardware signer, a Safe
-              app, another machine. All three disappear once every network has
-              both kinds of address, because then they add nothing. */}
-          {!everyChainHasBothWallets && injected.length > 0 && chain !== undefined && (
-            <Button
-              variant="secondary"
-              onClick={() => withWallet("connect", chain)}
-              disabled={signing}
-            >
-              <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-              {signing
-                ? "Check your wallet…"
-                : `Connect ${chosen?.name ?? "wallet"} on ${chainLabel(chain)}`}
-            </Button>
-          )}
-          {!everyChainHasBothWallets && (
+        {/* The browser's wallet does the whole ceremony, so it is the primary
+            action wherever there is one. The typed-address path stays for a
+            wallet that is not in this browser — a hardware signer, a Safe app,
+            another machine. All three go once a managed wallet exists. */}
+        {!hasManagedWallet && (
+          <span className="flex flex-wrap justify-end gap-2">
+            {injected.length > 0 && chain !== undefined && (
+              <Button
+                variant="secondary"
+                onClick={() => withWallet("connect", chain)}
+                disabled={signing}
+              >
+                <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                {signing
+                  ? "Check your wallet…"
+                  : `Connect ${chosen?.name ?? "wallet"} on ${chainLabel(chain)}`}
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={() => openConnect()}
@@ -508,14 +493,14 @@ function Wallets() {
               <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
               Connect existing
             </Button>
-          )}
-          {!everyChainHasBothWallets && chain !== undefined && hasVerifiedWalletOn(chain) && (
-            <Button onClick={() => void provisionOn(chain)} disabled={provision.isPending}>
-              <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-              Create on {chainLabel(chain)}
-            </Button>
-          )}
-        </span>
+            {chain !== undefined && hasVerifiedWalletOn(chain) && (
+              <Button onClick={() => void provisionOn(chain)} disabled={provision.isPending}>
+                <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                Create on {chainLabel(chain)}
+              </Button>
+            )}
+          </span>
+        )}
       </div>
 
       {notice !== "" && (
@@ -545,89 +530,99 @@ function Wallets() {
                 chain — the salt carries it — so a merchant paid on two chains
                 holds two addresses and two balances (#244). Showing one of them
                 made the other chain's money invisible. */}
+            {/* Networks with an address first: the money is the question this
+                page opens with, and an empty network ahead of it pushed the
+                funded card out of the first row. Stable, so the API's order
+                holds within each group. */}
             <div className="grid gap-3 lg:grid-cols-2">
-              {chainBalances.map((row) => {
-                const provisionable = provisionChains.includes(row.chain);
-                const hasDestination = destinations.some((wallet) => wallet.chain === row.chain);
-                const hasVerifiedSigner = hasVerifiedWalletOn(row.chain);
-                return (
-                  <Card key={row.chain} className="flex flex-col gap-4 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex flex-col gap-1">
-                        <h3 className="font-medium text-sm">
-                          <ChainLabel chain={row.chain} />
-                        </h3>
-                        <p className="break-all font-mono text-subtle-foreground text-sm">
-                          {row.address ?? "No settlement address on this network yet"}
-                        </p>
+              {[...chainBalances]
+                .sort((a, b) => Number(a.address === null) - Number(b.address === null))
+                .map((row) => {
+                  const provisionable = provisionChains.includes(row.chain);
+                  const hasDestination = destinations.some((wallet) => wallet.chain === row.chain);
+                  const hasVerifiedSigner = hasVerifiedWalletOn(row.chain);
+                  return (
+                    <Card key={row.chain} className="flex flex-col gap-4 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex flex-col gap-1">
+                          <h3 className="font-medium text-sm">
+                            <ChainLabel chain={row.chain} />
+                          </h3>
+                          <p className="break-all font-mono text-subtle-foreground text-sm">
+                            {row.address ?? "No settlement address on this network yet"}
+                          </p>
+                        </div>
+                        <span className="flex flex-wrap gap-2">
+                          {row.address === null && (
+                            <Button variant="secondary" onClick={() => openConnect(row.chain)}>
+                              <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                              Connect on {chainLabel(row.chain)}
+                            </Button>
+                          )}
+                          {row.address === null &&
+                            !hasManagedWallet &&
+                            hasVerifiedSigner &&
+                            provisionable && (
+                              <Button
+                                variant="secondary"
+                                onClick={() => void provisionOn(row.chain)}
+                                disabled={provision.isPending}
+                              >
+                                <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                                Create wallet on {chainLabel(row.chain)}
+                              </Button>
+                            )}
+                          {row.withdrawable && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => openWithdraw(row)}
+                              disabled={row.balances.length === 0 || !hasDestination}
+                            >
+                              <ArrowLineUpRightIcon
+                                size={ICON_NAV}
+                                weight="bold"
+                                aria-hidden="true"
+                              />
+                              Withdraw
+                            </Button>
+                          )}
+                        </span>
                       </div>
-                      <span className="flex flex-wrap gap-2">
-                        {row.address === null && (
-                          <Button variant="secondary" onClick={() => openConnect(row.chain)}>
-                            <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                            Connect on {chainLabel(row.chain)}
-                          </Button>
-                        )}
-                        {row.address === null && hasVerifiedSigner && provisionable && (
-                          <Button
-                            variant="secondary"
-                            onClick={() => void provisionOn(row.chain)}
-                            disabled={provision.isPending}
-                          >
-                            <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                            Create wallet on {chainLabel(row.chain)}
-                          </Button>
-                        )}
-                        {row.withdrawable && (
-                          <Button
-                            variant="secondary"
-                            onClick={() => openWithdraw(row)}
-                            disabled={row.balances.length === 0 || !hasDestination}
-                          >
-                            <ArrowLineUpRightIcon
-                              size={ICON_NAV}
-                              weight="bold"
-                              aria-hidden="true"
-                            />
-                            Withdraw
-                          </Button>
-                        )}
-                      </span>
-                    </div>
 
-                    {row.balances.length === 0 ? (
-                      <p className="text-muted-foreground text-sm">
-                        {row.address === null
-                          ? "Nothing can be paid to you on this network until you have an address here."
-                          : "Nothing here yet."}
-                      </p>
-                    ) : (
-                      <dl className="flex flex-wrap gap-6">
-                        {row.balances.map((amount) => (
-                          <div key={amount.asset} className="flex flex-col gap-1">
-                            <dt className="text-muted-foreground text-xs uppercase">
-                              <AssetLabel symbol={amount.asset} size={18} />
-                            </dt>
-                            <dd className="font-mono text-lg tabular-nums">{amount.display}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    )}
+                      {/* A network with no address says so in its subtitle already;
+                        a second sentence repeating it only made the card taller. */}
+                      {row.balances.length === 0 ? (
+                        row.address !== null && (
+                          <p className="text-muted-foreground text-sm">Nothing here yet.</p>
+                        )
+                      ) : (
+                        <dl className="flex flex-wrap gap-6">
+                          {row.balances.map((amount) => (
+                            <div key={amount.asset} className="flex flex-col gap-1">
+                              <dt className="text-muted-foreground text-xs uppercase">
+                                <AssetLabel symbol={amount.asset} size={18} />
+                              </dt>
+                              <dd className="font-mono text-lg tabular-nums">{amount.display}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
 
-                    {row.address !== null && !row.withdrawable && (
-                      <p className="text-muted-foreground text-xs">
-                        This address is yours, not one Mayarin provisioned — withdraw from it in
-                        your own wallet.
-                      </p>
-                    )}
-                    {row.withdrawable && !hasDestination && (
-                      <p className="text-muted-foreground text-xs">
-                        Connect and verify an address on {chainLabel(row.chain)} to withdraw to it.
-                      </p>
-                    )}
-                  </Card>
-                );
-              })}
+                      {row.address !== null && !row.withdrawable && (
+                        <p className="text-muted-foreground text-xs">
+                          This address is yours, not one Mayarin provisioned — withdraw from it in
+                          your own wallet.
+                        </p>
+                      )}
+                      {row.withdrawable && !hasDestination && (
+                        <p className="text-muted-foreground text-xs">
+                          Connect and verify an address on {chainLabel(row.chain)} to withdraw to
+                          it.
+                        </p>
+                      )}
+                    </Card>
+                  );
+                })}
             </div>
           </div>
         ))}
@@ -793,15 +788,10 @@ function Wallets() {
                         {formatDateTime(wallet.createdAt)}
                       </time>
                     </TableCell>
+                    {/* Only an action that is left to take. A verified row has
+                        none, and a check icon here repeated the Control badge. */}
                     <TableCell className="text-right">
-                      {wallet.verified ? (
-                        <CheckCircleIcon
-                          size={ICON_NAV}
-                          weight="fill"
-                          aria-label="Verified"
-                          className="ml-auto text-success"
-                        />
-                      ) : (
+                      {!wallet.verified && (
                         <Button variant="ghost" size="sm" onClick={() => void startProof(wallet)}>
                           <SealCheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
                           Prove control
