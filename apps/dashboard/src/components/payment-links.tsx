@@ -45,6 +45,7 @@ import { match } from "ts-pattern";
 import { AssetLogo } from "@/components/asset-logo";
 import { ChainLogo } from "@/components/chain-logo";
 import { DepositQr } from "@/components/deposit-qr";
+import { RailGroups } from "@/components/rail-groups";
 import { Alert } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -303,9 +304,8 @@ function AcceptedRailChips({ rails }: { readonly rails: readonly PaymentLinkRail
   }
 
   const { shown, remaining } = railChipSummary(rails);
-  const hiddenLabels = rails
-    .slice(shown.length)
-    .map((rail) => `${chainLabel(rail.chain)} · ${rail.asset}`);
+  const hidden = rails.slice(shown.length);
+  const hiddenLabels = hidden.map((rail) => `${chainLabel(rail.chain)} · ${rail.asset}`);
 
   return (
     <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
@@ -335,12 +335,8 @@ function AcceptedRailChips({ rails }: { readonly rails: readonly PaymentLinkRail
                 </span>
               }
             />
-            <TooltipContent>
-              <span className="flex flex-col gap-0.5">
-                {hiddenLabels.map((label) => (
-                  <span key={label}>{label}</span>
-                ))}
-              </span>
+            <TooltipContent className="max-w-md">
+              <RailGroups rails={hidden} />
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

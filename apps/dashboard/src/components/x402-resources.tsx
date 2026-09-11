@@ -24,6 +24,7 @@ import {
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { ChainLabel } from "@/components/chain-logo";
+import { RailGroups } from "@/components/rail-groups";
 import { Alert } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -140,12 +141,8 @@ function RailBadges({ accepts }: { readonly accepts: readonly X402Accept[] }) {
                 </Badge>
               }
             />
-            <TooltipContent>
-              <span className="flex flex-col gap-0.5">
-                {hiddenLabels.map((label) => (
-                  <span key={label}>{label}</span>
-                ))}
-              </span>
+            <TooltipContent className="max-w-md">
+              <RailGroups rails={hidden} />
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

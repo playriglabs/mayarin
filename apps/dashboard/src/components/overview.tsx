@@ -13,7 +13,10 @@ import {
   CheckCircleIcon,
   CoinsIcon,
   HourglassMediumIcon,
+  MinusIcon,
   ReceiptIcon,
+  TrendDownIcon,
+  TrendUpIcon,
 } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
 import { ChainStack } from "@/components/chain-logo";
@@ -222,6 +225,81 @@ function dailyTotals(
   return recentDays(MOVEMENT_DAYS).map((date) => ({ date, total: byDay.get(date) ?? 0n }));
 }
 
+/** Today's sales against yesterday's, for the indicator beside the balance. */
+export interface TodayMovement {
+  readonly today: bigint;
+  readonly yesterday: bigint;
+  /** Whole-percent change from yesterday. `null` when yesterday had nothing to compare. */
+  readonly changePercent: number | null;
+  readonly direction: "up" | "down" | "flat";
+}
+
+/**
+ * Today's sales from a daily series, compared with the day before.
+ *
+ * Reads the pay-out series: what reached the merchant, net of fee, in the
+ * settlement asset — the same figures as the Pay outs card, so the indicator
+ * and the chart below it never disagree. Days are UTC, like every chart on the
+ * page, and the series ends today.
+ */
+export function todayMovement(daily: readonly { date: string; total: bigint }[]): TodayMovement {
+  const today = daily[daily.length - 1]?.total ?? 0n;
+  const yesterday = daily[daily.length - 2]?.total ?? 0n;
+  return {
+    today,
+    yesterday,
+    changePercent:
+      yesterday === 0n ? null : Math.round(Number(((today - yesterday) * 100n) / yesterday)),
+    direction: today > yesterday ? "up" : today < yesterday ? "down" : "flat",
+  };
+}
+
+const TREND_TONE: Readonly<Record<TodayMovement["direction"], string>> = {
+  up: "text-success",
+  down: "text-destructive",
+  flat: "text-muted-foreground",
+};
+
+/**
+ * The line beside the balance: what came in today, and which way it is going.
+ *
+ * Coloured and iconed by the comparison with yesterday rather than by whether
+ * anything sold, so a quieter day reads as one at a glance. A day with no sales
+ * yet says so plainly instead of reporting a fall from yesterday that is only
+ * the clock — most of the day has not happened.
+ */
+function TodayIndicator({ movement, asset }: { movement: TodayMovement; asset: string }) {
+  if (movement.today === 0n) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
+        <MinusIcon size={14} weight="bold" aria-hidden="true" />
+        No sales yet today
+      </span>
+    );
+  }
+
+  const Icon =
+    movement.direction === "up"
+      ? TrendUpIcon
+      : movement.direction === "down"
+        ? TrendDownIcon
+        : MinusIcon;
+  const change =
+    movement.changePercent === null
+      ? null
+      : `${movement.changePercent > 0 ? "+" : ""}${movement.changePercent}% vs yesterday`;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 font-medium text-xs ${TREND_TONE[movement.direction]}`}
+    >
+      <Icon size={16} weight="bold" aria-hidden="true" />+{balanceDisplay(movement.today, asset)}{" "}
+      today
+      {change !== null && <span className="font-normal opacity-80">· {change}</span>}
+    </span>
+  );
+}
+
 /**
  * What the merchant holds, where it is held, and how it got there.
  *
@@ -238,11 +316,13 @@ function BalanceOverview({
   asset,
   chains,
   history,
+  today,
 }: {
   total: bigint;
   asset: string | undefined;
   chains: readonly ChainHolding[];
   history: readonly { date: string; balance: bigint }[];
+  today: TodayMovement;
 }) {
   if (asset === undefined) {
     return (
@@ -266,9 +346,12 @@ function BalanceOverview({
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div className="flex flex-col gap-3">
           <span className="text-muted-foreground text-xs tracking-wide">Balance</span>
-          <span className="font-medium text-[30px] text-foreground tracking-tight pb-1">
-            {balanceDisplay(total, asset)}
-          </span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-1">
+            <span className="font-medium text-[30px] text-foreground tracking-tight">
+              {balanceDisplay(total, asset)}
+            </span>
+            <TodayIndicator movement={today} asset={asset} />
+          </div>
           <span className="text-subtle-foreground text-xs">
             {chains.length === 0
               ? "No settlement address yet."
@@ -523,6 +606,7 @@ function Overview() {
                   asset={settlementAsset}
                   chains={holdings.chains}
                   history={history}
+                  today={todayMovement(payOutDaily)}
                 />
               )}
             </div>
