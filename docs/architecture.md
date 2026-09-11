@@ -273,7 +273,7 @@ apps/
   ✓ demo/                Parahyangan Supply reference storefront
   ✓ x402-merchant/       reference merchant app gating its own endpoint over x402
   ✓ docs/                interactive OpenAPI + SDK documentation (docs.mayarin.xyz)
-  ✓ landing/             marketing site and pitch deck
+  ✓ landing/             marketing site
   ✓ blog/ studio/        editorial site and content studio
 
 packages/

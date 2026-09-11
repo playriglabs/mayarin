@@ -1,5 +1,0 @@
-# The deck is kept out of the index by noindex, which Google can only obey if
-# it is allowed to crawl the page and read it. The splat covers the trailing
-# slash the site actually serves.
-/pitch-deck*
-  X-Robots-Tag: noindex, nofollow

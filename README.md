@@ -342,7 +342,7 @@ What shipped with which PR, and what remains before submissions close on
 
 ## Architecture
 
-![Mayarin architecture flow: merchants and customers enter through the Mayarin API, which coordinates quoting, contract execution or transfer watching, clearing, the ledger, and stablecoin settlement](./apps/landing/public/images/pitch-deck/mayarin-architecture-flow.png)
+![Mayarin architecture flow: merchants and customers enter through the Mayarin API, which coordinates quoting, contract execution or transfer watching, clearing, the ledger, and stablecoin settlement](./apps/landing/public/images/product/mayarin-architecture-flow.png)
 
 Mayarin follows ports and adapters. Pure domain packages define the contracts;
 Postgres, EVM, oracle, liquidity, settlement, and wallet packages implement
@@ -543,7 +543,7 @@ bun run dev                  # core payment API on http://localhost:3000
 bun run dev:dashboard:local  # reset and run the complete local dashboard flow
 bun run dev:demo             # Parahyangan Supply reference storefront
 bun run dev:docs             # interactive API documentation
-bun run dev:landing          # marketing site and pitch deck
+bun run dev:landing          # marketing site
 bun run dev:studio           # content studio
 ```
 
@@ -600,7 +600,7 @@ Mayarin is a Bun workspace monorepo.
 | `apps/dashboard`                    | Merchant operations dashboard                                    |
 | `apps/demo`                         | Parahyangan Supply reference storefront                          |
 | `apps/docs`                         | Interactive API and SDK documentation                            |
-| `apps/landing`                      | Marketing site and pitch deck                                    |
+| `apps/landing`                      | Marketing site                                                   |
 | `apps/pay-proxy`                    | Restricted buyer-origin proxy for hosted payment surfaces        |
 | `apps/blog` / `apps/studio`         | Editorial site and content studio                                |
 | `packages/core/*`                   | Pure domain modules and provider/repository ports                |

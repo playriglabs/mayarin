@@ -2,7 +2,6 @@ import type { VNode } from "preact";
 import { BrandKit } from "./pages/brand-kit.tsx";
 import { Landing } from "./pages/landing.tsx";
 import { NotFound } from "./pages/not-found.tsx";
-import { PitchDeck } from "./pages/pitch-deck/index.tsx";
 
 export const SITE_URL = "https://mayarin.xyz";
 
@@ -48,16 +47,6 @@ export const routes: readonly Route[] = [
       description:
         "Download the Mayarin brand marks and wordmarks for product, communications and partner surfaces.",
       canonical: `${SITE_URL}/brand-kit`,
-    },
-  },
-  {
-    path: "/pitch-deck",
-    page: () => <PitchDeck />,
-    file: "pitch-deck/index.html",
-    meta: {
-      title: "Mayarin — Pitch",
-      description: "The Mayarin pitch deck.",
-      // No canonical: the prerender marks a page without one as noindex.
     },
   },
 ];

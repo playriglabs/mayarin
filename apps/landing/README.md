@@ -46,7 +46,7 @@ beyond layout utilities.
 | Token            | Value     | Used for                                                         |
 | ---------------- | --------- | ---------------------------------------------------------------- |
 | `--color-paper`  | `#ffffff` | Light sections                                                   |
-| `--color-void`   | `#050505` | Reserved for dark surfaces; the pitch deck uses it               |
+| `--color-void`   | `#050505` | Dark surfaces; the brand kit uses it                             |
 | `--color-ink`    | `#111111` | Primary text                                                     |
 | `--color-slate`  | `#666666` | Secondary text                                                   |
 | `--color-line`   | `#eaeaea` | Hairlines on light                                               |
@@ -82,8 +82,7 @@ in `public/images/` and pass its URL to `DashboardPreview` in
   wordmark, the `Globe`, the "Powered by" strip and its `LOGOS` list,
   `ScrambleText`, `use-case-content.tsx`, and `ui.tsx`, which is now only
   `ArrowRight`.
-- `src/graphics/*` — `glyphs.tsx` (the principle marks), `grid-field.tsx` and
-  `wave-grid.tsx` (pitch-deck backdrops).
+- `src/graphics/glyphs.tsx` — the principle marks.
 - `src/data/capability-snippets.json` and `src/data/snippets.json` +
   `plugins/shiki-snippets.ts` — the code samples and the Vite plugin that
   highlights them. Shiki runs at build time behind a `virtual:code-snippets`
@@ -105,14 +104,6 @@ in `public/images/` and pass its URL to `DashboardPreview` in
   `data-lenis-prevent`: the latter hands Lenis back every gesture over the
   element, so scrolling the page past a carousel drops out of the smoothed scroll
   and back into the browser's own.
-
-- `src/pages/pitch-deck/*` — the pitch deck at `/pitch-deck`, `noindex`.
-  `slides.tsx` mirrors `docs/pitch-deck.md` slide for slide; change the copy there
-  first. The track is a horizontal scroll-snap row from `md` up (a long page
-  below), each slide declares its own reveal, and some carry a backdrop from
-  `graphics/` or the dark `Globe`. Keyboard: arrows, paging keys, Home/End, `F`
-  fullscreen, `N` notes, `T` presenter timer, `R` timer reset; a vertical wheel
-  turns one page. Lenis does not mount here — it would fight the snap.
 
 ## Logos
 
