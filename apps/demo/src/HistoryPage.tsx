@@ -71,7 +71,7 @@ function OrderCard({
       )}
       {order.paymentId !== undefined && (
         <a
-          className="payment-reference order-status-link"
+          className="payment-reference order-status-link ml-5"
           href={`/checkout/success/${encodeURIComponent(order.paymentId)}`}
         >
           View payment status
