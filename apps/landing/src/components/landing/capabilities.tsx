@@ -6,7 +6,7 @@ import { CapabilityVisual } from "./capability-visuals.tsx";
 import { LanguageMark } from "./language-mark.tsx";
 import { SectionIntro } from "./ui.tsx";
 
-export type CapabilityKind = "accept" | "route" | "settle" | "agent";
+export type CapabilityKind = "accept" | "route" | "settle" | "track";
 
 const CAPABILITIES = [
   {
@@ -28,10 +28,10 @@ const CAPABILITIES = [
     chips: ["Merchant Safe", "On-chain settlement", "Double-entry ledger", "Signed webhooks"],
   },
   {
-    id: "agent",
-    title: "Charge an agent",
-    description: "One signature for an exact amount. No account, no key, no gas to understand.",
-    chips: ["x402", "EIP-3009", "Per-request pricing", "Cross-asset"],
+    id: "track",
+    title: "Track money",
+    description: "Follow every payment from price lock to settled funds, all in one dashboard.",
+    chips: ["Live payment status", "Analytics", "Settlement records", "Customer history"],
   },
 ] as const satisfies readonly {
   readonly id: CapabilityKind;
@@ -42,7 +42,7 @@ const CAPABILITIES = [
 
 const SNIPPETS = new Map(capabilitySnippets.map((snippet) => [snippet.id, snippet]));
 
-function CopyIcon({ copied }: { readonly copied: boolean }) {
+export function CopyIcon({ copied }: { readonly copied: boolean }) {
   return (
     <svg
       width="14"

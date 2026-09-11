@@ -1,8 +1,10 @@
 import { useEffect } from "preact/hooks";
 import { Footer } from "../components/footer.tsx";
 import { Capabilities } from "../components/landing/capabilities.tsx";
+import { Developers } from "../components/landing/developers.tsx";
 import { EarlyAccessCta } from "../components/landing/early-access-cta.tsx";
 import { Facts } from "../components/landing/facts.tsx";
+import { Faq } from "../components/landing/faq.tsx";
 import { Navigation } from "../components/landing/nav.tsx";
 import { PlatformInAction } from "../components/landing/platform-in-action.tsx";
 import { Principles } from "../components/landing/principles.tsx";
@@ -25,10 +27,12 @@ export function Landing() {
           <ValueStrip />
           <Capabilities />
           <PlatformInAction />
+          <Developers />
           <UseCases />
           <Reach />
           <Principles />
           <Facts />
+          <Faq />
           <EarlyAccessCta />
         </main>
       </div>

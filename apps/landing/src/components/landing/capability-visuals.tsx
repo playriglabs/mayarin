@@ -98,29 +98,34 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
     );
   }
 
-  if (kind === "settle") {
+  if (kind === "track") {
     return (
       <Frame>
-        <div class="w-full max-w-70 rounded-xl border border-line bg-paper p-5 text-center shadow-[0_12px_40px_#142b1610]">
-          <span class="mx-auto flex size-9 items-center justify-center">
-            <RailMark asset="USDC" chain="base" size={36} />
-          </span>
-          <p class="mt-3 text-[10px] text-slate-600">Settled to your wallet</p>
-          <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDC</strong>
+        <div class="flex min-h-72 w-full max-w-70 flex-col rounded-xl border border-line bg-paper p-5 shadow-[0_12px_40px_#142b1610]">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-[11px] text-slate-600">Studio Supply · inv-2026-014</p>
+              <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDC</strong>
+            </div>
+            <span class="rounded-full bg-v2-sage px-3 py-1 text-[11px] text-forest">Settled</span>
+          </div>
           <div class="my-5 h-px bg-line" />
-          <div class="space-y-2 text-left text-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&_span]:text-slate-600">
-            <div>
-              <span>Debit · Clearing</span>
-              <strong>1,500.00</strong>
-            </div>
-            <div>
-              <span>Credit · Merchant</span>
-              <strong>1,500.00</strong>
-            </div>
-          </div>
-          <div class="mt-5 flex items-center justify-center gap-2 rounded-lg bg-v2-sage p-2.5 text-[11px] text-forest">
-            <Check /> Ledger balanced
-          </div>
+          <ol class="relative flex flex-1 flex-col justify-between gap-4 text-xs before:absolute before:top-2.5 before:bottom-2.5 before:left-[9.5px] before:w-px before:bg-forest/20">
+            {[
+              { step: "Price locked", time: "10:02" },
+              { step: "Asset received", time: "10:03" },
+              { step: "Cleared", time: "10:03" },
+              { step: "Settled to wallet", time: "10:04" },
+            ].map((item) => (
+              <li key={item.step} class="flex items-center gap-3">
+                <span class="relative flex size-5 items-center justify-center rounded-full bg-v2-sage text-forest [&_svg]:size-3">
+                  <Check />
+                </span>
+                <span>{item.step}</span>
+                <span class="ml-auto text-slate-600">{item.time}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       </Frame>
     );
@@ -128,29 +133,26 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
 
   return (
     <Frame>
-      <div class="w-full max-w-75 font-mono text-[10px]">
-        {[
-          { label: "Request", detail: "GET /premium/fx-quote", success: false },
-          { label: "Terms", detail: "402 · $0.10 USDC · Base", success: false },
-          { label: "Authorize", detail: "Sign the exact amount", success: false },
-          { label: "Retry", detail: "PAYMENT-SIGNATURE: 0x…", success: false },
-          { label: "Complete", detail: "200 OK · settlement queued", success: true },
-        ].map((step, index, steps) => (
-          <div key={step.label}>
-            <div class="flex items-center gap-3 rounded-lg border border-line bg-paper px-3 py-2.5">
-              <span class="w-18 shrink-0 text-slate-600">{step.label}</span>
-              <span class={step.success ? "text-forest" : "text-ink"}>{step.detail}</span>
-            </div>
-            {index < steps.length - 1 && (
-              <div class="flex h-4 items-center justify-center text-slate-600" aria-hidden="true">
-                ↓
-              </div>
-            )}
+      <div class="min-h-72 w-full max-w-70 rounded-xl border border-line bg-paper p-5 text-center shadow-[0_12px_40px_#142b1610]">
+        <span class="mx-auto flex size-9 items-center justify-center">
+          <RailMark asset="USDC" chain="base" size={36} />
+        </span>
+        <p class="mt-3 text-[10px] text-slate-600">Settled to your wallet</p>
+        <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDC</strong>
+        <div class="my-5 h-px bg-line" />
+        <div class="space-y-2 text-left text-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&_span]:text-slate-600">
+          <div>
+            <span>Debit · Clearing</span>
+            <strong>1,500.00</strong>
           </div>
-        ))}
-        <p class="pt-3 text-center font-sans text-[10px] text-slate-600">
-          Five steps. One signature. No account.
-        </p>
+          <div>
+            <span>Credit · Merchant</span>
+            <strong>1,500.00</strong>
+          </div>
+        </div>
+        <div class="mt-5 flex items-center justify-center gap-2 rounded-lg bg-v2-sage p-2.5 text-[11px] text-forest">
+          <Check /> Ledger balanced
+        </div>
       </div>
     </Frame>
   );

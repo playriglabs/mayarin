@@ -26,5 +26,26 @@
     "filename": "agent.sh",
     "lang": "shellscript",
     "code": "# An agent with no account, no API key and no checkout page.\n# Ask what the resource costs before deciding to call it.\ncurl https://api-testnet.mayarin.xyz/x402/resources/fx-quote/payment-required\n\n# Or just call it. The gate answers with its own terms.\ncurl -i https://api-testnet.mayarin.xyz/premium/fx-quote\n# HTTP/1.1 402 Payment Required\n# PAYMENT-REQUIRED: <price, chains, assets, deadline>\n\n# Sign one EIP-3009 authorization for exactly that amount, then ask again.\ncurl -i https://api-testnet.mayarin.xyz/premium/fx-quote \\\n  -H \"PAYMENT-SIGNATURE: $AUTHORIZATION\"\n# HTTP/1.1 200 OK\n# PAYMENT-RESPONSE: <transaction, network>\n\n# The merchant behind it was priced in IDR and settled in USDC,\n# exactly as it would be for a person at a checkout.\n"
+  },
+  {
+    "id": "x402-gate",
+    "tab": "x402 gate",
+    "filename": "server.ts",
+    "lang": "typescript",
+    "code": "import { createX402Gate } from \"@mayarin/sdk\";\nimport { x402Connect } from \"@mayarin/sdk/x402/connect\";\n\nconst gate = createX402Gate({\n  baseUrl: \"https://api.mayarin.xyz\",\n  resourceId: \"your-resource-id\",\n});\n\napp.get(\"/premium\", x402Connect(gate), paidHandler);\n"
+  },
+  {
+    "id": "sdk-intent",
+    "tab": "SDK",
+    "filename": "create-payment.ts",
+    "lang": "typescript",
+    "code": "import { createMayarin } from \"@mayarin/sdk\";\n\nconst mayarin = createMayarin({\n  baseUrl: \"https://api.mayarin.xyz\",\n  secretKey: process.env.MAYARIN_SECRET_KEY,\n});\n\nconst intent = await mayarin.payment.createIntent({\n  merchant: { id: \"M-1\", name: \"Warung Kopi\", city: \"Jakarta\", countryCode: \"ID\" },\n  amount: { amount: \"50000.00\", asset: \"IDR\" },\n});\n\nconsole.log(intent.amount.display); // \"Rp 50.000,00\"\n"
+  },
+  {
+    "id": "agent-payables",
+    "tab": "Agents",
+    "filename": "discover-and-pay.sh",
+    "lang": "shellscript",
+    "code": "# List an invoice so agents can find it.\ncurl -X POST https://api.mayarin.xyz/v1/invoices/invc_123/list \\\n  -H \"Authorization: Bearer $MAYARIN_SECRET_KEY\"\n\n# Any agent can discover it — no merchant id needed.\ncurl https://api.mayarin.xyz/x402/payables\n\n# Pay the full balance with one signature.\ncurl -i https://api.mayarin.xyz/x402/payables/invoice/invc_123 \\\n  -H \"PAYMENT-SIGNATURE: $AUTHORIZATION\"\n"
   }
 ]

@@ -405,9 +405,8 @@ function MovementCard({
  * The five most recent payments, as a column rather than a table.
  *
  * A table needs four columns to say what it knows and this sits in a third of
- * the width, so it drops to what a merchant scans for: which payment, how much,
- * and whether it landed. On a phone the amount is omitted so the payment id and
- * status remain readable. The full table is one link away and still has the
+ * the width, so it drops to what a merchant scans for: which payment and whether
+ * it landed. The full table is one link away and still has the amount, the
  * created time, the reference and the rest.
  *
  * The id is truncated from the left. A payment id is a ULID whose leading
@@ -452,10 +451,7 @@ function RecentPayments({ payments }: { payments: readonly PaymentIntentDto[] })
                   {payment.id}
                 </span>
               </a>
-              <span className="flex shrink-0 items-center gap-2">
-                <span className="hidden text-foreground text-xs sm:inline">
-                  {payment.amount.display}
-                </span>
+              <span className="shrink-0">
                 <Badge variant={toneOf(payment.status)}>{intentStatusLabel(payment.status)}</Badge>
               </span>
             </li>

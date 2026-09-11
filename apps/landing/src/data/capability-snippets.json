@@ -21,10 +21,10 @@
     "code": "import { constructWebhook } from \"@mayarin/sdk\";\n\nconst webhookSecret = process.env.MAYARIN_WEBHOOK_SECRET;\nif (!webhookSecret) throw new Error(\"MAYARIN_WEBHOOK_SECRET is required\");\n\ntype PaymentEvent = {\n  readonly type: \"payment.created\" | \"payment.state_changed\" | \"payment.failed\";\n  readonly state: string;\n  readonly clearingTransactionId: string;\n};\n\nexport async function POST(request: Request) {\n  // A webhook is a signal, not truth: the signature is checked, then the\n  // authoritative state is read back from the API.\n  const event = await constructWebhook<PaymentEvent>({\n    payload: await request.text(),\n    signature: request.headers.get(\"Mayarin-Signature\") ?? \"\",\n    secret: webhookSecret,\n  });\n\n  if (event.type !== \"payment.state_changed\") return new Response(null, { status: 204 });\n\n  const payment = await mayarin.payment.get(event.clearingTransactionId);\n  if (payment.state === \"SETTLED\") await markOrderPaid(payment.merchantReference);\n\n  return new Response(null, { status: 204 });\n}\n"
   },
   {
-    "id": "agent",
-    "tab": "Agents",
-    "filename": "agent-pays.sh",
-    "lang": "shellscript",
-    "code": "# An agent with no account, no API key and no checkout page.\n# Ask what the resource costs before deciding to call it.\ncurl https://api-testnet.mayarin.xyz/x402/resources/fx-quote/payment-required\n\n# Or just call it. The gate answers with its own terms.\ncurl -i https://api-testnet.mayarin.xyz/premium/fx-quote\n# HTTP/1.1 402 Payment Required\n# PAYMENT-REQUIRED: <price, chains, assets, deadline>\n\n# Sign one EIP-3009 authorization for exactly that amount, then ask again.\ncurl -i https://api-testnet.mayarin.xyz/premium/fx-quote \\\n  -H \"PAYMENT-SIGNATURE: $AUTHORIZATION\"\n# HTTP/1.1 200 OK\n# PAYMENT-RESPONSE: <authorization hash>\n\n# The agent held EURC and the merchant is paid USDC. Two chain movements,\n# two hashes — the swap is what settles, and the payer's change is a\n# ledger liability, not a lost coin.\n"
+    "id": "track",
+    "tab": "Track",
+    "filename": "payment-status.ts",
+    "lang": "typescript",
+    "code": "// Every step a payment takes is recorded as it happens, so the status\n// your dashboard shows is the one the API returns — nothing inferred later.\nconst payment = await mayarin.payment.get(clearingTransactionId);\n\nconsole.log(payment.state);\n// CREATED → QR_PARSED → PRICE_LOCKED → PAYMENT_PENDING → ASSET_RECEIVED\n// → CLEARING → SETTLING → SETTLED → SUCCESS\n\nif (payment.state === \"FAILED\") {\n  await notifyCustomer(payment.merchantReference);\n}\n"
   }
 ]
