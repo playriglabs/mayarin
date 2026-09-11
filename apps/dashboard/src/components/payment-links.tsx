@@ -100,6 +100,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useChargeLink,
   useCreateLink,
@@ -302,7 +303,9 @@ function AcceptedRailChips({ rails }: { readonly rails: readonly PaymentLinkRail
   }
 
   const { shown, remaining } = railChipSummary(rails);
-  const hidden = rails.slice(shown.length);
+  const hiddenLabels = rails
+    .slice(shown.length)
+    .map((rail) => `${chainLabel(rail.chain)} · ${rail.asset}`);
 
   return (
     <div className="flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
@@ -318,16 +321,29 @@ function AcceptedRailChips({ rails }: { readonly rails: readonly PaymentLinkRail
         </span>
       ))}
       {remaining > 0 && (
-        <span
-          className="inline-flex h-7 items-center bg-muted px-2 text-muted-foreground text-xs"
-          title={hidden.map((rail) => `${chainLabel(rail.chain)} · ${rail.asset}`).join(", ")}
-        >
-          <span aria-hidden="true">+{remaining}</span>
-          <span className="sr-only">
-            {remaining} more accepted rails:{` `}
-            {hidden.map((rail) => `${chainLabel(rail.chain)} · ${rail.asset}`).join(", ")}
-          </span>
-        </span>
+        // A real tooltip rather than `title`: it opens on hover and focus, fast,
+        // and the screen-reader text still carries the list without hovering.
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="inline-flex h-7 cursor-default items-center bg-muted px-2 text-muted-foreground text-xs">
+                  <span aria-hidden="true">+{remaining}</span>
+                  <span className="sr-only">
+                    {remaining} more accepted rails: {hiddenLabels.join(", ")}
+                  </span>
+                </span>
+              }
+            />
+            <TooltipContent>
+              <span className="flex flex-col gap-0.5">
+                {hiddenLabels.map((label) => (
+                  <span key={label}>{label}</span>
+                ))}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </div>
   );

@@ -76,6 +76,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useLinkWallet,
   useMerchantRails,
@@ -186,6 +187,52 @@ function groupWallets(rows: readonly WalletDto[]): readonly WalletGroup[] {
       },
     ];
   });
+}
+
+/**
+ * Networks shown before the cell starts pushing the table wide. The rest
+ * collapse behind a count with a tooltip, the same way the agent endpoints and
+ * payment links tables handle rails.
+ */
+const VISIBLE_NETWORK_COUNT = 2;
+
+function NetworkList({ chains }: { readonly chains: readonly string[] }) {
+  const visible = chains.slice(0, VISIBLE_NETWORK_COUNT);
+  const hiddenLabels = chains.slice(VISIBLE_NETWORK_COUNT).map((chainId) => chainLabel(chainId));
+
+  return (
+    <span className="flex flex-nowrap items-center gap-3 whitespace-nowrap">
+      {visible.map((chainId) => (
+        <ChainLabel key={chainId} chain={chainId} size={18} />
+      ))}
+      {hiddenLabels.length > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                // `aria-label` carries the whole list whether or not the tooltip
+                // ever opens: a screen reader must not depend on hover.
+                <Badge
+                  variant="default"
+                  className="cursor-default"
+                  aria-label={`${hiddenLabels.length} more networks: ${hiddenLabels.join(", ")}`}
+                >
+                  +{hiddenLabels.length}
+                </Badge>
+              }
+            />
+            <TooltipContent>
+              <span className="flex flex-col gap-0.5">
+                {hiddenLabels.map((label) => (
+                  <span key={label}>{label}</span>
+                ))}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </span>
+  );
 }
 
 function statusLabel(group: WalletGroup): string {
@@ -869,11 +916,7 @@ function Wallets() {
                           worse than one they have to scroll. */}
                       <TableCell className="break-all font-mono text-xs">{group.address}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        <span className="flex flex-wrap gap-x-3 gap-y-1">
-                          {group.chains.map((chainId) => (
-                            <ChainLabel key={chainId} chain={chainId} size={18} />
-                          ))}
-                        </span>
+                        <NetworkList chains={group.chains} />
                       </TableCell>
                       <TableCell>
                         <Badge>{PROVENANCE_LABEL[group.provenance]}</Badge>
