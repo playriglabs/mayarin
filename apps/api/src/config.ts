@@ -49,6 +49,15 @@ const configSchema = z.object({
   /** Admissible settlement set, JSON array of AssetCode. Defaults to USDC only. */
   settlementAssets: jsonObject<string[]>("SETTLEMENT_ASSETS", '["USDC"]'),
   feeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(50),
+  /**
+   * Floor under the Mayarin fee, in whole units of the settlement asset
+   * (`"0.10"`). The rate is a percentage and gas is not, so without a floor a
+   * small payment costs more to execute than it earns. `"0"` is no floor.
+   */
+  feeMinimum: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/, "must be a decimal amount with at most two decimals")
+    .default("0"),
   /** Successful relayed PaymentRouter calls reimburse gas from settlement. */
   relayerGasFeeBasisPoints: z.coerce.number().int().min(0).max(10_000).default(10),
   defaultProvider: z.string().min(1).default("mock"),
@@ -916,6 +925,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     settlementAsset: env.SETTLEMENT_ASSET,
     settlementAssets: env.SETTLEMENT_ASSETS,
     feeBasisPoints: env.FEE_BASIS_POINTS,
+    feeMinimum: env.FEE_MINIMUM,
     relayerGasFeeBasisPoints: env.RELAYER_GAS_FEE_BASIS_POINTS,
     defaultProvider: env.DEFAULT_SETTLEMENT_PROVIDER,
     paymentIntentTtlSeconds: env.PAYMENT_INTENT_TTL_SECONDS,

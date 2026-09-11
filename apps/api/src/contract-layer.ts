@@ -44,10 +44,12 @@ import {
   type Clock,
   ConfigurationError,
   ConflictError,
+  isPositive,
   type Money,
   money,
   QuoteExpiredError,
   RATE_SCALE,
+  subtract,
   ValidationError,
 } from "@mayarin/shared";
 import type { StablecoinRegistry } from "@mayarin/stablecoin";
@@ -182,6 +184,19 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
           })
         : money(0n, settlementAmount.asset);
     const fee = add(protocolFee, gasFee);
+    // The router refuses an order that leaves the merchant nothing, but only on
+    // chain, after the payer has paid gas. A fee floor makes that reachable for
+    // a small payment, so it is refused here, before anything is signed.
+    if (!isPositive(subtract(settlementAmount, fee))) {
+      throw new ValidationError(
+        "Fee consumes the entire settlement amount; nothing would reach the merchant",
+        {
+          settlementAmount: settlementAmount.amount.toString(),
+          fee: fee.amount.toString(),
+          asset: settlementAmount.asset,
+        },
+      );
+    }
 
     const now = clock.now();
     const domain: OrderDomain = {
