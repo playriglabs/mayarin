@@ -78,5 +78,5 @@ export function getStructuredData(entry: CollectionEntry<"docs">): StructuredDat
 }
 
 export function getPageImageUrl(page: (typeof source)["$inferPage"]): string {
-  return `/og/docs/${[...page.slugs, "image.webp"].join("/")}`;
+  return `/og/docs/${[...page.slugs, "image.jpeg"].join("/")}`;
 }

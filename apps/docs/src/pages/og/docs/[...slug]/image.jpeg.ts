@@ -15,7 +15,7 @@ import hbSetUrl from "../../../../../../landing/public/fonts/HBSetv0.96-Light.wo
 import backgroundUrl from "../../../../../../landing/public/og-dynamic.jpeg?inline";
 
 // Renders an OpenGraph image per docs page. The URL is emitted by
-// `getPageImageUrl` in src/lib/source.ts: `/og/docs/{slugs}/image.webp`.
+// `getPageImageUrl` in src/lib/source.ts: `/og/docs/{slugs}/image.jpeg`.
 //
 // The artwork is the landing site's shared OG plate, bundled from its source
 // rather than read off `mayarin.xyz`, so a docs card and a mayarin.xyz card are
@@ -78,17 +78,22 @@ export const GET: APIRoute = async ({ params }) => {
   const image = await render(node, {
     width: 1200,
     height: 630,
-    format: "webp",
-    // Takumi encodes WebP losslessly unless told otherwise, which on this
-    // gradient-heavy plate is ~250KB. A crawler fetches this on every share; 82
-    // is visually indistinguishable here and roughly a fifth of the bytes.
-    quality: 82,
+    // JPEG, not WebP. Facebook, Instagram and WhatsApp refuse a WebP
+    // `og:image` outright — the card falls back to the site icon, which is what
+    // a share looked like before this — while a browser-based preview tool
+    // renders it fine, so the format is the one thing that looks innocent.
+    // JPEG is what every crawler accepts, and the plate is a photograph-like
+    // gradient, which is what JPEG is for.
+    format: "jpeg",
+    // 88 keeps the wordmark's edges clean on the plate's flat left half; the
+    // card lands around 120KB, well inside every crawler's ceiling.
+    quality: 88,
     renderer: await brandRenderer(),
   });
 
   return new Response(image, {
     headers: {
-      "content-type": "image/webp",
+      "content-type": "image/jpeg",
       "cache-control": "public, max-age=86400, immutable",
     },
   });
