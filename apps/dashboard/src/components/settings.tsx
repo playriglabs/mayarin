@@ -377,7 +377,10 @@ function Settings() {
                                 key={entry.chain}
                                 className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3 basis-full md:basis-[calc(50%-0.375rem)] lg:basis-[calc(33.333%-0.5rem)]"
                               >
-                                <div className="flex items-center justify-between gap-3">
+                                {/* A fixed row height, the height of the Reset button:
+                                    a card without one otherwise sits shorter, and its
+                                    assets land higher than the cards beside it. */}
+                                <div className="flex min-h-7 items-center justify-between gap-3">
                                   <p className="font-medium text-sm">
                                     <ChainLabel chain={entry.chain} />
                                   </p>
@@ -415,7 +418,7 @@ function Settings() {
                                       />
                                       <label
                                         htmlFor={`accepted-${entry.chain}-${asset}`}
-                                        className="mt-1"
+                                        className="flex items-center"
                                       >
                                         <AssetLabel symbol={asset} size={18} />
                                       </label>
