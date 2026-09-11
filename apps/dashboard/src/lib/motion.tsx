@@ -35,6 +35,12 @@ export const PRESS_DURATION = 0.14;
 /** How far a pressed control settles. Small enough to feel, not to notice. */
 export const PRESS_SCALE = 0.97;
 
+/**
+ * A figure counting to its new value — the balance when a payment lands. Long
+ * enough to see it climb, short enough to finish before the next refresh.
+ */
+export const COUNT_UP_DURATION = 0.8;
+
 const enter: Transition = { duration: ENTER_DURATION, ease: EASE_OUT_EXPO };
 const exit: Transition = { duration: EXIT_DURATION, ease: "easeOut" };
 

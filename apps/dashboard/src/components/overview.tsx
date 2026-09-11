@@ -17,6 +17,8 @@ import {
   ReceiptIcon,
   TrendUpIcon,
 } from "@phosphor-icons/react";
+import { animate, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { match } from "ts-pattern";
 import { ChainStack } from "@/components/chain-logo";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +40,7 @@ import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
 import { ICON_CARD } from "@/lib/icons";
 import { display, dominantAsset, totalIn } from "@/lib/money";
+import { COUNT_UP_DURATION, EASE_OUT_EXPO } from "@/lib/motion";
 import { withQuery } from "@/lib/with-query";
 import type { PaymentIntentDto } from "@/types/payment";
 import type { ChainBalanceDto, WalletWithdrawalDto } from "@/types/settings";
@@ -237,6 +240,45 @@ export function todaySales(daily: readonly { date: string; total: bigint }[]): b
 }
 
 /**
+ * A figure that counts to its new value rather than cutting to it.
+ *
+ * Counts only on a change, not on first render: the refresh tick lands every few
+ * seconds, and a balance that climbed from zero on every page load would narrate
+ * money that did not just arrive. A change mid-count starts from what is on
+ * screen, so the number never jumps back. Interpolated in thousandths of the
+ * difference as a `bigint`, so the last frame is the value exactly.
+ */
+function useCountUp(value: bigint): bigint {
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState(value);
+  const shownRef = useRef(value);
+
+  useEffect(() => {
+    const from = shownRef.current;
+    if (from === value) return;
+
+    const show = (next: bigint) => {
+      shownRef.current = next;
+      setShown(next);
+    };
+    if (reduced) {
+      show(value);
+      return;
+    }
+
+    const controls = animate(0, 1, {
+      duration: COUNT_UP_DURATION,
+      ease: EASE_OUT_EXPO,
+      onUpdate: (progress) =>
+        show(from + ((value - from) * BigInt(Math.round(progress * 1000))) / 1000n),
+    });
+    return () => controls.stop();
+  }, [value, reduced]);
+
+  return shown;
+}
+
+/**
  * The line beside the balance: what came in today.
  *
  * Today only, with no comparison: a figure against yesterday reads as a fall
@@ -244,6 +286,8 @@ export function todaySales(daily: readonly { date: string; total: bigint }[]): b
  * yet says so plainly rather than showing `+$ 0,00`.
  */
 function TodayIndicator({ total, asset }: { total: bigint; asset: string }) {
+  const shown = useCountUp(total);
+
   if (total === 0n) {
     return (
       <span className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
@@ -255,7 +299,7 @@ function TodayIndicator({ total, asset }: { total: bigint; asset: string }) {
 
   return (
     <span className="inline-flex items-center gap-1.5 font-medium text-success text-xs">
-      <TrendUpIcon size={16} weight="bold" aria-hidden="true" />+{balanceDisplay(total, asset)}{" "}
+      <TrendUpIcon size={16} weight="bold" aria-hidden="true" />+{balanceDisplay(shown, asset)}{" "}
       today
     </span>
   );
@@ -285,6 +329,8 @@ function BalanceOverview({
   history: readonly { date: string; balance: bigint }[];
   today: bigint;
 }) {
+  const shownTotal = useCountUp(total);
+
   if (asset === undefined) {
     return (
       <Card className="gap-2">
@@ -309,7 +355,7 @@ function BalanceOverview({
           <span className="text-muted-foreground text-xs tracking-wide">Balance</span>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-1">
             <span className="font-medium text-[30px] text-foreground tracking-tight">
-              {balanceDisplay(total, asset)}
+              {balanceDisplay(shownTotal, asset)}
             </span>
             <TodayIndicator total={today} asset={asset} />
           </div>

@@ -689,8 +689,8 @@
   .detail-strip {
     @apply mb-4 flex flex-wrap items-start justify-between gap-6;
   }
-  .rail-marks {
-    @apply mt-1.5 flex flex-wrap items-center gap-2.5;
+  .payment-method {
+    @apply mt-1.5 flex items-center gap-3;
   }
   .settled {
     @apply mt-6 border border-line p-4;

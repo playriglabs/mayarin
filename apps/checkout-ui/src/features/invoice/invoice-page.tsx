@@ -6,7 +6,6 @@ import { ChainLabel } from "../../shared/chain-logo.tsx";
 import { PoweredBy } from "../../shared/powered-by.tsx";
 import { RailMark } from "../../shared/rail-mark.tsx";
 import { RailPicker } from "../../shared/rail-picker.tsx";
-import type { Rail } from "../../shared/types.ts";
 import { dateLine, paidOn, STATUS_LABEL, STATUS_TONE } from "./invoice-status.ts";
 import { PaidMark } from "./paid-mark.tsx";
 import type { InvoiceBootstrap, InvoicePaymentRecord } from "./types.ts";
@@ -91,20 +90,18 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
           <dt>Recipient</dt>
           <dd className="muted">{buyer.email ?? buyer.name}</dd>
         </dl>
-        {/* The rails as marks, the way the payer will recognise them: the token
-            badged with its network, not a list of names. Screen only — a
-            printed document records what was paid, not what could have been. */}
-        {payable && bootstrap.rails.length > 0 && (
+        {/* The rail the payer has chosen in "Pay with", so the strip follows
+            the dropdown. Screen only — a printed document records what was
+            paid, not what could have been. */}
+        {payable && rail !== undefined && (
           <dl className="party screen-only">
-            <dt>Payment methods</dt>
-            <dd className="rail-marks">
-              {bootstrap.rails.map((offered: Rail) => (
-                <RailMark
-                  key={`${offered.chain}:${offered.asset}`}
-                  asset={offered.asset}
-                  chain={offered.chain}
-                />
-              ))}
+            <dt>Payment method</dt>
+            <dd className="payment-method">
+              <RailMark asset={rail.asset} chain={rail.chain} size={30} />
+              <span className="rail-picker-copy">
+                <strong>{rail.asset}</strong>
+                <span>{chainLabel(rail.chain)}</span>
+              </span>
             </dd>
           </dl>
         )}
