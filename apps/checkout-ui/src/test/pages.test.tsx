@@ -59,6 +59,7 @@ const payBootstrap: PayBootstrap = {
   streaming: true,
   successUrl: null,
   pollMs: 8000,
+  choice: null,
 };
 
 const invoiceBootstrap: InvoiceBootstrap = {
@@ -229,6 +230,24 @@ describe("pay page", () => {
     expect(html).toContain("https://cdn.example.com/kopi.webp");
     expect(html).toContain("Powered by");
     expect(html).toContain("mayarin.xyz");
+  });
+
+  test("an intent minted without a rail asks how to pay before any address", () => {
+    // A storefront's cart checkout: the page used to spin on "Preparing your
+    // payment address" forever, because nothing had chosen a rail to lock.
+    const html = renderToStaticMarkup(
+      <PayPage
+        bootstrap={{
+          ...payBootstrap,
+          choice: { rails: linkBootstrap.rails, settlementAsset: "USDC", lockMinutes: 15 },
+        }}
+      />,
+    );
+    expect(html).toContain("Choose how to pay");
+    expect(html).toContain("Pay with");
+    expect(html).toContain("exact price is locked for 15 minutes");
+    expect(html).toContain("Rp 50.000,00");
+    expect(html).not.toContain("Preparing your payment address");
   });
 
   test("the countdown is already ticking at first paint, not waiting on a fetch", () => {

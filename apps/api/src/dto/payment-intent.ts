@@ -35,6 +35,37 @@ export function toMerchantSnapshot(body: z.infer<typeof merchantSchema>): Mercha
   return { ...merchant, ...(categoryCode === undefined ? {} : { categoryCode }) };
 }
 
+/** The rail the payer intends to pay on, e.g. USDC on Base. */
+export const paymentRailSchema = z
+  .object({
+    asset: assetCodeSchema,
+    chain: z.enum(CHAIN_IDS),
+    /** Required by the on-chain-contract path: the signed order's `refundTo`. */
+    payerAddress: z
+      .string()
+      .regex(/^0x[0-9a-fA-F]{40}$/)
+      .optional(),
+  })
+  // `exactOptionalPropertyTypes`: the rail's optional field must be absent,
+  // never an explicit `undefined`.
+  .transform(({ asset, chain, payerAddress }) => ({
+    asset,
+    chain,
+    ...(payerAddress === undefined ? {} : { payerAddress }),
+  }));
+
+/**
+ * The optional body of `POST /payment-intents/:id/confirm`.
+ *
+ * Empty for an intent that already has its rail. An intent minted without one —
+ * a storefront's cart checkout — takes the payer's choice here, from the hosted
+ * payment page, in the same request that confirms it.
+ */
+export const confirmBodySchema = z.object({
+  payment: paymentRailSchema.optional(),
+  executionPath: z.enum(EXECUTION_PATHS).optional(),
+});
+
 export const createBodySchema = z
   .object({
     /** Raw EMVCo/QRIS payload as scanned. */
@@ -42,25 +73,7 @@ export const createBodySchema = z
     merchant: merchantSchema.optional(),
     /** Human decimal amount, e.g. `{ "amount": "50000.00", "asset": "IDR" }`. */
     amount: decimalMoneySchema.optional(),
-    /** The rail the payer intends to pay on, e.g. USDC on Base. */
-    payment: z
-      .object({
-        asset: assetCodeSchema,
-        chain: z.enum(CHAIN_IDS),
-        /** Required by the on-chain-contract path: the signed order's `refundTo`. */
-        payerAddress: z
-          .string()
-          .regex(/^0x[0-9a-fA-F]{40}$/)
-          .optional(),
-      })
-      // `exactOptionalPropertyTypes`: the rail's optional field must be absent,
-      // never an explicit `undefined`.
-      .transform(({ asset, chain, payerAddress }) => ({
-        asset,
-        chain,
-        ...(payerAddress === undefined ? {} : { payerAddress }),
-      }))
-      .optional(),
+    payment: paymentRailSchema.optional(),
     settlementAsset: assetCodeSchema.optional(),
     /**
      * How the `payment` rail is executed, chosen per payer rather than per

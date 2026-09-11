@@ -173,6 +173,27 @@ export function checkoutPageRoutes(container: Container): Hono {
         : await container.catalog.getLink(intent.metadata.paymentLinkId).catch(() => undefined);
     const successUrl = checkoutSuccessUrl(intent.metadata.checkoutSuccessBaseUrl, intent.id);
     const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
+
+    // Minted without a rail — a storefront's cart checkout rings up the sale
+    // before the buyer has said how they will pay — so the page asks first, with
+    // the rails a link page would offer. Without this it waited on a deposit
+    // address that could never be allocated, because nothing had chosen a rail.
+    const report =
+      intent.status === "CREATED" && intent.payment === undefined
+        ? await container.rails.describe(intent.merchant.id)
+        : undefined;
+    const choice =
+      report === undefined
+        ? null
+        : {
+            rails: await payerRails(
+              container,
+              paymentLink === undefined ? report.rails : linkRails(report, paymentLink),
+            ),
+            settlementAsset: intent.settlementAsset,
+            lockMinutes: Math.max(1, Math.round(container.config.paymentIntentTtlSeconds / 60)),
+          };
+
     return c.html(
       await renderShell(distDir, {
         page: "pay",
@@ -186,6 +207,7 @@ export function checkoutPageRoutes(container: Container): Hono {
         streaming: container.stream !== undefined,
         successUrl: successUrl ?? null,
         pollMs: POLL_MS,
+        choice,
       }),
     );
   });

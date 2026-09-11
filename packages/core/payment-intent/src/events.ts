@@ -3,6 +3,8 @@ import type { PaymentIntent } from "./types.ts";
 
 export const PAYMENT_INTENT_EVENT = {
   created: "payment_intent.created",
+  /** The payer chose a rail on an intent minted without one. */
+  railChosen: "payment_intent.rail_chosen",
   confirmed: "payment_intent.confirmed",
   processing: "payment_intent.processing",
   completed: "payment_intent.completed",

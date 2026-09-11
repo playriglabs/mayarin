@@ -22,6 +22,7 @@ import {
 import type { StablecoinRegistry } from "@mayarin/stablecoin";
 import { PAYMENT_INTENT_EVENT, type PaymentIntentEventType, paymentIntentEvent } from "./events.ts";
 import {
+  choosePayment as choosePaymentOn,
   confirm as confirmIntent,
   createPaymentIntent,
   isExpired,
@@ -30,7 +31,11 @@ import {
   markFailed as markIntentFailed,
   markProcessing as markIntentProcessing,
 } from "./intent.ts";
-import { acceptedPayerAssets, type MerchantAssetPolicySource } from "./merchant-policy.ts";
+import {
+  acceptedPayerAssets,
+  type MerchantAssetPolicy,
+  type MerchantAssetPolicySource,
+} from "./merchant-policy.ts";
 import type { ListPaymentIntentsOptions, PaymentIntentRepository } from "./repository.ts";
 import type {
   ExecutionPath,
@@ -115,23 +120,6 @@ export class PaymentIntentService {
       command.settlementAsset ?? policy?.settlementAsset ?? this.#defaults.settlementAsset;
     const provider = command.provider ?? this.#defaults.provider;
 
-    // Read on the rail's own chain (#244): a merchant who accepts ETH accepts
-    // it where ETH exists, not on a chain that has none.
-    if (policy !== undefined && command.payment !== undefined) {
-      const accepted = acceptedPayerAssets(policy, command.payment.chain);
-      if (accepted.length > 0 && !accepted.includes(command.payment.asset)) {
-        throw new ValidationError(
-          `Merchant ${command.merchant.id} does not accept ${command.payment.asset} on ${command.payment.chain}`,
-          {
-            merchantId: command.merchant.id,
-            asset: command.payment.asset,
-            chain: command.payment.chain,
-            acceptedAssets: [...accepted],
-          },
-        );
-      }
-    }
-
     // Both on-chain paths need a rail: the contract path submits calldata for
     // one, and an x402 payer authorises a transfer of one. Only a fiat-only
     // intent has neither.
@@ -151,45 +139,20 @@ export class PaymentIntentService {
         ? (command.executionPath ?? this.#defaults.executionPath)
         : undefined;
 
-    // The contract path signs the payer's change back to `refundTo`, so there
-    // is no order to plan without the payer's address. Checked against the
-    // *resolved* path, not the requested one: a caller who names no path takes
-    // the deployment's, and a rail the price lock will refuse is a bad request
-    // — letting it through mints an intent whose only future is FAILED.
-    if (executionPath === "on-chain-contract" && command.payment?.payerAddress === undefined) {
+    if (
+      this.#registry !== undefined &&
+      !(await this.#registry.isSettlementAsset(settlementAsset))
+    ) {
       throw new ValidationError(
-        "on-chain-contract execution path requires the payer's address on the rail",
+        `Settlement asset ${settlementAsset} is not admitted by the stablecoin registry`,
         {
-          executionPath,
-          ...(command.payment === undefined ? {} : { asset: command.payment.asset }),
+          settlementAsset,
         },
       );
     }
 
-    if (this.#registry !== undefined) {
-      if (!(await this.#registry.isSettlementAsset(settlementAsset))) {
-        throw new ValidationError(
-          `Settlement asset ${settlementAsset} is not admitted by the stablecoin registry`,
-          {
-            settlementAsset,
-          },
-        );
-      }
-      // Only a stablecoin payer asset is the registry's to admit. A native
-      // asset has no token address and is not a stablecoin, so asking a
-      // stablecoin registry about it is a category error — it can only ever
-      // answer no, which would refuse every ETH deposit the product exists to
-      // take. What bounds a native payer asset instead is the merchant's
-      // `acceptedAssets` above and the chain the deployment configures.
-      if (command.payment !== undefined && getAsset(command.payment.asset).kind === "stablecoin") {
-        const { asset, chain } = command.payment;
-        if (!(await this.#registry.isDepositAsset(asset, chain))) {
-          throw new ValidationError(
-            `Payer asset ${asset} on ${chain} is not a deposit asset the stablecoin registry admits`,
-            { asset, chain },
-          );
-        }
-      }
+    if (command.payment !== undefined && executionPath !== undefined) {
+      await this.#assertPayerRail(command.merchant.id, command.payment, executionPath, policy);
     }
 
     const fingerprint = fingerprintOf(command, settlementAsset, provider, executionPath);
@@ -261,6 +224,30 @@ export class PaymentIntentService {
     );
   }
 
+  /**
+   * Records the payer's rail on an intent minted without one — a storefront's
+   * cart checkout, answered on the hosted payment page.
+   *
+   * The same checks a rail named at minting passes, so choosing later is never
+   * a way around them. The same rail asked for twice is a replay and changes
+   * nothing, which lets a buyer retry a confirm that failed after the choice
+   * had already been recorded.
+   */
+  async choosePayment(
+    id: string,
+    payment: PaymentRail,
+    executionPath?: ExecutionPath,
+  ): Promise<PaymentIntent> {
+    const intent = await this.getById(id);
+    const path = executionPath ?? this.#defaults.executionPath;
+    const next = choosePaymentOn(intent, payment, path, this.#clock.now());
+    if (next === intent) return intent;
+
+    const policy = await this.#merchantPolicies?.policyFor(intent.merchant.id);
+    await this.#assertPayerRail(intent.merchant.id, payment, path, policy);
+    return this.#apply(next, intent.version, PAYMENT_INTENT_EVENT.railChosen);
+  }
+
   async confirm(id: string): Promise<PaymentIntent> {
     const intent = await this.getById(id);
     // Confirming an intent that is already past CREATED is a safe replay — a
@@ -308,6 +295,64 @@ export class PaymentIntentService {
       intent.version,
       PAYMENT_INTENT_EVENT.failed,
     );
+  }
+
+  /**
+   * Refuses a payer rail before it is recorded — at minting, or chosen later.
+   *
+   * One place, so a rail chosen on the hosted page after a cart checkout passes
+   * exactly the checks a rail named at minting does.
+   */
+  async #assertPayerRail(
+    merchantId: string,
+    payment: PaymentRail,
+    executionPath: ExecutionPath,
+    policy: MerchantAssetPolicy | undefined,
+  ): Promise<void> {
+    // Read on the rail's own chain (#244): a merchant who accepts ETH accepts
+    // it where ETH exists, not on a chain that has none.
+    if (policy !== undefined) {
+      const accepted = acceptedPayerAssets(policy, payment.chain);
+      if (accepted.length > 0 && !accepted.includes(payment.asset)) {
+        throw new ValidationError(
+          `Merchant ${merchantId} does not accept ${payment.asset} on ${payment.chain}`,
+          {
+            merchantId,
+            asset: payment.asset,
+            chain: payment.chain,
+            acceptedAssets: [...accepted],
+          },
+        );
+      }
+    }
+
+    // The contract path signs the payer's change back to `refundTo`, so there
+    // is no order to plan without the payer's address. Checked against the
+    // *resolved* path, not the requested one: a caller who names no path takes
+    // the deployment's, and a rail the price lock will refuse is a bad request
+    // — letting it through mints an intent whose only future is FAILED.
+    if (executionPath === "on-chain-contract" && payment.payerAddress === undefined) {
+      throw new ValidationError(
+        "on-chain-contract execution path requires the payer's address on the rail",
+        { executionPath, asset: payment.asset },
+      );
+    }
+
+    // Only a stablecoin payer asset is the registry's to admit. A native asset
+    // has no token address and is not a stablecoin, so asking a stablecoin
+    // registry about it is a category error — it can only ever answer no, which
+    // would refuse every ETH deposit the product exists to take. What bounds a
+    // native payer asset instead is the merchant's `acceptedAssets` above and
+    // the chain the deployment configures.
+    if (this.#registry !== undefined && getAsset(payment.asset).kind === "stablecoin") {
+      const { asset, chain } = payment;
+      if (!(await this.#registry.isDepositAsset(asset, chain))) {
+        throw new ValidationError(
+          `Payer asset ${asset} on ${chain} is not a deposit asset the stablecoin registry admits`,
+          { asset, chain },
+        );
+      }
+    }
   }
 
   async #apply(

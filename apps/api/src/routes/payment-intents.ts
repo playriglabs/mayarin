@@ -20,7 +20,12 @@ import { ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toPaymentDto } from "../dto/payment.ts";
-import { type CreateBody, createBodySchema, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import {
+  type CreateBody,
+  confirmBodySchema,
+  createBodySchema,
+  toPaymentIntentDto,
+} from "../dto/payment-intent.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
 import { assertRailOffered } from "../rails.ts";
 
@@ -58,7 +63,19 @@ export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   });
 
   app.post("/:id/confirm", async (c) => {
-    const { intent, transaction, events } = await container.paymentApp.confirm(c.req.param("id"));
+    const id = c.req.param("id");
+    // Most callers confirm an intent that already has its rail and send no
+    // body. A buyer on the hosted payment page for an intent minted without
+    // one — a storefront's cart checkout — names the rail they chose here.
+    const body = confirmBodySchema.parse(await c.req.json().catch(() => ({})));
+    if (body.payment !== undefined) {
+      const minted = await container.intents.getById(id);
+      // Checked against what this merchant can be paid on, the same refusal a
+      // link or a direct create gets, before the rail is recorded.
+      await assertRailOffered(container, minted.merchant.id, body.payment);
+      await container.intents.choosePayment(id, body.payment, body.executionPath);
+    }
+    const { intent, transaction, events } = await container.paymentApp.confirm(id);
     return c.json(toPaymentDto(intent, transaction, events));
   });
 

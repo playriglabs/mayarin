@@ -131,6 +131,48 @@ export function confirm(intent: PaymentIntent, now: Date): PaymentIntent {
   return transition(intent, "CONFIRMED", now, { confirmedAt: new Date(now) });
 }
 
+/**
+ * Records the rail the payer chose, on an intent minted without one.
+ *
+ * A storefront's cart checkout rings up a sale before the buyer has said how
+ * they will pay; the hosted payment page asks, and this is the answer. Only
+ * while the intent is still `CREATED`: once confirmed, the price lock and the
+ * deposit address belong to the rail it was confirmed on. A rail already chosen
+ * is not swappable either — asking again with the same rail is a replay and
+ * returns the intent unchanged, asking with a different one is refused.
+ */
+export function choosePayment(
+  intent: PaymentIntent,
+  payment: PaymentRail,
+  executionPath: ExecutionPath,
+  now: Date,
+): PaymentIntent {
+  if (intent.payment !== undefined) {
+    if (intent.payment.asset === payment.asset && intent.payment.chain === payment.chain) {
+      return intent;
+    }
+    throw new ValidationError(`Payment intent ${intent.id} is already paid on another rail`, {
+      id: intent.id,
+      asset: intent.payment.asset,
+      chain: intent.payment.chain,
+    });
+  }
+  if (intent.status !== "CREATED" || isExpired(intent, now)) {
+    throw new InvalidStateTransitionError(
+      `Payment intent ${intent.id} can no longer take a payment rail`,
+      { id: intent.id, status: intent.status, expiresAt: intent.expiresAt.toISOString() },
+    );
+  }
+
+  return {
+    ...intent,
+    payment,
+    executionPath,
+    updatedAt: new Date(now),
+    version: intent.version + 1,
+  };
+}
+
 /** Moves an intent to `PROCESSING` and binds it to its clearing transaction. */
 export function markProcessing(
   intent: PaymentIntent,

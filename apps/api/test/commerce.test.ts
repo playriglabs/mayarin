@@ -416,6 +416,63 @@ describe("hosted checkout", () => {
     expect(page.bootstrap.pollMs).toBeGreaterThan(0);
   });
 
+  test("asks for a rail on a cart intent minted without one, then confirms on it", async () => {
+    // A storefront checks the cart out before the buyer has chosen how to pay.
+    // The payment page used to wait on a deposit address nothing could
+    // allocate; it now asks, and the confirm records the answer.
+    const harness = createApiHarness();
+    const cart = await harness.request("POST", "/v1/carts/checkout", {
+      body: {
+        merchant,
+        currency: "IDR",
+        lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
+      },
+    });
+    const id = cart.body.paymentIntent.id as string;
+
+    const before = await harness.requestBootstrap(`/checkout/pay/${id}`);
+    expect(before.bootstrap.choice.rails).toEqual([
+      {
+        chain: "base-sepolia",
+        asset: "USDC",
+        contract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      },
+    ]);
+    expect(before.bootstrap.choice.lockMinutes).toBe(15);
+
+    const confirmed = await harness.request("POST", `/v1/payment-intents/${id}/confirm`, {
+      body: { payment: { chain: "base-sepolia", asset: "USDC" }, executionPath: "deposit-match" },
+    });
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.paymentIntent.payment).toMatchObject({
+      chain: "base-sepolia",
+      asset: "USDC",
+    });
+
+    const after = await harness.requestBootstrap(`/checkout/pay/${id}`);
+    expect(after.bootstrap.choice).toBeNull();
+  });
+
+  test("refuses a chosen rail the merchant cannot be paid on, and records nothing", async () => {
+    const harness = createApiHarness();
+    const cart = await harness.request("POST", "/v1/carts/checkout", {
+      body: {
+        merchant,
+        currency: "IDR",
+        lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
+      },
+    });
+    const id = cart.body.paymentIntent.id as string;
+
+    const refused = await harness.request("POST", `/v1/payment-intents/${id}/confirm`, {
+      body: { payment: { chain: "arc-testnet", asset: "USDC" } },
+    });
+    expect(refused.status).toBe(400);
+
+    const page = await harness.requestBootstrap(`/checkout/pay/${id}`);
+    expect(page.bootstrap.choice).not.toBeNull();
+  });
+
   test("prices a catalog link's lines on the page, without minting anything", async () => {
     // A total with nothing behind it is a number to be taken on trust, and the
     // total itself lives in the products rather than on the link. Minting an

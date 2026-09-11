@@ -3,6 +3,7 @@ import { InvalidStateTransitionError, money, ValidationError } from "@mayarin/sh
 import type { CreatePaymentIntentInput } from "../src/intent.ts";
 import {
   canTransition,
+  choosePayment,
   confirm,
   createPaymentIntent,
   isExpired,
@@ -27,6 +28,43 @@ function input(overrides: Partial<CreatePaymentIntentInput> = {}): CreatePayment
     ...overrides,
   };
 }
+
+describe("choosePayment", () => {
+  const rail = { asset: "USDC", chain: "base-sepolia" } as const;
+
+  test("sets the rail on an intent minted without one, bumping the version", () => {
+    const intent = createPaymentIntent(input());
+    const chosen = choosePayment(intent, rail, "deposit-match", NOW);
+
+    expect(chosen.payment).toEqual(rail);
+    expect(chosen.executionPath).toBe("deposit-match");
+    expect(chosen.status).toBe("CREATED");
+    expect(chosen.version).toBe(2);
+  });
+
+  test("the same rail again is a replay, not a change", () => {
+    const chosen = choosePayment(createPaymentIntent(input()), rail, "deposit-match", NOW);
+    expect(choosePayment(chosen, rail, "deposit-match", NOW)).toBe(chosen);
+  });
+
+  test("refuses to swap a rail already chosen", () => {
+    const chosen = choosePayment(createPaymentIntent(input()), rail, "deposit-match", NOW);
+    expect(() =>
+      choosePayment(chosen, { asset: "USDC", chain: "arc-testnet" }, "deposit-match", NOW),
+    ).toThrow(ValidationError);
+  });
+
+  test("refuses once the intent is confirmed or expired", () => {
+    const intent = createPaymentIntent(input());
+    expect(() => choosePayment(confirm(intent, NOW), rail, "deposit-match", NOW)).toThrow(
+      InvalidStateTransitionError,
+    );
+    const late = new Date(NOW.getTime() + 901_000);
+    expect(() => choosePayment(intent, rail, "deposit-match", late)).toThrow(
+      InvalidStateTransitionError,
+    );
+  });
+});
 
 describe("createPaymentIntent", () => {
   test("starts in CREATED with version 1", () => {

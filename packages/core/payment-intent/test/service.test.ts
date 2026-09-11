@@ -318,6 +318,41 @@ describe("per-merchant asset policy", () => {
   });
 });
 
+describe("choosing a rail after minting", () => {
+  test("records an admitted rail on an intent minted without one", async () => {
+    const intents = service(registry());
+    const minted = await intents.create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+    });
+
+    const chosen = await intents.choosePayment(minted.id, {
+      asset: "USDC",
+      chain: "base-sepolia",
+    });
+
+    expect(chosen.payment).toEqual({ asset: "USDC", chain: "base-sepolia" });
+    expect(chosen.executionPath).toBe("deposit-match");
+    expect((await intents.getById(minted.id)).payment).toEqual(chosen.payment);
+  });
+
+  test("refuses a rail the registry does not admit, exactly as minting would", async () => {
+    const intents = service(registry());
+    const minted = await intents.create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+    });
+
+    // USDT is a stablecoin the registry books but deploys on no chain.
+    await expect(
+      intents.choosePayment(minted.id, { asset: "USDT", chain: "base-sepolia" }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect((await intents.getById(minted.id)).payment).toBeUndefined();
+  });
+});
+
 describe("isSameAsset", () => {
   test("is true only when the payer sends the settlement asset itself", () => {
     const policy: MerchantAssetPolicy = { settlementAsset: "USDC", acceptedAssets: [] };
