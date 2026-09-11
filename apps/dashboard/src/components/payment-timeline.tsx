@@ -172,7 +172,7 @@ export default function PaymentTimeline({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "z-10 flex size-6 shrink-0 items-center justify-center border",
+                  "z-10 flex size-6 rounded-full shrink-0 items-center justify-center border",
                   DOT[step.status],
                 )}
               >
