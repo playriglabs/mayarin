@@ -15,7 +15,6 @@ import {
   HourglassMediumIcon,
   MinusIcon,
   ReceiptIcon,
-  TrendDownIcon,
   TrendUpIcon,
 } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
@@ -225,51 +224,27 @@ function dailyTotals(
   return recentDays(MOVEMENT_DAYS).map((date) => ({ date, total: byDay.get(date) ?? 0n }));
 }
 
-/** Today's sales against yesterday's, for the indicator beside the balance. */
-export interface TodayMovement {
-  readonly today: bigint;
-  readonly yesterday: bigint;
-  /** Whole-percent change from yesterday. `null` when yesterday had nothing to compare. */
-  readonly changePercent: number | null;
-  readonly direction: "up" | "down" | "flat";
-}
-
 /**
- * Today's sales from a daily series, compared with the day before.
+ * Today's sales, from a daily series that ends today.
  *
  * Reads the pay-out series: what reached the merchant, net of fee, in the
  * settlement asset — the same figures as the Pay outs card, so the indicator
  * and the chart below it never disagree. Days are UTC, like every chart on the
- * page, and the series ends today.
+ * page, so the figure starts over each day.
  */
-export function todayMovement(daily: readonly { date: string; total: bigint }[]): TodayMovement {
-  const today = daily[daily.length - 1]?.total ?? 0n;
-  const yesterday = daily[daily.length - 2]?.total ?? 0n;
-  return {
-    today,
-    yesterday,
-    changePercent:
-      yesterday === 0n ? null : Math.round(Number(((today - yesterday) * 100n) / yesterday)),
-    direction: today > yesterday ? "up" : today < yesterday ? "down" : "flat",
-  };
+export function todaySales(daily: readonly { date: string; total: bigint }[]): bigint {
+  return daily[daily.length - 1]?.total ?? 0n;
 }
 
-const TREND_TONE: Readonly<Record<TodayMovement["direction"], string>> = {
-  up: "text-success",
-  down: "text-destructive",
-  flat: "text-muted-foreground",
-};
-
 /**
- * The line beside the balance: what came in today, and which way it is going.
+ * The line beside the balance: what came in today.
  *
- * Coloured and iconed by the comparison with yesterday rather than by whether
- * anything sold, so a quieter day reads as one at a glance. A day with no sales
- * yet says so plainly instead of reporting a fall from yesterday that is only
- * the clock — most of the day has not happened.
+ * Today only, with no comparison: a figure against yesterday reads as a fall
+ * every morning, when most of the day has not happened yet. A day with no sales
+ * yet says so plainly rather than showing `+$ 0,00`.
  */
-function TodayIndicator({ movement, asset }: { movement: TodayMovement; asset: string }) {
-  if (movement.today === 0n) {
+function TodayIndicator({ total, asset }: { total: bigint; asset: string }) {
+  if (total === 0n) {
     return (
       <span className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
         <MinusIcon size={14} weight="bold" aria-hidden="true" />
@@ -278,24 +253,10 @@ function TodayIndicator({ movement, asset }: { movement: TodayMovement; asset: s
     );
   }
 
-  const Icon =
-    movement.direction === "up"
-      ? TrendUpIcon
-      : movement.direction === "down"
-        ? TrendDownIcon
-        : MinusIcon;
-  const change =
-    movement.changePercent === null
-      ? null
-      : `${movement.changePercent > 0 ? "+" : ""}${movement.changePercent}% vs yesterday`;
-
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 font-medium text-xs ${TREND_TONE[movement.direction]}`}
-    >
-      <Icon size={16} weight="bold" aria-hidden="true" />+{balanceDisplay(movement.today, asset)}{" "}
+    <span className="inline-flex items-center gap-1.5 font-medium text-success text-xs">
+      <TrendUpIcon size={16} weight="bold" aria-hidden="true" />+{balanceDisplay(total, asset)}{" "}
       today
-      {change !== null && <span className="font-normal opacity-80">· {change}</span>}
     </span>
   );
 }
@@ -322,7 +283,7 @@ function BalanceOverview({
   asset: string | undefined;
   chains: readonly ChainHolding[];
   history: readonly { date: string; balance: bigint }[];
-  today: TodayMovement;
+  today: bigint;
 }) {
   if (asset === undefined) {
     return (
@@ -350,7 +311,7 @@ function BalanceOverview({
             <span className="font-medium text-[30px] text-foreground tracking-tight">
               {balanceDisplay(total, asset)}
             </span>
-            <TodayIndicator movement={today} asset={asset} />
+            <TodayIndicator total={today} asset={asset} />
           </div>
           <span className="text-subtle-foreground text-xs">
             {chains.length === 0
@@ -606,7 +567,7 @@ function Overview() {
                   asset={settlementAsset}
                   chains={holdings.chains}
                   history={history}
-                  today={todayMovement(payOutDaily)}
+                  today={todaySales(payOutDaily)}
                 />
               )}
             </div>
