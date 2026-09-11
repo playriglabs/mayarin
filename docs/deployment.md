@@ -193,19 +193,21 @@ railway up \
   --service chain-worker
 ```
 
-Deploy the Cloudflare Pages dashboard only after both APIs are healthy, using
-the dashboard API URL from the same target.
+Deploy the Cloudflare dashboard only after both APIs are healthy, using the
+dashboard API URL from the same target.
 
 ### 6. Deploy the testnet dashboard
 
-The dashboard is an Astro SSR application on Cloudflare Pages. Its `/api/*`
-route proxies to the testnet `dashboard-api` on Railway, which keeps session and
-CSRF cookies same-origin in the browser. The target is recorded in
-`apps/dashboard/wrangler.jsonc`:
+The dashboard UI is an Astro SSR application deployed as a Cloudflare Worker
+with static assets — not to Pages, which `@astrojs/cloudflare` v12+ no longer
+supports (#252). Its `/api/*` route proxies to the testnet `dashboard-api` on
+Railway, which keeps session and CSRF cookies same-origin in the browser. The
+target is recorded in `apps/dashboard/wrangler.jsonc`:
 
-- Pages project: `mayarin-dashboard-testnet`
-- Pages variable: `API_URL=https://api-merchant-testnet.mayarin.xyz`
-- Custom domain: `dashboard-testnet.mayarin.xyz`
+- Worker: `mayarin-dashboard-testnet`
+- Worker variable: `API_URL=https://api-merchant-testnet.mayarin.xyz`
+- KV binding: `SESSION` → namespace `mayarin-dashboard-testnet-SESSION`
+- Route: `dashboard-testnet.mayarin.xyz/*` on the `mayarin.xyz` zone
 
 Confirm the Railway API custom domain is healthy, authenticate Wrangler, and
 deploy the locally verified build:
@@ -219,30 +221,33 @@ bun run deploy:dashboard:testnet
 ```
 
 `deploy:dashboard:testnet` runs the dashboard typecheck and production build
-before `wrangler pages deploy`. The Pages project is not connected to GitHub;
-this command is the only deployment path.
+before `wrangler deploy -c dist/server/wrangler.json`. The adapter writes that
+file and merges `wrangler.jsonc` into it. The Worker is not connected to
+GitHub; this command is the only deployment path.
+
+The server reads `API_URL` at runtime through `getSecret` from
+`astro:env/server` (`apps/dashboard/src/lib/api/origin.ts`).
+`Astro.locals.runtime.env` was removed in Astro 6 and throws on access — every
+`/api/*` call answers 500 and every session check fails.
 
 The dashboard proxy always uses the target's custom API hostname. Do not replace
 it with Railway's generated hostname; testnet and mainnet must remain explicit
 in both configuration and runtime traffic.
 
-#### Dashboard custom domain
+#### Dashboard hostname
 
-Attach `dashboard-testnet.mayarin.xyz` to the
-`mayarin-dashboard-testnet` Pages project, then create this DNS record in the
-`mayarin.xyz` Cloudflare zone:
+`dashboard-testnet.mayarin.xyz` is served through a Worker **route**, not a
+Worker custom domain. The hostname is still attached to the retired
+`mayarin-dashboard-testnet` Pages project, with a proxied `CNAME` to
+`mayarin-dashboard-testnet.pages.dev`. A custom domain refuses a hostname that
+another project or a DNS record already holds; a route runs in front of the
+proxied record, so the Worker takes the traffic without a DNS change or
+downtime. Wrangler's OAuth token has `workers_routes` write, which is all a
+route needs.
 
-| Type    | Name                | Target                                | Proxy   |
-| ------- | ------------------- | ------------------------------------- | ------- |
-| `CNAME` | `dashboard-testnet` | `mayarin-dashboard-testnet.pages.dev` | Enabled |
-
-The Pages domain API can be called with Wrangler's OAuth token, but Wrangler's
-standard OAuth scopes grant `zone:read`, not DNS Edit. If the CNAME does not
-already exist, create it in the Cloudflare dashboard or with a separate API
-token scoped to `Zone / DNS / Edit` for `mayarin.xyz`. Never commit that token.
-
-After adding the CNAME, wait until the Pages custom-domain status is `active`
-and Cloudflare has provisioned its certificate before running the smoke checks.
+Detaching the Pages domain and deleting the CNAME is optional cleanup. Do it
+only together with replacing the route by a `custom_domain` route in
+`wrangler.jsonc` — a route with no proxied DNS record behind it serves nothing.
 
 ### Deploy the pay proxy
 

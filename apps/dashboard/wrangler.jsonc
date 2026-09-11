@@ -15,10 +15,16 @@
   // Cloudflare dashboard and inherited invisibly; here the namespace id has to
   // be named, and `wrangler kv namespace list` is where it comes from. Without
   // it every session is dropped on deploy — a silent logout for every merchant.
-  "kv_namespaces": [{ "binding": "SESSION", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }],
+  "kv_namespaces": [{ "binding": "SESSION", "id": "0f488c4fdbd1417a8c680ed5d53267e3" }],
   "images": { "binding": "IMAGES" },
 
   "vars": {
     "API_URL": "https://api-merchant-testnet.mayarin.xyz"
-  }
+  },
+
+  // A route, not a custom domain: the hostname is still attached to the old
+  // Pages project, and a custom domain refuses a hostname that another project
+  // or a DNS record already holds. A route runs in front of the proxied CNAME,
+  // so the Worker takes the traffic without detaching Pages first.
+  "routes": [{ "pattern": "dashboard-testnet.mayarin.xyz/*", "zone_name": "mayarin.xyz" }]
 }

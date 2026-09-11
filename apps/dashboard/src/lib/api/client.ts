@@ -7,54 +7,13 @@
  * call `fetch` directly. The `Effect`s are run at the React Query boundary
  * (see `run.ts`), so no Effect runtime reaches the browser bundle.
  *
- * Server-side fetches (middleware/SSR) need an absolute origin — a relative
- * `/api` only resolves in the browser — so `getApiBase` resolves it from the
- * runtime/build-time env with a dev fallback. The browser client always uses
- * same-origin `/api`, which the Astro dev proxy rewrites to the dashboard API.
+ * The browser client always uses same-origin `/api`, which the Astro dev proxy
+ * rewrites to the dashboard API. Server-side fetches (middleware/SSR) need an
+ * absolute origin instead — see `origin.ts`.
  */
 
-import type { APIContext } from "astro";
 import { Data, Effect } from "effect";
 import { dashboardErrorMessage } from "./error-message";
-
-type AnyContext = APIContext;
-
-/**
- * Absolute base URL of the dashboard API, for SERVER-side fetches only.
- *
- * Resolution order:
- *   1. Edge runtime binding/secret (a future `locals.runtime.env.API_URL`)
- *   2. Build-time env                       (`import.meta.env.DASHBOARD_API_URL`)
- *   3. Dev fallback                         (dashboard API on :3001)
- *
- * The configured value is an origin. This function appends the dashboard
- * API's breaking-version boundary so SSR and browser requests target the same
- * contract.
- */
-export function getApiOrigin(context?: AnyContext): string {
-  // The Cloudflare adapter exposes `wrangler.jsonc` bindings during local Astro
-  // dev too. That file names the deployed testnet API, but a local login issues
-  // a session in the local dashboard API. Verifying that cookie against testnet
-  // makes a successful login bounce straight back to `/login`. Development is
-  // one local stack; runtime bindings only outrank build config in production.
-  if (import.meta.env.DEV) {
-    return (
-      (import.meta.env.DASHBOARD_API_URL as string | undefined) ?? "http://localhost:3001"
-    ).replace(/\/+$/, "");
-  }
-
-  const runtime = (context?.locals as { runtime?: { env?: { API_URL?: string } } } | undefined)
-    ?.runtime;
-  return (
-    runtime?.env?.API_URL ??
-    (import.meta.env.DASHBOARD_API_URL as string | undefined) ??
-    "http://localhost:3001"
-  ).replace(/\/+$/, "");
-}
-
-export function getApiBase(context?: AnyContext): string {
-  return `${getApiOrigin(context)}/v1`;
-}
 
 /** Typed failure for any non-2xx response, network error, or parse error. */
 export class ApiError extends Data.TaggedError("ApiError")<{
