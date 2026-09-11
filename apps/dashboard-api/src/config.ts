@@ -118,15 +118,17 @@ const configSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
-  /** One chain, deployed and proven, before address derivation multiplies. */
-  walletProvisionChain: z.enum(CHAIN_IDS).default("base-sepolia"),
   /**
-   * Every chain this deployment can provision a wallet on.
+   * Every chain this deployment can provision a wallet on, in order.
    *
-   * A merchant's Safe address is derived per chain — the salt carries the chain
-   * — so a merchant paid on two chains has two addresses, and each has to be
-   * deployed on the chain it belongs to. `walletProvisionChain` remains the
-   * default for surfaces that still ask about one chain.
+   * A merchant's managed wallet has one address on all of them — the same Safe,
+   * deployed on each. Adding a chain is adding its name here and its
+   * `CHAIN_RPC_URLS` entry; the canonical Safe contracts are checked on that
+   * chain before anything is derived.
+   *
+   * The first entry is the default for a surface that names one chain — where a
+   * connected wallet is recorded, say. A tuple rather than an array, so that
+   * entry is known to exist without a check at every reader.
    */
   walletProvisionChains: z
     .string()
@@ -136,7 +138,7 @@ const configSchema = z.object({
         .map((entry) => entry.trim())
         .filter(Boolean),
     )
-    .pipe(z.array(z.enum(CHAIN_IDS)).min(1))
+    .pipe(z.tuple([z.enum(CHAIN_IDS)]).rest(z.enum(CHAIN_IDS)))
     .default("base-sepolia"),
   walletProvisionRpcUrl: z.string().min(1).optional(),
   /** Pays the gas to deploy a merchant's Safe. The merchant has none — that is #9. */
@@ -222,7 +224,6 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     invoiceEmailFrom: env.RESEND_FROM_EMAIL,
     treasuryAddress: env.TREASURY_ADDRESS,
     walletProvisioningEnabled: env.WALLET_PROVISIONING_ENABLED,
-    walletProvisionChain: env.WALLET_PROVISION_CHAIN,
     walletProvisionChains: env.WALLET_PROVISION_CHAINS,
     walletProvisionRpcUrl: env.WALLET_PROVISION_RPC_URL,
     walletDeployerPrivateKey: env.WALLET_DEPLOYER_PRIVATE_KEY,

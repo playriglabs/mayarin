@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import type { ChainId } from "@mayarin/chain";
 import { ConfigurationError, ValidationError } from "@mayarin/shared";
 import type { MerchantWallet, ProvisionRequest } from "@mayarin/wallet";
 import {
@@ -18,6 +19,7 @@ import {
   encodeAbiParameters,
   getAddress,
   type Hex,
+  keccak256,
   parseAbi,
   parseTransaction,
   type Transport,
@@ -25,9 +27,25 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import {
   prevalidatedSignature,
-  SAFE_BASE_SEPOLIA,
+  SAFE_1_4_1,
+  type SafeDeployment,
   TurnkeyWalletProvider,
 } from "../src/wallet-provider.ts";
+
+/**
+ * Stand-in runtime code for the three Safe contracts, and a deployment that
+ * expects exactly it. The provider matches code hashes before deriving; what is
+ * under test is that it does, not Safe's real bytecode.
+ */
+const STUB_CODE = "0x6080" as const;
+const STUB_SAFE: SafeDeployment = {
+  ...SAFE_1_4_1,
+  codeHashes: {
+    proxyFactory: keccak256(STUB_CODE),
+    singleton: keccak256(STUB_CODE),
+    fallbackHandler: keccak256(STUB_CODE),
+  },
+};
 
 const MERCHANT_SIGNER = "0x1111111111111111111111111111111111111111";
 const MANAGED_SIGNER = {
@@ -165,7 +183,14 @@ function fakeChain() {
   return state;
 }
 
-function provider(overrides: { transport?: Transport; fetchFn?: typeof fetch } = {}) {
+function provider(
+  overrides: {
+    transport?: Transport;
+    fetchFn?: typeof fetch;
+    chain?: ChainId;
+    safeCode?: Hex;
+  } = {},
+) {
   const transport = custom({
     request: async ({ method }: { method: string }) => {
       if (method === "eth_call") {
@@ -173,6 +198,7 @@ function provider(overrides: { transport?: Transport; fetchFn?: typeof fetch } =
         // to these assertions; that it is the *same* value every time does.
         return encodeAbiParameters([{ type: "bytes" }], [`0x${"60".repeat(32)}`]);
       }
+      if (method === "eth_getCode") return overrides.safeCode ?? STUB_CODE;
       throw new Error(`unexpected RPC call: ${method}`);
     },
   });
@@ -180,10 +206,10 @@ function provider(overrides: { transport?: Transport; fetchFn?: typeof fetch } =
   return new TurnkeyWalletProvider({
     organizationId: "org",
     stamper: { stamp: async () => "stamp" },
-    chain: "base-sepolia",
+    chain: overrides.chain ?? "base-sepolia",
     deployerPrivateKey: `0x${"11".repeat(32)}`,
     rpcUrl: "http://rpc.invalid",
-    safe: SAFE_BASE_SEPOLIA,
+    safe: STUB_SAFE,
     transport: overrides.transport ?? transport,
     rootApiPublicKey: "root-public-key",
     signerApiPublicKey: "signer-public-key",
@@ -201,6 +227,7 @@ function request(overrides: Partial<ProvisionRequest> = {}): ProvisionRequest {
   return {
     merchantId: "mrc_1",
     chain: "base-sepolia",
+    saltChain: "base-sepolia",
     merchantSigner: MERCHANT_SIGNER,
     managedSigner: MANAGED_SIGNER,
     ...overrides,
@@ -235,6 +262,34 @@ describe("predictAddress", () => {
     );
 
     expect(one).not.toBe(two);
+  });
+
+  test("is keyed by the salt chain, not the chain it is deployed on", async () => {
+    // One managed address on every chain: the same request on Base and on Arc
+    // must derive the same address, or a merchant is handed one per network.
+    const onBase = await provider({ chain: "base-sepolia" }).predictAddress(
+      request({ chain: "base-sepolia", saltChain: "base-sepolia" }),
+    );
+    const onArc = await provider({ chain: "arc-testnet" }).predictAddress(
+      request({ chain: "arc-testnet", saltChain: "base-sepolia" }),
+    );
+    const otherSalt = await provider({ chain: "arc-testnet" }).predictAddress(
+      request({ chain: "arc-testnet", saltChain: "arc-testnet" }),
+    );
+
+    expect(onArc).toBe(onBase);
+    expect(otherSalt).not.toBe(onBase);
+  });
+
+  test("refuses a chain without the canonical Safe contracts, before deriving", async () => {
+    // A chain that never ran Safe's deterministic deployment — or derives
+    // CREATE2 differently — has no matching code. A prediction there is an
+    // address nothing can ever be deployed to.
+    await expect(
+      provider({ chain: "robinhood-testnet", safeCode: "0x" }).predictAddress(
+        request({ chain: "robinhood-testnet" }),
+      ),
+    ).rejects.toBeInstanceOf(ConfigurationError);
   });
 });
 
@@ -359,15 +414,5 @@ describe("prevalidatedSignature", () => {
       `0x${"00".repeat(12)}${MANAGED_SIGNER.address.slice(2)}${"00".repeat(32)}01`,
     );
     expect(signature).toHaveLength(2 + 65 * 2);
-  });
-});
-
-describe("the Safe deployment table", () => {
-  test("names the 1.4.1 contracts verified on Base Sepolia", () => {
-    // Checked on-chain with `getCode` before this shipped; a wrong factory
-    // deploys nothing, or something else, and the merchant's money follows.
-    expect(SAFE_BASE_SEPOLIA.proxyFactory).toBe("0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67");
-    expect(SAFE_BASE_SEPOLIA.singleton).toBe("0x29fcB43b46531BcA003ddC8FCB67FFE91900C762");
-    expect(SAFE_BASE_SEPOLIA.fallbackHandler).toBe("0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99");
   });
 });

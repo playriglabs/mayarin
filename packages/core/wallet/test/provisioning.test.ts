@@ -142,7 +142,13 @@ describe("an interrupted provision", () => {
     // Deployed, then died before the row could be marked verified — the
     // window where a naive retry deploys a second wallet.
     const managedSigner = await provider.createManagedSigner(MERCHANT);
-    const request = { merchantId: MERCHANT, chain: CHAIN, merchantSigner: SIGNER, managedSigner };
+    const request = {
+      merchantId: MERCHANT,
+      chain: CHAIN,
+      saltChain: CHAIN,
+      merchantSigner: SIGNER,
+      managedSigner,
+    };
     const address = await provider.predictAddress(request);
     await provider.deploy(request);
     await wallets.insert({
@@ -250,6 +256,103 @@ describe("the merchant's signer", () => {
       const managed = await provisioner.provision(MERCHANT, CHAIN);
       expect(managed.managed?.merchantSigner).toBe(SIGNER);
     }
+  });
+});
+
+describe("one address on every chain", () => {
+  test("every chain gets the first chain's address, built from the same signers", async () => {
+    // The merchant has one managed address, not one per network. A second
+    // sub-organization or a chain-specific salt is how that silently broke.
+    const { wallets, provider, provisioner } = setup();
+    await wallets.insert(linked());
+
+    const base = await provisioner.provision(MERCHANT, "base-sepolia");
+    const ethereum = await provisioner.provision(MERCHANT, "ethereum-sepolia");
+    const arc = await provisioner.provision(MERCHANT, "arc-testnet");
+
+    expect(ethereum.address).toBe(base.address);
+    expect(arc.address).toBe(base.address);
+    expect(arc.managed).toEqual(base.managed);
+    expect(provider.signers).toHaveLength(1);
+    // One deployment per chain: the same address still has to exist on each.
+    expect(provider.deploys).toEqual([base.address, base.address, base.address]);
+  });
+
+  test("a chain added later still lands on the first chain's address", async () => {
+    // Nothing about the derivation names the chains a deployment runs today, so
+    // a network enabled next year gets the address the merchant already shares.
+    const { wallets, provisioner } = setup();
+    await wallets.insert(linked());
+
+    const first = await provisioner.provision(MERCHANT, "arc-testnet");
+    const later = await provisioner.provision(MERCHANT, "arbitrum-sepolia");
+
+    expect(later.address).toBe(first.address);
+  });
+
+  test("the merchant's signer may be proved on another chain", async () => {
+    // A recovered signature names a key, and the key controls the address on
+    // every EVM chain — so proving it on Base is proving it on Arc.
+    const { wallets, provisioner } = setup();
+    await wallets.insert(linked({ chain: "base-sepolia" }));
+
+    const managed = await provisioner.provision(MERCHANT, "arc-testnet");
+
+    expect(managed.managed?.merchantSigner).toBe(SIGNER);
+    expect(managed.verifiedAt).toEqual(NOW);
+  });
+
+  test("a failed chain resumes onto the shared address", async () => {
+    const { wallets, provider, provisioner } = setup();
+    await wallets.insert(linked());
+    const base = await provisioner.provision(MERCHANT, "base-sepolia");
+
+    provider.failOn = "deploy";
+    await expect(provisioner.provision(MERCHANT, "arc-testnet")).rejects.toThrow();
+    const pending = await wallets.findManaged(MERCHANT, "arc-testnet");
+    expect(pending?.address).toBe(base.address);
+
+    const resumed = await provisioner.provision(MERCHANT, "arc-testnet");
+
+    expect(resumed.address).toBe(base.address);
+    expect(resumed.verifiedAt).toEqual(NOW);
+    expect(provider.signers).toHaveLength(1);
+  });
+
+  test("refuses a new chain once the signer it was built with is no longer verified", async () => {
+    // Substituting a different verified address would derive a different
+    // address — the merchant would quietly stop having one address everywhere.
+    const { wallets, provider, provisioner } = setup();
+    await wallets.insert(linked());
+    await provisioner.provision(MERCHANT, "base-sepolia");
+
+    await wallets.insert(
+      linked({ id: "wlt_linked_2", address: "0x3333333333333333333333333333333333333333" }),
+    );
+    const { verifiedAt: _unused, ...unverified } = linked();
+    await wallets.update(unverified);
+
+    await expect(provisioner.provision(MERCHANT, "arc-testnet")).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    expect(provider.deploys).toHaveLength(1);
+  });
+
+  test("different merchants never share an address", async () => {
+    const { wallets, provisioner } = setup();
+    await wallets.insert(linked());
+    await wallets.insert(
+      linked({
+        id: "wlt_other",
+        merchantId: "mrc_2",
+        address: "0x4444444444444444444444444444444444444444",
+      }),
+    );
+
+    const mine = await provisioner.provision(MERCHANT, "base-sepolia");
+    const theirs = await provisioner.provision("mrc_2", "base-sepolia");
+
+    expect(theirs.address).not.toBe(mine.address);
   });
 });
 

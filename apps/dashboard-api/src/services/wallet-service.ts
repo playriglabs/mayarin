@@ -87,15 +87,20 @@ export interface WalletServiceOptions {
    * Every chain this deployment settles on, and therefore every chain a
    * merchant has a balance to look at (#244).
    *
-   * A list rather than one chain because a merchant's Safe address is derived
-   * per chain — the salt carries it — so a merchant paid on Base and on Arc has
-   * two addresses holding two balances. Reporting one of them was correct while
-   * there was one chain and silently wrong the moment there were two: the money
-   * on the other chain simply did not appear anywhere in the product.
+   * A list rather than one chain because a balance lives on a chain: the same
+   * address on Base and on Arc holds two balances. Reporting one of them was
+   * correct while there was one chain and silently wrong the moment there were
+   * two: the money on the other chain simply did not appear anywhere.
    *
    * The first entry is the default for a surface that still names one chain.
    */
   readonly chains: readonly ChainId[];
+  /**
+   * Every chain a managed wallet is created on, in order. The first chain a
+   * merchant is provisioned on fixes the signers and salt every later chain
+   * reuses, which is what gives them one address everywhere.
+   */
+  readonly provisionChains: readonly ChainId[];
   /**
    * Reads what the settlement address holds. Absent on a deployment with no
    * chain access — the balance endpoint then reports the address and no
@@ -122,6 +127,18 @@ export interface SettlementBalance {
   readonly balances: readonly Money[];
 }
 
+/** A chain a managed wallet could not be created on, and why. */
+export interface ProvisionFailure {
+  readonly chain: ChainId;
+  readonly reason: string;
+}
+
+/** What creating the managed wallet everywhere did, chain by chain. */
+export interface ProvisionEverywhereResult {
+  readonly provisioned: readonly MerchantWallet[];
+  readonly failed: readonly ProvisionFailure[];
+}
+
 export interface WithdrawRequest {
   /** Which chain's wallet to move from (#244). A merchant has one per chain. */
   readonly chain: ChainId;
@@ -145,6 +162,7 @@ export class WalletService {
   readonly #treasury: ReadonlySet<string>;
   readonly #merchants: MerchantRepository;
   readonly #chains: readonly ChainId[];
+  readonly #provisionChains: readonly ChainId[];
   readonly #balances: WalletBalanceReader | undefined;
   readonly #settlementAddresses: SettlementAddressResolver;
   readonly #walletProvider: WalletProvider | undefined;
@@ -164,6 +182,7 @@ export class WalletService {
     );
     this.#merchants = options.merchants;
     this.#chains = options.chains;
+    this.#provisionChains = options.provisionChains;
     this.#balances = options.balances;
     this.#settlementAddresses = options.settlementAddresses;
     this.#walletProvider = options.walletProvider;
@@ -239,6 +258,10 @@ export class WalletService {
    * transfer. Verification is a signature the merchant produced, so the
    * destination is an address somebody proved they control — and proving it is
    * a step an attacker with a session cannot take.
+   *
+   * Proved on any chain. A recovered signature names a key, and that key holds
+   * the address on every EVM chain, so asking the merchant to prove it again
+   * per network would add a step and no assurance.
    */
   async withdraw(scope: Scope, request: WithdrawRequest): Promise<WalletWithdrawal> {
     const provider = this.#walletProvider;
@@ -269,11 +292,7 @@ export class WalletService {
     const to = normaliseAddress(request.to);
     const destinations = await this.#wallets.listByMerchant(scope.merchantId);
     const destination = destinations.find(
-      (wallet) =>
-        wallet.address === to &&
-        wallet.chain === chain &&
-        isMerchantHeld(wallet) &&
-        isVerified(wallet),
+      (wallet) => wallet.address === to && isMerchantHeld(wallet) && isVerified(wallet),
     );
     if (destination === undefined) {
       throw new ValidationError(
@@ -374,13 +393,51 @@ export class WalletService {
    * might be told to pay into.
    */
   async provision(scope: Scope, chain: ChainId): Promise<MerchantWallet> {
+    return this.#requireProvisioner().provision(scope.merchantId, chain);
+  }
+
+  /**
+   * Creates the merchant's managed wallet on every chain this deployment
+   * provisions on: one address, deployed on each.
+   *
+   * One chain at a time, in order. The first provision writes the signers every
+   * later chain reuses, so running them together would race to create two. A
+   * chain that fails does not stop the others — it is reported, and asking
+   * again resumes it onto the same address.
+   *
+   * Nothing created anywhere is one failure rather than a list of them: the
+   * usual cause is that the merchant has not proved an address yet, which is a
+   * single thing to fix and reads best as a single error.
+   */
+  async provisionEverywhere(scope: Scope): Promise<ProvisionEverywhereResult> {
+    const provisioner = this.#requireProvisioner();
+    const provisioned: MerchantWallet[] = [];
+    const failed: ProvisionFailure[] = [];
+    let firstError: Error | undefined;
+
+    for (const chain of this.#provisionChains) {
+      try {
+        provisioned.push(await provisioner.provision(scope.merchantId, chain));
+      } catch (error) {
+        const cause =
+          error instanceof Error ? error : new ConfigurationError(String(error), { chain });
+        firstError ??= cause;
+        failed.push({ chain, reason: cause.message });
+      }
+    }
+
+    if (provisioned.length === 0 && firstError !== undefined) throw firstError;
+    return { provisioned, failed };
+  }
+
+  #requireProvisioner(): ManagedWalletProvisioner {
     if (this.#provisioner === undefined) {
       throw new ConfigurationError(
         "This deployment has no wallet provider configured; link an address you control instead",
-        { chain },
+        {},
       );
     }
-    return this.#provisioner.provision(scope.merchantId, chain);
+    return this.#provisioner;
   }
 
   /** Issues the text the merchant signs to prove control. */

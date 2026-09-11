@@ -42,6 +42,7 @@ function service() {
     clock: new FixedClock(NOW),
     merchants: new InMemoryMerchantRepository(),
     chains: ["base-sepolia"],
+    provisionChains: ["base-sepolia"],
     settlementAddresses: new SettlementAddressResolver({ wallets }),
   });
 }

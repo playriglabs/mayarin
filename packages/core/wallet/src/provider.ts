@@ -50,7 +50,18 @@ export interface ManagedSigner {
 
 export interface ProvisionRequest {
   readonly merchantId: string;
+  /** The chain this wallet is deployed on. */
   readonly chain: ChainId;
+  /**
+   * The chain the wallet's address is derived for — the chain of the merchant's
+   * first managed wallet, whichever chain this one is deployed on.
+   *
+   * Kept apart from `chain` so a merchant has **one** managed address on every
+   * EVM chain. The address is a function of the signer set and this salt; with
+   * both fixed at the first provision, the same Safe lands at the same address
+   * on every chain it is later deployed to.
+   */
+  readonly saltChain: ChainId;
   /**
    * A merchant-controlled signer, required at provisioning.
    *

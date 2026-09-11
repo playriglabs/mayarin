@@ -51,13 +51,18 @@
  * ## Deterministic addressing
  *
  * `predictAddress` derives the Safe's address before it exists, from the signer
- * set and a salt derived from the merchant and chain. That is what makes
- * provisioning resumable: the orchestration writes its record first, and a
- * resumed attempt re-derives the same address and adopts whatever is at it
+ * set and a salt derived from the merchant and their salt chain. That is what
+ * makes provisioning resumable: the orchestration writes its record first, and
+ * a resumed attempt re-derives the same address and adopts whatever is at it
  * rather than deploying a second Safe.
+ *
+ * The chain being deployed on is not an input. With the signer set and salt
+ * fixed at a merchant's first provision, and Safe's canonical contracts at the
+ * same addresses everywhere, the merchant's Safe has one address on every EVM
+ * chain — including chains added to the deployment later.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
 import {
   type AssetCode,
   ConfigurationError,
@@ -74,9 +79,11 @@ import type {
 } from "@mayarin/wallet";
 import {
   type Address,
+  type Chain,
   concatHex,
   createPublicClient,
   createWalletClient,
+  defineChain,
   encodeAbiParameters,
   encodeFunctionData,
   getAddress,
@@ -92,7 +99,6 @@ import {
   toHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
 import { DEFAULT_TURNKEY_ENDPOINT } from "./adapter.ts";
 import type { TurnkeyStamper } from "./stamper.ts";
 
@@ -117,28 +123,41 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const SIGNER_USER_NAME = "mayarin-signer";
 
 /**
- * Canonical Safe 1.4.1 deployments. Verified on-chain before use rather than
- * trusted from a table — a wrong factory address deploys nothing, or something
- * else, and the merchant's money goes to whatever it produced.
+ * A Safe deployment: where its three contracts live, and the bytecode each must
+ * have there. Verified on-chain before use rather than trusted from a table — a
+ * wrong factory address deploys nothing, or something else, and the merchant's
+ * money goes to whatever it produced.
  */
 export interface SafeDeployment {
   readonly proxyFactory: Address;
   readonly singleton: Address;
   readonly fallbackHandler: Address;
+  /** `keccak256` of the runtime bytecode each contract must have on the chain. */
+  readonly codeHashes: Readonly<Record<SafeContract, Hex>>;
 }
+
+const SAFE_CONTRACTS = ["proxyFactory", "singleton", "fallbackHandler"] as const;
+
+type SafeContract = (typeof SAFE_CONTRACTS)[number];
 
 export interface TurnkeyWalletProviderOptions {
   readonly organizationId: string;
   readonly stamper: TurnkeyStamper;
   /**
-   * The chain this provider deploys on. One chain, deployed and proven, before
-   * the address-derivation questions multiply (#11 non-goals).
+   * The chain this provider deploys on. One provider per chain, because its RPC
+   * and token table are per chain; the address it derives is not.
    */
   readonly chain: ChainId;
   /** Pays the gas to deploy the Safe. The merchant has none yet — that is #9. */
   readonly deployerPrivateKey: Hex;
   readonly rpcUrl: string;
-  readonly safe: SafeDeployment;
+  /**
+   * The Safe contracts to deploy through. Defaults to the canonical 1.4.1
+   * deployment, which is checked on the chain itself before anything is
+   * derived — so a new chain needs no entry here, and a chain without the
+   * canonical contracts is refused rather than guessed at.
+   */
+  readonly safe?: SafeDeployment;
   /**
    * How the chain is reached. Defaults to `http(rpcUrl)`; a test supplies its
    * own so the address derivation can be exercised without a node, since that
@@ -178,9 +197,13 @@ const DEFAULT_MAX_GAS_TOP_UP_WEI = 2_000_000_000_000_000n;
 
 export class TurnkeyWalletProvider implements WalletProvider {
   readonly #options: TurnkeyWalletProviderOptions;
+  readonly #safe: SafeDeployment;
+  /** Set once the Safe contracts have been read off this chain and matched. */
+  #safeVerified = false;
 
   constructor(options: TurnkeyWalletProviderOptions) {
     this.#options = options;
+    this.#safe = options.safe ?? SAFE_1_4_1;
   }
 
   /**
@@ -244,15 +267,20 @@ export class TurnkeyWalletProvider implements WalletProvider {
   /**
    * The Safe's address, derived rather than observed.
    *
-   * Pure in its inputs — the signer set and a salt over merchant and chain — so
-   * every attempt derives the same address and a resumed provision lands on the
-   * Safe the previous attempt was making.
+   * Pure in its inputs — the signer set and a salt over the merchant and their
+   * salt chain — so every attempt derives the same address, a resumed provision
+   * lands on the Safe the previous attempt was making, and every chain a
+   * merchant is provisioned on gives them the same address.
+   *
+   * Refuses before deriving anything on a chain whose Safe contracts are not the
+   * canonical ones: the address would be a prediction nothing can deploy to.
    */
   async predictAddress(request: ProvisionRequest): Promise<string> {
     this.#assertChain(request.chain);
     const client = this.#publicClient();
+    await this.#assertSafeContracts(client);
     const creationCode = await client.readContract({
-      address: this.#options.safe.proxyFactory,
+      address: this.#safe.proxyFactory,
       abi: PROXY_FACTORY_ABI,
       functionName: "proxyCreationCode",
     });
@@ -263,12 +291,12 @@ export class TurnkeyWalletProvider implements WalletProvider {
     );
     const bytecode = concatHex([
       creationCode,
-      encodeAbiParameters([{ type: "address" }], [this.#options.safe.singleton]),
+      encodeAbiParameters([{ type: "address" }], [this.#safe.singleton]),
     ]);
 
     return getContractAddress({
       opcode: "CREATE2",
-      from: this.#options.safe.proxyFactory,
+      from: this.#safe.proxyFactory,
       salt,
       bytecodeHash: keccak256(bytecode),
     }).toLowerCase();
@@ -306,24 +334,20 @@ export class TurnkeyWalletProvider implements WalletProvider {
     const account = privateKeyToAccount(this.#options.deployerPrivateKey);
     const walletClient = createWalletClient({
       account,
-      chain: baseSepolia,
+      chain: this.#chain(),
       transport: this.#transport(),
     });
 
-    const args = [
-      this.#options.safe.singleton,
-      this.#initializer(request),
-      saltNonce(request),
-    ] as const;
+    const args = [this.#safe.singleton, this.#initializer(request), saltNonce(request)] as const;
     await client.simulateContract({
       account,
-      address: this.#options.safe.proxyFactory,
+      address: this.#safe.proxyFactory,
       abi: PROXY_FACTORY_ABI,
       functionName: "createProxyWithNonce",
       args,
     });
     const hash = await walletClient.writeContract({
-      address: this.#options.safe.proxyFactory,
+      address: this.#safe.proxyFactory,
       abi: PROXY_FACTORY_ABI,
       functionName: "createProxyWithNonce",
       args,
@@ -417,7 +441,7 @@ export class TurnkeyWalletProvider implements WalletProvider {
 
     const unsigned = serializeTransaction({
       type: "eip1559",
-      chainId: baseSepolia.id,
+      chainId: this.#chain().id,
       nonce: await client.getTransactionCount({ address: signer, blockTag: "pending" }),
       to: safe,
       value: 0n,
@@ -486,7 +510,7 @@ export class TurnkeyWalletProvider implements WalletProvider {
     const account = privateKeyToAccount(this.#options.deployerPrivateKey);
     const walletClient = createWalletClient({
       account,
-      chain: baseSepolia,
+      chain: this.#chain(),
       transport: this.#transport(),
     });
     const hash = await walletClient.sendTransaction({ to: signer, value: topUp });
@@ -545,7 +569,7 @@ export class TurnkeyWalletProvider implements WalletProvider {
         1n,
         ZERO_ADDRESS,
         "0x",
-        this.#options.safe.fallbackHandler,
+        this.#safe.fallbackHandler,
         ZERO_ADDRESS,
         0n,
         ZERO_ADDRESS,
@@ -680,9 +704,52 @@ export class TurnkeyWalletProvider implements WalletProvider {
     await this.#post("/public/v1/submit/create_policy", body);
   }
 
+  /**
+   * The chain as viem needs it to sign, built from the registry's EIP-155 id.
+   *
+   * Built rather than imported per chain, so a chain added to `CHAIN_IDS` signs
+   * with its own id without anyone editing this file. The id is what makes a
+   * signed transaction valid on exactly one chain.
+   */
+  #chain(): Chain {
+    const nativeAsset = this.#options.nativeAsset ?? "ETH";
+    return defineChain({
+      id: Number(EVM_CHAIN_IDS[this.#options.chain]),
+      name: this.#options.chain,
+      nativeCurrency: { name: nativeAsset, symbol: nativeAsset, decimals: 18 },
+      rpcUrls: { default: { http: [this.#options.rpcUrl] } },
+    });
+  }
+
+  /**
+   * Reads the three Safe contracts off this chain and matches their bytecode.
+   *
+   * What lets any EVM chain be provisioned on without a per-chain table: Safe's
+   * deterministic deployment puts identical contracts at identical addresses,
+   * and this checks that it did here. A chain that derives CREATE2 addresses
+   * differently, or never ran the deployment, has no matching code and is
+   * refused — deploying against an empty factory produces no wallet while
+   * looking exactly like a wallet that failed to index.
+   */
+  async #assertSafeContracts(client: PublicClient): Promise<void> {
+    if (this.#safeVerified) return;
+    for (const contract of SAFE_CONTRACTS) {
+      const address = this.#safe[contract];
+      const code = await client.getCode({ address });
+      const codeHash = code === undefined || code === "0x" ? undefined : keccak256(code);
+      if (codeHash !== this.#safe.codeHashes[contract]) {
+        throw new ConfigurationError(
+          `${this.#options.chain} has no canonical Safe ${contract} at ${address}, so a managed wallet cannot be created there`,
+          { chain: this.#options.chain, contract, address, codeHash: codeHash ?? null },
+        );
+      }
+    }
+    this.#safeVerified = true;
+  }
+
   #publicClient(): PublicClient {
     return createPublicClient({
-      chain: baseSepolia,
+      chain: this.#chain(),
       transport: this.#transport(),
     }) as PublicClient;
   }
@@ -720,12 +787,13 @@ export class TurnkeyWalletProvider implements WalletProvider {
 /**
  * The salt a merchant's Safe is deployed at.
  *
- * Derived from the merchant and the chain rather than from a clock, which is
- * what makes the address the same on every attempt — the property the whole
- * resumable provisioning path rests on.
+ * Derived from the merchant and their salt chain rather than from a clock, which
+ * is what makes the address the same on every attempt — the property the whole
+ * resumable provisioning path rests on. The salt chain, not the chain being
+ * deployed on, so the merchant's Safe has the same address on every chain.
  */
 function saltNonce(request: ProvisionRequest): bigint {
-  return BigInt(keccak256(toHex(`mayarin:wallet:${request.merchantId}:${request.chain}`)));
+  return BigInt(keccak256(toHex(`mayarin:wallet:${request.merchantId}:${request.saltChain}`)));
 }
 
 interface SubOrgResponse {
@@ -789,51 +857,25 @@ async function readAtBlock<T>(read: () => Promise<T>, attempts = 8): Promise<T> 
   throw lastError;
 }
 
-/** Verified on Base Sepolia before this shipped; re-verify before another chain. */
-export const SAFE_BASE_SEPOLIA: SafeDeployment = {
+/**
+ * Safe 1.4.1, the canonical deterministic deployment: `SafeProxyFactory`, the
+ * `SafeL2` singleton and `CompatibilityFallbackHandler`.
+ *
+ * One table for every chain, because the deterministic deployment puts the same
+ * bytecode at the same addresses wherever it ran. The code hashes are what make
+ * that a checked fact rather than an assumption — read identically off Base
+ * Sepolia, Ethereum Sepolia and Arc testnet on 11 September 2026 — and every
+ * provider re-reads them on its own chain before deriving an address.
+ */
+export const SAFE_1_4_1: SafeDeployment = {
   proxyFactory: "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
   singleton: "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
   fallbackHandler: "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+  codeHashes: {
+    proxyFactory: "0x50c3cdc4074750a7a974204a716c999edd37482f907608d960b2b025ee0b3317",
+    singleton: "0xb1f926978a0f44a2c0ec8fe822418ae969bd8c3f18d61e5103100339894f81ff",
+    fallbackHandler: "0x7c6007a5d711cea8dfd5d91f5940ec29c7f200fe511eb1fc1397b367af3c42f9",
+  },
 };
-
-/**
- * The same canonical 1.4.1 addresses, read off Arc testnet on 4 September 2026
- * rather than assumed from Base: proxy factory 3055 bytes, `SafeL2` singleton
- * 24422, fallback handler 5638 — byte-for-byte the sizes Base reports.
- *
- * Checking was the point. Safe publishes these as canonical, but a chain that
- * had not been through the deterministic-deployment ceremony would leave one of
- * them empty, and deploying against an empty factory produces no wallet while
- * looking exactly like a wallet that failed to index.
- */
-export const SAFE_ARC_TESTNET: SafeDeployment = {
-  proxyFactory: "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
-  singleton: "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
-  fallbackHandler: "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
-};
-
-/**
- * Where a Safe can be deployed, by chain.
- *
- * A chain absent here cannot provision, and that is the honest answer rather
- * than falling back to another chain's addresses — which, since the salt already
- * carries the chain, would deploy a wallet nobody predicted at an address nobody
- * recorded.
- */
-export const SAFE_DEPLOYMENTS: Readonly<Partial<Record<ChainId, SafeDeployment>>> = {
-  "base-sepolia": SAFE_BASE_SEPOLIA,
-  "arc-testnet": SAFE_ARC_TESTNET,
-};
-
-export function safeDeploymentFor(chain: ChainId): SafeDeployment {
-  const deployment = SAFE_DEPLOYMENTS[chain];
-  if (deployment === undefined) {
-    throw new ConfigurationError(
-      `No verified Safe deployment for ${chain}. Read the factory, singleton and fallback handler off that chain before adding one.`,
-      { chain },
-    );
-  }
-  return deployment;
-}
 
 export type { ChainId };

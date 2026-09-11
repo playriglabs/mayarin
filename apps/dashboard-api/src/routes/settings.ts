@@ -28,12 +28,12 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
    *
    * Answers "and if I leave the address blank?" with the rule the order signer
    * applies, rather than a second guess at it. Resolved on the deployment's
-   * wallet chain, which is the chain a managed wallet exists on.
+   * first wallet chain — the managed wallet has the same address on every one.
    */
   const effectiveAddress = (merchantId: string, configured: string | undefined) =>
     container.settlementAddresses.effective(
       merchantId,
-      container.config.walletProvisionChain,
+      container.config.walletProvisionChains[0],
       configured,
     );
 

@@ -13,7 +13,7 @@
  *   bun --env-file=.env run scripts/verify-safe-recovery.ts
  */
 
-import { ApiKeyStamper, SAFE_BASE_SEPOLIA, TurnkeyWalletProvider } from "@mayarin/provider-turnkey";
+import { ApiKeyStamper, TurnkeyWalletProvider } from "@mayarin/provider-turnkey";
 import {
   createPublicClient,
   createWalletClient,
@@ -59,7 +59,6 @@ const provider = new TurnkeyWalletProvider({
   chain: "base-sepolia",
   deployerPrivateKey: requireEnv("OPERATOR_PRIVATE_KEY") as Hex,
   rpcUrl,
-  safe: SAFE_BASE_SEPOLIA,
   rootApiPublicKey: requireEnv("TURNKEY_API_PUBLIC_KEY"),
   signerApiPublicKey: requireEnv("TURNKEY_SIGNER_API_PUBLIC_KEY"),
 });
@@ -72,6 +71,7 @@ const managedSigner = await provider.createManagedSigner(merchantId);
 const request = {
   merchantId,
   chain: "base-sepolia" as const,
+  saltChain: "base-sepolia" as const,
   merchantSigner: merchant.address,
   managedSigner,
 };

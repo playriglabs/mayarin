@@ -18,7 +18,8 @@ import { chainReceipts } from "../rails.ts";
 
 const linkBodySchema = z.object({ chain: z.enum(CHAIN_IDS), address: z.string() }).strict();
 
-const provisionBodySchema = z.object({ chain: z.enum(CHAIN_IDS) }).strict();
+/** One chain, or every chain this deployment provisions on when none is named. */
+const provisionBodySchema = z.object({ chain: z.enum(CHAIN_IDS).optional() }).strict();
 
 /**
  * A passkey the merchant's browser just created.
@@ -119,13 +120,12 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
 
   app.get("/", async (c) => {
     const wallets = await container.wallets.list(scopeOf(c));
-    // The chain the deployment provisions on travels with the list so the
-    // browser never has to name a chain of its own: linking, provisioning and
-    // the passkey ceremony all have to target the chain this deployment's
-    // wallet provider and settlement resolution actually use.
+    // The deployment's first wallet chain travels with the list so the browser
+    // never has to name a chain of its own: a connected wallet and the passkey
+    // ceremony are recorded against it, and proof there counts on every chain.
     return c.json({
       wallets: wallets.map(toWalletDto),
-      chain: container.config.walletProvisionChain,
+      chain: container.config.walletProvisionChains[0],
       // Every chain this deployment can provision on (#244). A merchant who
       // joined when there was one chain has to be able to get a wallet on the
       // next one without anybody running a script for them, and the browser
@@ -244,17 +244,26 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
   });
 
   /**
-   * Provisions a managed smart account for this merchant.
+   * Provisions this merchant's managed smart account — one address, on one
+   * chain or on every chain this deployment provisions on.
    *
    * Idempotent: a merchant who already has one gets it back, and an attempt
    * that died halfway resumes onto the same wallet rather than deploying a
    * second one. Returns 200 rather than 201 for that reason — the second call
    * created nothing.
+   *
+   * Without a chain, a chain that fails is reported in `failed` beside the ones
+   * that succeeded, rather than failing the request: the merchant already has
+   * their address on those, and asking again resumes the rest.
    */
   app.post("/managed", csrfMiddleware(), async (c) => {
     const body = provisionBodySchema.parse(await c.req.json());
-    const wallet = await container.wallets.provision(scopeOf(c), body.chain);
-    return c.json({ wallet: toWalletDto(wallet) });
+    if (body.chain !== undefined) {
+      const wallet = await container.wallets.provision(scopeOf(c), body.chain);
+      return c.json({ wallet: toWalletDto(wallet) });
+    }
+    const { provisioned, failed } = await container.wallets.provisionEverywhere(scopeOf(c));
+    return c.json({ wallets: provisioned.map(toWalletDto), failed });
   });
 
   /** Issues the text to sign. Signing it moves no funds. */

@@ -18,6 +18,7 @@ import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
   ChallengeResponse,
   MerchantRailsResponse,
+  ProvisionEverywhereResponse,
   SettingsHistoryResponse,
   SettingsResponse,
   UpdateSettingsRequest,
@@ -82,12 +83,24 @@ export function useLinkWallet() {
   });
 }
 
-/** Idempotent: a merchant who already has a managed wallet gets that one back. */
+/**
+ * Sets the managed wallet up on one network. Idempotent: the same address comes
+ * back, deployed there.
+ */
 export function useProvisionWallet() {
   return useEffectMutation<WalletResponse, string, ApiError>({
     mutation: (chain) => walletsApi.provision(chain),
-    toast: { loading: "Provisioning wallet…", success: "Wallet provisioned" },
-    invalidate: [WALLETS_KEY, SETTINGS_KEY],
+    toast: { loading: "Setting up your wallet…", success: "Wallet ready on this network" },
+    invalidate: [WALLETS_KEY, WALLET_BALANCE_KEY, WALLET_RAILS_KEY, SETTINGS_KEY],
+  });
+}
+
+/** Creates the managed wallet on every network at once — one address, deployed on each. */
+export function useProvisionWalletEverywhere() {
+  return useEffectMutation<ProvisionEverywhereResponse, void, ApiError>({
+    mutation: () => walletsApi.provisionEverywhere(),
+    toast: { loading: "Creating your managed wallet…", success: "Managed wallet created" },
+    invalidate: [WALLETS_KEY, WALLET_BALANCE_KEY, WALLET_RAILS_KEY, SETTINGS_KEY],
   });
 }
 

@@ -22,7 +22,7 @@
  * signed, not who paid.
  */
 
-import { ApiKeyStamper, SAFE_BASE_SEPOLIA, TurnkeyWalletProvider } from "@mayarin/provider-turnkey";
+import { ApiKeyStamper, TurnkeyWalletProvider } from "@mayarin/provider-turnkey";
 import { createPublicClient, type Hex, http, parseAbi } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
@@ -51,7 +51,6 @@ const provider = new TurnkeyWalletProvider({
   chain: "base-sepolia",
   deployerPrivateKey: requireEnv("OPERATOR_PRIVATE_KEY") as Hex,
   rpcUrl,
-  safe: SAFE_BASE_SEPOLIA,
   rootApiPublicKey: requireEnv("TURNKEY_API_PUBLIC_KEY"),
   signerApiPublicKey: requireEnv("TURNKEY_SIGNER_API_PUBLIC_KEY"),
 });
@@ -66,6 +65,7 @@ console.log(`turnkey signer ${managedSigner.address}`);
 const request = {
   merchantId,
   chain: "base-sepolia" as const,
+  saltChain: "base-sepolia" as const,
   merchantSigner: merchant.address,
   managedSigner,
 };

@@ -236,6 +236,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     // a merchant provisioned on Base and not on Arc, and a balance that has to
     // be reported per chain rather than for whichever one came first (#244).
     chains: ["base-sepolia", "arc-testnet"],
+    provisionChains: ["base-sepolia", "arc-testnet"],
     settlementAddresses: settlementAddressResolver,
     balances: walletBalances,
     walletProvider,

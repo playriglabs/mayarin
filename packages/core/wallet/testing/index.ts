@@ -179,10 +179,11 @@ export class FakeWalletProvider implements WalletProvider {
 
   async predictAddress(request: ProvisionRequest): Promise<string> {
     this.#crashIf("predictAddress");
-    // Deterministic in exactly what the real derivation depends on: the chain
-    // and both signers. A fake that keyed on the merchant id alone would let a
-    // resume-with-a-different-signer bug pass.
-    const seed = `${request.chain}:${request.merchantSigner}:${request.managedSigner.address}`;
+    // Deterministic in exactly what the real derivation depends on: the salt
+    // chain and both signers — not the chain deployed on, which is what lets one
+    // merchant hold the same address everywhere. A fake that keyed on the
+    // merchant id alone would let a resume-with-a-different-signer bug pass.
+    const seed = `${request.merchantId}:${request.saltChain}:${request.merchantSigner}:${request.managedSigner.address}`;
     let hash = 0n;
     for (const character of seed) {
       hash = (hash * 31n + BigInt(character.codePointAt(0) ?? 0)) % 2n ** 160n;

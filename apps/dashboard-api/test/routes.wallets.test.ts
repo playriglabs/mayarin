@@ -414,6 +414,58 @@ describe("managed provisioning", () => {
     expect(harness.walletProvider.deploys).toHaveLength(1);
   });
 
+  test("without a chain, creates one address on every chain", async () => {
+    // A merchant has one managed address, not one per network: every chain the
+    // deployment provisions on gets the same Safe, built from one signer.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await linkAndVerify(harness, auth);
+
+    const res = await post(harness, auth, "/v1/wallets/managed", {});
+
+    expect(res.status).toBe(200);
+    const wallets = (res.body?.wallets ?? []) as { chain: string; address: string }[];
+    expect(wallets.map((wallet) => wallet.chain)).toEqual(["base-sepolia", "arc-testnet"]);
+    expect(new Set(wallets.map((wallet) => wallet.address)).size).toBe(1);
+    expect(res.body?.failed).toEqual([]);
+    expect(harness.walletProvider.signers).toHaveLength(1);
+  });
+
+  test("a network set up later gets the address the merchant already has", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await linkAndVerify(harness, auth);
+
+    const base = await post(harness, auth, "/v1/wallets/managed", { chain: "base-sepolia" });
+    const arc = await post(harness, auth, "/v1/wallets/managed", { chain: "arc-testnet" });
+
+    expect(arc.body?.wallet.address).toBe(base.body?.wallet.address);
+  });
+
+  test("reports a chain that failed beside the ones that succeeded", async () => {
+    // The merchant already has their address where it worked; failing the whole
+    // request would hide that, and asking again resumes the rest.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await linkAndVerify(harness, auth);
+    harness.walletProvider.failOn = "deploy";
+
+    const res = await post(harness, auth, "/v1/wallets/managed", {});
+
+    expect(res.status).toBe(200);
+    expect(res.body?.wallets.map((wallet: { chain: string }) => wallet.chain)).toEqual([
+      "arc-testnet",
+    ]);
+    expect(res.body?.failed.map((entry: { chain: string }) => entry.chain)).toEqual([
+      "base-sepolia",
+    ]);
+
+    const retried = await post(harness, auth, "/v1/wallets/managed", {});
+    const addresses = retried.body?.wallets.map((wallet: { address: string }) => wallet.address);
+    expect(retried.body?.failed).toEqual([]);
+    expect(new Set(addresses).size).toBe(1);
+  });
+
   test("provisioning without a CSRF token is refused", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -423,6 +475,29 @@ describe("managed provisioning", () => {
       cookies: auth.jar,
     });
     expect(res.status).toBe(403);
+  });
+});
+
+describe("withdrawing", () => {
+  test("pays out to a wallet proved on another network", async () => {
+    // A recovered signature names a key, and the key holds the address on every
+    // EVM chain — so proving it once on Base is enough to withdraw to it on Arc.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { account } = await linkAndVerify(harness, auth);
+    await post(harness, auth, "/v1/wallets/managed", {});
+
+    const res = await post(harness, auth, "/v1/wallets/withdraw", {
+      chain: "arc-testnet",
+      asset: "USDC",
+      amount: "1000000",
+      to: account.address,
+    });
+
+    expect(res.status).toBe(200);
+    const proposal = harness.walletProvider.proposals.at(-1);
+    expect(proposal?.wallet.chain).toBe("arc-testnet");
+    expect(proposal?.intent.to).toBe(account.address.toLowerCase());
   });
 });
 

@@ -9,6 +9,10 @@
  *   - Provision a managed smart account. Idempotent — asking twice returns the
  *     same wallet rather than deploying a second one — and the merchant is a
  *     signer on it, which the signer row states rather than asks to be trusted.
+ *     It has one address on every network, set up network by network.
+ *
+ * A wallet the merchant proved once counts on every network: the key behind an
+ * EVM address holds it on every EVM chain, so the page never asks twice.
  *
  * `verified` is the only field that decides whether an address can be paid, so
  * it is a badge on every row and not a detail behind a click. The proof itself
@@ -76,6 +80,7 @@ import {
   useLinkWallet,
   useMerchantRails,
   useProvisionWallet,
+  useProvisionWalletEverywhere,
   useVerifyWallet,
   useWalletBalance,
   useWalletChallenge,
@@ -136,6 +141,58 @@ function withdrawalReasonOf(error: unknown): string {
   return error instanceof ApiError ? error.message : "Failed to load withdrawal history";
 }
 
+/**
+ * One address as the merchant thinks of it: a wallet, on however many networks.
+ *
+ * The API keeps a record per network, and listing those records made one wallet
+ * look like three. Grouped by address and origin, so a connected key and a
+ * managed Safe never merge even in the impossible case they shared an address.
+ */
+interface WalletGroup {
+  readonly key: string;
+  readonly address: string;
+  readonly provenance: WalletProvenance;
+  readonly chains: readonly string[];
+  /** Merchant-held: proved on any network. Managed: deployed on every network on file. */
+  readonly verified: boolean;
+  /** The record to prove, when nothing in a merchant-held group has been proved. */
+  readonly unproven: WalletDto | undefined;
+  readonly createdAt: string;
+}
+
+function groupWallets(rows: readonly WalletDto[]): readonly WalletGroup[] {
+  const byKey = new Map<string, readonly WalletDto[]>();
+  for (const wallet of rows) {
+    const key = `${wallet.provenance}:${wallet.address}`;
+    byKey.set(key, [...(byKey.get(key) ?? []), wallet]);
+  }
+
+  return [...byKey.entries()].flatMap(([key, members]) => {
+    const [first] = members;
+    if (first === undefined) return [];
+    const managed = first.provenance === "provisioned";
+    const verified = managed
+      ? members.every((wallet) => wallet.verified)
+      : members.some((wallet) => wallet.verified);
+    return [
+      {
+        key,
+        address: first.address,
+        provenance: first.provenance,
+        chains: members.map((wallet) => wallet.chain),
+        verified,
+        unproven: !managed && !verified ? first : undefined,
+        createdAt: members.map((wallet) => wallet.createdAt).sort()[0] ?? first.createdAt,
+      },
+    ];
+  });
+}
+
+function statusLabel(group: WalletGroup): string {
+  if (group.provenance === "provisioned") return group.verified ? "Active" : "Setting up";
+  return group.verified ? "Verified" : "Unproven";
+}
+
 function Wallets() {
   const wallets = useWallets();
   const balance = useWalletBalance();
@@ -144,6 +201,7 @@ function Wallets() {
   const withdraw = useWithdraw();
   const link = useLinkWallet();
   const provision = useProvisionWallet();
+  const provisionEverywhere = useProvisionWalletEverywhere();
   const challenge = useWalletChallenge();
   const verify = useVerifyWallet();
 
@@ -231,34 +289,32 @@ function Wallets() {
   const chain = wallets.data?.chain;
   /** Every chain this deployment can provision on, named by the API rather than assumed. */
   const provisionChains = wallets.data?.chains ?? [];
-  const hasVerifiedWalletOn = (targetChain: string) =>
-    rows.some(
-      (wallet) =>
-        wallet.chain === targetChain && wallet.verified && wallet.provenance !== "provisioned",
-    );
+  /** The wallet table: one line per address, naming the networks it is on. */
+  const groups = groupWallets(rows);
   /**
-   * Whether the merchant already holds a Mayarin-managed wallet.
-   *
-   * One managed wallet is the limit: once it exists, neither the header actions
-   * nor a network card offers to create another. The header's connect actions
-   * go with it — they only ever acted on the default network, which each
-   * network card already covers with its own "Connect on …".
+   * The merchant's own verified wallets: who can own a managed wallet, and where
+   * a withdrawal may go. Never the managed one — moving money from a Safe to
+   * itself is not a withdrawal.
    */
-  const hasManagedWallet = rows.some((wallet) => wallet.provenance === "provisioned");
+  const destinations = groups.filter(
+    (group) => group.verified && group.provenance !== "provisioned",
+  );
+  const hasVerifiedWallet = destinations.length > 0;
+  /**
+   * The managed wallet's address: one address on every network, set up network
+   * by network. Undefined until the merchant has one — and once they do, nothing
+   * on this page offers to create another.
+   */
+  const managedAddress = groups.find((group) => group.provenance === "provisioned")?.address;
   /** One row per chain this deployment settles on, in the API's order (#244). */
   const chainBalances = balance.data?.balances ?? [];
+  /** Whether every network with an address is paid into the managed wallet. */
+  const paidIntoManaged =
+    managedAddress !== undefined &&
+    chainBalances.every((row) => row.address === null || row.address === managedAddress);
   /** The assets in the open withdraw dialog: the chosen chain's, never another's. */
   const balances = chainBalances.find((row) => row.chain === withdrawChain)?.balances ?? [];
   const withdrawalRows = withdrawalHistory.data?.withdrawals ?? [];
-  /**
-   * Where a withdrawal may go: the merchant's own verified wallets, and never
-   * the managed one — moving money from a Safe to itself is not a withdrawal.
-   */
-  const destinations = rows.filter(
-    (wallet) => wallet.verified && wallet.provenance !== "provisioned",
-  );
-  /** The service accepts a destination proved on the source chain only. */
-  const withdrawDestinations = destinations.filter((wallet) => wallet.chain === withdrawChain);
 
   function openConnect(targetChain = chain) {
     if (targetChain === undefined) return;
@@ -275,10 +331,7 @@ function Wallets() {
     setWithdrawAmount("");
     setWithdrawChain(row.chain);
     setWithdrawAsset(row.balances[0]?.asset ?? "");
-    // A destination has to be on the chain being moved from: the same key
-    // controls an EOA everywhere, but the service checks the wallet row, and a
-    // wallet row belongs to one chain.
-    setWithdrawTo(destinations.find((wallet) => wallet.chain === row.chain)?.address ?? "");
+    setWithdrawTo(destinations[0]?.address ?? "");
     setWithdrawing(true);
   }
 
@@ -333,12 +386,13 @@ function Wallets() {
     setSigning(true);
     try {
       const account = await requestAccount(wallet.provider);
-      const existing = rows.find((row) => row.chain === targetChain && row.address === account);
-      if (existing?.verified === true) {
+      // Proved on any network is proved: the key holds this address everywhere.
+      if (destinations.some((group) => group.address === account)) {
         setConnecting(false);
-        setNotice(`That wallet is already verified on ${chainLabel(targetChain)}.`);
+        setNotice("That wallet is already verified.");
         return;
       }
+      const existing = rows.find((row) => row.chain === targetChain && row.address === account);
 
       const row =
         existing ?? (await link.mutateAsync({ chain: targetChain, address: account })).wallet;
@@ -350,7 +404,7 @@ function Wallets() {
         signature,
       });
       setConnecting(false);
-      setNotice(`Wallet verified on ${chainLabel(targetChain)}. It can be paid there.`);
+      setNotice("Wallet verified.");
     } catch (error) {
       const reason = error instanceof ApiError ? error.message : walletErrorMessage(error);
       // `undefined` is the merchant closing their wallet's prompt, which is a
@@ -414,21 +468,41 @@ function Wallets() {
   }
 
   /**
-   * Provisions a managed wallet on one chain (#244).
-   *
-   * Named per chain rather than "the" chain, because a merchant who joined when
-   * this deployment ran on one network needs a wallet on the next one without
-   * anybody running a script for them — and a Safe's address is derived from a
-   * salt carrying the chain, so the second wallet is a different address.
+   * Creates the managed wallet on every network at once: one address, deployed
+   * on each. A network that fails keeps its card's "Set up" action, so the
+   * merchant retries exactly that one.
+   */
+  async function createManagedWallet() {
+    setFailure("");
+    setNotice("");
+    try {
+      const { failed } = await provisionEverywhere.mutateAsync();
+      const [firstFailure] = failed;
+      if (firstFailure === undefined) {
+        setNotice("Managed wallet created. It receives payments on every network below.");
+        return;
+      }
+      setFailure(
+        `Could not set up on ${failed.map((entry) => chainLabel(entry.chain)).join(", ")}: ${firstFailure.reason} Use "Set up" on that network to try again.`,
+      );
+    } catch (error) {
+      setFailure(error instanceof ApiError ? error.message : "Could not create the managed wallet");
+    }
+  }
+
+  /**
+   * Sets the managed wallet up on one network (#244) — the same address the
+   * merchant already has, deployed there. For a network added after the wallet
+   * was created, or one that failed the first time.
    */
   async function provisionOn(target: string) {
     setFailure("");
     setNotice("");
     try {
       await provision.mutateAsync(target);
-      setNotice(`Managed wallet ready on ${chainLabel(target)}.`);
+      setNotice(`Managed wallet set up on ${chainLabel(target)}.`);
     } catch (error) {
-      setFailure(error instanceof ApiError ? error.message : "Could not provision a wallet");
+      setFailure(error instanceof ApiError ? error.message : "Could not set up the wallet");
     }
   }
 
@@ -465,43 +539,57 @@ function Wallets() {
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="font-mono text-xs text-subtle-foreground">
-          {rows.length} wallet{rows.length === 1 ? "" : "s"}
+          {groups.length} wallet{groups.length === 1 ? "" : "s"}
         </p>
-        {/* The browser's wallet does the whole ceremony, so it is the primary
-            action wherever there is one. The typed-address path stays for a
-            wallet that is not in this browser — a hardware signer, a Safe app,
-            another machine. All three go once a managed wallet exists. */}
-        {!hasManagedWallet && (
+        {/* Until the merchant has a managed wallet, the header is the one place
+            to get one, in the order it has to happen: prove a wallet you own,
+            then create the managed wallet on every network at once. After that
+            there is nothing left to add here — a network still missing it says
+            so on its own card. The browser's wallet does the whole ceremony, so
+            it leads; the typed-address path stays for a hardware signer, a Safe
+            app, another machine. */}
+        {managedAddress === undefined && (
           <span className="flex flex-wrap justify-end gap-2">
-            {injected.length > 0 && chain !== undefined && (
+            {!hasVerifiedWallet && injected.length > 0 && (
               <Button
                 variant="secondary"
                 onClick={() => withWallet("connect", chain)}
-                disabled={signing}
+                disabled={signing || chain === undefined}
               >
                 <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                {signing
-                  ? "Check your wallet…"
-                  : `Connect ${chosen?.name ?? "wallet"} on ${chainLabel(chain)}`}
+                {signing ? "Check your wallet…" : `Connect ${chosen?.name ?? "wallet"}`}
               </Button>
             )}
-            <Button
-              variant="secondary"
-              onClick={() => openConnect()}
-              disabled={chain === undefined}
-            >
-              <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-              Connect existing
-            </Button>
-            {chain !== undefined && hasVerifiedWalletOn(chain) && (
-              <Button onClick={() => void provisionOn(chain)} disabled={provision.isPending}>
+            {!hasVerifiedWallet && (
+              <Button
+                variant="secondary"
+                onClick={() => openConnect()}
+                disabled={chain === undefined}
+              >
+                <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                Connect existing
+              </Button>
+            )}
+            {hasVerifiedWallet && provisionChains.length > 0 && (
+              <Button
+                onClick={() => void createManagedWallet()}
+                disabled={provisionEverywhere.isPending}
+              >
                 <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                Create on {chainLabel(chain)}
+                {provisionEverywhere.isPending ? "Creating…" : "Create managed wallet"}
               </Button>
             )}
           </span>
         )}
       </div>
+
+      {managedAddress === undefined && wallets.isSuccess && provisionChains.length > 0 && (
+        <p className="text-muted-foreground text-sm">
+          {hasVerifiedWallet
+            ? "Next, create your managed wallet: one address that receives payments on every network below."
+            : "Start by connecting a wallet you own. It proves who you are and becomes an owner of your managed wallet — connecting moves no funds."}
+        </p>
+      )}
 
       {notice !== "" && (
         <Alert role="status" className="flex items-center gap-2">
@@ -525,58 +613,59 @@ function Wallets() {
         ))
         .otherwise(() => (
           <div className="flex flex-col gap-3">
-            <h2 className="font-medium text-sm">Settlement balances</h2>
-            {/* One card per chain. A merchant's Safe address is derived per
-                chain — the salt carries it — so a merchant paid on two chains
-                holds two addresses and two balances (#244). Showing one of them
-                made the other chain's money invisible. */}
-            {/* Networks with an address first: the money is the question this
-                page opens with, and an empty network ahead of it pushed the
-                funded card out of the first row. Stable, so the API's order
-                holds within each group. */}
+            <div className="flex flex-col gap-1">
+              <h2 className="font-medium text-sm">Settlement balances</h2>
+              {paidIntoManaged && (
+                <p className="text-muted-foreground text-xs">
+                  Your managed wallet has the same address on every network. Each network holds its
+                  own balance.
+                </p>
+              )}
+            </div>
+            {/* One card per chain: the same address holds a separate balance on
+                each (#244), and showing one of them made the others' money
+                invisible. Networks with an address first, so the funded card
+                leads; stable, so the API's order holds within each group. */}
             <div className="grid gap-3 lg:grid-cols-2">
               {[...chainBalances]
                 .sort((a, b) => Number(a.address === null) - Number(b.address === null))
                 .map((row) => {
-                  const provisionable = provisionChains.includes(row.chain);
-                  const hasDestination = destinations.some((wallet) => wallet.chain === row.chain);
-                  const hasVerifiedSigner = hasVerifiedWalletOn(row.chain);
+                  // The managed wallet's address, not deployed on this network yet.
+                  const notSetUp =
+                    row.address === null &&
+                    managedAddress !== undefined &&
+                    provisionChains.includes(row.chain);
                   return (
                     <Card key={row.chain} className="flex flex-col gap-4 p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex flex-col gap-1">
-                          <h3 className="font-medium text-sm">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <h3 className="flex items-center gap-2 font-medium text-sm">
                             <ChainLabel chain={row.chain} />
+                            {notSetUp && <Badge variant="warning">Not set up</Badge>}
                           </h3>
-                          <p className="break-all font-mono text-subtle-foreground text-sm">
-                            {row.address ?? "No settlement address on this network yet"}
+                          <p className="break-all mt-2 font-mono text-subtle-foreground text-sm">
+                            {row.address ??
+                              (notSetUp
+                                ? managedAddress
+                                : "No settlement address on this network yet")}
                           </p>
                         </div>
                         <span className="flex flex-wrap gap-2">
-                          {row.address === null && (
-                            <Button variant="secondary" onClick={() => openConnect(row.chain)}>
-                              <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                              Connect on {chainLabel(row.chain)}
+                          {notSetUp && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => void provisionOn(row.chain)}
+                              disabled={provision.isPending}
+                            >
+                              <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                              Set up on {chainLabel(row.chain)}
                             </Button>
                           )}
-                          {row.address === null &&
-                            !hasManagedWallet &&
-                            hasVerifiedSigner &&
-                            provisionable && (
-                              <Button
-                                variant="secondary"
-                                onClick={() => void provisionOn(row.chain)}
-                                disabled={provision.isPending}
-                              >
-                                <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                                Create wallet on {chainLabel(row.chain)}
-                              </Button>
-                            )}
                           {row.withdrawable && (
                             <Button
                               variant="secondary"
                               onClick={() => openWithdraw(row)}
-                              disabled={row.balances.length === 0 || !hasDestination}
+                              disabled={row.balances.length === 0 || !hasVerifiedWallet}
                             >
                               <ArrowLineUpRightIcon
                                 size={ICON_NAV}
@@ -608,16 +697,21 @@ function Wallets() {
                         </dl>
                       )}
 
+                      {notSetUp && (
+                        <p className="text-muted-foreground text-xs">
+                          Set it up to receive payments on {chainLabel(row.chain)} at this same
+                          address.
+                        </p>
+                      )}
                       {row.address !== null && !row.withdrawable && (
                         <p className="text-muted-foreground text-xs">
                           This address is yours, not one Mayarin provisioned — withdraw from it in
                           your own wallet.
                         </p>
                       )}
-                      {row.withdrawable && !hasDestination && (
+                      {row.withdrawable && !hasVerifiedWallet && (
                         <p className="text-muted-foreground text-xs">
-                          Connect and verify an address on {chainLabel(row.chain)} to withdraw to
-                          it.
+                          Connect and verify a wallet you own to withdraw to it.
                         </p>
                       )}
                     </Card>
@@ -755,51 +849,62 @@ function Wallets() {
             </Empty>
           ) : (
             <Table>
-              <TableCaption>Wallets this merchant can be paid at</TableCaption>
+              <TableCaption>Your wallets, one line per address</TableCaption>
               <TableHeader>
                 <TableRow>
                   <TableHead>Address</TableHead>
-                  <TableHead>Chain</TableHead>
+                  <TableHead>Networks</TableHead>
                   <TableHead>Origin</TableHead>
-                  <TableHead>Control</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Added</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((wallet) => (
-                  <TableRow key={wallet.id}>
-                    {/* Shown whole: an address a merchant cannot copy in full is
-                        worse than one they have to scroll. */}
-                    <TableCell className="break-all font-mono text-xs">{wallet.address}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      <ChainLabel chain={wallet.chain} size={18} />
-                    </TableCell>
-                    <TableCell>
-                      <Badge>{PROVENANCE_LABEL[wallet.provenance]}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={wallet.verified ? "success" : "warning"}>
-                        {wallet.verified ? "Verified" : "Unproven"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      <time dateTime={isoAttr(wallet.createdAt)}>
-                        {formatDateTime(wallet.createdAt)}
-                      </time>
-                    </TableCell>
-                    {/* Only an action that is left to take. A verified row has
-                        none, and a check icon here repeated the Control badge. */}
-                    <TableCell className="text-right">
-                      {!wallet.verified && (
-                        <Button variant="ghost" size="sm" onClick={() => void startProof(wallet)}>
-                          <SealCheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                          Prove control
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {groups.map((group) => {
+                  const unproven = group.unproven;
+                  return (
+                    <TableRow key={group.key}>
+                      {/* Shown whole: an address a merchant cannot copy in full is
+                          worse than one they have to scroll. */}
+                      <TableCell className="break-all font-mono text-xs">{group.address}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <span className="flex flex-wrap gap-x-3 gap-y-1">
+                          {group.chains.map((chainId) => (
+                            <ChainLabel key={chainId} chain={chainId} size={18} />
+                          ))}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge>{PROVENANCE_LABEL[group.provenance]}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={group.verified ? "success" : "warning"}>
+                          {statusLabel(group)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <time dateTime={isoAttr(group.createdAt)}>
+                          {formatDateTime(group.createdAt)}
+                        </time>
+                      </TableCell>
+                      {/* Only an action that is left to take. A managed wallet
+                          still setting up is finished from its network's card. */}
+                      <TableCell className="text-right">
+                        {unproven !== undefined && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void startProof(unproven)}
+                          >
+                            <SealCheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                            Prove control
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           ),
@@ -880,11 +985,7 @@ function Wallets() {
             <DialogTitle>Choose a wallet</DialogTitle>
             <DialogDescription>
               {injected.length} wallets are installed in this browser. Signing grants nothing beyond
-              proving this one address
-              {picking === "connect" && connectChain !== ""
-                ? ` on ${chainLabel(connectChain)}`
-                : ""}
-              .
+              proving this one address.
             </DialogDescription>
           </DialogHeader>
 
@@ -919,43 +1020,13 @@ function Wallets() {
           <DialogHeader>
             <DialogTitle>Connect an existing wallet</DialogTitle>
             <DialogDescription>
-              Register an address you already control. It cannot be paid until you prove control of
-              it in the next step.
+              Register an address you already control, then prove control of it in the next step.
+              You prove it once — it counts on every network.
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
             {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
-            {chainBalances.length > 1 && (
-              <Field>
-                <FieldLabel htmlFor="wallet-chain">Network</FieldLabel>
-                <Select
-                  items={chainBalances.map((row) => ({
-                    value: row.chain,
-                    label: chainLabel(row.chain),
-                  }))}
-                  value={connectChain}
-                  onValueChange={setConnectChain}
-                >
-                  <SelectTrigger id="wallet-chain">
-                    <SelectValue
-                      placeholder="Select a network"
-                      renderValue={(option) => <ChainLabel chain={option.value} />}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {chainBalances.map((row) => (
-                      <SelectItem key={row.chain} value={row.chain}>
-                        <ChainLabel chain={row.chain} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  Link the address on every network where it will receive or withdraw funds.
-                </FieldDescription>
-              </Field>
-            )}
             {injected.length > 0 && connectChain !== "" && (
               <Button
                 variant="secondary"
@@ -976,7 +1047,7 @@ function Wallets() {
                 className="font-mono text-xs"
               />
               <FieldDescription>
-                On {connectChain === "" ? "the selected network" : chainLabel(connectChain)}.
+                An EVM address. The same key holds it on every network.
               </FieldDescription>
             </Field>
           </div>
@@ -1060,7 +1131,7 @@ function Wallets() {
             <Field>
               <FieldLabel htmlFor="withdraw-to">To</FieldLabel>
               <Select
-                items={withdrawDestinations.map((wallet) => ({
+                items={destinations.map((wallet) => ({
                   value: wallet.address,
                   label: wallet.address,
                 }))}
@@ -1071,8 +1142,8 @@ function Wallets() {
                   <SelectValue placeholder="Select an address" />
                 </SelectTrigger>
                 <SelectContent>
-                  {withdrawDestinations.map((wallet) => (
-                    <SelectItem key={wallet.id} value={wallet.address}>
+                  {destinations.map((wallet) => (
+                    <SelectItem key={wallet.key} value={wallet.address}>
                       {wallet.address}
                     </SelectItem>
                   ))}

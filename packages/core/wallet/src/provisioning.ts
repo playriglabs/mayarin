@@ -41,11 +41,24 @@
  * A crash before step 3 leaves an orphaned provider signer and no wallet; the
  * retry makes a new signer and one wallet. Wasteful, not dangerous. A crash
  * anywhere after step 3 resumes onto the same signer and the same address.
+ *
+ * ## One address on every chain
+ *
+ * A merchant has **one** managed address, whichever EVM chains they are paid
+ * on. The address is a function of the signer set and a salt, so every chain
+ * after the first reuses exactly what the first was built from: the same
+ * provider signer, the same merchant signer, and the first chain as the salt.
+ * A chain added to the deployment later lands on the same address too — nothing
+ * here names a chain.
+ *
+ * The merchant's signer may have been proved on any chain. Proof of control is
+ * a recovered signature, and the key behind an EVM address is the same key on
+ * every EVM chain.
  */
 
 import type { ChainId } from "@mayarin/chain";
 import { type Clock, generateId, ValidationError } from "@mayarin/shared";
-import type { ManagedSigner, WalletProvider } from "./provider.ts";
+import type { ManagedSigner, ProvisionRequest, WalletProvider } from "./provider.ts";
 import {
   isMerchantHeld,
   isVerified,
@@ -81,26 +94,40 @@ export class ManagedWalletProvisioner {
   }
 
   /**
-   * Provisions the merchant's managed wallet, or returns the one they have.
+   * Provisions the merchant's managed wallet on one chain, or returns the one
+   * they have there.
    *
    * Idempotent for the caller as well as after a crash: asking twice is asking
-   * once. A merchant gets one managed wallet per chain, which is why the
-   * existing one is returned rather than a second one created.
+   * once. A merchant gets one managed wallet per chain — at the same address on
+   * each — which is why the existing one is returned rather than a second one
+   * created.
    */
   async provision(merchantId: string, chain: ChainId): Promise<MerchantWallet> {
     const existing = await this.#wallets.findManaged(merchantId, chain);
     if (existing !== null && isVerified(existing)) return existing;
 
-    const merchantSigner = await this.#verifiedMerchantSigner(merchantId, chain, existing);
+    const wallets = await this.#wallets.listByMerchant(merchantId);
+    // What this wallet is derived from: its own record when a previous attempt
+    // wrote one, otherwise the merchant's first managed wallet on any chain.
+    const first = firstManaged(wallets);
+    const derivedFrom = existing?.managed ?? first?.managed;
+
+    const merchantSigner = verifiedMerchantSigner(merchantId, wallets, derivedFrom?.merchantSigner);
 
     // Reused when it is already on file. Calling the provider again here is how
-    // a merchant ends up with two signers and two wallets.
+    // a merchant ends up with two signers and two addresses.
     const managedSigner: ManagedSigner =
-      existing?.managed === undefined
+      derivedFrom === undefined
         ? await this.#provider.createManagedSigner(merchantId)
-        : { ref: existing.managed.ref, address: existing.managed.address };
+        : { ref: derivedFrom.ref, address: derivedFrom.address };
 
-    const request = { merchantId, chain, merchantSigner, managedSigner };
+    const request: ProvisionRequest = {
+      merchantId,
+      chain,
+      saltChain: first?.chain ?? chain,
+      merchantSigner,
+      managedSigner,
+    };
     const address = (await this.#provider.predictAddress(request)).toLowerCase();
 
     if (this.#treasury.has(address)) {
@@ -157,57 +184,65 @@ export class ManagedWalletProvisioner {
     await this.#wallets.update(ready);
     return ready;
   }
+}
 
-  /**
-   * The merchant-controlled signer the wallet is built around.
-   *
-   * A verified merchant-held wallet, and nothing else. An unverified one is an
-   * address the merchant *claimed*, and building a signer set out of a claim
-   * would let anyone with `settings:manage` name a co-owner of a wallet Mayarin
-   * is about to create.
-   *
-   * Ordered oldest first, so a merchant holding several — a linked address and
-   * a passkey key, say — gets the same signer on every attempt. Repository
-   * order is not a promise, and a signer that varied between attempts would
-   * derive a different address and deploy a second Safe.
-   *
-   * A resumed provision keeps the signer the address was derived from: the
-   * derivation includes it, so taking a different one now would silently move
-   * the wallet to a different address and deploy a second one.
-   */
-  async #verifiedMerchantSigner(
-    merchantId: string,
-    chain: ChainId,
-    existing: MerchantWallet | null,
-  ): Promise<string> {
-    const wallets = await this.#wallets.listByMerchant(merchantId);
-    const verified = wallets
-      .filter((wallet) => wallet.chain === chain && isMerchantHeld(wallet) && isVerified(wallet))
-      .sort(byCreatedThenAddress);
+/**
+ * The merchant's first managed wallet, deployed or half-provisioned, on any
+ * chain. Every later chain derives its address from what this one was built of.
+ */
+function firstManaged(wallets: readonly MerchantWallet[]): MerchantWallet | undefined {
+  return wallets
+    .filter((wallet) => wallet.provenance === "provisioned" && wallet.managed !== undefined)
+    .sort(byCreatedThenAddress)[0];
+}
 
-    const first = verified[0];
-    if (first === undefined) {
-      throw new ValidationError(
-        "Provisioning needs an address the merchant has proved control of; create a passkey wallet or link one, and verify it first",
-        { merchantId, chain },
-      );
-    }
+/**
+ * The merchant-controlled signer the wallet is built around.
+ *
+ * A verified merchant-held wallet, and nothing else. An unverified one is an
+ * address the merchant *claimed*, and building a signer set out of a claim
+ * would let anyone with `settings:manage` name a co-owner of a wallet Mayarin
+ * is about to create. Proved on any chain: a recovered signature names a key,
+ * and that key controls the address on every EVM chain.
+ *
+ * Ordered oldest first, so a merchant holding several — a linked address and
+ * a passkey key, say — gets the same signer on every attempt. Repository
+ * order is not a promise, and a signer that varied between attempts would
+ * derive a different address and deploy a second Safe.
+ *
+ * A wallet derived from an earlier one keeps that signer: the derivation
+ * includes it, so taking a different one now would silently move the wallet to
+ * a different address.
+ */
+function verifiedMerchantSigner(
+  merchantId: string,
+  wallets: readonly MerchantWallet[],
+  derivedFrom: string | undefined,
+): string {
+  const verified = wallets
+    .filter((wallet) => isMerchantHeld(wallet) && isVerified(wallet))
+    .sort(byCreatedThenAddress);
 
-    const resumed = existing?.managed?.merchantSigner;
-    if (resumed === undefined) return first.address;
-
-    // Resuming: re-derive with the signer this wallet's address already depends
-    // on. Falling back to a different one would derive a different address and
-    // deploy a second wallet — the exact failure this whole path is shaped to
-    // avoid — so an unlinked signer is a refusal, not a substitution.
-    if (!verified.some((wallet) => wallet.address === resumed)) {
-      throw new ValidationError(
-        "The address this managed wallet was derived from is no longer a verified merchant wallet; provisioning cannot resume",
-        { merchantId, chain, merchantSigner: resumed },
-      );
-    }
-    return resumed;
+  const first = verified[0];
+  if (first === undefined) {
+    throw new ValidationError(
+      "Provisioning needs an address the merchant has proved control of; create a passkey wallet or link one, and verify it first",
+      { merchantId },
+    );
   }
+
+  if (derivedFrom === undefined) return first.address;
+
+  // Falling back to a different signer would derive a different address — the
+  // exact failure this whole path is shaped to avoid — so a signer that is no
+  // longer verified is a refusal, not a substitution.
+  if (!verified.some((wallet) => wallet.address === derivedFrom)) {
+    throw new ValidationError(
+      "The address your managed wallet was built with is no longer a verified wallet of yours; verify it again to continue",
+      { merchantId, merchantSigner: derivedFrom },
+    );
+  }
+  return derivedFrom;
 }
 
 /** Oldest first, address as the tiebreak, so the choice never depends on row order. */

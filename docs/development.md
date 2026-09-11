@@ -54,8 +54,8 @@ bun run seed:merchant -- \
   --trust-settlement-address
 ```
 
-The trust flag creates a linked, verified wallet record on
-`WALLET_PROVISION_CHAIN` without signature proof and says so in its output. Do
+The trust flag creates a linked, verified wallet record on the first chain in
+`WALLET_PROVISION_CHAINS` without signature proof and says so in its output. Do
 not use it for a real merchant; use **Dashboard → Wallets → Connect existing**
 and complete the verification challenge instead.
 

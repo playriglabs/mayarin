@@ -96,14 +96,14 @@ looks wrong until money is meant to arrive.
 
 Resolved on read rather than written as a default at provisioning time, because
 `settlement_address` is one column for the whole merchant while a managed wallet
-is per chain — writing chain A's Safe into it makes it the answer for chain B too
-— and because a default that has been written down is indistinguishable from a
-choice.
+is deployed chain by chain — its address is the same everywhere, but it is only
+payable on a chain where it exists — and because a default that has been written
+down is indistinguishable from a choice.
 
 The fallback does not loosen anything: it is a verified wallet of that merchant
 by construction, and it still goes through `WalletGuard` like any configured
 value. An unverified or half-provisioned wallet is not a fallback, and neither is
-one on another chain.
+the same address on a chain it has not been deployed to.
 
 `GET /settings` reports both — `settlementAddress` is what the merchant chose,
 `effectiveSettlementAddress` is where the money goes — and `canSettleOnChain`
@@ -120,6 +120,12 @@ nonce and expiry, and each closes a distinct replay: across merchants, across
 chains, across a re-claim after unlinking, and across time. The challenge is
 consumed by a conditional `UPDATE`, so two requests racing one signature cannot
 both succeed. Every failure reads identically.
+
+A verified address counts on **every** EVM chain for what it is used for — being
+the merchant's signer on a managed Safe, and being a withdrawal destination. The
+signature is recovered, so it names a key, and that key holds the address on
+every EVM chain; asking the merchant to prove it again per network would add a
+step and no assurance.
 
 A passkey wallet's sub-organization handle is stored as `key_ref`, separately
 from the `provider_ref` a managed wallet records: the two mean opposite things —
@@ -140,8 +146,9 @@ the wrong one.
 So the record is written _before_ the deployment, addressed by a prediction:
 
 1. `createManagedSigner` — the sub-organization and its key.
-2. `predictAddress` — CREATE2 over the signer set and a salt derived from
-   merchant and chain. The same answer on every attempt.
+2. `predictAddress` — CREATE2 over the signer set and a salt derived from the
+   merchant and the chain of their first managed wallet. The same answer on
+   every attempt, and on every chain.
 3. persist the row, unverified.
 4. `deploy` — adopts whatever is already at the address.
 5. mark verified, which is what makes it payable.
@@ -162,6 +169,41 @@ A merchant holding more than one — a linked address and a passkey key — gets
 oldest, address as the tiebreak. Repository order is not a promise, and a signer
 that varied between attempts would derive a different address and deploy a second
 Safe.
+
+## One address on every chain
+
+A merchant has **one** managed address, whichever EVM chains they are paid on.
+Two addresses for one merchant is the confusion this avoids: a payer told one,
+a balance shown at another, and a merchant unsure which is theirs.
+
+The Safe's address is CREATE2 over three things — the factory, the initializer
+(owners `[merchant, turnkey signer]`, threshold 1, fallback handler) and the
+salt. Every chain after a merchant's first reuses exactly what the first was
+built from: the same Turnkey sub-organization and signer, the same merchant
+signer, and the first chain as the salt. With Safe's canonical 1.4.1 contracts
+at identical addresses everywhere, the inputs are identical, so the address is.
+
+Adding a chain names no chain in code. `TurnkeyWalletProvider` carries no
+per-chain Safe table: before deriving anything on a chain it reads the proxy
+factory, singleton and fallback handler off that chain and matches their
+bytecode hashes (read identically off Base Sepolia, Ethereum Sepolia and Arc
+testnet). A chain that never ran Safe's deterministic deployment — or derives
+CREATE2 differently, as zkSync-style chains do — has no matching code and is
+refused rather than handed an address nothing can deploy to. The signing chain
+id comes from `EVM_CHAIN_IDS`. So a new network is its `CHAIN_IDS` entry, its
+`CHAIN_RPC_URLS` entry and its name in `WALLET_PROVISION_CHAINS`.
+
+`POST /wallets/managed` with no chain creates the wallet on every chain in
+`WALLET_PROVISION_CHAINS`, one after another — the first writes the signers every
+later chain reuses, so running them together would race to create two. A chain
+that fails is reported beside the ones that succeeded, and asking again resumes
+it onto the same address. With a chain, it sets the wallet up on that one.
+
+**Same address is not one contract.** Each chain's Safe is its own deployment.
+A merchant who changes the owners on one chain has changed that chain only, and
+a Safe deployed on a new chain later starts from the original owner set. The
+dashboard shows where the wallet is deployed, network by network, so that is
+visible rather than assumed.
 
 ## Where the custody boundary sits
 
@@ -211,10 +253,11 @@ wallet, and offering them a button would be a lie.
 `POST /wallets/withdraw` moves settlement out of the managed Safe. Two bounds,
 and neither is a convention:
 
-- **The destination must be one of that merchant's own verified wallets.** A
-  dashboard session is a bearer credential; an arbitrary destination turns a
-  stolen session into a transfer. Verification is a signature the merchant
-  produced, which is the step an attacker holding a session cannot take.
+- **The destination must be one of that merchant's own verified wallets**,
+  proved on any chain. A dashboard session is a bearer credential; an arbitrary
+  destination turns a stolen session into a transfer. Verification is a
+  signature the merchant produced, which is the step an attacker holding a
+  session cannot take.
 - **The enclave decides, not this code.** The sub-organization key signs a real
   Ethereum transaction _addressed to the merchant's Safe_, which is exactly the
   condition its Turnkey policy checks. The obvious alternative — signing the
@@ -255,7 +298,9 @@ shows one payment in the ledger. Both directions are closed:
 when it is; the endpoint then refuses with a message rather than the deployment
 carrying a provisioning path that fails at the first merchant. When on, boot
 requires the RPC URL, the deployer key that pays deployment gas, and the four
-Turnkey values. See `.env.example`.
+Turnkey values. `WALLET_PROVISION_CHAINS` lists the networks a managed wallet is
+created on; each needs a `CHAIN_RPC_URLS` entry and nothing else. See
+`.env.example`.
 
 One flag covers both provider-backed paths — the passkey key and the managed
 Safe. A deployment with the first and not the second would onboard merchants into
@@ -278,8 +323,8 @@ pair: no RPC, no deployer key, no Safe addresses.
 
 **General gas abstraction (#9).** Withdrawal pays its own way — the deployer
 funds the signer for one submission — but that is one path, sponsored by
-Mayarin's key, on one chain. A merchant paying their own gas, or a paymaster, is
-still #9.
+Mayarin's key, chain by chain. A merchant paying their own gas, or a paymaster,
+is still #9.
 
 **The browser half of the passkey path.** The API is complete — create the
 credential, `POST /wallets/passkey`, challenge, verify — and the dashboard has no

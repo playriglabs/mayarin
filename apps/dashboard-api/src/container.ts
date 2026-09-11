@@ -79,7 +79,6 @@ import {
 } from "@mayarin/provider-evm";
 import {
   ApiKeyStamper,
-  safeDeploymentFor,
   TurnkeyMerchantKeyProvider,
   TurnkeyWalletProvider,
 } from "@mayarin/provider-turnkey";
@@ -450,6 +449,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     treasuryAddresses,
     merchants,
     chains,
+    provisionChains: config.walletProvisionChains,
     settlementAddresses,
     ...(balanceReader === undefined ? {} : { balances: balanceReader }),
     ...(walletProvider === undefined ? {} : { walletProvider }),
@@ -586,7 +586,7 @@ function createBalanceReader(config: Config): WalletBalanceReader | undefined {
   // reader is keyed by chain already.
   const rpcUrls: Partial<Record<ChainId, string>> = { ...config.chainRpcUrls };
   if (config.walletProvisionRpcUrl !== undefined) {
-    rpcUrls[config.walletProvisionChain] ??= config.walletProvisionRpcUrl;
+    rpcUrls[config.walletProvisionChains[0]] ??= config.walletProvisionRpcUrl;
   }
   if (Object.keys(rpcUrls).length === 0) return undefined;
 
@@ -601,14 +601,15 @@ function createBalanceReader(config: Config): WalletBalanceReader | undefined {
  * A provider per chain, behind one port.
  *
  * `TurnkeyWalletProvider` deploys on exactly one chain and refuses a request for
- * another — deliberately, since its RPC, its token table and its Safe addresses
- * are all per chain. So a deployment that provisions on two chains holds two of
- * them, and this routes by the chain the request names.
+ * another — deliberately, since its RPC and its token table are per chain. So a
+ * deployment that provisions on several chains holds one per chain, built from
+ * `WALLET_PROVISION_CHAINS` alone, and this routes by the chain the request
+ * names.
  *
- * That matters more than it looks: the salt a Safe is deployed at carries the
- * chain, so a merchant's Arc wallet is a **different address** from their Base
- * one. Routing to the wrong provider would not produce the wrong wallet — it
- * would produce a second wallet nobody predicted.
+ * The address is not per chain. The provisioner reuses one signer set and one
+ * salt chain for a merchant everywhere, and every chain carries the same
+ * canonical Safe contracts — so the merchant's Safe has the same address on each,
+ * and a chain added to the list later needs no code here.
  */
 function createWalletProvider(config: Config): WalletProvider | undefined {
   if (!config.walletProvisioningEnabled) return undefined;
@@ -670,9 +671,8 @@ function providerFor(config: Config, chain: ChainId): WalletProvider {
       "WALLET_DEPLOYER_PRIVATE_KEY",
     ) as `0x${string}`,
     rpcUrl,
-    // Read off each chain before it was added here, never inherited from
-    // another chain's table.
-    safe: safeDeploymentFor(chain),
+    // No Safe table: the provider matches the canonical contracts on this chain
+    // before it derives anything, and refuses a chain without them.
     rootApiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
     signerApiPublicKey: required(config.turnkeySignerApiPublicKey, "TURNKEY_SIGNER_API_PUBLIC_KEY"),
   });

@@ -84,12 +84,21 @@ export interface WalletListResponse {
   readonly wallets: readonly WalletDto[];
   /** The chain this deployment links, provisions and settles on by default. */
   readonly chain: string;
-  /** Every chain it can provision on (#244) — a merchant needs one wallet per chain. */
+  /**
+   * Every chain it can provision on (#244). A managed wallet has one address on
+   * all of them, deployed on each.
+   */
   readonly chains: readonly string[];
 }
 
 export interface WalletResponse {
   readonly wallet: WalletDto;
+}
+
+/** Creating the managed wallet on every chain: what was made, and where it failed. */
+export interface ProvisionEverywhereResponse {
+  readonly wallets: readonly WalletDto[];
+  readonly failed: readonly { readonly chain: string; readonly reason: string }[];
 }
 
 /** What the merchant's settlement address holds on one chain, per asset. */

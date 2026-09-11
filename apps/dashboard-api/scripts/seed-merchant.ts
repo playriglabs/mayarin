@@ -271,7 +271,7 @@ try {
       ? undefined
       : trustedSettlementWallet({
           merchantId: result.user.merchantId,
-          chain: config.walletProvisionChain,
+          chain: config.walletProvisionChains[0],
           address: settlementAddress,
           trustedAt,
         });

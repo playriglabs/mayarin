@@ -12,6 +12,7 @@ import { listPath } from "@/lib/api/list-path";
 import type {
   ChallengeResponse,
   MerchantRailsResponse,
+  ProvisionEverywhereResponse,
   SettingsHistoryResponse,
   SettingsResponse,
   UpdateSettingsRequest,
@@ -57,9 +58,13 @@ export const walletsApi = {
   link: (body: LinkWalletRequest): Effect.Effect<WalletResponse, ApiError> =>
     request<WalletResponse>("/wallets", { method: "POST", body }),
 
-  /** Provisions a managed smart account. Idempotent — asking twice returns the same one. */
+  /** Provisions the managed wallet on one chain. Idempotent — asking twice returns the same one. */
   provision: (chain: string): Effect.Effect<WalletResponse, ApiError> =>
     request<WalletResponse>("/wallets/managed", { method: "POST", body: { chain } }),
+
+  /** Provisions the managed wallet on every chain: one address, deployed on each. */
+  provisionEverywhere: (): Effect.Effect<ProvisionEverywhereResponse, ApiError> =>
+    request<ProvisionEverywhereResponse>("/wallets/managed", { method: "POST", body: {} }),
 
   /** Issues the text to sign. Signing it moves no funds. */
   challenge: (walletId: string): Effect.Effect<ChallengeResponse, ApiError> =>

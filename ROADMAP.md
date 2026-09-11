@@ -572,13 +572,15 @@ not make the slot, not because the issue is unfinished.
       `balanceOf` with a regression test round-tripping `1.234567 USDC`, and
       the native mirror log kept out of x402 confirmation (#255). Arc balances
       have been trusted on that basis since the 6 September paid runs.
-- [x] Merchant wallets can be provisioned on Arc: `SAFE_ARC_TESTNET` (factory,
-      singleton and fallback handler all read off Arc, not inherited from Base)
-      and one `TurnkeyWalletProvider` per chain in `WALLET_PROVISION_CHAINS`,
-      routed by the chain a request names. **A merchant's Arc Safe is a different
-      address from their Base one** — the salt is
-      `mayarin:wallet:<merchant>:<chain>` — so provisioning has to run per chain
-      rather than reusing an address that exists elsewhere.
+- [x] Merchant wallets can be provisioned on any chain in
+      `WALLET_PROVISION_CHAINS`, one `TurnkeyWalletProvider` per chain routed by
+      the chain a request names. **A merchant's managed Safe has one address on
+      every chain**: later chains reuse the first chain's signers and salt, and
+      the canonical Safe 1.4.1 contracts are matched by bytecode hash on each
+      chain before anything is derived — no per-chain table, so adding a network
+      is config only. (Superseded the earlier `SAFE_ARC_TESTNET` table and
+      `mayarin:wallet:<merchant>:<chain>` salt, which gave each chain its own
+      address.)
 - [x] One link, many rails: the payer picks chain and asset at checkout, filtered
       per chain ([#244](https://github.com/playriglabs/mayarin/issues/244), closed
       with #258 and #261). Base
