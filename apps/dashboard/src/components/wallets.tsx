@@ -24,6 +24,7 @@ import { chainLabel } from "@mayarin/chain";
 import { isAssetCode } from "@mayarin/shared/asset";
 import {
   ArrowLineUpRightIcon,
+  CaretDownIcon,
   CheckCircleIcon,
   PlusIcon,
   SealCheckIcon,
@@ -235,6 +236,19 @@ function NetworkList({ chains }: { readonly chains: readonly string[] }) {
   );
 }
 
+/** Remembers, per browser, whether the merchant opened payment availability. */
+const AVAILABILITY_STORAGE_KEY = "mayarin-wallets-availability-open";
+
+/** One network's payment status, as its badge reads. */
+function availabilityOf(
+  railCount: number,
+  unavailableCount: number,
+): { readonly label: string; readonly variant: "success" | "warning" } {
+  if (railCount === 0) return { label: "Needs attention", variant: "warning" };
+  if (unavailableCount > 0) return { label: "Partially available", variant: "warning" };
+  return { label: "Available", variant: "success" };
+}
+
 function statusLabel(group: WalletGroup): string {
   if (group.provenance === "provisioned") return group.verified ? "Active" : "Setting up";
   return group.verified ? "Verified" : "Unproven";
@@ -279,6 +293,30 @@ function Wallets() {
   const [chosen, setChosen] = useState<InjectedWallet | null>(null);
   /** The pending action, held while the merchant picks which wallet runs it. */
   const [picking, setPicking] = useState<"connect" | "sign" | null>(null);
+  /**
+   * Whether payment availability shows its per-network detail. Closed by
+   * default: the one-line summary already carries every network's status, and
+   * the detail is what a merchant opens when a badge says something is wrong.
+   */
+  const [availabilityOpen, setAvailabilityOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      setAvailabilityOpen(localStorage.getItem(AVAILABILITY_STORAGE_KEY) === "true");
+    } catch {
+      // Storage can be unavailable (private mode); closed is the safe default.
+    }
+  }, []);
+
+  function toggleAvailability() {
+    const next = !availabilityOpen;
+    setAvailabilityOpen(next);
+    try {
+      localStorage.setItem(AVAILABILITY_STORAGE_KEY, String(next));
+    } catch {
+      // Remembering is a convenience; the toggle still works without it.
+    }
+  }
 
   useEffect(() => {
     let live = true;
@@ -796,23 +834,63 @@ function Wallets() {
 
           return (
             <Card className="flex flex-col gap-4 p-4">
-              <div className="flex flex-col gap-1">
-                <h2 className="font-medium text-sm">Payment availability</h2>
-                <p className="text-muted-foreground text-xs">
-                  Every network uses the same payment link and settles into{" "}
-                  {data?.settlementAsset ?? "your settlement asset"}.
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <h2 className="font-medium text-sm">Payment availability</h2>
+                  <p className="text-muted-foreground text-xs">
+                    Every network uses the same payment link and settles into{" "}
+                    {data?.settlementAsset ?? "your settlement asset"}.
+                  </p>
+                </div>
+                {networks.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleAvailability}
+                    aria-expanded={availabilityOpen}
+                    aria-controls="payment-availability-details"
+                  >
+                    {availabilityOpen ? "Hide details" : "Show details"}
+                    <CaretDownIcon
+                      size={ICON_NAV}
+                      weight="bold"
+                      aria-hidden="true"
+                      className={
+                        availabilityOpen
+                          ? "rotate-180 transition-transform duration-200"
+                          : "transition-transform duration-200"
+                      }
+                    />
+                  </Button>
+                )}
               </div>
 
               {networks.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
                   No payment network is configured for this deployment.
                 </p>
+              ) : !availabilityOpen ? (
+                // Closed: one line, every network and its status. A badge that
+                // says something is wrong is the cue to open the detail.
+                <ul id="payment-availability-details" className="flex flex-wrap gap-x-6 gap-y-2">
+                  {networks.map((network) => {
+                    const status = availabilityOf(network.rails.length, network.unavailable.length);
+                    return (
+                      <li key={network.chain} className="flex items-center gap-2 text-sm">
+                        <ChainLabel chain={network.chain} />
+                        <Badge variant={status.variant}>{status.label}</Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <div
+                  id="payment-availability-details"
+                  className="grid gap-3 md:grid-cols-2 lg:grid-cols-3"
+                >
                   {networks.map((network) => {
                     const hasRails = network.rails.length > 0;
-                    const partiallyAvailable = hasRails && network.unavailable.length > 0;
+                    const status = availabilityOf(network.rails.length, network.unavailable.length);
                     return (
                       <section
                         key={network.chain}
@@ -823,13 +901,7 @@ function Wallets() {
                           <h3 className="font-medium text-sm">
                             <ChainLabel chain={network.chain} />
                           </h3>
-                          <Badge variant={hasRails && !partiallyAvailable ? "success" : "warning"}>
-                            {partiallyAvailable
-                              ? "Partially available"
-                              : hasRails
-                                ? "Available"
-                                : "Needs attention"}
-                          </Badge>
+                          <Badge variant={status.variant}>{status.label}</Badge>
                         </div>
 
                         {hasRails && (
