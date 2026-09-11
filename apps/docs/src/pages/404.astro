@@ -17,9 +17,11 @@ Astro.response.statusText = "Not found";
 ---
 
 <Layout>
-  <title>Page not found — Mayarin Docs</title>
-  <meta name="description" content="This documentation page does not exist." />
-  <meta name="robots" content="noindex" />
+  <Fragment slot="head">
+    <title>Page not found — Mayarin Docs</title>
+    <meta name="description" content="This documentation page does not exist." />
+    <meta name="robots" content="noindex" />
+  </Fragment>
   <Docs
     tree={source.getPageTree()}
     pathname={Astro.url.pathname}
