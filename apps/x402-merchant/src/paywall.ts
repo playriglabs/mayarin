@@ -1,6 +1,6 @@
 /** Human-facing 402 page for someone opening the paid endpoint in a browser. */
 
-import type { X402GateDecision } from "@mayarin/sdk";
+import { chainLabel, chainOfCaip2, type X402GateDecision } from "@mayarin/sdk";
 import type { X402ConnectOptions } from "@mayarin/sdk/x402/connect";
 
 type PaymentRequiredDecision = Extract<X402GateDecision, { readonly kind: "payment-required" }>;
@@ -11,9 +11,16 @@ const TOKEN_DECIMALS: Readonly<Record<string, number>> = {
   USDC: 6,
 };
 
-const NETWORK_NAMES: Readonly<Record<string, string>> = {
-  "eip155:84532": "Base Sepolia",
-};
+/**
+ * The network's own name, or the CAIP-2 id when Mayarin does not know the chain.
+ *
+ * Read through the SDK rather than a local map: a merchant that keeps its own
+ * table shows `eip155:5042002` the day Mayarin adds a rail, and shows it in the
+ * one place a payer is deciding which rail to send funds on.
+ */
+function networkLabel(caip2: string): string {
+  return chainLabel(chainOfCaip2(caip2) ?? caip2);
+}
 
 export const paymentRequiredView: PaymentRequiredView = (decision, req) => {
   const accepts = req.headers.accept;
@@ -31,10 +38,15 @@ export function renderPaymentRequiredPage(decision: PaymentRequiredDecision): st
     const token = tokenName(accept.extra, accept.asset);
     return {
       amount: displayAmount(accept.amount, token),
-      network: NETWORK_NAMES[accept.network] ?? accept.network,
+      network: networkLabel(accept.network),
       token,
     };
   });
+  // The headline is the first rail Mayarin offered, never a number written here.
+  // A page that states a price the `402` does not is a page a payer can catch
+  // lying, and the wire carries no fiat figure to state instead: the merchant
+  // prices in their own currency and `accepts` is what that came out as.
+  const headline = rails[0];
 
   return `<!doctype html>
 <html lang="en">
@@ -79,8 +91,8 @@ export function renderPaymentRequiredPage(decision: PaymentRequiredDecision): st
           <h2 id="paywall-title" class="mt-7 text-[clamp(2rem,4vw,2.75rem)] font-semibold leading-none tracking-[-0.055em]">Unlock this content</h2>
           <p class="mt-4 max-w-md text-[15px] leading-6 text-zinc-600">Pay once with an x402-compatible client. No account, subscription, or checkout form required.</p>
           <div class="my-8 flex items-baseline gap-2 border-y border-zinc-200 py-6">
-            <strong class="text-4xl font-semibold tracking-[-0.055em]">$1.00</strong>
-            <span class="text-sm text-zinc-500">per request</span>
+            <strong class="text-4xl font-semibold tracking-[-0.055em]">${headline ? `${escapeHtml(headline.amount)} ${escapeHtml(headline.token)}` : "Price unavailable"}</strong>
+            <span class="text-sm text-zinc-500">per request${headline ? ` · on ${escapeHtml(headline.network)}` : ""}</span>
           </div>
           <p class="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Choose a payment rail</p>
           <ul class="grid gap-2.5" aria-label="Accepted payment rails">
@@ -109,7 +121,9 @@ function displayAmount(atomic: string, token: string): string {
   if (decimals === undefined || !/^\d+$/.test(atomic)) return atomic;
   const digits = atomic.padStart(decimals + 1, "0");
   const whole = digits.slice(0, -decimals);
-  const fraction = digits.slice(-decimals).replace(/0+$/, "");
+  // Trailing zeros go, but never below two places: a price reading `1 USDC`
+  // reads like a rounding, and `1.00 USDC` is what the payer is being asked for.
+  const fraction = digits.slice(-decimals).replace(/0+$/, "").padEnd(Math.min(2, decimals), "0");
   return fraction === "" ? whole : `${whole}.${fraction}`;
 }
 

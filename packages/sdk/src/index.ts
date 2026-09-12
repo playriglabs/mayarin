@@ -34,6 +34,11 @@ export function createMayarin(config: MayarinConfig): MayarinClient {
 }
 
 export type { X402ResourceBody, X402ResourceDto } from "@mayarin/api/dto";
+// Re-exported so a merchant rendering its own paywall names a network the way
+// every other Mayarin surface does. `CHAIN_LABELS` is the single source of
+// truth for that, and a merchant copying it into its own map is how a chain
+// ends up labelled two ways.
+export { chainLabel, chainOfCaip2 } from "@mayarin/chain";
 export type { ClientConfig } from "./client.ts";
 export type { CommerceModule } from "./commerce.ts";
 export { isMayarinApiError, MayarinApiError } from "./errors.ts";

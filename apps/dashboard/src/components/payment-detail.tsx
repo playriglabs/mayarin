@@ -8,6 +8,7 @@
  */
 
 import { type CartSnapshot, parseCartSnapshot } from "@mayarin/catalog";
+import { addressExplorerUrl, transactionExplorerUrl } from "@mayarin/chain";
 import { formatMoneyLocale, money } from "@mayarin/shared";
 import { getAsset, isAssetCode } from "@mayarin/shared/asset";
 import { ArrowLeftIcon, ArrowSquareOutIcon } from "@phosphor-icons/react";
@@ -26,7 +27,6 @@ import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useDeposit, usePayment } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
-import { addressExplorerUrl, transactionExplorerUrl } from "@/lib/chain-explorer";
 import { intentStatusLabel, labelOf, stepIndex, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { withQuery } from "@/lib/with-query";

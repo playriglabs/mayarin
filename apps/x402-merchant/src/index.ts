@@ -41,11 +41,32 @@ app.get("/", (_req, res) => {
 
 app.get(RESOURCE_PATH, x402Connect(gate, { paymentRequiredView }), (_req, res) => {
   // Everything before this line is the payment; everything after is what was bought.
-  res.status(200).json({
-    report: "The merchant's own handler ran, after Mayarin settled the payment.",
-    servedAt: new Date().toISOString(),
-  });
+  // The paywall promises a report, so the paid response is one — a payer that
+  // hands over money for `{ "report": "the handler ran" }` has been shown the
+  // plumbing rather than the product.
+  res.status(200).json(premiumReport());
 });
+
+/**
+ * The example's own content, and labelled as the example's own.
+ *
+ * Figures are illustrative and say so in the payload: this server sells a
+ * demonstration of a paywall, and a report that reads as real market data a
+ * reader might act on would be a different and worse thing to ship.
+ */
+function premiumReport(): Record<string, unknown> {
+  return {
+    title: "The signal behind the noise",
+    summary: "Machine-readable demand is the fastest-growing segment of API traffic.",
+    findings: [
+      "Agent traffic pays per request and never signs up, so a paywall is the whole funnel.",
+      "Priced in the merchant's currency, settled in a stablecoin — the payer's asset is its own problem.",
+      "A replayed signature must re-serve, not re-charge; the delivery is what was bought.",
+    ],
+    illustrative: true,
+    servedAt: new Date().toISOString(),
+  };
+}
 
 app.listen(config.port, () => {
   console.log(

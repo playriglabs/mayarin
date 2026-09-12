@@ -648,6 +648,7 @@
       "name": "@mayarin/sdk",
       "version": "0.1.0",
       "dependencies": {
+        "@mayarin/chain": "workspace:*",
         "@mayarin/qr-parser": "workspace:*",
         "@mayarin/x402": "workspace:*",
       },

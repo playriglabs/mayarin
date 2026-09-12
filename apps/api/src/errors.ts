@@ -40,6 +40,14 @@ export function errorHandler(error: Error, c: Context): Response {
   }
 
   if (isMayarinError(error)) {
+    // A domain error is an answer, not a crash — but it is still the only
+    // record that anything went wrong. Logging only the unhandled branch left
+    // a deployment where every refused settlement was invisible, and a `502`
+    // from the origin looked identical to the origin being down.
+    console.error(
+      `[api] ${c.req.method} ${c.req.path} -> ${error.httpStatus} ${error.code}: ${error.message}`,
+      error.details,
+    );
     return c.json<ErrorBody>(
       {
         error: {

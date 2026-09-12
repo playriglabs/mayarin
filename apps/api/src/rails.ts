@@ -172,6 +172,16 @@ export class QuotePricingSource implements RailPricingSource {
       // The rail is dropped either way — the payer is never offered a pair the
       // lock would refuse — but a retryable failure is re-asked next time
       // rather than remembered.
+      //
+      // Say so out loud. A merchant's rail disappearing from their own counter
+      // with nothing written anywhere is indistinguishable from never having
+      // configured it, and the difference is everything when a payment is
+      // being debugged.
+      console.warn(
+        `[api] rail dropped: ${payerAsset} on ${chain} cannot price to ${settlementAsset}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       return { priceable: false, settled: !(isMayarinError(error) && error.retryable) };
     }
   }

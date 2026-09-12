@@ -9,8 +9,8 @@
  * shortened form is for reading and the whole one is for copying.
  */
 
+import { shortHash, transactionExplorerUrl } from "@mayarin/chain";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
-import { shortHash, transactionExplorerUrl } from "@/lib/chain-explorer";
 
 function TransactionLink({
   chain,

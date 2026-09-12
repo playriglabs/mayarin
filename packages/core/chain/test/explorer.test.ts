@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addressExplorerUrl, transactionExplorerUrl } from "./chain-explorer";
+import { addressExplorerUrl, transactionExplorerUrl } from "../src/explorer.ts";
 
 const HASH = `0x${"ab".repeat(32)}`;
 const ADDRESS = `0x${"12".repeat(20)}`;

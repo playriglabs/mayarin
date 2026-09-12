@@ -1,4 +1,11 @@
-import type { ChainId } from "@mayarin/chain";
+/**
+ * Where a human goes to check a transaction or an address.
+ *
+ * A chain fact, like `CHAIN_LABELS` and for the same reason: the explorer for
+ * a chain is the same everywhere Mayarin runs, and a second copy of this table
+ * is how a hash ends up linking to the wrong network.
+ */
+import type { ChainId } from "./types.ts";
 
 const EXPLORERS = {
   "ethereum-sepolia": "https://sepolia.etherscan.io/",
