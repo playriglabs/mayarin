@@ -179,6 +179,22 @@ const configSchema = z.object({
   chainNativeAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("CHAIN_NATIVE_ASSETS", "{}"),
   /** One RPC per chain, the same map the payment API reads. */
   chainRpcUrls: jsonObject<Partial<Record<ChainId, string>>>("CHAIN_RPC_URLS", "{}"),
+  /**
+   * The most gas Mayarin funds one withdrawal's signer with, per chain, as a
+   * decimal string of that chain's own smallest native unit.
+   *
+   * Per chain because the unit is the chain's currency and not a shared one.
+   * The provider's default is shaped like ETH, where it is worth several Safe
+   * transfers; on Arc, whose currency is USDC, the same number is two tenths of
+   * a cent and below what any withdrawal costs, so every Arc withdrawal is
+   * refused until this names a bound in Arc's own terms.
+   *
+   * A string rather than a number: a JSON number cannot hold 18 decimals.
+   */
+  walletGasTopUpBounds: jsonObject<Partial<Record<ChainId, string>>>(
+    "WALLET_GAS_TOP_UP_BOUNDS",
+    "{}",
+  ),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -235,6 +251,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainAssets: env.CHAIN_ASSETS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainRpcUrls: env.CHAIN_RPC_URLS,
+    walletGasTopUpBounds: env.WALLET_GAS_TOP_UP_BOUNDS,
   });
 
   if (!result.success) {

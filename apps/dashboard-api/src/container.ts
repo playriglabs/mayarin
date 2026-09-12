@@ -649,6 +649,10 @@ function providerFor(config: Config, chain: ChainId): WalletProvider {
   const tokens = config.chainAssets[chain];
   const nativeAsset = config.chainNativeAssets[chain];
   const rpcUrl = config.chainRpcUrls[chain] ?? config.walletProvisionRpcUrl;
+  // Denominated in this chain's own currency, so it cannot be one number for
+  // every chain: the provider's ETH-shaped default is worth a fraction of a
+  // cent on a chain whose currency is a stablecoin.
+  const gasTopUpBound = config.walletGasTopUpBounds[chain];
 
   if (rpcUrl === undefined) {
     throw new ConfigurationError(
@@ -660,6 +664,7 @@ function providerFor(config: Config, chain: ChainId): WalletProvider {
   return new TurnkeyWalletProvider({
     ...(tokens === undefined ? {} : { tokens }),
     ...(nativeAsset === undefined ? {} : { nativeAsset }),
+    ...(gasTopUpBound === undefined ? {} : { maxGasTopUpWei: BigInt(gasTopUpBound) }),
     organizationId: required(config.turnkeyOrganizationId, "TURNKEY_ORGANIZATION_ID"),
     stamper: new ApiKeyStamper({
       apiPublicKey: required(config.turnkeyApiPublicKey, "TURNKEY_API_PUBLIC_KEY"),
