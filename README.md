@@ -355,6 +355,12 @@ position the flow actually needs:
 | Arc (Circle) | USDC-native settlement on Arc testnet, a merchant Safe per chain, and Circle Agent Stack contract-account payers whose EIP-1271 signatures the token accepts                                           | Paid x402 runs on Arc, payer's gas zero: [`docs/evidence/`](./docs/evidence/)                                                                                                                                                                                        |
 | Uniswap      | Cross-asset x402 — exact-output swaps priced backwards from the invoice, so an agent holding any listed asset pays a merchant settled in another                                                       | EURC payer, USDC merchant: [`0x254b93ce…`](https://sepolia.basescan.org/tx/0x254b93cec1a73279e12968938c1c491133c5556b4adb9e71cea070e0abc8affa) / [`0xb1436735…`](https://sepolia.basescan.org/tx/0xb143673599a6b05cd95676f0bbec7ffc35f9f99563bf45c6f26468944eb38a07) |
 
+A full write-up per partner slot — what that partner's judge needs, separated the
+same way — lives in [`docs/submission/`](./docs/submission):
+[The Graph](./docs/submission/the-graph.md) ·
+[Arc](./docs/submission/arc.md) ·
+[Uniswap](./docs/submission/uniswap.md).
+
 The same window also shipped work with no sponsor attached and load-bearing
 regardless: the multichain counter and chain-aware exact-output quoting (#244,
 #258), merchant-owned agent endpoints and the SDK gate (#269, #274, #283–#287),
