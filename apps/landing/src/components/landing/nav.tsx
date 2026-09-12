@@ -191,9 +191,9 @@ export function Navigation() {
             aria-hidden="true"
             width="48"
             height="48"
-            class="size-12"
+            class="md:size-12 size-10"
           />
-          <span class="font-medium font-sans -ml-1 text-[1.8rem]">mayarin</span>
+          <span class="font-medium font-sans -ml-1 text-[1.7rem] md:text-[1.8rem]">mayarin</span>
         </a>
 
         {/* Beside the wordmark rather than centred: the bar reads left to right,

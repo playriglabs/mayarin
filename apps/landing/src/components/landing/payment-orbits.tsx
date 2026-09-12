@@ -43,7 +43,20 @@ const ORBITS = [
 function Currency({ code }: { readonly code: AssetCode }) {
   const symbol = assetSymbol(code) ?? code;
   return (
-    <>
+    // The disc is drawn once, in viewBox units, and scaled up on a phone.
+    //
+    // The viewBox is 1200 wide and the SVG is laid out at 145% of the viewport,
+    // so every unit shrinks with the screen: a 24-unit disc that renders at
+    // 22px on a desktop is 12px on a 400px phone, and the symbol inside it
+    // stops being a symbol. The steps roughly cancel that, holding the mark
+    // between 22px and 30px from the narrowest phone up to `md`, where the
+    // viewBox is finally big enough to carry it unscaled.
+    //
+    // Scaled here rather than by branching on a measured width: the geometry
+    // stays one set of numbers and the breakpoints only say how large it is
+    // drawn. `fill-box` pins the origin to the disc — the SVG default would
+    // scale it about the centre of the viewBox and fling it off its orbit.
+    <g class="[transform-box:fill-box] [transform-origin:center] scale-[1.85] min-[560px]:scale-[1.35] md:scale-100">
       <circle r="12" class="fill-v2-mist stroke-forest/35" stroke-width="1" />
       <text
         text-anchor="middle"
@@ -56,7 +69,7 @@ function Currency({ code }: { readonly code: AssetCode }) {
       >
         {symbol}
       </text>
-    </>
+    </g>
   );
 }
 

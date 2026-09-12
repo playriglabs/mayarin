@@ -53,7 +53,18 @@ function CodePreview({ snippet }: { readonly snippet: Snippet }) {
   };
 
   return (
-    <div class="flex max-h-full min-h-0 min-w-0 flex-col self-center overflow-hidden rounded-2xl bg-code-panel">
+    // On a phone the panel fills the card it sits in, square, so the card's
+    // corner is the only corner. A dark inset rectangle floating inside a light
+    // card reads as two cards at 400px, and the code inside it loses the 56px
+    // the side gutters were taking on the narrowest screen.
+    //
+    // The sides are cancelled here with a negative margin; the bottom is
+    // removed from the card instead (`pb-0` until `md`). A negative *block*
+    // margin on a grid item is undone by the row sizing — the row shrinks by it
+    // and `stretch` hands the height straight back — so it nets to nothing,
+    // while the inline one works. From `md` the card has room for both and the
+    // panel goes back to being a panel.
+    <div class="-mx-7 flex max-h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden bg-code-panel md:mx-0 md:self-center md:rounded-2xl">
       <div class="flex items-center justify-between gap-3 border-b border-line-inverse px-5 py-3.5">
         <div class="flex items-center gap-3">
           <LanguageMark lang={snippet.lang} />
@@ -69,7 +80,7 @@ function CodePreview({ snippet }: { readonly snippet: Snippet }) {
         </button>
       </div>
       <div
-        class="code-surface min-h-0 min-w-0 flex-1 overflow-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_pre]:[scrollbar-width:none] [&_pre::-webkit-scrollbar]:hidden"
+        class="code-surface min-h-0 min-w-0 flex-1 overflow-auto scrollbar-none [&::-webkit-scrollbar]:hidden [&_pre]:scrollbar-none [&_pre::-webkit-scrollbar]:hidden"
         dangerouslySetInnerHTML={{ __html: snippet.html }}
       />
     </div>
@@ -142,10 +153,12 @@ export function Developers() {
 
       <div ref={stack} class="mt-14 flex flex-col gap-6 md:mt-20">
         {DEVELOPER_CARDS.map((card) => (
+          // `overflow-hidden` is what lets the snippet run to the card's edge
+          // on a phone: the panel is square and the card's radius clips it.
           <article
             key={card.eyebrow}
             data-developer-card
-            class="grid origin-top gap-10 rounded-3xl border border-line bg-v2-mist p-7 md:p-12 lg:sticky lg:top-24 lg:h-[min(36rem,calc(100svh-8rem))] lg:grid-cols-[1fr_1.1fr] lg:gap-16 lg:p-14"
+            class="grid origin-top gap-10 overflow-hidden rounded-3xl border border-line bg-v2-mist px-7 pt-7 pb-0 md:p-12 lg:sticky lg:top-24 lg:h-[min(36rem,calc(100svh-8rem))] lg:grid-cols-[1fr_1.1fr] lg:gap-16 lg:p-14"
           >
             <div class="flex flex-col">
               <p class="text-[15px] font-medium text-forest">{card.eyebrow}</p>

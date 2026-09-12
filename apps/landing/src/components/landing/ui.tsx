@@ -41,13 +41,13 @@ export function SectionIntro({
       <p class="mb-3 text-[15px] font-medium font-sans text-forest">{label}</p>
       <h2>{title}</h2>
       {children && (
-        <p
+        <div
           class={clsx("mt-6 max-w-135 text-base leading-relaxed text-slate-600 md:text-lg", {
             "mx-auto": centered,
           })}
         >
           {children}
-        </p>
+        </div>
       )}
     </div>
   );

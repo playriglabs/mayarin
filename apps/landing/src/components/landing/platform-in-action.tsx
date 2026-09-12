@@ -215,8 +215,17 @@ function ProductImage({ view }: { readonly view: PlatformView }) {
         aria-label={`${previewView.alt} — zoomed preview`}
         class="fixed inset-0 m-0 h-dvh w-screen max-h-none max-w-none bg-transparent p-0 backdrop:bg-ink/70 backdrop:backdrop-blur-sm open:flex open:items-center open:justify-center"
       >
+        {/* Almost the whole viewport on a phone. These are landscape screens
+            being read on a portrait screen, so width is the only dimension
+            that sets how big the picture gets — the 86dvh ceiling never binds.
+            Reserving side gutters for the arrows spent a third of that width
+            on empty backdrop: at 400px the box was 288px, and a 1.68 ratio
+            made the screenshot 171px tall in a dialog with room for 750. The
+            arrows overlay the image instead, which is what their dark blurred
+            disc was already dressed for. From `md` the gutters are affordable
+            and come back. */}
         <div
-          class="flex max-h-[86dvh] max-w-[calc(100vw-7rem)] touch-pan-y items-center justify-center md:max-w-[calc(100vw-12rem)]"
+          class="flex max-h-[86dvh] max-w-[calc(100vw-1.5rem)] touch-pan-y items-center justify-center md:max-w-[calc(100vw-12rem)]"
           onPointerDown={(event) => {
             swipeStart.current = event.clientX;
           }}
@@ -247,7 +256,7 @@ function ProductImage({ view }: { readonly view: PlatformView }) {
           aria-label="Previous preview image"
           disabled={previewIndex === 0}
           onClick={() => movePreview(-1)}
-          class="absolute top-1/2 left-3 flex size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-white/60 hover:bg-white hover:text-ink disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/25 disabled:hover:bg-black/45 disabled:hover:text-white md:left-8"
+          class="absolute top-1/2 left-2 flex size-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-white/60 hover:bg-white hover:text-ink disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/25 disabled:hover:bg-black/45 disabled:hover:text-white md:left-8 md:size-12"
         >
           <ArrowRight class="size-5 rotate-180" />
         </button>
@@ -256,7 +265,7 @@ function ProductImage({ view }: { readonly view: PlatformView }) {
           aria-label="Next preview image"
           disabled={previewIndex === PREVIEW_VIEWS.length - 1}
           onClick={() => movePreview(1)}
-          class="absolute top-1/2 right-3 flex size-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-white/60 hover:bg-white hover:text-ink disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/25 disabled:hover:bg-black/45 disabled:hover:text-white md:right-8"
+          class="absolute top-1/2 right-2 flex size-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/45 text-white backdrop-blur-md transition-colors hover:border-white/60 hover:bg-white hover:text-ink disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/25 disabled:hover:bg-black/45 disabled:hover:text-white md:right-8 md:size-12"
         >
           <ArrowRight class="size-5" />
         </button>
