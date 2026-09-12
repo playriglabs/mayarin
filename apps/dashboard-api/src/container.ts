@@ -10,6 +10,7 @@
 
 import type {
   ApiKeyRepository,
+  EmailVerificationRepository,
   MerchantAccountRepository,
   MerchantRepository,
   MerchantSettingChangeRepository,
@@ -43,6 +44,7 @@ import {
   DrizzleClearingRepository,
   DrizzleCustomerRepository,
   DrizzleDepositRepository,
+  DrizzleEmailVerificationRepository,
   DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
   DrizzleMerchantAccountRepository,
@@ -120,6 +122,7 @@ import {
   type ClearingReadRepository,
   PaymentReadService,
 } from "./services/payment-read-service.ts";
+import { RegistrationService } from "./services/registration-service.ts";
 import { SessionService } from "./services/session-service.ts";
 import {
   type ClearingBulkReadRepository,
@@ -127,6 +130,11 @@ import {
   SettlementReadService,
 } from "./services/settlement-read-service.ts";
 import { UserService } from "./services/user-service.ts";
+import {
+  ResendVerificationEmailSender,
+  UnavailableVerificationEmailSender,
+  type VerificationEmailSender,
+} from "./services/verification-email-service.ts";
 import { WalletService } from "./services/wallet-service.ts";
 import { WebhookService } from "./services/webhook-service.ts";
 import { X402ResourceService } from "./services/x402-resource-service.ts";
@@ -146,6 +154,8 @@ export interface Container {
   readonly invoices: InvoiceService;
   /** Transactional delivery of an issued invoice to its snapshotted buyer. */
   readonly invoiceEmails: InvoiceEmailSender;
+  /** Self-service signup and the email-verification codes that finish it. */
+  readonly registrations: RegistrationService;
   /** The merchant's customer directory, scoped the same way. */
   readonly customers: CustomerService;
   /** The commerce view of the merchant's payments — line items + customer. Read-only. */
@@ -230,6 +240,10 @@ export interface CreateContainerOptions {
   readonly invoiceRepository?: InvoiceRepository;
   /** Overridable for tests: a recorder rather than the Resend network adapter. */
   readonly invoiceEmails?: InvoiceEmailSender;
+  /** Verification-code repo. A test supplies the reference in-memory adapter. */
+  readonly emailVerifications?: EmailVerificationRepository;
+  /** Overridable for tests: a recorder that keeps the plaintext code readable. */
+  readonly verificationEmails?: VerificationEmailSender;
   /** Customer directory repo. A test supplies an in-memory fake. */
   readonly customers?: CustomerRepository;
   /** API key repo. A test supplies an in-memory fake. */
@@ -286,6 +300,27 @@ export function createContainer(options: CreateContainerOptions): Container {
   });
   const authService = new AuthService({ users, hasher, sessions: sessionService });
   const userService = new UserService({ users, accounts, hasher, clock });
+
+  const verificationRepository =
+    options.emailVerifications ??
+    new DrizzleEmailVerificationRepository(handle?.db ?? throwIfNoHandle());
+  const verificationEmails =
+    options.verificationEmails ??
+    (config.resendApiKey === undefined
+      ? new UnavailableVerificationEmailSender()
+      : new ResendVerificationEmailSender({
+          apiKey: config.resendApiKey,
+          from: config.invoiceEmailFrom,
+        }));
+  const registrations = new RegistrationService({
+    users,
+    accounts,
+    verifications: verificationRepository,
+    hasher,
+    emails: verificationEmails,
+    clock,
+    settlementAsset: config.settlementAsset,
+  });
 
   const intents =
     options.paymentIntents ?? new DrizzlePaymentIntentRepository(handle?.db ?? throwIfNoHandle());
@@ -521,6 +556,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     catalog,
     invoices,
     invoiceEmails,
+    registrations,
     customers,
     orders,
     apiKeys,

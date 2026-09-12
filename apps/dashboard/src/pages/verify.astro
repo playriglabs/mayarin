@@ -1,0 +1,8 @@
+---
+import Auth from "../layouts/auth.astro";
+import VerifyForm from "../components/verify-form.tsx";
+---
+
+<Auth title="Confirm your email">
+  <VerifyForm client:load />
+</Auth>

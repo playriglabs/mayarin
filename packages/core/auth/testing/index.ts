@@ -12,6 +12,8 @@ import { ConcurrencyError, ConflictError } from "@mayarin/shared";
 import type {
   ApiKey,
   ApiKeyRepository,
+  EmailVerification,
+  EmailVerificationRepository,
   Merchant,
   MerchantAccountRepository,
   MerchantRepository,
@@ -58,6 +60,55 @@ export class InMemoryUserRepository implements UserRepository {
     const user = this.#byId.get(id);
     if (user === undefined) return;
     this.#byId.set(id, { ...user, updatedAt });
+  }
+
+  async markEmailVerified(id: string, verifiedAt: Date): Promise<void> {
+    const user = this.#byId.get(id);
+    if (user === undefined) return;
+    this.#byId.set(id, { ...user, emailVerifiedAt: verifiedAt, updatedAt: verifiedAt });
+  }
+}
+
+export class InMemoryEmailVerificationRepository implements EmailVerificationRepository {
+  readonly #rows: EmailVerification[] = [];
+
+  async insert(verification: EmailVerification): Promise<void> {
+    this.#rows.push(verification);
+  }
+
+  async findLiveByUser(userId: string, now: Date): Promise<EmailVerification | null> {
+    const live = this.#rows
+      .filter(
+        (row) =>
+          row.userId === userId &&
+          row.consumedAt === undefined &&
+          row.expiresAt.getTime() > now.getTime(),
+      )
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    return live[0] ?? null;
+  }
+
+  async recordAttempt(id: string, attempts: number): Promise<void> {
+    this.#replace(id, (row) => ({ ...row, attempts }));
+  }
+
+  async markConsumed(id: string, consumedAt: Date): Promise<void> {
+    this.#replace(id, (row) => ({ ...row, consumedAt }));
+  }
+
+  async consumeAllForUser(userId: string, consumedAt: Date): Promise<void> {
+    for (const [index, row] of this.#rows.entries()) {
+      if (row.userId !== userId || row.consumedAt !== undefined) continue;
+      this.#rows[index] = { ...row, consumedAt };
+    }
+  }
+
+  #replace(id: string, edit: (row: EmailVerification) => EmailVerification): void {
+    const index = this.#rows.findIndex((row) => row.id === id);
+    if (index === -1) return;
+    const row = this.#rows[index];
+    if (row === undefined) return;
+    this.#rows[index] = edit(row);
   }
 }
 

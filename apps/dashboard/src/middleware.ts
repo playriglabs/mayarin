@@ -6,8 +6,9 @@
  * stamps it on `locals.user`. A missing/expired cookie leaves `locals.user`
  * undefined.
  *
- * Auth gating lives here, not in the layouts: a logged-in user hitting `/login`
- * bounces to `/`; an anonymous user hitting a protected path bounces to `/login`.
+ * Auth gating lives here, not in the layouts: a logged-in user hitting `/login`,
+ * `/register` or `/verify` bounces to `/`; an anonymous user hitting a protected
+ * path bounces to `/login`.
  * Doing it in middleware keeps the redirect ahead of any island SSR, so a
  * provider crash during render can never swallow the redirect (the
  * `ResponseSentError` we hit when gating lived in the layout).
@@ -36,7 +37,12 @@ const PROTECTED_PREFIXES = [
   "/admin",
 ];
 const PROTECTED_EXACT = new Set(["/"]);
-const LOGIN_PATH = "/login";
+/**
+ * The signed-out surfaces. Anonymous callers are welcome; a signed-in one is
+ * bounced, since every one of them is a step towards a session they already
+ * hold.
+ */
+const AUTH_PATHS = new Set(["/login", "/register", "/verify"]);
 /**
  * Paths that, beyond authentication, require a specific permission.
  *
@@ -81,7 +87,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const isProtected =
     PROTECTED_EXACT.has(path) || PROTECTED_PREFIXES.some((p) => path.startsWith(p));
 
-  if (authenticated && path === LOGIN_PATH) return context.redirect("/");
+  if (authenticated && AUTH_PATHS.has(path)) return context.redirect("/");
   if (!authenticated && isProtected) return context.redirect("/login");
 
   // Permission gate: a caller authenticated but lacking the permission a path

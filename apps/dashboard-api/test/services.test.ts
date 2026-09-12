@@ -31,6 +31,7 @@ function makeUser(clock: FixedClock, email = "admin@mayarin.local"): User {
     passwordHash: "plain:correct-horse-battery-staple",
     merchantId: "mrc_test",
     permissions: ["payments:read", "users:manage", "admin:access"] as const,
+    emailVerifiedAt: now,
     createdAt: now,
     updatedAt: now,
   };

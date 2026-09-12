@@ -3,8 +3,15 @@ import "../styles/global.css";
 import AuthGridField from "../components/auth-grid-field.tsx";
 import ThemeToggle from "../components/theme-toggle.tsx";
 import SocialMeta from "../components/social-meta.astro";
-// Auth layout: for the login page. A logged-in user has no business here.
+// Auth layout: sign in, register, confirm an email. A logged-in user has no
+// business on any of them.
 if (Astro.locals.user !== undefined) return Astro.redirect("/");
+
+interface Props {
+  title?: string;
+}
+
+const { title = "Sign in" } = Astro.props;
 ---
 
 <!doctype html>
@@ -13,7 +20,7 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0a0a0a" />
-    <title>Sign in — Mayarin</title>
+    <title>{title} — Mayarin</title>
     <SocialMeta />
     <link rel="icon" href="/favicon.ico" sizes="48x48" type="image/x-icon" />
     <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
@@ -43,23 +50,14 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
         aria-hidden="true"
         class="pointer-events-none absolute inset-0 z-1 bg-[linear-gradient(90deg,var(--background)_0%,transparent_8%,transparent_92%,var(--background)_100%),linear-gradient(180deg,var(--background)_0%,transparent_7%,transparent_17%,var(--background)_36%)] lg:bg-[linear-gradient(90deg,var(--background)_0%,transparent_20%,transparent_46%,var(--background)_64%),linear-gradient(180deg,var(--background)_0%,transparent_16%,transparent_84%,var(--background)_100%)]"
       ></div>
-
-      <!--
-        One header for every width. Below lg it is a sticky, blurred bar over
-        the grid; at lg it overlays the two columns, so the logo sits in the
-        brand panel corner and the toggle in the form panel corner.
-      -->
       <header
         class="sticky top-0 z-3 flex h-16 items-center justify-between bg-background/75 px-5 backdrop-blur-md sm:px-10 lg:pointer-events-none lg:absolute lg:inset-x-0 lg:top-0 lg:h-auto lg:items-start lg:bg-transparent lg:px-8 lg:pt-8 lg:backdrop-blur-none"
       >
         <a
           href="https://mayarin.xyz"
           aria-label="Mayarin home"
-          class="pointer-events-auto inline-flex w-fit lg:pt-6 lg:pl-6"
+          class="pointer-events-auto inline-flex w-fit lg:pl-6"
         >
-          <!-- The lockup is composed rather than shipped: the mark, then the
-               name in the interface sans. Two marks, one per theme, so nothing
-               inverts a logo into a state the brand kit never approved. -->
           <img
             src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
             alt=""
@@ -90,7 +88,7 @@ if (Astro.locals.user !== undefined) return Astro.redirect("/");
         class="auth-brand-panel pointer-events-none relative z-2 flex px-5 pt-8 pb-4 sm:px-10 lg:min-h-svh lg:items-end lg:p-14"
       >
         <p class="auth-tagline max-w-[17ch] text-[clamp(1.75rem,5.5vw,2.5rem)] leading-[0.98] tracking-[-0.035em] lg:text-[clamp(2rem,4vw,3.5rem)]">
-          Clearing infrastructure <br />for money <em class="italic">in motion</em>.
+          Programmable payments <br />for the <em class="italic">internet</em>.
         </p>
       </section>
 

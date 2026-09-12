@@ -59,6 +59,31 @@ export const loginBodySchema = z.object({
 export type LoginBody = z.infer<typeof loginBodySchema>;
 
 /**
+ * Self-registration's whole input.
+ *
+ * No settlement address and no chain: what a merchant is paid into is a
+ * decision they make inside the dashboard, on a surface that can explain it,
+ * not on a signup form. The password floor is a length rather than a character
+ * class — length is what actually resists a guess, and composition rules mostly
+ * produce `Passw0rd!`.
+ */
+export const registerBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(12).max(200),
+  merchantName: z.string().trim().min(1).max(120),
+});
+
+export const verifyEmailBodySchema = z.object({
+  email: z.string().email(),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "A code is six digits"),
+});
+
+export const resendVerificationBodySchema = z.object({ email: z.string().email() });
+
+/**
  * Zod refinement over the `Permission` union; rejects unknown flags.
  *
  * Built off `PERMISSION_LIST` so a new permission lands here the moment it is

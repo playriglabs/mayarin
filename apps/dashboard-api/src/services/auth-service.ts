@@ -6,11 +6,16 @@
  * gets a typed `UnauthorizedError` for any failed login — and crucially, the
  * same `UnauthorizedError` with the same message for an unknown email and a
  * wrong password, so the response leaks no signal for user enumeration.
+ *
+ * An account that never confirmed its email is refused too, with a distinct
+ * message — but only after the password has already verified, so that answer
+ * costs an attacker the credential they did not have.
  */
 
 import type { PasswordHasher, Session, User, UserRepository } from "@mayarin/auth";
 import { UnauthorizedError } from "@mayarin/shared";
 import { Effect } from "effect";
+import { EMAIL_NOT_VERIFIED } from "./registration-service.ts";
 import type { SessionService } from "./session-service.ts";
 
 export interface AuthServiceOptions {
@@ -55,6 +60,10 @@ export class AuthService {
 
       const ok = yield* tryRun(() => hasher.verify(password, user.passwordHash));
       if (!ok) return yield* Effect.fail(INVALID_CREDENTIALS);
+
+      // Checked only after the password does, so the distinct answer is not an
+      // enumeration oracle: reaching it already required the right credentials.
+      if (user.emailVerifiedAt === undefined) return yield* Effect.fail(EMAIL_NOT_VERIFIED);
 
       const session = yield* sessions.create(user.id);
       return { user, session };

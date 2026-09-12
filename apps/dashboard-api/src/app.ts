@@ -47,16 +47,26 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
 
   const v1 = new Hono<{ Variables: AuthVars }>();
 
-  v1.use(
+  // Registration and the two code endpoints share the login limiter's budget:
+  // each is an unauthenticated write that sends mail or guesses a credential,
+  // and the general limit is far too generous for any of them.
+  for (const path of [
     "/auth/login",
-    rateLimit({
-      limit: container.config.loginRateLimitRequests,
-      windowMs: container.config.loginRateLimitWindowSeconds * 1_000,
-      clientIpSource: container.config.rateLimitClientIpSource,
-      blockDurationMs: container.config.rateLimitBlockSeconds * 1_000,
-      maxClients: container.config.rateLimitMaxClients,
-    }),
-  );
+    "/auth/register",
+    "/auth/verify-email",
+    "/auth/resend-verification",
+  ]) {
+    v1.use(
+      path,
+      rateLimit({
+        limit: container.config.loginRateLimitRequests,
+        windowMs: container.config.loginRateLimitWindowSeconds * 1_000,
+        clientIpSource: container.config.rateLimitClientIpSource,
+        blockDurationMs: container.config.rateLimitBlockSeconds * 1_000,
+        maxClients: container.config.rateLimitMaxClients,
+      }),
+    );
+  }
 
   v1.use(
     "*",

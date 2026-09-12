@@ -222,6 +222,7 @@ describe("scoping", () => {
       passwordHash: "plain:reader-password-1",
       merchantId: harness.merchantId,
       permissions: ["payments:read"],
+      emailVerifiedAt: now,
       createdAt: now,
       updatedAt: now,
     });
