@@ -25,6 +25,7 @@ import type {
   WalletIntent,
   WalletProvider,
   WalletWithdrawal,
+  WalletWithdrawalCursor,
   WalletWithdrawalRepository,
 } from "../src/index.ts";
 
@@ -35,11 +36,30 @@ export class InMemoryWalletWithdrawalRepository implements WalletWithdrawalRepos
     this.#withdrawals.push(withdrawal);
   }
 
-  async listRecent(merchantId: string, limit: number): Promise<readonly WalletWithdrawal[]> {
-    return this.#withdrawals
+  async listRecent(
+    merchantId: string,
+    limit: number,
+    cursor?: WalletWithdrawalCursor,
+  ): Promise<readonly WalletWithdrawal[]> {
+    const ordered = this.#withdrawals
       .filter((withdrawal) => withdrawal.merchantId === merchantId)
-      .sort((left, right) => right.completedAt.getTime() - left.completedAt.getTime())
-      .slice(0, limit);
+      .sort(
+        (left, right) =>
+          right.completedAt.getTime() - left.completedAt.getTime() ||
+          right.id.localeCompare(left.id),
+      );
+    // Same keyset the Postgres adapter applies, so a test that pages sees the
+    // boundary the real one would.
+    const after =
+      cursor === undefined
+        ? ordered
+        : ordered.filter(
+            (withdrawal) =>
+              withdrawal.completedAt.getTime() < cursor.completedAt.getTime() ||
+              (withdrawal.completedAt.getTime() === cursor.completedAt.getTime() &&
+                withdrawal.id < cursor.id),
+          );
+    return after.slice(0, limit);
   }
 }
 

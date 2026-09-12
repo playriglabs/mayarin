@@ -178,6 +178,12 @@ export class UserService {
         passwordHash: await this.#hasher.hash(plaintext),
         merchantId,
         permissions: [...permissions],
+        // Verified on creation. Somebody with operator or merchant-admin access
+        // typed this address, so there is nobody left to prove control to — and
+        // an unverified account created this way could never sign in, since no
+        // code is ever sent for it. Self-registration is the only path that
+        // leaves the field absent.
+        emailVerifiedAt: now,
         createdAt: now,
         updatedAt: now,
       },

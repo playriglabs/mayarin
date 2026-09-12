@@ -411,6 +411,11 @@ export const users = pgTable(
       .notNull()
       .references(() => merchants.id),
     permissions: text("permissions").array().notNull(),
+    /**
+     * When this account proved control of its email. Null is an account that
+     * exists but cannot sign in — a self-registration that never finished.
+     */
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true, mode: "date" }),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },
@@ -418,6 +423,30 @@ export const users = pgTable(
     uniqueIndex("users_email_idx").on(table.email),
     index("users_merchant_idx").on(table.merchantId),
   ],
+);
+
+/**
+ * One-time codes proving control of an email address.
+ *
+ * Only the hash is stored, so the table is useless to anyone who reads it. A
+ * row is retired by `consumed_at` rather than deleted: the history of how an
+ * account came to be verified is worth keeping, and deleting the row would make
+ * a replay indistinguishable from a first use.
+ */
+export const emailVerifications = pgTable(
+  "email_verifications",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    codeHash: text("code_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true, mode: "date" }),
+    attempts: integer("attempts").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (table) => [index("email_verifications_user_idx").on(table.userId, table.createdAt)],
 );
 
 /**
@@ -1049,6 +1078,7 @@ export const schema = {
   watcherCursors,
   merchants,
   users,
+  emailVerifications,
   sessions,
   products,
   productPrices,

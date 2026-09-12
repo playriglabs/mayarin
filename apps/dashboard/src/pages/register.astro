@@ -1,0 +1,8 @@
+---
+import Auth from "../layouts/auth.astro";
+import RegisterForm from "../components/register-form.tsx";
+---
+
+<Auth title="Create an account">
+  <RegisterForm client:load />
+</Auth>

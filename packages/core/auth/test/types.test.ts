@@ -72,6 +72,7 @@ describe("auth domain types", () => {
         return [];
       },
       async touchUpdatedAt() {},
+      async markEmailVerified() {},
     };
     const sessions: SessionRepository = {
       async insert(session: Session) {

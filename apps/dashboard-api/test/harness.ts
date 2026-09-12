@@ -14,6 +14,7 @@
 import { MERCHANT_ADMIN_PERMISSIONS, type PasswordHasher } from "@mayarin/auth";
 import {
   InMemoryApiKeyRepository,
+  InMemoryEmailVerificationRepository,
   InMemoryMerchantAccountRepository,
   InMemoryMerchantRepository,
   InMemoryMerchantSettingChangeRepository,
@@ -77,9 +78,14 @@ import { MerchantSettingsService } from "../src/services/merchant-settings-servi
 import { OrderReadService } from "../src/services/order-read-service.ts";
 import { PaymentApiClient } from "../src/services/payment-api-client.ts";
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
+import { RegistrationService } from "../src/services/registration-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
 import { SettlementReadService } from "../src/services/settlement-read-service.ts";
 import { UserService } from "../src/services/user-service.ts";
+import type {
+  SendVerificationEmailRequest,
+  VerificationEmailSender,
+} from "../src/services/verification-email-service.ts";
 import { WalletService } from "../src/services/wallet-service.ts";
 import { WebhookService } from "../src/services/webhook-service.ts";
 import { X402ResourceService } from "../src/services/x402-resource-service.ts";
@@ -271,6 +277,25 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     payments: intents,
     clock,
   });
+  // Keeps the plaintext code a test needs, which is the one thing the real
+  // sender is built never to hand back.
+  const verificationEmails: SendVerificationEmailRequest[] = [];
+  const verificationEmailSender: VerificationEmailSender = {
+    sendVerification: async (request) => {
+      verificationEmails.push(request);
+      return { id: "eml_test_verification" };
+    },
+  };
+  const registrations = new RegistrationService({
+    users,
+    accounts,
+    verifications: new InMemoryEmailVerificationRepository(),
+    hasher,
+    emails: verificationEmailSender,
+    clock,
+    settlementAsset: config.settlementAsset,
+  });
+
   const invoiceEmailCalls: SendInvoiceEmailRequest[] = [];
   const invoiceEmails: InvoiceEmailSender = options.invoiceEmailSender ?? {
     sendInvoice: async (request) => {
@@ -435,6 +460,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     catalog,
     invoices,
     invoiceEmails,
+    registrations,
     customers,
     orders,
     apiKeys,
@@ -516,6 +542,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     paymentLinks,
     invoiceRepository,
     invoiceEmailCalls,
+    /** Every verification email sent, with its plaintext code. */
+    verificationEmails,
     customerRepository,
     apiKeyRepository,
     eventLogRepository,

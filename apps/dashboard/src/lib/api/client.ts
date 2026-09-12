@@ -20,6 +20,15 @@ export class ApiError extends Data.TaggedError("ApiError")<{
   readonly status: number;
   readonly message: string;
   readonly retryAfterSeconds?: number;
+  /**
+   * The API's machine-readable `details.reason`, when it names one.
+   *
+   * Some failures are the same status with different recoveries — a `401` for
+   * bad credentials is a retype, a `401` for an unconfirmed address is a trip
+   * to the code form — and the human message is not something a UI should
+   * branch on.
+   */
+  readonly reason?: string;
 }> {}
 
 /** Browser base path: same-origin, proxied to the dashboard API in dev. */
@@ -80,15 +89,28 @@ export function request<A>(path: string, opts: RequestOptions = {}): Effect.Effe
     if (!res.ok) {
       const message = extractMessage(data, res.status);
       const retryAfterSeconds = extractRetryAfterSeconds(data, res.headers.get("retry-after"));
+      const reason = extractReason(data);
       return yield* new ApiError({
         status: res.status,
         message,
         ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+        ...(reason === undefined ? {} : { reason }),
       });
     }
 
     return data as A;
   });
+}
+
+/** Pulls `error.details.reason` out of the dashboard API's error body, when present. */
+function extractReason(data: unknown): string | undefined {
+  if (data === null || typeof data !== "object" || !("error" in data)) return undefined;
+  const error = (data as { error: unknown }).error;
+  if (error === null || typeof error !== "object" || !("details" in error)) return undefined;
+  const details = (error as { details: unknown }).details;
+  if (details === null || typeof details !== "object" || !("reason" in details)) return undefined;
+  const reason = (details as { reason: unknown }).reason;
+  return typeof reason === "string" ? reason : undefined;
 }
 
 /** Pulls the human message out of the dashboard API's `{ error: { message } }` body. */

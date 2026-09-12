@@ -177,6 +177,8 @@ export interface WalletWithdrawalDto {
 
 export interface WalletWithdrawalHistoryResponse {
   readonly withdrawals: readonly WalletWithdrawalDto[];
+  /** The cursor for the page after this one, or null at the end of history. */
+  readonly nextCursor: string | null;
 }
 
 export interface ChallengeResponse {

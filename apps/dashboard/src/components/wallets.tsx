@@ -20,6 +20,7 @@
  * in their own wallet and pastes the result, which moves no funds.
  */
 
+import { Tabs } from "@base-ui-components/react/tabs";
 import { chainLabel } from "@mayarin/chain";
 import { isAssetCode } from "@mayarin/shared/asset";
 import {
@@ -39,6 +40,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { CursorPagination } from "@/components/ui/cursor-pagination";
 import {
   Dialog,
   DialogClose,
@@ -57,6 +59,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
@@ -66,7 +69,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PanelSkeleton, TableSkeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -78,6 +81,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useCursorPagination } from "@/hooks/cursor-pagination";
 import {
   useLinkWallet,
   useMerchantRails,
@@ -90,6 +94,7 @@ import {
   useWalletWithdrawalHistory,
   useWithdraw,
 } from "@/hooks/settings";
+import { useUrlTab } from "@/hooks/url-tab";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { fromEditableDecimalString } from "@/lib/decimal-input";
@@ -236,8 +241,28 @@ function NetworkList({ chains }: { readonly chains: readonly string[] }) {
   );
 }
 
+/**
+ * What the success banner says, and the transaction it points at when there is
+ * one to point at.
+ */
+interface Notice {
+  readonly message: string;
+  readonly transaction?: { readonly chain: string; readonly hash: string };
+}
+
 /** Remembers, per browser, whether the merchant opened payment availability. */
 const AVAILABILITY_STORAGE_KEY = "mayarin-wallets-availability-open";
+
+/**
+ * The page's two halves.
+ *
+ * Addresses is the setup surface — balances, networks, the wallets themselves —
+ * and history is a log that only grows. They were stacked on one scroll, which
+ * put the thing a merchant reads once above the thing they come back to.
+ */
+const WALLET_TABS = ["addresses", "history"] as const;
+
+type WalletTab = (typeof WALLET_TABS)[number];
 
 /** One network's payment status, as its badge reads. */
 function availabilityOf(
@@ -258,13 +283,27 @@ function Wallets() {
   const wallets = useWallets();
   const balance = useWalletBalance();
   const rails = useMerchantRails();
-  const withdrawalHistory = useWalletWithdrawalHistory();
+  // In the URL, so a reload — or a link sent to a colleague — opens the tab
+  // they were actually on.
+  const [activeTab, setActiveTab] = useUrlTab<WalletTab>("tab", WALLET_TABS, "addresses");
+  const historyPagination = useCursorPagination();
+  const withdrawalHistory = useWalletWithdrawalHistory(historyPagination.cursor);
   const withdraw = useWithdraw();
   const link = useLinkWallet();
   const provision = useProvisionWallet();
   const provisionEverywhere = useProvisionWalletEverywhere();
   const challenge = useWalletChallenge();
   const verify = useVerifyWallet();
+
+  /**
+   * One loader for the whole tab.
+   *
+   * Balances, availability and the wallet list are three queries that fire
+   * together and land within a moment of each other; a spinner each meant three
+   * of them stacked down the page. Gated here rather than inside each block,
+   * which is why those blocks no longer carry a pending branch of their own.
+   */
+  const addressesPending = balance.isPending || rails.isPending || wallets.isPending;
 
   const [connecting, setConnecting] = useState(false);
   /** The network an address is being linked on. Wallet records are per chain. */
@@ -273,7 +312,15 @@ function Wallets() {
   const [ceremony, setCeremony] = useState<Ceremony | null>(null);
   const [signature, setSignature] = useState("");
   const [failure, setFailure] = useState("");
-  const [notice, setNotice] = useState("");
+  /**
+   * The banner above the balances, and the transaction it is about when it has
+   * one.
+   *
+   * Carried as a value rather than an interpolated string so a hash can render
+   * as the shortened explorer link the history table already uses: a 66-character
+   * hash in a sentence is unreadable and unclickable.
+   */
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
   /** Which chain's wallet the open dialog moves from. A merchant has one per chain. */
   const [withdrawChain, setWithdrawChain] = useState("");
@@ -404,7 +451,7 @@ function Wallets() {
   function openConnect(targetChain = chain) {
     if (targetChain === undefined) return;
     setFailure("");
-    setNotice("");
+    setNotice(null);
     setAddress("");
     setConnectChain(targetChain);
     setConnecting(true);
@@ -412,7 +459,7 @@ function Wallets() {
 
   function openWithdraw(row: ChainBalanceDto) {
     setWithdrawFailure("");
-    setNotice("");
+    setNotice(null);
     setWithdrawAmount("");
     setWithdrawChain(row.chain);
     setWithdrawAsset(row.balances[0]?.asset ?? "");
@@ -422,7 +469,7 @@ function Wallets() {
 
   async function submitWithdrawal() {
     setWithdrawFailure("");
-    setNotice("");
+    setNotice(null);
     if (!isAssetCode(withdrawAsset)) {
       setWithdrawFailure("Pick an asset to withdraw");
       return;
@@ -445,7 +492,10 @@ function Wallets() {
         to: withdrawTo,
       });
       setWithdrawing(false);
-      setNotice(`Withdrawal submitted: ${txHash}`);
+      setNotice({
+        message: "Withdrawal submitted:",
+        transaction: { chain: withdrawChain, hash: txHash },
+      });
     } catch (error) {
       setWithdrawFailure(
         error instanceof ApiError ? error.message : "Could not submit that withdrawal",
@@ -467,14 +517,14 @@ function Wallets() {
   async function connectInjected(wallet: InjectedWallet, targetChain: string) {
     if (targetChain === "") return;
     setFailure("");
-    setNotice("");
+    setNotice(null);
     setSigning(true);
     try {
       const account = await requestAccount(wallet.provider);
       // Proved on any network is proved: the key holds this address everywhere.
       if (destinations.some((group) => group.address === account)) {
         setConnecting(false);
-        setNotice("That wallet is already verified.");
+        setNotice({ message: "That wallet is already verified." });
         return;
       }
       const existing = rows.find((row) => row.chain === targetChain && row.address === account);
@@ -489,7 +539,7 @@ function Wallets() {
         signature,
       });
       setConnecting(false);
-      setNotice("Wallet verified.");
+      setNotice({ message: "Wallet verified." });
     } catch (error) {
       const reason = error instanceof ApiError ? error.message : walletErrorMessage(error);
       // `undefined` is the merchant closing their wallet's prompt, which is a
@@ -512,7 +562,7 @@ function Wallets() {
     const active = ceremony;
     if (active === null) return;
     setFailure("");
-    setNotice("");
+    setNotice(null);
     setSigning(true);
     try {
       const account = await requestAccount(wallet.provider);
@@ -527,7 +577,7 @@ function Wallets() {
         signature: signed,
       });
       setCeremony(null);
-      setNotice("Wallet verified. It can be paid.");
+      setNotice({ message: "Wallet verified. It can be paid." });
     } catch (error) {
       const reason = error instanceof ApiError ? error.message : walletErrorMessage(error);
       if (reason !== undefined) setFailure(reason);
@@ -539,7 +589,7 @@ function Wallets() {
   async function connect() {
     if (connectChain === "") return;
     setFailure("");
-    setNotice("");
+    setNotice(null);
     try {
       const { wallet } = await link.mutateAsync({ chain: connectChain, address: address.trim() });
       setConnecting(false);
@@ -559,12 +609,14 @@ function Wallets() {
    */
   async function createManagedWallet() {
     setFailure("");
-    setNotice("");
+    setNotice(null);
     try {
       const { failed } = await provisionEverywhere.mutateAsync();
       const [firstFailure] = failed;
       if (firstFailure === undefined) {
-        setNotice("Managed wallet created. It receives payments on every network below.");
+        setNotice({
+          message: "Managed wallet created. It receives payments on every network below.",
+        });
         return;
       }
       setFailure(
@@ -582,10 +634,10 @@ function Wallets() {
    */
   async function provisionOn(target: string) {
     setFailure("");
-    setNotice("");
+    setNotice(null);
     try {
       await provision.mutateAsync(target);
-      setNotice(`Managed wallet set up on ${chainLabel(target)}.`);
+      setNotice({ message: `Managed wallet set up on ${chainLabel(target)}.` });
     } catch (error) {
       setFailure(error instanceof ApiError ? error.message : "Could not set up the wallet");
     }
@@ -593,7 +645,7 @@ function Wallets() {
 
   async function startProof(wallet: WalletDto) {
     setFailure("");
-    setNotice("");
+    setNotice(null);
     setSignature("");
     try {
       const issued = await challenge.mutateAsync(wallet.id);
@@ -606,7 +658,7 @@ function Wallets() {
   async function submitProof() {
     if (ceremony === null) return;
     setFailure("");
-    setNotice("");
+    setNotice(null);
     try {
       await verify.mutateAsync({
         walletId: ceremony.wallet.id,
@@ -614,7 +666,7 @@ function Wallets() {
         signature: signature.trim(),
       });
       setCeremony(null);
-      setNotice("Wallet verified. It can be paid.");
+      setNotice({ message: "Wallet verified. It can be paid." });
     } catch (error) {
       setFailure(error instanceof ApiError ? error.message : "That signature did not verify");
     }
@@ -622,475 +674,560 @@ function Wallets() {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="font-mono text-xs text-subtle-foreground">
-          {groups.length} wallet{groups.length === 1 ? "" : "s"}
-        </p>
-        {/* Until the merchant has a managed wallet, the header is the one place
+      <Tabs.Root value={activeTab} onValueChange={(value) => setActiveTab(value as WalletTab)}>
+        <Tabs.List
+          aria-label="Wallet sections"
+          className="flex w-full overflow-x-auto border-border border-b"
+        >
+          {(
+            [
+              ["addresses", "Addresses"],
+              ["history", "History"],
+            ] as const
+          ).map(([value, label]) => (
+            <Tabs.Tab
+              key={value}
+              value={value}
+              className="min-h-11 shrink-0 cursor-pointer border-transparent border-b-2 px-4 font-sans text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-active:border-brand data-active:text-foreground dark:data-active:border-electric"
+            >
+              {label}
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+
+        <Tabs.Panel
+          value="addresses"
+          className="flex flex-col gap-4 pt-6 focus-visible:outline-none"
+        >
+          {addressesPending ? (
+            <PageLoader label="Loading wallets" />
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-mono text-xs text-subtle-foreground">
+                  {groups.length} wallet{groups.length === 1 ? "" : "s"}
+                </p>
+                {/* Until the merchant has a managed wallet, the header is the one place
             to get one, in the order it has to happen: prove a wallet you own,
             then create the managed wallet on every network at once. After that
             there is nothing left to add here — a network still missing it says
             so on its own card. The browser's wallet does the whole ceremony, so
             it leads; the typed-address path stays for a hardware signer, a Safe
             app, another machine. */}
-        {managedAddress === undefined && (
-          <span className="flex flex-wrap justify-end gap-2">
-            {!hasVerifiedWallet && injected.length > 0 && (
-              <Button
-                variant="secondary"
-                onClick={() => withWallet("connect", chain)}
-                disabled={signing || chain === undefined}
-              >
-                <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                {signing ? "Check your wallet…" : `Connect ${chosen?.name ?? "wallet"}`}
-              </Button>
-            )}
-            {!hasVerifiedWallet && (
-              <Button
-                variant="secondary"
-                onClick={() => openConnect()}
-                disabled={chain === undefined}
-              >
-                <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                Connect existing
-              </Button>
-            )}
-            {hasVerifiedWallet && provisionChains.length > 0 && (
-              <Button
-                onClick={() => void createManagedWallet()}
-                disabled={provisionEverywhere.isPending}
-              >
-                <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                {provisionEverywhere.isPending ? "Creating…" : "Create managed wallet"}
-              </Button>
-            )}
-          </span>
-        )}
-      </div>
+                {managedAddress === undefined && (
+                  <span className="flex flex-wrap justify-end gap-2">
+                    {!hasVerifiedWallet && injected.length > 0 && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => withWallet("connect", chain)}
+                        disabled={signing || chain === undefined}
+                      >
+                        <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        {signing ? "Check your wallet…" : `Connect ${chosen?.name ?? "wallet"}`}
+                      </Button>
+                    )}
+                    {!hasVerifiedWallet && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => openConnect()}
+                        disabled={chain === undefined}
+                      >
+                        <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        Connect existing
+                      </Button>
+                    )}
+                    {hasVerifiedWallet && provisionChains.length > 0 && (
+                      <Button
+                        onClick={() => void createManagedWallet()}
+                        disabled={provisionEverywhere.isPending}
+                      >
+                        <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                        {provisionEverywhere.isPending ? "Creating…" : "Create managed wallet"}
+                      </Button>
+                    )}
+                  </span>
+                )}
+              </div>
 
-      {managedAddress === undefined && wallets.isSuccess && provisionChains.length > 0 && (
-        <p className="text-muted-foreground text-sm">
-          {hasVerifiedWallet
-            ? "Next, create your managed wallet: one address that receives payments on every network below."
-            : "Start by connecting a wallet you own. It proves who you are and becomes an owner of your managed wallet — connecting moves no funds."}
-        </p>
-      )}
+              {managedAddress === undefined && wallets.isSuccess && provisionChains.length > 0 && (
+                <p className="text-muted-foreground text-sm">
+                  {hasVerifiedWallet
+                    ? "Next, create your managed wallet: one address that receives payments on every network below."
+                    : "Start by connecting a wallet you own. It proves who you are and becomes an owner of your managed wallet — connecting moves no funds."}
+                </p>
+              )}
 
-      {notice !== "" && (
-        <Alert role="status" className="flex items-center gap-2">
-          <CheckCircleIcon size={ICON_NAV} weight="fill" className="shrink-0 text-success" />
-          {notice}
-        </Alert>
-      )}
+              {notice !== null && (
+                <Alert role="status" className="flex flex-wrap items-center gap-2">
+                  <CheckCircleIcon
+                    size={ICON_NAV}
+                    weight="fill"
+                    className="shrink-0 text-success"
+                  />
+                  {notice.message}
+                  {notice.transaction !== undefined && (
+                    <TransactionLink
+                      chain={notice.transaction.chain}
+                      transactionHash={notice.transaction.hash}
+                    />
+                  )}
+                </Alert>
+              )}
 
-      {/* The balance sits above the wallet list because it is the question a
+              {/* The balance sits above the wallet list because it is the question a
           merchant opens this page with. Read from the chain, not the ledger:
           once settlement lands on-chain the money is theirs, not Mayarin's to
           account for. */}
-      {match(balance)
-        .with({ isPending: true }, () => <PanelSkeleton lines={3} />)
-        .with({ isError: true }, ({ error }) => (
-          <QueryError
-            message={reasonOf(error)}
-            retry={() => void balance.refetch()}
-            retrying={balance.isFetching}
-          />
-        ))
-        .otherwise(() => (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <h2 className="font-medium text-sm">Settlement balances</h2>
-              {paidIntoManaged && (
-                <p className="text-muted-foreground text-xs">
-                  Your managed wallet has the same address on every network. Each network holds its
-                  own balance.
-                </p>
-              )}
-            </div>
-            {/* One card per chain: the same address holds a separate balance on
+              {match(balance)
+                .with({ isError: true }, ({ error }) => (
+                  <QueryError
+                    message={reasonOf(error)}
+                    retry={() => void balance.refetch()}
+                    retrying={balance.isFetching}
+                  />
+                ))
+                .otherwise(() => (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1">
+                      <h2 className="font-medium text-sm">Settlement balances</h2>
+                      {paidIntoManaged && (
+                        <p className="text-muted-foreground text-xs">
+                          Your managed wallet has the same address on every network. Each network
+                          holds its own balance.
+                        </p>
+                      )}
+                    </div>
+                    {/* One card per chain: the same address holds a separate balance on
                 each (#244), and showing one of them made the others' money
                 invisible. Networks with an address first, so the funded card
                 leads; stable, so the API's order holds within each group. */}
-            <div className="grid gap-3 lg:grid-cols-2">
-              {[...chainBalances]
-                .sort((a, b) => Number(a.address === null) - Number(b.address === null))
-                .map((row) => {
-                  // The managed wallet's address, not deployed on this network yet.
-                  const notSetUp =
-                    row.address === null &&
-                    managedAddress !== undefined &&
-                    provisionChains.includes(row.chain);
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {[...chainBalances]
+                        .sort((a, b) => Number(a.address === null) - Number(b.address === null))
+                        .map((row) => {
+                          // The managed wallet's address, not deployed on this network yet.
+                          const notSetUp =
+                            row.address === null &&
+                            managedAddress !== undefined &&
+                            provisionChains.includes(row.chain);
+                          return (
+                            <Card key={row.chain} className="flex flex-col gap-4 p-4">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div className="flex min-w-0 flex-col gap-1">
+                                  <h3 className="flex items-center gap-2 font-medium text-sm">
+                                    <ChainLabel chain={row.chain} />
+                                    {notSetUp && <Badge variant="warning">Not set up</Badge>}
+                                  </h3>
+                                  <p className="break-all mt-2 font-mono text-subtle-foreground text-sm">
+                                    {row.address ??
+                                      (notSetUp
+                                        ? managedAddress
+                                        : "No settlement address on this network yet")}
+                                  </p>
+                                </div>
+                                <span className="flex flex-wrap gap-2">
+                                  {notSetUp && (
+                                    <Button
+                                      variant="secondary"
+                                      onClick={() => void provisionOn(row.chain)}
+                                      disabled={provision.isPending}
+                                    >
+                                      <WalletIcon
+                                        size={ICON_NAV}
+                                        weight="bold"
+                                        aria-hidden="true"
+                                      />
+                                      Set up on {chainLabel(row.chain)}
+                                    </Button>
+                                  )}
+                                  {row.withdrawable && (
+                                    <Button
+                                      variant="secondary"
+                                      onClick={() => openWithdraw(row)}
+                                      disabled={row.balances.length === 0 || !hasVerifiedWallet}
+                                    >
+                                      <ArrowLineUpRightIcon
+                                        size={ICON_NAV}
+                                        weight="bold"
+                                        aria-hidden="true"
+                                      />
+                                      Withdraw
+                                    </Button>
+                                  )}
+                                </span>
+                              </div>
+
+                              {/* A network with no address says so in its subtitle already;
+                        a second sentence repeating it only made the card taller. */}
+                              {row.balances.length === 0 ? (
+                                row.address !== null && (
+                                  <p className="text-muted-foreground text-sm">Nothing here yet.</p>
+                                )
+                              ) : (
+                                <dl className="flex flex-wrap gap-6">
+                                  {row.balances.map((amount) => (
+                                    <div key={amount.asset} className="flex flex-col gap-1">
+                                      <dt className="text-muted-foreground text-xs uppercase">
+                                        <AssetLabel symbol={amount.asset} size={18} />
+                                      </dt>
+                                      <dd className="font-mono text-lg tabular-nums">
+                                        {amount.display}
+                                      </dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              )}
+
+                              {notSetUp && (
+                                <p className="text-muted-foreground text-xs">
+                                  Set it up to receive payments on {chainLabel(row.chain)} at this
+                                  same address.
+                                </p>
+                              )}
+                              {row.address !== null && !row.withdrawable && (
+                                <p className="text-muted-foreground text-xs">
+                                  This address is yours, not one Mayarin provisioned — withdraw from
+                                  it in your own wallet.
+                                </p>
+                              )}
+                              {row.withdrawable && !hasVerifiedWallet && (
+                                <p className="text-muted-foreground text-xs">
+                                  Connect and verify a wallet you own to withdraw to it.
+                                </p>
+                              )}
+                            </Card>
+                          );
+                        })}
+                    </div>
+                  </div>
+                ))}
+
+              {/* Why a payer is, or is not, offered each network. The reason is the
+          part that only exists here: before it, "my Arc link does not work"
+          arrived as a payment that refused to lock, naming a settings field the
+          merchant had never been shown (#244). */}
+              {match(rails)
+                .with({ isError: true }, ({ error }) => (
+                  <QueryError
+                    message={reasonOf(error)}
+                    retry={() => void rails.refetch()}
+                    retrying={rails.isFetching}
+                  />
+                ))
+                .otherwise(({ data }) => {
+                  const networks = (data?.supported ?? []).map((supported) => ({
+                    chain: supported.chain,
+                    rails: data?.rails.filter((rail) => rail.chain === supported.chain) ?? [],
+                    unavailable: [
+                      ...new Map(
+                        (data?.unavailable ?? [])
+                          .filter((entry) => entry.chain === supported.chain)
+                          .map((entry) => [`${entry.asset ?? "network"}:${entry.reason}`, entry]),
+                      ).values(),
+                    ],
+                  }));
+
                   return (
-                    <Card key={row.chain} className="flex flex-col gap-4 p-4">
+                    <Card className="flex flex-col gap-4 p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex min-w-0 flex-col gap-1">
-                          <h3 className="flex items-center gap-2 font-medium text-sm">
-                            <ChainLabel chain={row.chain} />
-                            {notSetUp && <Badge variant="warning">Not set up</Badge>}
-                          </h3>
-                          <p className="break-all mt-2 font-mono text-subtle-foreground text-sm">
-                            {row.address ??
-                              (notSetUp
-                                ? managedAddress
-                                : "No settlement address on this network yet")}
+                        <div className="flex flex-col gap-1">
+                          <h2 className="font-medium text-sm">Payment availability</h2>
+                          <p className="text-muted-foreground text-xs">
+                            Every network uses the same payment link and settles into{" "}
+                            {data?.settlementAsset ?? "your settlement asset"}.
                           </p>
                         </div>
-                        <span className="flex flex-wrap gap-2">
-                          {notSetUp && (
-                            <Button
-                              variant="secondary"
-                              onClick={() => void provisionOn(row.chain)}
-                              disabled={provision.isPending}
-                            >
-                              <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                              Set up on {chainLabel(row.chain)}
-                            </Button>
-                          )}
-                          {row.withdrawable && (
-                            <Button
-                              variant="secondary"
-                              onClick={() => openWithdraw(row)}
-                              disabled={row.balances.length === 0 || !hasVerifiedWallet}
-                            >
-                              <ArrowLineUpRightIcon
-                                size={ICON_NAV}
-                                weight="bold"
-                                aria-hidden="true"
-                              />
-                              Withdraw
-                            </Button>
-                          )}
-                        </span>
+                        {networks.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={toggleAvailability}
+                            aria-expanded={availabilityOpen}
+                            aria-controls="payment-availability-details"
+                          >
+                            {availabilityOpen ? "Hide details" : "Show details"}
+                            <CaretDownIcon
+                              size={ICON_NAV}
+                              weight="bold"
+                              aria-hidden="true"
+                              className={
+                                availabilityOpen
+                                  ? "rotate-180 transition-transform duration-200"
+                                  : "transition-transform duration-200"
+                              }
+                            />
+                          </Button>
+                        )}
                       </div>
 
-                      {/* A network with no address says so in its subtitle already;
-                        a second sentence repeating it only made the card taller. */}
-                      {row.balances.length === 0 ? (
-                        row.address !== null && (
-                          <p className="text-muted-foreground text-sm">Nothing here yet.</p>
-                        )
+                      {networks.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">
+                          No payment network is configured for this deployment.
+                        </p>
+                      ) : !availabilityOpen ? (
+                        // Closed: one line, every network and its status. A badge that
+                        // says something is wrong is the cue to open the detail.
+                        <ul
+                          id="payment-availability-details"
+                          className="flex flex-wrap gap-x-6 gap-y-2"
+                        >
+                          {networks.map((network) => {
+                            const status = availabilityOf(
+                              network.rails.length,
+                              network.unavailable.length,
+                            );
+                            return (
+                              <li key={network.chain} className="flex items-center gap-2 text-sm">
+                                <ChainLabel chain={network.chain} />
+                                <Badge variant={status.variant}>{status.label}</Badge>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       ) : (
-                        <dl className="flex flex-wrap gap-6">
-                          {row.balances.map((amount) => (
-                            <div key={amount.asset} className="flex flex-col gap-1">
-                              <dt className="text-muted-foreground text-xs uppercase">
-                                <AssetLabel symbol={amount.asset} size={18} />
-                              </dt>
-                              <dd className="font-mono text-lg tabular-nums">{amount.display}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      )}
+                        <div
+                          id="payment-availability-details"
+                          className="grid gap-3 md:grid-cols-2 lg:grid-cols-3"
+                        >
+                          {networks.map((network) => {
+                            const hasRails = network.rails.length > 0;
+                            const status = availabilityOf(
+                              network.rails.length,
+                              network.unavailable.length,
+                            );
+                            return (
+                              <section
+                                key={network.chain}
+                                className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3"
+                                aria-label={`${chainLabel(network.chain)} payment availability`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <h3 className="font-medium text-sm">
+                                    <ChainLabel chain={network.chain} />
+                                  </h3>
+                                  <Badge variant={status.variant}>{status.label}</Badge>
+                                </div>
 
-                      {notSetUp && (
-                        <p className="text-muted-foreground text-xs">
-                          Set it up to receive payments on {chainLabel(row.chain)} at this same
-                          address.
-                        </p>
-                      )}
-                      {row.address !== null && !row.withdrawable && (
-                        <p className="text-muted-foreground text-xs">
-                          This address is yours, not one Mayarin provisioned — withdraw from it in
-                          your own wallet.
-                        </p>
-                      )}
-                      {row.withdrawable && !hasVerifiedWallet && (
-                        <p className="text-muted-foreground text-xs">
-                          Connect and verify a wallet you own to withdraw to it.
-                        </p>
+                                {hasRails && (
+                                  <div className="flex flex-wrap gap-3">
+                                    {network.rails.map((rail) => (
+                                      <AssetLabel key={rail.asset} symbol={rail.asset} size={18} />
+                                    ))}
+                                  </div>
+                                )}
+
+                                {!hasRails && network.unavailable.length === 0 ? (
+                                  <p className="text-muted-foreground text-xs">
+                                    No payable asset is available on this network.
+                                  </p>
+                                ) : (
+                                  network.unavailable.length > 0 && (
+                                    <ul className="flex flex-col gap-2 border-border border-t pt-3 text-muted-foreground text-xs">
+                                      {network.unavailable.map((entry) => (
+                                        <li key={`${entry.asset ?? "network"}:${entry.reason}`}>
+                                          <span className="font-medium text-foreground">
+                                            {entry.asset ?? "Network"}
+                                          </span>{" "}
+                                          — {entry.reason}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )
+                                )}
+                              </section>
+                            );
+                          })}
+                        </div>
                       )}
                     </Card>
                   );
                 })}
-            </div>
-          </div>
-        ))}
 
-      {/* Why a payer is, or is not, offered each network. The reason is the
-          part that only exists here: before it, "my Arc link does not work"
-          arrived as a payment that refused to lock, naming a settings field the
-          merchant had never been shown (#244). */}
-      {match(rails)
-        .with({ isPending: true }, () => <PanelSkeleton lines={2} />)
-        .with({ isError: true }, ({ error }) => (
-          <QueryError
-            message={reasonOf(error)}
-            retry={() => void rails.refetch()}
-            retrying={rails.isFetching}
-          />
-        ))
-        .otherwise(({ data }) => {
-          const networks = (data?.supported ?? []).map((supported) => ({
-            chain: supported.chain,
-            rails: data?.rails.filter((rail) => rail.chain === supported.chain) ?? [],
-            unavailable: [
-              ...new Map(
-                (data?.unavailable ?? [])
-                  .filter((entry) => entry.chain === supported.chain)
-                  .map((entry) => [`${entry.asset ?? "network"}:${entry.reason}`, entry]),
-              ).values(),
-            ],
-          }));
-
-          return (
-            <Card className="flex flex-col gap-4 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex flex-col gap-1">
-                  <h2 className="font-medium text-sm">Payment availability</h2>
-                  <p className="text-muted-foreground text-xs">
-                    Every network uses the same payment link and settles into{" "}
-                    {data?.settlementAsset ?? "your settlement asset"}.
-                  </p>
-                </div>
-                {networks.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={toggleAvailability}
-                    aria-expanded={availabilityOpen}
-                    aria-controls="payment-availability-details"
-                  >
-                    {availabilityOpen ? "Hide details" : "Show details"}
-                    <CaretDownIcon
-                      size={ICON_NAV}
-                      weight="bold"
-                      aria-hidden="true"
-                      className={
-                        availabilityOpen
-                          ? "rotate-180 transition-transform duration-200"
-                          : "transition-transform duration-200"
-                      }
-                    />
-                  </Button>
-                )}
-              </div>
-
-              {networks.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No payment network is configured for this deployment.
-                </p>
-              ) : !availabilityOpen ? (
-                // Closed: one line, every network and its status. A badge that
-                // says something is wrong is the cue to open the detail.
-                <ul id="payment-availability-details" className="flex flex-wrap gap-x-6 gap-y-2">
-                  {networks.map((network) => {
-                    const status = availabilityOf(network.rails.length, network.unavailable.length);
-                    return (
-                      <li key={network.chain} className="flex items-center gap-2 text-sm">
-                        <ChainLabel chain={network.chain} />
-                        <Badge variant={status.variant}>{status.label}</Badge>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <div
-                  id="payment-availability-details"
-                  className="grid gap-3 md:grid-cols-2 lg:grid-cols-3"
-                >
-                  {networks.map((network) => {
-                    const hasRails = network.rails.length > 0;
-                    const status = availabilityOf(network.rails.length, network.unavailable.length);
-                    return (
-                      <section
-                        key={network.chain}
-                        className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3"
-                        aria-label={`${chainLabel(network.chain)} payment availability`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <h3 className="font-medium text-sm">
-                            <ChainLabel chain={network.chain} />
-                          </h3>
-                          <Badge variant={status.variant}>{status.label}</Badge>
-                        </div>
-
-                        {hasRails && (
-                          <div className="flex flex-wrap gap-3">
-                            {network.rails.map((rail) => (
-                              <AssetLabel key={rail.asset} symbol={rail.asset} size={18} />
-                            ))}
-                          </div>
-                        )}
-
-                        {!hasRails && network.unavailable.length === 0 ? (
-                          <p className="text-muted-foreground text-xs">
-                            No payable asset is available on this network.
-                          </p>
-                        ) : (
-                          network.unavailable.length > 0 && (
-                            <ul className="flex flex-col gap-2 border-border border-t pt-3 text-muted-foreground text-xs">
-                              {network.unavailable.map((entry) => (
-                                <li key={`${entry.asset ?? "network"}:${entry.reason}`}>
-                                  <span className="font-medium text-foreground">
-                                    {entry.asset ?? "Network"}
-                                  </span>{" "}
-                                  — {entry.reason}
-                                </li>
-                              ))}
-                            </ul>
-                          )
-                        )}
-                      </section>
-                    );
-                  })}
-                </div>
+              {failure !== "" && ceremony === null && !connecting && (
+                <Alert variant="destructive">{failure}</Alert>
               )}
-            </Card>
-          );
-        })}
 
-      {failure !== "" && ceremony === null && !connecting && (
-        <Alert variant="destructive">{failure}</Alert>
-      )}
-
-      {match(wallets)
-        .with({ isPending: true }, () => <TableSkeleton rows={2} />)
-        .with({ isError: true }, ({ error }) => (
-          <QueryError
-            message={reasonOf(error)}
-            retry={() => void wallets.refetch()}
-            retrying={wallets.isFetching}
-          />
-        ))
-        .otherwise(() =>
-          rows.length === 0 ? (
-            <Empty>
-              <EmptyMedia>
-                <WalletIcon size={ICON_CARD} aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>No wallets yet.</EmptyTitle>
-              <EmptyDescription>Connect an address you control to continue.</EmptyDescription>
-              <EmptyAction className="flex flex-wrap justify-center gap-2">
-                <Button variant="secondary" onClick={() => openConnect()}>
-                  Connect existing
-                </Button>
-              </EmptyAction>
-            </Empty>
-          ) : (
-            <Table>
-              <TableCaption>Your wallets, one line per address</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Networks</TableHead>
-                  <TableHead>Origin</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Added</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groups.map((group) => {
-                  const unproven = group.unproven;
-                  return (
-                    <TableRow key={group.key}>
-                      {/* Shown whole: an address a merchant cannot copy in full is
+              {match(wallets)
+                .with({ isError: true }, ({ error }) => (
+                  <QueryError
+                    message={reasonOf(error)}
+                    retry={() => void wallets.refetch()}
+                    retrying={wallets.isFetching}
+                  />
+                ))
+                .otherwise(() =>
+                  rows.length === 0 ? (
+                    <Empty>
+                      <EmptyMedia>
+                        <WalletIcon size={ICON_CARD} aria-hidden="true" />
+                      </EmptyMedia>
+                      <EmptyTitle>No wallets yet.</EmptyTitle>
+                      <EmptyDescription>
+                        Connect an address you control to continue.
+                      </EmptyDescription>
+                      <EmptyAction className="flex flex-wrap justify-center gap-2">
+                        <Button variant="secondary" onClick={() => openConnect()}>
+                          Connect existing
+                        </Button>
+                      </EmptyAction>
+                    </Empty>
+                  ) : (
+                    <Table>
+                      <TableCaption>Your wallets, one line per address</TableCaption>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Address</TableHead>
+                          <TableHead>Networks</TableHead>
+                          <TableHead>Origin</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Added</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {groups.map((group) => {
+                          const unproven = group.unproven;
+                          return (
+                            <TableRow key={group.key}>
+                              {/* Shown whole: an address a merchant cannot copy in full is
                           worse than one they have to scroll. */}
-                      <TableCell className="break-all font-mono text-xs">{group.address}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <NetworkList chains={group.chains} />
-                      </TableCell>
-                      <TableCell>
-                        <Badge>{PROVENANCE_LABEL[group.provenance]}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={group.verified ? "success" : "warning"}>
-                          {statusLabel(group)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        <time dateTime={isoAttr(group.createdAt)}>
-                          {formatDateTime(group.createdAt)}
-                        </time>
-                      </TableCell>
-                      {/* Only an action that is left to take. A managed wallet
+                              <TableCell className="break-all font-mono text-xs">
+                                {group.address}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                <NetworkList chains={group.chains} />
+                              </TableCell>
+                              <TableCell>
+                                <Badge>{PROVENANCE_LABEL[group.provenance]}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={group.verified ? "success" : "warning"}>
+                                  {statusLabel(group)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                <time dateTime={isoAttr(group.createdAt)}>
+                                  {formatDateTime(group.createdAt)}
+                                </time>
+                              </TableCell>
+                              {/* Only an action that is left to take. A managed wallet
                           still setting up is finished from its network's card. */}
-                      <TableCell className="text-right">
-                        {unproven !== undefined && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => void startProof(unproven)}
-                          >
-                            <SealCheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                            Prove control
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          ),
-        )}
-
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Withdrawal history" />
-        {match(withdrawalHistory)
-          .with({ isPending: true }, () => <TableSkeleton rows={3} />)
-          .with({ isError: true }, ({ error }) => (
-            <QueryError
-              message={withdrawalReasonOf(error)}
-              retry={() => void withdrawalHistory.refetch()}
-              retrying={withdrawalHistory.isFetching}
-            />
-          ))
-          .otherwise(() =>
-            withdrawalRows.length === 0 ? (
-              <Empty>
-                <EmptyMedia>
-                  <ArrowLineUpRightIcon size={ICON_CARD} aria-hidden="true" />
-                </EmptyMedia>
-                <EmptyTitle>No withdrawals yet.</EmptyTitle>
-                <EmptyDescription>
-                  Successful withdrawals from your managed wallet will appear here.
-                </EmptyDescription>
-              </Empty>
-            ) : (
-              <Table>
-                <TableCaption>Recent successful managed-wallet withdrawals</TableCaption>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Completed</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>To</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Transaction</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {withdrawalRows.map((row) => {
-                    return (
-                      <TableRow key={row.id}>
-                        <TableCell className="text-muted-foreground">
-                          <time dateTime={isoAttr(row.completedAt)}>
-                            {formatDateTime(row.completedAt)}
-                          </time>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <AssetAmount asset={row.amount.asset} display={row.amount.display} />
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {row.destinationAddress}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="success">Confirmed</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <TransactionLink
-                            chain={row.chain}
-                            transactionHash={row.transactionHash}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            ),
+                              <TableCell className="text-right">
+                                {unproven !== undefined && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => void startProof(unproven)}
+                                  >
+                                    <SealCheckIcon
+                                      size={ICON_NAV}
+                                      weight="bold"
+                                      aria-hidden="true"
+                                    />
+                                    Prove control
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  ),
+                )}
+            </>
           )}
-      </section>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="history" className="flex flex-col gap-3 pt-6 focus-visible:outline-none">
+          <SectionHeader title="Withdrawal history" />
+          {match(withdrawalHistory)
+            .with({ isPending: true }, () => <TableSkeleton rows={3} />)
+            .with({ isError: true }, ({ error }) => (
+              <QueryError
+                message={withdrawalReasonOf(error)}
+                retry={() => void withdrawalHistory.refetch()}
+                retrying={withdrawalHistory.isFetching}
+              />
+            ))
+            .otherwise(() =>
+              // Only the first page can say "no withdrawals yet": an empty page
+              // deeper in is the end of history, and the pager is what a reader
+              // needs there, not an empty state telling them they have none.
+              withdrawalRows.length === 0 && !historyPagination.canPrevious ? (
+                <Empty>
+                  <EmptyMedia>
+                    <ArrowLineUpRightIcon size={ICON_CARD} aria-hidden="true" />
+                  </EmptyMedia>
+                  <EmptyTitle>No withdrawals yet.</EmptyTitle>
+                  <EmptyDescription>
+                    Successful withdrawals from your managed wallet will appear here.
+                  </EmptyDescription>
+                </Empty>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <Table>
+                    <TableCaption>Successful managed-wallet withdrawals, newest first</TableCaption>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Completed</TableHead>
+                        {/* The same address holds a balance on every network, so
+                            an amount without its network does not say which
+                            balance moved. */}
+                        <TableHead>Network</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>To</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Transaction</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {withdrawalRows.map((row) => {
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell className="text-muted-foreground">
+                              <time dateTime={isoAttr(row.completedAt)}>
+                                {formatDateTime(row.completedAt)}
+                              </time>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              <ChainLabel chain={row.chain} size={18} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <AssetAmount asset={row.amount.asset} display={row.amount.display} />
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {row.destinationAddress}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="success">Confirmed</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <TransactionLink
+                                chain={row.chain}
+                                transactionHash={row.transactionHash}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+
+                  <CursorPagination
+                    label="Withdrawal pages"
+                    page={historyPagination.page}
+                    canPrevious={historyPagination.canPrevious}
+                    nextCursor={withdrawalHistory.data?.nextCursor}
+                    busy={withdrawalHistory.isFetching}
+                    onPrevious={historyPagination.previous}
+                    onNext={historyPagination.next}
+                  />
+                </div>
+              ),
+            )}
+        </Tabs.Panel>
+      </Tabs.Root>
 
       {/* Which wallet, asked once. Brave and Phantom and MetaMask all announce,
           and the one that answers first is not the one the merchant uses. */}

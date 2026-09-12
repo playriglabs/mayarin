@@ -148,10 +148,12 @@ export function useMerchantRails() {
   });
 }
 
-export function useWalletWithdrawalHistory() {
+export function useWalletWithdrawalHistory(cursor?: string) {
   return useEffectQuery<WalletWithdrawalHistoryResponse, ApiError>({
-    queryKey: WALLET_WITHDRAWALS_KEY,
-    query: () => walletsApi.withdrawalHistory(),
+    // The cursor is part of the key: two pages are two cached results, and a
+    // page already seen comes back without a request.
+    queryKey: [...WALLET_WITHDRAWALS_KEY, cursor ?? null],
+    query: () => walletsApi.withdrawalHistory(cursor),
   });
 }
 

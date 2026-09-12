@@ -66,7 +66,7 @@ describe("loadConfig", () => {
     expect(config.turnkeyOrganizationId).toBeUndefined();
     expect(config.treasuryAddress).toBeUndefined();
     expect(config.resendApiKey).toBeUndefined();
-    expect(config.invoiceEmailFrom).toBe("Mayarin <onboarding@resend.dev>");
+    expect(config.emailFrom).toBe("Mayarin <onboarding@resend.dev>");
   });
 
   test("configures Resend without putting its secret in browser configuration", () => {
@@ -77,7 +77,7 @@ describe("loadConfig", () => {
     });
 
     expect(config.resendApiKey).toBe("re_test_server_only");
-    expect(config.invoiceEmailFrom).toBe("Mayarin <invoices@example.com>");
+    expect(config.emailFrom).toBe("Mayarin <invoices@example.com>");
   });
 
   test("a genuinely missing key is still refused", async () => {

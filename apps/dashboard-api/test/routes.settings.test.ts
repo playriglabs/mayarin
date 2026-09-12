@@ -39,6 +39,7 @@ async function insertUser(
     passwordHash: `plain:${password}`,
     merchantId,
     permissions: [...permissions],
+    emailVerifiedAt: now,
     createdAt: now,
     updatedAt: now,
   };

@@ -15,9 +15,10 @@ import type {
   WalletChallengeRepository,
   WalletProvenance,
   WalletWithdrawal,
+  WalletWithdrawalCursor,
   WalletWithdrawalRepository,
 } from "@mayarin/wallet";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present } from "../mapping.ts";
 import { merchantWallets, walletChallenges, walletWithdrawals } from "../schema.ts";
@@ -155,11 +156,28 @@ export class DrizzleWalletWithdrawalRepository implements WalletWithdrawalReposi
     });
   }
 
-  async listRecent(merchantId: string, limit: number): Promise<readonly WalletWithdrawal[]> {
+  async listRecent(
+    merchantId: string,
+    limit: number,
+    cursor?: WalletWithdrawalCursor,
+  ): Promise<readonly WalletWithdrawal[]> {
+    // The keyset has to match the order exactly, id included: ordering by
+    // `completedAt` alone leaves ties unordered, and a page boundary inside a
+    // tie drops a row from one page without showing it on the next.
+    const after =
+      cursor === undefined
+        ? undefined
+        : or(
+            lt(walletWithdrawals.completedAt, cursor.completedAt),
+            and(
+              eq(walletWithdrawals.completedAt, cursor.completedAt),
+              lt(walletWithdrawals.id, cursor.id),
+            ),
+          );
     const rows = await this.#db
       .select()
       .from(walletWithdrawals)
-      .where(eq(walletWithdrawals.merchantId, merchantId))
+      .where(and(eq(walletWithdrawals.merchantId, merchantId), after))
       .orderBy(desc(walletWithdrawals.completedAt), desc(walletWithdrawals.id))
       .limit(limit);
     return rows.map(toWithdrawal);

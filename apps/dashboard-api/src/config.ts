@@ -88,11 +88,15 @@ const configSchema = z.object({
   /** Resend stays optional so read-only/local deployments still boot. */
   resendApiKey: z.string().min(1).optional(),
   /**
+   * The sender every Mayarin email goes out as — invoices and verification
+   * codes alike. One address, because they are one brand to the person reading
+   * them, and a code that arrives from "Mayarin Invoices" reads as misdirected.
+   *
    * `onboarding@resend.dev` is intentionally the demo default. Resend limits it
    * to the account owner's address; production sets a sender on a verified
    * domain without requiring a code change.
    */
-  invoiceEmailFrom: z.string().min(1).default("Mayarin <onboarding@resend.dev>"),
+  emailFrom: z.string().min(1).default("Mayarin <onboarding@resend.dev>"),
   /**
    * Where fees are paid (#11, RFC #6).
    *
@@ -179,6 +183,22 @@ const configSchema = z.object({
   chainNativeAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("CHAIN_NATIVE_ASSETS", "{}"),
   /** One RPC per chain, the same map the payment API reads. */
   chainRpcUrls: jsonObject<Partial<Record<ChainId, string>>>("CHAIN_RPC_URLS", "{}"),
+  /**
+   * The most gas Mayarin funds one withdrawal's signer with, per chain, as a
+   * decimal string of that chain's own smallest native unit.
+   *
+   * Per chain because the unit is the chain's currency and not a shared one.
+   * The provider's default is shaped like ETH, where it is worth several Safe
+   * transfers; on Arc, whose currency is USDC, the same number is two tenths of
+   * a cent and below what any withdrawal costs, so every Arc withdrawal is
+   * refused until this names a bound in Arc's own terms.
+   *
+   * A string rather than a number: a JSON number cannot hold 18 decimals.
+   */
+  walletGasTopUpBounds: jsonObject<Partial<Record<ChainId, string>>>(
+    "WALLET_GAS_TOP_UP_BOUNDS",
+    "{}",
+  ),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -221,7 +241,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     checkoutBaseUrl: env.CHECKOUT_BASE_URL ?? env.PUBLIC_BASE_URL,
     paymentApiUrl: env.PAYMENT_API_URL ?? env.PUBLIC_BASE_URL,
     resendApiKey: env.RESEND_API_KEY,
-    invoiceEmailFrom: env.RESEND_FROM_EMAIL,
+    emailFrom: env.RESEND_FROM_EMAIL,
     treasuryAddress: env.TREASURY_ADDRESS,
     walletProvisioningEnabled: env.WALLET_PROVISIONING_ENABLED,
     walletProvisionChains: env.WALLET_PROVISION_CHAINS,
@@ -235,6 +255,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainAssets: env.CHAIN_ASSETS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainRpcUrls: env.CHAIN_RPC_URLS,
+    walletGasTopUpBounds: env.WALLET_GAS_TOP_UP_BOUNDS,
   });
 
   if (!result.success) {

@@ -66,9 +66,22 @@ cross-merchant id resolves to the same 404 an absent one does.
 Session cookie plus a double-submit CSRF token on every mutating call. Each
 group names the permission that opens it.
 
+The three registration routes are the only unauthenticated writes. A merchant
+signs up with a name, an email and a password — **no settlement address**, which
+is set later in Settings, where it can be explained and where the merchant can
+already see which networks they are on. The account is created immediately with
+its own merchant tenant but cannot sign in until a six-digit code sent to the
+address is redeemed; the code is stored only as an argon2id hash, expires in 15
+minutes, dies after five wrong guesses, and is superseded by any resend. All
+three routes answer identically for a registered and an unregistered address, so
+none of them is a membership oracle. An account created by an operator (the
+`seed:merchant` CLI) or by a merchant-admin is verified on creation — somebody
+with access already vouched for the address.
+
 | Route                                                                        | Permission        | What it is                                                      |
 | ---------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------- |
 | `POST /auth/login`, `/logout`, `GET /me`                                     | —                 | Session lifecycle                                               |
+| `POST /auth/register`, `/verify-email`, `/resend-verification`               | —                 | Self-service signup and the email code that finishes it         |
 | `GET /payments`, `/payments/:id`                                             | `payments:read`   | The merchant's own intents, with clearing and timeline          |
 | `GET /analytics`                                                             | `payments:read`   | Merchant analytics, derived from the payments read              |
 | `GET /audit`, `/audit/:id`                                                   | `payments:read`   | Compliance record with ledger ↔ chain reconciliation            |

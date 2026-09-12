@@ -28,6 +28,8 @@ type FormState =
   | { readonly status: "idle" }
   | { readonly status: "submitting" }
   | { readonly status: "error"; readonly reason: string }
+  /** Credentials were right, the address was never confirmed. */
+  | { readonly status: "unverified"; readonly reason: string }
   | { readonly status: "blocked"; readonly reason: string; readonly untilMs: number };
 
 function LoginForm() {
@@ -43,7 +45,10 @@ function LoginForm() {
     ? Math.max(0, Math.ceil((state.untilMs - currentMs) / 1_000))
     : 0;
   const remainingLabel = formatRetryAfter(remainingSeconds);
-  const errorId = state.status === "error" || blocked ? "login-error" : undefined;
+  const errorId =
+    state.status === "error" || state.status === "unverified" || blocked
+      ? "login-error"
+      : undefined;
 
   useEffect(() => {
     if (state.status !== "blocked") return;
@@ -72,6 +77,9 @@ function LoginForm() {
           const failure = loginFailureOf(error);
           match(failure)
             .with({ type: "error" }, ({ reason }) => setState({ status: "error", reason }))
+            .with({ type: "unverified" }, ({ reason }) =>
+              setState({ status: "unverified", reason }),
+            )
             .with({ type: "blocked" }, ({ reason, retryAfterSeconds }) => {
               const nowMs = Date.now();
               setCurrentMs(nowMs);
@@ -161,6 +169,17 @@ function LoginForm() {
               {s.reason}
             </p>
           ))
+          .with({ status: "unverified" }, (s) => (
+            <div id="login-error" role="alert" className="text-xs text-destructive">
+              <p>{s.reason}</p>
+              <a
+                href={`/verify?email=${encodeURIComponent(email)}`}
+                className="underline underline-offset-2"
+              >
+                Enter your code
+              </a>
+            </div>
+          ))
           .with({ status: "blocked" }, (s) => (
             <div id="login-error" role="alert" className="text-xs text-destructive">
               <p>{s.reason}</p>
@@ -177,6 +196,13 @@ function LoginForm() {
       >
         {submitting ? "Processing.." : blocked ? `Try again in ${remainingLabel}` : "Continue"}
       </Button>
+
+      <p className="text-center text-sm text-muted-foreground">
+        New to Mayarin?{" "}
+        <a href="/register" className="underline underline-offset-2 hover:text-foreground">
+          Create an account
+        </a>
+      </p>
     </form>
   );
 }

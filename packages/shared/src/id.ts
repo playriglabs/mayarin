@@ -40,6 +40,7 @@ export const ID_PREFIXES = {
   webhookDelivery: "whd",
   customer: "cus",
   apiKey: "mak",
+  emailVerification: "evf",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];

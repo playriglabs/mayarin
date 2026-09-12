@@ -10,6 +10,8 @@ import type {
   AcceptedAssetsByChain,
   ApiKey,
   ApiKeyRepository,
+  EmailVerification,
+  EmailVerificationRepository,
   Merchant,
   MerchantAccountRepository,
   MerchantRepository,
@@ -31,12 +33,20 @@ import {
   isAssetCode,
   ValidationError,
 } from "@mayarin/shared";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction } from "../mapping.ts";
-import { merchantApiKeys, merchantSettingChanges, merchants, sessions, users } from "../schema.ts";
+import {
+  emailVerifications,
+  merchantApiKeys,
+  merchantSettingChanges,
+  merchants,
+  sessions,
+  users,
+} from "../schema.ts";
 
 type UserRow = typeof users.$inferSelect;
+type EmailVerificationRow = typeof emailVerifications.$inferSelect;
 type SessionRow = typeof sessions.$inferSelect;
 type MerchantRow = typeof merchants.$inferSelect;
 type ApiKeyRow = typeof merchantApiKeys.$inferSelect;
@@ -74,6 +84,70 @@ export class DrizzleUserRepository implements UserRepository {
 
   async touchUpdatedAt(id: string, updatedAt: Date): Promise<void> {
     await this.#db.update(users).set({ updatedAt }).where(eq(users.id, id));
+  }
+
+  async markEmailVerified(id: string, verifiedAt: Date): Promise<void> {
+    await this.#db
+      .update(users)
+      .set({ emailVerifiedAt: verifiedAt, updatedAt: verifiedAt })
+      .where(eq(users.id, id));
+  }
+}
+
+export class DrizzleEmailVerificationRepository implements EmailVerificationRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async insert(verification: EmailVerification): Promise<void> {
+    await this.#db.insert(emailVerifications).values({
+      id: verification.id,
+      userId: verification.userId,
+      codeHash: verification.codeHash,
+      expiresAt: verification.expiresAt,
+      consumedAt: verification.consumedAt ?? null,
+      attempts: verification.attempts,
+      createdAt: verification.createdAt,
+    });
+  }
+
+  async findLiveByUser(userId: string, now: Date): Promise<EmailVerification | null> {
+    const [row] = await this.#db
+      .select()
+      .from(emailVerifications)
+      .where(
+        and(
+          eq(emailVerifications.userId, userId),
+          isNull(emailVerifications.consumedAt),
+          gt(emailVerifications.expiresAt, now),
+        ),
+      )
+      .orderBy(desc(emailVerifications.createdAt))
+      .limit(1);
+    return row === undefined ? null : toEmailVerification(row);
+  }
+
+  async recordAttempt(id: string, attempts: number): Promise<void> {
+    await this.#db
+      .update(emailVerifications)
+      .set({ attempts })
+      .where(eq(emailVerifications.id, id));
+  }
+
+  async markConsumed(id: string, consumedAt: Date): Promise<void> {
+    await this.#db
+      .update(emailVerifications)
+      .set({ consumedAt })
+      .where(eq(emailVerifications.id, id));
+  }
+
+  async consumeAllForUser(userId: string, consumedAt: Date): Promise<void> {
+    await this.#db
+      .update(emailVerifications)
+      .set({ consumedAt })
+      .where(and(eq(emailVerifications.userId, userId), isNull(emailVerifications.consumedAt)));
   }
 }
 
@@ -240,8 +314,21 @@ function toUser(row: UserRow): User {
     passwordHash: row.passwordHash,
     merchantId: row.merchantId,
     permissions: row.permissions as Permission[],
+    ...present("emailVerifiedAt", row.emailVerifiedAt),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function toEmailVerification(row: EmailVerificationRow): EmailVerification {
+  return {
+    id: row.id,
+    userId: row.userId,
+    codeHash: row.codeHash,
+    expiresAt: row.expiresAt,
+    ...present("consumedAt", row.consumedAt),
+    attempts: row.attempts,
+    createdAt: row.createdAt,
   };
 }
 
@@ -252,6 +339,7 @@ function toUserRow(user: User): typeof users.$inferInsert {
     passwordHash: user.passwordHash,
     merchantId: user.merchantId,
     permissions: [...user.permissions],
+    emailVerifiedAt: user.emailVerifiedAt ?? null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

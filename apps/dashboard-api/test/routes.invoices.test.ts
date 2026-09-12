@@ -60,6 +60,7 @@ describe("dashboard invoice routes", () => {
       passwordHash: "plain:viewer-password",
       merchantId: harness.merchantId,
       permissions: ["payments:read"] satisfies readonly Permission[],
+      emailVerifiedAt: now,
       createdAt: now,
       updatedAt: now,
     };

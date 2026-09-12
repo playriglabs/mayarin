@@ -62,6 +62,7 @@ async function makeUser(
     passwordHash: `plain:${password}`,
     merchantId,
     permissions: [...permissions],
+    emailVerifiedAt: now,
     createdAt: now,
     updatedAt: now,
   };

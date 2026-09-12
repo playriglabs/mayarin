@@ -9,6 +9,7 @@
 import type { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
 import { listPath } from "@/lib/api/list-path";
+import { PAGE_SIZE } from "@/lib/pagination";
 import type {
   ChallengeResponse,
   MerchantRailsResponse,
@@ -86,9 +87,11 @@ export const walletsApi = {
   rails: (): Effect.Effect<MerchantRailsResponse, ApiError> =>
     request<MerchantRailsResponse>("/wallets/rails"),
 
-  /** Recent successful managed-wallet withdrawals, newest first. */
-  withdrawalHistory: (): Effect.Effect<WalletWithdrawalHistoryResponse, ApiError> =>
-    request<WalletWithdrawalHistoryResponse>("/wallets/withdrawals"),
+  /** Successful managed-wallet withdrawals, newest first, one page at a time. */
+  withdrawalHistory: (cursor?: string): Effect.Effect<WalletWithdrawalHistoryResponse, ApiError> =>
+    request<WalletWithdrawalHistoryResponse>(
+      listPath("/wallets/withdrawals", { limit: PAGE_SIZE }, cursor),
+    ),
 
   /** Moves settlement out of the managed wallet, to an address the merchant verified. */
   withdraw: (body: WithdrawRequest): Effect.Effect<WithdrawResponse, ApiError> =>

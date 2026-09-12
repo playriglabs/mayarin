@@ -183,16 +183,26 @@ export interface TurnkeyWalletProviderOptions {
   /** The chain's own currency, which is transferred by value rather than by a call. */
   readonly nativeAsset?: AssetCode;
   /**
-   * The most gas Mayarin will fund a merchant's signer with for one withdrawal.
+   * The most gas Mayarin will fund a merchant's signer with for one withdrawal,
+   * in this chain's smallest native unit.
    *
    * A bound rather than a budget: the signer holds nothing, so every withdrawal
    * is funded, and an unbounded top-up would make a loop of failing withdrawals
    * a way to drain the deployer.
+   *
+   * **Set this on any chain whose currency is not ETH.** The unit is the
+   * chain's own currency, so the default below only means what it says where
+   * that currency is ETH. On Arc, whose currency is USDC, the same figure is
+   * 0.002 USDC — below the cost of every withdrawal, so every one is refused.
    */
   readonly maxGasTopUpWei?: bigint;
 }
 
-/** ~0.002 ETH: several times a Safe transfer on Base, nowhere near a drain. */
+/**
+ * ~0.002 ETH: several times a Safe transfer on Base, nowhere near a drain.
+ *
+ * Only a sane default on an ETH-gas chain. See `maxGasTopUpWei`.
+ */
 const DEFAULT_MAX_GAS_TOP_UP_WEI = 2_000_000_000_000_000n;
 
 export class TurnkeyWalletProvider implements WalletProvider {
@@ -504,6 +514,7 @@ export class TurnkeyWalletProvider implements WalletProvider {
       throw new ProviderError("The gas needed for this withdrawal exceeds the sponsorship bound", {
         needed: topUp.toString(),
         bound: bound.toString(),
+        chain: this.#options.chain,
       });
     }
 
