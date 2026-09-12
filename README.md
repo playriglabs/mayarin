@@ -331,6 +331,46 @@ Settlements are indexed by a subgraph on Subgraph Studio for Base Sepolia and Ar
 Source in [`packages/subgraph`](./packages/subgraph). It indexes `PaymentRouter` only — the x402 rail
 emits nothing it can see.
 
+## The ETHOnline 2026 entry
+
+Mayarin is entered in [ETHOnline 2026](https://ethglobal.com/events/ethonline2026)
+(4–16 September 2026) in the **Continuity** pool: the project predates the event,
+so its work is documented in two lists rather than one.
+
+**Pre-existing — merged before the window opened on 4 September 2026.** The
+clearing engine, double-entry ledger, deposit matching, `PaymentRouter` and
+factory contracts, quoting and liquidity routing, the commerce surfaces (catalog,
+links, invoices, hosted checkout), the merchant dashboard, the TypeScript SDK, the
+WooCommerce plugin, and the documentation set — Phases 1–3. The x402 protocol
+spine (#220–#230: facilitator port, resource registry, replay key, HTTP surface)
+merged on 3 September, the day before the window opened, and is listed here rather
+than claimed for the event.
+
+**Built during the window, 4–13 September 2026.** Three partners, each occupying a
+position the flow actually needs:
+
+| Partner      | Built in the window                                                                                                                                                                                    | Measured on chain                                                                                                                                                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The Graph    | The settlements subgraph (`v0.0.2` on Base Sepolia and Arc testnet), the settlement indexer reading it, rail statistics, and the paid MCP server above — a second Graph product beside Subgraph Studio | A Circle agent wallet paid $0.10 for one `choose_rail` call: [`0xdce241e2…`](https://sepolia.basescan.org/tx/0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b), answered from live Studio data                                                     |
+| Arc (Circle) | USDC-native settlement on Arc testnet, a merchant Safe per chain, and Circle Agent Stack contract-account payers whose EIP-1271 signatures the token accepts                                           | Paid x402 runs on Arc, payer's gas zero: [`docs/evidence/`](./docs/evidence/)                                                                                                                                                                                        |
+| Uniswap      | Cross-asset x402 — exact-output swaps priced backwards from the invoice, so an agent holding any listed asset pays a merchant settled in another                                                       | EURC payer, USDC merchant: [`0x254b93ce…`](https://sepolia.basescan.org/tx/0x254b93cec1a73279e12968938c1c491133c5556b4adb9e71cea070e0abc8affa) / [`0xb1436735…`](https://sepolia.basescan.org/tx/0xb143673599a6b05cd95676f0bbec7ffc35f9f99563bf45c6f26468944eb38a07) |
+
+The same window also shipped work with no sponsor attached and load-bearing
+regardless: the multichain counter and chain-aware exact-output quoting (#244,
+#258), merchant-owned agent endpoints and the SDK gate (#269, #274, #283–#287),
+one managed wallet address per EVM chain, Ethereum mainnet-shaped rail assets
+(#289), wider fiat currency coverage (#288), a rail-liveness ranking on the
+payer's checkout (#260, #280), a fee minimum under the Mayarin fee (#290), and
+self-service merchant registration (#291).
+
+Every partner claim above traces to a transaction hash or a file under
+[`docs/evidence/`](./docs/evidence/), not to a screenshot — and The Graph's place
+in the flow is checkable by deletion, described under **Agent payments** above.
+
+What shipped with which PR, what was measured rather than read from a doc, and
+what remains before submissions close on 13 September lives in
+[ROADMAP.md](./ROADMAP.md).
+
 ## Quick start
 
 Requires [Bun](https://bun.sh) 1.4+, Node 22.12+, and Docker. Foundry only for Solidity work.
