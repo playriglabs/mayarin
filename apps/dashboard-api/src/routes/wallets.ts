@@ -16,6 +16,11 @@ import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
 import { chainReceipts } from "../rails.ts";
 
+const withdrawalQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  cursor: z.string().min(1).optional(),
+});
+
 const linkBodySchema = z.object({ chain: z.enum(CHAIN_IDS), address: z.string() }).strict();
 
 /** One chain, or every chain this deployment provisions on when none is named. */
@@ -197,10 +202,14 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
     });
   });
 
-  /** Successful managed-wallet withdrawals, newest first. */
+  /** Successful managed-wallet withdrawals, newest first, one page at a time. */
   app.get("/withdrawals", async (c) => {
-    const withdrawals = await container.wallets.withdrawalHistory(scopeOf(c));
-    return c.json({ withdrawals: withdrawals.map(toWithdrawalDto) });
+    const query = withdrawalQuerySchema.parse(c.req.query());
+    const page = await container.wallets.withdrawalHistory(scopeOf(c), {
+      ...(query.limit === undefined ? {} : { limit: query.limit }),
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+    });
+    return c.json({ withdrawals: page.items.map(toWithdrawalDto), nextCursor: page.nextCursor });
   });
 
   /**

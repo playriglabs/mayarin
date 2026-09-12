@@ -54,6 +54,12 @@ import {
   type WalletWithdrawalRepository,
 } from "@mayarin/wallet";
 import type { Scope } from "../dto/auth.ts";
+import { type CursorPage, cursorPage, DEFAULT_PAGE_SIZE, decodeCursor } from "../pagination.ts";
+
+export interface WithdrawalHistoryFilter {
+  readonly limit?: number;
+  readonly cursor?: string;
+}
 
 export interface WalletServiceOptions {
   readonly wallets: MerchantWalletRepository;
@@ -323,9 +329,25 @@ export class WalletService {
     return withdrawal;
   }
 
-  /** The caller's most recent confirmed withdrawals, newest first. */
-  async withdrawalHistory(scope: Scope, limit = 20): Promise<readonly WalletWithdrawal[]> {
-    return this.#withdrawals.listRecent(scope.merchantId, limit);
+  /**
+   * The caller's confirmed withdrawals, newest first, one page at a time.
+   *
+   * Cursor-paged like every other history surface here: the table is
+   * append-only and only grows, so a fixed ceiling would eventually hide a
+   * merchant's older withdrawals with no way to reach them.
+   */
+  async withdrawalHistory(
+    scope: Scope,
+    filter: WithdrawalHistoryFilter = {},
+  ): Promise<CursorPage<WalletWithdrawal>> {
+    const limit = Math.min(filter.limit ?? DEFAULT_PAGE_SIZE, 200);
+    const cursor = decodeCursor(filter.cursor);
+    const rows = await this.#withdrawals.listRecent(
+      scope.merchantId,
+      limit + 1,
+      cursor === undefined ? undefined : { id: cursor.id, completedAt: cursor.createdAt },
+    );
+    return cursorPage(rows, limit, (last) => ({ id: last.id, createdAt: last.completedAt }));
   }
 
   async #merchant(scope: Scope) {

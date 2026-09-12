@@ -679,6 +679,46 @@ describe("withdrawing", () => {
     ]);
   });
 
+  test("pages withdrawal history, and a page boundary inside a timestamp tie drops nothing", async () => {
+    // The clock is fixed, so all three withdrawals complete in the same
+    // millisecond — which is the case an ordering by `completedAt` alone gets
+    // wrong, repeating one row and never showing another.
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { destination } = await withdrawable(harness, auth);
+
+    for (const amount of ["1000000", "2000000", "3000000"]) {
+      const res = await post(harness, auth, "/v1/wallets/withdraw", {
+        chain: "base-sepolia",
+        asset: "USDC",
+        amount,
+        to: destination,
+      });
+      expect(res.status).toBe(200);
+    }
+
+    const first = await harness.request("GET", "/v1/wallets/withdrawals?limit=2", {
+      cookies: auth.jar,
+    });
+    expect(first.status).toBe(200);
+    expect(first.body?.withdrawals).toHaveLength(2);
+    expect(first.body?.nextCursor).toEqual(expect.any(String));
+
+    const second = await harness.request(
+      `GET`,
+      `/v1/wallets/withdrawals?limit=2&cursor=${encodeURIComponent(first.body?.nextCursor)}`,
+      { cookies: auth.jar },
+    );
+    expect(second.status).toBe(200);
+    expect(second.body?.withdrawals).toHaveLength(1);
+    expect(second.body?.nextCursor).toBeNull();
+
+    // Every withdrawal appears exactly once across the two pages.
+    const idsOf = (rows: readonly { id: string }[]) => rows.map((row) => row.id);
+    const ids = [...idsOf(first.body?.withdrawals ?? []), ...idsOf(second.body?.withdrawals ?? [])];
+    expect(new Set(ids).size).toBe(3);
+  });
+
   test("refuses a destination the merchant never proved they control", async () => {
     // A dashboard session is a bearer credential; an arbitrary destination
     // turns a stolen one into a transfer. Proving control is the step an

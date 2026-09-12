@@ -22,7 +22,29 @@ export interface WalletWithdrawal {
   readonly completedAt: Date;
 }
 
+/**
+ * Where a page of history resumes: the last row the caller already saw.
+ *
+ * A keyset rather than an offset, and the id is carried alongside the timestamp
+ * because two withdrawals can complete in the same millisecond — an offset over
+ * an append-only table repeats or skips a row whenever one lands mid-read.
+ */
+export interface WalletWithdrawalCursor {
+  readonly id: string;
+  readonly completedAt: Date;
+}
+
 export interface WalletWithdrawalRepository {
   insert(withdrawal: WalletWithdrawal): Promise<void>;
-  listRecent(merchantId: string, limit: number): Promise<readonly WalletWithdrawal[]>;
+  /**
+   * Newest first, resuming after `cursor` when one is given.
+   *
+   * Ask for one more row than a page holds: the extra row is how the caller
+   * knows there is a next page without a second count query.
+   */
+  listRecent(
+    merchantId: string,
+    limit: number,
+    cursor?: WalletWithdrawalCursor,
+  ): Promise<readonly WalletWithdrawal[]>;
 }
