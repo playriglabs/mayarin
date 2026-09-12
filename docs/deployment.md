@@ -236,18 +236,34 @@ in both configuration and runtime traffic.
 
 #### Dashboard hostname
 
-`dashboard-testnet.mayarin.xyz` is served through a Worker **route**, not a
-Worker custom domain. The hostname is still attached to the retired
-`mayarin-dashboard-testnet` Pages project, with a proxied `CNAME` to
-`mayarin-dashboard-testnet.pages.dev`. A custom domain refuses a hostname that
-another project or a DNS record already holds; a route runs in front of the
-proxied record, so the Worker takes the traffic without a DNS change or
-downtime. Wrangler's OAuth token has `workers_routes` write, which is all a
-route needs.
+`dashboard-testnet.mayarin.xyz` is served through a Worker **custom domain**,
+the same binding the pay proxy uses. It was a Worker _route_ until 13 September,
+and that is worth knowing because the route quietly broke the API.
 
-Detaching the Pages domain and deleting the CNAME is optional cleanup. Do it
-only together with replacing the route by a `custom_domain` route in
-`wrangler.jsonc` — a route with no proxied DNS record behind it serves nothing.
+A Worker bound by a zone route runs inside that zone's routing, so a subrequest
+from it to another proxied hostname in the same zone — which is exactly what the
+`/api/*` proxy and the SSR session check both do — loops back and Cloudflare
+answers it with error **1003, "Direct IP access not allowed"**. The proxy passes
+that HTML through verbatim, so every dashboard API call returned a 403 and the
+browser reported "Invalid JSON response". Pages still rendered, which is why the
+deployment looked healthy for two days. `wrangler tail` showing the Worker
+itself returning `Ok` is what separates this from a route or WAF problem.
+
+A custom domain is not attached to the zone route table, so the same subrequest
+resolves normally. Moving to one needs the hostname to carry no hand-managed DNS
+record — Cloudflare refuses with error `100117` otherwise — so the retired
+`CNAME` to `mayarin-dashboard-testnet.pages.dev` had to be deleted first, by
+hand, in the Cloudflare dashboard: wrangler's OAuth token has `zone (read)` and
+cannot delete a record. Wrangler then creates and owns the record itself.
+
+Two things to expect when doing this on another environment:
+
+- The hostname stops resolving between deleting the record and the deploy that
+  creates the custom domain. Keep the window to the length of one deploy.
+- The custom domain takes a minute to finish attaching. During that window
+  requests do not reach the Worker at all — pages that exist in the previous
+  deployment still answer, newer ones 404. It resolves itself; do not redeploy
+  in a panic.
 
 ### Deploy the pay proxy
 

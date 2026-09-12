@@ -18,29 +18,34 @@
   "kv_namespaces": [{ "binding": "SESSION", "id": "0f488c4fdbd1417a8c680ed5d53267e3" }],
   "images": { "binding": "IMAGES" },
 
-  // The dashboard API's ORIGIN hostname, not its public one.
+  // Back on our own hostname, now that this Worker is bound by a custom domain
+  // rather than a zone route.
   //
-  // This Worker is attached by a zone route (`zone_name` below), so it runs
-  // inside `mayarin.xyz`'s routing. A subrequest from here to another proxied
-  // hostname in the same zone loops back into that routing and Cloudflare
-  // answers it with error 1003, "Direct IP access not allowed" — which the
-  // `/api/*` proxy then passes through verbatim, so every dashboard API call
-  // returned a 403 HTML page and the browser reported "Invalid JSON response".
-  //
-  // `api-merchant-testnet.mayarin.xyz` still serves every external caller. Only
-  // this internal hop changes, to the hostname Railway gives the service, which
-  // is outside our zone and therefore not a loopback. The sibling pay-proxy
-  // avoids the same trap a different way: it is bound by `custom_domain`, which
-  // is not attached to the zone route table. Moving this Worker to a custom
-  // domain is the tidier fix and a riskier one — it rewrites the live DNS
-  // record for a hostname that is currently serving.
+  // A zone-route Worker runs inside the zone's routing, so this subrequest
+  // looped back and Cloudflare answered error 1003 — which is what took every
+  // `/api/*` call down between 11 and 13 September. It was pointed at Railway's
+  // own hostname to escape that loop, at the cost of leaving Cloudflare's
+  // network for every SSR session check and every proxied call: roughly 200ms
+  // per request, paid on every page load for a signed-in merchant.
   "vars": {
-    "API_URL": "https://dashboard-api-production-7a49.up.railway.app"
+    "API_URL": "https://api-merchant-testnet.mayarin.xyz"
   },
 
   // A route, not a custom domain: the hostname is still attached to the old
   // Pages project, and a custom domain refuses a hostname that another project
   // or a DNS record already holds. A route runs in front of the proxied CNAME,
   // so the Worker takes the traffic without detaching Pages first.
-  "routes": [{ "pattern": "dashboard-testnet.mayarin.xyz/*", "zone_name": "mayarin.xyz" }]
+  // A custom domain, not a zone route.
+  //
+  // A Worker bound by a zone route runs inside that zone's routing, so a
+  // subrequest from it to another proxied hostname in the same zone loops back
+  // and Cloudflare answers error 1003 — which is what took every `/api/*` call
+  // down between 11 and 13 September. A custom domain is not attached to the
+  // zone route table, so the same subrequest resolves normally. The sibling
+  // pay-proxy has always been bound this way and never hit the trap.
+  //
+  // This needs the hostname to carry no hand-managed DNS record: Cloudflare
+  // refuses to create the domain otherwise (error 100117), and wrangler manages
+  // the record itself once it owns the hostname.
+  "routes": [{ "pattern": "dashboard-testnet.mayarin.xyz", "custom_domain": true }]
 }
