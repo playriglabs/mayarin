@@ -18,8 +18,24 @@
   "kv_namespaces": [{ "binding": "SESSION", "id": "0f488c4fdbd1417a8c680ed5d53267e3" }],
   "images": { "binding": "IMAGES" },
 
+  // The dashboard API's ORIGIN hostname, not its public one.
+  //
+  // This Worker is attached by a zone route (`zone_name` below), so it runs
+  // inside `mayarin.xyz`'s routing. A subrequest from here to another proxied
+  // hostname in the same zone loops back into that routing and Cloudflare
+  // answers it with error 1003, "Direct IP access not allowed" — which the
+  // `/api/*` proxy then passes through verbatim, so every dashboard API call
+  // returned a 403 HTML page and the browser reported "Invalid JSON response".
+  //
+  // `api-merchant-testnet.mayarin.xyz` still serves every external caller. Only
+  // this internal hop changes, to the hostname Railway gives the service, which
+  // is outside our zone and therefore not a loopback. The sibling pay-proxy
+  // avoids the same trap a different way: it is bound by `custom_domain`, which
+  // is not attached to the zone route table. Moving this Worker to a custom
+  // domain is the tidier fix and a riskier one — it rewrites the live DNS
+  // record for a hostname that is currently serving.
   "vars": {
-    "API_URL": "https://api-merchant-testnet.mayarin.xyz"
+    "API_URL": "https://dashboard-api-production-7a49.up.railway.app"
   },
 
   // A route, not a custom domain: the hostname is still attached to the old
