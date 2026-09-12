@@ -42,7 +42,19 @@ describe("ResendInvoiceEmailSender", () => {
     expect(calls[0]?.payload.to).toBe("owner@example.com");
     expect(calls[0]?.payload.html).toContain("Mayarin &amp; Co");
     expect(calls[0]?.payload.html).toContain("Client &lt;Finance&gt;");
-    expect(calls[0]?.payload.html?.match(/border-radius:2px/g)).toHaveLength(3);
+    // The mark, not a text eyebrow, and with an alt for a client that blocks
+    // images.
+    expect(calls[0]?.payload.html).toContain('alt="Mayarin"');
+    expect(calls[0]?.payload.html).not.toContain("Mayarin invoice</p>");
+    // The card, the totals panel and the button, each with its own radius.
+    expect(calls[0]?.payload.html).toContain("border-radius:16px");
+    expect(calls[0]?.payload.html).toContain("border-radius:12px");
+    expect(calls[0]?.payload.html).toContain("border-radius:8px");
+    // Named on every element, not only on `body`: Gmail does not inherit it.
+    expect(calls[0]?.payload.html?.match(/font-family:Geist,/g)?.length).toBeGreaterThanOrEqual(5);
+    // The URL is masked in the HTML and spelled out in the text part, which has
+    // nowhere to hide a link.
+    expect(calls[0]?.payload.html).toContain(">Pay with this link</a>");
     expect(calls[0]?.payload.text).toContain("https://pay.example.com/invoices/inv_1/view");
   });
 });

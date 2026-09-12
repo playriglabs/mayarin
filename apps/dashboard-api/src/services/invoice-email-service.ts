@@ -2,6 +2,7 @@
 
 import { ConfigurationError, ProviderError } from "@mayarin/shared";
 import { Resend } from "resend";
+import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_IMG } from "./email-brand.ts";
 
 export interface SendInvoiceEmailRequest {
   readonly invoiceId: string;
@@ -101,23 +102,24 @@ function renderInvoiceHtml(request: SendInvoiceEmailRequest): string {
 
   return `<!doctype html>
 <html lang="en">
-  <body style="margin:0;background:#f5f5f4;color:#1c1917;font-family:Arial,sans-serif">
+${EMAIL_HEAD}
+  <body style="margin:0;background:#f5f5f4;color:#1c1917;font-family:${FONT_STACK}">
     <div style="display:none;max-height:0;overflow:hidden">${merchant} sent invoice ${number} for ${total}.</div>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f5f4;padding:32px 16px">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f5f4;padding:32px 16px;font-family:${FONT_STACK}">
       <tr><td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:2px">
-          <tr><td style="padding:32px">
-            <p style="margin:0 0 24px;color:#57534e;font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Mayarin invoice</p>
-            <h1 style="margin:0 0 12px;font-size:28px;line-height:1.25">Invoice ${number}</h1>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:16px">
+          <tr><td style="padding:32px;font-family:${FONT_STACK}">
+            ${LOGO_IMG}
+            <h1 style="margin:0 0 12px;font-size:28px;font-weight:700;line-height:1.25">Invoice ${number}</h1>
             <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6">Hi ${buyer}, ${merchant} sent you an invoice. Review it securely and choose a supported crypto asset to pay.</p>
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:28px;background:#fafaf9;border-radius:2px">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:28px;background:#fafaf9;border:1px solid #f0efee;border-radius:12px;font-family:${FONT_STACK}">
               <tr><td style="padding:16px;color:#78716c;font-size:13px">Total</td><td align="right" style="padding:16px;font-size:16px;font-weight:700">${total}</td></tr>
               <tr><td style="padding:0 16px 16px;color:#78716c;font-size:13px">Outstanding</td><td align="right" style="padding:0 16px 16px;font-size:16px;font-weight:700">${outstanding}</td></tr>
               ${due === "" ? "" : `<tr><td style="padding:0 16px 16px;color:#78716c;font-size:13px">Due date</td><td align="right" style="padding:0 16px 16px;font-size:14px">${due}</td></tr>`}
             </table>
-            <a href="${url}" style="display:inline-block;border-radius:2px;background:#18181b;color:#ffffff;padding:13px 20px;font-size:15px;font-weight:700;text-decoration:none">Review and pay invoice</a>
-            <p style="margin:28px 0 8px;color:#78716c;font-size:12px;line-height:1.5">If the button does not open, copy this link:</p>
-            <p style="margin:0;word-break:break-all;font-size:12px;line-height:1.5"><a href="${url}" style="color:#2563eb">${url}</a></p>
+            <a href="${url}" style="display:inline-block;border-radius:8px;background:#18181b;color:#ffffff;padding:13px 20px;font-size:15px;font-weight:700;font-family:${FONT_STACK};text-decoration:none">Review and pay invoice</a>
+            <p style="margin:28px 0 8px;color:#78716c;font-size:12px;line-height:1.5">If the button does not open:</p>
+            <p style="margin:0;font-size:12px;line-height:1.5"><a href="${url}" style="color:#2563eb;font-family:${FONT_STACK}">Pay with this link</a></p>
           </td></tr>
         </table>
       </td></tr>
@@ -144,13 +146,4 @@ function formatDueDate(value: string): string {
     dateStyle: "long",
     timeZone: "Asia/Jakarta",
   }).format(new Date(value));
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (character) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character] ??
-      character,
-  );
 }
