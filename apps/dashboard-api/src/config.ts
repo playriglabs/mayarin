@@ -88,11 +88,15 @@ const configSchema = z.object({
   /** Resend stays optional so read-only/local deployments still boot. */
   resendApiKey: z.string().min(1).optional(),
   /**
+   * The sender every Mayarin email goes out as — invoices and verification
+   * codes alike. One address, because they are one brand to the person reading
+   * them, and a code that arrives from "Mayarin Invoices" reads as misdirected.
+   *
    * `onboarding@resend.dev` is intentionally the demo default. Resend limits it
    * to the account owner's address; production sets a sender on a verified
    * domain without requiring a code change.
    */
-  invoiceEmailFrom: z.string().min(1).default("Mayarin <onboarding@resend.dev>"),
+  emailFrom: z.string().min(1).default("Mayarin <onboarding@resend.dev>"),
   /**
    * Where fees are paid (#11, RFC #6).
    *
@@ -237,7 +241,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     checkoutBaseUrl: env.CHECKOUT_BASE_URL ?? env.PUBLIC_BASE_URL,
     paymentApiUrl: env.PAYMENT_API_URL ?? env.PUBLIC_BASE_URL,
     resendApiKey: env.RESEND_API_KEY,
-    invoiceEmailFrom: env.RESEND_FROM_EMAIL,
+    emailFrom: env.RESEND_FROM_EMAIL,
     treasuryAddress: env.TREASURY_ADDRESS,
     walletProvisioningEnabled: env.WALLET_PROVISIONING_ENABLED,
     walletProvisionChains: env.WALLET_PROVISION_CHAINS,

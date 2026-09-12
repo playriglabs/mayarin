@@ -310,7 +310,7 @@ export function createContainer(options: CreateContainerOptions): Container {
       ? new UnavailableVerificationEmailSender()
       : new ResendVerificationEmailSender({
           apiKey: config.resendApiKey,
-          from: config.invoiceEmailFrom,
+          from: config.emailFrom,
         }));
   const registrations = new RegistrationService({
     users,
@@ -394,7 +394,7 @@ export function createContainer(options: CreateContainerOptions): Container {
       ? new UnavailableInvoiceEmailSender()
       : new ResendInvoiceEmailSender({
           apiKey: config.resendApiKey,
-          from: config.invoiceEmailFrom,
+          from: config.emailFrom,
         }));
 
   // The merchant's customer directory, and the commerce view of their payments.
