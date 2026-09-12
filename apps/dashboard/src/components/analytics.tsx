@@ -9,9 +9,12 @@
  * settlement asset. Charting one and calling it both would hide the fee and
  * every payment that was taken and never settled.
  *
- * Each section answers the same three questions: how much moved, what state it
- * ended in, and how long it took. Every figure is derived from the unpaginated
- * analytics read, so changing a page in the explorer can never move a chart.
+ * The two sections ask different questions, because the merchant does. **Pay
+ * ins** is a sales report: revenue, orders, and what an order is worth — three
+ * day-by-day lines, because revenue is read as a trend. **Pay outs** is an
+ * operations report: how much moved, what state it ended in, how long it took.
+ * Every figure is derived from the unpaginated analytics read, so changing a
+ * page in the explorer can never move a chart.
  *
  * ## Colour
  *
@@ -207,15 +210,6 @@ function payOutMovements(settlements: readonly SettlementDto[], asset: AssetCode
     };
   });
 }
-
-const PAY_IN_STATUS: Readonly<Record<string, { label: string; tone: StatusSlice["tone"] }>> = {
-  COMPLETED: { label: "Completed", tone: "success" },
-  CREATED: { label: "Awaiting payment", tone: "warning" },
-  CONFIRMED: { label: "Confirmed", tone: "warning" },
-  PROCESSING: { label: "Processing", tone: "warning" },
-  FAILED: { label: "Failed", tone: "destructive" },
-  EXPIRED: { label: "Expired", tone: "neutral" },
-};
 
 const PAY_OUT_STATUS: Readonly<Record<string, { label: string; tone: StatusSlice["tone"] }>> = {
   SUCCESS: { label: "Complete", tone: "success" },
@@ -562,6 +556,159 @@ function durationPlots(points: readonly DurationPoint[]): readonly Plot[] {
   }));
 }
 
+/**
+ * Pay ins, as the three questions a merchant actually asks of a sales month:
+ * how much came in, how many orders it took, and what an order is worth.
+ *
+ * Lines rather than columns here, against the rule the pay-out chart follows.
+ * Revenue, order count and their ratio are read for their trend — is this month
+ * climbing — and a line is what a trend is read off. The pay-out chart stays
+ * bars, where each day is a discrete arrival rather than a level.
+ *
+ * All three derive from one bucketing pass, so revenue, orders and their
+ * average can never disagree about the same day.
+ */
+function PayInsSection({ daily }: { daily: readonly DayPoint[] }) {
+  const usdSymbol = assetSymbol("USD") ?? "USD";
+  const usdDecimals = assetDecimals("USD");
+  const formatUsdTick = (value: number) =>
+    compactMoney(BigInt(Math.round(value)), usdDecimals, usdSymbol);
+  const formatCountTick = (value: number) => String(Math.round(value));
+  const usd = (amount: bigint) => formatMoneyLocale(money(amount, "USD"));
+  const orders = (count: number) => `${count} order${count === 1 ? "" : "s"}`;
+
+  // Integer division on minor units: an average order value is money, and a
+  // float average of two dollar figures is a rounding error waiting to be
+  // charted.
+  const averageOf = (point: DayPoint) =>
+    point.count === 0 ? 0n : point.volume / BigInt(point.count);
+
+  const revenuePoints: readonly Plot[] = daily.map((point) => ({
+    date: point.date,
+    value: Number(point.volume),
+    label: usd(point.volume),
+    detail: orders(point.count),
+  }));
+  const orderPoints: readonly Plot[] = daily.map((point) => ({
+    date: point.date,
+    value: point.count,
+    label: orders(point.count),
+    detail: usd(point.volume),
+  }));
+  const averagePoints: readonly Plot[] = daily.map((point) => ({
+    date: point.date,
+    value: Number(averageOf(point)),
+    label: usd(averageOf(point)),
+    detail: `${usd(point.volume)} over ${orders(point.count)}`,
+  }));
+
+  const totalOrders = daily.reduce((sum, point) => sum + point.count, 0);
+  const totalRevenue = daily.reduce((sum, point) => sum + point.volume, 0n);
+  const periodAverage = totalOrders === 0 ? 0n : totalRevenue / BigInt(totalOrders);
+
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionHeader title="Pay ins" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="gap-4">
+          <CardTitle hint="Gross USD value at each payment's locked settlement rate, dated by when the payment was created.">
+            Revenue · USD
+          </CardTitle>
+          <TrendChart points={revenuePoints} formatTick={formatUsdTick} />
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {usd(totalRevenue)} over the last thirty days
+          </p>
+          <DataDisclosure summary="Show the numbers">
+            <Table containerClassName="max-h-64 overflow-y-auto">
+              <TableCaption>Revenue by day</TableCaption>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow>
+                  <TableHead>Day</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead className="text-right">Orders</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {daily.map((point) => (
+                  <TableRow key={point.date}>
+                    <TableCell>{dayLabel(point.date)}</TableCell>
+                    <TableCell className="text-right">{usd(point.volume)}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {point.count}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataDisclosure>
+        </Card>
+
+        <Card className="gap-4">
+          <CardTitle hint="Completed orders per day. An order counts on the day its payment was created, so it sits in the same day as the revenue it produced.">
+            Orders
+          </CardTitle>
+          <TrendChart points={orderPoints} formatTick={formatCountTick} />
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {orders(totalOrders)} over the last thirty days
+          </p>
+          <DataDisclosure summary="Show the numbers">
+            <Table containerClassName="max-h-64 overflow-y-auto">
+              <TableCaption>Orders by day</TableCaption>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow>
+                  <TableHead>Day</TableHead>
+                  <TableHead className="text-right">Orders</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {daily.map((point) => (
+                  <TableRow key={point.date}>
+                    <TableCell>{dayLabel(point.date)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{point.count}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataDisclosure>
+        </Card>
+
+        <Card className="gap-4">
+          <CardTitle hint="Revenue divided by orders, per day. Revenue can climb because more people bought or because each of them spent more, and this is the card that tells those two apart.">
+            Average order value · USD
+          </CardTitle>
+          <TrendChart points={averagePoints} formatTick={formatUsdTick} />
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {usd(periodAverage)} across the whole period
+          </p>
+          <DataDisclosure summary="Show the numbers">
+            <Table containerClassName="max-h-64 overflow-y-auto">
+              <TableCaption>Average order value by day</TableCaption>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow>
+                  <TableHead>Day</TableHead>
+                  <TableHead className="text-right">Average</TableHead>
+                  <TableHead className="text-right">Orders</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {daily.map((point) => (
+                  <TableRow key={point.date}>
+                    <TableCell>{dayLabel(point.date)}</TableCell>
+                    <TableCell className="text-right">{usd(averageOf(point))}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {point.count}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataDisclosure>
+        </Card>
+      </div>
+    </section>
+  );
+}
+
 /** One section: how much moved, how it ended, how long it took. */
 function MovementSection({
   title,
@@ -746,11 +893,6 @@ function Analytics() {
         payOutAsset === undefined
           ? "—"
           : formatMoneyLocale(money(amount, payOutAsset), { trimZeroFraction: true });
-      const completion = currentInsight.completion;
-      const durationSummary =
-        completion.count === 0
-          ? "No completed payments in this period."
-          : `Median ${formatDuration(completion.medianSeconds)} · P95 ${formatDuration(completion.p95Seconds)}`;
       const assetMix = payerAssetBreakdown(currentPayments);
       const countryMix = payerCountryBreakdown(currentPayments);
       const previousNet = previousSettlements
@@ -797,20 +939,7 @@ function Analytics() {
             />
           </StatGrid>
 
-          <MovementSection
-            title="Pay ins"
-            asset="USD"
-            daily={payInDaily}
-            statuses={statusesOf(
-              currentPayments.map((payment) => payment.status),
-              PAY_IN_STATUS,
-            )}
-            durations={bucketDurations(payIns)}
-            volumeHint="Gross USD value at each payment's locked settlement rate, dated by when the payment was created."
-            statusHint="Payment intents created in the last thirty days, by their current state."
-            durationHint="Median time from created to completed, per day. P95 exposes the slow tail."
-            durationSummary={durationSummary}
-          />
+          <PayInsSection daily={payInDaily} />
 
           {payOutAsset !== undefined && (
             <MovementSection
