@@ -1,0 +1,74 @@
+{
+  "date": "2026-09-13",
+  "environment": "Testnet: Cloudflare Worker mayarin-dashboard-testnet, Railway dashboard-api, zone mayarin.xyz",
+  "incident": "Every /api/* call from the deployed dashboard answered 403 with a Cloudflare HTML page",
+  "symptom": "Browser reported \"Invalid JSON response\". Pages rendered normally, so the deployment looked healthy.",
+  "cloudflareError": 1003,
+  "cloudflareErrorText": "Direct IP access not allowed",
+  "rootCause": "The Worker was bound by a zone route, so it ran inside mayarin.xyz's routing. Its subrequests to api-merchant-testnet.mayarin.xyz — another proxied hostname in the same zone — looped back into that routing and Cloudflare refused them. The /api/* proxy returned that response verbatim.",
+  "whatItAffected": [
+    "Every /api/* call, including POST /auth/login — not only the new registration routes",
+    "The SSR session check in middleware.ts, so locals.user was always undefined and every protected page redirected to /login",
+    "Effect: the testnet dashboard could render but could not be signed in to"
+  ],
+  "introduced": {
+    "commit": "35164b0",
+    "at": "2026-09-11T13:12:11+07:00",
+    "why": "The dashboard moved from Pages to a Worker in #252. A Worker custom domain was refused because dashboard-testnet.mayarin.xyz still held a CNAME to the retired mayarin-dashboard-testnet.pages.dev project, so a zone route was used instead — correct-looking, no DNS change, no downtime, and the loopback was not visible."
+  },
+  "detected": {
+    "at": "2026-09-13T00:00+07:00",
+    "how": "First real use of /register on the deployed testnet dashboard. The evening's work had all been against localhost, so nothing had exercised /api/* on testnet for two days."
+  },
+  "diagnosis": {
+    "decisive": "wrangler tail showed the Worker itself returning Ok for the same requests that answered 403",
+    "reasoning": "A Worker that runs and reports Ok cannot be the thing being blocked, so the 403 had to come from its own subrequest rather than from the route, a WAF rule, or bot filtering",
+    "ruledOut": [
+      "Bot filtering — a browser User-Agent and Referer changed nothing",
+      "The new registration code — POST /auth/login failed identically",
+      "The API itself — direct calls to api-merchant-testnet.mayarin.xyz answered 200/400 JSON throughout"
+    ]
+  },
+  "fixes": [
+    {
+      "stage": "hotfix",
+      "commit": "901cfb5",
+      "workerVersion": "de91ac2e-4cca-44b7-9a10-fc92f23ac8b2",
+      "change": "Pointed API_URL at Railway's own hostname, outside the zone, to escape the loopback",
+      "cost": "Left Cloudflare's network on every request, and broke a rule docs/deployment.md states explicitly: do not replace the custom API hostname with Railway's generated one",
+      "measuredPenaltyMs": 200
+    },
+    {
+      "stage": "proper",
+      "commit": "bed9bf6",
+      "workerVersion": "4fdb6dc1-cc5f-4cfd-8496-c3052d634e50",
+      "change": "Bound the Worker by custom_domain instead of a zone route, then returned API_URL to api-merchant-testnet.mayarin.xyz",
+      "prerequisite": "The retired Pages CNAME had to be deleted by hand in the Cloudflare dashboard — Cloudflare refuses a custom domain on a hostname holding a hand-managed record (error 100117), and wrangler's OAuth token carries zone (read) only"
+    }
+  ],
+  "measurements": {
+    "method": "curl TTFB from one laptop, 3-6 samples per row, warm",
+    "note": "A page request carrying a session cookie forces the SSR auth fetch; without one no subrequest is made, which is why the two page rows differ",
+    "rows": [
+      { "path": "origin direct (Railway)", "beforeMs": [65, 95], "afterMs": [65, 95] },
+      { "path": "GET /api/v1/auth/me via proxy", "beforeMs": [330, 390], "afterMs": [102, 135] },
+      { "path": "page with session cookie", "beforeMs": [310, 390], "afterMs": [104, 700] },
+      { "path": "page without cookie", "beforeMs": [85, 190], "afterMs": [85, 190] },
+      { "path": "static asset", "beforeMs": [107, 107], "afterMs": [107, 107] }
+    ],
+    "conclusion": "Proxied API calls are roughly three times faster. No improvement is claimed for the SSR page path: its spread is too wide to read as a change."
+  },
+  "surprises": [
+    "For about a minute after the custom domain was created, requests reached no Worker at all: /login answered 200 from the previous deployment while /register and /verify answered 404, because those pages did not exist in it. wrangler tail was silent throughout, which is how it was told apart from a bad build. It resolved itself with no redeploy.",
+    "The first deploy attempt failed with \"Successful trigger changes were not rolled back\". The site stayed up — the zone route was never detached — but that message is a reason to check the live surface immediately rather than trust the failure."
+  ],
+  "limitations": [
+    "Latency measured from one machine on one network; the numbers are a before/after comparison, not an SLO",
+    "The 1003 loopback was reproduced and fixed, not proven from Cloudflare's side — no Cloudflare support ticket was raised",
+    "No registration was completed end to end on testnet, so the verification email has not been seen in a real inbox"
+  ],
+  "openFollowUps": [
+    "Sign up through /register on testnet and confirm the code arrives from \"Mayarin <notification@send.mayarin.xyz>\"",
+    "api-testnet.mayarin.xyz and the pay proxy were never affected: pay-proxy has always been bound by custom_domain. Any future Worker on this zone should be too."
+  ]
+}
