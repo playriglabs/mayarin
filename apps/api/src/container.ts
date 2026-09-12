@@ -728,7 +728,7 @@ export function createContainer({
     }),
   ]);
 
-  const fees = new BasisPointsFeePolicy(config.feeBasisPoints);
+  const fees = new BasisPointsFeePolicy(config.feeBasisPoints, config.feeMinimum);
   const relayerGasFees = new BasisPointsFeePolicy(config.relayerGasFeeBasisPoints);
 
   // `resolveContract` guarantees the quote layer is configured when the

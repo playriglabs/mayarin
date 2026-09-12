@@ -28,6 +28,7 @@ function createPlanner(
   wallets?: WalletGuard,
   settlementAddresses?: SettlementAddressResolver,
   relayerGasFeeBasisPoints = 10,
+  feeMinimum = "0",
 ) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
@@ -66,7 +67,7 @@ function createPlanner(
   const planner = new ApiContractPlanner({
     contract: { paymentRouters: { base: ROUTER } },
     quote: async () => quote,
-    fees: new BasisPointsFeePolicy(50),
+    fees: new BasisPointsFeePolicy(50, feeMinimum),
     relayerGasFees: new BasisPointsFeePolicy(relayerGasFeeBasisPoints),
     stablecoins: new InMemoryStablecoinRegistry([
       { asset: "USDC", onChain: [{ chain: "base", address: USDC_TOKEN }] },
@@ -142,6 +143,24 @@ describe("ApiContractPlanner", () => {
     expect(payer.fee).toEqual(money(25_000n, "USDC"));
     expect(relayed.fee).toEqual(money(30_000n, "USDC"));
     expect(relayed.order.fee).toBe(30_000n);
+  });
+
+  test("a fee floor lifts the signed fee on a small payment", async () => {
+    const { planner } = createPlanner(MERCHANT_SAFE, undefined, undefined, 10, "0.10");
+
+    // 0.5% of $5.00 is 0.025 USDC, below the 0.10 floor.
+    const lock = await planner.lock(lockRequest("USDC"));
+
+    expect(lock.fee).toEqual(money(100_000n, "USDC"));
+    expect(lock.order.fee).toBe(100_000n);
+  });
+
+  test("refuses to sign an order whose fee would take the whole payment", async () => {
+    // A 5.00 floor on a $5.00 payment: the router would revert, after the payer paid gas.
+    const { planner, signer } = createPlanner(MERCHANT_SAFE, undefined, undefined, 10, "5.00");
+
+    await expect(planner.lock(lockRequest("USDC"))).rejects.toThrow(ValidationError);
+    expect(signer.calls).toHaveLength(0);
   });
 
   test("can keep the signed order executable beyond the quote freshness window", async () => {

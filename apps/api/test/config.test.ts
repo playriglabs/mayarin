@@ -49,6 +49,22 @@ describe("empty environment variables", () => {
   });
 });
 
+describe("fee configuration", () => {
+  test("has no fee floor unless one is set", () => {
+    expect(loadConfig(BASE).feeMinimum).toBe("0");
+  });
+
+  test("reads the fee floor", () => {
+    expect(loadConfig({ ...BASE, FEE_MINIMUM: "0.10" }).feeMinimum).toBe("0.10");
+  });
+
+  test.each(["0.123", "-1", "ten"])("refuses a malformed fee floor: %p", (value) => {
+    expect(() => loadConfig({ ...BASE, FEE_MINIMUM: value })).toThrow(
+      /Invalid environment configuration/,
+    );
+  });
+});
+
 describe("rate limit configuration", () => {
   test("has safe defaults and accepts deployment overrides", () => {
     expect(loadConfig({ ...BASE }).rateLimitRequests).toBe(120);
