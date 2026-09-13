@@ -110,6 +110,43 @@ Three execution paths, chosen per payment:
 Full detail: [Architecture](./docs/architecture.md) · [Clearing Engine](./docs/clearing-engine.md)
 · [Agent payments](./docs/x402.md).
 
+## Agent payments (x402)
+
+Any Mayarin-gated endpoint becomes payable per call by an agent that has never registered, holds no
+API key, and never sees a checkout page. It gets a `402` with machine-readable terms, signs one
+[EIP-3009](https://eips.ethereum.org/EIPS/eip-3009) authorization for an exact amount, and gets the
+resource.
+
+```
+   agent calls endpoint   →   402 + terms
+   agent signs            →   one EIP-3009 authorization, exact amount
+   Mayarin settles        →   receipt read back and matched, ledger posted
+   agent gets             →   the resource
+```
+
+An agent that does not hold the merchant's asset still pays. The swap is priced **backwards** from
+the invoice — exact-output, so the merchant gets exactly the invoice or the swap reverts:
+
+```
+   authorization   payer    →  operator    the agent's asset, exactly what it signed for
+   swap            operator →  pool        exact-output, bounded by the authorization
+                   pool     →  merchant    exactly the invoice
+   surplus                                 what the pool did not need, owed back to the payer
+```
+
+**Paid MCP server.** `POST /x402/mcp` sells tools over the same rail: `initialize` and `tools/list`
+are free, `tools/call` costs one authorization. `rail_stats` and `choose_rail` answer which rail to
+pay on, from Mayarin's own settlements subgraph. Discovery is free, answers are paid, and a bad
+request is refused before anything is charged.
+
+```bash
+curl -X POST $API/x402/mcp -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+Current boundaries: `exact` scheme only, EVM only, and the broadcaster pays gas. Full detail in
+[docs/x402.md](./docs/x402.md).
+
 ## Deployed
 
 Testnet only. Mainnet is deliberately unprovisioned.
