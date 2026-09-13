@@ -4,7 +4,7 @@
 
 ### The merchant names one price in their own currency. The payer brings whatever they hold. Both numbers are exact.
 
-<a href="https://mayarin.xyz"><img src="./apps/landing/public/images/product/mayarin-analytics.png" alt="Mayarin merchant dashboard — analytics overview" /></a>
+<a href="https://mayarin.xyz"><img src="./apps/landing/public/images/product/mayarin-overview.png" alt="Mayarin merchant dashboard — overview" /></a>
 
 [![Testnet](https://img.shields.io/badge/Live%20on-Testnet-16A34A?style=for-the-badge)](https://api-testnet.mayarin.xyz)
 [![Base Sepolia](https://img.shields.io/badge/Base%20Sepolia-PaymentRouter-0052FF?style=for-the-badge)](https://sepolia.basescan.org/address/0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9)
