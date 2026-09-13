@@ -397,20 +397,13 @@ function MovementCard({
   points,
   asset,
   href,
-  chart = "bars",
 }: {
   title: string;
   hint: string;
   points: readonly { date: string; total: bigint }[];
   asset: string | undefined;
   href: string;
-  /**
-   * Revenue is read as a trend — is this month climbing — and a line is what a
-   * trend is read off. A pay-out is a discrete arrival and stays a column.
-   */
-  chart?: "bars" | "line";
 }) {
-  const Trend = chart === "line" ? TrendChart : TrendBars;
   const total = points.reduce((sum, point) => sum + point.total, 0n);
   const hasMovement = total > 0n;
   // `balanceDisplay`, not the raw locale format: a settlement figure belongs in
@@ -438,7 +431,7 @@ function MovementCard({
           so `points.length` cannot distinguish no activity from real data.
           An all-zero chart adds only a misleading baseline and hover dates. */}
       {hasMovement && (
-        <Trend
+        <TrendBars
           points={points.map((point) => ({
             date: point.date,
             value: Number(point.total),
@@ -678,7 +671,6 @@ function Overview() {
               points={payInDaily}
               asset="USD"
               href="/analytics"
-              chart="line"
             />
             <MovementCard
               title="Pay outs"
