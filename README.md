@@ -6,14 +6,9 @@
 
 <a href="https://mayarin.xyz"><img src="./apps/landing/public/images/product/mayarin-overview.png" alt="Mayarin merchant dashboard — overview" /></a>
 
-[![Testnet](https://img.shields.io/badge/Live%20on-Testnet-16A34A?style=for-the-badge)](https://api-testnet.mayarin.xyz)
-[![Base Sepolia](https://img.shields.io/badge/Base%20Sepolia-PaymentRouter-0052FF?style=for-the-badge)](https://sepolia.basescan.org/address/0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9)
-[![Arc](https://img.shields.io/badge/Arc-Testnet-111111?style=for-the-badge)](./docs/arc.md)
-[![Uniswap](https://img.shields.io/badge/Uniswap-Exact%20Output-FF007A?style=for-the-badge)](./docs/liquidity-routing.md)
-[![The Graph](https://img.shields.io/badge/The%20Graph-Subgraph-6747ED?style=for-the-badge)](./packages/subgraph)
-[![x402](https://img.shields.io/badge/x402-Agent%20Payments-000000?style=for-the-badge)](./docs/x402.md)
+[![Live on testnet](https://img.shields.io/badge/live%20on-testnet-16A34A)](https://api-testnet.mayarin.xyz)
 
-**Live on testnet.** A programmable clearing layer for humans, applications and autonomous agents.
+A programmable clearing layer for humans, applications and autonomous agents.
 Merchants price in their local currency and settle in a stablecoin; the payer brings any supported
 asset. Every settlement below is a transaction you can open on a block explorer.
 
@@ -23,10 +18,11 @@ asset. Every settlement below is a transaction you can open on a block explorer.
 
 ## The problem
 
-A merchant in Jakarta prices a bag of coffee at IDR 50,000. A customer wants to pay in EURC. An
-agent wants to pay for one API call and has never heard of an account.
+A coffee roaster in Jakarta prices a bag at IDR 50,000 and wants to sell beyond Indonesia. A
+customer in Berlin wants to pay in EURC. An agent wants to pay for one API call and has never
+heard of an account.
 
-To serve any of them today, the merchant has to become an infrastructure team:
+To sell to either of them today, the merchant has to become an infrastructure team:
 
 ```
    accept crypto      →    pick a chain, hold a wallet, fund it with gas
