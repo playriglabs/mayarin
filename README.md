@@ -180,9 +180,44 @@ Write-up: [docs/submission/the-graph.md](./docs/submission/the-graph.md).
 
 ### Arc (Circle)
 
-USDC-native settlement on Arc testnet, a merchant Safe per chain, and Circle Agent Stack
-contract-account payers whose EIP-1271 signatures the token accepts. Payer's gas zero. Evidence in
-[`docs/evidence/`](./docs/evidence/); write-up: [docs/submission/arc.md](./docs/submission/arc.md).
+Arc is the merchant's settlement rail. Its gas token and the merchant's settlement asset are the
+same thing, USDC, so a merchant never has to hold a second token to get paid.
+
+**Multi-step settlement with a condition.** An agent holding EURC pays a merchant who is owed USDC,
+and signs only once. Three things then happen on chain: the authorization is settled, an
+exact-output swap runs, and the merchant is paid. If the pool cannot deliver the full invoice, the
+swap reverts, so the merchant gets the exact amount or nothing moves. Authorization
+[`0xf08c141d…`](https://testnet.arcscan.app/tx/0xf08c141d2c11de1ac9abc3ca1b4da201bce901250148bd4436b86b421638beba),
+swap
+[`0x9f4bf25b…`](https://testnet.arcscan.app/tx/0x9f4bf25b74fe3cb18087ff4e93eff22b530b48f2e7a41fbd064280f3abfc1e52).
+
+**Agent decisions tied to real signals.** The demo agent (`bun run demo:agent`) prints each
+decision it makes, and the reason for it:
+
+| Decision          | Signal                                                                |
+| ----------------- | --------------------------------------------------------------------- |
+| Which rail to pay | Settlement headroom from Mayarin's subgraph, bought over x402         |
+| Whether to sign   | The quote is checked against an oracle and refused if it has drifted  |
+| How much to spend | A spend ceiling, checked before signing, so nothing over it is signed |
+
+**Circle products**
+
+| Used                         | How                                                                              |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| Arc testnet                  | `PaymentRouter`, `DepositForwarderFactory`, x402 settlement                      |
+| USDC, EURC                   | USDC is what merchants settle in; EURC is a payer asset for cross-asset payments |
+| Agent Stack (Circle Wallets) | A contract-account wallet pays, and USDC verifies it through EIP-1271            |
+
+Not used: App Kits, Nanopayments, Paymaster, CCTP, Gateway, StableFX. The payer pays no gas because
+Mayarin's operator broadcasts the signed authorization. That is not Paymaster.
+
+**Qualification**
+
+- Frontend: merchant dashboard, hosted checkout, and the paywall in `apps/x402-merchant`
+- Backend: `apps/api` and `apps/chain-worker`, live at `api-testnet.mayarin.xyz`
+- Architecture diagram: [Architecture](#architecture)
+- Video: _link to come_
+- Write-up and on-chain evidence: [docs/submission/arc.md](./docs/submission/arc.md)
 
 ### Uniswap
 
@@ -192,7 +227,6 @@ priced backwards from the invoice — authorization
 swap [`0xb1436735…`](https://sepolia.basescan.org/tx/0xb143673599a6b05cd95676f0bbec7ffc35f9f99563bf45c6f26468944eb38a07).
 Write-up: [docs/submission/uniswap.md](./docs/submission/uniswap.md).
 
-Entered in [ETHOnline 2026](https://ethglobal.com/events/ethonline2026) in the **Continuity** pool.
 What predates the window and what was built during it: [ROADMAP.md](./ROADMAP.md).
 
 ## Quick start

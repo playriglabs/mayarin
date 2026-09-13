@@ -1,8 +1,36 @@
 # ETHOnline 2026 — Arc (Circle)
 
 **Project:** Mayarin — a programmable clearing layer for humans, applications and
-autonomous agents. **Pool:** Continuity. **Repository:**
-<https://github.com/playriglabs/mayarin>
+autonomous agents. **Bounty:** Best DeFi or Agentic Application (Continuity
+Track). **Repository:** <https://github.com/playriglabs/mayarin>
+
+## Against the criteria
+
+The bounty has two halves, DeFi and agentic, and Mayarin covers both with a
+single payment flow.
+
+| Looking for                                     | Where it is                                                                                                                                                |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Meaningful use of Arc and USDC                  | Arc is the merchant's settlement rail, and USDC is both its gas and the settlement asset — [Deployed](#deployed-on-arc-testnet-chain-5042002)              |
+| Conditional payments, multi-step settlement     | Cross-asset x402: one signed authorization, then an exact-output swap, then payout. The swap reverts if the merchant would get less than the invoice.      |
+| Agents with decision logic tied to real signals | The demo agent picks a rail from subgraph settlement headroom, refuses a quote that has drifted from the oracle, and checks a spend ceiling before signing |
+| Autonomous USDC payment flows                   | A Circle agent wallet pays per call over x402, with no account and no API key — [Measured on chain](#measured-on-chain)                                    |
+| Agent Stack connecting agents to wallets        | Circle Agent Stack contract-account wallets as a payer class, verified through EIP-1271                                                                    |
+
+| Circle product               | Used | How                                                                           |
+| ---------------------------- | ---- | ----------------------------------------------------------------------------- |
+| Arc                          | Yes  | `PaymentRouter`, `DepositForwarderFactory`, x402 settlement                   |
+| USDC                         | Yes  | What merchants settle in, and Arc's gas                                       |
+| EURC                         | Yes  | Payer asset for cross-asset payments                                          |
+| Agent Stack / Circle Wallets | Yes  | Agent payer, EIP-1271 signatures                                              |
+| Paymaster                    | No   | The payer pays no gas because Mayarin's operator broadcasts the authorization |
+| App Kits, Nanopayments       | No   |                                                                               |
+| CCTP, Gateway, StableFX      | No   |                                                                               |
+
+**Qualification.** Frontend: the merchant dashboard, hosted checkout, and the
+paywall in `apps/x402-merchant`. Backend: `apps/api` and `apps/chain-worker`.
+Architecture diagram: [README → Architecture](../../README.md#architecture).
+Video: _link to come_.
 
 ## What Arc is used for
 
@@ -112,6 +140,9 @@ claimed for the event.
   mainnet chain and Circle lists Arc on testnet only, so the policy half was
   abandoned rather than left pending. The spend ceiling in the demo is enforced by
   the agent runner, and it is honest about which side it sits on.
+- **Most of Circle's stack is not used.** No App Kits, Nanopayments, Paymaster,
+  CCTP, Gateway or StableFX. The payer pays no gas because Mayarin's operator
+  broadcasts the authorization, not because of Paymaster.
 - **Testnet only.** Mainnet is deliberately unprovisioned until the documented
   security and deployment gates are met, and must not reuse testnet state,
   contracts or credentials.
