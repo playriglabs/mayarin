@@ -64,6 +64,7 @@ bun run test:woocommerce        # php -l + pure-function tests for plugins/wooco
 bun run format                  # biome --write + prettier --write
 bun run format:check            # non-mutating
 bun run check                   # format:check + typecheck + test
+bun run push:fast               # git push with typecheck, skipping the full test suite
 
 bun run db:up                   # Postgres in Docker, host port 5433
 bun run db:down

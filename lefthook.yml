@@ -38,4 +38,6 @@ pre-push:
       run: bun run typecheck
 
     - name: test
+      tags:
+        - test
       run: bun test
