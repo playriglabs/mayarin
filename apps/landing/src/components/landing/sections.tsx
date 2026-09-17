@@ -7,7 +7,7 @@ import { Action, Check, DashboardPreview } from "./ui.tsx";
 
 export function Hero() {
   return (
-    <section class="relative isolate overflow-hidden bg-v2-mist pt-28 sm:pt-32 md:pt-44 [&_h1]:mt-7 [&_h1]:text-[clamp(2.7rem,7.5vw,5rem)] [&_h1]:leading-[1.1] md:[&_h1]:leading-[1.04] [&_h1_span]:text-forest">
+    <section class="relative isolate overflow-hidden bg-v2-mist pt-28 sm:pt-32 md:pt-44 [&_h1]:mt-7 [&_h1]:text-[clamp(2.7rem,7.5vw,4.5rem)] [&_h1]:leading-[1.1] md:[&_h1]:leading-[1.04] [&_h1_span]:text-forest">
       <div
         aria-hidden="true"
         class="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-1/2 bg-linear-to-t from-v2-sage/80 to-transparent"

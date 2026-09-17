@@ -172,7 +172,6 @@ A settlements subgraph on Subgraph Studio (Base Sepolia, Arc testnet) feeds the 
 and a paid MCP server at `POST /x402/mcp`. `choose_rail` tells an agent which rail to pay on, from
 how each rail has actually been settling. A Circle agent wallet paid $0.10 for one call:
 [`0xdce241e2…`](https://sepolia.basescan.org/tx/0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b).
-Write-up: [docs/submission/the-graph.md](./docs/submission/the-graph.md).
 
 ### Arc (Circle)
 
@@ -207,23 +206,12 @@ decision it makes, and the reason for it:
 Not used: App Kits, Nanopayments, Paymaster, CCTP, Gateway, StableFX. The payer pays no gas because
 Mayarin's operator broadcasts the signed authorization. That is not Paymaster.
 
-**Qualification**
-
-- Frontend: merchant dashboard, hosted checkout, and the paywall in `apps/x402-merchant`
-- Backend: `apps/api` and `apps/chain-worker`, live at `api-testnet.mayarin.xyz`
-- Architecture diagram: [Architecture](#architecture)
-- Video: _link to come_
-- Write-up and on-chain evidence: [docs/submission/arc.md](./docs/submission/arc.md)
-
 ### Uniswap
 
 Cross-asset x402: an agent holding EURC pays a merchant settled in USDC, through an exact-output swap
 priced backwards from the invoice — authorization
 [`0x254b93ce…`](https://sepolia.basescan.org/tx/0x254b93cec1a73279e12968938c1c491133c5556b4adb9e71cea070e0abc8affa),
 swap [`0xb1436735…`](https://sepolia.basescan.org/tx/0xb143673599a6b05cd95676f0bbec7ffc35f9f99563bf45c6f26468944eb38a07).
-Write-up: [docs/submission/uniswap.md](./docs/submission/uniswap.md).
-
-What predates the window and what was built during it: [ROADMAP.md](./ROADMAP.md).
 
 ## Quick start
 

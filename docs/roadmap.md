@@ -732,24 +732,6 @@ the customer pays with whatever asset they hold.
 
 ---
 
-# The ETHOnline 2026 entry
-
-Mayarin is entered in the **Continuity** pool: the project predates the event, so
-its work is documented in two lists rather than one — what merged before
-4 September 2026, and what was built in the window. Three partner slots are
-taken: **The Graph** (the settlements subgraph, the rail statistics, and the MCP
-server that is a second Graph product), **Arc/Circle** (USDC-native settlement, a
-merchant Safe per chain, Circle Agent Stack payers), and **Uniswap** (cross-asset
-exact-output swaps priced backwards from the invoice).
-
-[`ROADMAP.md`](../ROADMAP.md) at the repository root is the working state of that
-entry — what shipped with which PR, what is next per sponsor, the facts measured
-off Arc rather than read from its documentation, and the things about the x402
-rail that are expensive to rediscover. Read it before touching
-`packages/core/x402` or anything under `x402` in the API.
-
----
-
 ## Related
 
 - [Architecture](./architecture.md)

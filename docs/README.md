@@ -4,8 +4,7 @@
 
 Mayarin's reference documentation. Start with the [architecture](./architecture.md)
 if you are here to change code, or the [vision](./vision.md) if you are here to
-understand why any of it exists. Working on the ETHOnline 2026 entry? Start with
-[ROADMAP.md](../ROADMAP.md) instead.
+understand why any of it exists.
 
 Merchant-facing API guides, SDK reference, and the interactive OpenAPI
 playground live in `apps/docs` and publish to `docs.mayarin.xyz`. This directory

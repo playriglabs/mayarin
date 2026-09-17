@@ -1,5 +1,4 @@
 import { useEarlyAccess } from "../lib/early-access.ts";
-import { FooterWordmark } from "./footer-wordmark.tsx";
 import { ScrambleText } from "./scramble-text.tsx";
 import { ArrowRight } from "./ui.tsx";
 
@@ -121,8 +120,6 @@ export function Footer() {
   return (
     <footer class="bg-paper">
       <div class="shell py-12 md:py-16">
-        <FooterWordmark />
-
         <div class="grid gap-12 md:grid-cols-[2fr_1fr] md:gap-14 lg:gap-16">
           <div>
             <div class="grid grid-cols-2 gap-x-8 gap-y-10 lg:grid-cols-4">
