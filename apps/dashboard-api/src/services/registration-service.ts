@@ -95,6 +95,8 @@ export interface RegisterInput {
   readonly email: string;
   readonly password: string;
   readonly merchantName: string;
+  readonly city: string;
+  readonly countryCode: string;
 }
 
 export interface VerifyEmailInput {
@@ -142,6 +144,8 @@ export class RegistrationService {
     const merchant: Merchant = {
       id: generateId("mrc", now.getTime()),
       name: input.merchantName,
+      city: input.city,
+      countryCode: input.countryCode,
       settlementAsset: this.#settlementAsset,
       // Empty defers to the deployment default, which is what a merchant who
       // has never opened the asset matrix should accept.

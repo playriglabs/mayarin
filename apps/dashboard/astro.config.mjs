@@ -6,7 +6,7 @@ import { defineConfig } from "astro/config";
 
 // The dashboard API runs on its own port; in dev the Vite proxy rewrites /api/*
 // to it so the browser talks to one origin and cookies stay on this host.
-const dashboardApiUrl = process.env.DASHBOARD_API_URL ?? "http://localhost:3001";
+const dashboardApiUrl = process.env.DASHBOARD_API_URL ?? "http://127.0.0.1:3001";
 const localDev = process.env.MAYARIN_DASHBOARD_LOCAL_DEV === "true";
 
 export default defineConfig({

@@ -1,8 +1,28 @@
 @import "tailwindcss";
 @import "@fontsource-variable/manrope";
-@import "@fontsource-variable/geist-mono";
-@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource-variable/inter";
 @import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource-variable/geist-mono";
+
+/* Use Geist Mono for digits without changing the surrounding text face. */
+@font-face {
+  font-family: "Dashboard Numbers";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2")
+    format("woff2");
+  unicode-range: U+0030-0039;
+}
+
+.auth-tagline {
+  font-family: "Dashboard Numbers", "Inter Variable", sans-serif;
+}
+
+.auth-tagline em {
+  font-family: "Dashboard Numbers", "Instrument Serif", Georgia, serif;
+  font-weight: 400;
+}
 
 /**
  * `dark:` means the theme this app is in, not the one the operating system is
@@ -408,7 +428,7 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --font-weight-medium: 500;
 
   --font-sans:
-    "Manrope Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Dashboard Numbers", "Manrope Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono:
     "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;

@@ -71,6 +71,8 @@ export const registerBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(12).max(200),
   merchantName: z.string().trim().min(1).max(120),
+  city: z.string().trim().min(1).max(120),
+  countryCode: z.string().regex(/^[A-Z]{2}$/, "Use a two-letter uppercase country code"),
 });
 
 export const verifyEmailBodySchema = z.object({

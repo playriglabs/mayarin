@@ -30,14 +30,14 @@ export function getApiOrigin(): string {
   // one local stack; runtime bindings only outrank build config in production.
   if (import.meta.env.DEV) {
     return (
-      (import.meta.env.DASHBOARD_API_URL as string | undefined) ?? "http://localhost:3001"
+      (import.meta.env.DASHBOARD_API_URL as string | undefined) ?? "http://127.0.0.1:3001"
     ).replace(/\/+$/, "");
   }
 
   return (
     getSecret("API_URL") ??
     (import.meta.env.DASHBOARD_API_URL as string | undefined) ??
-    "http://localhost:3001"
+    "http://127.0.0.1:3001"
   ).replace(/\/+$/, "");
 }
 

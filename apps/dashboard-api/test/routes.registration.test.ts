@@ -17,7 +17,14 @@ type Harness = Awaited<ReturnType<typeof createDashboardHarness>>;
 
 async function register(harness: Harness, overrides: Record<string, unknown> = {}) {
   return harness.request("POST", "/v1/auth/register", {
-    body: { email: EMAIL, password: PASSWORD, merchantName: MERCHANT, ...overrides },
+    body: {
+      email: EMAIL,
+      password: PASSWORD,
+      merchantName: MERCHANT,
+      city: "Bandung",
+      countryCode: "ID",
+      ...overrides,
+    },
   });
 }
 
@@ -29,6 +36,16 @@ function lastCode(harness: Harness): string {
 }
 
 describe("self-registration", () => {
+  test("rejects missing cities and country codes outside the two-letter uppercase format", async () => {
+    const harness = await createDashboardHarness();
+    for (const overrides of [{ city: " " }, { countryCode: "id" }, { countryCode: "USA" }]) {
+      const response = await register(harness, overrides);
+      expect(response.status).toBe(400);
+    }
+    expect(await harness.users.findByEmail(EMAIL)).toBeNull();
+    expect(harness.verificationEmails).toHaveLength(0);
+  });
+
   test("creates the merchant and emails a six-digit code, but no usable login yet", async () => {
     const harness = await createDashboardHarness();
 
@@ -46,6 +63,8 @@ describe("self-registration", () => {
 
     const merchant = await harness.merchants.findById(user?.merchantId ?? "");
     expect(merchant?.name).toBe(MERCHANT);
+    expect(merchant?.city).toBe("Bandung");
+    expect(merchant?.countryCode).toBe("ID");
     // Nothing about a chain is decided at signup. The settlement address is
     // pasted in Settings, which is why it must be absent here.
     expect(merchant?.settlementAddress).toBeUndefined();

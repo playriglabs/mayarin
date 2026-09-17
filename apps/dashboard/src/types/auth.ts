@@ -21,6 +21,8 @@ export interface RegisterRequest {
   readonly email: string;
   readonly password: string;
   readonly merchantName: string;
+  readonly city: string;
+  readonly countryCode: string;
 }
 
 /** POST `/auth/verify-email` request body. */

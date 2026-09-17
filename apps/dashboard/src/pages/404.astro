@@ -1,6 +1,5 @@
 ---
 import "../styles/global.css";
-import "@fontsource/instrument-serif/400.css";
 import SocialMeta from "../components/social-meta.astro";
 ---
 
@@ -33,64 +32,23 @@ import SocialMeta from "../components/social-meta.astro";
         );
     </script>
   </head>
-  <body class="h-screen overflow-hidden bg-background text-foreground">
-    <main class="grid h-screen md:grid-cols-2">
-      <section class="flex min-h-72 flex-col justify-between bg-sidebar p-6 text-sidebar-foreground md:min-h-svh md:p-10 lg:p-14">
-        <a href="https://mayarin.xyz" aria-label="Mayarin home" class="inline-flex w-fit items-center">
-          <img
-            src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
-            alt=""
-            aria-hidden="true"
-            width="52"
-            height="52"
-            class="size-11 dark:hidden"
-          />
-          <img
-            src="https://mayarin.xyz/brand-kit/mayarin-logo-white.svg"
-            alt=""
-            aria-hidden="true"
-            width="52"
-            height="52"
-            class="hidden size-11 dark:block"
-          />
-          <span class="-ml-0.5 self-center text-2xl font-medium leading-none tracking-[-0.06em]">
-            mayarin
-          </span>
-        </a>
-        <p class="max-w-[17ch] font-display text-[clamp(2rem,4vw,3.5rem)] leading-[0.98] tracking-[-0.035em]">
-            Programmable payments <br />for the <em class="italic">internet</em>.
+  <body class="min-h-svh bg-background text-foreground">
+    <main class="flex min-h-svh items-center justify-center px-6 py-12">
+      <div class="w-full max-w-md text-center">
+        <p class="font-mono text-xs text-muted-foreground">404</p>
+        <h1 class="mt-4 text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight">
+          Page not found
+        </h1>
+        <p class="mt-4 text-base leading-6 text-muted-foreground">
+          This page may have moved, or the address is incorrect.
         </p>
-      </section>
-
-      <section class="flex items-center justify-center px-5 py-16 sm:px-10 lg:px-16">
-        <div class="w-full max-w-md">
-          <p class="font-mono text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
-            404 — page not found
-          </p>
-          <h1 class="mt-6 max-w-[10ch] font-display text-[clamp(3.5rem,7vw,6rem)] leading-[0.9]">
-            This route is not exist :/
-          </h1>
-          <p class="mt-6 text-base leading-6 text-muted-foreground">
-            The dashboard page may have moved, or the address may be incomplete. Try another one?
-          </p>
-          <div class="mt-8 flex flex-wrap gap-3">
-            <a href="/" class="inline-flex h-12 items-center bg-primary px-6 text-sm font-medium text-primary-foreground">
-              Dashboard home
-            </a>
-            <a href="/login" class="inline-flex h-12 items-center border border-border px-6 text-sm font-medium transition-colors hover:border-foreground">
-              Sign in
-            </a>
-          </div>
-        </div>
-      </section>
+        <a
+          href="/"
+          class="mt-8 inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+        >
+          Back to dashboard
+        </a>
+      </div>
     </main>
   </body>
 </html>
-
-<style>
-  h1,
-  em {
-    font-family: "Instrument Serif", Georgia, serif;
-    font-weight: 400;
-  }
-</style>

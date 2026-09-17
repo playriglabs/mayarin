@@ -1,7 +1,7 @@
 /**
  * Registration form — a React island, shaped like the login form beside it.
  *
- * Three fields and nothing else. A settlement address is the one thing a
+ * Business details and account credentials. A settlement address is the one thing a
  * merchant cannot safely paste before they are inside: it decides where their
  * money lands, it has no meaning until they have picked a network, and getting
  * it wrong on a signup form is unrecoverable. Settings asks for it instead, and
@@ -20,6 +20,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { useRegister } from "@/hooks/auth";
+import { COUNTRIES } from "@/lib/countries";
 import { ICON_NAV } from "@/lib/icons";
 import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
 import { withQuery } from "@/lib/with-query";
@@ -35,6 +36,8 @@ type FormState =
 function RegisterForm() {
   const [state, setState] = useState<FormState>({ status: "idle" });
   const [merchantName, setMerchantName] = useState("");
+  const [countryCode, setCountryCode] = useState("");
+  const [city, setCity] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [revealed, setRevealed] = useState(false);
@@ -48,7 +51,7 @@ function RegisterForm() {
     if (tooShort) return;
     setState({ status: "submitting" });
     register.mutate(
-      { email, password, merchantName },
+      { email, password, merchantName, countryCode, city: city.trim() },
       {
         // The address travels in the URL so the code step can address the
         // person by the inbox they are about to open, without a second typing.
@@ -102,6 +105,60 @@ function RegisterForm() {
             className="h-12 px-4"
           />
         </Field>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_2fr]">
+          <Field>
+            <FieldLabel htmlFor="register-country">Country</FieldLabel>
+            <div className="relative">
+              {countryCode && (
+                <img
+                  src={`https://flagcdn.com/${countryCode.toLowerCase()}.svg`}
+                  alt=""
+                  aria-hidden="true"
+                  width={20}
+                  height={14}
+                  className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-5 -translate-y-1/2 rounded-xs object-cover"
+                />
+              )}
+              <select
+                id="register-country"
+                name="countryCode"
+                required
+                autoComplete="country"
+                value={countryCode}
+                onChange={(event) => setCountryCode(event.target.value)}
+                disabled={submitting}
+                aria-describedby={errorId}
+                className={`h-12 w-full rounded-lg border border-input bg-card pr-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 ${countryCode ? "pl-12" : "pl-4"}`}
+              >
+                <option value="" disabled>
+                  Select
+                </option>
+                {COUNTRIES.filter((country) => country.supported).map((country) => (
+                  <option key={country.code} value={country.code} label={country.code}>
+                    {country.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="register-city">City</FieldLabel>
+            <Input
+              id="register-city"
+              name="city"
+              required
+              maxLength={120}
+              autoComplete="address-level2"
+              placeholder="Your city"
+              value={city}
+              onChange={(event) => setCity(event.target.value)}
+              disabled={submitting}
+              aria-describedby={errorId}
+              className="h-12 px-4"
+            />
+          </Field>
+        </div>
 
         <Field>
           <FieldLabel htmlFor="register-email">Email</FieldLabel>
