@@ -117,6 +117,9 @@ describe("POST /carts/checkout", () => {
     expect(body.paymentIntent.merchantReference).toBe("INV-1042");
     expect(body.paymentIntent.metadata.payerCountryCode).toBe("ID");
     expect(JSON.parse(body.paymentIntent.metadata.cart).lines).toHaveLength(2);
+    // The buyer URL comes from the API's `checkoutBaseUrl`, not the caller —
+    // a storefront never has to know the checkout host (RFC #163).
+    expect(body.url).toBe(`http://localhost:3000/checkout/pay/${body.paymentIntent.id}`);
   });
 
   test("an idempotency key makes a retried checkout return the same intent", async () => {

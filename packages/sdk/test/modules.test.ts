@@ -68,13 +68,18 @@ describe("merchant commerce module", () => {
 
   test("checks out a cart through /carts/checkout (#113)", async () => {
     const paymentIntent = { id: "pi_1", status: "CREATED" };
-    const { calls, client } = clientReturning({ paymentIntent });
+    const { calls, client } = clientReturning({
+      paymentIntent,
+      url: "https://pay.test/checkout/pay/pi_1",
+    });
     const result = await client.commerce.carts.checkout({
       merchant: { id: "m_1", name: "Toko", city: "Jakarta", countryCode: "ID" },
       currency: "IDR",
       lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
     });
     expect(result.id).toBe("pi_1");
+    // The buyer URL rides along, so the storefront never builds one itself.
+    expect(result.url).toBe("https://pay.test/checkout/pay/pi_1");
     expect(calls[0]).toMatchObject({ url: "https://api.test/v1/carts/checkout", method: "POST" });
   });
 });

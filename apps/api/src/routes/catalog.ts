@@ -122,7 +122,17 @@ export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     });
 
-    return c.json({ paymentIntent: toPaymentIntentDto(intent) }, 201);
+    // The storefront minting from its own server is not same-origin with the
+    // checkout, so the API sends the absolute buyer URL with the intent — built
+    // from `checkoutBaseUrl` (RFC #163), the same source the payment-link and
+    // invoice `url` come from. A storefront never has to know the checkout host.
+    return c.json(
+      {
+        paymentIntent: toPaymentIntentDto(intent),
+        url: `${container.config.checkoutBaseUrl}/checkout/pay/${encodeURIComponent(intent.id)}`,
+      },
+      201,
+    );
   });
 
   return app;

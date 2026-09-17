@@ -35,11 +35,15 @@ export interface CommerceModule {
     /**
      * `POST /carts/checkout` — lines in, one Payment Intent out. The cart is
      * never stored; it survives only as an immutable snapshot on the intent.
+     *
+     * The return carries `url` — the absolute hosted checkout page the buyer
+     * opens, built by the API from its `CHECKOUT_BASE_URL` (RFC #163), so a
+     * storefront never has to know the checkout host itself.
      */
     readonly checkout: (
       body: CheckoutCartBody,
       options?: RequestOptions,
-    ) => Promise<PaymentIntentDto>;
+    ) => Promise<PaymentIntentDto & { url: string }>;
   };
   readonly paymentLinks: {
     readonly create: (
@@ -133,14 +137,14 @@ export function createCommerceModule(transport: Transport): CommerceModule {
         ).product,
     },
     carts: {
-      checkout: async (body, options) =>
-        (
-          await transport.post<{ paymentIntent: PaymentIntentDto }>(
-            "/carts/checkout",
-            body,
-            options,
-          )
-        ).paymentIntent,
+      checkout: async (body, options) => {
+        const response = await transport.post<{ paymentIntent: PaymentIntentDto; url: string }>(
+          "/carts/checkout",
+          body,
+          options,
+        );
+        return { ...response.paymentIntent, url: response.url };
+      },
     },
     paymentLinks: {
       create: async (body, options) =>

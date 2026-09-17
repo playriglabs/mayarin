@@ -16,7 +16,6 @@ export {
   DEMO_CURRENCY,
   type DemoConfig,
   demoRoutes,
-  hostedPaymentUrl,
   loadDemoConfig,
   parseCheckoutRequest,
   parseWebhookEvent,

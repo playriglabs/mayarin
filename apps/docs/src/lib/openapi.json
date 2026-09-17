@@ -853,6 +853,22 @@
           "version"
         ]
       },
+      "CheckoutCartResponse": {
+        "type": "object",
+        "properties": {
+          "paymentIntent": {
+            "$ref": "#/components/schemas/PaymentIntent"
+          },
+          "url": {
+            "type": "string",
+            "description": "Absolute hosted checkout URL for the buyer. Built from the API's CHECKOUT_BASE_URL, so a storefront never has to know the checkout host."
+          }
+        },
+        "required": [
+          "paymentIntent",
+          "url"
+        ]
+      },
       "PaymentLink": {
         "type": "object",
         "properties": {
@@ -1700,8 +1716,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       }
                     },
@@ -1742,8 +1758,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       },
                       "chain": {
@@ -1797,8 +1813,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH"
-
+                      "ETH",
+                      "BTC"
                     ]
                   },
                   "executionPath": {
@@ -2188,8 +2204,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       }
                     },
@@ -2307,8 +2323,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       }
                     },
@@ -2348,8 +2364,8 @@
                         "USDT",
                         "EURC",
                         "PYUSD",
-                        "ETH"
-
+                        "ETH",
+                        "BTC"
                       ]
                     },
                     "minItems": 1,
@@ -2523,7 +2539,8 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
-                            "ETH"
+                            "ETH",
+                            "BTC"
                           ]
                         }
                       },
@@ -2714,7 +2731,8 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
-                            "ETH"
+                            "ETH",
+                            "BTC"
                           ]
                         }
                       },
@@ -2824,8 +2842,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH"
-
+                      "ETH",
+                      "BTC"
                     ]
                   },
                   "provider": {
@@ -2864,8 +2882,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       },
                       "chain": {
@@ -2973,8 +2991,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH"
-
+                      "ETH",
+                      "BTC"
                     ]
                   },
                   "lines": {
@@ -3041,7 +3059,8 @@
                                     "USDT",
                                     "EURC",
                                     "PYUSD",
-                                    "ETH"
+                                    "ETH",
+                                    "BTC"
                                   ]
                                 }
                               },
@@ -3077,11 +3096,11 @@
         },
         "responses": {
           "201": {
-            "description": "Payment intent created from the cart.",
+            "description": "Payment intent created from the cart, with the absolute hosted checkout URL.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentIntent"
+                  "$ref": "#/components/schemas/CheckoutCartResponse"
                 }
               }
             }
@@ -3262,8 +3281,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       }
                     },
@@ -3301,8 +3320,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH"
-
+                      "ETH",
+                      "BTC"
                     ]
                   },
                   "lines": {
@@ -3395,7 +3414,8 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
-                            "ETH"
+                            "ETH",
+                            "BTC"
                           ]
                         }
                       },
@@ -3708,8 +3728,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH"
-
+                      "ETH",
+                      "BTC"
                     ]
                   },
                   "provider": {
@@ -3748,8 +3768,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       },
                       "chain": {
@@ -3832,8 +3852,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       }
                     },
@@ -4042,8 +4062,8 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
-                      "ETH"
-
+                      "ETH",
+                      "BTC"
                     ]
                   },
                   "lines": {
@@ -4095,7 +4115,8 @@
                                 "USDT",
                                 "EURC",
                                 "PYUSD",
-                                "ETH"
+                                "ETH",
+                                "BTC"
                               ]
                             }
                           },
@@ -4331,7 +4352,8 @@
                                 "USDT",
                                 "EURC",
                                 "PYUSD",
-                                "ETH"
+                                "ETH",
+                                "BTC"
                               ]
                             }
                           },
@@ -4697,8 +4719,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       },
                       "chain": {
@@ -4766,8 +4788,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       }
                     },
@@ -4987,8 +5009,8 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
-                          "ETH"
-
+                          "ETH",
+                          "BTC"
                         ]
                       }
                     },
@@ -5043,7 +5065,8 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
-                            "ETH"
+                            "ETH",
+                            "BTC"
                           ]
                         },
                         "contract": {

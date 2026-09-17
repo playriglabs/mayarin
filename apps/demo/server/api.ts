@@ -119,11 +119,6 @@ export function cartCheckoutBody(config: DemoConfig, request: CheckoutRequest): 
   };
 }
 
-/** The hosted payment page for a minted intent. Served by the API itself. */
-export function hostedPaymentUrl(config: DemoConfig, intentId: string): string {
-  return `${config.apiUrl}/checkout/pay/${encodeURIComponent(intentId)}`;
-}
-
 interface DemoWebhookEvent {
   readonly paymentIntentId: string;
   readonly state: string;
@@ -182,7 +177,9 @@ export function demoRoutes(
       const intent = await mayarin.commerce.carts.checkout(cartCheckoutBody(config, checkout), {
         idempotencyKey: `demo-order:${checkout.orderId}`,
       });
-      return json({ id: intent.id, url: hostedPaymentUrl(config, intent.id) });
+      // The buyer URL comes from the minted intent itself, so the storefront
+      // never needs to know which host the checkout lives on (RFC #163).
+      return json({ id: intent.id, url: intent.url });
     }
 
     if (request.method === "POST" && pathname === "/api/webhooks/mayarin") {

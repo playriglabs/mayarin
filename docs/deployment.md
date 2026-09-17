@@ -307,9 +307,12 @@ the smoke checks.
 Set `CHECKOUT_BASE_URL=https://pay-testnet.mayarin.xyz` on **both** the
 `core-api` and `dashboard-api` Railway services. `core-api` builds the
 payment-link and invoice `url` it returns to API clients (the SDK, the demo)
-from it; `dashboard-api` builds the link `url` + dashboard QR shown to
-merchants from it. Both default to `PUBLIC_BASE_URL`; the override points every
-buyer-facing URL at the pay host. No code change beyond the config field.
+from it, plus the `url` minted with every cart-checkout intent;
+`dashboard-api` builds the link `url` + dashboard QR shown to merchants from
+it. Both default to `PUBLIC_BASE_URL`; the override points every buyer-facing
+URL at the pay host. No code change beyond the config field. The demo
+storefront consumes the URL the API returns, so it needs no configuration of
+its own.
 
 ### Deploy the landing site
 

@@ -160,6 +160,18 @@ const paymentIntentSchema = z
   })
   .openapi("PaymentIntent");
 
+/** `POST /carts/checkout` — the minted intent plus the absolute buyer URL. */
+const checkoutCartResponseSchema = z
+  .object({
+    paymentIntent: paymentIntentSchema,
+    url: z
+      .string()
+      .describe(
+        "Absolute hosted checkout URL for the buyer. Built from the API's CHECKOUT_BASE_URL, so a storefront never has to know the checkout host.",
+      ),
+  })
+  .openapi("CheckoutCartResponse");
+
 const rateSchema = z
   .object({
     from: z.string(),
@@ -756,7 +768,10 @@ registry.registerPath({
   security: publishableOrSecretKey,
   request: { headers: idempotencyHeaders, body: jsonBody(checkoutCartBodySchema) },
   responses: {
-    "201": jsonResponse(paymentIntentSchema, "Payment intent created from the cart."),
+    "201": jsonResponse(
+      checkoutCartResponseSchema,
+      "Payment intent created from the cart, with the absolute hosted checkout URL.",
+    ),
     "400": errorResponse("Validation error."),
     "401": errorResponse("Missing or unknown API key."),
   },
