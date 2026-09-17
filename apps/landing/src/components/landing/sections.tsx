@@ -20,9 +20,10 @@ export function Hero() {
             </h1>
           </Reveal>
           <Reveal delay={120}>
-            <p class="mx-auto mt-7 max-w-155 text-base leading-relaxed text-slate-600 md:text-[17px]">
-              Accept crypto. Price in your local currency. Get paid in stablecoins.
-              <br class="hidden md:block" /> All the tools to bring your next sale closer.
+            <p class="mx-auto mt-7 max-w-165 text-base leading-relaxed text-slate-600 md:text-[17px]">
+              Payments infrastructure for the borderless economy.
+              <br class="hidden md:block" /> One integration, local-currency pricing, stablecoin
+              settlement, payouts in minutes.
             </p>
           </Reveal>
           <Reveal delay={240} class="mt-8 flex flex-wrap items-center justify-center gap-3">

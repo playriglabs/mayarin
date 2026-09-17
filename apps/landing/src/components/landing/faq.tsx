@@ -115,7 +115,7 @@ export function Faq() {
               </>
             }
           >
-            Short answers to what comes up before the first payment.
+            Short answers to what comes up.
           </SectionIntro>
         </Reveal>
         <Reveal delay={120} class="border-t border-line">

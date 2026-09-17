@@ -40,12 +40,5 @@
     "filename": "create-payment.ts",
     "lang": "typescript",
     "code": "import { createMayarin } from \"@mayarin/sdk\";\n\nconst mayarin = createMayarin({\n  baseUrl: \"https://api.mayarin.xyz\",\n  secretKey: process.env.MAYARIN_SECRET_KEY,\n});\n\nconst intent = await mayarin.payment.createIntent({\n  merchant: { id: \"M-1\", name: \"Warung Kopi\", city: \"Jakarta\", countryCode: \"ID\" },\n  amount: { amount: \"50000.00\", asset: \"IDR\" },\n});\n\nconsole.log(intent.amount.display); // \"Rp 50.000,00\"\n"
-  },
-  {
-    "id": "agent-payables",
-    "tab": "Agents",
-    "filename": "discover-and-pay.sh",
-    "lang": "shellscript",
-    "code": "# List an invoice so agents can find it.\ncurl -X POST https://api.mayarin.xyz/v1/invoices/invc_123/list \\\n  -H \"Authorization: Bearer $MAYARIN_SECRET_KEY\"\n\n# Any agent can discover it — no merchant id needed.\ncurl https://api.mayarin.xyz/x402/payables\n\n# Pay the full balance with one signature.\ncurl -i https://api.mayarin.xyz/x402/payables/invoice/invc_123 \\\n  -H \"PAYMENT-SIGNATURE: $AUTHORIZATION\"\n"
   }
 ]

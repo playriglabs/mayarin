@@ -5,13 +5,13 @@
 // to the 404 page, so `og:image` answered `404 text/html` and every social
 // card silently broke. Nothing to fetch, nothing to fail.
 
-import geistUrl from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?inline";
+import interTightUrl from "@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2?inline";
+import manropeUrl from "@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2?inline";
 import { Renderer } from "@takumi-rs/core";
 import type { APIRoute } from "astro";
 import { render } from "takumi-js";
 import { fromHtml } from "takumi-js/helpers/html";
 import { source } from "@/lib/source";
-import hbSetUrl from "../../../../../../landing/public/fonts/HBSetv0.96-Light.woff2?inline";
 import backgroundUrl from "../../../../../../landing/public/og-dynamic.jpeg?inline";
 
 // Renders an OpenGraph image per docs page. The URL is emitted by
@@ -64,12 +64,12 @@ export const GET: APIRoute = async ({ params }) => {
   // anything, and a string with no leading newline gives the HTML parser no
   // stray text node to lay out before it.
   const markup =
-    `<div style="display:flex;position:absolute;top:0;left:0;width:1200px;height:630px;background-color:#ffffff;color:#0a0a0a;font-family:HB Set,Helvetica,Arial,sans-serif;">
+    `<div style="display:flex;position:absolute;top:0;left:0;width:1200px;height:630px;background-color:#ffffff;color:#0a0a0a;font-family:Inter Tight,Helvetica,Arial,sans-serif;">
   <img src="${backgroundUrl}" alt="" style="position:absolute;top:0;left:0;width:1200px;height:630px;" />
   <div style="display:flex;flex-direction:column;justify-content:flex-end;width:1200px;height:630px;padding:72px 80px 72px ${TEXT_INSET}px;">
     <div style="display:flex;flex-direction:column;gap:26px;flex-shrink:0;">
-      <div style="display:flex;font-size:76px;font-weight:300;line-height:1.04;letter-spacing:-0.035em;max-width:${TEXT_COLUMN}px;word-break:break-word;overflow:hidden;">${escapeHtml(title)}</div>
-      <div style="display:flex;font-family:Geist Variable,sans-serif;font-size:21px;color:#64748b;">docs.mayarin.xyz</div>
+      <div style="display:flex;font-size:76px;font-weight:400;line-height:1.04;letter-spacing:-0.035em;max-width:${TEXT_COLUMN}px;word-break:break-word;overflow:hidden;">${escapeHtml(title)}</div>
+      <div style="display:flex;font-family:Manrope,sans-serif;font-size:21px;color:#64748b;">docs.mayarin.xyz</div>
     </div>
   </div>
 </div>`.trim();
@@ -102,20 +102,20 @@ export const GET: APIRoute = async ({ params }) => {
 /**
  * The renderer, built once per process with the brand's two faces.
  *
- * HB Set is the landing site's heading face and carries the title; Geist is its
- * body face and carries the one line of body text on the card. Registering only
- * these two is also what makes the fallback safe: with no face for a family,
- * the renderer reaches for whichever it does have.
+ * Inter Tight is the landing site's heading face and carries the title;
+ * Manrope is its body face and carries the one line of body text on the card.
+ * Registering only these two is also what makes the fallback safe: with no face
+ * for a family, the renderer reaches for whichever it does have.
  */
 let renderering: Promise<Renderer> | undefined;
 
 function brandRenderer(): Promise<Renderer> {
   renderering ??= (async () => {
     const renderer = new Renderer();
-    await renderer.registerFont({ name: "HB Set", data: decodeDataUri(hbSetUrl), weight: 300 });
+    await renderer.registerFont({ name: "Inter Tight", data: decodeDataUri(interTightUrl) });
     await renderer.registerFont({
-      name: "Geist Variable",
-      data: decodeDataUri(geistUrl),
+      name: "Manrope",
+      data: decodeDataUri(manropeUrl),
       generic: "sans-serif",
     });
     return renderer;

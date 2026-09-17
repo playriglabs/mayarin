@@ -185,14 +185,6 @@ export function Navigation() {
           href="#top"
           aria-label="Mayarin home"
         >
-          <img
-            src="/brand-kit/mayarin-logo-black.svg"
-            alt=""
-            aria-hidden="true"
-            width="48"
-            height="48"
-            class="md:size-12 size-10"
-          />
           <span class="font-medium font-sans -ml-1 text-[1.7rem] md:text-[1.8rem]">mayarin</span>
         </a>
 

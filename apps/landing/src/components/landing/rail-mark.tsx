@@ -28,10 +28,7 @@ export function RailMark({
   readonly size?: number;
 }) {
   const assetLogo = assetLogoUrl(asset);
-  // Ethereum is a marketing-only rail today, so it uses the same local mark as
-  // `NetworkMarks` without pretending it is already a product `ChainId`.
-  // Everything the product supports continues through the canonical helper.
-  const chainLogo = chain === "ethereum" ? "/chains/ethereum.svg" : chainLogoUrl(chain);
+  const chainLogo = chainLogoUrl(chain);
   const badge = Math.round(size * 0.45);
 
   return (

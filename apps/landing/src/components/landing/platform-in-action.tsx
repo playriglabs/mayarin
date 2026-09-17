@@ -25,7 +25,7 @@ const PLATFORM_VIEWS: readonly PlatformView[] = [
   },
   {
     eyebrow: "Payment links",
-    title: "Turn one link into every sale",
+    title: "Turn one link into every sales",
     description: "Share a checkout once and give every buyer a fresh payment of their own.",
     image: "/images/product/mayarin-payment-links.png",
     alt: "Mayarin payment links dashboard",

@@ -2,20 +2,31 @@ import { useEarlyAccess } from "../lib/early-access.ts";
 import { ScrambleText } from "./scramble-text.tsx";
 import { ArrowRight } from "./ui.tsx";
 
-/**
- * Four groups of four. Every link earns its line and lands somewhere real: the
- * three in-page anchors exist on both this landing and the V2 one, and every
- * other destination is a docs page that exists. The dashboard is absent on
- * purpose — the header already carries it.
- */
 const COLUMNS = [
+  {
+    heading: "Products",
+    links: [
+      { label: "Hosted checkout", href: "https://docs.mayarin.xyz/sdk/typescript/browser" },
+      {
+        label: "Payment links",
+        href: "https://docs.mayarin.xyz/sdk/typescript/commerce#payment-links",
+      },
+      { label: "Invoicing", href: "https://docs.mayarin.xyz/sdk/typescript/commerce#invoices" },
+      { label: "Agent payments", href: "https://docs.mayarin.xyz/guides/x402" },
+      { label: "WooCommerce", href: "https://docs.mayarin.xyz/guides/woocommerce" },
+    ],
+  },
   {
     heading: "Platform",
     links: [
-      { label: "How it works", href: "#platform" },
-      { label: "Agent payments", href: "https://docs.mayarin.xyz/guides/x402" },
-      { label: "Storefront plugin", href: "https://docs.mayarin.xyz/guides/woocommerce" },
-      { label: "Webhooks", href: "https://docs.mayarin.xyz/guides/webhooks" },
+      { label: "How it works", href: "/#platform" },
+      { label: "Payment capabilities", href: "/#capabilities" },
+      { label: "Currencies & networks", href: "/#reach" },
+      {
+        label: "Stablecoin settlement",
+        href: "https://docs.mayarin.xyz/concepts/payment-lifecycle",
+      },
+      { label: "Use cases", href: "/#use-cases" },
     ],
   },
   {
@@ -24,23 +35,15 @@ const COLUMNS = [
       { label: "Documentation", href: "https://docs.mayarin.xyz" },
       { label: "API reference", href: "https://docs.mayarin.xyz/api-reference" },
       { label: "TypeScript SDK", href: "https://docs.mayarin.xyz/sdk/typescript" },
-    ],
-  },
-  {
-    heading: "Concepts",
-    links: [
-      { label: "Payment lifecycle", href: "https://docs.mayarin.xyz/concepts/payment-lifecycle" },
-      { label: "Execution paths", href: "https://docs.mayarin.xyz/concepts/execution-paths" },
-      { label: "Money", href: "https://docs.mayarin.xyz/concepts/money" },
-      { label: "Error reference", href: "https://docs.mayarin.xyz/errors" },
+      { label: "Quickstart", href: "https://docs.mayarin.xyz/quickstart" },
     ],
   },
   {
     heading: "Resources",
     links: [
-      { label: "Use cases", href: "#use-cases" },
-      { label: "Principles", href: "#principles" },
-      { label: "Brand Kit", href: "/brand-kit/" },
+      { label: "FAQ", href: "/#faq" },
+      { label: "Changelog", href: "https://docs.mayarin.xyz/changelog" },
+      { label: "Brand kit", href: "/brand-kit/" },
     ],
   },
 ] as const;

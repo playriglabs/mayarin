@@ -5,8 +5,9 @@ import { Developers } from "../components/landing/developers.tsx";
 import { EarlyAccessCta } from "../components/landing/early-access-cta.tsx";
 import { Faq } from "../components/landing/faq.tsx";
 import { Navigation } from "../components/landing/nav.tsx";
+import { Opportunity } from "../components/landing/opportunity.tsx";
+import { PaymentReach } from "../components/landing/payment-reach.tsx";
 import { PlatformInAction } from "../components/landing/platform-in-action.tsx";
-import { Principles } from "../components/landing/principles.tsx";
 import { Reach } from "../components/landing/reach.tsx";
 import { Hero, ValueStrip } from "../components/landing/sections.tsx";
 import { UseCases } from "../components/landing/use-cases.tsx";
@@ -23,13 +24,14 @@ export function Landing() {
         <Navigation />
         <main id="main">
           <Hero />
+          <Opportunity />
+          <PaymentReach />
           <ValueStrip />
           <Capabilities />
           <PlatformInAction />
-          <Developers />
           <UseCases />
           <Reach />
-          <Principles />
+          <Developers />
           <Faq />
           <EarlyAccessCta />
         </main>

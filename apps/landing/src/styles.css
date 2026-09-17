@@ -1,12 +1,11 @@
 @import "tailwindcss";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/geist/wght-italic.css";
+@import "@fontsource-variable/manrope";
 @import "@fontsource-variable/geist-mono";
 @import "@fontsource/cascadia-code/latin-400.css";
 @import "@fontsource/cascadia-code/latin-500.css";
 @import "@fontsource/cascadia-code/latin-600.css";
 @import "@fontsource/instrument-serif/latin-400-italic.css";
-@import "@fontsource/google-sans";
+@import "@fontsource-variable/inter-tight";
 
 @theme {
   /* Product landing V2: soft illustration surfaces, paired with accessible ink. */
@@ -32,11 +31,12 @@
   --color-slate-inverse: #8a8a8a;
 
   --font-heading:
-    "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "Inter Tight Variable", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
   --font-display: var(--font-heading);
   --font-motion: "Instrument Serif", Georgia, "Times New Roman", serif;
   --font-sans:
-    "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Manrope Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   --font-mono:
     "Cascadia Code", "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo,
@@ -110,7 +110,7 @@
   h2,
   h3 {
     font-family: var(--font-heading);
-    font-weight: 300;
+    font-weight: 400;
     letter-spacing: -0.2rem;
     line-height: 1.02;
     text-wrap: balance;
@@ -129,7 +129,7 @@
   }
 }
 
-/* Keep every semantic landing heading on Google Sans, including headings that carry
+/* Keep every semantic landing heading on Inter Tight, including headings that carry
    a Tailwind font utility for their sizing or weight. */
 h1,
 h2,
@@ -279,4 +279,20 @@ h3 {
   #platform-track {
     scroll-snap-type: none;
   }
+}
+
+/* Orbit discs are placed by SMIL `animateMotion`, but the negative `begin`
+   offsets only apply once the animation clock is running — the paint before
+   that shows every disc at the viewBox origin. Hidden until the component
+   mounts and the timeline is live, then faded in on-path. The static
+   reduced-motion variant is explicitly translated, so it never hides. */
+.orbit-animated {
+  opacity: 0;
+}
+
+.orbits-ready .orbit-animated {
+  opacity: 1;
+  transition:
+    opacity 600ms var(--ease-out-expo),
+    visibility 0s;
 }

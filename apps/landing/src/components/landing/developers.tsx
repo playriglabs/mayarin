@@ -31,13 +31,13 @@ const DEVELOPER_CARDS = [
     snippet: SNIPPETS.get("x402-gate"),
   },
   {
-    eyebrow: "Agents",
-    title: "Let agents find you and pay you",
+    eyebrow: "Webhooks",
+    title: "Know the moment money lands",
     description:
-      "List an invoice, payment link or endpoint so an agent can discover it without a merchant id. It pays with one signature over HTTP or MCP, into the same ledger as every other sale.",
-    cta: "See what an agent can pay",
-    href: `${DOCS_URL}/guides/x402#payables-what-an-agent-can-find-and-pay`,
-    snippet: SNIPPETS.get("agent-payables"),
+      "Every state change posts a signed webhook to your server — verify the signature, then fetch the payment before you fulfil. The same event log keeps every step, so any payment can be replayed or audited later.",
+    cta: "Read the webhooks guide",
+    href: `${DOCS_URL}/guides/webhooks`,
+    snippet: SNIPPETS.get("webhook"),
   },
 ] as const;
 
@@ -140,7 +140,11 @@ export function Developers() {
           label="For developers"
           title={
             <>
-              Built for Developers, <span>by Developers</span>
+              Built for Developers,
+              <span>
+                <br />
+                Scaling their payment.
+              </span>
             </>
           }
         >

@@ -95,6 +95,10 @@ export function PaymentOrbits() {
     reducedMotion.addEventListener("change", syncPlayback);
     document.addEventListener("visibilitychange", syncPlayback);
     syncPlayback();
+    // SMIL discs paint at the viewBox origin until the animation clock applies
+    // their negative `begin` offsets, so they stay hidden until the timeline is
+    // running — which also means the first position the viewer sees is on-path.
+    svg.classList.add("orbits-ready");
     return () => {
       observer.disconnect();
       reducedMotion.removeEventListener("change", syncPlayback);
@@ -123,7 +127,7 @@ export function PaymentOrbits() {
           />
           {orbit.payments.map((payment) => (
             <g key={payment.code}>
-              <g class="motion-reduce:hidden">
+              <g class="orbit-animated motion-reduce:hidden">
                 <animateMotion
                   dur={orbit.duration}
                   begin={payment.begin}

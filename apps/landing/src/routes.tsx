@@ -34,7 +34,7 @@ export const routes: readonly Route[] = [
     meta: {
       title: "Mayarin — A world of ways to pay",
       description:
-        "Accept crypto, price in your local currency, and get paid in stablecoins. Explore Mayarin checkout, payment links, invoices, and your payment workspace.",
+        "Payments infrastructure for the borderless economy. Local-currency pricing, stablecoin settlement, payouts in minutes — checkout, payment links, invoices, and your payment workspace in one integration.",
       canonical: `${SITE_URL}/`,
     },
   },

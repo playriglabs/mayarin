@@ -58,7 +58,9 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
               <Check />
             </span>
             <p class="mt-3 text-xs font-medium text-ink">Equivalent in local currency</p>
-            <strong class="mt-1 block text-2xl font-medium tracking-tight">Rp 1.500.000</strong>
+            <div class="mt-2 items-center justify-center">
+              <strong class="block text-xl font-medium tracking-tight">22,83 $S</strong>
+            </div>
           </div>
         </div>
       </Frame>
@@ -82,7 +84,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
               <RailMark asset={rail.asset} chain={rail.chain} size={28} />
               <div>
                 <p>{rail.asset}</p>
-                <p class="text-[10px] text-slate-600">{networkName(rail.chain)}</p>
+                <p class="text-[10px] mt-1 text-slate-600">{networkName(rail.chain)}</p>
               </div>
               <span
                 class={clsx(
