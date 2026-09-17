@@ -16,6 +16,15 @@ import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match, P } from "ts-pattern";
 import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  type ComboboxOption,
+} from "@/components/ui/combobox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
@@ -27,6 +36,13 @@ import { withQuery } from "@/lib/with-query";
 
 /** Mirrors the API's floor. Stated up front rather than only on rejection. */
 const MIN_PASSWORD_LENGTH = 12;
+
+const COUNTRY_OPTIONS = [...COUNTRIES]
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map((country) => ({
+    value: country.code,
+    label: `${String.fromCodePoint(...Array.from(country.code, (letter) => 0x1f1e6 + letter.charCodeAt(0) - 65))} ${country.name} (${country.code})`,
+  }));
 
 type FormState =
   | { readonly status: "idle" }
@@ -48,7 +64,7 @@ function RegisterForm() {
 
   function onSubmit(event: { preventDefault(): void }) {
     event.preventDefault();
-    if (tooShort) return;
+    if (tooShort || countryCode === "") return;
     setState({ status: "submitting" });
     register.mutate(
       { email, password, merchantName, countryCode, city: city.trim() },
@@ -106,41 +122,34 @@ function RegisterForm() {
           />
         </Field>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_2fr]">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="register-country">Country</FieldLabel>
-            <div className="relative">
-              {countryCode && (
-                <img
-                  src={`https://flagcdn.com/${countryCode.toLowerCase()}.svg`}
-                  alt=""
-                  aria-hidden="true"
-                  width={20}
-                  height={14}
-                  className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-5 -translate-y-1/2 rounded-xs object-cover"
-                />
-              )}
-              <select
+            <Combobox
+              items={COUNTRY_OPTIONS}
+              name="countryCode"
+              value={countryCode}
+              onValueChange={setCountryCode}
+              disabled={submitting}
+            >
+              <ComboboxInput
                 id="register-country"
-                name="countryCode"
                 required
-                autoComplete="country"
-                value={countryCode}
-                onChange={(event) => setCountryCode(event.target.value)}
-                disabled={submitting}
+                placeholder="Search country or code"
                 aria-describedby={errorId}
-                className={`h-12 w-full rounded-lg border border-input bg-card pr-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 ${countryCode ? "pl-12" : "pl-4"}`}
-              >
-                <option value="" disabled>
-                  Select
-                </option>
-                {COUNTRIES.filter((country) => country.supported).map((country) => (
-                  <option key={country.code} value={country.code} label={country.code}>
-                    {country.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+                className="h-12 pl-4"
+              />
+              <ComboboxContent align="start" className="w-(--anchor-width)">
+                <ComboboxEmpty>No countries found.</ComboboxEmpty>
+                <ComboboxList>
+                  {(country: ComboboxOption) => (
+                    <ComboboxItem key={country.value} value={country}>
+                      {country.label}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </Field>
           <Field>
             <FieldLabel htmlFor="register-city">City</FieldLabel>
@@ -228,7 +237,7 @@ function RegisterForm() {
 
       <Button
         type="submit"
-        disabled={submitting || tooShort}
+        disabled={submitting || tooShort || countryCode === ""}
         className="login-submit h-12 w-full px-6 text-xl"
       >
         {submitting ? "Processing.." : "Create account"}

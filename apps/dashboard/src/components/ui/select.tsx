@@ -155,8 +155,12 @@ function SelectContent({
   className,
   children,
   sideOffset = 4,
+  align = "center",
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Popup> & { sideOffset?: number }) {
+}: React.ComponentProps<typeof SelectPrimitive.Popup> & {
+  sideOffset?: number;
+  align?: "start" | "center" | "end";
+}) {
   const { open, actionsRef } = React.useContext(SelectContext);
   return (
     <AnimatePresence onExitComplete={() => actionsRef.current?.unmount()}>
@@ -164,6 +168,7 @@ function SelectContent({
         <SelectPrimitive.Portal>
           <SelectPrimitive.Positioner
             sideOffset={sideOffset}
+            align={align}
             alignItemWithTrigger={false}
             className="z-80"
           >

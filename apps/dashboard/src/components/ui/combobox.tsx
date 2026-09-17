@@ -123,14 +123,18 @@ function ComboboxContent({
   className,
   children,
   sideOffset = 4,
+  align = "center",
   ...props
-}: React.ComponentProps<typeof ComboboxPrimitive.Popup> & { sideOffset?: number }) {
+}: React.ComponentProps<typeof ComboboxPrimitive.Popup> & {
+  sideOffset?: number;
+  align?: "start" | "center" | "end";
+}) {
   const { open, actionsRef } = React.useContext(ComboboxContext);
   return (
     <AnimatePresence onExitComplete={() => actionsRef.current?.unmount()}>
       {open && (
         <ComboboxPrimitive.Portal>
-          <ComboboxPrimitive.Positioner sideOffset={sideOffset} className="z-50">
+          <ComboboxPrimitive.Positioner sideOffset={sideOffset} align={align} className="z-50">
             <ComboboxPrimitive.Popup
               data-slot="combobox-content"
               className={cn(
@@ -167,7 +171,7 @@ function ComboboxEmpty({
   return (
     <ComboboxPrimitive.Empty
       data-slot="combobox-empty"
-      className={cn("px-2.5 py-3 text-sm text-subtle-foreground", className)}
+      className={cn("empty:hidden px-2.5 py-3 text-sm text-subtle-foreground", className)}
       {...props}
     />
   );
