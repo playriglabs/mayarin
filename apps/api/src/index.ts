@@ -32,9 +32,12 @@ await container.walletGuard.assertTreasuryUnclaimed(CHAIN_IDS);
 // to sign. Two fields of an x402 offer — the transfer method and the EIP-712
 // domain — are facts about a deployed contract, and a deployment that got
 // either wrong from configuration hands out signatures the token will refuse.
-// Failing here is loud; failing at the first 402 is a payer's problem.
+// A token that cannot serve x402 is logged, not fatal: it may still settle on
+// the contract or deposit path, and a request drops it from any offer.
 if (container.x402 !== undefined) {
-  await container.x402.warmUp();
+  for (const { pair, reason } of await container.x402.warmUp()) {
+    console.warn(`[api] x402 unavailable for ${pair.contract} on ${pair.chain}: ${reason}`);
+  }
   console.log("[api] x402 asset capabilities probed");
 }
 

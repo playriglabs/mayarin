@@ -76,4 +76,33 @@ function AssetAmount({
   );
 }
 
-export { AssetAmount, AssetLabel, AssetLogo };
+/**
+ * Several assets as one overlapping group, the way `ChainStack` draws networks.
+ * Each disc carries a ring in the card's colour so they separate while touching.
+ * Decorative: the caller names the assets in text for assistive technology.
+ */
+function AssetStack({
+  assets,
+  size = 20,
+  className,
+}: {
+  readonly assets: readonly string[];
+  readonly size?: number;
+  readonly className?: string;
+}) {
+  if (assets.length === 0) return null;
+  return (
+    <span className={cn("flex items-center", className)} aria-hidden="true">
+      {assets.map((asset, index) => (
+        <AssetLogo
+          key={asset}
+          symbol={asset}
+          size={size}
+          className={cn("rounded-[50%] ring-2 ring-card", index > 0 && "-ml-2")}
+        />
+      ))}
+    </span>
+  );
+}
+
+export { AssetAmount, AssetLabel, AssetLogo, AssetStack };

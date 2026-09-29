@@ -290,13 +290,10 @@ export class X402Service {
   }
 
   /**
-   * Ask every configured token what it implements, before serving anything.
-   *
-   * Optional by design: a lookup probes on demand, so this only moves the
-   * failure from a payer's first request to startup. An entry point that would
-   * rather find out now calls it.
+   * Ask every configured token what it implements, before serving anything,
+   * and return the ones that cannot serve x402 and why.
    */
-  warmUp(): Promise<void> {
+  warmUp(): ReturnType<AssetCapabilities["warmUp"]> {
     return this.#options.capabilities.warmUp();
   }
 

@@ -17,16 +17,16 @@
  */
 
 import { Tabs } from "@base-ui-components/react/tabs";
+import { chainLabel } from "@mayarin/chain";
 import { BankIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
-import { AssetLabel } from "@/components/asset-logo";
+import { AssetLabel, AssetLogo } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Combobox,
   ComboboxContent,
@@ -68,6 +68,7 @@ import { ApiError } from "@/lib/api/client";
 import { COUNTRIES } from "@/lib/countries";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
 import type { SettingsDto } from "@/types/settings";
 
@@ -293,26 +294,44 @@ function Settings() {
                 value={activeTab}
                 onValueChange={(value) => setActiveTab(value as SettingsTab)}
               >
-                <Tabs.List
-                  aria-label="Settings sections"
-                  className="flex w-full overflow-x-auto border-border border-b"
-                >
-                  {(
-                    [
-                      ["settlement", "Settlement"],
-                      ["profile", "Profile location"],
-                      ["history", "Change history"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <Tabs.Tab
-                      key={value}
-                      value={value}
-                      className="min-h-11 shrink-0 cursor-pointer border-transparent border-b-2 px-4 font-sans text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-active:border-brand data-active:text-foreground dark:data-active:border-electric"
+                {/* Save sits on the tab row, not under the form: the settlement
+                    form runs past the fold, and a button below it was the one
+                    control a merchant had to scroll to find. */}
+                <div className="flex items-center gap-3 border-border border-b">
+                  <Tabs.List
+                    aria-label="Settings sections"
+                    className="flex min-w-0 flex-1 overflow-x-auto"
+                  >
+                    {(
+                      [
+                        ["settlement", "Settlement"],
+                        ["profile", "Profile location"],
+                        ["history", "Change history"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Tabs.Tab
+                        key={value}
+                        value={value}
+                        className="min-h-11 shrink-0 cursor-pointer border-transparent border-b-2 px-4 font-sans text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-active:border-brand data-active:text-foreground dark:data-active:border-electric"
+                      >
+                        {label}
+                      </Tabs.Tab>
+                    ))}
+                  </Tabs.List>
+                  {activeTab !== "history" && (
+                    <Button
+                      size="sm"
+                      onClick={save}
+                      disabled={
+                        update.isPending ||
+                        addressInvalid ||
+                        JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
+                      }
                     >
-                      {label}
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
+                      {update.isPending ? "Saving…" : "Save settings"}
+                    </Button>
+                  )}
+                </div>
 
                 <Tabs.Panel value="settlement" className="pt-6 focus-visible:outline-none">
                   <Card className="flex flex-col gap-4 p-4">
@@ -367,28 +386,75 @@ function Settings() {
                     {!rails.isPending && !rails.isError && supportedChains.length > 0 && (
                       <Field>
                         <FieldLabel>Accepted assets per network</FieldLabel>
-                        <div className="flex flex-wrap justify-center gap-3 pt-1">
+                        {/* One row per network, not a card each: the cards wrapped
+                            into a centred, ragged second row, and every one of them
+                            repeated a "Default" badge that said nothing. Only a
+                            customised network carries a badge now. */}
+                        <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
                           {supportedChains.map((entry) => {
                             const accepted = acceptedOn(draft, entry.chain, entry.assets);
                             const customized =
                               draft.acceptedAssetsByChain[entry.chain] !== undefined;
+                            // The settlement asset first, the rest alphabetically, so an
+                            // asset sits in the same place on every network.
+                            const assets = [...entry.assets].sort((x, y) =>
+                              x === draft.settlementAsset
+                                ? -1
+                                : y === draft.settlementAsset
+                                  ? 1
+                                  : x.localeCompare(y),
+                            );
                             return (
-                              <div
+                              <li
                                 key={entry.chain}
-                                className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3 basis-full md:basis-[calc(50%-0.375rem)] lg:basis-[calc(33.333%-0.5rem)]"
+                                className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-4"
                               >
-                                {/* A fixed row height, the height of the Reset button:
-                                    a card without one otherwise sits shorter, and its
-                                    assets land higher than the cards beside it. */}
-                                <div className="flex min-h-7 items-center justify-between gap-3">
-                                  <p className="font-medium text-sm">
-                                    <ChainLabel chain={entry.chain} />
-                                  </p>
-                                  <span className="flex items-center gap-2">
-                                    <Badge variant={customized ? "brand" : "default"}>
-                                      {customized ? "Custom" : "Default"}
-                                    </Badge>
-                                    {customized && (
+                                <span className="font-medium text-sm sm:w-44 sm:shrink-0">
+                                  <ChainLabel chain={entry.chain} className="whitespace-nowrap" />
+                                </span>
+                                <fieldset
+                                  aria-label={`Assets accepted on ${chainLabel(entry.chain)}`}
+                                  className="m-0 flex min-w-0 flex-1 flex-wrap gap-2 border-0 p-0"
+                                >
+                                  {assets.map((asset) => {
+                                    const on = accepted.includes(asset);
+                                    // Each network keeps at least one asset.
+                                    const locked = on && accepted.length === 1;
+                                    return (
+                                      <button
+                                        key={asset}
+                                        type="button"
+                                        aria-pressed={on}
+                                        disabled={locked}
+                                        title={
+                                          locked
+                                            ? "Each network keeps at least one asset"
+                                            : undefined
+                                        }
+                                        onClick={() =>
+                                          toggleChainAsset(entry.chain, asset, !on, entry.assets)
+                                        }
+                                        className={cn(
+                                          "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed",
+                                          on
+                                            ? "border-brand bg-brand/10 text-foreground dark:border-electric dark:bg-electric/10"
+                                            : "border-border text-muted-foreground hover:text-foreground",
+                                        )}
+                                      >
+                                        <AssetLogo
+                                          symbol={asset}
+                                          size={16}
+                                          className={on ? "" : "opacity-50 grayscale"}
+                                        />
+                                        {asset}
+                                      </button>
+                                    );
+                                  })}
+                                </fieldset>
+                                <span className="flex min-h-8 items-center gap-2 sm:justify-end">
+                                  {customized && (
+                                    <>
+                                      <Badge variant="brand">Custom</Badge>
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -397,38 +463,13 @@ function Settings() {
                                       >
                                         Reset
                                       </Button>
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-4">
-                                  {entry.assets.map((asset) => (
-                                    <span key={asset} className="flex items-center gap-2 text-sm">
-                                      <Checkbox
-                                        id={`accepted-${entry.chain}-${asset}`}
-                                        checked={accepted.includes(asset)}
-                                        disabled={accepted.length === 1 && accepted.includes(asset)}
-                                        onCheckedChange={(checked) =>
-                                          toggleChainAsset(
-                                            entry.chain,
-                                            asset,
-                                            checked === true,
-                                            entry.assets,
-                                          )
-                                        }
-                                      />
-                                      <label
-                                        htmlFor={`accepted-${entry.chain}-${asset}`}
-                                        className="flex items-center"
-                                      >
-                                        <AssetLabel symbol={asset} size={18} />
-                                      </label>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
+                                    </>
+                                  )}
+                                </span>
+                              </li>
                             );
                           })}
-                        </div>
+                        </ul>
                         <FieldDescription>
                           Choose what payers can send on each network. Only assets a network can
                           receive are listed, and each keeps at least one.
@@ -609,21 +650,6 @@ function Settings() {
                   )}
                 </Tabs.Panel>
               </Tabs.Root>
-
-              {activeTab !== "history" && (
-                <div className="flex justify-end">
-                  <Button
-                    onClick={save}
-                    disabled={
-                      update.isPending ||
-                      addressInvalid ||
-                      JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
-                    }
-                  >
-                    {update.isPending ? "Saving…" : "Save settings"}
-                  </Button>
-                </div>
-              )}
             </>
           );
         })}

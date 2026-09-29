@@ -83,11 +83,18 @@ const MAINNET_OF: Readonly<Record<string, string>> = {
 /**
  * The network mark shown beside a chain name.
  *
- * Arc is local because it is not in Trust Wallet's registry yet. Its argument
- * lets each frontend hand Vite or Astro the public URL it actually serves.
+ * Arc and Robinhood are local because neither is in Trust Wallet's registry.
+ * Robinhood's own mark is a black feather on transparency, invisible on a dark
+ * surface, so the local file sets it on the brand's lime disc. The arguments
+ * let each frontend hand Vite or Astro the public URL it actually serves.
  */
-export function chainLogoUrl(chain: string, arcLogo = "/chains/arc.svg"): string | undefined {
+export function chainLogoUrl(
+  chain: string,
+  arcLogo = "/chains/arc.svg",
+  robinhoodLogo = "/chains/robinhood.svg",
+): string | undefined {
   if (chain === "arc-testnet") return arcLogo;
+  if (chain === "robinhood-testnet") return robinhoodLogo;
   return TRUST_WALLET_CHAIN_LOGOS[MAINNET_OF[chain] ?? chain];
 }
 

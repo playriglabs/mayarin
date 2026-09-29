@@ -49,7 +49,8 @@ describe("chain facts", () => {
     // A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet.
     expect(chainLogoUrl("arbitrum-sepolia")).toBe(chainLogoUrl("arbitrum"));
     expect(chainLogoUrl("arc-testnet", "/arc.svg")).toBe("/arc.svg");
-    expect(chainLogoUrl("robinhood-testnet")).toBeUndefined();
+    expect(chainLogoUrl("robinhood-testnet")).toBe("/chains/robinhood.svg");
+    expect(chainLogoUrl("robinhood-testnet", "/arc.svg", "/rh.svg")).toBe("/rh.svg");
   });
 });
 

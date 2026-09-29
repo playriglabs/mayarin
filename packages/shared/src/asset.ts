@@ -138,6 +138,7 @@ const DEFINITIONS = {
    */
   EURC: { kind: "stablecoin", decimals: 6, dustThreshold: 10_000n, name: "Euro Coin" },
   PYUSD: { kind: "stablecoin", decimals: 6, name: "PayPal USD" },
+  USDG: { kind: "stablecoin", decimals: 6, name: "Global Dollar" },
 
   // Native crypto
   ETH: {
@@ -157,7 +158,7 @@ export type AssetCode = keyof typeof DEFINITIONS;
 export const ASSET_CODES = Object.keys(DEFINITIONS) as readonly AssetCode[];
 
 /**
- * Token artwork from Trust Wallet's public asset registry.
+ * Token artwork, from Trust Wallet's public asset registry unless noted.
  *
  * The components accept strings from API responses. Fiat values deliberately
  * have no remote logo and render as a compact monogram in the UI.
@@ -167,13 +168,15 @@ export const ASSET_CODES = Object.keys(DEFINITIONS) as readonly AssetCode[];
  * argument lets each frontend hand Vite or Astro the public URL it serves, the
  * same way `chainLogoUrl` handles the local Arc logo.
  */
-const TRUST_WALLET_ASSET_LOGOS: Readonly<Record<string, string>> = {
+const ASSET_LOGOS: Readonly<Record<string, string>> = {
   BTC: "https://assets-cdn.trustwallet.com/blockchains/bitcoin/info/logo.png",
   ETH: "https://assets-cdn.trustwallet.com/blockchains/ethereum/info/logo.png",
   EURC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
   PYUSD:
     "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x6c3ea9036406852006290770BEdFcAbA0e23A0e8/logo.png",
   USDC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",
+  // Trust Wallet serves a monochrome USDG mark; CoinGecko has the brand-colour one.
+  USDG: "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png",
 };
 
 /**
@@ -184,7 +187,7 @@ const TRUST_WALLET_ASSET_LOGOS: Readonly<Record<string, string>> = {
  */
 export function assetLogoUrl(symbol: string, usdtLogo = "/tokens/usdt.svg"): string | undefined {
   if (symbol.toUpperCase() === "USDT") return usdtLogo;
-  return TRUST_WALLET_ASSET_LOGOS[symbol.toUpperCase()];
+  return ASSET_LOGOS[symbol.toUpperCase()];
 }
 
 const REGISTRY: Readonly<Record<AssetCode, AssetDefinition>> = Object.fromEntries(
