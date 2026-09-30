@@ -159,6 +159,18 @@ never patched in place. A registry half-updated from two snapshots is a state
 nothing else in the codebase can express, and it would surface as a mis-priced
 payment rather than as an error.
 
+**Execution reads the same `uniswapPools` as pricing.** The contract checkout,
+the deposit-path treasury executor and the x402 cross-asset settler all build
+their swap routes from the runtime pool set on every route
+(`RuntimeRouteSource`). The executor and settler used to freeze the `.env` pools
+at boot, so a pool added through the admin endpoint priced a payment and then
+failed it at `CLEARING` with "Uniswap has no configured pool".
+
+A pool is only half of a new settlement pair. The chain's `PaymentRouter` must
+also whitelist the settlement asset (`addSettlementAsset`, via
+`ConfigurePaymentRouter.s.sol` with `SETTLEMENT_ASSETS`), or the swap reverts
+on-chain. That whitelist is a contract call, not market config.
+
 The snapshot is cached for a few seconds, so the payment path pays one query per
 window rather than one per quote. A write through the admin endpoint drops that
 cache immediately; a write made directly to the table is picked up when the

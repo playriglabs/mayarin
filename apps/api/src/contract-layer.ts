@@ -24,7 +24,12 @@ import type {
   ContractPaymentPlanner,
   FeePolicy,
 } from "@mayarin/clearing";
-import type { ExecutableRoute, SwapRouteSource } from "@mayarin/execution";
+import {
+  type ExecutableRoute,
+  FallbackRouteSource,
+  type RouteRequest,
+  type SwapRouteSource,
+} from "@mayarin/execution";
 import type { MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
 import { buildPayEthCall, deriveIntentId, type RouterCall } from "@mayarin/provider-evm";
 import { ZeroExRouteSource } from "@mayarin/provider-swap-0x";
@@ -495,6 +500,32 @@ function orderRouteSources(
     .filter(([name]) => name !== pricedBy)
     .map(([, source]) => source);
   return [preferred, ...rest];
+}
+
+/**
+ * Every route-capable venue, rebuilt from the runtime pools on each route.
+ *
+ * The treasury executor and the x402 cross-asset settler are built once at
+ * boot. Handing them `createRouteSources(config)` froze the `.env` pools, so a
+ * pool added through the admin API (#95) priced a payment — the quote layer
+ * reads the runtime config — and then failed it at execution with "Uniswap has
+ * no configured pool". Resolving per route keeps pricing and execution on the
+ * same pool set, the way the contract checkout already does.
+ */
+export class RuntimeRouteSource implements SwapRouteSource {
+  readonly name = "runtime";
+  readonly #config: Config;
+  readonly #pools: () => Promise<Config["uniswapPools"]>;
+
+  constructor(config: Config, pools: () => Promise<Config["uniswapPools"]>) {
+    this.#config = config;
+    this.#pools = pools;
+  }
+
+  async route(request: RouteRequest): Promise<ExecutableRoute> {
+    const sources = [...createRouteSources(this.#config, await this.#pools()).values()];
+    return new FallbackRouteSource(sources).route(request);
+  }
 }
 
 /** Builds the route sources the checkout fetches from, keyed by venue name. */
