@@ -638,6 +638,39 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
+  path: "/v1/payments/{id}/invoice.pdf",
+  tags: ["Payments"],
+  operationId: "getPaymentInvoicePdf",
+  summary: "Download the payment's invoice",
+  description:
+    "A one-page PDF invoice, rendered on request from the payment's immutable snapshots. An intent minted from an invoice prints that invoice's number and buyer; any other payment prints a number derived from its id.",
+  security: noAuth,
+  request: { params: idParams },
+  responses: {
+    "200": { description: "The invoice.", content: { "application/pdf": { schema: z.string() } } },
+    "404": errorResponse("No payment with that id."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/payments/{id}/receipt.pdf",
+  tags: ["Payments"],
+  operationId: "getPaymentReceiptPdf",
+  summary: "Download the payment's receipt",
+  description:
+    "A one-page PDF receipt with the settlement proof: the asset paid, network, locked rate, settled amount, fee and transaction hash. Available once the payment has completed.",
+  security: noAuth,
+  request: { params: idParams },
+  responses: {
+    "200": { description: "The receipt.", content: { "application/pdf": { schema: z.string() } } },
+    "404": errorResponse("No payment with that id."),
+    "409": errorResponse("The payment has not completed yet."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
   path: "/v1/payments/{id}/contract-call",
   tags: ["Payments"],
   operationId: "getPaymentContractCall",

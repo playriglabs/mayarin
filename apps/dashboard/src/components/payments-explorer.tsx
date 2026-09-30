@@ -10,7 +10,7 @@
  * hears the list change when they type — the visual row count is not enough.
  */
 
-import { MagnifyingGlassIcon, ReceiptIcon } from "@phosphor-icons/react";
+import { DownloadSimpleIcon, MagnifyingGlassIcon, ReceiptIcon } from "@phosphor-icons/react";
 import { useDeferredValue, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
@@ -50,6 +50,7 @@ import {
 import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { usePaymentPage } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
+import { listPath } from "@/lib/api/list-path";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
@@ -197,10 +198,23 @@ function PaymentsExplorer() {
         </div>
       </div>
 
-      <p aria-live="polite" className="font-mono text-xs text-subtle-foreground">
-        {payments.status === "success" &&
-          `${rows.length} payment${rows.length === 1 ? "" : "s"} loaded`}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p aria-live="polite" className="font-mono text-xs text-subtle-foreground">
+          {payments.status === "success" &&
+            `${rows.length} payment${rows.length === 1 ? "" : "s"} loaded`}
+        </p>
+        {/* Every payment the filters match, not just this page (#294). A plain
+            link: the browser streams the download through the same-origin proxy
+            with the session cookie, so nothing is buffered in the page. */}
+        <a
+          href={`/api/v1${listPath("/payments/export.csv", { ...filter, limit: undefined })}`}
+          download
+          className={buttonVariants({ variant: "secondary", size: "sm" })}
+        >
+          <DownloadSimpleIcon size={14} aria-hidden="true" />
+          Export CSV
+        </a>
+      </div>
 
       {match(payments)
         .with({ status: "pending" }, () => (

@@ -28,6 +28,9 @@ import { cursorPage, decodeCursor } from "../pagination.ts";
 /** The slice of `ClearingRepository` a read-only dashboard needs. */
 export interface ClearingReadRepository {
   findByPaymentIntentId(paymentIntentId: string): Promise<ClearingTransaction | null>;
+  listByPaymentIntentIds(
+    paymentIntentIds: readonly string[],
+  ): Promise<readonly ClearingTransaction[]>;
   listEvents(clearingTransactionId: string): Promise<readonly ClearingEvent[]>;
 }
 
@@ -60,6 +63,18 @@ export interface PaymentPage {
 }
 
 export type PaymentListAllFilter = Omit<PaymentListFilter, "limit" | "cursor">;
+
+/** One exported payment: the intent and what clearing made of it. */
+export interface PaymentExportRow {
+  readonly intent: PaymentIntent;
+  readonly transaction: ClearingTransaction | null;
+}
+
+/**
+ * Rows per export page. Larger than a screen page on purpose: an export walks
+ * every page, and each page is two queries however many rows it holds.
+ */
+const EXPORT_PAGE_SIZE = 200;
 
 export class PaymentReadService {
   readonly #intents: PaymentIntentRepository;
@@ -129,6 +144,50 @@ export class PaymentReadService {
     } while (cursor !== undefined);
 
     return items;
+  }
+
+  /**
+   * Every payment the filter matches, a page at a time, each with its clearing
+   * transaction (#294). A generator so the caller can stream: a merchant with a
+   * year of payments is never held in memory at once.
+   */
+  async *exportPages(
+    scope: Scope,
+    filter: PaymentListAllFilter = {},
+  ): AsyncGenerator<readonly PaymentExportRow[]> {
+    const sort = filter.sort;
+    let cursor: ListPaymentIntentsOptions["cursor"];
+    do {
+      const rows = await this.#intents.list({
+        limit: EXPORT_PAGE_SIZE + 1,
+        merchantId: scope.merchantId,
+        ...(filter.q === undefined ? {} : { q: filter.q }),
+        ...(filter.status === undefined ? {} : { status: filter.status }),
+        ...(sort === undefined ? {} : { sort }),
+        ...(filter.from === undefined ? {} : { from: filter.from }),
+        ...(filter.to === undefined ? {} : { to: filter.to }),
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      const items = rows.slice(0, EXPORT_PAGE_SIZE);
+      const transactions = await this.#clearing.listByPaymentIntentIds(
+        items.map((intent) => intent.id),
+      );
+      const byIntent = new Map(transactions.map((t) => [t.paymentIntentId, t]));
+      yield items.map((intent) => ({
+        intent: this.#withExpiredView(intent),
+        transaction: byIntent.get(intent.id) ?? null,
+      }));
+
+      const last = items.at(-1);
+      cursor =
+        rows.length > EXPORT_PAGE_SIZE && last !== undefined
+          ? {
+              id: last.id,
+              createdAt: last.createdAt,
+              ...(sort === "-amount" ? { amount: last.amount.amount } : {}),
+            }
+          : undefined;
+    } while (cursor !== undefined);
   }
 
   /**

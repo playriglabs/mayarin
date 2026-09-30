@@ -224,3 +224,50 @@ describe("payment routes", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("payment export (#294)", () => {
+  test("an anonymous export is 401", async () => {
+    const { harness } = await seed();
+    const res = await harness.request("GET", "/v1/payments/export.csv");
+    expect(res.status).toBe(401);
+  });
+
+  test("exports only the caller's payments, header first, as a UTF-8 CSV", async () => {
+    const { harness, intentA, intentB } = await seed();
+    const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
+
+    const res = await harness.app.request("/v1/payments/export.csv", {
+      headers: {
+        cookie: Object.entries(jar)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("; "),
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+    expect(res.headers.get("content-disposition")).toMatch(/attachment; filename="payments-/);
+    const text = await res.text();
+    const lines = text.replace(/^﻿/, "").trimEnd().split("\r\n");
+    expect(lines[0]).toStartWith("payment_id,created_at,completed_at,status");
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toStartWith(`${intentA.id},`);
+    expect(text).not.toContain(intentB.id);
+  });
+
+  test("honours the list filters", async () => {
+    const { harness } = await seed();
+    const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
+
+    const res = await harness.app.request("/v1/payments/export.csv?status=COMPLETED", {
+      headers: {
+        cookie: Object.entries(jar)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("; "),
+      },
+    });
+
+    const lines = (await res.text()).trimEnd().split("\r\n");
+    expect(lines).toHaveLength(1);
+  });
+});

@@ -104,6 +104,11 @@ export interface PaymentDetailResponse {
   readonly paymentIntent: PaymentIntentDto;
   readonly clearing: ClearingDto | null;
   readonly timeline: readonly TimelineEvent[];
+  /** The payment's PDFs (#293); a receipt only once the payment has completed. */
+  readonly documents: {
+    readonly invoiceUrl: string;
+    readonly receiptUrl: string | null;
+  };
 }
 
 /**

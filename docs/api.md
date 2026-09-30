@@ -82,7 +82,8 @@ with access already vouched for the address.
 | ---------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------- |
 | `POST /auth/login`, `/logout`, `GET /me`                                     | —                 | Session lifecycle                                               |
 | `POST /auth/register`, `/verify-email`, `/resend-verification`               | —                 | Self-service signup and the email code that finishes it         |
-| `GET /payments`, `/payments/:id`                                             | `payments:read`   | The merchant's own intents, with clearing and timeline          |
+| `GET /payments`, `/payments/:id`                                             | `payments:read`   | The merchant's own intents, with clearing, timeline, PDF links  |
+| `GET /payments/export.csv`                                                   | `payments:read`   | Every payment the list filters match, streamed as CSV (#294)    |
 | `GET /analytics`                                                             | `payments:read`   | Merchant analytics, derived from the payments read              |
 | `GET /audit`, `/audit/:id`                                                   | `payments:read`   | Compliance record with ledger ↔ chain reconciliation            |
 | `GET /settlements`                                                           | `payments:read`   | What clearing booked, plus what the chain reported              |

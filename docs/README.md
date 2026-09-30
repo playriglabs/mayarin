@@ -50,6 +50,7 @@ moves through them.
 | [Agent Payments (x402)](./x402.md)            | The third execution path, and everything specific to it                    |
 | [Double Entry Ledger](./ledger.md)            | Recording every movement of value                                          |
 | [Settlement](./settlement.md)                 | Handing value to a payment rail                                            |
+| [Payment Documents](./documents.md)           | The invoice and receipt PDFs every payment carries                         |
 | [Merchant Wallets](./wallet.md)               | Proving control of a payout address, and provisioning a self-custodial one |
 | [Compliance](./compliance.md)                 | The audit trail, and reconciling the ledger against the chain              |
 

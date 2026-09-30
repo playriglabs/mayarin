@@ -1716,6 +1716,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -1758,6 +1759,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -1813,6 +1815,7 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
+                      "USDG",
                       "ETH",
                       "BTC"
                     ]
@@ -2033,6 +2036,102 @@
         }
       }
     },
+    "/v1/payments/{id}/invoice.pdf": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "operationId": "getPaymentInvoicePdf",
+        "summary": "Download the payment's invoice",
+        "description": "A one-page PDF invoice, rendered on request from the payment's immutable snapshots. An intent minted from an invoice prints that invoice's number and buyer; any other payment prints a number derived from its id.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The invoice.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No payment with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}/receipt.pdf": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "operationId": "getPaymentReceiptPdf",
+        "summary": "Download the payment's receipt",
+        "description": "A one-page PDF receipt with the settlement proof: the asset paid, network, locked rate, settled amount, fee and transaction hash. Available once the payment has completed.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The receipt.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No payment with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The payment has not completed yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/payments/{id}/contract-call": {
       "get": {
         "tags": [
@@ -2204,6 +2303,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -2323,6 +2423,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -2364,6 +2465,7 @@
                         "USDT",
                         "EURC",
                         "PYUSD",
+                        "USDG",
                         "ETH",
                         "BTC"
                       ]
@@ -2539,6 +2641,7 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
+                            "USDG",
                             "ETH",
                             "BTC"
                           ]
@@ -2731,6 +2834,7 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
+                            "USDG",
                             "ETH",
                             "BTC"
                           ]
@@ -2842,6 +2946,7 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
+                      "USDG",
                       "ETH",
                       "BTC"
                     ]
@@ -2882,6 +2987,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -2991,6 +3097,7 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
+                      "USDG",
                       "ETH",
                       "BTC"
                     ]
@@ -3059,6 +3166,7 @@
                                     "USDT",
                                     "EURC",
                                     "PYUSD",
+                                    "USDG",
                                     "ETH",
                                     "BTC"
                                   ]
@@ -3281,6 +3389,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -3320,6 +3429,7 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
+                      "USDG",
                       "ETH",
                       "BTC"
                     ]
@@ -3414,6 +3524,7 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
+                            "USDG",
                             "ETH",
                             "BTC"
                           ]
@@ -3728,6 +3839,7 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
+                      "USDG",
                       "ETH",
                       "BTC"
                     ]
@@ -3768,6 +3880,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -3852,6 +3965,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -4062,6 +4176,7 @@
                       "USDT",
                       "EURC",
                       "PYUSD",
+                      "USDG",
                       "ETH",
                       "BTC"
                     ]
@@ -4115,6 +4230,7 @@
                                 "USDT",
                                 "EURC",
                                 "PYUSD",
+                                "USDG",
                                 "ETH",
                                 "BTC"
                               ]
@@ -4352,6 +4468,7 @@
                                 "USDT",
                                 "EURC",
                                 "PYUSD",
+                                "USDG",
                                 "ETH",
                                 "BTC"
                               ]
@@ -4719,6 +4836,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -4788,6 +4906,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -5009,6 +5128,7 @@
                           "USDT",
                           "EURC",
                           "PYUSD",
+                          "USDG",
                           "ETH",
                           "BTC"
                         ]
@@ -5065,6 +5185,7 @@
                             "USDT",
                             "EURC",
                             "PYUSD",
+                            "USDG",
                             "ETH",
                             "BTC"
                           ]

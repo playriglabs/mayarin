@@ -6,6 +6,7 @@
  * per-payment visibility split. Thin: parse query → call service → map DTO.
  */
 
+import { csvLine, PAYMENT_CSV_COLUMNS, paymentCsvRow } from "@mayarin/documents";
 import { UnauthorizedError } from "@mayarin/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -25,6 +26,8 @@ const listQuerySchema = z.object({
   to: z.coerce.date().optional(),
   cursor: z.string().min(1).optional(),
 });
+
+const exportQuerySchema = listQuerySchema.omit({ limit: true, cursor: true });
 
 export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
@@ -52,11 +55,56 @@ export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars 
     return c.json({ payments: page.items.map(toPaymentIntentDto), nextCursor: page.nextCursor });
   });
 
+  /**
+   * Every payment the list filters match, as one CSV (#294). Streamed a page at
+   * a time; the byte-order mark is what makes Excel read the file as UTF-8.
+   */
+  app.get("/export.csv", async (c) => {
+    const scope = c.get("scope");
+    if (scope === undefined) throw new UnauthorizedError("Authentication required");
+    const query = exportQuerySchema.parse(c.req.query());
+    const pages = container.payments.exportPages(scope, {
+      ...(query.q === undefined ? {} : { q: query.q }),
+      ...(query.status === undefined ? {} : { status: query.status }),
+      ...(query.sort === undefined ? {} : { sort: query.sort }),
+      ...(query.from === undefined ? {} : { from: query.from }),
+      ...(query.to === undefined ? {} : { to: query.to }),
+    });
+
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(encoder.encode(`\ufeff${csvLine(PAYMENT_CSV_COLUMNS)}`));
+        for await (const rows of pages) {
+          const chunk = rows.map((row) => csvLine(paymentCsvRow(row.intent, row.transaction)));
+          controller.enqueue(encoder.encode(chunk.join("")));
+        }
+        controller.close();
+      },
+    });
+
+    const day = new Date().toISOString().slice(0, 10);
+    return c.body(body, 200, {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="payments-${day}.csv"`,
+      "Cache-Control": "private, no-store",
+    });
+  });
+
   app.get("/:id", async (c) => {
     const scope = c.get("scope");
     if (scope === undefined) throw new UnauthorizedError("Authentication required");
     const { intent, transaction, events } = await container.payments.get(scope, c.req.param("id"));
-    return c.json(toPaymentDetailDto(intent, transaction, events));
+    // The PDFs render on the payment API, public by payment id (#293); the
+    // dashboard is handed absolute URLs for the same reason as `qrUrl` below.
+    const base = `${container.config.checkoutBaseUrl}/v1/payments/${intent.id}`;
+    return c.json({
+      ...toPaymentDetailDto(intent, transaction, events),
+      documents: {
+        invoiceUrl: `${base}/invoice.pdf`,
+        receiptUrl: intent.status === "COMPLETED" ? `${base}/receipt.pdf` : null,
+      },
+    });
   });
 
   /**
