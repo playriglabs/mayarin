@@ -427,6 +427,8 @@ describe("invoice page", () => {
     expect(html).toContain("Pay with");
     // One payment panel (#296 UX): an estimate in the chosen asset, and no
     // strip repeating the buyer's email and the picker beside the document.
+    // Owed: the document and the payment side by side, like a payment link.
+    expect(html).toContain("checkout-shell invoice-shell");
     expect(html).toContain("Pay this invoice");
     expect(html).toContain("Estimated total in");
     expect(html).not.toContain("Recipient");

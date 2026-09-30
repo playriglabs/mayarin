@@ -71,8 +71,8 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
     }
   }
 
-  return (
-    <main className="document">
+  const invoiceDocument = (
+    <>
       <Brand />
       <header className="invoice-head">
         <div>
@@ -146,11 +146,29 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
       {payments.length > 0 && <Settled payments={payments} />}
 
       {bootstrap.notes !== null && <p className="notes muted">{bootstrap.notes}</p>}
+    </>
+  );
 
-      {/* The payment panel: screen only — a printed invoice records what was
-          paid, not what could have been. Only while something is owed. */}
-      {payable && (
-        <section className="invoice-pay screen-only" aria-labelledby="invoice-pay-title">
+  // A paid or void invoice is a document and nothing else: one column.
+  if (!payable) {
+    return (
+      <main className="document">
+        {invoiceDocument}
+        <PoweredBy className="powered-by mx-auto mt-6 block" />
+      </main>
+    );
+  }
+
+  // Something is owed: the document on the left, the payment on the right —
+  // the same split the payment-link page uses. Stacked below the xl width, and
+  // printed as the document alone (the panel is screen only).
+  return (
+    <main className="checkout-shell invoice-shell">
+      <section className="checkout-summary invoice-document" aria-label="Invoice">
+        <div className="summary-inner">{invoiceDocument}</div>
+      </section>
+      <section className="checkout-panel screen-only" aria-labelledby="invoice-pay-title">
+        <div className="payment-form">
           <p className="section-kicker">Secure checkout</p>
           <h2 id="invoice-pay-title">Pay this invoice</h2>
           <p className="panel-intro">
@@ -198,10 +216,9 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
               {error}
             </p>
           )}
-        </section>
-      )}
-
-      <PoweredBy className="powered-by mx-auto mt-6 block" />
+          <PoweredBy className="powered-by mx-auto mt-6 block" />
+        </div>
+      </section>
     </main>
   );
 }

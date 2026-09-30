@@ -785,13 +785,10 @@
   /* The settlement receipt: what paid this document, and on which network.
      Bordered rather than tabled because it is a fact about money that arrived,
      not another line of what was sold. */
-  /* The payment panel under the document: its own bordered block, so the
-     question "how will you pay" reads apart from what is owed. */
-  .invoice-pay {
-    @apply mt-8 rounded-panel border border-line p-5 sm:p-6;
-  }
-  .invoice-pay h2 {
-    @apply m-0 text-xl font-semibold tracking-tight;
+  /* An owed invoice splits like the payment-link page: the document is the
+     summary column, a little wider than a link's because it carries a table. */
+  .invoice-document .summary-inner {
+    @apply max-w-xl;
   }
   .settled {
     @apply mt-6 border border-line p-4;
@@ -866,6 +863,21 @@
   main,
   .document {
     max-width: none;
+  }
+  /* The split invoice prints as its document column alone. */
+  .checkout-shell {
+    display: block;
+    min-height: 0;
+  }
+  .checkout-summary {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: white;
+  }
+  .summary-inner {
+    max-width: none;
+    min-height: 0;
   }
   .primary,
   .screen-only {
