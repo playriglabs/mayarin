@@ -32,9 +32,12 @@ export function Outcome({
   status,
   intentId,
   statusUrl,
+  merchantName,
 }: {
   readonly status: string;
   readonly intentId: string;
+  /** Who to contact when a payment did not go through. */
+  readonly merchantName: string;
   /** The payment's own URL; its invoice and receipt PDFs sit under it (#293). */
   readonly statusUrl: string;
 }) {
@@ -66,6 +69,14 @@ export function Outcome({
             Download receipt
           </a>
         </div>
+      )}
+      {!paid && (
+        // A payer who already sent funds needs someone to talk to, and the
+        // reference is what either side will ask for first.
+        <p className="support-note">
+          Already sent funds? We recommend contacting {merchantName} or your wallet or exchange
+          provider&apos;s customer service, and sharing the Reference ID below.
+        </p>
       )}
       <p className="reference">
         Reference ID <code>{intentId}</code>

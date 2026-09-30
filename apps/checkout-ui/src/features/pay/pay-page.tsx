@@ -90,7 +90,12 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
 
           {match({ terminal, deposit, stage })
             .with({ terminal: true }, () => (
-              <Outcome status={status} intentId={intentId} statusUrl={bootstrap.statusUrl} />
+              <Outcome
+                status={status}
+                intentId={intentId}
+                statusUrl={bootstrap.statusUrl}
+                merchantName={bootstrap.merchant.name}
+              />
             ))
             .with({ deposit: P.nullish }, () => (
               <div className="preparing" role="status">
