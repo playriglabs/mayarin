@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
-import { currencySymbol } from "../../shared/currency.ts";
+import { currencySymbol, sanitizeAmount } from "../../shared/currency.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
 import { checkoutBody } from "./checkout-body.ts";
 import type { LinkBootstrap } from "./types.ts";
@@ -123,7 +123,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                   // biome-ignore lint/a11y/noAutofocus: typing the amount is the page's only task
                   autoFocus
                   value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
+                  onChange={(event) => setAmount(sanitizeAmount(event.target.value, currency))}
                 />
               </div>
             </div>

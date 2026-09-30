@@ -9,7 +9,7 @@ import {
 import { remainingAt } from "../features/pay/countdown.ts";
 import { usableDeposit } from "../features/pay/payment-status.ts";
 import { isTerminal, paymentStage, statusWording } from "../features/pay/status-wording.ts";
-import { currencySymbol } from "../shared/currency.ts";
+import { currencySymbol, sanitizeAmount } from "../shared/currency.ts";
 import { walletAmount } from "../shared/money.ts";
 
 describe("wallet amount", () => {
@@ -202,5 +202,23 @@ describe("quote body", () => {
 
     expect(estimate.status).toBe("unavailable");
     expect(canContinueWithQuote(estimate)).toBe(false);
+  });
+});
+
+describe("typed amount", () => {
+  test("keeps digits and one decimal point, nothing else", () => {
+    expect(sanitizeAmount("12abc", "EUR")).toBe("12");
+    expect(sanitizeAmount("1e5", "EUR")).toBe("15");
+    expect(sanitizeAmount("-5", "EUR")).toBe("5");
+    expect(sanitizeAmount("1.2.3", "EUR")).toBe("1.23");
+  });
+
+  test("reads a comma as the decimal point", () => {
+    expect(sanitizeAmount("7,5", "EUR")).toBe("7.5");
+  });
+
+  test("stops at the currency's own decimals", () => {
+    expect(sanitizeAmount("10.999", "EUR")).toBe("10.99");
+    expect(sanitizeAmount("1500.5", "JPY")).toBe("1500");
   });
 });

@@ -195,8 +195,9 @@
   .field:focus-within {
     @apply outline-2 -outline-offset-1 outline-brand;
   }
+  /* The symbol matches the figure beside it, so "€ 5" reads as one amount. */
   .field span {
-    @apply flex items-center border-r border-line px-5 font-mono text-base text-muted;
+    @apply flex items-center border-r border-line px-5 text-2xl font-medium text-muted;
   }
   .field input {
     @apply min-w-0 flex-1 border-0 bg-transparent p-3 text-2xl text-ink tabular-nums outline-0;
