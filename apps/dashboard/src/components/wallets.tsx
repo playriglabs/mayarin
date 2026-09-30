@@ -283,6 +283,27 @@ const EXCLUSION_LABEL: Readonly<Record<string, string>> = {
   "not-priceable": "Cannot be priced",
 };
 
+/**
+ * What a network row shows: the asset it settles in, plus anything else that
+ * is actually there. The API reads every stablecoin a chain carries, so money
+ * settled before a switch still counts — but a zero in an asset the merchant is
+ * not paid in on that chain is noise.
+ */
+function shownBalances(
+  row: ChainBalanceDto,
+  rails: MerchantRailsResponse | undefined,
+): ChainBalanceDto {
+  const settlesIn =
+    rails?.rails.find((rail) => rail.chain === row.chain)?.settlementAsset ??
+    rails?.settlementAsset;
+  return {
+    ...row,
+    balances: row.balances.filter(
+      (amount) => amount.asset === settlesIn || BigInt(amount.amount) > 0n,
+    ),
+  };
+}
+
 /** The same asset on every network, added up, in the API's own display form. */
 function totalsOf(
   rows: readonly ChainBalanceDto[],
@@ -330,10 +351,7 @@ function SettlementOverview({
   readonly onWithdraw: (row: ChainBalanceDto) => void;
 }) {
   const [copied, setCopied] = useState(false);
-  // Every stablecoin the network carries, zero included: each is an asset the
-  // merchant can settle in there (PYUSD, EURC, USDG…), so a zero is a real
-  // answer — "nothing yet" — not noise to hide.
-  const shown = chainBalances;
+  const shown = chainBalances.map((row) => shownBalances(row, rails));
   const totals = totalsOf(shown.filter((row) => row.address !== null));
   const live = chainBalances.filter((row) => row.address !== null).length;
   // Networks with an address first, so money leads; stable, so the API's order
