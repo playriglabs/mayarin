@@ -27,6 +27,7 @@
     "@mayarin/provider-stablecoin": "workspace:*",
     "@mayarin/qr-parser": "workspace:*",
     "@mayarin/shared": "workspace:*",
+    "@mayarin/subscriptions": "workspace:*",
     "@mayarin/wallet": "workspace:*",
     "@mayarin/x402": "workspace:*",
     "drizzle-orm": "^0.45.2",

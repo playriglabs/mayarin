@@ -6,8 +6,6 @@
  * issues it, and returns that public URL for the merchant to send.
  */
 
-import type { Merchant } from "@mayarin/auth";
-import type { MerchantSnapshot } from "@mayarin/payment-intent";
 import {
   InvalidStateTransitionError,
   NotFoundError,
@@ -22,6 +20,7 @@ import {
   sendInvoiceBodySchema,
   toInvoiceViewDto,
 } from "../dto/invoices.ts";
+import { snapshotOf } from "../merchant-snapshot.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
 
@@ -29,21 +28,6 @@ function scopeOf(c: { get: (key: "scope") => AuthVars["scope"] }) {
   const scope = c.get("scope");
   if (scope === undefined) throw new UnauthorizedError("Authentication required");
   return scope;
-}
-
-function snapshotOf(merchant: Merchant): MerchantSnapshot {
-  const { city, countryCode } = merchant;
-  if (city === undefined || countryCode === undefined) {
-    const missing = [
-      ...(city === undefined ? ["city"] : []),
-      ...(countryCode === undefined ? ["country"] : []),
-    ];
-    throw new ValidationError(
-      `Set your ${missing.join(" and ")} in settings before generating an invoice`,
-      { merchantId: merchant.id, missing },
-    );
-  }
-  return { id: merchant.id, name: merchant.name, city, countryCode };
 }
 
 export function invoiceRoutes(container: Container): Hono<{ Variables: AuthVars }> {

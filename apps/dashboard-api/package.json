@@ -29,6 +29,7 @@
     "@mayarin/provider-evm": "workspace:*",
     "@mayarin/provider-turnkey": "workspace:*",
     "@mayarin/shared": "workspace:*",
+    "@mayarin/subscriptions": "workspace:*",
     "@mayarin/provider-x402-local": "workspace:*",
     "@mayarin/wallet": "workspace:*",
     "@mayarin/x402": "workspace:*",

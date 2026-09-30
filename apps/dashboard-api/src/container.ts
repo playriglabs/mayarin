@@ -59,6 +59,7 @@ import {
   DrizzleProductRepository,
   DrizzleSessionRepository,
   DrizzleSettlementEventRepository,
+  DrizzleSubscriptionRepository,
   DrizzleUserRepository,
   DrizzleWalletChallengeRepository,
   DrizzleWalletWithdrawalRepository,
@@ -94,6 +95,7 @@ import {
   getAsset,
   systemClock,
 } from "@mayarin/shared";
+import type { SubscriptionRepository } from "@mayarin/subscriptions";
 import {
   ManagedWalletProvisioner,
   type MerchantKeyProvider,
@@ -139,6 +141,7 @@ import {
   type SettlementEventReadRepository,
   SettlementReadService,
 } from "./services/settlement-read-service.ts";
+import { SubscriptionService } from "./services/subscription-service.ts";
 import { UserService } from "./services/user-service.ts";
 import {
   ResendVerificationEmailSender,
@@ -190,6 +193,8 @@ export interface Container {
   readonly wallets: WalletService;
   /** Batch payouts (#295): prepares calldata, records what the chain confirms. */
   readonly payouts: PayoutService;
+  /** Subscriptions (#296): CRUD plus the billing tick `index.ts` runs. */
+  readonly subscriptions: SubscriptionService;
   /** The merchant's own x402 resources (#208), priced and offered by them. */
   readonly x402Resources: X402ResourceService;
   /**
@@ -278,6 +283,8 @@ export interface CreateContainerOptions {
   readonly payoutBatches?: PayoutBatchRepository;
   /** Overridable for tests: a fake receipt reader rather than an RPC. */
   readonly payoutReceipts?: PayoutReceiptReader;
+  /** Subscription repo. A test supplies the reference in-memory adapter. */
+  readonly subscriptionRepository?: SubscriptionRepository;
   readonly signatureVerifier?: SignatureVerifier;
   /**
    * Managed wallet provisioning (#11). A test supplies a fake; a deployment
@@ -526,6 +533,18 @@ export function createContainer(options: CreateContainerOptions): Container {
         }),
   });
 
+  const subscriptions = new SubscriptionService({
+    subscriptions:
+      options.subscriptionRepository ??
+      new DrizzleSubscriptionRepository(handle?.db ?? throwIfNoHandle()),
+    merchants,
+    customers,
+    invoices,
+    emails: invoiceEmails,
+    checkoutBaseUrl: config.checkoutBaseUrl,
+    clock,
+  });
+
   const payouts = new PayoutService({
     wallets: walletRepository,
     batches:
@@ -599,6 +618,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     webhooks,
     wallets,
     payouts,
+    subscriptions,
     x402Resources,
     merchantWallets: walletRepository,
     settlementAddresses,

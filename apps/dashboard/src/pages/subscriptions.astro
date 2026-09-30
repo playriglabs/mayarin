@@ -1,0 +1,13 @@
+---
+import { PageHeader } from "../components/page-header.tsx";
+import Subscriptions from "../components/subscriptions.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Subscriptions">
+  <PageHeader
+    title="Subscriptions"
+    description="Bill a customer every week, month or year. Each cycle is an invoice they pay on any supported asset."
+  />
+  <Subscriptions client:load />
+</Protected>

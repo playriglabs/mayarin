@@ -16,6 +16,30 @@ const container = createContainer({ config });
 
 const app = createApp(container);
 
+/**
+ * The subscription billing tick (#296). In this process because it holds what
+ * a cycle needs — invoices, customers and the email sender. Safe to run on more
+ * than one instance: a cycle's invoice and email are keyed by the cycle, and
+ * the subscription advances under its optimistic lock.
+ */
+const TICK_MS = 60_000;
+let ticking = false;
+setInterval(() => {
+  if (ticking) return;
+  ticking = true;
+  container.subscriptions
+    .tick()
+    .then(({ billed, failed }) => {
+      if (billed > 0 || failed > 0) {
+        console.log(`[subscriptions] billed ${billed} cycle(s), ${failed} failed`);
+      }
+    })
+    .catch((error: unknown) => console.error("[subscriptions] tick failed", error))
+    .finally(() => {
+      ticking = false;
+    });
+}, TICK_MS);
+
 console.log(`[dashboard-api] listening on http://localhost:${config.port}`);
 
 export default {
