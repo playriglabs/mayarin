@@ -44,8 +44,24 @@ export const EMAIL_HEAD = `  <head>
     />
   </head>`;
 
+/**
+ * The logo travels inside the message as an inline attachment, referenced by
+ * `cid:`. A remote `src` is blocked by default in Apple Mail (Privacy
+ * Protection), Outlook and most first opens, which showed a broken image above
+ * every invoice. Resend fetches `LOGO_URL` once at send time and embeds it.
+ */
+const LOGO_CID = "mayarin-logo";
+
+/** Pass in `attachments` on every send that renders `LOGO_IMG`. */
+export const LOGO_ATTACHMENT = {
+  path: LOGO_URL,
+  filename: "mayarin.png",
+  contentType: "image/png",
+  contentId: LOGO_CID,
+} as const;
+
 /** The logo block that opens the card. */
-export const LOGO_IMG = `<img src="${LOGO_URL}" width="48" height="48" alt="Mayarin" style="display:block;margin:0 0 24px;border:0;border-radius:8px" />`;
+export const LOGO_IMG = `<img src="cid:${LOGO_CID}" width="48" height="48" alt="Mayarin" style="display:block;margin:0 0 24px;border:0;border-radius:8px" />`;
 
 export function escapeHtml(value: string): string {
   return value.replace(
