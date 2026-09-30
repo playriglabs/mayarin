@@ -1,0 +1,20 @@
+{
+  "name": "@mayarin/documents",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mayarin/catalog": "workspace:*",
+    "@mayarin/chain": "workspace:*",
+    "@mayarin/clearing": "workspace:*",
+    "@mayarin/invoicing": "workspace:*",
+    "@mayarin/payment-intent": "workspace:*",
+    "@mayarin/shared": "workspace:*"
+  }
+}

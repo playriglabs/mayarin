@@ -11,7 +11,7 @@ import { type CartSnapshot, parseCartSnapshot } from "@mayarin/catalog";
 import { addressExplorerUrl, transactionExplorerUrl } from "@mayarin/chain";
 import { formatMoneyLocale, money } from "@mayarin/shared";
 import { getAsset, isAssetCode } from "@mayarin/shared/asset";
-import { ArrowLeftIcon, ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, ArrowSquareOutIcon, DownloadSimpleIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { match, P } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
@@ -186,7 +186,7 @@ function PaymentDetail({ id }: { id: string }) {
           />
         ))
         .with({ status: "success" }, ({ data }) => {
-          const { paymentIntent: intent, clearing, timeline } = data;
+          const { paymentIntent: intent, clearing, timeline, documents } = data;
           const payerDeposit = deposit.data?.deposit;
           const purchase = purchaseOf(intent);
           // The contract path carries an on-chain transaction hash; the deposit
@@ -227,6 +227,24 @@ function PaymentDetail({ id }: { id: string }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  <a
+                    href={documents.invoiceUrl}
+                    download
+                    className={buttonVariants({ variant: "secondary" })}
+                  >
+                    <DownloadSimpleIcon size={14} aria-hidden="true" />
+                    Invoice
+                  </a>
+                  {documents.receiptUrl !== null && (
+                    <a
+                      href={documents.receiptUrl}
+                      download
+                      className={buttonVariants({ variant: "secondary" })}
+                    >
+                      <DownloadSimpleIcon size={14} aria-hidden="true" />
+                      Receipt
+                    </a>
+                  )}
                   {explorerUrl !== undefined && (
                     <a
                       href={explorerUrl}

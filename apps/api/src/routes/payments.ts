@@ -6,14 +6,52 @@
  * whichever they were handed.
  */
 
+import {
+  type DocumentSources,
+  invoiceDocument,
+  invoiceIdOf,
+  type PaymentDocument,
+  receiptDocument,
+} from "@mayarin/documents";
 import { NotFoundError } from "@mayarin/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toContractCallDto } from "../dto/contract-call.ts";
 import { toDepositDto } from "../dto/deposit.ts";
 import { toPaymentDto } from "../dto/payment.ts";
 import { refundBodySchema, toRefundDto, toRefundSummaryDto } from "../dto/refund.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
+import { renderDocumentPdf } from "../services/document-pdf.ts";
+
+/**
+ * Everything the invoice and receipt of one payment are built from (#293).
+ *
+ * The funding hash is the first confirmed deposit, which is what the
+ * deposit-match path has in place of a settlement transaction of its own.
+ */
+async function documentSources(container: Container, id: string): Promise<DocumentSources> {
+  const { intent, transaction, deposit } = await container.paymentApp.getPayment(id);
+  const invoiceId = invoiceIdOf(intent);
+  const invoice =
+    invoiceId === undefined ? undefined : await container.invoices.getInvoice(invoiceId);
+  const funding = deposit?.deposits.find((entry) => entry.status === "CONFIRMED");
+  return {
+    intent,
+    transaction,
+    ...(invoice === undefined ? {} : { invoice }),
+    ...(funding === undefined ? {} : { fundingTxHash: funding.txHash }),
+  };
+}
+
+async function pdfResponse(c: Context, doc: PaymentDocument): Promise<Response> {
+  const bytes = await renderDocumentPdf(doc);
+  const name = `${doc.kind}-${doc.invoiceNumber.replace(/[^\w-]/g, "-")}.pdf`;
+  return c.body(bytes, 200, {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `attachment; filename="${name}"`,
+    "Cache-Control": "private, no-store",
+  });
+}
 
 export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
@@ -39,6 +77,19 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
           );
     return c.json(toPaymentDto(intent, transaction, events, depositDto));
   });
+
+  /**
+   * The payment's invoice and receipt as PDFs (#293). Public by unguessable
+   * payment id, the same rule as the status read above; the receipt is a 409
+   * until the payment has completed.
+   */
+  app.get("/:id/invoice.pdf", async (c) =>
+    pdfResponse(c, invoiceDocument(await documentSources(container, c.req.param("id")))),
+  );
+
+  app.get("/:id/receipt.pdf", async (c) =>
+    pdfResponse(c, receiptDocument(await documentSources(container, c.req.param("id")))),
+  );
 
   /**
    * Refunds against a settled payment (#12).

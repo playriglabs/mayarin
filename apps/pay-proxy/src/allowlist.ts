@@ -17,6 +17,7 @@
  *   POST   /v1/payment-links/:id/checkout    mint intent
  *   POST   /v1/payment-intents/:id/confirm   lock price
  *   GET    /v1/payments/:id                  status poll (bootstrap statusUrl)
+ *   GET    /v1/payments/:id/{invoice,receipt}.pdf  payment documents (#293)
  *   POST   /v1/invoices/:id/checkout         invoice -> intent
  *
  * Pure so it can be unit-tested without a Worker runtime.

@@ -381,16 +381,35 @@ describe("status timeline", () => {
 });
 
 describe("outcome", () => {
+  const statusUrl = "/v1/payments/pi_1";
+
   test("each terminal state has words, not placeholders, and keeps the reference", () => {
-    const done = renderToStaticMarkup(<Outcome status="COMPLETED" intentId="pi_1" />);
+    const done = renderToStaticMarkup(
+      <Outcome status="COMPLETED" intentId="pi_1" statusUrl={statusUrl} />,
+    );
     expect(done).toContain("Payment completed");
     expect(done).toContain("pi_1");
-    expect(renderToStaticMarkup(<Outcome status="EXPIRED" intentId="pi_1" />)).toContain(
-      "Payment expired",
+    expect(
+      renderToStaticMarkup(<Outcome status="EXPIRED" intentId="pi_1" statusUrl={statusUrl} />),
+    ).toContain("Payment expired");
+    const failed = renderToStaticMarkup(
+      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} />,
     );
-    const failed = renderToStaticMarkup(<Outcome status="FAILED" intentId="pi_1" />);
     expect(failed).toContain("Payment failed");
     expect(failed).not.toContain("—");
+  });
+
+  test("a completed payment offers its invoice and receipt, a failed one neither (#293)", () => {
+    const done = renderToStaticMarkup(
+      <Outcome status="COMPLETED" intentId="pi_1" statusUrl={statusUrl} />,
+    );
+    expect(done).toContain('href="/v1/payments/pi_1/invoice.pdf"');
+    expect(done).toContain('href="/v1/payments/pi_1/receipt.pdf"');
+
+    const failed = renderToStaticMarkup(
+      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} />,
+    );
+    expect(failed).not.toContain(".pdf");
   });
 });
 

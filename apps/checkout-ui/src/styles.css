@@ -574,6 +574,18 @@
   .state-view .reference {
     @apply mt-6;
   }
+  .state-view .documents {
+    @apply mt-6 grid w-full max-w-sm grid-cols-2 gap-2.5;
+  }
+  .state-view .documents a {
+    @apply inline-flex items-center justify-center gap-2 rounded-control border border-line px-3 py-2.5 text-sm font-medium text-ink no-underline transition-colors duration-200 hover:bg-surface;
+  }
+  .state-view .documents svg {
+    @apply block size-4 shrink-0 fill-none stroke-current;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .state-art {
     @apply block size-44 overflow-visible sm:size-52;
   }
