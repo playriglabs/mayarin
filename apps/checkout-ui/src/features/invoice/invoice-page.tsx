@@ -2,10 +2,10 @@ import { chainLabel } from "@mayarin/chain";
 import clsx from "clsx";
 import { useState } from "react";
 import { Brand } from "../../shared/brand.tsx";
-import { ChainLabel } from "../../shared/chain-logo.tsx";
 import { PoweredBy } from "../../shared/powered-by.tsx";
 import { RailMark } from "../../shared/rail-mark.tsx";
-import { RailPicker } from "../../shared/rail-picker.tsx";
+import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import { canContinueWithQuote, useQuoteEstimate } from "../link/use-quote-estimate.ts";
 import { dateLine, paidOn, STATUS_LABEL, STATUS_TONE } from "./invoice-status.ts";
 import { PaidMark } from "./paid-mark.tsx";
 import type { InvoiceBootstrap, InvoicePaymentRecord } from "./types.ts";
@@ -20,11 +20,22 @@ import type { InvoiceBootstrap, InvoicePaymentRecord } from "./types.ts";
 export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstrap }) {
   const { status, buyer, lines, payable, payments } = bootstrap;
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [rail, setRail] = useState(bootstrap.rails[0]);
 
+  // The outstanding balance in the asset the payer picked, from the same rate
+  // source the lock reads — so "Pay Rp 49.000" also says how much PYUSD that is.
+  const estimate = useQuoteEstimate(
+    bootstrap.outstanding.formatted,
+    bootstrap.outstanding.asset,
+    payable ? rail : undefined,
+  );
+  const quoteReady = canContinueWithQuote(estimate);
+
   async function pay() {
-    if (rail === undefined) return;
+    if (rail === undefined || !quoteReady || busy) return;
     setBusy(true);
+    setError("");
     try {
       const response = await fetch(bootstrap.checkoutUrl, {
         method: "POST",
@@ -34,20 +45,28 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
           executionPath: "deposit-match",
         }),
       });
+      const created = await response.json();
       if (!response.ok) {
+        setError(created?.error?.message ?? "Unable to start the payment");
         setBusy(false);
         return;
       }
-      const { paymentIntent } = await response.json();
-      const confirmation = await fetch(`/v1/payment-intents/${paymentIntent.id}/confirm`, {
+      const confirmation = await fetch(`/v1/payment-intents/${created.paymentIntent.id}/confirm`, {
         method: "POST",
       });
-      if (!confirmation.ok) {
+      const confirmed = await confirmation.json();
+      if (!confirmation.ok || confirmed?.paymentIntent?.status === "FAILED") {
+        setError(
+          confirmed?.error?.message ??
+            confirmed?.paymentIntent?.failureReason ??
+            "The price could not be locked",
+        );
         setBusy(false);
         return;
       }
-      location.href = `/checkout/pay/${paymentIntent.id}`;
+      location.href = `/checkout/pay/${created.paymentIntent.id}`;
     } catch {
+      setError("Network error. Please try again.");
       setBusy(false);
     }
   }
@@ -83,28 +102,6 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
           {buyer.taxId !== null && <dd className="muted">Tax ID {buyer.taxId}</dd>}
           {buyer.email !== null && <dd className="muted">{buyer.email}</dd>}
         </dl>
-      </div>
-
-      <div className="detail-strip">
-        <dl className="party">
-          <dt>Recipient</dt>
-          <dd className="muted">{buyer.email ?? buyer.name}</dd>
-        </dl>
-        {/* The rail the payer has chosen in "Pay with", so the strip follows
-            the dropdown. Screen only — a printed document records what was
-            paid, not what could have been. */}
-        {payable && rail !== undefined && (
-          <dl className="party screen-only">
-            <dt>Payment method</dt>
-            <dd className="payment-method">
-              <RailMark asset={rail.asset} chain={rail.chain} size={30} />
-              <span className="rail-picker-copy">
-                <strong>{rail.asset}</strong>
-                <span>{chainLabel(rail.chain)}</span>
-              </span>
-            </dd>
-          </dl>
-        )}
       </div>
 
       <table>
@@ -150,36 +147,60 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
 
       {bootstrap.notes !== null && <p className="notes muted">{bootstrap.notes}</p>}
 
+      {/* The payment panel: screen only — a printed invoice records what was
+          paid, not what could have been. Only while something is owed. */}
       {payable && (
-        <>
-          <RailPicker
-            rails={bootstrap.rails}
-            selected={rail}
-            onSelect={setRail}
-            className="screen-only"
-          />
-          {/* One rail asks nothing, so the page states it instead of hiding it. */}
-          {bootstrap.rails.length === 1 && (
-            <p className="rail-note screen-only">
-              Payable with {rail?.asset} on <ChainLabel chain={rail?.chain ?? ""} size={18} />.
+        <section className="invoice-pay screen-only" aria-labelledby="invoice-pay-title">
+          <p className="section-kicker">Secure checkout</p>
+          <h2 id="invoice-pay-title">Pay this invoice</h2>
+          <p className="panel-intro">
+            {bootstrap.rails.length === 1
+              ? `Payable with ${railSummary(rail)}.`
+              : "Choose the asset and network you hold."}
+          </p>
+
+          <RailPicker rails={bootstrap.rails} selected={rail} onSelect={setRail} />
+
+          {rail !== undefined && (
+            <div
+              className="payment-estimate"
+              aria-busy={estimate.status === "loading"}
+              aria-live="polite"
+            >
+              <span>Estimated total in {rail.asset}</span>
+              <strong>{estimate.display}</strong>
+            </div>
+          )}
+          {estimate.status === "unavailable" && (
+            <p className="quote-error" role="alert">
+              {estimate.message}
             </p>
           )}
-        </>
+
+          <p className="checkout-note">
+            The exact amount is locked on the next step, and you send{" "}
+            <strong>{railSummary(rail)}</strong> to the address shown there.
+          </p>
+          <button
+            type="button"
+            className="primary"
+            disabled={busy || rail === undefined || !quoteReady}
+            onClick={() => void pay()}
+          >
+            {busy
+              ? "Preparing payment…"
+              : estimate.status === "unavailable"
+                ? "Payment unavailable"
+                : `Pay ${bootstrap.outstanding.display}`}
+          </button>
+          {error !== "" && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+        </section>
       )}
 
-      {/* Only while there is something to pay. A disabled button reading
-          "Paid" is a control that cannot be used pretending to be one that
-          can — the badge and the receipt above already say what happened. */}
-      {payable && (
-        <button
-          type="button"
-          className="primary"
-          disabled={busy || rail === undefined}
-          onClick={() => void pay()}
-        >
-          Pay {bootstrap.outstanding.display}
-        </button>
-      )}
       <PoweredBy className="powered-by mx-auto mt-6 block" />
     </main>
   );

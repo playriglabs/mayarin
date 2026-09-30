@@ -785,13 +785,13 @@
   /* The settlement receipt: what paid this document, and on which network.
      Bordered rather than tabled because it is a fact about money that arrived,
      not another line of what was sold. */
-  /* Recipient and rails, side by side under the parties — the strip the
-     reference invoice carries above its line items. */
-  .detail-strip {
-    @apply mb-4 flex flex-wrap items-start justify-between gap-6;
+  /* The payment panel under the document: its own bordered block, so the
+     question "how will you pay" reads apart from what is owed. */
+  .invoice-pay {
+    @apply mt-8 rounded-panel border border-line p-5 sm:p-6;
   }
-  .payment-method {
-    @apply mt-1.5 flex items-center gap-3;
+  .invoice-pay h2 {
+    @apply m-0 text-xl font-semibold tracking-tight;
   }
   .settled {
     @apply mt-6 border border-line p-4;

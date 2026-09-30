@@ -425,6 +425,12 @@ describe("invoice page", () => {
     expect(html).toContain("Powered by <strong>mayarin.xyz</strong>");
     // Asset and network stay one valid, selectable pair (#244).
     expect(html).toContain("Pay with");
+    // One payment panel (#296 UX): an estimate in the chosen asset, and no
+    // strip repeating the buyer's email and the picker beside the document.
+    expect(html).toContain("Pay this invoice");
+    expect(html).toContain("Estimated total in");
+    expect(html).not.toContain("Recipient");
+    expect(html).not.toContain("Payment method");
     expect(html).toContain("Arc Testnet");
     expect(html).toContain("Pay Rp 125.000,00");
   });

@@ -48,6 +48,11 @@ import type { InvoiceEmailSender } from "./invoice-email-service.ts";
 export const SUBSCRIPTION_METADATA_KEY = "subscriptionId";
 
 const DAY_MS = 86_400_000;
+
+/** "30 September 2026" — the period date as the printed invoice reads it. */
+function periodDate(date: Date): string {
+  return date.toLocaleDateString("en-GB", { dateStyle: "long", timeZone: "UTC" });
+}
 /** Subscriptions checked per tick. Plenty for one worker a minute. */
 const TICK_BATCH = 500;
 
@@ -204,7 +209,7 @@ export class SubscriptionService {
       },
       currency: subscription.amount.asset as AssetCode,
       lines: [{ name: subscription.description, unitPrice: subscription.amount, quantity: 1 }],
-      notes: `Billing period starting ${nextBillingAt(subscription).toISOString().slice(0, 10)}`,
+      notes: `Billing period from ${periodDate(nextBillingAt(subscription))}`,
       metadata: {
         [SUBSCRIPTION_METADATA_KEY]: subscription.id,
         customerId: subscription.subscriber.customerId,
