@@ -151,6 +151,14 @@ covers alone — Pyth's grant is a per-feed allowlist, an FX rates API serves th
 fiat legs it denies, and a public exchange ticker serves the crypto feeds it
 denies.
 
+The FX source is Coinbase's public `GET /v2/exchange-rates?currency=<BASE>`: no
+key, every currency Mayarin prices (SAR, AED, BND, KHR, LAK and MMK included,
+which Pyth does not carry), one response per base. It replaced fxratesapi, whose
+anonymous tier (61 requests a window) returned 429 for every non-USD price once
+a dashboard was open, and whose sign-up could not be completed. The response has
+no observation time, so it is stamped with its `Date` header; reads are reused
+for `FX_CACHE_SECONDS` (default 180, under `QUOTE_FX_MAX_AGE_SECONDS`).
+
 `QUOTE_ORACLE_AGREEMENT_BPS` is deliberately **not** `QUOTE_DEVIATION_BPS`. The
 latter bounds a venue against a reference and a testnet deployment has to open
 it wide, because a toy pool with no arbitrage is its own truth there. Two

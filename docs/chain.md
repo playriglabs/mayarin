@@ -528,7 +528,84 @@ and every one was swept before the change. On mainnet the same sequence would
 have stranded funds, which is why the audit belongs before the deployment payers
 are pointed at.
 
-On-chain configuration as deployed:
+Arbitrum Sepolia (chain id 421614), deployed 2026-09-29 in block 313961067.
+**Throwaway v0** in the same sense as Arc: #201 changes the `Order` struct, and
+that redeploy is the address of record.
+
+| Contract                  | Address                                      |
+| ------------------------- | -------------------------------------------- |
+| `PaymentRouter`           | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` |
+| `TimelockController`      | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
+| `DepositForwarderFactory` | `0x4b96E74B963efa7Ab7D7497854Fc87220Bd092C4` |
+
+Router and timelock collide with Base Sepolia's and Arc's for the reason above:
+same deployer, same nonces. The factory carries the shared `INIT_CODE_HASH`
+`0xee0569965b5f80efbe628375129a0db290a6d9476366befecb3529b51c25be89`, read back
+from the deployed contract. Settlement and input asset is Circle USDC
+`0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d`; the whitelisted DEX router is
+Uniswap v3 SwapRouter02 `0x101F443B4d1b059569D643917553c771E1b9663E`, quoted
+through QuoterV2 `0x2779a0CC1c3e0E44D2542EC3e79e3864Ae93Ef0B` against the
+WETH/USDC 0.3% pool. Each address was checked on chain (code present, factory
+and `WETH9` agree) before it was whitelisted. The deploying key holds no
+`CONFIG_ROLE`; the timelock does.
+
+Paxos USDG (Global Dollar, 6 decimals) `0xFFC95faa3d63Cde504a05B567C600B78C0b41892`
+was added after the deploy as both an input and a settlement asset, through the
+zero-delay timelock (execute tx
+`0x9208b2c5e207d28df54921718d02fe7e1e99de52e76274eb4d37615113284124`). No
+contract was redeployed. A payer on Arbitrum Sepolia can therefore bring ETH
+(native, swapped through the WETH/USDC pool), USDC or USDG.
+
+Robinhood Chain testnet (chain id 46630), deployed 2026-09-29 in block 126244410
+and verified on the Robinhood Blockscout explorer. **Throwaway v0**, as above.
+
+| Contract                  | Address                                      |
+| ------------------------- | -------------------------------------------- |
+| `PaymentRouter`           | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` |
+| `TimelockController`      | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
+| `DepositForwarderFactory` | `0x4b96E74B963efa7Ab7D7497854Fc87220Bd092C4` |
+
+USDG `0x7E955252E15c84f5768B83c41a71F9eba181802F` was the first asset, whitelisted
+for input and settlement, with no DEX router: a USDG payment settles USDG, and
+nothing on this chain swaps. The USDG addresses on both chains come from Paxos's
+testnet list and were read back on chain (`symbol`, `decimals`, `name`) before
+use. The configure step's timelock execute reverted on the first run because the
+matching schedule was never recorded; scheduling and executing again with `cast`
+succeeded (execute tx
+`0x77dee4b3a7c51fcea885b3ad4905f1c22ef2a6c7ad103c0f90b3b2fadb29d9bc`).
+
+USDC (`USD Coin`, 6 decimals) `0xAc80194dc1aE8eF52df73e7e1864fB3C62290fe0` was
+added afterwards as both an input and a settlement asset, read back on chain
+first, through one timelock batch (schedule tx
+`0xe9dcf26845aadda1815dc52897996b5769124b39f50ce638f7585aba9a527dab`, execute tx
+`0x31a1e669437778667d3a4b57f825dc437907cd70ebc68027d1718661a108f546`). Still no
+DEX router: USDC settles USDC and USDG settles USDG, so a merchant is offered
+only the Robinhood asset it settles in.
+
+A merchant chooses that asset per chain (`merchants.settlement_asset_by_chain`,
+migration 0034): the merchant-wide `settlement_asset` is the default, and a chain
+may override it — Robinhood → USDG while every other chain settles USDC. The
+first USDG payments settled end to end from `PaymentRouter` into the merchant's
+managed wallet on 2026-09-30: 0.994 USDG (tx
+`0xd04b4e09aecc0033b28374d5c44df585cb647a8292885ce627e78d45ada10fc7`) and
+12.668166 USDG (tx
+`0x77de6a320ddf85a409d1af4d26499f8b87af3c12424e4cf830c99c7e0b9ba1d5`).
+
+No venue converts between USDC and USDG on either Robinhood or Arbitrum Sepolia,
+so a payer on those chains pays in the asset the merchant settles in there. A log
+scan of Robinhood (public RPC; Alchemy's free tier caps `eth_getLogs` at 10
+blocks) found Uniswap v2/v3/v4 USDG pools against tokenized equities and WETH but
+none against USDC; the one USDC→WETH→USDG path prices WETH at ~49,700 USDC with
+~66 USDG of depth, and routing is single-hop anyway.
+
+PYUSD (`0x637A1259C6afd7E3AdF63993cA7E58BB438aB1B1`, 6 decimals, read back on
+chain) was added on Arbitrum Sepolia as input and settlement asset in one
+timelock batch (schedule tx
+`0x3b8090a4dbbddd4688c998c640b2d894b7451e8aa2de734882bb2c660973b61d`, execute tx
+`0xd97a8d2c3ebfa089140fe5d2409db5a1be05aca3ff8a9a3fc609eeaa7b4d860c`). Circle
+publishes no EURC on Arbitrum Sepolia.
+
+On-chain configuration as deployed (Base Sepolia):
 
 | Setting             | Value                                                               |
 | ------------------- | ------------------------------------------------------------------- |

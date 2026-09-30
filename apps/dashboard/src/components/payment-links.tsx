@@ -453,10 +453,10 @@ function CheckoutLinkCard({
 /**
  * The rails a payer can use, and what each would take.
  *
- * One row per rail: the asset, the network it arrives on, and the figure the
- * customer sends. Picking a row is the choice — there is no separate price
- * table, because two lists of the same assets left the counter guessing which
- * number belonged to the rail they had selected.
+ * Grouped by network: the same asset on two networks is two rails with two
+ * deposit addresses, and a chain badge on the logo was too small to tell them
+ * apart. Each group names what the merchant is paid in there, so a row whose
+ * asset differs reads as a swap without a second legend.
  *
  * A rail the quote could not price stays visible with the reason rather than
  * disappearing: the merchant accepts it, and "gone" gives them nothing to act
@@ -475,91 +475,119 @@ function RailChoice({
   readonly lineFor: (chain: string, asset: string) => QuoteLine | undefined;
   readonly pending: boolean;
 }) {
+  // Networks in the order the catalog offers them; rails keep theirs within.
+  const networks = [...new Set(rails.map((rail) => rail.chain))].map((chain) => ({
+    chain,
+    rails: rails.filter((rail) => rail.chain === chain),
+  }));
+
   return (
     <Field>
       <FieldLabel id="charge-rail-label">Customer pays with</FieldLabel>
-      {/* A radiogroup rather than a listbox: this is one choice among a handful
-          of visible options, and arrow keys should move the selection itself. */}
       {/* Native radios in labels: the browser gives arrow-key navigation and
           grouping for free, and a real input is what a screen reader announces
           as one choice among several. The input is visually hidden; the row it
-          labels is what gets styled. */}
+          labels is what gets styled. Scrolls on its own so the actions below
+          stay on screen however many networks there are. */}
       <div
         role="radiogroup"
         aria-labelledby="charge-rail-label"
         aria-busy={pending}
         className={cn(
-          "divide-y divide-border overflow-hidden rounded-md border border-border transition-opacity",
+          "max-h-80 overflow-y-auto rounded-md border border-border transition-opacity",
           // Re-pricing dims the figures rather than replacing them with a
           // spinner: they are still the right order of magnitude, and a number
           // a counter is reading aloud should not blink out from under them.
           pending && "opacity-60",
         )}
       >
-        {rails.map((rail) => {
-          const key = `${rail.chain}:${rail.asset}`;
-          const line = lineFor(rail.chain, rail.asset);
-          // Undefined is "not priced yet", which is not the same as refused:
-          // an open link has no amount until the counter types one.
-          const refused = line !== undefined && (!line.available || line.amount === null);
-          const selected = value === key;
-
-          return (
-            <label
-              key={key}
-              className={cn(
-                // The asset and its chain badge share one cell. Only the figure
-                // gets its own track, right-aligned.
-                "grid grid-cols-[1fr_auto_0.875rem] items-center gap-x-3 px-3 py-2 transition-colors",
-                "has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-inset",
-                refused ? "cursor-not-allowed opacity-55" : "cursor-pointer hover:bg-accent/50",
-                selected && !refused && "bg-accent",
-              )}
-            >
-              <input
-                type="radio"
-                name="charge-rail"
-                value={key}
-                checked={selected}
-                disabled={refused}
-                onChange={() => onSelect(key)}
-                className="sr-only"
-              />
-
-              <span className="flex min-w-0 items-center gap-2">
-                <RailMark asset={rail.asset} chain={rail.chain} />
-                <span>{rail.asset}</span>
-                <span className="sr-only"> on {chainLabel(rail.chain)}</span>
+        {networks.map((network) => (
+          <div key={network.chain} className="border-border border-b last:border-b-0">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-border border-b bg-muted px-3 py-1.5">
+              <span className="flex items-center gap-2 font-medium text-foreground text-xs">
+                <ChainLogo chain={network.chain} size={14} className="size-3.5 rounded-full" />
+                {chainLabel(network.chain)}
               </span>
-
-              {refused ? (
-                // The reason, not "No rate": a missing oracle feed is an
-                // operator's fix, and a blank refusal sends them looking at the
-                // customer instead.
-                <span className="text-right text-subtle-foreground text-xs">
-                  {line?.reason ?? "No rate"}
-                </span>
-              ) : (
-                // Tabular figures so the decimal points stack down the column.
-                <span className="text-right font-medium text-foreground text-sm tabular-nums">
-                  {line?.amount?.display ?? ""}
+              {network.rails[0] !== undefined && (
+                <span className="text-subtle-foreground text-xs">
+                  Settles in {network.rails[0].settlementAsset}
                 </span>
               )}
+            </div>
+            <div className="divide-y divide-border">
+              {network.rails.map((rail) => {
+                const key = `${rail.chain}:${rail.asset}`;
+                const line = lineFor(rail.chain, rail.asset);
+                // Undefined is "not priced yet", which is not the same as
+                // refused: an open link has no amount until the counter types one.
+                const refused = line !== undefined && (!line.available || line.amount === null);
+                const selected = value === key;
+                const swapped = rail.asset !== rail.settlementAsset;
 
-              {/* The selected row is already tinted; the check is what survives
-                  a colourblind reader and a dimmed re-price. It keeps its
-                  column when hidden so the amounts do not shift. */}
-              <CheckIcon
-                aria-hidden="true"
-                className={cn("size-3.5", selected ? "text-primary" : "invisible")}
-              />
-            </label>
-          );
-        })}
+                return (
+                  <label
+                    key={key}
+                    className={cn(
+                      "grid grid-cols-[1fr_auto_0.875rem] items-center gap-x-3 px-3 py-2 transition-colors",
+                      "has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-inset",
+                      refused
+                        ? "cursor-not-allowed opacity-55"
+                        : "cursor-pointer hover:bg-accent/50",
+                      selected && !refused && "bg-accent",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="charge-rail"
+                      value={key}
+                      checked={selected}
+                      disabled={refused}
+                      onChange={() => onSelect(key)}
+                      className="sr-only"
+                    />
+
+                    <span className="flex min-w-0 items-center gap-2">
+                      <AssetLogo symbol={rail.asset} size={20} className="size-5 shrink-0" />
+                      <span className="text-sm">{rail.asset}</span>
+                      <span className="sr-only"> on {chainLabel(rail.chain)}</span>
+                      {swapped && !refused && (
+                        <span className="text-subtle-foreground text-xs">
+                          → {rail.settlementAsset}
+                        </span>
+                      )}
+                    </span>
+
+                    {refused ? (
+                      // The reason, not "No rate": a missing oracle feed is an
+                      // operator's fix, and a blank refusal sends them looking
+                      // at the customer instead.
+                      <span className="max-w-56 text-right text-subtle-foreground text-xs">
+                        {line?.reason ?? "No rate"}
+                      </span>
+                    ) : (
+                      // Tabular figures so the decimal points stack down the column.
+                      <span className="text-right font-medium text-foreground text-sm tabular-nums">
+                        {line?.amount?.display ?? ""}
+                      </span>
+                    )}
+
+                    {/* The selected row is already tinted; the check is what
+                        survives a colourblind reader and a dimmed re-price. It
+                        keeps its column when hidden so the amounts do not shift. */}
+                    <CheckIcon
+                      aria-hidden="true"
+                      className={cn("size-3.5", selected ? "text-primary" : "invisible")}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
       <FieldDescription>
-        Converted to your settlement asset on arrival; the address they scan is specific to the
-        network. Indicative until you start the payment.
+        The address they scan is specific to the network. Amounts are indicative until you start the
+        payment.
       </FieldDescription>
     </Field>
   );

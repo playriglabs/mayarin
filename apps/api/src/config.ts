@@ -325,10 +325,14 @@ const configSchema = z.object({
    *   FX_FEEDS={"IDR/USDC":{"symbol":"USD/IDR","invert":true}}
    */
   fxFeeds: jsonObject<Record<string, FxFeed>>("FX_FEEDS", "{}"),
-  /** Optional FX API key; the default provider's free tier is open. */
-  fxApiKey: z.string().optional(),
-  /** Override the FX endpoint; defaults to `api.fxratesapi.com`. */
+  /** Override the FX endpoint; defaults to `api.coinbase.com`. */
   fxEndpoint: z.string().url().optional(),
+  /**
+   * How long one FX read is reused. Every base currency is one request per
+   * refresh. Kept under `QUOTE_FX_MAX_AGE_SECONDS` so a reused rate is still
+   * fresh enough to lock against.
+   */
+  fxCacheSeconds: z.coerce.number().int().positive().default(180),
   /**
    * Crypto pair to Coinbase Exchange product, e.g.
    *   COINBASE_PRODUCTS={"ETH/USDC":"ETH-USD","SOL/USDC":"SOL-USD"}
@@ -984,8 +988,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     pythApiKey: env.PYTH_API_KEY,
     pythHermesEndpoint: env.PYTH_HERMES_ENDPOINT,
     fxFeeds: env.FX_FEEDS,
-    fxApiKey: env.FX_API_KEY,
     fxEndpoint: env.FX_ENDPOINT,
+    fxCacheSeconds: env.FX_CACHE_SECONDS,
     coinbaseProducts: env.COINBASE_PRODUCTS,
     coinbaseEndpoint: env.COINBASE_ENDPOINT,
     chainlinkFeeds: env.CHAINLINK_FEEDS,

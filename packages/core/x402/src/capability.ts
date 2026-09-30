@@ -68,15 +68,25 @@ export class AssetCapabilities {
   }
 
   /**
-   * Ask every configured pair, so a deployment fails at startup rather than on
-   * a payer's first request.
+   * Ask every configured pair up front, and report the ones that cannot be
+   * described.
    *
-   * Nothing here is required for correctness — a lookup probes on demand — so
-   * this is the entry point's choice: an API that serves other traffic may
-   * prefer to start, and a deployment being demonstrated would rather not.
+   * Reported rather than thrown: a settlement stablecoin with no EIP-712
+   * domain (Robinhood's USDC and USDG, Arbitrum's USDG) is still a valid asset
+   * for the contract and deposit paths — it is only not an x402 token. A
+   * request already drops such a token, so refusing to start over one took the
+   * whole API down for a rail nobody could have used.
    */
-  async warmUp(): Promise<void> {
-    await Promise.all(this.#pairs.map((pair) => this.of(pair.chain, pair.contract)));
+  async warmUp(): Promise<readonly { readonly pair: AssetPair; readonly reason: string }[]> {
+    const results = await Promise.allSettled(
+      this.#pairs.map((pair) => this.of(pair.chain, pair.contract)),
+    );
+    return results.flatMap((result, index) => {
+      const pair = this.#pairs[index];
+      if (result.status === "fulfilled" || pair === undefined) return [];
+      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      return [{ pair, reason }];
+    });
   }
 
   /** The capability of one token, from cache or from the chain. */

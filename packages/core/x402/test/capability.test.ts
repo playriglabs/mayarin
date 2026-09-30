@@ -98,15 +98,22 @@ describe("AssetCapabilities", () => {
     expect(calls).toEqual([USDC, other]);
   });
 
-  test("warmUp fails when a configured token cannot be described", async () => {
-    const { probe } = countingProbe(async () => {
-      throw new Error("answers an invented selector");
+  test("warmUp reports a token that cannot be described instead of failing", async () => {
+    const other = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
+    const { probe } = countingProbe(async (contract) => {
+      if (contract === other) throw new Error("does not report an EIP-712 domain");
+      return capabilityOf(contract);
     });
     const capabilities = new AssetCapabilities({
       probes: [probe],
-      pairs: [{ chain: CHAIN, contract: USDC }],
+      pairs: [
+        { chain: CHAIN, contract: USDC },
+        { chain: CHAIN, contract: other },
+      ],
     });
 
-    await expect(capabilities.warmUp()).rejects.toThrow("answers an invented selector");
+    expect(await capabilities.warmUp()).toEqual([
+      { pair: { chain: CHAIN, contract: other }, reason: "does not report an EIP-712 domain" },
+    ]);
   });
 });

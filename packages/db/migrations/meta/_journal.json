@@ -239,6 +239,13 @@
       "when": 1789000000000,
       "tag": "0033_email_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790726400000,
+      "tag": "0034_merchant_settlement_asset_by_chain",
+      "breakpoints": true
     }
   ]
 }

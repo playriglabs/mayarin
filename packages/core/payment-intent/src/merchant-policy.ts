@@ -18,8 +18,13 @@ import type { AssetCode } from "@mayarin/shared";
 
 /** What one merchant will be paid in, and what they will take payment in. */
 export interface MerchantAssetPolicy {
-  /** The single asset the merchant is paid in. */
+  /** The asset the merchant is paid in on every chain without an override. */
   readonly settlementAsset: AssetCode;
+  /**
+   * The settlement asset overridden per chain. A chain absent settles in
+   * `settlementAsset`. Read it through `settlementAssetOnChain`.
+   */
+  readonly settlementAssetByChain?: Readonly<Partial<Record<ChainId, AssetCode>>>;
   /**
    * Assets a payer may pay with. Empty means the merchant has expressed no
    * preference and the deployment default stands.
@@ -61,10 +66,25 @@ export function acceptedPayerAssets(
   chain: ChainId,
 ): readonly AssetCode[] {
   const perChain = policy.acceptedAssetsByChain?.[chain];
-  return perChain !== undefined && perChain.length > 0 ? perChain : policy.acceptedAssets;
+  const accepted = perChain !== undefined && perChain.length > 0 ? perChain : policy.acceptedAssets;
+  // A chain's own settlement asset is always accepted there: the inherited
+  // merchant-wide list only ever carried the default one.
+  const override = policy.settlementAssetByChain?.[chain];
+  return override === undefined || accepted.length === 0 || accepted.includes(override)
+    ? accepted
+    : [override, ...accepted];
 }
 
-/** True when the payer sends exactly what the merchant settles in — no swap. */
-export function isSameAsset(policy: MerchantAssetPolicy, payerAsset: AssetCode): boolean {
-  return policy.settlementAsset === payerAsset;
+/** What the merchant is paid in on one chain: the override, or the merchant-wide asset. */
+export function settlementAssetOnChain(policy: MerchantAssetPolicy, chain: ChainId): AssetCode {
+  return policy.settlementAssetByChain?.[chain] ?? policy.settlementAsset;
+}
+
+/** True when the payer sends exactly what the merchant settles in on that chain — no swap. */
+export function isSameAsset(
+  policy: MerchantAssetPolicy,
+  payerAsset: AssetCode,
+  chain: ChainId,
+): boolean {
+  return settlementAssetOnChain(policy, chain) === payerAsset;
 }

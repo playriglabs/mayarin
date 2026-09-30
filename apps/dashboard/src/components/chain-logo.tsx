@@ -1,5 +1,6 @@
 import { chainLabel, chainLogoUrl } from "@mayarin/chain";
 import type * as React from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 function ChainLogo({
@@ -78,34 +79,77 @@ function ChainStack({
   chains,
   size = 20,
   className,
+  tooltip,
 }: {
   readonly chains: readonly string[];
   readonly size?: number;
   readonly className?: string;
+  /**
+   * What hovering or focusing one mark shows. Absent keeps the stack a
+   * decoration; present makes each mark a focusable trigger, so the detail is
+   * reachable from a keyboard too.
+   */
+  readonly tooltip?: (chain: string) => React.ReactNode;
 }) {
   const marks = chains.filter((chain) => chainLogoUrl(chain) !== undefined);
   if (marks.length === 0) return null;
+
+  const logo = (chain: string, overlap: boolean) => (
+    <ChainLogo
+      chain={chain}
+      size={size}
+      // `rounded-[50%]`, not `rounded-full`: a literal value keeps this
+      // disc round whatever the radius scale says. A mark that is round
+      // in its own artwork (Arc) then sits beside one that is not
+      // (Base's is a square PNG), and the stack reads as broken if the
+      // token ever changes shape.
+      //
+      // Later marks overlap earlier ones and sit on top, which is the
+      // direction the eye already reads. The ring is the card's own
+      // colour, so the discs separate without a gap between them.
+      className={cn("rounded-[50%] ring-2 ring-card", overlap && "-ml-2")}
+      style={{ width: size, height: size }}
+    />
+  );
+
+  if (tooltip === undefined) {
+    return (
+      <span className={cn("flex items-center", className)} aria-hidden="true">
+        {marks.map((chain, index) => (
+          <span key={chain} className="contents">
+            {logo(chain, index > 0)}
+          </span>
+        ))}
+      </span>
+    );
+  }
+
   return (
-    <span className={cn("flex items-center", className)} aria-hidden="true">
-      {marks.map((chain, index) => (
-        <ChainLogo
-          key={chain}
-          chain={chain}
-          size={size}
-          // `rounded-[50%]`, not `rounded-full`: a literal value keeps this
-          // disc round whatever the radius scale says. A mark that is round
-          // in its own artwork (Arc) then sits beside one that is not
-          // (Base's is a square PNG), and the stack reads as broken if the
-          // token ever changes shape.
-          //
-          // Later marks overlap earlier ones and sit on top, which is the
-          // direction the eye already reads. The ring is the card's own
-          // colour, so the discs separate without a gap between them.
-          className={cn("rounded-[50%] ring-2 ring-card", index > 0 && "-ml-2")}
-          style={{ width: size, height: size }}
-        />
-      ))}
-    </span>
+    <TooltipProvider>
+      <span className={cn("flex items-center", className)}>
+        {marks.map((chain, index) => (
+          <Tooltip key={chain}>
+            <TooltipTrigger
+              render={
+                // The hovered mark lifts above its neighbours, so the one the
+                // tooltip describes is the one in front.
+                <button
+                  type="button"
+                  aria-label={chainLabel(chain)}
+                  className={cn(
+                    "relative inline-flex cursor-default rounded-[50%] border-0 bg-transparent p-0 transition-transform duration-150 hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-ring",
+                    index > 0 && "-ml-2",
+                  )}
+                >
+                  {logo(chain, false)}
+                </button>
+              }
+            />
+            <TooltipContent>{tooltip(chain)}</TooltipContent>
+          </Tooltip>
+        ))}
+      </span>
+    </TooltipProvider>
   );
 }
 

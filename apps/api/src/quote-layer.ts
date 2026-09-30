@@ -152,7 +152,7 @@ function createOracleSource(name: OracleName, config: Config, clock: Clock): Pri
         feeds: config.fxFeeds,
         clock,
         ...(config.fxEndpoint !== undefined && { endpoint: config.fxEndpoint }),
-        ...(config.fxApiKey !== undefined && { apiKey: config.fxApiKey }),
+        cacheSeconds: config.fxCacheSeconds,
       });
     case "coinbase":
       return new CoinbasePriceOracle({

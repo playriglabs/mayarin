@@ -28,6 +28,11 @@ export interface Rail {
   /** The token contract on that chain. `null` for the chain's own currency. */
   readonly contract: string | null;
   /**
+   * What the merchant is paid in on this chain. The estimate quotes against
+   * it: it decides whether the payer's asset has a swap leg.
+   */
+  readonly settlementAsset: string;
+  /**
    * How this rail has been behaving (#260). Absent when the list was not
    * ranked. A degraded rail stays selectable — the note informs, it never gates.
    */

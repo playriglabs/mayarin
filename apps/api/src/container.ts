@@ -66,6 +66,7 @@ import {
   type MerchantAssetPolicySource,
   PaymentIntentService,
   type RailCatalog,
+  settlementAssetOnChain,
 } from "@mayarin/payment-intent";
 import {
   type ChainClients,
@@ -421,9 +422,9 @@ function createX402(deps: {
      * does for an intent. Reading it here is what tells a rail apart: an accept
      * naming this asset pays the merchant directly, and any other one is a swap.
      */
-    async settlementAssetOf(merchantId) {
+    async settlementAssetOf(merchantId, chain) {
       const policy = await merchantPolicies.policyFor(merchantId);
-      return policy?.settlementAsset ?? config.settlementAsset;
+      return policy === undefined ? config.settlementAsset : settlementAssetOnChain(policy, chain);
     },
     ...(quote === undefined ? {} : { quote }),
     operatorAddress: account.address,

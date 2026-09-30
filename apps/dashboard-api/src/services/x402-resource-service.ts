@@ -19,7 +19,7 @@
  * only because someone asked.
  */
 
-import type { MerchantRepository } from "@mayarin/auth";
+import { type MerchantRepository, settlementAssetOn } from "@mayarin/auth";
 import type { ChainId } from "@mayarin/chain";
 import { type AssetCode, type Money, NotFoundError, ValidationError } from "@mayarin/shared";
 import type { MerchantWalletRepository } from "@mayarin/wallet";
@@ -127,7 +127,6 @@ export class X402ResourceService {
    */
   async rails(scope: Scope): Promise<readonly RailOption[]> {
     const merchant = await this.#merchant(scope);
-    const settlementAsset = merchant.settlementAsset;
     const wallets = await this.#options.wallets.listByMerchant(scope.merchantId);
     const operator = await this.#options.crossAssetOperator();
     const options: RailOption[] = [];
@@ -148,7 +147,7 @@ export class X402ResourceService {
       if (settleTo === undefined) continue;
 
       for (const [asset, contract] of Object.entries(assets) as [AssetCode, string][]) {
-        if (asset === settlementAsset) {
+        if (asset === settlementAssetOn(merchant, chain)) {
           options.push({ chain, asset, contract, payTo: settleTo, kind: "same-asset" });
         } else if (operator !== undefined) {
           options.push({ chain, asset, contract, payTo: operator, kind: "cross-asset" });

@@ -1,4 +1,5 @@
-import clsx from "clsx";
+import { ExpiredArt, FailedArt, SuccessArt } from "./illustrations.tsx";
+
 /**
  * The end of the payment, in place of the deposit card.
  *
@@ -15,48 +16,25 @@ export function Outcome({
   readonly intentId: string;
 }) {
   const paid = status === "COMPLETED";
-  const heading = paid
-    ? "Payment completed"
-    : status === "EXPIRED"
-      ? "Payment expired"
-      : "Payment failed";
+  const expired = status === "EXPIRED";
+  const heading = paid ? "Payment completed" : expired ? "Payment expired" : "Payment failed";
   // Deliberately not the engine's own failure reason: that string names
   // clearing transactions and executor attempts — a sentence for an operator
   // reading the dashboard, not for the person holding the phone.
   const note = paid
-    ? "Thank you. You can safely close this page."
-    : "Start a new payment to try again.";
+    ? "The merchant has been paid. You can safely close this page."
+    : expired
+      ? "The time to pay ran out before a payment arrived. Start a new payment to try again."
+      : "Start a new payment to try again.";
 
   return (
-    <div className="outcome-wrap">
-      <div className="outcome">
-        <div className={clsx("mark", { bad: !paid })}>
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            {paid ? (
-              <path
-                d="M2 8.5 L6.5 13 L14 3"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="square"
-              />
-            ) : (
-              <path
-                d="M3 3 L13 13 M13 3 L3 13"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="square"
-              />
-            )}
-          </svg>
-        </div>
-        <h2>{heading}</h2>
-        <p className="pt-3">{note}</p>
-        <p className="reference">
-          Reference ID <code>{intentId}</code>
-        </p>
-      </div>
+    <div className="state-view" role="status">
+      {paid ? <SuccessArt /> : expired ? <ExpiredArt /> : <FailedArt />}
+      <h2>{heading}</h2>
+      <p>{note}</p>
+      <p className="reference">
+        Reference ID <code>{intentId}</code>
+      </p>
     </div>
   );
 }

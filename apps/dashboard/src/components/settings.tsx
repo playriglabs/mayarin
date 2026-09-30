@@ -3,8 +3,9 @@
  *
  * Two groups of fields that look alike and are not:
  *
- *   - Settlement: which stablecoin the merchant is paid in, what a payer may
- *     pay with, and the address the money is sent to. Changing the address
+ *   - Settlement: which stablecoin the merchant is paid in (by default, and
+ *     per network), what a payer may pay with, and the address the money is
+ *     sent to. Changing the address
  *     redirects this merchant's money, which is why the surface has its own
  *     permission and every edit is written to an audit trail shown below.
  *   - Profile: city and country. Frozen into the snapshot every payment link
@@ -21,12 +22,11 @@ import { BankIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
-import { ChainLabel } from "@/components/chain-logo";
+import { NetworkSettings, settlementOptionsOf } from "@/components/settings-networks";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Combobox,
   ComboboxContent,
@@ -44,7 +44,6 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  type SelectOption,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -71,26 +70,16 @@ import { ICON_CARD } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
 import type { SettingsDto } from "@/types/settings";
 
-/** A merchant settles in a stablecoin — the domain refuses anything else. */
-const SETTLEMENT_OPTIONS: readonly SelectOption[] = [
-  { value: "USDC", label: "USDC" },
-  { value: "USDT", label: "USDT" },
-];
-
-/**
- * Every country, with the unsupported ones disabled rather than hidden.
- *
- * `COUNTRIES` already sorts the selectable markets to the top, so the list a
- * merchant sees before typing is the list they can actually choose from.
- */
+/** Every country, alphabetical. */
 const COUNTRY_OPTIONS: readonly ComboboxOption[] = COUNTRIES.map((country) => ({
   value: country.code,
   label: country.label,
-  ...(country.supported ? {} : { disabled: true }),
 }));
 
 interface Draft {
   readonly settlementAsset: string;
+  /** Settlement asset overridden per chain. A chain absent settles in `settlementAsset`. */
+  readonly settlementAssetByChain: Readonly<Record<string, string>>;
   readonly acceptedAssets: readonly string[];
   /**
    * Accepted assets narrowed per chain (#244).
@@ -111,6 +100,7 @@ type SettingsTab = (typeof SETTINGS_TABS)[number];
 function draftOf(settings: SettingsDto): Draft {
   return {
     settlementAsset: settings.settlementAsset,
+    settlementAssetByChain: settings.settlementAssetByChain,
     acceptedAssets: settings.acceptedAssets,
     acceptedAssetsByChain: settings.acceptedAssetsByChain,
     settlementAddress: settings.settlementAddress ?? "",
@@ -131,10 +121,6 @@ function networkReasonOf(error: unknown): string {
 function orNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
-}
-
-function sameAssets(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((asset) => right.includes(asset));
 }
 
 /**
@@ -175,6 +161,7 @@ function Settings() {
   const loaded = settings.data?.settings;
   /** What each network can receive, so the matrix lists nothing a chain has no address for. */
   const supportedChains = rails.data?.supported ?? [];
+  const settlementOptions = settlementOptionsOf(supportedChains, draft?.settlementAsset);
   // Blocks the save rather than only colouring the field: the API probes every
   // chain for contract code before it validates, so a malformed address came
   // back as a provider fault instead of as the typo it is.
@@ -190,6 +177,7 @@ function Settings() {
     try {
       await update.mutateAsync({
         settlementAsset: draft.settlementAsset,
+        settlementAssetByChain: draft.settlementAssetByChain,
         acceptedAssets: draft.acceptedAssets,
         acceptedAssetsByChain: draft.acceptedAssetsByChain,
         settlementAddress: orNull(draft.settlementAddress),
@@ -206,69 +194,6 @@ function Settings() {
     setFailure("");
     setNotice("");
     setDraft(next);
-  }
-
-  /**
-   * What this merchant accepts on one chain: their row if they have written
-   * one, the merchant-wide list otherwise.
-   */
-  function acceptedOn(
-    current: Draft,
-    chain: string,
-    supported: readonly string[],
-  ): readonly string[] {
-    const row = current.acceptedAssetsByChain[chain];
-    if (row !== undefined && row.length > 0) {
-      return row.filter((asset) => supported.includes(asset));
-    }
-    // An empty merchant-wide list means "no preference", which the catalog
-    // reads as everything this chain can receive — so the boxes are ticked.
-    return current.acceptedAssets.length === 0
-      ? supported
-      : supported.filter((asset) => current.acceptedAssets.includes(asset));
-  }
-
-  /**
-   * Ticks or unticks one `(chain, asset)` box.
-   *
-   * Writing a row is what turns an inherited chain into an explicit one, so the
-   * first tick materialises the row from what was inherited — otherwise
-   * unticking ETH on Base would silently drop USDC with it. Unticking back to
-   * the inherited set removes the row again, so "inherit" keeps exactly one
-   * representation.
-   */
-  function toggleChainAsset(
-    chain: string,
-    asset: string,
-    checked: boolean,
-    supported: readonly string[],
-  ) {
-    if (draft === null) return;
-    const current = acceptedOn(draft, chain, supported);
-    const next = checked
-      ? [...new Set([...current, asset])]
-      : current.filter((entry) => entry !== asset);
-
-    const byChain = { ...draft.acceptedAssetsByChain };
-    const inherited =
-      draft.acceptedAssets.length === 0
-        ? supported
-        : supported.filter((entry) => draft.acceptedAssets.includes(entry));
-    if (sameAssets(next, inherited)) {
-      // Matching the merchant-wide choice is inheritance, so keep one
-      // representation rather than persisting a redundant override.
-      delete byChain[chain];
-    } else {
-      byChain[chain] = next;
-    }
-    edit({ ...draft, acceptedAssetsByChain: byChain });
-  }
-
-  function resetChainAssets(chain: string) {
-    if (draft === null) return;
-    const byChain = { ...draft.acceptedAssetsByChain };
-    delete byChain[chain];
-    edit({ ...draft, acceptedAssetsByChain: byChain });
   }
 
   return (
@@ -293,33 +218,54 @@ function Settings() {
                 value={activeTab}
                 onValueChange={(value) => setActiveTab(value as SettingsTab)}
               >
-                <Tabs.List
-                  aria-label="Settings sections"
-                  className="flex w-full overflow-x-auto border-border border-b"
-                >
-                  {(
-                    [
-                      ["settlement", "Settlement"],
-                      ["profile", "Profile location"],
-                      ["history", "Change history"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <Tabs.Tab
-                      key={value}
-                      value={value}
-                      className="min-h-11 shrink-0 cursor-pointer border-transparent border-b-2 px-4 font-sans text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-active:border-brand data-active:text-foreground dark:data-active:border-electric"
+                {/* Save sits on the tab row, not under the form: the settlement
+                    form runs past the fold, and a button below it was the one
+                    control a merchant had to scroll to find. */}
+                {/* On a phone the tabs take the full row and Save drops under
+                    them: side by side, the button covered the last tab. */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:border-border sm:border-b">
+                  <Tabs.List
+                    aria-label="Settings sections"
+                    className="flex min-w-0 flex-1 overflow-x-auto border-border border-b sm:border-b-0"
+                  >
+                    {(
+                      [
+                        ["settlement", "Settlement"],
+                        ["profile", "Profile location"],
+                        ["history", "Change history"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Tabs.Tab
+                        key={value}
+                        value={value}
+                        className="min-h-11 shrink-0 cursor-pointer border-transparent border-b-2 px-3 font-sans sm:px-4 text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-active:border-brand data-active:text-foreground dark:data-active:border-electric"
+                      >
+                        {label}
+                      </Tabs.Tab>
+                    ))}
+                  </Tabs.List>
+                  {activeTab !== "history" && (
+                    <Button
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={save}
+                      disabled={
+                        update.isPending ||
+                        addressInvalid ||
+                        JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
+                      }
                     >
-                      {label}
-                    </Tabs.Tab>
-                  ))}
-                </Tabs.List>
+                      {update.isPending ? "Saving…" : "Save settings"}
+                    </Button>
+                  )}
+                </div>
 
                 <Tabs.Panel value="settlement" className="pt-6 focus-visible:outline-none">
                   <Card className="flex flex-col gap-4 p-4">
                     <Field>
-                      <FieldLabel htmlFor="settlement-asset">Settlement asset</FieldLabel>
+                      <FieldLabel htmlFor="settlement-asset">Default settlement asset</FieldLabel>
                       <Select
-                        items={SETTLEMENT_OPTIONS}
+                        items={settlementOptions}
                         value={draft.settlementAsset}
                         onValueChange={(next) => edit({ ...draft, settlementAsset: next })}
                       >
@@ -330,7 +276,7 @@ function Settings() {
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          {SETTLEMENT_OPTIONS.map((option) => (
+                          {settlementOptions.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
                               <AssetLabel symbol={option.value} size={18} />
                             </SelectItem>
@@ -338,8 +284,8 @@ function Settings() {
                         </SelectContent>
                       </Select>
                       <FieldDescription>
-                        What you are paid in. Whatever a payer sends is converted to this before it
-                        reaches you.
+                        What you are paid in on every network without its own choice below. Whatever
+                        a payer sends is converted to it before it reaches you.
                       </FieldDescription>
                     </Field>
 
@@ -366,72 +312,16 @@ function Settings() {
                         only place a payer asset can be chosen at all. */}
                     {!rails.isPending && !rails.isError && supportedChains.length > 0 && (
                       <Field>
-                        <FieldLabel>Accepted assets per network</FieldLabel>
-                        <div className="flex flex-wrap justify-center gap-3 pt-1">
-                          {supportedChains.map((entry) => {
-                            const accepted = acceptedOn(draft, entry.chain, entry.assets);
-                            const customized =
-                              draft.acceptedAssetsByChain[entry.chain] !== undefined;
-                            return (
-                              <div
-                                key={entry.chain}
-                                className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-3 basis-full md:basis-[calc(50%-0.375rem)] lg:basis-[calc(33.333%-0.5rem)]"
-                              >
-                                {/* A fixed row height, the height of the Reset button:
-                                    a card without one otherwise sits shorter, and its
-                                    assets land higher than the cards beside it. */}
-                                <div className="flex min-h-7 items-center justify-between gap-3">
-                                  <p className="font-medium text-sm">
-                                    <ChainLabel chain={entry.chain} />
-                                  </p>
-                                  <span className="flex items-center gap-2">
-                                    <Badge variant={customized ? "brand" : "default"}>
-                                      {customized ? "Custom" : "Default"}
-                                    </Badge>
-                                    {customized && (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => resetChainAssets(entry.chain)}
-                                      >
-                                        Reset
-                                      </Button>
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-4">
-                                  {entry.assets.map((asset) => (
-                                    <span key={asset} className="flex items-center gap-2 text-sm">
-                                      <Checkbox
-                                        id={`accepted-${entry.chain}-${asset}`}
-                                        checked={accepted.includes(asset)}
-                                        disabled={accepted.length === 1 && accepted.includes(asset)}
-                                        onCheckedChange={(checked) =>
-                                          toggleChainAsset(
-                                            entry.chain,
-                                            asset,
-                                            checked === true,
-                                            entry.assets,
-                                          )
-                                        }
-                                      />
-                                      <label
-                                        htmlFor={`accepted-${entry.chain}-${asset}`}
-                                        className="flex items-center"
-                                      >
-                                        <AssetLabel symbol={asset} size={18} />
-                                      </label>
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <FieldLabel>Networks</FieldLabel>
+                        <NetworkSettings
+                          supported={supportedChains}
+                          draft={draft}
+                          onChange={(next) => edit({ ...draft, ...next })}
+                        />
                         <FieldDescription>
-                          Choose what payers can send on each network. Only assets a network can
-                          receive are listed, and each keeps at least one.
+                          Each network settles in your default asset unless you choose otherwise.
+                          Open a network to pick what payers can send there and what you are paid
+                          in.
                         </FieldDescription>
                       </Field>
                     )}
@@ -519,9 +409,8 @@ function Settings() {
                       </Field>
                     </div>
                     <FieldDescription>
-                      Mayarin takes payments in the United States and Southeast Asia today. Every
-                      other country is listed but cannot be picked yet. Both fields are frozen into
-                      every payment a link takes, and a payment link cannot be created without them.
+                      Both fields are frozen into every payment a link takes, and a payment link
+                      cannot be created without them.
                     </FieldDescription>
                   </Card>
                 </Tabs.Panel>
@@ -609,21 +498,6 @@ function Settings() {
                   )}
                 </Tabs.Panel>
               </Tabs.Root>
-
-              {activeTab !== "history" && (
-                <div className="flex justify-end">
-                  <Button
-                    onClick={save}
-                    disabled={
-                      update.isPending ||
-                      addressInvalid ||
-                      JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
-                    }
-                  >
-                    {update.isPending ? "Saving…" : "Save settings"}
-                  </Button>
-                </div>
-              )}
             </>
           );
         })}

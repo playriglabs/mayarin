@@ -24,12 +24,6 @@ export interface LinkBootstrap {
    */
   readonly rails: readonly Rail[];
   /**
-   * What the merchant is paid in. The estimate quotes against it: it is what
-   * decides whether the payer's asset has a swap leg, and a preview that skips
-   * it shows the pure FX rate for a payment that will take the swap.
-   */
-  readonly settlementAsset: string;
-  /**
    * Why the rails list is empty when the link itself narrowed it to nothing
    * (#259). `null` when there is nothing specific to say.
    */

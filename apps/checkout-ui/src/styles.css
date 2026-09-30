@@ -373,118 +373,126 @@
   .timer.low strong {
     @apply text-danger;
   }
-  .live-status {
-    @apply mt-6 flex items-center gap-3 rounded-panel border border-line bg-surface px-4 py-3.5;
-  }
-  .live-status span,
-  .live-status strong {
-    @apply block;
-  }
-  .live-status span {
-    @apply text-[11px] text-muted;
-  }
-  .live-status strong {
-    @apply text-xs font-semibold;
-  }
-  .dot {
-    @apply size-2 shrink-0 bg-muted;
-  }
-  .dot.live {
-    @apply bg-electric motion-safe:animate-pulse;
-  }
-  .dot.done {
-    @apply bg-brand;
-  }
-  .dot.bad {
-    @apply bg-danger;
-  }
+
+  /*
+   * Progress, as a vertical list of steps (after PayNow's hosted page): an icon
+   * per step, joined by a line that turns brand as the payment moves. Under the
+   * order on a wide screen, above the payment on a narrow one.
+   */
   .status-timeline {
-    @apply mt-5.5 mb-6 grid list-none grid-cols-3 p-0;
+    @apply m-0 grid list-none gap-0 p-0;
+  }
+  .timeline-wide {
+    @apply mt-10 hidden xl:grid;
+  }
+  .timeline-narrow {
+    @apply mb-8 xl:hidden;
   }
   .status-timeline li {
-    @apply relative pt-5 text-center text-[9.5px] text-subtle sm:text-[12px];
+    @apply relative flex min-h-14 items-start gap-3.5 text-sm text-subtle;
   }
-  .status-timeline li::before {
+  .status-timeline li:last-child {
+    @apply min-h-0;
+  }
+  /* The joining line, from under this icon to the next one. */
+  .status-timeline li:not(:last-child)::after {
     content: "";
-    @apply absolute top-1.5 right-0 left-0 h-px bg-line;
+    @apply absolute top-8 bottom-1 left-[0.9375rem] w-0.5 rounded-full bg-line;
   }
-  .status-timeline li:first-child::before {
-    @apply left-1/2;
+  .status-timeline li.done:not(:last-child)::after {
+    @apply bg-brand;
   }
-  .status-timeline li:last-child::before {
-    @apply right-1/2;
+  .status-timeline li > span:last-child {
+    @apply pt-1.5 leading-5;
   }
-  .status-timeline i {
-    @apply absolute top-0.5 left-[calc(50%-5px)] z-10 size-2.5 rounded-full border-2 border-paper bg-field shadow-[0_0_0_1px_var(--color-field)];
+  .status-timeline .current,
+  .status-timeline .bad {
+    @apply font-medium text-ink;
   }
-  .status-timeline .complete,
-  .status-timeline .current {
-    @apply text-ink;
+  .status-timeline .done {
+    @apply text-muted;
   }
-  .status-timeline .complete i,
-  .status-timeline .current i {
-    @apply bg-brand shadow-[0_0_0_1px_var(--color-brand)];
+  .step-icon {
+    @apply grid size-8 shrink-0 place-items-center rounded-full border-2 border-line text-subtle;
   }
-  .status-timeline .current i {
-    @apply motion-safe:animate-pulse;
+  .step-icon svg {
+    @apply size-6 fill-none stroke-current;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
+  .done .step-icon {
+    @apply border-brand bg-brand text-paper;
+  }
+  .current .step-icon {
+    @apply border-brand/35 text-brand;
+  }
+  .bad .step-icon {
+    @apply border-danger bg-danger text-paper;
+  }
+  .step-dot {
+    @apply fill-current stroke-0;
+  }
+  .step-spin {
+    stroke-dasharray: 60 40;
+    transform-origin: 12px 12px;
+    @apply motion-safe:animate-spin;
+  }
+
+  /* Getting the address ready: a line, not a box. */
   .preparing {
-    @apply flex min-h-40 items-center justify-center gap-3.5 rounded-panel border border-dashed border-field px-4.5;
+    @apply mt-8 flex items-center gap-3.5 py-6;
   }
   .preparing p {
     @apply mt-1 mb-0 text-xs text-muted;
   }
-  .preparing .received-note {
-    @apply mt-2 font-semibold text-brand tabular-nums;
-  }
   .spinner {
-    @apply size-5.5 animate-spin rounded-full border-2 border-line border-t-brand motion-reduce:animate-none;
+    @apply size-5.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-brand motion-reduce:animate-none;
+  }
+
+  /* What to send and where. The amount and the QR stand on the page itself;
+     space, not borders, keeps them apart. */
+  .deposit-primary {
+    @apply mt-8 grid items-center gap-8 sm:grid-cols-[minmax(0,1fr)_11rem];
   }
   .send-amount {
-    @apply flex min-h-44 flex-col items-center justify-center rounded-panel border border-line p-4.5 text-center;
+    @apply flex flex-col items-center text-center sm:items-start sm:text-left;
   }
   .send-amount > span {
     @apply block text-xs text-muted;
   }
   .send-amount strong {
-    @apply inline-flex items-center gap-2.5 text-2xl font-semibold tabular-nums;
+    @apply inline-flex items-center gap-2.5 text-[28px] leading-tight font-semibold tracking-tight tabular-nums;
   }
   .send-amount .amount-row {
-    @apply mt-2 flex flex-wrap items-center justify-center gap-x-3.5 gap-y-2;
+    @apply mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-2 sm:justify-start;
   }
   .send-rail {
-    @apply mt-3 mb-0 text-xs text-muted;
-  }
-  .deposit-primary {
-    @apply grid gap-3.5 sm:grid-cols-[minmax(0,1fr)_12rem];
+    @apply mt-2.5 mb-0 text-xs text-muted;
   }
   .qr-block {
-    @apply rounded-panel border border-line p-3 text-center;
+    @apply mx-auto w-full max-w-44 text-center;
   }
   .qr-block > span {
-    @apply text-xs text-muted;
+    @apply mb-2 block text-xs text-muted;
   }
   .qr {
-    @apply mt-6 flex justify-center bg-white p-3;
-  }
-  .pay-detail .qr {
-    @apply mx-auto mt-2 mb-0 w-full max-w-60 rounded-control;
+    @apply flex justify-center rounded-control bg-white p-2.5;
   }
   .qr img,
   .qr svg {
-    @apply block h-auto w-full max-w-50;
+    @apply block h-auto w-full;
   }
-  .payment-data {
-    @apply m-0 border-t border-line;
-  }
+
+  /* Details fold open under a hairline, with no box around them. */
   .payment-details {
-    @apply mt-3.5 rounded-control border border-line;
+    @apply mt-8 border-y border-line;
   }
   .payment-details-trigger {
-    @apply flex min-h-11 w-full cursor-pointer items-center justify-between gap-4 rounded-control border-0 bg-transparent px-3.5 py-2.5 text-left text-xs font-medium text-ink transition-colors duration-200;
+    @apply flex min-h-12 w-full cursor-pointer items-center justify-between gap-4 border-0 bg-transparent px-0 py-2.5 text-left text-xs font-medium text-ink;
   }
   .payment-details-trigger:hover {
-    @apply bg-surface;
+    @apply text-brand;
   }
   .payment-details-trigger:focus-visible {
     @apply outline-2 outline-offset-2 outline-brand;
@@ -507,14 +515,14 @@
   .payment-details-clip {
     @apply min-h-0 overflow-hidden;
   }
-  .payment-details .payment-data {
-    @apply mx-3.5 mb-2.5 -translate-y-1 transition-transform duration-200 ease-out motion-reduce:translate-y-0 motion-reduce:transition-none;
+  .payment-data {
+    @apply m-0 mb-3 -translate-y-1 transition-transform duration-200 ease-out motion-reduce:translate-y-0 motion-reduce:transition-none;
   }
   .payment-details-collapse.open .payment-data {
     @apply translate-y-0;
   }
   .payment-data > div {
-    @apply grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2.5 border-b border-line py-2.5 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4;
+    @apply grid grid-cols-[5.75rem_minmax(0,1fr)] gap-2.5 py-2 sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-4;
   }
   .payment-data dt {
     @apply text-xs text-muted;
@@ -529,83 +537,163 @@
     @apply flex items-center justify-end gap-2;
   }
   .copy {
-    @apply mt-3.5 min-h-11 w-full rounded-control border border-field bg-transparent px-3 py-2 text-xs font-medium text-ink;
+    @apply mt-5 min-h-12 w-full rounded-control border-0 bg-surface px-3 py-2 text-sm font-medium text-ink transition-colors duration-200;
   }
-  /* The amount's copy sits beside the figure as an icon, so it drops the block
-     layout the address button below the details still uses. */
+  .copy:hover {
+    @apply bg-line;
+  }
+  /* The amount's copy sits beside the figure as a quiet icon. */
   .copy-inline {
-    @apply mt-0 grid size-11 min-h-11 shrink-0 place-items-center p-0 text-muted;
+    @apply mt-0 grid size-9 min-h-9 shrink-0 place-items-center rounded-full bg-transparent p-0 text-muted;
+  }
+  .copy-inline:hover {
+    @apply bg-surface text-ink;
   }
   .copy-inline svg {
     @apply block size-4;
   }
   .connection-mode,
   .reference {
-    @apply mt-3.5 mb-0 text-center text-[11px] text-subtle;
+    @apply mt-4 mb-0 text-center text-[11px] text-subtle;
   }
-  .outcome-wrap {
-    @apply rounded-panel border border-line p-5.5;
+
+  /* Processing and the end states: a picture, a heading, a sentence. */
+  .state-view {
+    @apply flex flex-col items-center py-4 text-center;
   }
-  .outcome {
-    @apply py-3 text-center;
+  .state-view h2 {
+    @apply mt-6;
   }
-  .mark {
-    @apply mx-auto mb-4 flex size-11 rounded-full items-center justify-center bg-brand text-paper;
+  .state-view p {
+    @apply mx-auto mt-2.5 mb-0 max-w-sm text-sm text-muted;
   }
-  .mark.bad {
-    @apply bg-danger;
+  .state-view .received-note {
+    @apply mt-4 rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand tabular-nums;
   }
-  .mark svg {
-    @apply block size-5.5;
+  .state-view .reference {
+    @apply mt-6;
   }
-  .outcome h2 {
-    @apply mb-1.5 text-lg;
+  .state-art {
+    @apply block size-44 overflow-visible sm:size-52;
   }
-  .outcome p {
-    @apply m-0 text-xs text-muted;
+  .art-track {
+    @apply fill-none stroke-line;
+    stroke-width: 3;
+  }
+  .art-orbit {
+    @apply fill-none stroke-brand;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 28 72;
+    transform-origin: 100px 100px;
+    animation: art-orbit 2.4s linear infinite;
+  }
+  .art-card {
+    @apply fill-surface stroke-brand;
+    stroke-width: 2;
+  }
+  .art-card-stripe {
+    @apply fill-brand/30;
+  }
+  .art-chip {
+    @apply fill-electric/80;
+  }
+  .art-card-line {
+    @apply fill-line;
+  }
+  .art-coin-face {
+    @apply fill-electric;
+  }
+  .art-coin-ring {
+    @apply fill-none stroke-paper/40;
+    stroke-width: 2;
+  }
+  .art-coin-mark {
+    @apply fill-none stroke-paper;
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+  .art-coin {
+    animation: art-drop 2.4s ease-in-out infinite;
+  }
+  .art-float {
+    animation: art-float 3.2s ease-in-out infinite;
+  }
+  .art-dot {
+    @apply fill-brand;
+  }
+  .art-twinkle {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: art-twinkle 2.2s ease-in-out infinite;
+  }
+  .art-delay {
+    animation-delay: 1.1s;
+  }
+  .art-glow {
+    @apply fill-brand/10;
+  }
+  .art-success-disc {
+    @apply fill-brand;
+  }
+  .art-check {
+    @apply fill-none stroke-paper;
+    stroke-width: 9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: art-draw 0.6s 0.15s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+  .art-spark {
+    @apply fill-electric;
+  }
+  .art-spark-brand {
+    @apply fill-brand;
+  }
+  .art-bad-glow {
+    @apply fill-danger/10;
+  }
+  .art-bad-disc {
+    @apply fill-danger;
+  }
+  .art-cross {
+    @apply fill-none stroke-paper;
+    stroke-width: 9;
+    stroke-linecap: round;
+  }
+  .art-clock {
+    @apply fill-none stroke-danger;
+    stroke-width: 6;
+  }
+  .art-clock-hands {
+    @apply fill-none stroke-danger;
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .art-clock-pin {
+    @apply fill-danger;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .art-orbit,
+    .art-coin,
+    .art-float,
+    .art-twinkle {
+      animation: none;
+    }
+    .art-check {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
   }
 
   /* The split checkout needs more than an iPad landscape width. At 1024px a
      two-column shell leaves the payment task only half a screen and forces the
      exact amount to wrap; tablets keep the full-width, stacked flow. */
   @media (min-width: 80rem) {
-    .checkout-panel:has(.pay-detail) {
-      @apply py-5;
-    }
-    .pay-detail .live-status {
-      @apply mt-4 px-4 py-2.5;
-    }
-    .pay-detail .status-timeline {
-      @apply mt-4 mb-4;
-    }
-    .pay-detail .send-amount {
-      @apply p-3.5;
-    }
     .pay-detail .send-amount strong {
-      @apply text-xl;
-    }
-    .pay-detail .send-amount .amount-row {
-      @apply mt-1;
-    }
-    .pay-detail .qr {
-      @apply mt-2 mb-0 max-w-44 p-2;
-    }
-    .pay-detail .qr img,
-    .pay-detail .qr svg {
-      @apply max-w-44;
-    }
-    .pay-detail .copy {
-      @apply mt-2;
-    }
-    .pay-detail .copy-inline {
-      @apply mt-0;
-    }
-    .pay-detail .estimate-note {
-      @apply mt-3 leading-5;
-    }
-    .pay-detail .connection-mode,
-    .pay-detail .reference {
-      @apply mt-2;
+      @apply text-2xl;
     }
   }
 
@@ -712,6 +800,46 @@
   }
   .settled-meta {
     @apply inline-flex items-baseline gap-3 text-sm tabular-nums;
+  }
+}
+
+@keyframes art-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes art-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes art-drop {
+  0%,
+  100% {
+    transform: translateY(-3px);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+@keyframes art-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes art-draw {
+  to {
+    stroke-dashoffset: 0;
   }
 }
 

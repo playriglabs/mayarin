@@ -66,8 +66,9 @@ function linkBootstrap(overrides: Partial<LinkBootstrap> = {}): LinkBootstrap {
       display: "Rp 50.000,00",
     },
     lines: null,
-    rails: [{ chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" }],
-    settlementAsset: "USDC",
+    rails: [
+      { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd", settlementAsset: "USDC" },
+    ],
     unpayableReason: null,
     lockMinutes: 15,
     ...overrides,
@@ -128,7 +129,12 @@ describe("payment stage", () => {
   });
 });
 
-const USDC_ON_BASE = { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" } as const;
+const USDC_ON_BASE = {
+  chain: "base-sepolia",
+  asset: "USDC",
+  contract: "0x036cbd",
+  settlementAsset: "USDC",
+} as const;
 
 describe("checkout body", () => {
   test("asks for the deposit path, whatever the deployment default is", () => {
@@ -163,12 +169,12 @@ describe("quote body", () => {
     // A swap leg is priced by a venue, and a venue's pool lives on one chain.
     // Without the chain the preview quoted the same EURC figure on Arc as on
     // Base Sepolia — two pools, one answer, and only one of them lockable.
-    const body = quoteBody(
-      "1.00",
-      "USD",
-      { chain: "arc-testnet", asset: "EURC", contract: "0x89b5" },
-      "USDC",
-    );
+    const body = quoteBody("1.00", "USD", {
+      chain: "arc-testnet",
+      asset: "EURC",
+      contract: "0x89b5",
+      settlementAsset: "USDC",
+    });
     expect(body).toEqual({
       amount: { amount: "1.00", asset: "USD" },
       assets: ["EURC"],

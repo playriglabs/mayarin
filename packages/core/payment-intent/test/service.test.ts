@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { type AssetCode, FixedClock, money, ValidationError } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
 import {
+  acceptedPayerAssets,
   isSameAsset,
   type MerchantAssetPolicy,
   type MerchantAssetPolicySource,
@@ -306,6 +307,41 @@ describe("per-merchant asset policy", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
+  test("a rail on a chain with its own settlement asset settles in it", async () => {
+    const intent = await withPolicy({
+      settlementAsset: "USDT",
+      settlementAssetByChain: { "base-sepolia": "USDC" },
+      acceptedAssets: [],
+    }).create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+      payment: { asset: "USDC", chain: "base-sepolia" },
+    });
+
+    expect(intent.settlementAsset).toBe("USDC");
+  });
+
+  test("choosing a rail later takes that chain's settlement asset", async () => {
+    const intents = withPolicy({
+      settlementAsset: "USDT",
+      settlementAssetByChain: { "base-sepolia": "USDC" },
+      acceptedAssets: [],
+    });
+    const minted = await intents.create({
+      merchant,
+      amount: money(5_000_000n, "IDR"),
+      source: { type: "manual" },
+    });
+    expect(minted.settlementAsset).toBe("USDT");
+
+    const chosen = await intents.choosePayment(minted.id, {
+      asset: "USDC",
+      chain: "base-sepolia",
+    });
+    expect(chosen.settlementAsset).toBe("USDC");
+  });
+
   test("an empty accepted list means no preference, not 'accepts nothing'", async () => {
     const intent = await withPolicy({ settlementAsset: "USDC", acceptedAssets: [] }).create({
       merchant,
@@ -357,10 +393,35 @@ describe("isSameAsset", () => {
   test("is true only when the payer sends the settlement asset itself", () => {
     const policy: MerchantAssetPolicy = { settlementAsset: "USDC", acceptedAssets: [] };
 
-    expect(isSameAsset(policy, "USDC")).toBe(true);
-    expect(isSameAsset(policy, "ETH")).toBe(false);
+    expect(isSameAsset(policy, "USDC", "base-sepolia")).toBe(true);
+    expect(isSameAsset(policy, "ETH", "base-sepolia")).toBe(false);
     // Two stablecoins are still a swap — the rule is the pair, not the kind.
-    expect(isSameAsset(policy, "USDT")).toBe(false);
+    expect(isSameAsset(policy, "USDT", "base-sepolia")).toBe(false);
+  });
+
+  test("reads the chain's own settlement asset where one is set", () => {
+    const policy: MerchantAssetPolicy = {
+      settlementAsset: "USDC",
+      settlementAssetByChain: { "robinhood-testnet": "USDG" },
+      acceptedAssets: [],
+    };
+
+    expect(isSameAsset(policy, "USDG", "robinhood-testnet")).toBe(true);
+    expect(isSameAsset(policy, "USDC", "robinhood-testnet")).toBe(false);
+    expect(isSameAsset(policy, "USDC", "base-sepolia")).toBe(true);
+  });
+});
+
+describe("acceptedPayerAssets", () => {
+  test("always accepts a chain's own settlement asset on that chain", () => {
+    const policy: MerchantAssetPolicy = {
+      settlementAsset: "USDC",
+      settlementAssetByChain: { "robinhood-testnet": "USDG" },
+      acceptedAssets: ["USDC", "ETH"],
+    };
+
+    expect(acceptedPayerAssets(policy, "robinhood-testnet")).toEqual(["USDG", "USDC", "ETH"]);
+    expect(acceptedPayerAssets(policy, "base-sepolia")).toEqual(["USDC", "ETH"]);
   });
 });
 

@@ -11,7 +11,7 @@
  * is why this is not `settings:manage`.
  */
 
-import { acceptedAssetsOn } from "@mayarin/auth";
+import { acceptedAssetsOn, settlementAssetOn } from "@mayarin/auth";
 import { CHAIN_IDS } from "@mayarin/chain";
 import { restrictRails } from "@mayarin/payment-intent";
 import {
@@ -220,7 +220,14 @@ export function paymentLinkRoutes(container: Container): Hono<{ Variables: AuthV
           ];
 
     return c.json(
-      await container.paymentApi.quote(amount, assets, body.chain, merchant.settlementAsset),
+      await container.paymentApi.quote(
+        amount,
+        assets,
+        body.chain,
+        body.chain === undefined
+          ? merchant.settlementAsset
+          : settlementAssetOn(merchant, body.chain),
+      ),
     );
   });
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Brand } from "./brand.tsx";
 import { PoweredBy } from "./powered-by.tsx";
 import type { LineItem, MerchantRef } from "./types.ts";
@@ -12,11 +13,14 @@ export function CheckoutSummary({
   title,
   totalDisplay,
   lines,
+  children,
 }: {
   readonly merchant: MerchantRef;
   readonly title: string;
   readonly totalDisplay: string;
   readonly lines: readonly LineItem[] | null;
+  /** Page-specific content under the order, e.g. the payment's progress. */
+  readonly children?: ReactNode;
 }) {
   return (
     <aside className="checkout-summary" aria-label="Order summary">
@@ -63,6 +67,7 @@ export function CheckoutSummary({
           </div>
         )}
 
+        {children}
         <div className="summary-spacer" />
         <PoweredBy />
       </div>

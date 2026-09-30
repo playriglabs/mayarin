@@ -16,6 +16,7 @@
 #
 #   ./scripts/deploy.sh ethereum-sepolia             # all three steps
 #   ./scripts/deploy.sh base-sepolia                 # all three steps
+#   ./scripts/deploy.sh arbitrum-sepolia             # all three steps
 #   ./scripts/deploy.sh arc-testnet --dry            # simulate, broadcast nothing
 #   ./scripts/deploy.sh arc-testnet --factory-only   # router already deployed
 #
@@ -31,7 +32,7 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <ethereum-sepolia|base-sepolia|arc-testnet> [--dry] [--factory-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|robinhood-testnet|arc-testnet> [--dry] [--factory-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
@@ -59,6 +60,19 @@ case "$CHAIN" in
     RPC_VAR=BASE_SEPOLIA_RPC_URL
     EXPLORER="https://sepolia.basescan.org/address"
     VERIFIER=etherscan
+    ;;
+  arbitrum-sepolia)
+    CHAIN_ID=421614
+    RPC_VAR=ARBITRUM_SEPOLIA_RPC_URL
+    EXPLORER="https://sepolia.arbiscan.io/address"
+    VERIFIER=etherscan
+    ;;
+  robinhood-testnet)
+    CHAIN_ID=46630
+    RPC_VAR=ROBINHOOD_TESTNET_RPC_URL
+    EXPLORER="https://explorer.testnet.chain.robinhood.com/address"
+    VERIFIER=blockscout
+    VERIFIER_URL="https://explorer.testnet.chain.robinhood.com/api/"
     ;;
   arc-testnet)
     CHAIN_ID=5042002

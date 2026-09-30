@@ -100,7 +100,7 @@ function ComboboxInput({
       <ComboboxPrimitive.Input
         data-slot="combobox-input"
         className={cn(
-          "flex h-8 w-full cursor-text items-center rounded-lg border border-input bg-card px-2.5 pr-8 text-left text-sm text-foreground transition-colors duration-150",
+          "flex h-10 w-full cursor-text items-center rounded-lg border border-input bg-card px-2.5 pr-8 text-left text-sm text-foreground transition-colors duration-150",
           "placeholder:text-subtle-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           "disabled:cursor-not-allowed disabled:bg-muted disabled:text-subtle-foreground",
           "aria-invalid:border-destructive",

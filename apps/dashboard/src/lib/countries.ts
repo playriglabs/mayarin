@@ -11,29 +11,6 @@
  * repository to fall out of date.
  */
 
-/**
- * Where Mayarin can take a payment today: the United States and Southeast Asia.
- *
- * Every other country is listed but not selectable. Hiding them would say "this
- * country does not exist"; disabling them says "not yet", which is the true
- * statement and the one a merchant in a neighbouring market needs to read.
- */
-export const SUPPORTED_COUNTRIES: readonly string[] = [
-  "US",
-  // ASEAN, plus Timor-Leste.
-  "BN",
-  "ID",
-  "KH",
-  "LA",
-  "MM",
-  "MY",
-  "PH",
-  "SG",
-  "TH",
-  "TL",
-  "VN",
-];
-
 /** Every ISO 3166-1 alpha-2 code. The standard, uncurated. */
 const ISO_ALPHA2: readonly string[] = [
   "AD",
@@ -294,7 +271,6 @@ export interface Country {
   readonly name: string;
   /** `ID - Indonesia`, which is what the list shows and searches over. */
   readonly label: string;
-  readonly supported: boolean;
 }
 
 /**
@@ -304,21 +280,11 @@ export interface Country {
  */
 const DISPLAY = new Intl.DisplayNames(["en"], { type: "region", fallback: "code" });
 
-const supported = new Set(SUPPORTED_COUNTRIES);
-
-/**
- * Every country, supported ones first and each group alphabetical.
- *
- * Sorted rather than left in code order so the eleven a merchant can actually
- * pick are the eleven they see before typing anything.
- */
+/** Every country, alphabetical by name. Any of them can be picked. */
 export const COUNTRIES: readonly Country[] = ISO_ALPHA2.map((code) => {
   const name = DISPLAY.of(code) ?? code;
-  return { code, name, label: `${code} - ${name}`, supported: supported.has(code) };
-}).sort((a, b) => {
-  if (a.supported !== b.supported) return a.supported ? -1 : 1;
-  return a.name.localeCompare(b.name);
-});
+  return { code, name, label: `${code} - ${name}` };
+}).sort((a, b) => a.name.localeCompare(b.name));
 
 /** The stored code as something to read. Unknown codes show as themselves. */
 export function countryLabel(code: string): string {

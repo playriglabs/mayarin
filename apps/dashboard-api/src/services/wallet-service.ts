@@ -20,7 +20,7 @@
  * defaulting to the managed wallet when it is not.
  */
 
-import type { MerchantRepository } from "@mayarin/auth";
+import { type Merchant, type MerchantRepository, settlementAssetOn } from "@mayarin/auth";
 import type { ChainId } from "@mayarin/chain";
 import {
   type AssetCode,
@@ -121,6 +121,11 @@ export interface WalletServiceOptions {
   readonly withdrawals: WalletWithdrawalRepository;
   /** The chain's own currency per chain, reported alongside the settlement asset. */
   readonly nativeAssets?: Readonly<Partial<Record<ChainId, AssetCode>>>;
+  /**
+   * Every stablecoin each chain carries. Read alongside the settlement asset so
+   * money settled before a merchant switched assets is still counted.
+   */
+  readonly stablecoins?: Readonly<Partial<Record<ChainId, readonly AssetCode[]>>>;
 }
 
 /** What a merchant's payout address holds right now. */
@@ -174,6 +179,7 @@ export class WalletService {
   readonly #walletProvider: WalletProvider | undefined;
   readonly #withdrawals: WalletWithdrawalRepository;
   readonly #nativeAssets: Readonly<Partial<Record<ChainId, AssetCode>>>;
+  readonly #stablecoins: Readonly<Partial<Record<ChainId, readonly AssetCode[]>>>;
 
   constructor(options: WalletServiceOptions) {
     this.#wallets = options.wallets;
@@ -194,6 +200,7 @@ export class WalletService {
     this.#walletProvider = options.walletProvider;
     this.#withdrawals = options.withdrawals;
     this.#nativeAssets = options.nativeAssets ?? {};
+    this.#stablecoins = options.stablecoins ?? {};
   }
 
   /**
@@ -216,11 +223,7 @@ export class WalletService {
     return Promise.all(this.#chains.map((chain) => this.#balanceOn(scope, merchant, chain)));
   }
 
-  async #balanceOn(
-    scope: Scope,
-    merchant: { readonly settlementAsset: AssetCode; readonly settlementAddress?: string },
-    chain: ChainId,
-  ): Promise<SettlementBalance> {
+  async #balanceOn(scope: Scope, merchant: Merchant, chain: ChainId): Promise<SettlementBalance> {
     const address = await this.#settlementAddresses.effective(
       scope.merchantId,
       chain,
@@ -231,9 +234,11 @@ export class WalletService {
       return { chain, address, withdrawable: false, balances: [] };
     }
 
-    const assets = [merchant.settlementAsset, this.#nativeAssets[chain]].filter(
-      (asset): asset is AssetCode => asset !== undefined,
-    );
+    const assets = [
+      settlementAssetOn(merchant, chain),
+      ...(this.#stablecoins[chain] ?? []),
+      this.#nativeAssets[chain],
+    ].filter((asset): asset is AssetCode => asset !== undefined);
     const managed = await this.#wallets.findManaged(scope.merchantId, chain);
 
     return {

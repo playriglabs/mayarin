@@ -88,12 +88,12 @@ export class PaymentApiPricingSource implements RailPricingSource {
     const now = Date.now();
     if (cached !== undefined && now - cached.at < this.#ttlMs) return cached.priceable;
 
-    const priceable = await this.#ask(rail.chain, rail.asset);
+    const priceable = await this.#ask(rail.chain, rail.asset, rail.settlementAsset);
     this.#answers.set(key, { at: now, priceable });
     return priceable;
   }
 
-  async #ask(chain: ChainId, payerAsset: AssetCode): Promise<boolean> {
+  async #ask(chain: ChainId, payerAsset: AssetCode, settlementAsset: AssetCode): Promise<boolean> {
     try {
       // Probed in **fiat**, not in the settlement asset. `POST /v1/quotes`
       // prices a merchant's own currency into what the payer sends, so a
@@ -107,7 +107,12 @@ export class PaymentApiPricingSource implements RailPricingSource {
       // every configured chain — a pair with pools on two of them is refused
       // outright, and a testnet pair allowed to self-reference is not, because
       // the bypass is chain-scoped by design.
-      const view = await this.#payments.quote({ amount: "1", asset: "USD" }, [payerAsset], chain);
+      const view = await this.#payments.quote(
+        { amount: "1", asset: "USD" },
+        [payerAsset],
+        chain,
+        settlementAsset,
+      );
       return view.quotes.some((line) => line.asset === payerAsset && line.available);
     } catch {
       // The payment API being unreachable is not evidence that a pair cannot be

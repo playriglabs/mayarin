@@ -22,7 +22,11 @@ function Table({
       data-slot="table-container"
       aria-label="Scrollable data table"
       className={cn(
-        "w-full max-w-full overscroll-contain overflow-x-auto rounded-lg border border-border bg-card",
+        // `relative` so the `sr-only` text inside a cell is positioned against
+        // this scroller and clipped by it. Without it that text escaped the
+        // scroll box, widened the page on a phone, and the browser zoomed the
+        // whole page out to fit — a tall blank band under the content.
+        "relative w-full max-w-full overscroll-contain overflow-x-auto rounded-lg border border-border bg-card",
         containerClassName,
       )}
     >

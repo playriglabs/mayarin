@@ -17,6 +17,7 @@ import { ConfirmingCard } from "../features/pay/confirming-card.tsx";
 import { DepositCard } from "../features/pay/deposit-card.tsx";
 import { Outcome } from "../features/pay/outcome.tsx";
 import { PayPage } from "../features/pay/pay-page.tsx";
+import { timelineSteps } from "../features/pay/status-timeline.tsx";
 import type { PayBootstrap } from "../features/pay/types.ts";
 import type { MoneyDto } from "../shared/types.ts";
 
@@ -39,10 +40,9 @@ const linkBootstrap: LinkBootstrap = {
   total: idr("Rp 50.000,00"),
   lines: null,
   rails: [
-    { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
-    { chain: "base-sepolia", asset: "ETH", contract: null },
+    { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd", settlementAsset: "USDC" },
+    { chain: "base-sepolia", asset: "ETH", contract: null, settlementAsset: "USDC" },
   ],
-  settlementAsset: "USDC",
   unpayableReason: null,
   lockMinutes: 15,
 };
@@ -85,8 +85,8 @@ const invoiceBootstrap: InvoiceBootstrap = {
   dueAt: "2026-02-01T00:00:00.000Z",
   payable: true,
   rails: [
-    { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
-    { chain: "arc-testnet", asset: "USDC", contract: "0x360000" },
+    { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd", settlementAsset: "USDC" },
+    { chain: "arc-testnet", asset: "USDC", contract: "0x360000", settlementAsset: "USDC" },
   ],
   payments: [],
   checkoutUrl: "http://localhost:3000/v1/invoices/inv_1/checkout",
@@ -127,9 +127,9 @@ describe("link page", () => {
         bootstrap={{
           ...linkBootstrap,
           rails: [
-            { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd" },
-            { chain: "base-sepolia", asset: "ETH", contract: null },
-            { chain: "arc-testnet", asset: "USDC", contract: "0x360000" },
+            { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd", settlementAsset: "USDC" },
+            { chain: "base-sepolia", asset: "ETH", contract: null, settlementAsset: "USDC" },
+            { chain: "arc-testnet", asset: "USDC", contract: "0x360000", settlementAsset: "USDC" },
           ],
         }}
       />,
@@ -149,8 +149,20 @@ describe("link page", () => {
         bootstrap={{
           ...linkBootstrap,
           rails: [
-            { chain: "arc-testnet", asset: "USDC", contract: "0x360000", standing: "healthy" },
-            { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd", standing: "degraded" },
+            {
+              chain: "arc-testnet",
+              asset: "USDC",
+              contract: "0x360000",
+              settlementAsset: "USDC",
+              standing: "healthy",
+            },
+            {
+              chain: "base-sepolia",
+              asset: "USDC",
+              contract: "0x036cbd",
+              settlementAsset: "USDC",
+              standing: "degraded",
+            },
           ],
         }}
       />,
@@ -168,8 +180,20 @@ describe("link page", () => {
         bootstrap={{
           ...linkBootstrap,
           rails: [
-            { chain: "base-sepolia", asset: "USDC", contract: "0x036cbd", standing: "degraded" },
-            { chain: "arc-testnet", asset: "USDC", contract: "0x360000", standing: "healthy" },
+            {
+              chain: "base-sepolia",
+              asset: "USDC",
+              contract: "0x036cbd",
+              settlementAsset: "USDC",
+              standing: "degraded",
+            },
+            {
+              chain: "arc-testnet",
+              asset: "USDC",
+              contract: "0x360000",
+              settlementAsset: "USDC",
+              standing: "healthy",
+            },
           ],
         }}
       />,
@@ -183,7 +207,9 @@ describe("link page", () => {
       <LinkPage
         bootstrap={{
           ...linkBootstrap,
-          rails: [{ chain: "arc-testnet", asset: "USDC", contract: "0x360000" }],
+          rails: [
+            { chain: "arc-testnet", asset: "USDC", contract: "0x360000", settlementAsset: "USDC" },
+          ],
         }}
       />,
     );
@@ -239,7 +265,7 @@ describe("pay page", () => {
       <PayPage
         bootstrap={{
           ...payBootstrap,
-          choice: { rails: linkBootstrap.rails, settlementAsset: "USDC", lockMinutes: 15 },
+          choice: { rails: linkBootstrap.rails, lockMinutes: 15 },
         }}
       />,
     );
@@ -315,15 +341,42 @@ describe("confirming card", () => {
           address: "0xDeposit",
           received: usdc("3500000", "3.500000", "3,50 USDC"),
         }}
+        intentId="pi_1"
       />,
     );
-    expect(html).toContain("Payment detected");
+    expect(html).toContain("Payment processing");
+    expect(html).toContain("pi_1");
     expect(html).toContain("3.5 USDC received");
     expect(html).toContain('role="status"');
     // The deposit instructions must be gone: each one invites a second transfer.
     expect(html).not.toContain("Send this exact amount");
     expect(html).not.toContain("Copy");
     expect(html).not.toContain("0xDeposit");
+  });
+});
+
+describe("status timeline", () => {
+  test("follows the money, then says how the payment ended", () => {
+    const states = (status: string, stage: "waiting" | "confirming") =>
+      timelineSteps(status, stage).map((step) => step.state);
+
+    expect(states("PENDING", "waiting")).toEqual(["current", "upcoming", "upcoming"]);
+    // CONFIRMED is the payer pressing Continue, not money: still waiting.
+    expect(states("CONFIRMED", "waiting")).toEqual(["current", "upcoming", "upcoming"]);
+    expect(states("PROCESSING", "confirming")).toEqual(["done", "current", "upcoming"]);
+    expect(states("COMPLETED", "confirming")).toEqual(["done", "done", "done"]);
+    expect(states("FAILED", "confirming")).toEqual(["done", "done", "bad"]);
+    expect(timelineSteps("EXPIRED", "waiting")[0]).toEqual({
+      label: "Payment expired",
+      state: "bad",
+    });
+  });
+
+  test("the live page draws it in both places, one per screen width", () => {
+    const html = renderToStaticMarkup(<PayPage bootstrap={payBootstrap} />);
+    expect(html).toContain("timeline-wide");
+    expect(html).toContain("timeline-narrow");
+    expect(html).toContain('aria-current="step"');
   });
 });
 

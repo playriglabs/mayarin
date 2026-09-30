@@ -3,8 +3,6 @@ import type { LineItem, MerchantRef, MoneyDto, Rail } from "../../shared/types.t
 /** What the payer chooses from, for an intent minted without a rail. */
 export interface RailChoice {
   readonly rails: readonly Rail[];
-  /** What the merchant is paid in — decides whether the estimate has a swap leg. */
-  readonly settlementAsset: string;
   readonly lockMinutes: number;
 }
 

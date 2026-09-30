@@ -1,5 +1,6 @@
 import { chainLabel, chainLogoUrl } from "@mayarin/chain";
 import arcLogo from "./arc.svg";
+import robinhoodLogo from "./robinhood.svg";
 
 export function ChainLogo({
   chain,
@@ -8,7 +9,7 @@ export function ChainLogo({
   readonly chain: string;
   readonly size?: number;
 }) {
-  const source = chainLogoUrl(chain, arcLogo);
+  const source = chainLogoUrl(chain, arcLogo, robinhoodLogo);
   if (source === undefined) return null;
   return (
     <img

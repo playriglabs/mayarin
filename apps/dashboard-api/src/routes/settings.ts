@@ -95,6 +95,9 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
 
     const { merchant, changes } = await container.settings.update(scope, session.user.id, {
       ...(body.settlementAsset === undefined ? {} : { settlementAsset: body.settlementAsset }),
+      ...(body.settlementAssetByChain === undefined
+        ? {}
+        : { settlementAssetByChain: body.settlementAssetByChain }),
       ...(body.acceptedAssets === undefined ? {} : { acceptedAssets: body.acceptedAssets }),
       ...(body.acceptedAssetsByChain === undefined
         ? {}

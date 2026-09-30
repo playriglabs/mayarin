@@ -34,8 +34,20 @@ describe("catalog payment-link currency", () => {
 
 describe("payment-link rails", () => {
   const rails = [
-    { chain: "base-sepolia", asset: "USDC", contract: "0xusdc", payTo: "0xmerchant" },
-    { chain: "base-sepolia", asset: "ETH", contract: null, payTo: "0xmerchant" },
+    {
+      chain: "base-sepolia",
+      asset: "USDC",
+      contract: "0xusdc",
+      payTo: "0xmerchant",
+      settlementAsset: "USDC",
+    },
+    {
+      chain: "base-sepolia",
+      asset: "ETH",
+      contract: null,
+      payTo: "0xmerchant",
+      settlementAsset: "USDC",
+    },
   ] as const;
 
   test("an unrestricted link uses every live merchant rail", () => {
