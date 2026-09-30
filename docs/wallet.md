@@ -292,6 +292,44 @@ shows one payment in the ledger. Both directions are closed:
   **does not boot**. Nothing about that direction looks wrong at request time,
   so it can only be caught at startup.
 
+## Batch payouts
+
+A merchant pays up to 100 recipients in **one transaction** (#295): upload
+`address,amount,asset[,note]`, review, sign. Two sources, and **Mayarin signs
+neither**:
+
+- **Connected wallet** (default) — any wallet, from its own balance, through
+  `PayoutBatcher` (`packages/contracts/payment-router/src/PayoutBatcher.sol`).
+  The dashboard reads each token's allowance and asks for an `approve` only
+  where it is short, then sends one `payout(tokens[], recipients[], amounts[])`
+  that `transferFrom`s every row straight from the sender to its recipient.
+  The batcher holds nothing and has no owner, admin, pause or upgrade. It is
+  deployed with CREATE2 through the canonical deterministic deployer, so it
+  lives at `0xfAd1c3EC064aE52676Ce874C2bA4d644FF2Ad0b9` on every chain
+  (`scripts/DeployPayoutBatcher.s.sol`).
+- **Managed wallet** — the Safe Mayarin settles into. The managed signer's
+  Turnkey policy still admits only withdrawals to the merchant's own verified
+  wallets — that boundary is what stops a stolen dashboard session from paying
+  anybody, and payouts leave it where it was. The Safe's owner key (threshold 1)
+  submits the batch: `Safe.execTransaction` → `DELEGATECALL` into Safe 1.4.1
+  `MultiSendCallOnly` (`0x9641…02e2`), which runs each `transfer` as a plain
+  `CALL`. The signature is the pre-validated form (`r = owner, s = 0, v = 1`),
+  so the sender must be that owner; any other account is refused before
+  anything is sent.
+
+`POST /payouts/prepare` parses the file against the ERC-20s configured for the
+chain (`CHAIN_ASSETS`) and returns every row error, or the transaction (plus, for
+a wallet, the approvals). `POST /payouts` reads the receipt back and records the
+batch only if it succeeded, called the batcher or the Safe, and every row has its
+own ERC-20 `Transfer` out of the source — same recipient, asset and amount, one
+transfer per row. A Safe inner call can fail while the outer transaction
+succeeds, so receipt status alone proves nothing. Idempotent on
+`(chain, transaction_hash)`; `source_address` is where the money left.
+
+Nothing is stored before the chain has spoken: `prepare` keeps no state, and the
+file is sent again with the hash. Native-asset payouts are out of scope — an ETH
+transfer leaves no log to prove it by.
+
 ## Configuration
 
 `WALLET_PROVISIONING_ENABLED` is off by default and the whole feature is absent

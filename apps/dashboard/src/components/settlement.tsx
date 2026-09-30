@@ -6,10 +6,11 @@
  * settlement amount, the fee, the net — plus, on the contract path, what the
  * chain then reported.
  *
- * The totals cover COMPLETED settlements only, and in ONE asset: the one most
- * of them settled in. Adding two settlement assets together without a rate
- * would be a number the ledger would not recognise, so the asset is named next
- * to the figure rather than implied.
+ * The totals cover COMPLETED settlements only, as one dollar figure: a
+ * merchant settles in USDC on one chain, USDG or EURC on another, and a list
+ * of per-asset sums is not a number anyone reads. Dollar stablecoins count 1:1;
+ * EURC goes through the payment API's fiat rate, and an asset with no rate is
+ * named in the hint rather than silently dropped.
  *
  * The destination is read from settings, because "where am I paid" is a
  * question about configuration, not about any one payment — and a merchant
@@ -19,7 +20,7 @@
 
 import { BankIcon, HourglassMediumIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { match } from "ts-pattern";
-import { AssetAmount, AssetLabel } from "@/components/asset-logo";
+import { AssetAmount, AssetLogo } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
 import { TransactionLink } from "@/components/transaction-link";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCursorPagination } from "@/hooks/cursor-pagination";
 import { useSettings } from "@/hooks/settings";
 import { useSettlements } from "@/hooks/settlements";
@@ -57,6 +59,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD } from "@/lib/icons";
 import { PAGE_SIZE } from "@/lib/pagination";
+import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
 import type { SettlementDto } from "@/types/settlement";
 
@@ -88,6 +91,16 @@ function NetworkCell({ row }: { readonly row: SettlementDto }) {
   return <ChainLabel chain={network} size={18} className="text-sm" />;
 }
 
+/** Every asset this merchant settles in: the default, then each network override. */
+function settlesIn(settings: {
+  readonly settlementAsset: string;
+  readonly settlementAssetByChain: Readonly<Record<string, string>>;
+}): readonly string[] {
+  return [
+    ...new Set([settings.settlementAsset, ...Object.values(settings.settlementAssetByChain)]),
+  ];
+}
+
 function Settlement() {
   const pagination = useCursorPagination();
   const settlements = useSettlements(PAGE_SIZE, pagination.cursor);
@@ -95,7 +108,8 @@ function Settlement() {
 
   const rows = settlements.data?.settlements ?? [];
   const summary = settlements.data?.summary;
-  const asset = summary?.asset ?? undefined;
+  const totals = summary?.totals ?? [];
+  const unpriced = summary?.usd.unpriced ?? [];
 
   const configured = settings.data?.settings;
 
@@ -129,9 +143,42 @@ function Settlement() {
                   </dd>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <dt className="text-xs text-subtle-foreground">Asset</dt>
+                  {/* The merchant-wide default first, then every asset a network
+                      overrides it with (Settings) — USDC, USDG, EURC… */}
+                  <dt className="text-xs text-subtle-foreground">Settles in</dt>
                   <dd className="text-sm text-foreground">
-                    {configured !== undefined && <AssetLabel symbol={configured.settlementAsset} />}
+                    {configured !== undefined && (
+                      // One tooltip per token, so hovering a logo names that asset
+                      // and nothing else. The list itself stays readable to a
+                      // screen reader through each logo's label.
+                      <TooltipProvider>
+                        <span className="flex h-6 items-center">
+                          {settlesIn(configured).map((asset, index) => (
+                            <Tooltip key={asset}>
+                              <TooltipTrigger
+                                render={
+                                  <span
+                                    role="img"
+                                    aria-label={asset}
+                                    className={cn(
+                                      "inline-flex cursor-default rounded-full transition-transform hover:z-10 hover:-translate-y-0.5",
+                                      index > 0 && "-ml-2",
+                                    )}
+                                  >
+                                    <AssetLogo
+                                      symbol={asset}
+                                      size={20}
+                                      className="rounded-[50%] ring-2 ring-card"
+                                    />
+                                  </span>
+                                }
+                              />
+                              <TooltipContent>{asset}</TooltipContent>
+                            </Tooltip>
+                          ))}
+                        </span>
+                      </TooltipProvider>
+                    )}
                   </dd>
                 </div>
                 <div className="flex flex-col gap-1">
@@ -165,13 +212,13 @@ function Settlement() {
           <>
             <StatGrid>
               <Stat
-                label={asset === undefined ? "Settled" : `Settled (${asset})`}
-                value={summary?.netAmount?.display ?? "—"}
-                hint={`Net across ${summary?.settledCount ?? 0} settlement${summary?.settledCount === 1 ? "" : "s"}.`}
+                label="Settled"
+                value={totals.length === 0 ? "—" : (summary?.usd.netAmount.display ?? "—")}
+                hint={`Net across ${summary?.settledCount ?? 0} settlement${summary?.settledCount === 1 ? "" : "s"}${totals.length > 0 ? ` in ${totals.map((total) => total.asset).join(", ")}` : ""}.${unpriced.length > 0 ? ` ${unpriced.join(", ")} not counted: no USD rate.` : ""}`}
               />
               <Stat
-                label={asset === undefined ? "Fees taken" : `Fees taken (${asset})`}
-                value={summary?.fee?.display ?? "—"}
+                label="Fees taken"
+                value={totals.length === 0 ? "—" : (summary?.usd.fee.display ?? "—")}
                 hint="Split at settlement, not held by Mayarin."
               />
               <Stat

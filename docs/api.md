@@ -97,6 +97,7 @@ with access already vouched for the address.
 | `GET/PATCH /settings`, `GET /settings/history`                               | `settings:manage` | Settlement config, merchant profile, change trail               |
 | `GET/POST /wallets`, `/:id/challenge`, `/:id/verify`, `/managed`, `/passkey` | `settings:manage` | Payout addresses and proof of control                           |
 | `GET /wallets/balance`, `GET /wallets/withdrawals`, `POST /wallets/withdraw` | `settings:manage` | Balance, successful withdrawal history, and moving out          |
+| `GET /payouts`, `POST /payouts/prepare`, `POST /payouts`                     | `settings:manage` | Batch payouts: calldata to sign, chain-verified record (#295)   |
 | `GET/POST /webhooks/endpoints`, `/deliveries`                                | `settings:manage` | Endpoints, secret rotation, delivery inspection                 |
 | `GET/POST/DELETE /api-keys[/:id]`                                            | `settings:manage` | Bearer access to this API, permissions a subset of the caller's |
 | `GET/POST /admin/users`                                                      | `admin:access`    | Accounts within the caller's own merchant                       |

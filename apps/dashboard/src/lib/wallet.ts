@@ -116,6 +116,84 @@ export async function personalSign(
 }
 
 /**
+ * Puts the wallet on the payout's chain (#295). A transaction sent on the wrong
+ * network would call whatever sits at the Safe's address there — usually
+ * nothing, and the gas is spent anyway.
+ */
+export async function switchChain(provider: Eip1193Provider, chainId: bigint): Promise<void> {
+  await provider.request({
+    method: "wallet_switchEthereumChain",
+    params: [{ chainId: `0x${chainId.toString(16)}` }],
+  });
+}
+
+/**
+ * Sends one transaction the backend prepared and returns its hash (#295).
+ *
+ * The merchant's wallet shows them what it is about to sign; Mayarin never
+ * holds the key that signs it.
+ */
+export async function sendTransaction(
+  provider: Eip1193Provider,
+  transaction: { readonly from: string; readonly to: string; readonly data: string },
+): Promise<string> {
+  const hash = await provider.request({
+    method: "eth_sendTransaction",
+    params: [{ from: transaction.from, to: transaction.to, data: transaction.data, value: "0x0" }],
+  });
+  if (typeof hash !== "string") throw new Error("The wallet returned no transaction hash");
+  return hash;
+}
+
+/** A 20-byte address as one ABI word. */
+function word(address: string): string {
+  return address.toLowerCase().replace(/^0x/, "").padStart(64, "0");
+}
+
+/**
+ * How much of `token` the `owner` lets `spender` move, read through the wallet's
+ * own RPC — so a payout asks for an approval only when the allowance is short.
+ */
+export async function readAllowance(
+  provider: Eip1193Provider,
+  token: string,
+  owner: string,
+  spender: string,
+): Promise<bigint> {
+  // allowance(address,address)
+  const data = `0xdd62ed3e${word(owner)}${word(spender)}`;
+  const result = await provider.request({
+    method: "eth_call",
+    params: [{ to: token, data }, "latest"],
+  });
+  return typeof result === "string" && result !== "0x" ? BigInt(result) : 0n;
+}
+
+/**
+ * Waits until the chain has a receipt for `hash`, and fails on a revert. An
+ * approval must be mined before the payout that spends it is sent, or the
+ * payout's own simulation sees no allowance.
+ */
+export async function waitForReceipt(
+  provider: Eip1193Provider,
+  hash: string,
+  { attempts = 60, intervalMs = 2_000 } = {},
+): Promise<void> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const receipt = (await provider.request({
+      method: "eth_getTransactionReceipt",
+      params: [hash],
+    })) as { readonly status?: string } | null;
+    if (receipt != null) {
+      if (receipt.status === "0x1") return;
+      throw new Error("The transaction reverted");
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error("The transaction was not confirmed in time");
+}
+
+/**
  * What went wrong, in the wallet's own words where it has any.
  *
  * A user closing the wallet's prompt is `4001`, and it is not an error worth

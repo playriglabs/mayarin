@@ -17,6 +17,7 @@ import {
   KeyIcon,
   LightningIcon,
   PackageIcon,
+  PaperPlaneTiltIcon,
   ReceiptIcon,
   ShoppingCartIcon,
   SquaresFourIcon,
@@ -95,6 +96,13 @@ const DEVELOPERS: readonly NavItem[] = [
  */
 const CONFIGURATION: readonly NavItem[] = [
   { href: "/wallets", label: "Wallets", icon: WalletIcon, permission: "settings:manage" },
+  {
+    href: "/payouts",
+    label: "Payouts",
+    icon: PaperPlaneTiltIcon,
+    permission: "settings:manage",
+    flag: "New",
+  },
   { href: "/settings", label: "Settings", icon: GearSixIcon, permission: "settings:manage" },
 ];
 

@@ -44,13 +44,23 @@ export interface SettlementRow {
   readonly event: SettlementEvent | undefined;
 }
 
+/** What completed settlements added up to in one settlement asset. */
+export interface SettlementTotal {
+  readonly count: number;
+  readonly netAmount: Money;
+  readonly fee: Money;
+}
+
 export interface SettlementSummary {
   readonly settledCount: number;
   readonly inFlightCount: number;
   readonly failedCount: number;
-  readonly asset: string | undefined;
-  readonly netAmount: Money | undefined;
-  readonly fee: Money | undefined;
+  /**
+   * One total per settlement asset, most-used first. Never one number: a
+   * merchant settles in USDC on one chain and USDG on another, and adding the
+   * two without a rate is a figure the ledger would not recognise.
+   */
+  readonly totals: readonly SettlementTotal[];
 }
 
 export interface SettlementList {
@@ -165,32 +175,31 @@ function isPaid(row: SettlementRow): boolean {
 
 function summarize(rows: readonly SettlementRow[]): SettlementSummary {
   const paid = rows.filter(isPaid);
-  const assetCounts = paid.reduce<ReadonlyMap<Money["asset"], number>>((counts, row) => {
-    const asset = row.transaction.netAmount?.asset;
-    if (asset === undefined) return counts;
-    const next = new Map(counts);
-    next.set(asset, (next.get(asset) ?? 0) + 1);
-    return next;
-  }, new Map<Money["asset"], number>());
-  const asset = [...assetCounts].sort(
-    ([leftAsset, leftCount], [rightAsset, rightCount]) =>
-      rightCount - leftCount || leftAsset.localeCompare(rightAsset),
-  )[0]?.[0];
-  const inAsset = <T extends Money | undefined>(value: T): value is T & Money =>
-    value !== undefined && value.asset === asset;
-  const nets = paid.map((row) => row.transaction.netAmount).filter(inAsset);
-  const fees = paid.map((row) => row.transaction.fee).filter(inAsset);
-  const total = (values: readonly Money[]): Money | undefined =>
-    asset === undefined
-      ? undefined
-      : { asset, amount: values.reduce((sum, value) => sum + value.amount, 0n) };
+  const byAsset = new Map<Money["asset"], { count: number; net: bigint; fee: bigint }>();
+  for (const { transaction } of paid) {
+    const net = transaction.netAmount;
+    if (net === undefined) continue;
+    const held = byAsset.get(net.asset) ?? { count: 0, net: 0n, fee: 0n };
+    byAsset.set(net.asset, {
+      count: held.count + 1,
+      net: held.net + net.amount,
+      // A fee is in the settlement asset by construction; one that is not is
+      // left out rather than added to the wrong total.
+      fee: held.fee + (transaction.fee?.asset === net.asset ? transaction.fee.amount : 0n),
+    });
+  }
+  const totals = [...byAsset]
+    .sort(([a, left], [b, right]) => right.count - left.count || a.localeCompare(b))
+    .map(([asset, total]) => ({
+      count: total.count,
+      netAmount: { asset, amount: total.net },
+      fee: { asset, amount: total.fee },
+    }));
 
   return {
     settledCount: paid.length,
     inFlightCount: rows.filter((row) => !isPaid(row) && row.transaction.state !== "FAILED").length,
     failedCount: rows.filter((row) => row.transaction.state === "FAILED").length,
-    asset,
-    netAmount: total(nets),
-    fee: total(fees),
+    totals,
   };
 }

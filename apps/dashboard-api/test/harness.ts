@@ -48,6 +48,7 @@ import {
 } from "@mayarin/notifications/testing";
 import { DerivedRailCatalog, PaymentIntentService } from "@mayarin/payment-intent";
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
+import { InMemoryPayoutBatchRepository } from "@mayarin/payouts/testing";
 import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
 import { ManagedWalletProvisioner, SettlementAddressResolver } from "@mayarin/wallet";
@@ -78,6 +79,8 @@ import { MerchantSettingsService } from "../src/services/merchant-settings-servi
 import { OrderReadService } from "../src/services/order-read-service.ts";
 import { PaymentApiClient } from "../src/services/payment-api-client.ts";
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
+import type { PayoutReceipt } from "../src/services/payout-chain.ts";
+import { PayoutService } from "../src/services/payout-service.ts";
 import { RegistrationService } from "../src/services/registration-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
 import { SettlementReadService } from "../src/services/settlement-read-service.ts";
@@ -449,6 +452,17 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     crossAssetOperator: async () => undefined,
   });
 
+  // Batch payouts (#295): a fake chain the test fills with the receipt it wants
+  // `record` to read back.
+  const payoutReceipts = new Map<string, PayoutReceipt>();
+  const payouts = new PayoutService({
+    wallets: merchantWallets,
+    batches: new InMemoryPayoutBatchRepository(),
+    receipts: { receipt: async (_chain, hash) => payoutReceipts.get(hash.toLowerCase()) ?? null },
+    tokens: config.chainAssets,
+    clock,
+  });
+
   const container: Container = {
     config,
     auth: authService,
@@ -469,6 +483,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     paymentApi,
     webhooks,
     wallets,
+    payouts,
     x402Resources,
     merchantWallets,
     settlementAddresses: settlementAddressResolver,
@@ -561,6 +576,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     webhookEndpoints,
     webhookDeliveries,
     merchantWallets,
+    /** What the fake chain answers for a payout transaction hash, keyed lowercase. */
+    payoutReceipts,
     walletChallenges,
     walletWithdrawals,
     walletProvider,

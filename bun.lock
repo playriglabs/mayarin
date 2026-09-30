@@ -160,6 +160,7 @@
         "@mayarin/ledger": "workspace:*",
         "@mayarin/notifications": "workspace:*",
         "@mayarin/payment-intent": "workspace:*",
+        "@mayarin/payouts": "workspace:*",
         "@mayarin/provider-argon2": "workspace:*",
         "@mayarin/provider-evm": "workspace:*",
         "@mayarin/provider-turnkey": "workspace:*",
@@ -407,6 +408,14 @@
         "@mayarin/stablecoin": "workspace:*",
       },
     },
+    "packages/core/payouts": {
+      "name": "@mayarin/payouts",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/chain": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/core/qr-parser": {
       "name": "@mayarin/qr-parser",
       "version": "0.1.0",
@@ -467,6 +476,7 @@
         "@mayarin/ledger": "workspace:*",
         "@mayarin/notifications": "workspace:*",
         "@mayarin/payment-intent": "workspace:*",
+        "@mayarin/payouts": "workspace:*",
         "@mayarin/provider-stablecoin": "workspace:*",
         "@mayarin/qr-parser": "workspace:*",
         "@mayarin/shared": "workspace:*",
@@ -1453,6 +1463,8 @@
     "@mayarin/pay-proxy": ["@mayarin/pay-proxy@workspace:apps/pay-proxy"],
 
     "@mayarin/payment-intent": ["@mayarin/payment-intent@workspace:packages/core/payment-intent"],
+
+    "@mayarin/payouts": ["@mayarin/payouts@workspace:packages/core/payouts"],
 
     "@mayarin/provider-argon2": ["@mayarin/provider-argon2@workspace:packages/providers/argon2"],
 

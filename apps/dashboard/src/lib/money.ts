@@ -13,7 +13,7 @@
  * API uses.
  */
 
-import { type AssetCode, isAssetCode } from "@mayarin/shared/asset";
+import { type AssetCode, assetDecimals, isAssetCode } from "@mayarin/shared/asset";
 import { formatMoneyLocale } from "@mayarin/shared/locale";
 import { type Money, money } from "@mayarin/shared/money";
 import type { MoneyDto } from "@/types/payment";
@@ -67,4 +67,24 @@ export function dominantAsset(values: readonly MoneyDto[]): AssetCode | undefine
  */
 export function display(value: Money): string {
   return formatMoneyLocale(value, { trimTrailingZeros: true });
+}
+
+/** `usdRates` values are USD per one whole token, scaled by this. */
+export const USD_RATE_SCALE = 1_000_000n;
+
+/**
+ * A token amount in USD cents at the rate the API sent, truncated. `null` when
+ * the asset has no rate, so a caller leaves it out rather than guessing.
+ */
+export function toUsdCents(
+  amount: bigint,
+  asset: string,
+  rates: Readonly<Record<string, string>>,
+): bigint | null {
+  const rate = rates[asset];
+  if (rate === undefined || !isAssetCode(asset)) return null;
+  return (
+    (amount * BigInt(rate) * 10n ** BigInt(assetDecimals("USD"))) /
+    (USD_RATE_SCALE * 10n ** BigInt(assetDecimals(asset)))
+  );
 }

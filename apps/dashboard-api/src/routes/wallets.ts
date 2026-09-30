@@ -6,13 +6,7 @@
  */
 
 import { CHAIN_IDS } from "@mayarin/chain";
-import {
-  type AssetCode,
-  assetDecimals,
-  getAsset,
-  isAssetCode,
-  UnauthorizedError,
-} from "@mayarin/shared";
+import { type AssetCode, getAsset, isAssetCode, UnauthorizedError } from "@mayarin/shared";
 import { type MerchantWallet, PASSKEY_TRANSPORTS, type WalletWithdrawal } from "@mayarin/wallet";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -21,6 +15,7 @@ import { toMoneyDto } from "../dto/money.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
 import { chainReceipts } from "../rails.ts";
+import { usdRates } from "../usd.ts";
 
 const withdrawalQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(200).optional(),
@@ -320,52 +315,4 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
   });
 
   return app;
-}
-
-/** Stablecoins that are a dollar in another representation: valued 1:1. */
-const DOLLAR_STABLECOINS: ReadonlySet<string> = new Set(["USDC", "USDT", "USDG", "PYUSD"]);
-
-/** `usdRates` values are USD per one whole token, scaled by this. */
-const USD_RATE_SCALE = 1_000_000n;
-
-/**
- * USD per one whole token, scaled by `USD_RATE_SCALE`, for each stablecoin held.
- *
- * So the balance can be read in dollars. A dollar stablecoin is 1; anything else
- * (EURC) is priced through the payment API's own fiat leg, the same rate a
- * payment would lock. An asset that cannot be priced is left out, and the
- * dashboard leaves it out of the total rather than guessing.
- */
-async function usdRates(
-  container: Container,
-  assets: readonly AssetCode[],
-): Promise<Record<string, string>> {
-  const rates: Record<string, string> = {};
-  const priced = assets.filter((asset) => !DOLLAR_STABLECOINS.has(asset));
-  for (const asset of assets) {
-    if (DOLLAR_STABLECOINS.has(asset)) rates[asset] = USD_RATE_SCALE.toString();
-  }
-  await Promise.all(
-    priced.map(async (asset) => {
-      try {
-        // Settling in the asset itself, so only the fiat leg is priced: how much
-        // of it one dollar buys.
-        const view = await container.paymentApi.quote(
-          { amount: "1", asset: "USD" },
-          [asset],
-          undefined,
-          asset,
-        );
-        const perDollar = view.quotes.find((line) => line.asset === asset)?.amount?.amount;
-        if (perDollar === undefined || BigInt(perDollar) <= 0n) return;
-        rates[asset] = (
-          (USD_RATE_SCALE * 10n ** BigInt(assetDecimals(asset))) /
-          BigInt(perDollar)
-        ).toString();
-      } catch {
-        // No rate: the asset stays out of the dollar total.
-      }
-    }),
-  );
-  return rates;
 }

@@ -40,7 +40,7 @@ import { payInAmountUsd, settlementsByPaymentIntent } from "@/lib/analytics-move
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
 import { ICON_CARD } from "@/lib/icons";
-import { display, dominantAsset, totalIn } from "@/lib/money";
+import { display, dominantAsset, totalIn, toUsdCents } from "@/lib/money";
 import { COUNT_UP_DURATION, EASE_OUT_EXPO } from "@/lib/motion";
 import { withQuery } from "@/lib/with-query";
 import type { PaymentIntentDto } from "@/types/payment";
@@ -90,26 +90,6 @@ function volumeOf(settlements: readonly SettlementDto[]): {
 interface ChainHolding {
   readonly chain: string;
   readonly amount: bigint;
-}
-
-/** `usdRates` values are USD per one whole token, scaled by this. */
-const USD_RATE_SCALE = 1_000_000n;
-
-/**
- * A token amount in USD cents at the rate the API sent, truncated. `null` when
- * the asset has no rate, so a caller leaves it out rather than guessing.
- */
-function toUsdCents(
-  amount: bigint,
-  asset: string,
-  rates: Readonly<Record<string, string>>,
-): bigint | null {
-  const rate = rates[asset];
-  if (rate === undefined || !isAssetCode(asset)) return null;
-  return (
-    (amount * BigInt(rate) * 10n ** BigInt(assetDecimals("USD"))) /
-    (USD_RATE_SCALE * 10n ** BigInt(assetDecimals(asset)))
-  );
 }
 
 /**
