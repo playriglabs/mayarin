@@ -1,0 +1,13 @@
+---
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+import Payouts from "../components/payouts.tsx";
+---
+
+<Protected title="Payouts">
+  <PageHeader
+    title="Payouts"
+    description="Pay many recipients from your wallet in one transaction. Your own wallet signs it; Mayarin never can."
+  />
+  <Payouts client:load />
+</Protected>

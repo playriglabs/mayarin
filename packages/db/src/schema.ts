@@ -963,6 +963,43 @@ export const walletWithdrawals = pgTable(
 );
 
 /**
+ * Batch payouts (#295): one row per confirmed batch.
+ *
+ * Append-only. Written only after the chain's own `Transfer` logs matched every
+ * row, so a hash here is money that left the Safe exactly as listed. The rows
+ * are one `jsonb` array rather than a child table: a batch is read whole and
+ * never queried by recipient.
+ */
+export const payoutBatches = pgTable(
+  "payout_batches",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    chain: text("chain").notNull(),
+    sourceAddress: text("source_address").notNull(),
+    submittedBy: text("submitted_by").notNull(),
+    transactionHash: text("transaction_hash").notNull(),
+    rows: jsonb("rows").$type<readonly PayoutBatchRowJson[]>().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("payout_batches_merchant_idx").on(table.merchantId, table.completedAt),
+    uniqueIndex("payout_batches_transaction_idx").on(table.chain, table.transactionHash),
+  ],
+);
+
+/** A payout row as it is stored: money as a minor-unit string, the only shape JSON keeps exact. */
+export interface PayoutBatchRowJson {
+  readonly line: number;
+  readonly to: string;
+  readonly amount: string;
+  readonly asset: string;
+  readonly note?: string;
+}
+
+/**
  * Merchant API keys — bearer-token access to the dashboard API.
  *
  * The secret is stored as a sha-256 hash, not argon2: the threat is an online

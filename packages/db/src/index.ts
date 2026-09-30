@@ -10,6 +10,7 @@ export * from "./repositories/ledger.ts";
 export * from "./repositories/market-config.ts";
 export * from "./repositories/notifications.ts";
 export * from "./repositories/payment-intent.ts";
+export * from "./repositories/payouts.ts";
 export * from "./repositories/refund.ts";
 export * from "./repositories/stablecoin.ts";
 export * from "./repositories/wallet.ts";

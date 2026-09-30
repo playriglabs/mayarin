@@ -40,6 +40,8 @@ describe("GET /analytics", () => {
     expect(response.status).toBe(200);
     expect(response.body?.payments).toHaveLength(8);
     expect(response.body?.settlements).toEqual([]);
+    // No settlements, so no settlement asset to price.
+    expect(response.body?.usdRates).toEqual({});
     expect(
       response.body?.payments.every(
         (payment: { merchant: { id: string } }) => payment.merchant.id === harness.merchantId,

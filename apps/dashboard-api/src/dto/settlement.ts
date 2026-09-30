@@ -93,8 +93,11 @@ export function toSettlementSummaryDto(summary: SettlementSummary) {
     settledCount: summary.settledCount,
     inFlightCount: summary.inFlightCount,
     failedCount: summary.failedCount,
-    asset: summary.asset ?? null,
-    netAmount: optionalMoney(summary.netAmount) ?? null,
-    fee: optionalMoney(summary.fee) ?? null,
+    totals: summary.totals.map((total) => ({
+      asset: total.netAmount.asset,
+      count: total.count,
+      netAmount: toMoneyDto(total.netAmount),
+      fee: toMoneyDto(total.fee),
+    })),
   };
 }

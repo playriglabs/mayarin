@@ -152,22 +152,41 @@ function RecentListSkeleton({ rows = 6 }: { rows?: number }) {
 
 /** Mirrors the settlement destination's address, asset, and readiness columns. */
 function SettlementDestinationSkeleton() {
+  // Same box and columns as the destination card: address, the stack of
+  // settles-in logos, and the on-chain badge, each sized to what replaces it.
   return (
     <div
       aria-hidden="true"
       className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:gap-8"
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <Skeleton className="h-3 w-14" />
-        <Skeleton className="h-4 w-full max-w-sm" />
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-3 w-14" />
+        </div>
+        <div className="flex h-5 items-center">
+          <Skeleton className="h-4 w-[21rem] max-w-full" />
+        </div>
       </div>
-      <div className="flex w-24 flex-col gap-2">
-        <Skeleton className="h-3 w-10" />
-        <Skeleton className="h-4 w-20" />
+      <div className="flex flex-col gap-1">
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-3 w-16" />
+        </div>
+        <div className="flex h-6 items-center">
+          {[0, 1, 2].map((index) => (
+            <Skeleton
+              key={index}
+              className={cn("size-5 rounded-full ring-2 ring-card", index > 0 && "-ml-2")}
+            />
+          ))}
+        </div>
       </div>
-      <div className="flex w-24 flex-col gap-2">
-        <Skeleton className="h-3 w-14" />
-        <Skeleton className="h-5 w-16" />
+      <div className="flex flex-col gap-1">
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-3 w-14" />
+        </div>
+        <div className="flex h-6 items-center">
+          <Skeleton className="h-5 w-14" />
+        </div>
       </div>
     </div>
   );

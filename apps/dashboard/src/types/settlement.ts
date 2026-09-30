@@ -62,8 +62,18 @@ export interface SettlementListResponse {
     readonly settledCount: number;
     readonly inFlightCount: number;
     readonly failedCount: number;
-    readonly asset: string | null;
-    readonly netAmount: MoneyDto | null;
-    readonly fee: MoneyDto | null;
+    /** One per settlement asset, most-used first. Never summed across assets. */
+    readonly totals: readonly {
+      readonly asset: string;
+      readonly count: number;
+      readonly netAmount: MoneyDto;
+      readonly fee: MoneyDto;
+    }[];
+    /** The same totals as one dollar figure; `unpriced` assets had no rate and are left out. */
+    readonly usd: {
+      readonly netAmount: MoneyDto;
+      readonly fee: MoneyDto;
+      readonly unpriced: readonly string[];
+    };
   };
 }

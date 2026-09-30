@@ -77,10 +77,10 @@ import { ApiError } from "@/lib/api/client";
 import { compactMoney } from "@/lib/compact";
 import { countryLabel } from "@/lib/countries";
 import { ICON_CARD } from "@/lib/icons";
-import { dominantAsset } from "@/lib/money";
+import { toUsdCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
-import type { PaymentIntentDto } from "@/types/payment";
+import type { MoneyDto, PaymentIntentDto } from "@/types/payment";
 import type { SettlementDto } from "@/types/settlement";
 
 /**
@@ -199,16 +199,40 @@ function payInMovements(
  * merchant's money and a payout chart that includes it overstates every day.
  * Dated by completion: this is arrival.
  */
-function payOutMovements(settlements: readonly SettlementDto[], asset: AssetCode): Movement[] {
+function payOutMovements(
+  settlements: readonly SettlementDto[],
+  rates: Readonly<Record<string, string>>,
+): Movement[] {
   return settlements.map((settlement) => {
     const net = settlement.netAmount;
-    const settled = settlement.state === "SUCCESS" || settlement.state === "SETTLED";
     return {
       day: (settlement.completedAt ?? settlement.updatedAt).slice(0, 10),
-      amount: settled && net !== null && net.asset === asset ? BigInt(net.amount) : null,
+      // In USD cents: settlements land in USDC, USDG, EURC… and a chart of one
+      // of them hides the rest. An asset with no rate is left out, not guessed.
+      amount:
+        isSettled(settlement) && net !== null
+          ? toUsdCents(BigInt(net.amount), net.asset, rates)
+          : null,
       seconds: secondsBetween(settlement.createdAt, settlement.completedAt),
     };
   });
+}
+
+function isSettled(settlement: SettlementDto): boolean {
+  return settlement.state === "SUCCESS" || settlement.state === "SETTLED";
+}
+
+/** The USD-cent sum of one money field across settled rows; unpriced assets drop out. */
+function settledUsd(
+  settlements: readonly SettlementDto[],
+  pick: (settlement: SettlementDto) => MoneyDto | null,
+  rates: Readonly<Record<string, string>>,
+): bigint {
+  return settlements.filter(isSettled).reduce((sum, settlement) => {
+    const value = pick(settlement);
+    const cents = value === null ? null : toUsdCents(BigInt(value.amount), value.asset, rates);
+    return sum + (cents ?? 0n);
+  }, 0n);
 }
 
 const PAY_OUT_STATUS: Readonly<Record<string, { label: string; tone: StatusSlice["tone"] }>> = {
@@ -841,11 +865,7 @@ function Analytics() {
       const currentInsight = summarizePeriod(currentPayments, settlements);
       const previousInsight = summarizePeriod(previousPayments, settlements);
 
-      const settledAmounts = settlements
-        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
-        .map((row) => row.netAmount)
-        .filter((amount) => amount !== null);
-      const payOutAsset = dominantAsset(settledAmounts);
+      const rates = data.usdRates;
       const payIns = payInMovements(currentPayments, settlements);
 
       if (payments.length === 0) {
@@ -875,34 +895,17 @@ function Analytics() {
         );
       }
 
-      const payOuts =
-        payOutAsset === undefined ? [] : payOutMovements(currentSettlements, payOutAsset);
+      const payOuts = payOutMovements(currentSettlements, rates);
       const payInDaily = bucketByDay(payIns);
       const payOutDaily = bucketByDay(payOuts);
-      const settledIn = currentSettlements
-        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
-        .map((row) => row.netAmount)
-        .flatMap((amount) => (amount !== null && amount.asset === payOutAsset ? [amount] : []));
-      const totalVolume = settledIn.reduce((acc, amount) => acc + BigInt(amount.amount), 0n);
-      const totalFees = currentSettlements
-        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
-        .map((row) => row.fee)
-        .flatMap((amount) => (amount !== null && amount.asset === payOutAsset ? [amount] : []))
-        .reduce((sum, amount) => sum + BigInt(amount.amount), 0n);
+      const totalVolume = settledUsd(currentSettlements, (row) => row.netAmount, rates);
+      const totalFees = settledUsd(currentSettlements, (row) => row.fee, rates);
       const payout = (amount: bigint) =>
-        payOutAsset === undefined
-          ? "—"
-          : formatMoneyLocale(money(amount, payOutAsset), { trimZeroFraction: true });
+        formatMoneyLocale(money(amount, "USD"), { trimZeroFraction: true });
       const assetMix = payerAssetBreakdown(currentPayments);
       const countryMix = payerCountryBreakdown(currentPayments);
-      const previousNet = previousSettlements
-        .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
-        .map((row) => row.netAmount)
-        .flatMap((amount) => (amount !== null && amount.asset === payOutAsset ? [amount] : []))
-        .reduce((sum, amount) => sum + BigInt(amount.amount), 0n);
+      const previousNet = settledUsd(previousSettlements, (row) => row.netAmount, rates);
 
-      // Keep the net comparison visible in the headline hint without mixing
-      // settlement-asset minor units into the USD comparison table.
       const netChange = comparisonChange(totalVolume, previousNet);
 
       return (
@@ -916,12 +919,12 @@ function Analytics() {
               hint={`Before fees, across ${currentInsight.completedCount} completed payment${currentInsight.completedCount === 1 ? "" : "s"}.`}
             />
             <Stat
-              label={payOutAsset === undefined ? "Net settled" : `Net settled · ${payOutAsset}`}
+              label="Net settled · USD"
               value={payout(totalVolume)}
               hint={`${netChange} versus the previous thirty days.`}
             />
             <Stat
-              label={payOutAsset === undefined ? "Fees" : `Fees · ${payOutAsset}`}
+              label="Fees · USD"
               value={payout(totalFees)}
               hint="Fees on completed settlements."
             />
@@ -941,17 +944,17 @@ function Analytics() {
 
           <PayInsSection daily={payInDaily} />
 
-          {payOutAsset !== undefined && (
+          {currentSettlements.length > 0 && (
             <MovementSection
               title="Pay outs"
-              asset={payOutAsset}
+              asset="USD"
               daily={payOutDaily}
               statuses={statusesOf(
                 currentSettlements.map((settlement) => settlement.state),
                 PAY_OUT_STATUS,
               )}
               durations={bucketDurations(payOuts)}
-              volumeHint="What reached you, net of fee, dated by when it settled."
+              volumeHint="What reached you, net of fee, in USD across every settlement asset, dated by when it settled."
               statusHint="Settlements completed or updated in the last thirty days, by current state."
               durationHint="Median time from payment to settlement, per day."
             />

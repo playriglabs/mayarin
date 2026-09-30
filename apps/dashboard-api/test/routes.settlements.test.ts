@@ -163,6 +163,52 @@ describe("GET /settlements", () => {
     expect(row.payment).toEqual({ asset: "USDC", chain: "arc-testnet" });
   });
 
+  test("summary keeps one total per settlement asset rather than dropping the rest", async () => {
+    const { harness } = await seed();
+    const [usdc, usdg] = await Promise.all(
+      [1, 2].map(() =>
+        harness.intentService.create({
+          merchant: { id: "mch_a", name: "Warung A", city: "Jakarta", countryCode: "ID" },
+          amount: { amount: 50_000n, asset: "IDR" },
+          source: { type: "manual" },
+        }),
+      ),
+    );
+    if (usdc === undefined || usdg === undefined) throw new Error("intents not created");
+    const created = new Date("2026-01-01T00:00:00.000Z");
+    await harness.clearing.insert(transaction("mch_a", "clr_usdc", usdc.id, created), []);
+    await harness.clearing.insert(
+      {
+        ...transaction("mch_a", "clr_usdg", usdg.id, created),
+        settlementAsset: "USDG",
+        settlementAmount: money(5_000_000n, "USDG"),
+        fee: money(30_000n, "USDG"),
+        netAmount: money(4_970_000n, "USDG"),
+      },
+      [],
+    );
+    const jar = await loginAs(harness, "warung-a@mayarin.local", "pw-a");
+
+    const res = await harness.request("GET", "/v1/settlements", { cookies: jar });
+
+    expect(res.body?.summary.settledCount).toBe(2);
+    expect(
+      res.body?.summary.totals.map((total: { asset: string; netAmount: { amount: string } }) => [
+        total.asset,
+        total.netAmount.amount,
+      ]),
+    ).toEqual([
+      ["USDC", "2990000"],
+      ["USDG", "4970000"],
+    ]);
+    // 2.99 USDC + 4.97 USDG, both a dollar each: one figure in cents.
+    expect(res.body?.summary.usd).toMatchObject({
+      netAmount: { amount: "796", asset: "USD" },
+      fee: { amount: "4", asset: "USD" },
+      unpriced: [],
+    });
+  });
+
   test("summary covers every settlement when the table page is limited to seven", async () => {
     const { harness } = await seed();
     const intents = await Promise.all(
@@ -196,10 +242,15 @@ describe("GET /settlements", () => {
       settledCount: 8,
       inFlightCount: 0,
       failedCount: 0,
-      asset: "USDC",
     });
-    expect(res.body?.summary.netAmount.amount).toBe("23920000");
-    expect(res.body?.summary.fee.amount).toBe("80000");
+    expect(res.body?.summary.totals).toEqual([
+      expect.objectContaining({
+        asset: "USDC",
+        count: 8,
+        netAmount: expect.objectContaining({ amount: "23920000" }),
+        fee: expect.objectContaining({ amount: "80000" }),
+      }),
+    ]);
     expect(typeof res.body?.nextCursor).toBe("string");
 
     const next = await harness.request(

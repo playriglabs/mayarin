@@ -30,6 +30,7 @@ import { invoiceRoutes } from "./routes/invoices.ts";
 import { orderRoutes } from "./routes/orders.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
+import { payoutRoutes } from "./routes/payouts.ts";
 import { settingsRoutes } from "./routes/settings.ts";
 import { settlementRoutes } from "./routes/settlements.ts";
 import { walletRoutes } from "./routes/wallets.ts";
@@ -177,6 +178,12 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   v1.use("/wallets/*", requireAuth(), requirePermission("settings:manage"));
   v1.use("/wallets", requireAuth(), requirePermission("settings:manage"));
   v1.route("/wallets", walletRoutes(container));
+
+  // Batch payouts (#295). Same permission as wallets: it moves the merchant's
+  // money — though only their own wallet can sign it, never this API.
+  v1.use("/payouts/*", requireAuth(), requirePermission("settings:manage"));
+  v1.use("/payouts", requireAuth(), requirePermission("settings:manage"));
+  v1.route("/payouts", payoutRoutes(container));
 
   // Admin surface within the caller's merchant: managing users, etc.
   v1.use("/admin/*", requireAuth(), requirePermission("admin:access"));

@@ -55,6 +55,7 @@ import {
   DrizzleMerchantWalletRepository,
   DrizzlePaymentIntentRepository,
   DrizzlePaymentLinkRepository,
+  DrizzlePayoutBatchRepository,
   DrizzleProductRepository,
   DrizzleSessionRepository,
   DrizzleSettlementEventRepository,
@@ -73,6 +74,7 @@ import {
   type PaymentIntentRepository,
   type RailCatalog,
 } from "@mayarin/payment-intent";
+import type { PayoutBatchRepository } from "@mayarin/payouts";
 import { Argon2PasswordHasher } from "@mayarin/provider-argon2";
 import {
   EvmContractCodeReader,
@@ -128,6 +130,8 @@ import {
   type ClearingReadRepository,
   PaymentReadService,
 } from "./services/payment-read-service.ts";
+import { type PayoutReceiptReader, ViemPayoutReceiptReader } from "./services/payout-chain.ts";
+import { PayoutService } from "./services/payout-service.ts";
 import { RegistrationService } from "./services/registration-service.ts";
 import { SessionService } from "./services/session-service.ts";
 import {
@@ -184,6 +188,8 @@ export interface Container {
   readonly webhooks: WebhookService;
   /** Merchant wallets and proof of control (#11). */
   readonly wallets: WalletService;
+  /** Batch payouts (#295): prepares calldata, records what the chain confirms. */
+  readonly payouts: PayoutService;
   /** The merchant's own x402 resources (#208), priced and offered by them. */
   readonly x402Resources: X402ResourceService;
   /**
@@ -268,6 +274,10 @@ export interface CreateContainerOptions {
   readonly merchantWallets?: MerchantWalletRepository;
   readonly walletChallenges?: WalletChallengeRepository;
   readonly walletWithdrawals?: WalletWithdrawalRepository;
+  /** Payout batch repo. A test supplies the reference in-memory adapter. */
+  readonly payoutBatches?: PayoutBatchRepository;
+  /** Overridable for tests: a fake receipt reader rather than an RPC. */
+  readonly payoutReceipts?: PayoutReceiptReader;
   readonly signatureVerifier?: SignatureVerifier;
   /**
    * Managed wallet provisioning (#11). A test supplies a fake; a deployment
@@ -516,6 +526,15 @@ export function createContainer(options: CreateContainerOptions): Container {
         }),
   });
 
+  const payouts = new PayoutService({
+    wallets: walletRepository,
+    batches:
+      options.payoutBatches ?? new DrizzlePayoutBatchRepository(handle?.db ?? throwIfNoHandle()),
+    receipts: options.payoutReceipts ?? new ViemPayoutReceiptReader(config.chainRpcUrls),
+    tokens: config.chainAssets,
+    clock,
+  });
+
   const paymentApi = options.paymentApi ?? new PaymentApiClient({ baseUrl: config.paymentApiUrl });
 
   const contractCode =
@@ -579,6 +598,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     paymentApi,
     webhooks,
     wallets,
+    payouts,
     x402Resources,
     merchantWallets: walletRepository,
     settlementAddresses,

@@ -41,6 +41,7 @@ export const ID_PREFIXES = {
   customer: "cus",
   apiKey: "mak",
   emailVerification: "evf",
+  payoutBatch: "pob",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];
