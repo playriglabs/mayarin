@@ -56,11 +56,15 @@ describe("asset logos", () => {
     }
   });
 
-  test("non-USDT tokens use Trust Wallet's CDN, USDT uses a transparent local mark", () => {
-    const tokens = ASSET_CODES.filter((code) => getAsset(code).kind !== "fiat" && code !== "USDT");
+  test("tokens use Trust Wallet's CDN, except USDT and USDG", () => {
+    const tokens = ASSET_CODES.filter(
+      (code) => getAsset(code).kind !== "fiat" && code !== "USDT" && code !== "USDG",
+    );
     for (const token of tokens) {
       expect(assetLogoUrl(token)?.startsWith("https://assets-cdn.trustwallet.com/")).toBe(true);
     }
+    // Trust Wallet's USDG mark is monochrome; the brand-colour one is CoinGecko's.
+    expect(assetLogoUrl("USDG")?.startsWith("https://coin-images.coingecko.com/")).toBe(true);
     // Trust Wallet's USDT PNG ships without an alpha channel, so it is overridden.
     expect(assetLogoUrl("USDT")).toBe("/tokens/usdt.svg");
     expect(assetLogoUrl("USDT", "/assets/usdt.svg")).toBe("/assets/usdt.svg");

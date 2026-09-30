@@ -13,12 +13,13 @@ import { type FxFeed, FxRatesPriceOracle } from "../src/adapter.ts";
 const OBSERVED_AT = new Date("2026-09-05T08:34:00.000Z");
 const IDR_USDC: Record<string, FxFeed> = { "IDR/USDC": { symbol: "USD/IDR", invert: true } };
 
-function fxBody(overrides: Partial<{ rates: Record<string, number>; timestamp: number }> = {}) {
+function fxBody(overrides: Partial<{ rates: Record<string, number>; currency: string }> = {}) {
+  const rates = overrides.rates ?? { IDR: 17635.003032099 };
   return {
-    success: true,
-    timestamp: overrides.timestamp ?? Math.floor(OBSERVED_AT.getTime() / 1_000),
-    base: "USD",
-    rates: overrides.rates ?? { IDR: 17635.003032099 },
+    data: {
+      currency: overrides.currency ?? "USD",
+      rates: Object.fromEntries(Object.entries(rates).map(([code, rate]) => [code, String(rate)])),
+    },
   };
 }
 
@@ -35,20 +36,19 @@ function stubFetch(handler: (url: string) => Response | Promise<Response>) {
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", date: OBSERVED_AT.toUTCString() },
   });
 }
 
 function oracle(
   fetchFn: typeof fetch,
   feeds: Record<string, FxFeed> = IDR_USDC,
-  options: { apiKey?: string; clock?: FixedClock; cacheSeconds?: number } = {},
+  options: { clock?: FixedClock; cacheSeconds?: number } = {},
 ) {
   return new FxRatesPriceOracle({
     feeds,
     fetchFn,
     clock: options.clock ?? new FixedClock(OBSERVED_AT),
-    ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
     ...(options.cacheSeconds === undefined ? {} : { cacheSeconds: options.cacheSeconds }),
   });
 }
@@ -84,26 +84,20 @@ describe("FxRatesPriceOracle", () => {
     expect(settled.amount).toBeLessThan(10_170_000n);
   });
 
-  test("asks the API for the series' own base and quote", async () => {
+  test("asks the API for the series' own base", async () => {
     const { calls, fn } = stubFetch(() => json(fxBody()));
     await oracle(fn).reference("IDR", "USDC");
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe("https://api.fxratesapi.com/latest?base=USD&currencies=IDR");
+    expect(calls[0]?.url).toBe("https://api.coinbase.com/v2/exchange-rates?currency=USD");
   });
 
-  test("sends no Authorization header without a key", async () => {
-    const { calls, fn } = stubFetch(() => json(fxBody()));
-    await oracle(fn).reference("IDR", "USDC");
+  test("stamps the observation with the response's Date header", async () => {
+    const { fn } = stubFetch(() => json(fxBody()));
+    const clock = new FixedClock(new Date(OBSERVED_AT.getTime() + 5_000));
+    const price = await oracle(fn, IDR_USDC, { clock }).reference("IDR", "USDC");
 
-    expect(calls[0]?.init?.headers).toBeUndefined();
-  });
-
-  test("sends the key as a bearer token when configured", async () => {
-    const { calls, fn } = stubFetch(() => json(fxBody()));
-    await oracle(fn, IDR_USDC, { apiKey: "fx-key" }).reference("IDR", "USDC");
-
-    expect(calls[0]?.init?.headers).toEqual({ Authorization: "Bearer fx-key" });
+    expect(price.observedAt).toEqual(OBSERVED_AT);
   });
 
   test("reuses an observation inside the cache window", async () => {
@@ -199,7 +193,7 @@ describe("FxRatesPriceOracle", () => {
   });
 
   test("rejects a response that is not the expected shape", async () => {
-    const { fn } = stubFetch(() => json({ success: true, base: "USD" }));
+    const { fn } = stubFetch(() => json({ data: { currency: "USD" } }));
     expect(oracle(fn).reference("IDR", "USDC")).rejects.toThrow(ProviderError);
   });
 
@@ -257,29 +251,11 @@ describe("FxRatesPriceOracle batching", () => {
     const mxn = await fx.reference("MXN", "USDC");
 
     expect(calls).toHaveLength(1);
-    expect(new URL(calls[0]?.url ?? "").searchParams.get("currencies")?.split(",").sort()).toEqual([
-      "AED",
-      "BRL",
-      "MXN",
-      "SAR",
-    ]);
     expect([aed, sar, brl, mxn].every(({ scaledRate }) => scaledRate > 0n)).toBe(true);
   });
 
-  test("asks for every currency configured against the base, in one request", async () => {
-    const { calls, fn } = stubFetch(() => json(fxBody({ rates: RATES })));
-
-    await oracle(fn, MANY).reference("IDR", "USDC");
-
-    expect(calls).toHaveLength(1);
-    const asked = new URL(calls[0]?.url ?? "").searchParams;
-    expect(asked.get("base")).toBe("USD");
-    expect(asked.get("currencies")?.split(",").sort()).toEqual(["IDR", "SGD", "THB"]);
-  });
-
-  // The point of the batch: the free tier allows 61 requests per window, and
-  // one request per pair on a hot path exhausted it — which surfaced as
-  // "No fresh oracle price", indistinguishable from a dead feed.
+  // One request per base, not per pair: every pair on a base is served from
+  // the same response.
   test("a second pair on the same base is served from the same response", async () => {
     const { calls, fn } = stubFetch(() => json(fxBody({ rates: RATES })));
     const fx = oracle(fn, MANY);
@@ -296,8 +272,8 @@ describe("FxRatesPriceOracle batching", () => {
   test("a different base is its own request", async () => {
     const { calls, fn } = stubFetch((url) =>
       json(
-        url.includes("base=EUR")
-          ? { ...fxBody({ rates: { SGD: 1.4972 } }), base: "EUR" }
+        url.includes("currency=EUR")
+          ? fxBody({ rates: { SGD: 1.4972 }, currency: "EUR" })
           : fxBody({ rates: RATES }),
       ),
     );
@@ -307,7 +283,7 @@ describe("FxRatesPriceOracle batching", () => {
     await fx.reference("SGD", "EURC");
 
     expect(calls).toHaveLength(2);
-    expect(calls[1]?.url).toContain("base=EUR");
+    expect(calls[1]?.url).toContain("currency=EUR");
   });
 
   test("a malformed symbol does not poison the batch for its base", async () => {

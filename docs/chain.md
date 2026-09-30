@@ -582,6 +582,29 @@ first, through one timelock batch (schedule tx
 DEX router: USDC settles USDC and USDG settles USDG, so a merchant is offered
 only the Robinhood asset it settles in.
 
+A merchant chooses that asset per chain (`merchants.settlement_asset_by_chain`,
+migration 0034): the merchant-wide `settlement_asset` is the default, and a chain
+may override it — Robinhood → USDG while every other chain settles USDC. The
+first USDG payments settled end to end from `PaymentRouter` into the merchant's
+managed wallet on 2026-09-30: 0.994 USDG (tx
+`0xd04b4e09aecc0033b28374d5c44df585cb647a8292885ce627e78d45ada10fc7`) and
+12.668166 USDG (tx
+`0x77de6a320ddf85a409d1af4d26499f8b87af3c12424e4cf830c99c7e0b9ba1d5`).
+
+No venue converts between USDC and USDG on either Robinhood or Arbitrum Sepolia,
+so a payer on those chains pays in the asset the merchant settles in there. A log
+scan of Robinhood (public RPC; Alchemy's free tier caps `eth_getLogs` at 10
+blocks) found Uniswap v2/v3/v4 USDG pools against tokenized equities and WETH but
+none against USDC; the one USDC→WETH→USDG path prices WETH at ~49,700 USDC with
+~66 USDG of depth, and routing is single-hop anyway.
+
+PYUSD (`0x637A1259C6afd7E3AdF63993cA7E58BB438aB1B1`, 6 decimals, read back on
+chain) was added on Arbitrum Sepolia as input and settlement asset in one
+timelock batch (schedule tx
+`0x3b8090a4dbbddd4688c998c640b2d894b7451e8aa2de734882bb2c660973b61d`, execute tx
+`0xd97a8d2c3ebfa089140fe5d2409db5a1be05aca3ff8a9a3fc609eeaa7b4d860c`). Circle
+publishes no EURC on Arbitrum Sepolia.
+
 On-chain configuration as deployed (Base Sepolia):
 
 | Setting             | Value                                                               |

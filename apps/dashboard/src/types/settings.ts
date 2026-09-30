@@ -11,6 +11,8 @@ export interface SettingsDto {
   readonly merchantId: string;
   readonly name: string;
   readonly settlementAsset: string;
+  /** Settlement asset overridden per chain. A chain absent settles in `settlementAsset`. */
+  readonly settlementAssetByChain: Readonly<Record<string, string>>;
   readonly acceptedAssets: readonly string[];
   /**
    * Accepted assets narrowed per chain (#244). A chain absent inherits
@@ -49,6 +51,8 @@ export interface SettingsHistoryResponse {
 
 export interface UpdateSettingsRequest {
   readonly settlementAsset?: string;
+  /** The whole per-chain settlement map, replaced as one. */
+  readonly settlementAssetByChain?: Readonly<Record<string, string>>;
   readonly acceptedAssets?: readonly string[];
   /** The whole per-chain matrix, replaced as one (#244). */
   readonly acceptedAssetsByChain?: Readonly<Record<string, readonly string[]>>;
@@ -120,6 +124,11 @@ export interface ChainBalanceDto {
  */
 export interface WalletBalanceResponse {
   readonly balances: readonly ChainBalanceDto[];
+  /**
+   * USD per one whole token, scaled by 1e6, for each stablecoin held. An asset
+   * missing here could not be priced and is left out of any dollar total.
+   */
+  readonly usdRates: Readonly<Record<string, string>>;
 }
 
 /** One rail this merchant can be paid on. */
@@ -128,6 +137,8 @@ export interface MerchantRailDto {
   readonly asset: string;
   readonly contract: string | null;
   readonly payTo: string | null;
+  /** What the merchant is paid in on this rail's network. */
+  readonly settlementAsset: string;
 }
 
 /** Why a chain, or a pair on it, is not offered to a payer. */
@@ -142,6 +153,8 @@ export interface RailExclusionDto {
 export interface SupportedChainDto {
   readonly chain: string;
   readonly assets: readonly string[];
+  /** The stablecoins this chain carries — what a merchant may be paid in here. */
+  readonly settlementAssets: readonly string[];
 }
 
 export interface MerchantRailsResponse {

@@ -85,7 +85,13 @@ import {
   TurnkeyWalletProvider,
 } from "@mayarin/provider-turnkey";
 import { EvmAssetCapabilityProbe } from "@mayarin/provider-x402-local";
-import { type Clock, ConfigurationError, systemClock } from "@mayarin/shared";
+import {
+  type AssetCode,
+  type Clock,
+  ConfigurationError,
+  getAsset,
+  systemClock,
+} from "@mayarin/shared";
 import {
   ManagedWalletProvisioner,
   type MerchantKeyProvider,
@@ -489,6 +495,14 @@ export function createContainer(options: CreateContainerOptions): Container {
     ...(balanceReader === undefined ? {} : { balances: balanceReader }),
     ...(walletProvider === undefined ? {} : { walletProvider }),
     nativeAssets: config.chainNativeAssets,
+    stablecoins: Object.fromEntries(
+      Object.entries(config.chainAssets).map(([chain, tokens]) => [
+        chain,
+        (Object.keys(tokens ?? {}) as AssetCode[]).filter(
+          (asset) => getAsset(asset).kind === "stablecoin",
+        ),
+      ]),
+    ),
     ...(keyProvider === undefined ? {} : { keyProvider }),
     ...(walletProvider === undefined
       ? {}

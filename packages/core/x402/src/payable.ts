@@ -49,6 +49,8 @@ export interface MerchantRails {
       readonly contract?: string;
       /** The merchant's settlement address on `chain`. */
       readonly payTo?: string;
+      /** What the merchant is paid in on `chain`. */
+      readonly settlementAsset: AssetCode;
     }[]
   >;
 }

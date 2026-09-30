@@ -6,6 +6,7 @@
  * reported in the asset the merchant receives (USDC for a USDC merchant).
  */
 
+import { chainLabel } from "@mayarin/chain";
 import { assetDecimals, isAssetCode } from "@mayarin/shared/asset";
 import { formatMoneyLocale } from "@mayarin/shared/locale";
 import { money } from "@mayarin/shared/money";
@@ -34,7 +35,7 @@ import {
 import { Stat, StatGrid } from "@/components/ui/stat";
 import { type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
-import { useSettings, useWalletBalance, useWalletWithdrawalHistory } from "@/hooks/settings";
+import { useWalletBalance, useWalletWithdrawalHistory } from "@/hooks/settings";
 import { payInAmountUsd, settlementsByPaymentIntent } from "@/lib/analytics-movements";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
@@ -85,18 +86,38 @@ function volumeOf(settlements: readonly SettlementDto[]): {
   };
 }
 
-/** One network's holding of the settlement asset, for the balance card. */
+/** One network's settlement holdings in USD cents, for the balance card. */
 interface ChainHolding {
   readonly chain: string;
   readonly amount: bigint;
 }
 
+/** `usdRates` values are USD per one whole token, scaled by this. */
+const USD_RATE_SCALE = 1_000_000n;
+
 /**
- * What the merchant holds right now, per network and in total.
+ * A token amount in USD cents at the rate the API sent, truncated. `null` when
+ * the asset has no rate, so a caller leaves it out rather than guessing.
+ */
+function toUsdCents(
+  amount: bigint,
+  asset: string,
+  rates: Readonly<Record<string, string>>,
+): bigint | null {
+  const rate = rates[asset];
+  if (rate === undefined || !isAssetCode(asset)) return null;
+  return (
+    (amount * BigInt(rate) * 10n ** BigInt(assetDecimals("USD"))) /
+    (USD_RATE_SCALE * 10n ** BigInt(assetDecimals(asset)))
+  );
+}
+
+/**
+ * What the merchant holds right now, in dollars, per network and in total.
  *
- * Only the settlement asset is added. A chain row also reports whatever else
- * that address happens to hold, and adding USDC to ETH would be a number the
- * ledger would not recognise.
+ * Every settlement stablecoin is added — USDC, USDG, EURC — each at its USD
+ * rate, because a merchant paid in three of them wants one figure. The chain's
+ * own currency (gas) has no rate here and is left out.
  *
  * Chains with no address are dropped rather than counted as zero: the
  * deployment lists every chain it settles on, and a merchant who has not been
@@ -104,18 +125,30 @@ interface ChainHolding {
  */
 function holdingsOf(
   rows: readonly ChainBalanceDto[],
-  asset: string | undefined,
-): { readonly total: bigint; readonly chains: readonly ChainHolding[] } {
-  if (asset === undefined || !isAssetCode(asset)) return { total: 0n, chains: [] };
-
+  rates: Readonly<Record<string, string>>,
+): {
+  readonly total: bigint;
+  readonly chains: readonly ChainHolding[];
+  readonly assets: readonly string[];
+} {
+  const held = new Set<string>();
   const chains = rows
     .filter((row) => row.address !== null)
     .map((row) => ({
       chain: row.chain,
-      amount: BigInt(row.balances.find((balance) => balance.asset === asset)?.amount ?? "0"),
+      amount: row.balances.reduce((sum, balance) => {
+        const cents = toUsdCents(BigInt(balance.amount), balance.asset, rates);
+        if (cents === null) return sum;
+        if (BigInt(balance.amount) > 0n) held.add(balance.asset);
+        return sum + cents;
+      }, 0n),
     }));
 
-  return { total: chains.reduce((sum, row) => sum + row.amount, 0n), chains };
+  return {
+    total: chains.reduce((sum, row) => sum + row.amount, 0n),
+    chains,
+    assets: [...held].sort(),
+  };
 }
 
 /**
@@ -126,7 +159,7 @@ function holdingsOf(
  * EUR/USD one — and rendering a euro balance with a dollar sign would state a
  * number nobody quoted. A merchant settling EURC sees EURC.
  */
-const DOLLAR_PEGGED = new Set(["USDC", "USDT"]);
+const DOLLAR_PEGGED = new Set(["USDC", "USDT", "USDG", "PYUSD"]);
 
 /**
  * A stablecoin balance written the way a merchant thinks about it.
@@ -153,7 +186,7 @@ function approximateDollarDisplay(total: bigint, asset: string): string {
 }
 
 /**
- * Balance over the last thirty days, walked backwards from today.
+ * Balance over the last thirty days, in USD cents, walked backwards from today.
  *
  * There is no balance history to read: a chain reports what an address holds
  * now and nothing about what it held on Tuesday. So it is reconstructed —
@@ -166,7 +199,7 @@ function approximateDollarDisplay(total: bigint, asset: string): string {
  */
 function balanceHistory(
   current: bigint,
-  asset: string,
+  rates: Readonly<Record<string, string>>,
   settlements: readonly SettlementDto[],
   withdrawals: readonly WalletWithdrawalDto[],
 ): readonly { date: string; balance: bigint }[] {
@@ -177,14 +210,17 @@ function balanceHistory(
   for (const settlement of settlements) {
     const net = settlement.netAmount;
     const settled = settlement.state === "SUCCESS" || settlement.state === "SETTLED";
-    if (!settled || net === null || net.asset !== asset) continue;
+    if (!settled || net === null) continue;
+    const cents = toUsdCents(BigInt(net.amount), net.asset, rates);
+    if (cents === null) continue;
     const day = (settlement.completedAt ?? settlement.updatedAt).slice(0, 10);
-    inflow.set(day, (inflow.get(day) ?? 0n) + BigInt(net.amount));
+    inflow.set(day, (inflow.get(day) ?? 0n) + cents);
   }
   for (const withdrawal of withdrawals) {
-    if (withdrawal.amount.asset !== asset) continue;
+    const cents = toUsdCents(BigInt(withdrawal.amount.amount), withdrawal.amount.asset, rates);
+    if (cents === null) continue;
     const day = withdrawal.completedAt.slice(0, 10);
-    outflow.set(day, (outflow.get(day) ?? 0n) + BigInt(withdrawal.amount.amount));
+    outflow.set(day, (outflow.get(day) ?? 0n) + cents);
   }
 
   // Backwards from today, then reversed: each earlier day undoes the movements
@@ -318,28 +354,20 @@ function TodayIndicator({ total, asset }: { total: bigint; asset: string }) {
  */
 function BalanceOverview({
   total,
-  asset,
+  assets,
   chains,
   history,
   today,
 }: {
   total: bigint;
-  asset: string | undefined;
+  /** The stablecoins that make up the total, for the line under it. */
+  assets: readonly string[];
   chains: readonly ChainHolding[];
   history: readonly { date: string; balance: bigint }[];
   today: bigint;
 }) {
   const shownTotal = useCountUp(total);
-
-  if (asset === undefined) {
-    return (
-      <Card className="gap-2">
-        <span className="text-muted-foreground text-xs tracking-wide">Balance</span>
-        <span className="font-medium text-2xl text-foreground">—</span>
-        <span className="text-subtle-foreground text-xs">No settlement asset configured.</span>
-      </Card>
-    );
-  }
+  const asset = "USD";
 
   const points: Plot[] = history.map((day) => ({
     date: day.date,
@@ -362,16 +390,30 @@ function BalanceOverview({
           <span className="text-subtle-foreground text-xs">
             {chains.length === 0
               ? "No settlement address yet."
-              : `Held in ${asset} across ${chains.length} network${chains.length === 1 ? "" : "s"}.`}
+              : `${assets.length === 0 ? "Held" : `Held in ${assets.join(", ")}`} across ${chains.length} network${chains.length === 1 ? "" : "s"}, shown in US dollars.`}
           </span>
         </div>
 
         {/* The marks alone. A per-chain figure beside them read as a
-            reconciliation nobody asked for, and the sentence under the total
-            already says how many networks it is spread over. */}
+            reconciliation nobody asked for, so it waits behind a hover or a
+            focus on each mark instead. */}
         {/* `chains` retains the order returned by `/wallets/balance`, whose
             configured settlement-chain order is the source of truth. */}
-        <ChainStack chains={chains.map((holding) => holding.chain)} size={24} />
+        <ChainStack
+          chains={chains.map((holding) => holding.chain)}
+          size={24}
+          tooltip={(chain) => (
+            <span className="flex items-center gap-3">
+              <span className="text-muted-foreground">{chainLabel(chain)}</span>
+              <span className="font-medium tabular-nums">
+                {balanceDisplay(
+                  chains.find((holding) => holding.chain === chain)?.amount ?? 0n,
+                  "USD",
+                )}
+              </span>
+            </span>
+          )}
+        />
       </div>
 
       <TrendChart
@@ -512,7 +554,6 @@ function Overview() {
   const analytics = useAnalytics();
   const balance = useWalletBalance();
   const withdrawals = useWalletWithdrawalHistory();
-  const settings = useSettings();
 
   return match(analytics)
     .with({ status: "pending" }, () => (
@@ -547,18 +588,15 @@ function Overview() {
       const completed = all.filter((p) => p.status === "COMPLETED").length;
       const pending = all.filter((p) => IN_PROGRESS.has(p.status)).length;
       const volume = volumeOf(data.settlements);
-      const settlementAsset = settings.data?.settings.settlementAsset;
+      const rates = balance.data?.usdRates ?? {};
       const settlementsByIntent = settlementsByPaymentIntent(data.settlements);
-      const holdings = holdingsOf(balance.data?.balances ?? [], settlementAsset);
-      const history =
-        settlementAsset === undefined
-          ? []
-          : balanceHistory(
-              holdings.total,
-              settlementAsset,
-              data.settlements,
-              withdrawals.data?.withdrawals ?? [],
-            );
+      const holdings = holdingsOf(balance.data?.balances ?? [], rates);
+      const history = balanceHistory(
+        holdings.total,
+        rates,
+        data.settlements,
+        withdrawals.data?.withdrawals ?? [],
+      );
       const recent = all.slice(0, 6);
 
       const payInDaily = dailyTotals(
@@ -574,16 +612,15 @@ function Overview() {
       const payOutDaily = dailyTotals(
         data.settlements
           .filter((row) => row.state === "SUCCESS" || row.state === "SETTLED")
-          .flatMap((row) =>
-            row.netAmount === null || row.netAmount.asset !== settlementAsset
+          .flatMap((row) => {
+            const cents =
+              row.netAmount === null
+                ? null
+                : toUsdCents(BigInt(row.netAmount.amount), row.netAmount.asset, rates);
+            return cents === null
               ? []
-              : [
-                  {
-                    day: (row.completedAt ?? row.updatedAt).slice(0, 10),
-                    amount: BigInt(row.netAmount.amount),
-                  },
-                ],
-          ),
+              : [{ day: (row.completedAt ?? row.updatedAt).slice(0, 10), amount: cents }];
+          }),
       );
 
       return (
@@ -606,7 +643,7 @@ function Overview() {
               ) : (
                 <BalanceOverview
                   total={holdings.total}
-                  asset={settlementAsset}
+                  assets={holdings.assets}
                   chains={holdings.chains}
                   history={history}
                   today={todaySales(payOutDaily)}
@@ -676,7 +713,7 @@ function Overview() {
               title="Pay outs"
               hint="What reached you, net of fee, over the last thirty days."
               points={payOutDaily}
-              asset={settlementAsset}
+              asset="USD"
               href="/analytics"
             />
           </div>

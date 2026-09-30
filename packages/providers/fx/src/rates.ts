@@ -2,27 +2,26 @@
  * FX rates wire format and pure rate scaling.
  *
  * The FX API serves a decimal rate per currency against a base — `USD -> IDR`
- * is `17635.003032099` rupiah per dollar. Everything in this file is pure: the
+ * is `"17635.003032099"` rupiah per dollar, as a string. Everything in this file is pure: the
  * response schema, the decimal-to-integer lift, and the arithmetic that puts a
  * rate into the codebase's minor-units-per-whole-unit shape. The network call
  * lives in `adapter.ts`.
  *
- * **A float never reaches a calculation.** JSON has one number type, so a rate
- * arrives as a double no matter what we do; it is turned straight into an exact
- * `significand × 10^expo` pair by reading its shortest round-tripping decimal
- * form, and every step after that is BigInt. This mirrors the Pyth adapter,
+ * **A float never reaches a calculation.** The rate arrives as a decimal
+ * string and is split straight into an exact `significand × 10^expo` pair;
+ * every step after that is BigInt. This mirrors the Pyth adapter,
  * which receives the same shape already split.
  */
 
 import { scaledRateFrom, ValidationError } from "@mayarin/shared";
 import { z } from "zod";
 
+/** Coinbase `GET /v2/exchange-rates?currency=BASE`: every currency against `BASE`. */
 export const fxLatestResponseSchema = z.object({
-  success: z.boolean().optional(),
-  /** Unix seconds at which the provider observed the rates. */
-  timestamp: z.number().int(),
-  base: z.string(),
-  rates: z.record(z.string(), z.number()),
+  data: z.object({
+    currency: z.string(),
+    rates: z.record(z.string(), z.string()),
+  }),
 });
 
 export type FxLatestResponse = z.infer<typeof fxLatestResponseSchema>;
@@ -44,8 +43,8 @@ const DECIMAL_PATTERN = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
  * accepted because `toString` switches to it below `1e-6`, which a rate against
  * a low-value currency can reach.
  */
-export function splitDecimalRate(rate: number): DecimalRate {
-  if (!Number.isFinite(rate)) {
+export function splitDecimalRate(rate: number | string): DecimalRate {
+  if (typeof rate === "number" && !Number.isFinite(rate)) {
     throw new ValidationError("An FX rate must be a finite number", { rate: String(rate) });
   }
 

@@ -35,6 +35,7 @@ import {
   acceptedPayerAssets,
   type MerchantAssetPolicy,
   type MerchantAssetPolicySource,
+  settlementAssetOnChain,
 } from "./merchant-policy.ts";
 import type { ListPaymentIntentsOptions, PaymentIntentRepository } from "./repository.ts";
 import type {
@@ -117,7 +118,13 @@ export class PaymentIntentService {
     // paid in the deployment default just because the caller stayed silent.
     const policy = await this.#merchantPolicies?.policyFor(command.merchant.id);
     const settlementAsset =
-      command.settlementAsset ?? policy?.settlementAsset ?? this.#defaults.settlementAsset;
+      command.settlementAsset ??
+      (policy === undefined
+        ? undefined
+        : command.payment === undefined
+          ? policy.settlementAsset
+          : settlementAssetOnChain(policy, command.payment.chain)) ??
+      this.#defaults.settlementAsset;
     const provider = command.provider ?? this.#defaults.provider;
 
     // Both on-chain paths need a rail: the contract path submits calldata for
@@ -240,10 +247,14 @@ export class PaymentIntentService {
   ): Promise<PaymentIntent> {
     const intent = await this.getById(id);
     const path = executionPath ?? this.#defaults.executionPath;
-    const next = choosePaymentOn(intent, payment, path, this.#clock.now());
+    const policy = await this.#merchantPolicies?.policyFor(intent.merchant.id);
+    // An intent minted without a rail took the merchant-wide asset; a chain
+    // with its own settlement asset replaces it once the chain is known.
+    const settlementAsset =
+      policy?.settlementAssetByChain?.[payment.chain] ?? intent.settlementAsset;
+    const next = choosePaymentOn(intent, payment, path, settlementAsset, this.#clock.now());
     if (next === intent) return intent;
 
-    const policy = await this.#merchantPolicies?.policyFor(intent.merchant.id);
     await this.#assertPayerRail(intent.merchant.id, payment, path, policy);
     return this.#apply(next, intent.version, PAYMENT_INTENT_EVENT.railChosen);
   }

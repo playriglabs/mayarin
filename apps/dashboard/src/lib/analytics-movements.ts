@@ -12,7 +12,7 @@ import { assetDecimals, isAssetCode } from "@mayarin/shared/asset";
 import type { PaymentIntentDto } from "@/types/payment";
 import type { SettlementDto } from "@/types/settlement";
 
-const USD_SETTLEMENT_ASSETS: ReadonlySet<string> = new Set(["USDC", "USDT"]);
+const USD_SETTLEMENT_ASSETS: ReadonlySet<string> = new Set(["USDC", "USDT", "USDG", "PYUSD"]);
 
 function rescaleToUsd(amount: bigint, asset: string): bigint | null {
   if (!isAssetCode(asset) || !USD_SETTLEMENT_ASSETS.has(asset)) return null;

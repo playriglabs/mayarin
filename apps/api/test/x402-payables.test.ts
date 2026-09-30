@@ -169,6 +169,7 @@ async function harness(options: { rails?: boolean } = {}) {
                 asset: "USDC",
                 contract: BASE_USDC,
                 payTo: SETTLEMENT_ADDRESS,
+                settlementAsset: "USDC",
               },
             ],
     },

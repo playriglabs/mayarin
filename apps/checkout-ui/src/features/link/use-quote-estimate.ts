@@ -49,17 +49,12 @@ export function canContinueWithQuote(estimate: QuoteEstimate): boolean {
  * settles in. Sending neither is what made the link page quote $1 into EURC at
  * the same number on Arc as on Base Sepolia — two different pools, one answer.
  */
-export function quoteBody(
-  typedAmount: string,
-  currency: string,
-  rail: Rail,
-  settlementAsset: string,
-) {
+export function quoteBody(typedAmount: string, currency: string, rail: Rail) {
   return {
     amount: { amount: typedAmount, asset: currency },
     assets: [rail.asset],
     chain: rail.chain,
-    settlementAsset,
+    settlementAsset: rail.settlementAsset,
   };
 }
 
@@ -79,7 +74,6 @@ export function useQuoteEstimate(
   typedAmount: string,
   currency: string | null,
   rail: Rail | undefined,
-  settlementAsset: string,
 ): QuoteEstimate {
   const [estimate, setEstimate] = useState<QuoteEstimate>(CALCULATING);
 
@@ -96,7 +90,7 @@ export function useQuoteEstimate(
         const response = await fetch("/v1/quotes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(quoteBody(typedAmount, currency, rail, settlementAsset)),
+          body: JSON.stringify(quoteBody(typedAmount, currency, rail)),
           signal: controller.signal,
         });
         const payload: unknown = await response.json();
@@ -115,7 +109,7 @@ export function useQuoteEstimate(
       clearTimeout(debounce);
       controller.abort();
     };
-  }, [typedAmount, currency, rail, settlementAsset]);
+  }, [typedAmount, currency, rail]);
 
   return estimate;
 }

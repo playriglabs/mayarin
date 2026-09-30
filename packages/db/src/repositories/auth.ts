@@ -21,6 +21,7 @@ import type {
   Permission,
   Session,
   SessionRepository,
+  SettlementAssetByChain,
   User,
   UserRepository,
 } from "@mayarin/auth";
@@ -365,6 +366,7 @@ export class DrizzleMerchantAssetPolicySource implements MerchantAssetPolicySour
     if (merchant === null) return undefined;
     return {
       settlementAsset: merchant.settlementAsset,
+      settlementAssetByChain: merchant.settlementAssetByChain ?? {},
       acceptedAssets: merchant.acceptedAssets,
       acceptedAssetsByChain: merchant.acceptedAssetsByChain ?? {},
       ...present("settlementAddress", merchant.settlementAddress ?? null),
@@ -377,6 +379,7 @@ function toMerchant(row: MerchantRow): Merchant {
     id: row.id,
     name: row.name,
     settlementAsset: assertAssetCode(row.settlementAsset, row.id),
+    settlementAssetByChain: toSettlementByChain(row),
     acceptedAssets: row.acceptedAssets.map((asset) => assertAssetCode(asset, row.id)),
     acceptedAssetsByChain: toAcceptedByChain(row),
     ...present("settlementAddress", row.settlementAddress),
@@ -406,6 +409,16 @@ function toAcceptedByChain(row: MerchantRow): AcceptedAssetsByChain {
   return byChain;
 }
 
+/** The per-chain settlement overrides, read with the same unknown-chain rule. */
+function toSettlementByChain(row: MerchantRow): SettlementAssetByChain {
+  const byChain: Partial<Record<ChainId, AssetCode>> = {};
+  for (const [chain, asset] of Object.entries(row.settlementAssetByChain)) {
+    if (!isChainId(chain)) continue;
+    byChain[chain] = assertAssetCode(asset, row.id);
+  }
+  return byChain;
+}
+
 /**
  * Postgres stores these as free text, so a code that left the registry — or a
  * hand-edited row — would otherwise flow into pricing as a valid asset.
@@ -425,6 +438,7 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
     id: merchant.id,
     name: merchant.name,
     settlementAsset: merchant.settlementAsset,
+    settlementAssetByChain: { ...merchant.settlementAssetByChain },
     acceptedAssets: [...merchant.acceptedAssets],
     acceptedAssetsByChain: Object.fromEntries(
       Object.entries(merchant.acceptedAssetsByChain ?? {}).map(([chain, assets]) => [

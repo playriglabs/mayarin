@@ -102,6 +102,7 @@ import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { fromEditableDecimalString } from "@/lib/decimal-input";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 import {
   discoverWallets,
   type InjectedWallet,
@@ -282,6 +283,27 @@ const EXCLUSION_LABEL: Readonly<Record<string, string>> = {
   "not-priceable": "Cannot be priced",
 };
 
+/**
+ * What a network row shows: the asset it settles in, plus anything else that
+ * is actually there. The API reads every stablecoin a chain carries, so money
+ * settled before a switch still counts — but a zero in an asset the merchant is
+ * not paid in on that chain is noise.
+ */
+function shownBalances(
+  row: ChainBalanceDto,
+  rails: MerchantRailsResponse | undefined,
+): ChainBalanceDto {
+  const settlesIn =
+    rails?.rails.find((rail) => rail.chain === row.chain)?.settlementAsset ??
+    rails?.settlementAsset;
+  return {
+    ...row,
+    balances: row.balances.filter(
+      (amount) => amount.asset === settlesIn || BigInt(amount.amount) > 0n,
+    ),
+  };
+}
+
 /** The same asset on every network, added up, in the API's own display form. */
 function totalsOf(
   rows: readonly ChainBalanceDto[],
@@ -329,13 +351,104 @@ function SettlementOverview({
   readonly onWithdraw: (row: ChainBalanceDto) => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const totals = totalsOf(chainBalances);
+  const shown = chainBalances.map((row) => shownBalances(row, rails));
+  const totals = totalsOf(shown.filter((row) => row.address !== null));
   const live = chainBalances.filter((row) => row.address !== null).length;
   // Networks with an address first, so money leads; stable, so the API's order
   // holds within each group.
-  const ordered = [...chainBalances].sort(
+  const ordered = [...shown].sort(
     (a, b) => Number(a.address === null) - Number(b.address === null),
   );
+
+  function balancesOf(row: ChainBalanceDto) {
+    return row.balances.length === 0 ? (
+      <span className="text-subtle-foreground">—</span>
+    ) : (
+      <span className="flex flex-wrap gap-x-4 gap-y-1">
+        {row.balances.map((amount) => (
+          <AssetAmount
+            key={amount.asset}
+            asset={amount.asset}
+            display={amount.display}
+            size={16}
+            className="whitespace-nowrap"
+          />
+        ))}
+      </span>
+    );
+  }
+
+  function paymentsOf(row: ChainBalanceDto) {
+    const accepting = rails?.rails.filter((rail) => rail.chain === row.chain) ?? [];
+    const excluded = [
+      ...new Map(
+        (rails?.unavailable ?? [])
+          .filter((entry) => entry.chain === row.chain)
+          .map((entry) => [`${entry.asset ?? "network"}:${entry.reason}`, entry]),
+      ).values(),
+    ];
+    const [firstExclusion] = excluded;
+
+    if (accepting.length > 0) {
+      return (
+        <span className="flex flex-wrap items-center gap-2">
+          <Badge variant="success">Accepting</Badge>
+          <AssetStack assets={accepting.map((rail) => rail.asset)} />
+          <span className="sr-only">{accepting.map((rail) => rail.asset).join(", ")}</span>
+          {excluded.length > 0 && (
+            <ExclusionHint entries={excluded} label={`${excluded.length} off`} />
+          )}
+        </span>
+      );
+    }
+    return firstExclusion !== undefined ? (
+      <ExclusionHint
+        entries={excluded}
+        label={EXCLUSION_LABEL[firstExclusion.kind] ?? "Unavailable"}
+        badge
+      />
+    ) : (
+      <Badge variant="warning">Unavailable</Badge>
+    );
+  }
+
+  function actionOf(row: ChainBalanceDto) {
+    // The managed wallet's address, not deployed on this network yet.
+    const notSetUp =
+      row.address === null && managedAddress !== undefined && provisionChains.includes(row.chain);
+    if (notSetUp) {
+      return (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => onSetUp(row.chain)}
+          disabled={provisioning}
+        >
+          <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+          Set up
+        </Button>
+      );
+    }
+    if (row.withdrawable) {
+      return (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => onWithdraw(row)}
+          disabled={row.balances.length === 0 || !hasVerifiedWallet}
+          title={
+            hasVerifiedWallet ? undefined : "Connect and verify a wallet you own to withdraw to it."
+          }
+        >
+          <ArrowLineUpRightIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+          Withdraw
+        </Button>
+      );
+    }
+    return row.address !== null ? (
+      <span className="text-subtle-foreground text-xs">Your own wallet</span>
+    ) : null;
+  }
 
   async function copyAddress() {
     if (managedAddress === undefined) return;
@@ -356,13 +469,16 @@ function SettlementOverview({
             <h2 className="font-medium text-sm">Settlement balances</h2>
             <p className="text-muted-foreground text-xs">
               {live} of {chainBalances.length} networks set up
-              {rails !== undefined && <> · settles into {rails.settlementAsset}</>}
+              {rails !== undefined && <> · default settlement {rails.settlementAsset}</>}
             </p>
           </div>
           {managedAddress !== undefined && (
             <div className="flex min-w-0 items-center gap-2">
               <Badge>Managed</Badge>
-              <span className="break-all font-mono text-muted-foreground text-xs">
+              <span className="font-mono text-muted-foreground text-xs md:hidden">
+                {`${managedAddress.slice(0, 6)}…${managedAddress.slice(-4)}`}
+              </span>
+              <span className="hidden break-all font-mono text-muted-foreground text-xs md:inline">
                 {managedAddress}
               </span>
               <Button
@@ -394,7 +510,9 @@ function SettlementOverview({
         )}
       </div>
 
-      <Table>
+      {/* A table from `md` up; on a phone each network is a short stack, since
+          four columns do not fit and a sideways scroll hides the action. */}
+      <Table containerClassName="hidden rounded-none border-0 md:block">
         <TableCaption className="sr-only">Balance and payment status per network</TableCaption>
         <TableHeader>
           <TableRow>
@@ -407,103 +525,34 @@ function SettlementOverview({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {ordered.map((row) => {
-            // The managed wallet's address, not deployed on this network yet.
-            const notSetUp =
-              row.address === null &&
-              managedAddress !== undefined &&
-              provisionChains.includes(row.chain);
-            const accepting = rails?.rails.filter((rail) => rail.chain === row.chain) ?? [];
-            const excluded = [
-              ...new Map(
-                (rails?.unavailable ?? [])
-                  .filter((entry) => entry.chain === row.chain)
-                  .map((entry) => [`${entry.asset ?? "network"}:${entry.reason}`, entry]),
-              ).values(),
-            ];
-            const [firstExclusion] = excluded;
-
-            return (
-              <TableRow key={row.chain} className={row.address === null ? "opacity-70" : undefined}>
-                <TableCell>
-                  <ChainLabel chain={row.chain} size={20} className="whitespace-nowrap" />
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {row.balances.length === 0 ? (
-                    <span className="text-subtle-foreground">—</span>
-                  ) : (
-                    <span className="flex flex-wrap gap-x-4 gap-y-1">
-                      {row.balances.map((amount) => (
-                        <AssetAmount
-                          key={amount.asset}
-                          asset={amount.asset}
-                          display={amount.display}
-                          size={16}
-                          className="whitespace-nowrap"
-                        />
-                      ))}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {accepting.length > 0 ? (
-                    <span className="flex flex-wrap items-center gap-2">
-                      <Badge variant="success">Accepting</Badge>
-                      <AssetStack assets={accepting.map((rail) => rail.asset)} />
-                      <span className="sr-only">
-                        {accepting.map((rail) => rail.asset).join(", ")}
-                      </span>
-                      {excluded.length > 0 && (
-                        <ExclusionHint entries={excluded} label={`${excluded.length} off`} />
-                      )}
-                    </span>
-                  ) : firstExclusion !== undefined ? (
-                    <ExclusionHint
-                      entries={excluded}
-                      label={EXCLUSION_LABEL[firstExclusion.kind] ?? "Unavailable"}
-                      badge
-                    />
-                  ) : (
-                    <Badge variant="warning">Unavailable</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {notSetUp ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => onSetUp(row.chain)}
-                      disabled={provisioning}
-                    >
-                      <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                      Set up
-                    </Button>
-                  ) : row.withdrawable ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => onWithdraw(row)}
-                      disabled={row.balances.length === 0 || !hasVerifiedWallet}
-                      title={
-                        hasVerifiedWallet
-                          ? undefined
-                          : "Connect and verify a wallet you own to withdraw to it."
-                      }
-                    >
-                      <ArrowLineUpRightIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                      Withdraw
-                    </Button>
-                  ) : (
-                    row.address !== null && (
-                      <span className="text-subtle-foreground text-xs">Your own wallet</span>
-                    )
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })}
+          {ordered.map((row) => (
+            <TableRow key={row.chain} className={row.address === null ? "opacity-70" : undefined}>
+              <TableCell>
+                <ChainLabel chain={row.chain} size={20} className="whitespace-nowrap" />
+              </TableCell>
+              <TableCell className="font-mono tabular-nums">{balancesOf(row)}</TableCell>
+              <TableCell>{paymentsOf(row)}</TableCell>
+              <TableCell className="text-right">{actionOf(row)}</TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
+
+      <ul className="flex flex-col divide-y divide-border md:hidden">
+        {ordered.map((row) => (
+          <li
+            key={row.chain}
+            className={cn("flex flex-col gap-3 p-4", row.address === null && "opacity-70")}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <ChainLabel chain={row.chain} size={20} className="whitespace-nowrap font-medium" />
+              {actionOf(row)}
+            </div>
+            <div className="font-mono text-sm tabular-nums">{balancesOf(row)}</div>
+            <div>{paymentsOf(row)}</div>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }
@@ -1088,67 +1137,107 @@ function Wallets() {
                       </EmptyAction>
                     </Empty>
                   ) : (
-                    <Table>
-                      <TableCaption>Your wallets, one line per address</TableCaption>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Address</TableHead>
-                          <TableHead>Networks</TableHead>
-                          <TableHead>Origin</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Added</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                    <>
+                      <ul className="flex flex-col divide-y divide-border rounded-lg border border-border bg-card md:hidden">
                         {groups.map((group) => {
                           const unproven = group.unproven;
                           return (
-                            <TableRow key={group.key}>
-                              {/* Shown whole: an address a merchant cannot copy in full is
-                          worse than one they have to scroll. */}
-                              <TableCell className="break-all font-mono text-xs">
-                                {group.address}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
+                            <li key={group.key} className="flex flex-col gap-3 p-4">
+                              {/* Whole, and wrapped: an address a merchant cannot
+                                copy in full is worse than one on two lines. */}
+                              <span className="break-all font-mono text-xs">{group.address}</span>
+                              <span className="text-muted-foreground text-sm">
                                 <NetworkList chains={group.chains} />
-                              </TableCell>
-                              <TableCell>
+                              </span>
+                              <span className="flex flex-wrap items-center gap-2">
                                 <Badge>{PROVENANCE_LABEL[group.provenance]}</Badge>
-                              </TableCell>
-                              <TableCell>
                                 <Badge variant={group.verified ? "success" : "warning"}>
                                   {statusLabel(group)}
                                 </Badge>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                <time dateTime={isoAttr(group.createdAt)}>
+                                <time
+                                  dateTime={isoAttr(group.createdAt)}
+                                  className="text-muted-foreground text-xs"
+                                >
                                   {formatDateTime(group.createdAt)}
                                 </time>
-                              </TableCell>
-                              {/* Only an action that is left to take. A managed wallet
-                          still setting up is finished from its network's card. */}
-                              <TableCell className="text-right">
-                                {unproven !== undefined && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => void startProof(unproven)}
-                                  >
-                                    <SealCheckIcon
-                                      size={ICON_NAV}
-                                      weight="bold"
-                                      aria-hidden="true"
-                                    />
-                                    Prove control
-                                  </Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
+                              </span>
+                              {unproven !== undefined && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="self-start"
+                                  onClick={() => void startProof(unproven)}
+                                >
+                                  <SealCheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                                  Prove control
+                                </Button>
+                              )}
+                            </li>
                           );
                         })}
-                      </TableBody>
-                    </Table>
+                      </ul>
+                      <Table containerClassName="hidden md:block">
+                        <TableCaption>Your wallets, one line per address</TableCaption>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Address</TableHead>
+                            <TableHead>Networks</TableHead>
+                            <TableHead>Origin</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Added</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {groups.map((group) => {
+                            const unproven = group.unproven;
+                            return (
+                              <TableRow key={group.key}>
+                                {/* Shown whole: an address a merchant cannot copy in full is
+                          worse than one they have to scroll. */}
+                                <TableCell className="break-all font-mono text-xs">
+                                  {group.address}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  <NetworkList chains={group.chains} />
+                                </TableCell>
+                                <TableCell>
+                                  <Badge>{PROVENANCE_LABEL[group.provenance]}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={group.verified ? "success" : "warning"}>
+                                    {statusLabel(group)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  <time dateTime={isoAttr(group.createdAt)}>
+                                    {formatDateTime(group.createdAt)}
+                                  </time>
+                                </TableCell>
+                                {/* Only an action that is left to take. A managed wallet
+                          still setting up is finished from its network's card. */}
+                                <TableCell className="text-right">
+                                  {unproven !== undefined && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => void startProof(unproven)}
+                                    >
+                                      <SealCheckIcon
+                                        size={ICON_NAV}
+                                        weight="bold"
+                                        aria-hidden="true"
+                                      />
+                                      Prove control
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </>
                   ),
                 )}
             </>

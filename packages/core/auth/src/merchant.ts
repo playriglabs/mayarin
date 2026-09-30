@@ -18,6 +18,9 @@ import type { User } from "./types.ts";
 /** Accepted payer assets narrowed to one chain. A chain absent inherits the merchant-wide set. */
 export type AcceptedAssetsByChain = Readonly<Partial<Record<ChainId, readonly AssetCode[]>>>;
 
+/** Settlement asset narrowed to one chain. A chain absent settles in the merchant-wide asset. */
+export type SettlementAssetByChain = Readonly<Partial<Record<ChainId, AssetCode>>>;
+
 export interface Merchant {
   readonly id: string;
   readonly name: string;
@@ -27,6 +30,17 @@ export interface Merchant {
    * converted to this before it reaches them.
    */
   readonly settlementAsset: AssetCode;
+  /**
+   * The settlement asset overridden per chain.
+   *
+   * `settlementAsset` is the default every chain settles in. A chain present
+   * here settles in its own asset instead — Robinhood has USDG and no venue
+   * from USDG to USDC, so a USDC merchant is paid there in USDG or not at all.
+   *
+   * Optional, and absent is the same answer as empty: every chain settles in
+   * `settlementAsset`. Read it through `settlementAssetOn`.
+   */
+  readonly settlementAssetByChain?: SettlementAssetByChain;
   /**
    * Assets this merchant lets a payer pay with. An entry equal to
    * `settlementAsset` settles with no swap at all; anything else is swapped on
@@ -123,6 +137,7 @@ export interface MerchantSettingChange {
 
 export const MERCHANT_SETTING_FIELDS = [
   "settlementAsset",
+  "settlementAssetByChain",
   "acceptedAssets",
   "acceptedAssetsByChain",
   "settlementAddress",
@@ -141,6 +156,8 @@ export interface MerchantSettingChangeRepository {
 /** The subset of a merchant a merchant may edit about themselves. */
 export interface MerchantSettingsPatch {
   readonly settlementAsset?: AssetCode;
+  /** Per-chain settlement overrides, replacing the whole map when present. */
+  readonly settlementAssetByChain?: SettlementAssetByChain;
   readonly acceptedAssets?: readonly AssetCode[];
   /**
    * Per-chain overrides, replacing the whole map when present.
@@ -174,12 +191,12 @@ export function updateMerchantSettings(
   now: Date,
 ): Merchant {
   const settlementAsset = patch.settlementAsset ?? merchant.settlementAsset;
-  if (getAsset(settlementAsset).kind !== "stablecoin") {
-    throw new ValidationError(
-      `A merchant settles in a stablecoin; ${settlementAsset} is ${getAsset(settlementAsset).kind}`,
-      { settlementAsset },
-    );
-  }
+  assertStablecoin(settlementAsset);
+
+  const settlementAssetByChain =
+    patch.settlementAssetByChain === undefined
+      ? (merchant.settlementAssetByChain ?? {})
+      : overridesOnly(patch.settlementAssetByChain, settlementAsset);
 
   const acceptedAssets =
     patch.acceptedAssets === undefined
@@ -189,7 +206,7 @@ export function updateMerchantSettings(
   const acceptedAssetsByChain =
     patch.acceptedAssetsByChain === undefined
       ? (merchant.acceptedAssetsByChain ?? {})
-      : narrowPerChain(patch.acceptedAssetsByChain, settlementAsset);
+      : narrowPerChain(patch.acceptedAssetsByChain, settlementAsset, settlementAssetByChain);
 
   const settlementAddress =
     patch.settlementAddress === undefined
@@ -208,6 +225,7 @@ export function updateMerchantSettings(
   return {
     ...rest,
     settlementAsset,
+    settlementAssetByChain,
     acceptedAssets,
     acceptedAssetsByChain,
     ...(settlementAddress === undefined ? {} : { settlementAddress }),
@@ -241,6 +259,16 @@ export function diffMerchantSettings(
       field: "settlementAsset",
       previous: before.settlementAsset,
       next: after.settlementAsset,
+    });
+  }
+
+  const beforeSettlementByChain = renderSettlementPerChain(before.settlementAssetByChain ?? {});
+  const afterSettlementByChain = renderSettlementPerChain(after.settlementAssetByChain ?? {});
+  if (beforeSettlementByChain !== afterSettlementByChain) {
+    changes.push({
+      field: "settlementAssetByChain",
+      previous: beforeSettlementByChain,
+      next: afterSettlementByChain,
     });
   }
 
@@ -340,13 +368,47 @@ function dedupe(assets: readonly AssetCode[], settlementAsset: AssetCode): reado
 function narrowPerChain(
   byChain: AcceptedAssetsByChain,
   settlementAsset: AssetCode,
+  settlementAssetByChain: SettlementAssetByChain,
 ): AcceptedAssetsByChain {
   const narrowed: Partial<Record<ChainId, readonly AssetCode[]>> = {};
   for (const [chain, assets] of Object.entries(byChain) as [ChainId, readonly AssetCode[]][]) {
     if (assets === undefined || assets.length === 0) continue;
-    narrowed[chain] = dedupe(assets, settlementAsset);
+    narrowed[chain] = dedupe(assets, settlementAssetByChain[chain] ?? settlementAsset);
   }
   return narrowed;
+}
+
+function assertStablecoin(asset: AssetCode): void {
+  if (getAsset(asset).kind !== "stablecoin") {
+    throw new ValidationError(
+      `A merchant settles in a stablecoin; ${asset} is ${getAsset(asset).kind}`,
+      { settlementAsset: asset },
+    );
+  }
+}
+
+/**
+ * Keeps only real overrides. A chain set to the merchant-wide asset is dropped,
+ * so "same as default" is stored one way: absent.
+ */
+function overridesOnly(
+  byChain: SettlementAssetByChain,
+  settlementAsset: AssetCode,
+): SettlementAssetByChain {
+  const overrides: Partial<Record<ChainId, AssetCode>> = {};
+  for (const [chain, asset] of Object.entries(byChain) as [ChainId, AssetCode][]) {
+    if (asset === undefined || asset === settlementAsset) continue;
+    assertStablecoin(asset);
+    overrides[chain] = asset;
+  }
+  return overrides;
+}
+
+function renderSettlementPerChain(byChain: SettlementAssetByChain): string {
+  return (Object.entries(byChain) as [ChainId, AssetCode][])
+    .map(([chain, asset]) => `${chain}=${asset}`)
+    .sort()
+    .join(",");
 }
 
 /** One stable line per matrix, so the audit record compares like with like. */
@@ -367,7 +429,17 @@ function renderPerChain(byChain: AcceptedAssetsByChain): string {
  */
 export function acceptedAssetsOn(merchant: Merchant, chain: ChainId): readonly AssetCode[] {
   const perChain = merchant.acceptedAssetsByChain?.[chain];
-  return perChain !== undefined && perChain.length > 0 ? perChain : merchant.acceptedAssets;
+  const accepted =
+    perChain !== undefined && perChain.length > 0 ? perChain : merchant.acceptedAssets;
+  // A chain's own settlement asset is always accepted there: the inherited
+  // merchant-wide list was deduped against the default, not the override.
+  const override = merchant.settlementAssetByChain?.[chain];
+  return override === undefined || accepted.length === 0 ? accepted : dedupe(accepted, override);
+}
+
+/** What this merchant is paid in on one chain: the override, or the merchant-wide asset. */
+export function settlementAssetOn(merchant: Merchant, chain: ChainId): AssetCode {
+  return merchant.settlementAssetByChain?.[chain] ?? merchant.settlementAsset;
 }
 
 /**

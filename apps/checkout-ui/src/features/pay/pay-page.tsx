@@ -21,6 +21,46 @@ import { usePaymentStatus } from "./use-payment-status.ts";
  * on a deposit address that could never be allocated.
  */
 export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
+  if (bootstrap.choice !== null) {
+    return (
+      <main className="checkout-shell">
+        <CheckoutSummary
+          merchant={bootstrap.merchant}
+          title={bootstrap.title}
+          totalDisplay={bootstrap.amount.display}
+          lines={bootstrap.lines}
+        />
+        <section className="checkout-panel" aria-label="Payment details">
+          <ChooseRail bootstrap={bootstrap} choice={bootstrap.choice} />
+        </section>
+      </main>
+    );
+  }
+  return <LivePayment bootstrap={bootstrap} />;
+}
+
+/**
+ * The live payment: timeline, countdown, and the deposit to send — or, once
+ * money has arrived or the payment has ended, a picture and a sentence in
+ * place of every instruction that would invite a second transfer.
+ *
+ * The timeline sits under the order on a wide screen, where the summary column
+ * has room, and above the payment on a narrow one. Rendered in both places and
+ * shown in one: `display: none` also hides the other from a screen reader.
+ *
+ * The body is one exhaustive match over `{terminal, deposit, stage}` — the
+ * compiler proves every case is covered, so a new payment stage cannot fall
+ * through to the deposit card silently.
+ */
+function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
+  const { intentId, expiresAt } = bootstrap;
+
+  const { status, clearingState, deposit, terminal } = usePaymentStatus(bootstrap);
+  const remaining = useCountdown(expiresAt, !terminal);
+  const { copied, copy } = useCopy();
+  const stage = paymentStage(clearingState);
+  const waiting = !terminal && stage === "waiting";
+
   return (
     <main className="checkout-shell">
       <CheckoutSummary
@@ -28,89 +68,59 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
         title={bootstrap.title}
         totalDisplay={bootstrap.amount.display}
         lines={bootstrap.lines}
-      />
-      {bootstrap.choice === null ? (
-        <section className="checkout-panel" aria-label="Payment instructions">
-          <PaymentProgress bootstrap={bootstrap} />
-        </section>
-      ) : (
-        <section className="checkout-panel" aria-label="Payment details">
-          <ChooseRail bootstrap={bootstrap} choice={bootstrap.choice} />
-        </section>
-      )}
-    </main>
-  );
-}
+      >
+        <StatusTimeline status={status} stage={stage} className="timeline-wide" />
+      </CheckoutSummary>
+      <section className="checkout-panel" aria-label="Payment instructions">
+        <div className="payment-form pay-detail">
+          <StatusTimeline status={status} stage={stage} className="timeline-narrow" />
 
-/**
- * The live payment: countdown, timeline, and the deposit to send.
- *
- * A terminal payment replaces the whole live surface: the countdown, the
- * timeline, and the update note all leave with the deposit card, because a
- * decided payment must stop looking like one that is still waiting.
- *
- * The live body is one exhaustive match over `{terminal, deposit, stage}` —
- * the compiler proves every case is covered, so a new payment stage cannot
- * fall through to the deposit card silently.
- */
-function PaymentProgress({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
-  const { intentId, expiresAt } = bootstrap;
-
-  const { status, clearingState, deposit, terminal } = usePaymentStatus(bootstrap);
-  const remaining = useCountdown(expiresAt, !terminal);
-  const { copied, copy } = useCopy();
-  const stage = paymentStage(clearingState);
-
-  return (
-    <div className="payment-form pay-detail">
-      {!terminal && (
-        <div className="pay-heading">
-          <div>
-            <p className="section-kicker">Secure payment</p>
-            <h2>Complete your payment</h2>
-          </div>
-          {stage === "waiting" && (
-            <div className={clsx("timer", { low: remaining.low })}>
-              <span>Time left</span>
-              <strong>{remaining.text}</strong>
+          {waiting && (
+            <div className="pay-heading">
+              <div>
+                <p className="section-kicker">Secure payment</p>
+                <h2>Complete your payment</h2>
+              </div>
+              <div className={clsx("timer", { low: remaining.low })}>
+                <span>Time left</span>
+                <strong>{remaining.text}</strong>
+              </div>
             </div>
           )}
+
+          {match({ terminal, deposit, stage })
+            .with({ terminal: true }, () => <Outcome status={status} intentId={intentId} />)
+            .with({ deposit: P.nullish }, () => (
+              <div className="preparing" role="status">
+                <span className="spinner" aria-hidden="true" />
+                <div>
+                  <h3>Preparing your payment address…</h3>
+                  <p>Your price is being locked. Keep this page open.</p>
+                </div>
+              </div>
+            ))
+            .with({ deposit: P.nonNullable, stage: "confirming" }, ({ deposit }) => (
+              <ConfirmingCard deposit={deposit} intentId={intentId} />
+            ))
+            .with({ deposit: P.nonNullable, stage: "waiting" }, ({ deposit }) => (
+              <DepositCard
+                deposit={deposit}
+                localPrice={bootstrap.amount.display}
+                intentId={intentId}
+                copied={copied}
+                onCopy={copy}
+              />
+            ))
+            .exhaustive()}
+
+          {!terminal && <p className="connection-mode">This page updates automatically.</p>}
+          {waiting && deposit === undefined && (
+            <p className="reference">
+              Reference ID <code>{intentId}</code>
+            </p>
+          )}
         </div>
-      )}
-
-      {!terminal && <StatusTimeline stage={stage} />}
-
-      {match({ terminal, deposit, stage })
-        .with({ terminal: true }, () => <Outcome status={status} intentId={intentId} />)
-        .with({ deposit: P.nullish }, () => (
-          <div className="preparing">
-            <span className="spinner" aria-hidden="true" />
-            <div>
-              <h3>Preparing your payment address…</h3>
-              <p>Your price is being locked. Keep this page open.</p>
-            </div>
-          </div>
-        ))
-        .with({ deposit: P.nonNullable, stage: "confirming" }, ({ deposit }) => (
-          <ConfirmingCard deposit={deposit} />
-        ))
-        .with({ deposit: P.nonNullable, stage: "waiting" }, ({ deposit }) => (
-          <DepositCard
-            deposit={deposit}
-            localPrice={bootstrap.amount.display}
-            intentId={intentId}
-            copied={copied}
-            onCopy={copy}
-          />
-        ))
-        .exhaustive()}
-
-      {!terminal && <p className="connection-mode">This page updates automatically.</p>}
-      {!terminal && (deposit === undefined || stage === "confirming") && (
-        <p className="reference">
-          Reference ID <code>{intentId}</code>
-        </p>
-      )}
-    </div>
+      </section>
+    </main>
   );
 }

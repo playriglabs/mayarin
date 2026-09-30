@@ -34,7 +34,7 @@ describe("choosePayment", () => {
 
   test("sets the rail on an intent minted without one, bumping the version", () => {
     const intent = createPaymentIntent(input());
-    const chosen = choosePayment(intent, rail, "deposit-match", NOW);
+    const chosen = choosePayment(intent, rail, "deposit-match", "USDC", NOW);
 
     expect(chosen.payment).toEqual(rail);
     expect(chosen.executionPath).toBe("deposit-match");
@@ -43,24 +43,24 @@ describe("choosePayment", () => {
   });
 
   test("the same rail again is a replay, not a change", () => {
-    const chosen = choosePayment(createPaymentIntent(input()), rail, "deposit-match", NOW);
-    expect(choosePayment(chosen, rail, "deposit-match", NOW)).toBe(chosen);
+    const chosen = choosePayment(createPaymentIntent(input()), rail, "deposit-match", "USDC", NOW);
+    expect(choosePayment(chosen, rail, "deposit-match", "USDC", NOW)).toBe(chosen);
   });
 
   test("refuses to swap a rail already chosen", () => {
-    const chosen = choosePayment(createPaymentIntent(input()), rail, "deposit-match", NOW);
+    const chosen = choosePayment(createPaymentIntent(input()), rail, "deposit-match", "USDC", NOW);
     expect(() =>
-      choosePayment(chosen, { asset: "USDC", chain: "arc-testnet" }, "deposit-match", NOW),
+      choosePayment(chosen, { asset: "USDC", chain: "arc-testnet" }, "deposit-match", "USDC", NOW),
     ).toThrow(ValidationError);
   });
 
   test("refuses once the intent is confirmed or expired", () => {
     const intent = createPaymentIntent(input());
-    expect(() => choosePayment(confirm(intent, NOW), rail, "deposit-match", NOW)).toThrow(
+    expect(() => choosePayment(confirm(intent, NOW), rail, "deposit-match", "USDC", NOW)).toThrow(
       InvalidStateTransitionError,
     );
     const late = new Date(NOW.getTime() + 901_000);
-    expect(() => choosePayment(intent, rail, "deposit-match", late)).toThrow(
+    expect(() => choosePayment(intent, rail, "deposit-match", "USDC", late)).toThrow(
       InvalidStateTransitionError,
     );
   });

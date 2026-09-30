@@ -12,8 +12,18 @@ import type { OfferedRail } from "@mayarin/payment-intent";
 import type { RailObservation } from "@mayarin/x402";
 import { payerRails } from "../src/rails.ts";
 
-const BASE_RAIL: OfferedRail = { chain: "base-sepolia", asset: "USDC", contract: "0x3600" };
-const ARC_RAIL: OfferedRail = { chain: "arc-testnet", asset: "USDC", contract: "0x3600" };
+const BASE_RAIL: OfferedRail = {
+  chain: "base-sepolia",
+  asset: "USDC",
+  contract: "0x3600",
+  settlementAsset: "USDC",
+};
+const ARC_RAIL: OfferedRail = {
+  chain: "arc-testnet",
+  asset: "USDC",
+  contract: "0x3600",
+  settlementAsset: "USDC",
+};
 
 /** An observation source that answers with the given observations. */
 function source(observations: readonly RailObservation[]) {
@@ -68,7 +78,9 @@ describe("payerRails", () => {
       [BASE_RAIL],
     );
 
-    expect(rails).toEqual([{ chain: "base-sepolia", asset: "USDC", contract: "0x3600" }]);
+    expect(rails).toEqual([
+      { chain: "base-sepolia", asset: "USDC", contract: "0x3600", settlementAsset: "USDC" },
+    ]);
     expect(asked).toBe(0);
   });
 

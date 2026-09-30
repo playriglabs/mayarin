@@ -117,14 +117,14 @@ export interface X402ServiceOptions {
    */
   readonly merchantSnapshot: (merchantId: string) => Promise<MerchantSnapshot>;
   /**
-   * The asset this merchant is paid in.
+   * The asset this merchant is paid in on one chain.
    *
    * A rail offering any other asset is a cross-asset payment: the agent signs
    * an authorization in what it holds, and the merchant is still paid in what
    * they chose. Read through a function for the same reason `merchantSnapshot`
    * is one — the settlement asset is all this service needs from a policy.
    */
-  readonly settlementAssetOf: (merchantId: string) => Promise<AssetCode>;
+  readonly settlementAssetOf: (merchantId: string, chain: ChainId) => Promise<AssetCode>;
   /**
    * The quote layer, when this deployment has one.
    *
@@ -256,9 +256,9 @@ export class X402Service {
    * cannot be created carrying terms no payer could sign.
    */
   async register(input: RegisterResourceInput): Promise<X402Resource> {
-    const settlementAsset = await this.#options.settlementAssetOf(input.merchantId);
     const accepts: AcceptedAsset[] = [];
     for (const accept of input.accepts) {
+      const settlementAsset = await this.#options.settlementAssetOf(input.merchantId, accept.chain);
       if (accept.asset !== settlementAsset) this.#requireCrossAssetRail(accept, settlementAsset);
       const capability = await this.#options.capabilities.of(accept.chain, accept.contract);
       accepts.push({
@@ -361,10 +361,10 @@ export class X402Service {
   async #pricedFor(offer: PricedOffer, now: Date, error?: string): Promise<PaymentRequired> {
     const expiresAt = new Date(now.getTime() + this.#options.quoteTtlSeconds * 1000);
 
-    const settlementAsset = await this.#options.settlementAssetOf(offer.merchantId);
     const priced: PricedAsset[] = [];
     for (const accept of offer.accepts) {
       if (!this.#options.facilitators.canServe(requirementsProbe(accept))) continue;
+      const settlementAsset = await this.#options.settlementAssetOf(offer.merchantId, accept.chain);
       const asked = await this.#asked(accept);
       if (asked === undefined) continue;
       const amount =
@@ -417,13 +417,12 @@ export class X402Service {
     const rails = this.#options.merchantRails;
     if (rails === undefined) return [];
 
-    const settlementAsset = await this.#options.settlementAssetOf(merchantId);
     const operator = this.#crossAssetOperator();
     const accepts: AcceptedAsset[] = [];
 
     for (const rail of await rails.railsFor(merchantId)) {
       if (rail.contract === undefined) continue;
-      const sameAsset = rail.asset === settlementAsset;
+      const sameAsset = rail.asset === rail.settlementAsset;
       if (!sameAsset && operator === undefined) continue;
       const payTo = sameAsset ? rail.payTo : operator;
       if (payTo === undefined) continue;

@@ -1,8 +1,9 @@
 /**
  * FX rates price oracle adapter.
  *
- * Implements the `PriceOracle` port over an FX rates API, for the fiat leg the
- * quote engine cannot price any other way: `QuoteEngine` prices fiat ->
+ * Implements the `PriceOracle` port over Coinbase's public exchange-rates API
+ * (`api.coinbase.com/v2/exchange-rates`), for the fiat leg the quote engine
+ * cannot price any other way: `QuoteEngine` prices fiat ->
  * settlement through the oracle alone, because no swap venue quotes rupiah.
  *
  * **Why this exists beside the Pyth adapter.** Pyth Core's 2026-08-26 upgrade
@@ -27,9 +28,17 @@
  * infers. A missing pair is a `ConfigurationError`; no symmetry or cross-rate
  * derivation happens here, matching the other price seams.
  *
- * **One caveat the freshness guard cannot see.** The API stamps a response with
- * the time it served it, not the time the underlying market last traded, so
- * over a weekend it reports a minute-fresh timestamp on Friday's closing rate.
+ * **Why Coinbase and not fxratesapi.** fxratesapi's anonymous tier allows 61
+ * requests a window and returned 429 for every non-USD merchant price; its
+ * sign-up rejected real addresses, so no key could be had. Coinbase's endpoint
+ * needs no key, covers every currency we price (SAR, AED, BND, KHR, LAK and MMK
+ * included, which Pyth does not carry) and answers every currency for a base
+ * in one response.
+ *
+ * **One caveat the freshness guard cannot see.** The response carries no
+ * observation time, so it is stamped with the response's `Date` header — when
+ * it was served, not when the market last traded. Over a weekend that is a
+ * minute-fresh timestamp on Friday's closing rate.
  * `QUOTE_FX_CLOSED_MAX_AGE_SECONDS` therefore never binds on this source. The
  * closed-market spread still applies: `QuoteEngine` decides that from the clock
  * (`isFxMarketOpen`), not from the observation's age.
@@ -53,7 +62,7 @@ import {
   splitDecimalRate,
 } from "./rates.ts";
 
-export const DEFAULT_FX_ENDPOINT = "https://api.fxratesapi.com";
+export const DEFAULT_FX_ENDPOINT = "https://api.coinbase.com";
 
 /**
  * How long an observation is reused before the API is asked again.
@@ -84,8 +93,6 @@ export interface FxRatesPriceOracleOptions {
   /** Pair (`rateKey(from, to)`) to API symbol, e.g. `"IDR/USDC": { symbol: "USD/IDR", invert: true }`. */
   readonly feeds: Readonly<Record<string, FxFeed>>;
   readonly endpoint?: string;
-  /** Sent as `Authorization: Bearer <key>`. Optional: the free tier is open. */
-  readonly apiKey?: string;
   /** Observation reuse window; defaults to `DEFAULT_FX_CACHE_SECONDS`. */
   readonly cacheSeconds?: number;
   readonly clock?: Clock;
@@ -103,21 +110,10 @@ interface Observation {
 export class FxRatesPriceOracle implements PriceOracle {
   readonly #feeds: ReadonlyMap<string, FxFeed>;
   readonly #endpoint: string;
-  readonly #apiKey: string | undefined;
   readonly #cacheMs: number;
   readonly #clock: Clock;
   readonly #fetchFn: typeof fetch;
   readonly #cache = new Map<string, Observation>();
-  /**
-   * Every quote currency configured against each base.
-   *
-   * The API answers `currencies=SGD,IDR,THB,MYR` in one response, so a read for
-   * any one of them fills the cache for all of them. Asking per symbol instead
-   * spent one request per pair on a hot path shared by every fiat-priced quote,
-   * and the free tier's 61-request window ran out — which surfaced as
-   * "No fresh oracle price", the same message a dead feed produces.
-   */
-  readonly #quotesPerBase: ReadonlyMap<string, readonly string[]>;
   /**
    * When the API says it will accept requests again, in epoch milliseconds.
    *
@@ -131,9 +127,7 @@ export class FxRatesPriceOracle implements PriceOracle {
 
   constructor(options: FxRatesPriceOracleOptions) {
     this.#feeds = new Map(Object.entries(options.feeds));
-    this.#quotesPerBase = quotesPerBase(this.#feeds);
     this.#endpoint = options.endpoint ?? DEFAULT_FX_ENDPOINT;
-    this.#apiKey = options.apiKey;
     this.#cacheMs = (options.cacheSeconds ?? DEFAULT_FX_CACHE_SECONDS) * 1_000;
     this.#clock = options.clock ?? systemClock;
     this.#fetchFn = options.fetchFn ?? fetch;
@@ -178,46 +172,39 @@ export class FxRatesPriceOracle implements PriceOracle {
       return cached;
     }
 
-    const body = await this.#latest(base, quote, from, to);
+    const { rates, observedAt } = await this.#latest(base, quote, from, to);
 
     // Every currency the response carries, not only the one that was asked
     // for: they share a timestamp and a request, and the next pair on this
     // base is about to want its own.
-    const observedAt = new Date(body.timestamp * 1_000);
     const expiresAtMs = nowMs + this.#cacheMs;
-    for (const [currency, value] of Object.entries(body.rates)) {
-      if (value > 0) {
-        this.#cache.set(`${base}/${currency}`, {
-          rate: splitDecimalRate(value),
-          observedAt,
-          expiresAtMs,
-        });
+    for (const [currency, value] of Object.entries(rates)) {
+      const parsed = parseRate(value);
+      if (parsed !== undefined && parsed.significand > 0n) {
+        this.#cache.set(`${base}/${currency}`, { rate: parsed, observedAt, expiresAtMs });
       }
     }
 
-    const rate = body.rates[quote];
-    if (rate === undefined) {
+    const raw = rates[quote];
+    if (raw === undefined) {
       throw new ProviderError(`FX response for ${from} -> ${to} does not contain ${quote}`, {
         from,
         to,
         symbol,
-        currencies: Object.keys(body.rates),
+        currencies: Object.keys(rates),
       });
     }
-    if (rate <= 0) {
+    const rate = parseRate(raw);
+    if (rate === undefined || rate.significand <= 0n) {
       throw new ProviderError(`FX rate for ${from} -> ${to} is not positive`, {
         from,
         to,
         symbol,
-        rate: rate.toString(),
+        rate: raw,
       });
     }
 
-    const observation: Observation = {
-      rate: splitDecimalRate(rate),
-      observedAt,
-      expiresAtMs,
-    };
+    const observation: Observation = { rate, observedAt, expiresAtMs };
     this.#cache.set(symbol, observation);
     return observation;
   }
@@ -233,20 +220,11 @@ export class FxRatesPriceOracle implements PriceOracle {
       );
     }
 
-    // The asked pair first, so a base with no configured feeds (a caller
-    // holding this adapter directly) still resolves.
-    const currencies = this.#quotesPerBase.get(base) ?? [quote];
-    const url =
-      `${this.#endpoint}/latest?base=${encodeURIComponent(base)}` +
-      `&currencies=${encodeURIComponent(currencies.join(","))}`;
-    const init: RequestInit = {};
-    if (this.#apiKey !== undefined) {
-      init.headers = { Authorization: `Bearer ${this.#apiKey}` };
-    }
+    const url = `${this.#endpoint}/v2/exchange-rates?currency=${encodeURIComponent(base)}`;
 
     let response: Response;
     try {
-      response = await this.#fetchFn(url, init);
+      response = await this.#fetchFn(url);
     } catch (error) {
       throw new ProviderError(
         `FX request for ${from} -> ${to} failed`,
@@ -291,7 +269,22 @@ export class FxRatesPriceOracle implements PriceOracle {
         issues: parsed.error.issues.map((issue) => issue.message),
       });
     }
-    return parsed.data;
+    // No observation time in the body: the `Date` header is when it was
+    // served, and the clock stands in when a proxy strips it.
+    const served = Date.parse(response.headers.get("date") ?? "");
+    return {
+      rates: parsed.data.data.rates,
+      observedAt: Number.isNaN(served) ? new Date(nowMs) : new Date(served),
+    };
+  }
+}
+
+/** A decimal string as an exact pair, or `undefined` when it is not a number. */
+function parseRate(value: string): DecimalRate | undefined {
+  try {
+    return splitDecimalRate(value);
+  } catch {
+    return undefined;
   }
 }
 
@@ -307,36 +300,13 @@ function splitSymbol(symbol: string, from: AssetCode, to: AssetCode) {
   return { base, quote };
 }
 
-/**
- * Which quote currencies each base needs, across every configured feed.
- *
- * One response per base rather than one per pair. A deployment pricing four
- * currencies into two settlement assets configures eight feeds over two bases,
- * and this turns eight requests into two.
- */
-function quotesPerBase(feeds: ReadonlyMap<string, FxFeed>): ReadonlyMap<string, readonly string[]> {
-  const bases = new Map<string, Set<string>>();
-  for (const feed of feeds.values()) {
-    const symbol = typeof feed === "string" ? feed : feed.symbol;
-    const [base, quote, ...rest] = symbol.split("/");
-    // A malformed symbol is reported by `splitSymbol` when that pair is asked
-    // for, naming the pair. Skipping it here keeps one bad entry from
-    // poisoning the batch for every other pair on the same base.
-    if (base === undefined || quote === undefined || rest.length > 0) continue;
-    const quotes = bases.get(base) ?? new Set<string>();
-    quotes.add(quote);
-    bases.set(base, quotes);
-  }
-  return new Map([...bases].map(([base, quotes]) => [base, [...quotes]]));
-}
-
 /** A minute, when the API rate limits without saying for how long. */
 const DEFAULT_RETRY_AFTER_MS = 60_000;
 
 /**
  * When to try again, from a `retry-after` header.
  *
- * The standard header is a delta in seconds or an HTTP date; fxratesapi sends
+ * The standard header is a delta in seconds or an HTTP date; some providers send
  * an epoch in milliseconds. All three are accepted, and anything else falls
  * back to a minute — a wrong-but-bounded wait beats retrying into the ban.
  */

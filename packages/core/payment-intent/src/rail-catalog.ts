@@ -27,7 +27,11 @@
 
 import type { ChainId, ContractCodeSource } from "@mayarin/chain";
 import type { AssetCode } from "@mayarin/shared";
-import { acceptedPayerAssets, type MerchantAssetPolicySource } from "./merchant-policy.ts";
+import {
+  acceptedPayerAssets,
+  type MerchantAssetPolicySource,
+  settlementAssetOnChain,
+} from "./merchant-policy.ts";
 
 /**
  * One `(chain, asset)` pair a payer may choose.
@@ -48,6 +52,8 @@ export interface OfferedRail {
    * destination to resolve and none is a precondition for offering the rail.
    */
   readonly payTo?: string;
+  /** What the merchant is paid in on this chain, which this rail is priced into. */
+  readonly settlementAsset: AssetCode;
 }
 
 /**
@@ -156,7 +162,10 @@ export type RailExclusion =
 export interface RailReport {
   readonly rails: readonly OfferedRail[];
   readonly unavailable: readonly RailExclusion[];
-  /** What the merchant is paid in, which every rail is priced into. */
+  /**
+   * What the merchant is paid in on a chain without its own override. Each
+   * rail carries the asset it is actually priced into.
+   */
   readonly settlementAsset: AssetCode;
 }
 
@@ -248,6 +257,8 @@ export class DerivedRailCatalog implements RailCatalog {
       // Read per chain, because a merchant who accepts ETH is not saying they
       // accept it on a chain that has none.
       const accepted = policy === undefined ? [] : acceptedPayerAssets(policy, chain);
+      const settlesIn =
+        policy === undefined ? settlementAsset : settlementAssetOnChain(policy, chain);
 
       for (const [asset, contract] of assetsOn(receipt)) {
         if (accepted.length > 0 && !accepted.includes(asset)) {
@@ -260,12 +271,12 @@ export class DerivedRailCatalog implements RailCatalog {
           continue;
         }
 
-        if (!(await this.#pricing.canPrice({ chain, asset, settlementAsset }))) {
+        if (!(await this.#pricing.canPrice({ chain, asset, settlementAsset: settlesIn }))) {
           unavailable.push({
             kind: "not-priceable",
             chain,
             asset,
-            reason: `${asset} on ${chain} cannot be priced into ${settlementAsset} right now.`,
+            reason: `${asset} on ${chain} cannot be priced into ${settlesIn} right now.`,
           });
           continue;
         }
@@ -275,6 +286,7 @@ export class DerivedRailCatalog implements RailCatalog {
           asset,
           ...(contract === undefined ? {} : { contract }),
           ...(payTo === undefined ? {} : { payTo }),
+          settlementAsset: settlesIn,
         });
       }
     }

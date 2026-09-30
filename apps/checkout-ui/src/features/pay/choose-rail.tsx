@@ -19,17 +19,12 @@ export function ChooseRail({
   readonly bootstrap: PayBootstrap;
   readonly choice: RailChoice;
 }) {
-  const { rails, settlementAsset, lockMinutes } = choice;
+  const { rails, lockMinutes } = choice;
   const [rail, setRail] = useState(rails[0]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const estimate = useQuoteEstimate(
-    bootstrap.amount.formatted,
-    bootstrap.amount.asset,
-    rail,
-    settlementAsset,
-  );
+  const estimate = useQuoteEstimate(bootstrap.amount.formatted, bootstrap.amount.asset, rail);
   const quoteReady = canContinueWithQuote(estimate);
 
   async function pay() {

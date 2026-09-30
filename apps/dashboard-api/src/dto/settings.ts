@@ -13,6 +13,11 @@ import { z } from "zod";
 export const updateSettingsBodySchema = z
   .object({
     settlementAsset: assetCodeSchema.optional(),
+    /**
+     * Settlement asset overridden per chain, sent as a whole map. A chain
+     * absent settles in `settlementAsset`.
+     */
+    settlementAssetByChain: z.record(z.enum(CHAIN_IDS), assetCodeSchema).optional(),
     acceptedAssets: z.array(assetCodeSchema).max(32).optional(),
     /**
      * Accepted payer assets narrowed per chain (#244).
@@ -86,6 +91,8 @@ export function toSettingsDto(merchant: Merchant, effectiveSettlementAddress?: s
     merchantId: merchant.id,
     name: merchant.name,
     settlementAsset: merchant.settlementAsset,
+    /** Per-chain override. A chain absent here settles in `settlementAsset`. */
+    settlementAssetByChain: merchant.settlementAssetByChain ?? {},
     acceptedAssets: merchant.acceptedAssets,
     /** Per-chain narrowing (#244). A chain absent here inherits `acceptedAssets`. */
     acceptedAssetsByChain: merchant.acceptedAssetsByChain ?? {},

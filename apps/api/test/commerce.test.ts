@@ -368,6 +368,7 @@ describe("hosted checkout", () => {
         chain: "base-sepolia",
         asset: "USDC",
         contract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        settlementAsset: "USDC",
       },
     ]);
     // The lock note's figure: the price is not locked until the buyer acts.
@@ -439,6 +440,7 @@ describe("hosted checkout", () => {
         chain: "base-sepolia",
         asset: "USDC",
         contract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        settlementAsset: "USDC",
       },
     ]);
     expect(before.bootstrap.choice.lockMinutes).toBe(15);

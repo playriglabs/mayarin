@@ -23,7 +23,7 @@ import {
   parseCartSnapshot,
 } from "@mayarin/catalog";
 import { chainLabel } from "@mayarin/chain";
-import { type AssetCode, money, NotFoundError, ValidationError, zero } from "@mayarin/shared";
+import { money, NotFoundError, ValidationError, zero } from "@mayarin/shared";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { toString as qrToString } from "qrcode";
@@ -190,7 +190,6 @@ export function checkoutPageRoutes(container: Container): Hono {
               container,
               paymentLink === undefined ? report.rails : linkRails(report, paymentLink),
             ),
-            settlementAsset: intent.settlementAsset,
             lockMinutes: Math.max(1, Math.round(container.config.paymentIntentTtlSeconds / 60)),
           };
 
@@ -257,7 +256,6 @@ export function checkoutPageRoutes(container: Container): Hono {
               : payable && offered.length === 0 && link.rails !== undefined
                 ? `This link only accepts ${link.rails.map((rail) => `${rail.asset} on ${chainLabel(rail.chain)}`).join(", ")}, which the merchant cannot be paid on right now.`
                 : null,
-          settlementAsset: report.settlementAsset,
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
         }),
@@ -345,13 +343,6 @@ interface LinkBootstrapOptions {
    * rail at all, which the page already knows how to say.
    */
   readonly unpayableReason: string | null;
-  /**
-   * What the merchant is paid in. The estimate is quoted against it, because
-   * whether a payer asset has a swap leg at all is decided by this and not by
-   * the deployment default — a EURC payer settling a USDC merchant priced
-   * without it shows the pure FX rate for a payment that will take the swap.
-   */
-  readonly settlementAsset: AssetCode;
   readonly ttlSeconds: number;
   readonly products: Pick<Container["catalog"], "getProduct">;
 }
@@ -369,8 +360,7 @@ interface LinkBootstrapOptions {
  *   `POST /v1/quotes` — the same rate provider the lock will read.
  */
 async function linkBootstrap(options: LinkBootstrapOptions) {
-  const { link, payable, preview, rails, unpayableReason, settlementAsset, ttlSeconds, products } =
-    options;
+  const { link, payable, preview, rails, unpayableReason, ttlSeconds, products } = options;
   const currency = link.currency ?? link.amount?.asset;
 
   // An open link has no total until the buyer types one; everything else shows
@@ -415,7 +405,6 @@ async function linkBootstrap(options: LinkBootstrapOptions) {
     lines,
     rails,
     unpayableReason,
-    settlementAsset,
     lockMinutes: Math.max(1, Math.round(ttlSeconds / 60)),
   };
 }

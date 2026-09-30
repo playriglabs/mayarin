@@ -6,7 +6,13 @@
  */
 
 import { CHAIN_IDS } from "@mayarin/chain";
-import { isAssetCode, UnauthorizedError } from "@mayarin/shared";
+import {
+  type AssetCode,
+  assetDecimals,
+  getAsset,
+  isAssetCode,
+  UnauthorizedError,
+} from "@mayarin/shared";
 import { type MerchantWallet, PASSKEY_TRANSPORTS, type WalletWithdrawal } from "@mayarin/wallet";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -152,6 +158,15 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
     // a row that is empty read the same to a merchant, and only one of them
     // tells them there is something to do.
     const balances = await container.wallets.balances(scopeOf(c));
+    const stablecoins = [
+      ...new Set(
+        balances.flatMap((balance) =>
+          balance.balances
+            .map((held) => held.asset)
+            .filter((asset) => getAsset(asset).kind === "stablecoin"),
+        ),
+      ),
+    ];
     return c.json({
       balances: balances.map((balance) => ({
         chain: balance.chain,
@@ -159,6 +174,7 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
         withdrawable: balance.withdrawable,
         balances: balance.balances.map(toMoneyDto),
       })),
+      usdRates: await usdRates(container, stablecoins),
     });
   });
 
@@ -186,12 +202,19 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
             ...(receipt.nativeAsset === undefined ? [] : [receipt.nativeAsset]),
           ]),
         ],
+        // What the merchant may be paid in on this chain: its stablecoins. The
+        // settings screen offers these rather than a list of its own, so a
+        // stablecoin added to the deployment appears without a UI change.
+        settlementAssets: (Object.keys(receipt.tokens) as AssetCode[]).filter(
+          (asset) => getAsset(asset).kind === "stablecoin",
+        ),
       })),
       rails: report.rails.map((rail) => ({
         chain: rail.chain,
         asset: rail.asset,
         contract: rail.contract ?? null,
         payTo: rail.payTo ?? null,
+        settlementAsset: rail.settlementAsset,
       })),
       unavailable: report.unavailable.map((entry) => ({
         kind: entry.kind,
@@ -297,4 +320,52 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
   });
 
   return app;
+}
+
+/** Stablecoins that are a dollar in another representation: valued 1:1. */
+const DOLLAR_STABLECOINS: ReadonlySet<string> = new Set(["USDC", "USDT", "USDG", "PYUSD"]);
+
+/** `usdRates` values are USD per one whole token, scaled by this. */
+const USD_RATE_SCALE = 1_000_000n;
+
+/**
+ * USD per one whole token, scaled by `USD_RATE_SCALE`, for each stablecoin held.
+ *
+ * So the balance can be read in dollars. A dollar stablecoin is 1; anything else
+ * (EURC) is priced through the payment API's own fiat leg, the same rate a
+ * payment would lock. An asset that cannot be priced is left out, and the
+ * dashboard leaves it out of the total rather than guessing.
+ */
+async function usdRates(
+  container: Container,
+  assets: readonly AssetCode[],
+): Promise<Record<string, string>> {
+  const rates: Record<string, string> = {};
+  const priced = assets.filter((asset) => !DOLLAR_STABLECOINS.has(asset));
+  for (const asset of assets) {
+    if (DOLLAR_STABLECOINS.has(asset)) rates[asset] = USD_RATE_SCALE.toString();
+  }
+  await Promise.all(
+    priced.map(async (asset) => {
+      try {
+        // Settling in the asset itself, so only the fiat leg is priced: how much
+        // of it one dollar buys.
+        const view = await container.paymentApi.quote(
+          { amount: "1", asset: "USD" },
+          [asset],
+          undefined,
+          asset,
+        );
+        const perDollar = view.quotes.find((line) => line.asset === asset)?.amount?.amount;
+        if (perDollar === undefined || BigInt(perDollar) <= 0n) return;
+        rates[asset] = (
+          (USD_RATE_SCALE * 10n ** BigInt(assetDecimals(asset))) /
+          BigInt(perDollar)
+        ).toString();
+      } catch {
+        // No rate: the asset stays out of the dollar total.
+      }
+    }),
+  );
+  return rates;
 }

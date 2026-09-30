@@ -368,8 +368,13 @@ export const merchants = pgTable(
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
-    /** The one asset this merchant is paid in. */
+    /** The asset this merchant is paid in on every chain without an override. */
     settlementAsset: text("settlement_asset").notNull(),
+    /** Settlement asset overridden per chain. A chain absent uses `settlement_asset`. */
+    settlementAssetByChain: jsonb("settlement_asset_by_chain")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
     /** Assets a payer may pay this merchant with. Empty defers to the deployment. */
     acceptedAssets: text("accepted_assets").array().notNull(),
     /**

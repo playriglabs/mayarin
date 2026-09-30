@@ -145,6 +145,7 @@ export function choosePayment(
   intent: PaymentIntent,
   payment: PaymentRail,
   executionPath: ExecutionPath,
+  settlementAsset: AssetCode,
   now: Date,
 ): PaymentIntent {
   if (intent.payment !== undefined) {
@@ -168,6 +169,7 @@ export function choosePayment(
     ...intent,
     payment,
     executionPath,
+    settlementAsset,
     updatedAt: new Date(now),
     version: intent.version + 1,
   };

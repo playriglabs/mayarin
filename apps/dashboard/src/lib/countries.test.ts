@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { COUNTRIES, countryLabel, SUPPORTED_COUNTRIES } from "./countries";
+import { COUNTRIES, countryLabel } from "./countries";
 
 describe("country codes", () => {
   test("every code is ISO 3166-1 alpha-2", () => {
@@ -21,39 +21,13 @@ describe("country codes", () => {
     const codes = COUNTRIES.map((country) => country.code);
     expect(new Set(codes).size).toBe(codes.length);
   });
-
-  test("every supported code is a real entry in the list", () => {
-    const codes = new Set(COUNTRIES.map((country) => country.code));
-    for (const code of SUPPORTED_COUNTRIES) {
-      expect(codes.has(code)).toBe(true);
-    }
-  });
 });
 
 describe("what a merchant can pick", () => {
-  test("the United States and Southeast Asia are selectable", () => {
-    const selectable = COUNTRIES.filter((country) => country.supported).map((c) => c.code);
-    expect(selectable).toContain("US");
-    expect(selectable).toContain("ID");
-    expect(selectable).toContain("SG");
-    expect(selectable).toContain("VN");
-  });
-
-  test("everywhere else is listed but not selectable", () => {
-    // Disabled rather than hidden: hiding says "this country does not exist",
-    // disabling says "not yet", which is the true statement.
-    const japan = COUNTRIES.find((country) => country.code === "JP");
-    expect(japan?.supported).toBe(false);
-    expect(japan).toBeDefined();
-  });
-
-  test("supported countries sort ahead of the rest", () => {
-    // So the eleven a merchant can actually choose are the ones on screen
-    // before they type anything.
-    const firstUnsupported = COUNTRIES.findIndex((country) => !country.supported);
-    const lastSupported = COUNTRIES.map((c) => c.supported).lastIndexOf(true);
-    expect(lastSupported).toBeLessThan(firstUnsupported);
-    expect(firstUnsupported).toBe(SUPPORTED_COUNTRIES.length);
+  test("every country, alphabetical by name", () => {
+    const names = COUNTRIES.map((country) => country.name);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    expect(COUNTRIES.map((country) => country.code)).toContain("JP");
   });
 });
 
