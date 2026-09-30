@@ -787,8 +787,13 @@
      not another line of what was sold. */
   /* An owed invoice splits like the payment-link page: the document is the
      summary column, a little wider than a link's because it carries a table. */
+  .invoice-document {
+    @apply xl:items-center xl:justify-center;
+  }
+  /* Centred in its column, like the payment panel beside it, rather than
+     pinned to the top and hugging the divider the way a link's summary is. */
   .invoice-document .summary-inner {
-    @apply max-w-xl;
+    @apply max-w-xl xl:min-h-0;
   }
   .settled {
     @apply mt-6 border border-line p-4;
