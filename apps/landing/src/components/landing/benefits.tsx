@@ -19,7 +19,7 @@ export function Benefits() {
         <Reveal>
           <h2 class="text-balance">
             <span class="text-forest">Let customers pay their way,</span> settle in the stablecoin
-            you choose
+            you choose.
           </h2>
         </Reveal>
         <Reveal delay={120}>
