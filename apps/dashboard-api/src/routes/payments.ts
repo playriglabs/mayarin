@@ -12,6 +12,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
 import { toPaymentDetailDto, toPaymentIntentDto } from "../dto/payment.ts";
+import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
 import { refreshStream } from "./refresh-stream.ts";
 
@@ -140,6 +141,28 @@ export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars 
           ? null
           : `${container.config.checkoutBaseUrl}/checkout/qr?value=${encodeURIComponent(deposit.uri)}`,
     });
+  });
+
+  /**
+   * Retries a payment that failed after the payer's funds arrived — a clearing
+   * step broke on a config since fixed, and the money sat at the deposit
+   * address. The clearing engine replays only what did not happen; it refuses
+   * anything that must not be retried, and its refusal is the message the
+   * merchant should read.
+   *
+   * Scoped through the same read service as the detail, so another merchant's
+   * payment is a 404 here exactly as it is there — the payment API, which has
+   * no session, is only ever asked about an id already checked.
+   */
+  app.post("/:id/retry", csrfMiddleware(), async (c) => {
+    const scope = c.get("scope");
+    if (scope === undefined) throw new UnauthorizedError("Authentication required");
+    const { intent } = await container.payments.get(scope, c.req.param("id"));
+    await container.paymentApi.retry(intent.id);
+
+    // The reopened payment is read back by the invalidated detail query; there
+    // is nothing here to hand over that the refetch does not answer fresher.
+    return c.json({ retrying: true });
   });
 
   return app;

@@ -174,6 +174,16 @@ export class PaymentApiClient {
     return payment.deposit ?? null;
   }
 
+  /**
+   * Retries a payment that failed after the payer's funds arrived — a clearing
+   * step broke on a config since fixed. The payment API refuses, as its own
+   * message says, anything it must not retry; the refusal reaches the merchant
+   * through `#send` unchanged.
+   */
+  async retry(paymentIntentId: string): Promise<void> {
+    await this.#post(`/payments/${encodeURIComponent(paymentIntentId)}/retry`, {});
+  }
+
   async #get<T>(path: string): Promise<T> {
     return this.#send<T>(path, { method: "GET" });
   }

@@ -57,7 +57,7 @@ import {
   ValidationError,
   zero,
 } from "@mayarin/shared";
-import type { ContractPaymentPlanner } from "./contract-path.ts";
+import { type ContractPaymentPlanner, OrderExpiredError } from "./contract-path.ts";
 import type { FeePolicy } from "./fees.ts";
 import {
   assetReceivedPosting,
@@ -77,9 +77,11 @@ import {
   createClearingTransaction,
   failTransaction,
   recordCrossAssetSwap,
+  recordOrderRenewed,
   recordPayerSurplusRefundBroadcast,
   recordPayerSurplusRefundConfirmed,
   recordSettlementBroadcast,
+  reopenTransaction,
   type TransitionResult,
   transition,
 } from "./transaction.ts";
@@ -156,6 +158,11 @@ export interface ClearingEngineOptions {
    */
   readonly contractExpiryGraceSeconds?: number;
   /**
+   * How long a deposit-match order re-signed at execution stays executable,
+   * counted from the moment it is renewed. Defaults to 3600.
+   */
+  readonly renewedOrderTtlSeconds?: number;
+  /**
    * Moves a matched deposit into the router (#69). Absent for a deployment
    * without treasury execution: such a deployment's locks never sign an
    * order, so its deposit path settles internally. A payment whose lock
@@ -209,6 +216,7 @@ export class ClearingEngine {
   readonly #treasuryExecutor: TreasuryExecutor | undefined;
   readonly #treasuryAddress: string | undefined;
   readonly #contractExpiryGraceSeconds: number;
+  readonly #renewedOrderTtlSeconds: number;
   readonly #clock: Clock;
   readonly #events: EventPublisher;
   readonly #autoConfirmAssetReceipt: boolean;
@@ -226,6 +234,7 @@ export class ClearingEngine {
     this.#treasuryExecutor = options.treasuryExecutor;
     this.#treasuryAddress = options.treasuryAddress;
     this.#contractExpiryGraceSeconds = options.contractExpiryGraceSeconds ?? 60;
+    this.#renewedOrderTtlSeconds = options.renewedOrderTtlSeconds ?? 3_600;
     this.#clock = options.clock;
     this.#events = options.events ?? noopEventPublisher;
     this.#autoConfirmAssetReceipt = options.autoConfirmAssetReceipt ?? false;
@@ -613,6 +622,28 @@ export class ClearingEngine {
     if (transaction === null) return null;
 
     return this.#advance(transaction);
+  }
+
+  /**
+   * Retries a payment that failed after the payer's funds arrived.
+   *
+   * The case this exists for: a clearing step failed on something since fixed —
+   * a swap pool missing from the deployment's config, a settlement asset not
+   * yet whitelisted — while the payer's money sat at the deposit address. The
+   * transaction reopens at `ASSET_RECEIVED`, the intent returns to
+   * `PROCESSING`, and the ordinary steps run again. Each is keyed per state, so
+   * nothing that already happened happens twice. A payment that never received
+   * funds is refused: there is nothing to settle, and the payer starts again.
+   */
+  async retry(id: string): Promise<ClearingProgress> {
+    const transaction = await this.getById(id);
+    const events = await this.#repository.listEvents(transaction.id);
+    const fundsArrived = events.some((event) => event.toState === "ASSET_RECEIVED");
+    const reopened = await this.#apply(
+      reopenTransaction(transaction, fundsArrived, this.#clock.now()),
+    );
+    await this.#intents.reopen(await this.#intents.getById(transaction.paymentIntentId));
+    return this.#advance(reopened);
   }
 
   /** Fails a transaction and its intent. Terminal. */
@@ -1286,15 +1317,46 @@ export class ClearingEngine {
       );
     }
 
-    const execution = await executor.execute(transaction);
-    const contract = transaction.contract;
+    const renewed = await this.#renewExpiredOrder(transaction);
+    const execution = await executor.execute(renewed);
+    const contract = renewed.contract;
 
     // The executor knows its own `txHash`, so the deposit path does not wait on
     // the settlement indexer to learn it (#8 serves the contract path, where
     // the payer submitted the transaction and Mayarin did not see it).
     return contract === undefined
-      ? transaction
-      : { ...transaction, contract: { ...contract, txHash: execution.txHash } };
+      ? renewed
+      : { ...renewed, contract: { ...contract, txHash: execution.txHash } };
+  }
+
+  /**
+   * Re-signs a deposit-match order whose deadline has passed — same terms,
+   * fresh deadline — and persists it before the executor submits it. An
+   * expired order can only revert on-chain, so submitting it would burn every
+   * attempt and fail the payment with nothing learned. Without a planner to
+   * sign with, the payment fails terminally with `ORDER_EXPIRED`.
+   */
+  async #renewExpiredOrder(transaction: ClearingTransaction): Promise<ClearingTransaction> {
+    const contract = transaction.contract;
+    const deposit = transaction.deposit;
+    if (contract === undefined || deposit === undefined) return transaction;
+
+    const now = this.#clock.now();
+    const nowSeconds = BigInt(now.getTime()) / 1_000n;
+    if (contract.order.deadline > nowSeconds) return transaction;
+
+    const expiredAt = new Date(Number(contract.order.deadline) * 1_000).toISOString();
+    const planner = this.#contractPlanner;
+    if (planner === undefined) {
+      throw new OrderExpiredError(
+        `Order for ${transaction.id} expired at ${expiredAt} and this process has no planner to renew it`,
+        { id: transaction.id, deadline: contract.order.deadline.toString() },
+      );
+    }
+
+    const expiresAt = new Date(now.getTime() + this.#renewedOrderTtlSeconds * 1_000);
+    const order = await planner.renew({ chain: deposit.chain, order: contract.order, expiresAt });
+    return this.#apply(recordOrderRenewed(transaction, order, expiresAt, now));
   }
 
   /**

@@ -279,6 +279,74 @@ describe("clearing engine — failure", () => {
   });
 });
 
+describe("clearing engine — retry", () => {
+  test("reopens a failed payment whose funds arrived and settles it", async () => {
+    const harness = createHarness({ behaviour: "pending" });
+    const settling = await harness.engine.start(await harness.confirmedIntent());
+    expect(settling.state).toBe("SETTLING");
+
+    // The clearing step broke on something since fixed — a pool missing from
+    // the config, say — while the payer's money sat at the deposit address.
+    const failed = await harness.engine.fail(
+      settling.id,
+      "settlement asset not whitelisted",
+      "CONFIG_ERROR",
+    );
+    expect(failed.state).toBe("FAILED");
+    const failedIntent = await harness.intents.getById(failed.paymentIntentId);
+    expect(failedIntent.status).toBe("FAILED");
+    expect(failedIntent.failureReason).toBe("settlement asset not whitelisted");
+
+    // The fix, then the retry: the reference it already holds still settles.
+    harness.adapter.complete(settling.providerReference as string);
+    const retried = await harness.engine.retry(failed.id);
+
+    expect(retried.transaction.state).toBe("SUCCESS");
+    expect(retried.transaction.failure).toBeUndefined();
+    const reopenedIntent = await harness.intents.getById(failed.paymentIntentId);
+    expect(reopenedIntent.status).toBe("COMPLETED");
+    // `reopenIntent` strips the reason, so the key is gone rather than null.
+    expect(reopenedIntent).not.toHaveProperty("failureReason");
+    // The replay settles the same money once, not twice.
+    expect(await harness.ledger.transactionsFor(failed.id)).toHaveLength(3);
+    expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
+    expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(USDC(0n));
+    // The reopen is on the record, with the failure it replaces.
+    const history = await harness.engine.history(failed.id);
+    const reopened = history.find((event) => event.type === "state.reopened");
+    expect(reopened).toMatchObject({
+      fromState: "FAILED",
+      toState: "ASSET_RECEIVED",
+      payload: {
+        previousReason: "settlement asset not whitelisted",
+        previousCode: "CONFIG_ERROR",
+      },
+    });
+    expect(harness.published.map((event) => event.type)).toContain("payment_intent.reopened");
+  });
+
+  test("refuses a payment whose funds never arrived", async () => {
+    const harness = createHarness({ autoConfirmAssetReceipt: false });
+    const pending = await harness.engine.start(await harness.confirmedIntent());
+    expect(pending.state).toBe("PAYMENT_PENDING");
+
+    const failed = await harness.engine.fail(pending.id, "abandoned mid-config");
+    expect(failed.state).toBe("FAILED");
+
+    await expect(harness.engine.retry(failed.id)).rejects.toThrow(
+      /Only a payment whose funds arrived can be retried/,
+    );
+  });
+
+  test("refuses a payment that has not failed", async () => {
+    const harness = createHarness();
+    const settled = await harness.engine.start(await harness.confirmedIntent());
+    expect(settled.state).toBe("SUCCESS");
+
+    await expect(harness.engine.retry(settled.id)).rejects.toThrow(/has not failed/);
+  });
+});
+
 describe("clearing engine — expiry sweep", () => {
   test("fails a payment abandoned at PAYMENT_PENDING past its deadline", async () => {
     const harness = createHarness({ autoConfirmAssetReceipt: false });

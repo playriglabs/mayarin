@@ -200,6 +200,42 @@ describe("ApiContractPlanner", () => {
       /No PaymentRouter deployed/,
     );
   });
+
+  test("renews with the same economic terms and the deployment's domain", async () => {
+    const { planner, signer } = createPlanner();
+    const lock = await planner.lock(lockRequest("ETH"));
+    const expiresAt = new Date(NOW.getTime() + 86_400_000);
+
+    const renewed = await planner.renew({ chain: "base", order: lock.order, expiresAt });
+
+    // Same terms, fresh window: only the deadline and the signature differ.
+    expect(renewed.intentId).toBe(lock.order.intentId);
+    expect(renewed.settlementToken).toBe(lock.order.settlementToken);
+    expect(renewed.minOut).toBe(lock.order.minOut);
+    expect(renewed.fee).toBe(lock.order.fee);
+    expect(renewed.merchantSafe).toBe(lock.order.merchantSafe);
+    expect(renewed.refundTo).toBe(lock.order.refundTo);
+    expect(renewed.deadline).toBe(BigInt(expiresAt.getTime()) / 1_000n);
+    expect(renewed.signer).toBe(await signer.address());
+
+    // The typed data went to the signer with the deployment's domain, and the
+    // message is the persisted order with only the deadline changed.
+    expect(signer.calls).toHaveLength(2);
+    expect(signer.calls[1]?.domain.chainId).toBe(8_453n);
+    expect(signer.calls[1]?.domain.verifyingContract).toBe(ROUTER);
+    const [locked, resigned] = [signer.calls[0]?.message, signer.calls[1]?.message];
+    expect(resigned?.deadline).toBe(BigInt(expiresAt.getTime()) / 1_000n);
+    expect({ ...resigned, deadline: 0n }).toEqual({ ...locked, deadline: 0n });
+  });
+
+  test("renewing on a chain without a deployed router is refused", async () => {
+    const { planner } = createPlanner();
+    const lock = await planner.lock(lockRequest("ETH"));
+
+    await expect(
+      planner.renew({ chain: "base-sepolia", order: lock.order, expiresAt: NOW }),
+    ).rejects.toThrow(/No PaymentRouter deployed/);
+  });
 });
 
 describe("merchant settlement address", () => {

@@ -6,7 +6,8 @@ import type { ContractLock } from "../src/contract-path.ts";
 import { ClearingEngine } from "../src/engine.ts";
 import { BasisPointsFeePolicy } from "../src/fees.ts";
 import { StaticRateProvider } from "../src/rate.ts";
-import type { ExecutionResult, TreasuryExecutionPort } from "../src/treasury.ts";
+import type { ExecuteRequest, ExecutionResult, TreasuryExecutionPort } from "../src/treasury.ts";
+import { TreasuryExecutor } from "../src/treasury.ts";
 import { FakeContractPlanner } from "../testing/index.ts";
 import { createHarness, NOW } from "./harness.ts";
 
@@ -66,6 +67,56 @@ function executingPort(output = money(5_000_000n, "USDC")): TreasuryExecutionPor
       const result = { txHash: `0x${"fe".repeat(32)}`, output, gasCost: GAS };
       results.push(result);
       return result;
+    },
+  };
+}
+
+/**
+ * Like `executingPort`, but records what reached `execute` — the order is
+ * what renewal changes, so the assertion needs it.
+ *
+ * `failAttempts` scripts retryable `execute` failures (each consumes one
+ * attempt); `failSweeps` scripts retryable `sweep` failures, which bypass the
+ * executor's attempt loop entirely and park the payment where it stands.
+ */
+function recordingPort(): TreasuryExecutionPort & {
+  requests: ExecuteRequest[];
+  failAttempts: number;
+  failSweeps: number;
+} {
+  const requests: ExecuteRequest[] = [];
+  const failures = { attempts: 0, sweeps: 0 };
+  return {
+    requests,
+    get failAttempts() {
+      return failures.attempts;
+    },
+    set failAttempts(value: number) {
+      failures.attempts = value;
+    },
+    get failSweeps() {
+      return failures.sweeps;
+    },
+    set failSweeps(value: number) {
+      failures.sweeps = value;
+    },
+    async sweep() {
+      if (failures.sweeps > 0) {
+        failures.sweeps -= 1;
+        throw new ProviderError("the node refused the sweep broadcast", {});
+      }
+    },
+    async execute(request: ExecuteRequest) {
+      if (failures.attempts > 0) {
+        failures.attempts -= 1;
+        throw new ProviderError("route could not meet minOut", { attempt: request.attempt });
+      }
+      requests.push(request);
+      return {
+        txHash: `0x${"fe".repeat(32)}`,
+        output: money(5_000_000n, "USDC"),
+        gasCost: GAS,
+      };
     },
   };
 }
@@ -318,6 +369,186 @@ describe("without an executor the deposit path is untouched", () => {
     expect(planner.calls).toHaveLength(0);
     expect(transaction.contract).toBeUndefined();
     expect(transaction.state).toBe("SUCCESS");
+    assertEveryPostingBalances(harness);
+  });
+});
+
+describe("an expired persisted order at execution", () => {
+  /**
+   * The Oct 2026 incident: a payment failed on a config error with the funds
+   * already arrived, was retried a day later, and burned the executor's
+   * attempts against an `ExpiredOrder` revert the node answered without data
+   * — so the payment failed as "unknown reason" and the order, signed once at
+   * `PRICE_LOCKED`, could never execute again. An expired order is re-signed,
+   * same economic terms, fresh deadline.
+   */
+  const DAY = 86_400_000;
+  const epochSeconds = BigInt(Date.parse(NOW) / 1_000);
+  const lockedDeadline = epochSeconds + 120n;
+
+  test("re-signs with a fresh deadline and settles, rather than submitting a dead order", async () => {
+    const port = recordingPort();
+    const planner = new FakeContractPlanner(depositLock());
+    const harness = createHarness({
+      contractPlanner: planner,
+      treasuryPort: port,
+      treasuryAddress: TREASURY,
+      autoConfirmAssetReceipt: false,
+    });
+
+    const locked = await harness.engine.start(
+      await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
+    );
+    expect(planner.renewCalls).toHaveLength(0);
+
+    harness.clock.advance(DAY);
+    const settled = (await harness.engine.recordAssetReceived(locked.id)).transaction;
+
+    expect(settled.state).toBe("SUCCESS");
+    expect(planner.renewCalls).toHaveLength(1);
+    expect(planner.renewCalls[0]?.chain).toBe("base-sepolia");
+    expect(planner.renewCalls[0]?.order.deadline).toBe(lockedDeadline);
+
+    // Fresh deadline is the renewed TTL from the execution-time clock, and the
+    // executor submitted the renewed order, not the locked one.
+    const renewedDeadline = epochSeconds + 86_400n + 3_600n;
+    expect(settled.contract?.order.deadline).toBe(renewedDeadline);
+    expect(port.requests[0]?.order.deadline).toBe(renewedDeadline);
+    expect(port.requests[0]?.order.signature).toBe(`0x${"cd".repeat(65)}`);
+
+    const renewed = (await harness.engine.history(settled.id)).find(
+      (event) => event.type === "order.renewed",
+    );
+    expect(renewed?.payload).toMatchObject({
+      orderIntentId: `0x${"11".repeat(32)}`,
+      orderDeadline: renewedDeadline.toString(),
+      previousDeadline: lockedDeadline.toString(),
+    });
+    assertEveryPostingBalances(harness);
+  });
+
+  test("leaves a still-valid order alone", async () => {
+    const port = recordingPort();
+    const planner = new FakeContractPlanner(depositLock());
+    const harness = createHarness({
+      contractPlanner: planner,
+      treasuryPort: port,
+      treasuryAddress: TREASURY,
+      autoConfirmAssetReceipt: false,
+    });
+
+    const locked = await harness.engine.start(
+      await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
+    );
+    await harness.engine.recordAssetReceived(locked.id);
+
+    expect(planner.renewCalls).toHaveLength(0);
+    expect(port.requests[0]?.order.signature).toBe(`0x${"ab".repeat(65)}`);
+  });
+
+  test("fails terminally with ORDER_EXPIRED when no planner is wired to renew", async () => {
+    // The split-process shape of #104: one process signs the order, another
+    // executes it. The executing process here has no planner, so an expired
+    // order has nothing to re-sign with — and the payment must say so, not
+    // burn attempts against a revert stripped of its reason.
+    const planner = new FakeContractPlanner(depositLock());
+    const harness = createHarness({
+      contractPlanner: planner,
+      treasuryAddress: TREASURY,
+      autoConfirmAssetReceipt: false,
+    });
+    const executor = new ClearingEngine({
+      repository: harness.repositories.clearing,
+      intents: harness.intents,
+      ledger: harness.ledger,
+      adapters: new SettlementAdapterRegistry([harness.adapter]),
+      rates: new StaticRateProvider({ "IDR/USDC": 100n }),
+      fees: new BasisPointsFeePolicy(50),
+      clock: harness.clock,
+      treasuryExecutor: new TreasuryExecutor({ port: recordingPort(), ledger: harness.ledger }),
+    });
+
+    const locked = await harness.engine.start(
+      await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
+    );
+    harness.clock.advance(DAY);
+
+    const failed = await executor.recordAssetReceived(locked.id);
+
+    expect(failed.transaction.state).toBe("FAILED");
+    expect(failed.transaction.failure?.code).toBe("ORDER_EXPIRED");
+    expect(failed.transaction.failure?.reason).toContain(
+      new Date(Number(lockedDeadline) * 1_000).toISOString(),
+    );
+    const event = (await harness.engine.history(locked.id)).find(
+      (entry) => entry.type === "state.failed",
+    );
+    expect(event?.payload).toMatchObject({ code: "ORDER_EXPIRED" });
+    const intent = await harness.intents.getById(locked.paymentIntentId);
+    expect(intent.status).toBe("FAILED");
+  });
+
+  test("recovers the incident end to end: retry after exhaustion renews and settles", async () => {
+    const port = recordingPort();
+    const planner = new FakeContractPlanner(depositLock());
+    const harness = createHarness({
+      contractPlanner: planner,
+      treasuryPort: port,
+      treasuryAddress: TREASURY,
+    });
+
+    // All attempts fail: the payment dies as EXECUTION_EXHAUSTED with the
+    // funds arrived and the order still valid.
+    port.failAttempts = 3;
+    const failed = await harness.engine.start(
+      await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
+    );
+    expect(failed.state).toBe("FAILED");
+    expect(failed.failure?.code).toBe("EXECUTION_EXHAUSTED");
+
+    // The operator's retry, a day later: the order has expired since.
+    harness.clock.advance(DAY);
+    port.failAttempts = 0;
+    const retried = await harness.engine.retry(failed.id);
+
+    expect(retried.transaction.state).toBe("SUCCESS");
+    expect(planner.renewCalls).toHaveLength(1);
+    expect(port.requests[0]?.order.signature).toBe(`0x${"cd".repeat(65)}`);
+    assertEveryPostingBalances(harness);
+  });
+
+  test("does not renew twice across the crash window between renewal and submission", async () => {
+    const port = recordingPort();
+    port.failSweeps = 1;
+    const planner = new FakeContractPlanner(depositLock());
+    const harness = createHarness({
+      contractPlanner: planner,
+      treasuryPort: port,
+      treasuryAddress: TREASURY,
+      autoConfirmAssetReceipt: false,
+    });
+
+    const locked = await harness.engine.start(
+      await harness.confirmedIntent({ payment: { asset: "ETH", chain: "base-sepolia" } }),
+    );
+    harness.clock.advance(DAY);
+
+    // The sweep fails after the renewal was persisted: the payment parks at
+    // ASSET_RECEIVED with the fresh order already durable.
+    await expect(harness.engine.recordAssetReceived(locked.id)).rejects.toBeInstanceOf(
+      ProviderError,
+    );
+    const parked = await harness.engine.getById(locked.id);
+    expect(parked.state).toBe("ASSET_RECEIVED");
+    expect(parked.contract?.order.deadline).toBe(epochSeconds + 86_400n + 3_600n);
+    expect((await harness.engine.history(locked.id)).some((e) => e.type === "order.renewed")).toBe(
+      true,
+    );
+
+    // The resume sees a fresh deadline and executes without renewing again.
+    const resumed = await harness.engine.resume(locked.id);
+    expect(resumed.transaction.state).toBe("SUCCESS");
+    expect(planner.renewCalls).toHaveLength(1);
     assertEveryPostingBalances(harness);
   });
 });

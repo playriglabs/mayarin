@@ -18,7 +18,9 @@ import type {
   ClearingTransaction,
   ContractLock,
   ContractLockRequest,
+  ContractOrder,
   ContractPaymentPlanner,
+  ContractRenewRequest,
   OraclePrice,
   PriceOracle,
   Refund,
@@ -30,18 +32,38 @@ import { isTerminalState, rateKey } from "../src/index.ts";
  * Reference in-memory contract planner (#61): serves a configured lock — or
  * derives one per request — and records each request, so an engine test can
  * assert what reached the planner without the quote/execution stack.
+ *
+ * `renew` re-signs with the new deadline and a visibly different signature, so
+ * a test can tell the renewed order from the locked one. An optional callback
+ * replaces the default for failure scripting.
  */
 export class FakeContractPlanner implements ContractPaymentPlanner {
   readonly calls: ContractLockRequest[] = [];
+  readonly renewCalls: ContractRenewRequest[] = [];
   readonly #lock: ContractLock | ((request: ContractLockRequest) => ContractLock);
+  readonly #renew: ((request: ContractRenewRequest) => ContractOrder) | undefined;
 
-  constructor(lock: ContractLock | ((request: ContractLockRequest) => ContractLock)) {
+  constructor(
+    lock: ContractLock | ((request: ContractLockRequest) => ContractLock),
+    renew?: (request: ContractRenewRequest) => ContractOrder,
+  ) {
     this.#lock = lock;
+    this.#renew = renew;
   }
 
   async lock(request: ContractLockRequest): Promise<ContractLock> {
     this.calls.push(request);
     return typeof this.#lock === "function" ? this.#lock(request) : this.#lock;
+  }
+
+  async renew(request: ContractRenewRequest): Promise<ContractOrder> {
+    this.renewCalls.push(request);
+    if (this.#renew !== undefined) return this.#renew(request);
+    return {
+      ...request.order,
+      deadline: BigInt(request.expiresAt.getTime()) / 1_000n,
+      signature: `0x${"cd".repeat(65)}`,
+    };
   }
 }
 

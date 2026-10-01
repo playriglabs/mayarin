@@ -30,6 +30,7 @@ import {
   markExpired as markIntentExpired,
   markFailed as markIntentFailed,
   markProcessing as markIntentProcessing,
+  reopenIntent,
 } from "./intent.ts";
 import {
   acceptedPayerAssets,
@@ -296,6 +297,16 @@ export class PaymentIntentService {
       markIntentCompleted(intent, this.#clock.now()),
       intent.version,
       PAYMENT_INTENT_EVENT.completed,
+    );
+  }
+
+  /** Reopens a failed intent for a retried settlement. See `reopenIntent`. */
+  async reopen(intent: PaymentIntent): Promise<PaymentIntent> {
+    if (intent.status !== "FAILED") return intent;
+    return this.#apply(
+      reopenIntent(intent, this.#clock.now()),
+      intent.version,
+      PAYMENT_INTENT_EVENT.reopened,
     );
   }
 

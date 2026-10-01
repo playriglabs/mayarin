@@ -6,7 +6,13 @@
  */
 
 import type { PaymentIntent } from "@mayarin/payment-intent";
-import { generateId, type Money, serializeMoney } from "@mayarin/shared";
+import {
+  generateId,
+  InvalidStateTransitionError,
+  type Money,
+  serializeMoney,
+} from "@mayarin/shared";
+import type { ContractOrder } from "./contract-path.ts";
 import { assertTransition } from "./state-machine.ts";
 import type {
   ClearingEvent,
@@ -242,6 +248,100 @@ export function recordPayerSurplusRefundConfirmed(
     payer,
     now,
   );
+}
+
+/**
+ * Swaps in a re-signed order — same terms, fresh deadline — for one whose
+ * deadline passed before the executor could submit it. Persisted before the
+ * submission, so a crash in between resumes with the fresh order and does not
+ * renew again.
+ */
+export function recordOrderRenewed(
+  transaction: ClearingTransaction,
+  order: ContractOrder,
+  expiresAt: Date,
+  now: Date,
+): TransitionResult {
+  const contract = transaction.contract;
+  if (contract === undefined) {
+    throw new InvalidStateTransitionError(`Transaction ${transaction.id} has no order to renew`, {
+      id: transaction.id,
+    });
+  }
+  const updatedAt = new Date(now);
+  const next: ClearingTransaction = {
+    ...transaction,
+    contract: { ...contract, order, expiresAt },
+    updatedAt,
+    version: transaction.version + 1,
+  };
+  return {
+    transaction: next,
+    event: {
+      id: generateId("evt", updatedAt.getTime()),
+      clearingTransactionId: transaction.id,
+      sequence: next.version,
+      type: "order.renewed",
+      toState: transaction.state,
+      payload: {
+        orderIntentId: order.intentId,
+        orderDeadline: order.deadline.toString(),
+        previousDeadline: contract.order.deadline.toString(),
+      },
+      occurredAt: updatedAt,
+    },
+  };
+}
+
+/**
+ * Reopens a failed transaction whose funds had arrived: `FAILED` back to
+ * `ASSET_RECEIVED`, from where the ordinary steps settle it.
+ *
+ * Deliberately outside the transition table — `FAILED` stays terminal for every
+ * other path — and refused unless `fundsArrived`, which the engine reads from
+ * the event log. Reopening a payment that never received anything would settle
+ * money that is not there. Every later step is keyed per state, so the replay
+ * repeats only what did not happen the first time.
+ */
+export function reopenTransaction(
+  transaction: ClearingTransaction,
+  fundsArrived: boolean,
+  now: Date,
+): TransitionResult {
+  if (transaction.state !== "FAILED" || transaction.failure === undefined) {
+    throw new InvalidStateTransitionError(`Transaction ${transaction.id} has not failed`, {
+      id: transaction.id,
+      state: transaction.state,
+    });
+  }
+  if (!fundsArrived) {
+    throw new InvalidStateTransitionError(
+      "Only a payment whose funds arrived can be retried; start a new payment instead",
+      { id: transaction.id },
+    );
+  }
+
+  const updatedAt = new Date(now);
+  const { failure, ...rest } = transaction;
+  const next: ClearingTransaction = {
+    ...rest,
+    state: "ASSET_RECEIVED",
+    updatedAt,
+    version: transaction.version + 1,
+  };
+  return {
+    transaction: next,
+    event: {
+      id: generateId("evt", updatedAt.getTime()),
+      clearingTransactionId: transaction.id,
+      sequence: next.version,
+      type: "state.reopened",
+      fromState: "FAILED",
+      toState: "ASSET_RECEIVED",
+      payload: { previousReason: failure.reason, previousCode: failure.code },
+      occurredAt: updatedAt,
+    },
+  };
 }
 
 export function failTransaction(

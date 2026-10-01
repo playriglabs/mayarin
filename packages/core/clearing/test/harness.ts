@@ -41,6 +41,8 @@ export interface HarnessOptions {
   /** Contract-path planner (#61). Absent by default, like a chainless deployment. */
   readonly contractPlanner?: ContractPaymentPlanner;
   readonly contractExpiryGraceSeconds?: number;
+  /** Fresh-deadline TTL for an order renewed at execution. Defaults to 3600. */
+  readonly renewedOrderTtlSeconds?: number;
   /**
    * Treasury execution port (#69). Absent by default, like a deployment with no
    * operator key. Given here rather than a built `TreasuryExecutor` because the
@@ -113,6 +115,9 @@ export function createHarness(options: HarnessOptions = {}) {
     ...(options.contractExpiryGraceSeconds === undefined
       ? {}
       : { contractExpiryGraceSeconds: options.contractExpiryGraceSeconds }),
+    ...(options.renewedOrderTtlSeconds === undefined
+      ? {}
+      : { renewedOrderTtlSeconds: options.renewedOrderTtlSeconds }),
     clock,
     events,
     autoConfirmAssetReceipt: options.autoConfirmAssetReceipt ?? true,

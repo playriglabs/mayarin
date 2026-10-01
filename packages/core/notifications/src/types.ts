@@ -141,11 +141,13 @@ export function toWebhookEventType(type: ClearingEventType): WebhookEventType | 
     case "transaction.created":
       return "payment.created";
     case "state.changed":
+    case "state.reopened":
       return "payment.state_changed";
     case "state.failed":
       return "payment.failed";
     case "settlement.broadcast":
     case "settlement.swap":
+    case "order.renewed":
       return undefined;
   }
 }

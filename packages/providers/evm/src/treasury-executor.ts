@@ -13,7 +13,8 @@
  *    counterfactual forwarder at the deposit address and moves the balance to
  *    the operator, which pays the gas.
  * 2. `payEth` / `payERC20` on `PaymentRouter`, carrying the order signed at
- *    `PRICE_LOCKED` — never re-signed here.
+ *    `PRICE_LOCKED` — never re-signed here. When its deadline has passed, the
+ *    engine re-signs it (same terms, fresh window) before this port is called.
  */
 
 import type { ChainId } from "@mayarin/chain";
