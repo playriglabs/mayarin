@@ -3,7 +3,7 @@ import mdx from "@astrojs/mdx";
 import node from "@astrojs/node";
 import react from "@astrojs/react";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "astro/config";
+import { defineConfig, envField } from "astro/config";
 import {
   rehypeCode,
   remarkCodeTab,
@@ -77,6 +77,21 @@ export default defineConfig({
   // hovered target makes that swap land without a visible wait.
   prefetch: { prefetchAll: true, defaultStrategy: "hover" },
   adapter: node({ mode: "standalone" }),
+  // Ask AI (`src/lib/ask-ai.ts`). Read through `astro:env/server` so `.env`
+  // works under `astro dev` and the process environment works in production.
+  // All optional: without them `/api/ask` answers 503.
+  env: {
+    schema: {
+      CLOUDFLARE_ACCOUNT_ID: envField.string({
+        context: "server",
+        access: "secret",
+        optional: true,
+      }),
+      CLOUDFLARE_AI_TOKEN: envField.string({ context: "server", access: "secret", optional: true }),
+      DOCS_AI_MODEL: envField.string({ context: "server", access: "secret", optional: true }),
+      DOCS_AI_BASE_URL: envField.string({ context: "server", access: "secret", optional: true }),
+    },
+  },
   publicDir: fileURLToPath(new URL("../landing/public", import.meta.url)),
   markdown: {
     syntaxHighlight: false,

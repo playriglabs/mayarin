@@ -7,6 +7,7 @@ import { DocsPage, type DocsPageProps } from "fumadocs-ui/layouts/docs/page";
 import { RootProvider } from "fumadocs-ui/provider/astro";
 import type { ReactNode } from "react";
 import { APIReference } from "./api-reference";
+import { AskAi } from "./ask-ai";
 import { MethodItem } from "./method-badge";
 import SearchDialog from "./search.tsx";
 import { PersistentFolder } from "./sidebar-folder";
@@ -80,6 +81,7 @@ export function Docs({
           )}
         </DocsPage>
       </DocsLayout>
+      <AskAi />
     </RootProvider>
   );
 }
