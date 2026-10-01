@@ -11,7 +11,7 @@
 
 import { createAgentUIStreamResponse } from "ai";
 import type { APIRoute } from "astro";
-import { askAiAgent, askAiConfigured } from "@/lib/ask-ai";
+import { askAiAgent, askAiConfigured, docsContext } from "@/lib/ask-ai";
 
 export const prerender = false;
 
@@ -21,6 +21,37 @@ const MAX_MESSAGES = 6;
 const MAX_REQUEST_BYTES = 32_000;
 
 const recent = new Map<string, number[]>();
+
+type WireMessage = { role?: unknown; parts?: unknown };
+type TextPart = { type?: unknown; text?: unknown };
+
+function userText(message: WireMessage): string {
+  if (message.role !== "user" || !Array.isArray(message.parts)) return "";
+  return (message.parts as TextPart[])
+    .map((part) => (part.type === "text" && typeof part.text === "string" ? part.text : ""))
+    .join(" ");
+}
+
+/**
+ * Hands the model the docs for the question before it answers. The search
+ * uses the last two things the reader asked, so a follow-up ("no, I mean
+ * without products") still finds the page the conversation is about. The
+ * context rides on this request only; the reader's stored chat never sees it.
+ */
+async function withDocs(messages: WireMessage[]): Promise<WireMessage[]> {
+  const last = messages.at(-1);
+  if (last === undefined || last.role !== "user" || !Array.isArray(last.parts)) return messages;
+  const question = messages
+    .map(userText)
+    .filter((text) => text !== "")
+    .slice(-2)
+    .join(" ");
+  const context = await docsContext(question.slice(0, 500));
+  return [
+    ...messages.slice(0, -1),
+    { ...last, parts: [...last.parts, { type: "text", text: context }] },
+  ];
+}
 
 function allow(ip: string, now: number): boolean {
   // Forget visitors whose window has passed, so the map cannot grow forever.
@@ -65,6 +96,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
   return createAgentUIStreamResponse({
     agent: askAiAgent,
-    uiMessages: messages.slice(-MAX_MESSAGES),
+    uiMessages: await withDocs((messages as WireMessage[]).slice(-MAX_MESSAGES)),
   });
 };
