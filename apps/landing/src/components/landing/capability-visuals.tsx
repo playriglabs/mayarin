@@ -74,8 +74,8 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
           {[
             { asset: "ETH", chain: "base", selected: true },
             { asset: "PYUSD", chain: "ethereum", selected: false },
-            { asset: "EURC", chain: "arbitrum", selected: false },
-            { asset: "EURC", chain: "arc-testnet", selected: false },
+            { asset: "USDC", chain: "arbitrum", selected: false },
+            { asset: "USDG", chain: "robinhood-testnet", selected: false },
           ].map((rail) => (
             <div
               key={`${rail.asset}-${rail.chain}`}
