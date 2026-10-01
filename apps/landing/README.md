@@ -75,12 +75,10 @@ in `public/images/` and pass its URL to `DashboardPreview` in
 
 - `src/components/landing/*` — one file per section, in the order
   `pages/landing.tsx` composes them, plus the primitives they share: `ui.tsx`
-  (`Action`, `SectionIntro`, `DashboardPreview`, `Check`), `card-carousel.tsx`
-  (the page-at-a-time track behind Use cases and Principles), `rail-mark.tsx`
+  (`Action`, `SectionIntro`, `DashboardPreview`, `Check`), `rail-mark.tsx`
   and `network-marks.tsx`.
 - `src/components/*` — what more than one page uses: the footer and its
-  wordmark, the `Globe`, the "Powered by" strip and its `LOGOS` list,
-  `ScrambleText`, `use-case-content.tsx`, and `ui.tsx`, which is now only
+  wordmark, the `Globe`, `ScrambleText`, `use-case-content.tsx`, and `ui.tsx`, which is now only
   `ArrowRight`.
 - `src/graphics/glyphs.tsx` — the principle marks.
 - `src/data/capability-snippets.json` and `src/data/snippets.json` +
@@ -104,25 +102,6 @@ in `public/images/` and pass its URL to `DashboardPreview` in
   `data-lenis-prevent`: the latter hands Lenis back every gesture over the
   element, so scrolling the page past a carousel drops out of the smoothed scroll
   and back into the browser's own.
-
-## Logos
-
-`public/images/logos/*.svg` holds the third-party marks the "Powered by" section renders. They are
-downloaded originals — the one exception is `ethereum.svg`, whose `viewBox` is cropped to the
-artwork because ethereum.org ships its lockup inside a mostly empty 1920x1080 canvas. Anything
-added there also has to be added to `LOGOS` in `src/components/powered-by.tsx`.
-
-Two flags on a `Logo` describe the file rather than the design, and both exist because a mark that
-is invisible on white is not invisible on a dark plate:
-
-- `tonal` — the mark carries meaningful light areas, either its own background (Pyth) or white
-  cut-outs inside it (Arbitrum). Flattening every tone with `brightness-0` loses them and leaves a
-  blob, so those invert, greyscale and `mix-blend-screen` instead.
-- `light` — the artwork is drawn in white (Alchemy). Correct on the plate, invisible on the light
-  strip, which inverts it back to ink before greying it.
-
-`public/chains/*.svg` is separate: those are the round network marks `chainLogoUrl` serves for
-chains Trust Wallet's CDN does not carry.
 
 ## Motion
 

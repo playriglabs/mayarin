@@ -1,5 +1,3 @@
-import clsx from "clsx";
-import { LOGOS } from "../powered-by.tsx";
 import { Reveal } from "../reveal.tsx";
 import { PaymentOrbits } from "./payment-orbits.tsx";
 import { ScrollTilt } from "./scroll-tilt.tsx";
@@ -42,67 +40,6 @@ export function Hero() {
             <DashboardPreview src="/images/product/mayarin-analytics.png" />
           </ScrollTilt>
         </div>
-      </div>
-    </section>
-  );
-}
-
-export function PoweredBy() {
-  return (
-    <section
-      id="powered-by"
-      class="py-20 md:py-28 bg-plate text-paper [&_h2]:text-paper [&_p]:text-white/65"
-    >
-      <div class="mx-auto w-full max-w-300 px-6 md:px-10">
-        {/* Wide enough to hold "Every provider is temporary." on one line at the
-            h2's largest clamp; the lede keeps its own narrower measure. */}
-        <Reveal class="mx-auto max-w-225 text-center">
-          <p class="text-sm mb-5 text-accent">Powered by</p>
-          <h2 class="text-balance">
-            Providers are temporary.
-            <br />
-            <span class="text-accent">The clearing layer is not.</span>
-          </h2>
-          <p class="mx-auto mt-6 max-w-[52ch] text-base leading-relaxed">
-            Chains, oracles, venues and custody each sit behind a port. Swap any one of them and the
-            payment logic never learns that anything changed.
-          </p>
-        </Reveal>
-
-        {/* The marks are dark lockups, so the plate knocks them out to white
-            rather than greying them the way the light strip does.
-
-            A mark with meaningful light areas cannot be knocked out that way:
-            flattening every tone to black loses its background or its cut-outs
-            and leaves a blob. Inverting turns those lights black and greyscale
-            drops the colour shift inverting introduces, then `screen` drops the
-            blacks against the plate. */}
-        <Reveal delay={120}>
-          <ul class="flex flex-wrap items-center justify-center gap-x-12 gap-y-9 pt-14 md:gap-x-16 md:pt-16">
-            {LOGOS.map((logo) => (
-              <li
-                key={logo.name}
-                class={clsx(
-                  "flex shrink-0 items-center gap-2.5 opacity-70 transition-opacity duration-300 hover:opacity-100",
-                  logo.tonal ? "mix-blend-screen invert grayscale" : "brightness-0 invert",
-                )}
-              >
-                <img
-                  src={logo.src}
-                  alt={logo.lockup ? logo.name : ""}
-                  loading="lazy"
-                  decoding="async"
-                  class={clsx("w-auto", logo.class ?? "h-7 md:h-8")}
-                />
-                {logo.lockup ? null : (
-                  <span class="whitespace-nowrap font-sans text-base font-bold text-paper lowercase">
-                    {logo.name}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Reveal>
       </div>
     </section>
   );
