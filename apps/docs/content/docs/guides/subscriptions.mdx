@@ -1,0 +1,188 @@
+---
+title: Subscriptions
+description: Bill a SaaS customer every week, month or year, and grant access when each cycle is paid.
+---
+
+A subscription puts a customer on a recurring plan. It is **send-to-pay**: every cycle, Mayarin issues the subscriber an invoice and emails them its pay link. They pay it on any supported asset and chain, like any other invoice, and you settle in your stablecoin.
+
+There is no card on file and no allowance to pull. Your app grants access when a cycle is paid and takes it away when one goes unpaid.
+
+```text
+your signup ──► POST /v1/subscriptions
+                     │
+       every cycle   ▼
+   Mayarin issues an invoice ──► emails the pay link ──► subscriber pays
+                                                              │
+   your webhook endpoint ◄── payment.state_changed (SUCCESS) ◄┘
+        metadata.subscriptionId = sub_…
+```
+
+## Before you start
+
+- A **secret key** (`sk_…`) that grants `catalog:manage`. Create one under **API keys** in the dashboard. Keep it on your server.
+- A **webhook endpoint** registered in the dashboard, so you hear when a cycle is paid. See [webhooks](/guides/webhooks).
+- Your **city and country** set in the dashboard settings. Every invoice prints them.
+
+## 1. Create a subscription at signup
+
+Send the customer's name and email, what they are paying for, the price and the interval. Mayarin finds your customer with that email, or creates one, so a person with two plans is still one customer in the dashboard.
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const mayarin = createMayarin({
+  baseUrl: "https://api.mayarin.xyz",
+  secretKey: process.env.MAYARIN_SECRET_KEY!,
+});
+
+const subscription = await mayarin.commerce.subscriptions.create({
+  customer: { name: user.name, email: user.email },
+  description: "Pro plan",
+  amount: { amount: "29.00", asset: "USD" },
+  interval: "month",
+  daysUntilDue: 7,
+});
+
+// `db` is your own app's database. Store the id on your user record:
+// every payment on this plan comes back carrying it.
+await db.users.update(user.id, { mayarinSubscriptionId: subscription.id });
+```
+
+Or over HTTP:
+
+```bash
+curl https://api.mayarin.xyz/v1/subscriptions \
+  -H "Authorization: Bearer $MAYARIN_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer": { "name": "Ayu Lestari", "email": "ayu@example.com" },
+    "description": "Pro plan",
+    "amount": { "amount": "29.00", "asset": "USD" },
+    "interval": "month"
+  }'
+```
+
+| Field          | Required | Meaning                                                                                      |
+| -------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `customer`     | yes      | `name` and `email`. Every cycle's invoice is emailed to this address.                        |
+| `description`  | yes      | The line on each invoice, such as "Pro plan".                                                |
+| `amount`       | yes      | The price per cycle, as a decimal string in a [pricing currency](/concepts/rails).           |
+| `interval`     | yes      | `week`, `month` or `year`.                                                                    |
+| `startAt`      | no       | ISO timestamp of the first bill. Defaults to now. Use a future date for a free trial.        |
+| `daysUntilDue` | no       | Days between issuing a cycle's invoice and its due date. `0` to `90`, default `7`.           |
+
+The response is the subscription. `nextBillingAt` tells you when the next invoice goes out.
+
+**Creating a subscription is not idempotent.** If your signup handler can run twice, store `subscription.id` and check for it before calling `create` again, or the customer is billed twice.
+
+### Billing dates
+
+Dates are derived from the first billing date and never drift. A plan that starts on 31 January bills on 28 or 29 February, then 31 March, then 30 April. All dates are UTC.
+
+A free trial is a future `startAt`: the first invoice goes out when the trial ends.
+
+## 2. Grant access when a cycle is paid
+
+Every payment on a cycle's invoice carries the subscription in its metadata:
+
+```json
+{
+  "id": "evt_01KZ…",
+  "type": "payment.state_changed",
+  "data": {
+    "paymentIntentId": "pi_01KZ…",
+    "state": "SUCCESS",
+    "metadata": {
+      "subscriptionId": "sub_01KZ…",
+      "invoiceId": "inv_01KZ…",
+      "customerId": "cus_01KZ…"
+    }
+  }
+}
+```
+
+Verify the delivery, re-read the payment, and extend access when it reached `SUCCESS`. `MayarinWebhookEvent` is the payload type from [webhook helpers](/sdk/typescript/webhooks):
+
+```ts
+import { constructWebhook } from "@mayarin/sdk";
+
+export async function POST(request: Request) {
+  const event = await constructWebhook<MayarinWebhookEvent>({
+    payload: await request.text(),
+    signature: request.headers.get("webhook-signature") ?? "",
+    secret: process.env.MAYARIN_WEBHOOK_SECRET!,
+  });
+
+  const subscriptionId = event.data.metadata.subscriptionId;
+  if (subscriptionId === undefined) return new Response(null, { status: 204 });
+
+  // A webhook is a signal, not truth: ask the API what happened.
+  const payment = await mayarin.payment.get(event.data.paymentIntentId);
+  if (payment.clearing?.state === "SUCCESS") {
+    // Your own database again: find the user by the id you stored at signup.
+    await db.users.extendAccess({ mayarinSubscriptionId: subscriptionId });
+  }
+  return new Response(null, { status: 204 });
+}
+```
+
+Deliveries are at least once and can arrive out of order. Use `event.id` to drop repeats and `data.sequence` to drop stale ones. See [webhook helpers](/sdk/typescript/webhooks).
+
+## 3. Show what is owed
+
+`get` returns the subscription and every cycle's invoice, newest first. Each invoice carries its pay page `url` and a derived `status` (`issued`, `partially_paid`, `overdue`, `paid` or `void`), so your billing page can link straight to an unpaid one:
+
+```ts
+const { subscription, cycles } = await mayarin.commerce.subscriptions.get(subscriptionId);
+
+const unpaid = cycles.find((invoice) => invoice.status !== "paid" && invoice.status !== "void");
+if (unpaid !== undefined) {
+  // "Your May invoice is due — pay now"
+  showBanner({ href: unpaid.url, dueAt: unpaid.dueAt, total: unpaid.outstanding.display });
+}
+```
+
+The same invoice is in the subscriber's inbox. Paying from either place is the same payment.
+
+## 4. Pause, resume, cancel
+
+```ts
+await mayarin.commerce.subscriptions.pause(subscriptionId);
+await mayarin.commerce.subscriptions.resume(subscriptionId);
+await mayarin.commerce.subscriptions.cancel(subscriptionId);
+```
+
+| State       | Bills | Can move to          | Note                                                         |
+| ----------- | ----- | -------------------- | ------------------------------------------------------------ |
+| `active`    | yes   | `paused`, `cancelled` |                                                              |
+| `paused`    | no    | `active`, `cancelled` | Resuming skips every period missed while paused. No back-billing. |
+| `cancelled` | no    | none                 | Terminal. A cancelled plan cannot be resumed; create a new one. |
+
+A transition the state does not allow answers `409`. Cancelling stops future cycles; an invoice already issued stays payable until you void it with `mayarin.commerce.invoices.void(id)`.
+
+## Changing price or plan
+
+A subscription's price and interval are fixed. To move a customer to another plan, cancel the current subscription and create a new one. The new plan starts on its own `startAt`, so set it to the end of the period the customer already paid for.
+
+## How billing runs
+
+Mayarin checks for due subscriptions every minute. For each one it:
+
+1. issues the cycle's invoice, keyed by the subscription and the billing date;
+2. emails it to the subscriber;
+3. moves the subscription on to the next date.
+
+One cycle produces one invoice and one email, however often the check runs. If a step fails, the next check retries the same cycle.
+
+## Endpoints
+
+| Method and path                          | SDK                                  |
+| ---------------------------------------- | ------------------------------------ |
+| `POST /v1/subscriptions`                 | `commerce.subscriptions.create`      |
+| `GET /v1/subscriptions`                  | `commerce.subscriptions.list`        |
+| `GET /v1/subscriptions/:id`              | `commerce.subscriptions.get`         |
+| `POST /v1/subscriptions/:id/pause`       | `commerce.subscriptions.pause`       |
+| `POST /v1/subscriptions/:id/resume`      | `commerce.subscriptions.resume`      |
+| `POST /v1/subscriptions/:id/cancel`      | `commerce.subscriptions.cancel`      |
+
+Full request and response shapes are in the [API reference](/api-reference).

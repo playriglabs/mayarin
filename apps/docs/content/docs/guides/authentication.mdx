@@ -24,7 +24,7 @@ A testnet key is rejected by the mainnet API and vice versa, so an integration k
 2. Open **API keys** in the sidebar. It needs the `settings:manage` permission, so an account without it will not see the menu.
 3. Choose **Create key**, name it after the integration that will hold it — one key per integration keeps revocation from taking down everything else.
 4. Pick the **Kind**:
-   - **Secret — server-side** (`sk_…`), then tick the permissions it may use. A secret key grants a subset of your own: `payments:read`, `catalog:manage`, `settings:manage`, `users:manage`, `admin:access`. Grant the fewest that the integration needs.
+   - **Secret — server-side** (`sk_…`), then tick the permissions it may use. A secret key grants a subset of your own: `payments:read`, `catalog:manage`, `settings:manage`, `users:manage`, `admin:access`. Grant the fewest that the integration needs. Creating and changing products, payment links, invoices and subscriptions needs `catalog:manage`.
    - **Publishable — browser-safe** (`pk_…`). It carries no permission checkboxes; its surface is fixed.
 5. Copy the secret from the dialog and store it in your secret manager or `.env`.
 

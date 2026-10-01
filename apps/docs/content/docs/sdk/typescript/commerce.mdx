@@ -1,9 +1,9 @@
 ---
 title: Commerce module
-description: Manage products, carts, payment links, and invoices.
+description: Manage products, carts, payment links, invoices, and subscriptions.
 ---
 
-`mayarin.commerce` groups four surfaces. Each checkout — cart, link, or invoice — returns the same `PaymentIntentDto` the [payments module](/sdk/typescript/payments) works with.
+`mayarin.commerce` groups five surfaces. Each checkout — cart, link, or invoice — returns the same `PaymentIntentDto` the [payments module](/sdk/typescript/payments) works with.
 
 | Group          | Methods                                                        |
 | -------------- | -------------------------------------------------------------- |
@@ -11,6 +11,7 @@ description: Manage products, carts, payment links, and invoices.
 | `carts`        | `checkout`                                                     |
 | `paymentLinks` | `create`, `list`, `get`, `disable`, `checkout`                 |
 | `invoices`     | `create`, `list`, `get`, `update`, `issue`, `void`, `checkout` |
+| `subscriptions` | `create`, `list`, `get`, `pause`, `resume`, `cancel`          |
 
 The browser entry point exposes only `products.list`, `products.get`, and `carts.checkout` — see [browser client](/sdk/typescript/browser).
 
@@ -71,7 +72,11 @@ const intent = await mayarin.commerce.carts.checkout({
   merchantReference: "order-4711",
   payment: { asset: "USDC", chain: "base" },
 });
+
+intent.url; // the hosted checkout page — redirect the buyer here
 ```
+
+The returned intent carries `url`, the absolute hosted checkout page, so a storefront never builds the checkout address itself.
 
 A line is either a catalog reference (`productId` + `quantity`) or an ad-hoc line a cashier typed (`name` + `unitPrice` + `quantity`). The demo builds its lines from a `localStorage` cart in [`CheckoutButton.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/CheckoutButton.tsx), then posts them to its own server. Every checkout also accepts the intent-shaping options: `settlementAsset`, `provider`, `payment`, `executionPath`, `metadata`, `merchantReference`, `ttlSeconds`.
 
@@ -200,6 +205,34 @@ const intent = await mayarin.commerce.invoices.checkout(issued.id, {
   payment: { asset: "USDC", chain: "base" },
 });
 ```
+
+## Subscriptions
+
+A subscription bills a customer every `week`, `month` or `year`. Each cycle is an ordinary invoice that Mayarin issues and emails to the subscriber, so everything above about invoices applies to it. The customer is found by email, or created.
+
+```ts
+const subscription = await mayarin.commerce.subscriptions.create({
+  customer: { name: "Ayu Lestari", email: "ayu@example.com" },
+  description: "Pro plan",
+  amount: { amount: "29.00", asset: "USD" },
+  interval: "month",
+  daysUntilDue: 7, // optional, default 7
+  // startAt: "2026-11-01T00:00:00.000Z", // optional: a future first bill is a free trial
+});
+
+subscription.state; // "active"
+subscription.nextBillingAt; // ISO date of the next invoice, null unless active
+
+const { cycles } = await mayarin.commerce.subscriptions.get(subscription.id);
+cycles[0]?.url; // the latest cycle's pay page
+cycles[0]?.status; // same derived status as invoices.get
+
+await mayarin.commerce.subscriptions.pause(subscription.id);
+await mayarin.commerce.subscriptions.resume(subscription.id); // skips missed periods
+await mayarin.commerce.subscriptions.cancel(subscription.id); // terminal
+```
+
+Payments on a cycle carry `metadata.subscriptionId` in the `payment.*` webhooks. The [subscriptions guide](/guides/subscriptions) walks through a SaaS integration end to end.
 
 ## Listing by merchant
 

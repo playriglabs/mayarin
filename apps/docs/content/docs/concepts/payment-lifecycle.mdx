@@ -30,10 +30,24 @@ This is why a status poll is not a substitute for a webhook: how long `PAYMENT_P
 ## What a status means
 
 - **`SUCCESS`** is terminal and means the merchant is credited and the postings balance.
-- **`FAILED`** is terminal and records why. A quote that expired past its deadline fails with `QUOTE_EXPIRED`; it never re-quotes, because a new price needs the payer's consent.
+- **`FAILED`** records why, and is terminal unless the payer's funds had already arrived (see below). A quote that expired past its deadline fails with `QUOTE_EXPIRED`; it never re-quotes, because a new price needs the payer's consent.
 - Everything else can still move.
 
 An expired lock on the contract path is enforced on-chain as well, so a payment failed here cannot settle later behind your back.
+
+## Retrying a failed payment
+
+A payment can fail after the payer's money arrived — a swap pool missing from the configuration, a settlement asset not yet enabled — while the funds sit at the deposit address. Once the cause is fixed, retry it:
+
+```bash
+curl -X POST https://api.mayarin.xyz/v1/payments/pi_01KZ…/retry
+```
+
+The retry reopens the payment at `ASSET_RECEIVED` and runs the remaining steps again. Each step is keyed per state, so nothing that already happened — a ledger posting, a sweep — happens twice. On the deposit path, an order whose deadline passed while the payment sat failed is re-signed with the same terms and a fresh deadline: the merchant's locked amount does not change.
+
+The reopen is recorded in the timeline with the failure it replaces, and the intent goes back to `PROCESSING`, so your webhook endpoint hears about the retry like any other state change.
+
+A retry is refused with `409` when the payment has not failed, or when its funds never arrived — there is nothing to settle, and the payer should start a new payment. The dashboard shows a **Retry settlement** button on a failed payment.
 
 ## Treat a webhook as a signal
 

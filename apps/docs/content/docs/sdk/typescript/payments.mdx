@@ -132,6 +132,21 @@ Checking `merchant.id` matters: an intent id is not a capability, and a merchant
 
 The demo's success page polls the same way: the browser calls its own `/api/payment-status/:id` ([`PaymentSuccess.tsx`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/src/PaymentSuccess.tsx)), and the server answers from `payment.getIntent` ([`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) — so the page learns the outcome without ever holding a key.
 
+## Invoice and receipt PDFs
+
+Every payment has a printable invoice and, once it completes, a receipt (the receipt answers `409` before then). Both are drawn on request from the payment's own records, so they always match its status:
+
+```text
+GET /v1/payments/:id/invoice.pdf
+GET /v1/payments/:id/receipt.pdf
+```
+
+The receipt carries the settlement proof: the asset paid, the network, the cleared rate, the settled amount, the fee and a link to the transaction on the explorer. Link to these directly from your order page; the hosted checkout's success screen offers the same downloads.
+
+## Retrying a failed payment
+
+`POST /v1/payments/:id/retry` reopens a payment that failed after the payer's funds arrived and settles it. See [retrying a failed payment](/concepts/payment-lifecycle#retrying-a-failed-payment).
+
 ## Expiry
 
 An intent stops being payable at `expiresAt`, and reads after that point report `EXPIRED` rather than a stale `CREATED`. Nothing is owed on an expired intent — create a fresh one for a payer who comes back later.

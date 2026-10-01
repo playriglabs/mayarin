@@ -40,6 +40,7 @@ import {
 // Live API request schemas — the single source for request shapes.
 import { createBodySchema } from "../../api/src/dto/payment-intent.ts";
 import { refundBodySchema } from "../../api/src/dto/refund.ts";
+import { createSubscriptionBodySchema } from "../../api/src/dto/subscription.ts";
 import { merchantX402ResourceSchema } from "../../api/src/dto/x402-resource.ts";
 
 // Adds `.openapi()` to every Zod schema so response schemas can be registered
@@ -353,7 +354,7 @@ const invoiceSchema = z
     merchant: merchantSchemaResp,
     number: z.string().nullable(),
     sequence: z.number().int().nullable(),
-    state: z.string().describe("DRAFT, ISSUED, PAID, or VOID."),
+    state: z.string().describe("Stored lifecycle state: draft, issued, or void."),
     buyer: z.object({
       name: z.string(),
       email: z.string().nullable(),
@@ -380,11 +381,47 @@ const invoiceViewSchema = invoiceSchema
   .extend({
     status: z
       .string()
-      .describe("Derived payment status: DRAFT, ISSUED, PARTIALLY_PAID, PAID, or VOID."),
+      .describe("Derived payment status: draft, issued, partially_paid, paid, overdue, or void."),
     paid: moneySchema,
     outstanding: moneySchema,
   })
   .openapi("InvoiceView");
+
+const subscriptionSchema = z
+  .object({
+    id: z.string(),
+    subscriber: z.object({
+      customerId: z.string().describe("The merchant's customer, found or created by email."),
+      name: z.string(),
+      email: z.string().nullable(),
+    }),
+    description: z.string(),
+    amount: moneySchema,
+    interval: z.enum(["week", "month", "year"]),
+    state: z.enum(["active", "paused", "cancelled"]),
+    billedCycles: z.number().int().describe("Cycles invoiced so far."),
+    daysUntilDue: z
+      .number()
+      .int()
+      .describe("Each cycle's invoice falls due this many days after issue."),
+    anchorAt: z.string().describe("The first billing date; every later date derives from it."),
+    nextBillingAt: z
+      .string()
+      .nullable()
+      .describe("Only an active subscription has one. Null while paused or once cancelled."),
+    createdAt: z.string(),
+    cancelledAt: z.string().nullable(),
+  })
+  .openapi("Subscription");
+
+const subscriptionDetailSchema = z
+  .object({
+    subscription: subscriptionSchema,
+    cycles: z
+      .array(invoiceViewSchema)
+      .describe("Every cycle's invoice, newest first, each with its pay `url` and status."),
+  })
+  .openapi("SubscriptionDetail");
 
 // The merchant x402 resource surface's wire shape (#208, #273). The register
 // request is the live DTO; the response is authored here like every response.
@@ -633,6 +670,26 @@ registry.registerPath({
   responses: {
     "200": jsonResponse(paymentSchema, "Payment, clearing state, deposit, and timeline."),
     "404": errorResponse("No payment with that id."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/payments/{id}/retry",
+  tags: ["Payments"],
+  operationId: "retryPayment",
+  summary: "Retry a failed payment whose funds arrived",
+  description:
+    "Reopens a `FAILED` payment at `ASSET_RECEIVED` and replays the clearing steps, for a failure since fixed (a missing swap pool, an asset not yet whitelisted) while the payer's money sat at the deposit address. Every step is idempotent per state, so nothing that already happened happens twice. A deposit-match order whose deadline passed is re-signed with the same terms and a fresh deadline. Refused with 409 when the payment has not failed or its funds never arrived.",
+  security: noAuth,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(
+      z.object({ clearing: clearingSchema }),
+      "The reopened clearing transaction.",
+    ),
+    "404": errorResponse("No payment with that id, or it has no clearing transaction."),
+    "409": errorResponse("The payment has not failed, or its funds never arrived."),
   },
 });
 
@@ -1051,6 +1108,78 @@ registry.registerPath({
     "404": errorResponse("No invoice with that id."),
   },
 });
+
+const subscriptionResponse = (description: string) => ({
+  "200": jsonResponse(subscriptionSchema, description),
+  "404": errorResponse("No subscription with that id, or not this merchant's."),
+  "409": errorResponse("The transition is not allowed from the current state."),
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/subscriptions",
+  tags: ["Subscriptions"],
+  operationId: "createSubscription",
+  summary: "Create a subscription",
+  description:
+    "Puts a customer on a recurring plan. Send-to-pay: every cycle Mayarin issues the subscriber an invoice and emails its pay link; they pay it on any rail. Payments on a cycle carry `metadata.subscriptionId` into the `payment.*` webhooks. The merchant's customer with the given email is reused, or created. Needs `catalog:manage`.",
+  security: secretKey,
+  request: { body: jsonBody(createSubscriptionBodySchema) },
+  responses: {
+    "201": jsonResponse(subscriptionSchema, "Subscription created, active."),
+    "400": errorResponse("Validation error."),
+    "403": errorResponse("The key does not grant catalog:manage."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/subscriptions",
+  tags: ["Subscriptions"],
+  operationId: "listSubscriptions",
+  summary: "List subscriptions",
+  security: secretKey,
+  responses: {
+    "200": jsonResponse(z.array(subscriptionSchema), "The merchant's subscriptions, newest first."),
+    "401": errorResponse("Missing or unknown API key."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/subscriptions/{id}",
+  tags: ["Subscriptions"],
+  operationId: "getSubscription",
+  summary: "Get a subscription and its cycles",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(subscriptionDetailSchema, "The subscription and every cycle's invoice."),
+    "404": errorResponse("No subscription with that id, or not this merchant's."),
+  },
+});
+
+for (const [action, summary, description] of [
+  ["pause", "Pause a subscription", "Stops billing. Nothing is billed while paused."],
+  [
+    "resume",
+    "Resume a subscription",
+    "Billing restarts from the next period; every period missed while paused is skipped, not back-billed.",
+  ],
+  ["cancel", "Cancel a subscription", "Terminal. A cancelled subscription cannot be resumed."],
+] as const) {
+  registry.registerPath({
+    method: "post",
+    path: `/v1/subscriptions/{id}/${action}`,
+    tags: ["Subscriptions"],
+    operationId: `${action}Subscription`,
+    summary,
+    description,
+    security: secretKey,
+    request: { params: idParams },
+    responses: subscriptionResponse("The subscription after the transition."),
+  });
+}
 
 registry.registerPath({
   method: "post",
@@ -1485,6 +1614,7 @@ const document = generator.generateDocument({
     { name: "Catalog", description: "Merchant products and cart checkout." },
     { name: "Payment links", description: "Shareable hosted checkout links." },
     { name: "Invoices", description: "Numbered requests with buyers and due dates." },
+    { name: "Subscriptions", description: "Recurring plans, billed as one invoice per cycle." },
     {
       name: "x402 resources",
       description: "Per-call resources an agent pays for over the x402 rail.",

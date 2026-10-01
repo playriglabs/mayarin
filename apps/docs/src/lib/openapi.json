@@ -45,6 +45,10 @@
       "description": "Numbered requests with buyers and due dates."
     },
     {
+      "name": "Subscriptions",
+      "description": "Recurring plans, billed as one invoice per cycle."
+    },
+    {
       "name": "x402 resources",
       "description": "Per-call resources an agent pays for over the x402 rail."
     },
@@ -1018,7 +1022,7 @@
           },
           "state": {
             "type": "string",
-            "description": "DRAFT, ISSUED, PAID, or VOID."
+            "description": "Stored lifecycle state: draft, issued, or void."
           },
           "buyer": {
             "type": "object",
@@ -1167,7 +1171,7 @@
             "properties": {
               "status": {
                 "type": "string",
-                "description": "Derived payment status: DRAFT, ISSUED, PARTIALLY_PAID, PAID, or VOID."
+                "description": "Derived payment status: draft, issued, partially_paid, paid, overdue, or void."
               },
               "paid": {
                 "$ref": "#/components/schemas/Money"
@@ -1182,6 +1186,120 @@
               "outstanding"
             ]
           }
+        ]
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subscriber": {
+            "type": "object",
+            "properties": {
+              "customerId": {
+                "type": "string",
+                "description": "The merchant's customer, found or created by email."
+              },
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "customerId",
+              "name",
+              "email"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "week",
+              "month",
+              "year"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "cancelled"
+            ]
+          },
+          "billedCycles": {
+            "type": "integer",
+            "description": "Cycles invoiced so far."
+          },
+          "daysUntilDue": {
+            "type": "integer",
+            "description": "Each cycle's invoice falls due this many days after issue."
+          },
+          "anchorAt": {
+            "type": "string",
+            "description": "The first billing date; every later date derives from it."
+          },
+          "nextBillingAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Only an active subscription has one. Null while paused or once cancelled."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "cancelledAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "subscriber",
+          "description",
+          "amount",
+          "interval",
+          "state",
+          "billedCycles",
+          "daysUntilDue",
+          "anchorAt",
+          "nextBillingAt",
+          "createdAt",
+          "cancelledAt"
+        ]
+      },
+      "SubscriptionDetail": {
+        "type": "object",
+        "properties": {
+          "subscription": {
+            "$ref": "#/components/schemas/Subscription"
+          },
+          "cycles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceView"
+            },
+            "description": "Every cycle's invoice, newest first, each with its pay `url` and status."
+          }
+        },
+        "required": [
+          "subscription",
+          "cycles"
         ]
       },
       "X402Resource": {
@@ -2025,6 +2143,74 @@
           },
           "404": {
             "description": "No payment with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}/retry": {
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "operationId": "retryPayment",
+        "summary": "Retry a failed payment whose funds arrived",
+        "description": "Reopens a `FAILED` payment at `ASSET_RECEIVED` and replays the clearing steps, for a failure since fixed (a missing swap pool, an asset not yet whitelisted) while the payer's money sat at the deposit address. Every step is idempotent per state, so nothing that already happened happens twice. A deposit-match order whose deadline passed is re-signed with the same terms and a fresh deadline. Refused with 409 when the payment has not failed or its funds never arrived.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The reopened clearing transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "clearing": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Clearing"
+                        },
+                        {
+                          "type": "object"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "clearing"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No payment with that id, or it has no clearing transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The payment has not failed, or its funds never arrived.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4936,6 +5122,414 @@
           },
           "404": {
             "description": "No invoice with that id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/subscriptions": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "createSubscription",
+        "summary": "Create a subscription",
+        "description": "Puts a customer on a recurring plan. Send-to-pay: every cycle Mayarin issues the subscriber an invoice and emails its pay link; they pay it on any rail. Payments on a cycle carry `metadata.subscriptionId` into the `payment.*` webhooks. The merchant's customer with the given email is reused, or created. Needs `catalog:manage`.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "customer": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                      },
+                      "email": {
+                        "type": "string",
+                        "maxLength": 320,
+                        "format": "email"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "email"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "amount": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "enum": [
+                          "IDR",
+                          "SGD",
+                          "MYR",
+                          "THB",
+                          "PHP",
+                          "VND",
+                          "BND",
+                          "MMK",
+                          "KHR",
+                          "LAK",
+                          "USD",
+                          "JPY",
+                          "CNY",
+                          "HKD",
+                          "EUR",
+                          "GBP",
+                          "AUD",
+                          "CAD",
+                          "AED",
+                          "SAR",
+                          "BRL",
+                          "MXN",
+                          "USDC",
+                          "USDT",
+                          "EURC",
+                          "PYUSD",
+                          "USDG",
+                          "ETH",
+                          "BTC"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "asset"
+                    ]
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "week",
+                      "month",
+                      "year"
+                    ]
+                  },
+                  "startAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "daysUntilDue": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 90,
+                    "default": 7
+                  }
+                },
+                "required": [
+                  "customer",
+                  "description",
+                  "amount",
+                  "interval"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscription created, active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key does not grant catalog:manage.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "listSubscriptions",
+        "summary": "List subscriptions",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The merchant's subscriptions, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Subscription"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/subscriptions/{id}": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "getSubscription",
+        "summary": "Get a subscription and its cycles",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription and every cycle's invoice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No subscription with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/subscriptions/{id}/pause": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "pauseSubscription",
+        "summary": "Pause a subscription",
+        "description": "Stops billing. Nothing is billed while paused.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription after the transition.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No subscription with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The transition is not allowed from the current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/subscriptions/{id}/resume": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "resumeSubscription",
+        "summary": "Resume a subscription",
+        "description": "Billing restarts from the next period; every period missed while paused is skipped, not back-billed.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription after the transition.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No subscription with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The transition is not allowed from the current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/subscriptions/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "operationId": "cancelSubscription",
+        "summary": "Cancel a subscription",
+        "description": "Terminal. A cancelled subscription cannot be resumed.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription after the transition.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No subscription with that id, or not this merchant's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The transition is not allowed from the current state.",
             "content": {
               "application/json": {
                 "schema": {

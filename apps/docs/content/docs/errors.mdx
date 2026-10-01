@@ -26,10 +26,10 @@ Treat `code` as the programmatic contract and `message` as human-readable contex
 | `QR_PARSE_ERROR`           | 400  | no        | A QR payload could not be decoded, failed its checksum, or is an unsupported scheme.       |
 | `UNAUTHORIZED`             | 401  | no        | Missing, malformed, revoked, or wrong-environment key.                                     |
 | `FORBIDDEN`                | 403  | no        | The key is valid but lacks the permission this route needs.                                |
-| `NOT_FOUND`                | 404  | no        | No such route, or no such intent, payment, product, link, or invoice.                      |
+| `NOT_FOUND`                | 404  | no        | No such route, or no such intent, payment, product, link, invoice, or subscription.        |
 | `CONFLICT`                 | 409  | no        | The request contradicts current state — a disabled link, an invoice already voided.        |
 | `IDEMPOTENCY_CONFLICT`     | 409  | no        | The idempotency key was replayed with a **different** body. Same body replays fine.        |
-| `INVALID_STATE_TRANSITION` | 409  | no        | The state machine refused the move — confirming an expired intent, say.                    |
+| `INVALID_STATE_TRANSITION` | 409  | no        | The state machine refused the move — confirming an expired intent, resuming a cancelled subscription, retrying a payment that has not failed. |
 | `CONCURRENCY_CONFLICT`     | 409  | **yes**   | Two writers raced the same aggregate. Re-read and retry.                                   |
 | `QUOTE_EXPIRED`            | 410  | no        | The locked quote passed its deadline. A new price needs the payer, so start over.          |
 | `RATE_LIMIT_EXCEEDED`      | 429  | **yes**   | Too many requests. `details.retryAfterSeconds` and `Retry-After` say when.                  |
@@ -37,7 +37,8 @@ Treat `code` as the programmatic contract and `message` as human-readable contex
 | `CONFIGURATION_ERROR`      | 500  | no        | The deployment is misconfigured — missing adapter, unknown asset, bad environment.         |
 | `INTERNAL_ERROR`           | 500  | no        | Unhandled failure. No internal detail is leaked.                                            |
 | `PROVIDER_ERROR`           | 502  | usually   | A settlement or chain provider failed the call. Retryable unless the body says otherwise.  |
-| `EXECUTION_EXHAUSTED`      | 502  | no        | The swap could not meet `minOut` within the attempt bound. Terminal on purpose.            |
+| `EXECUTION_EXHAUSTED`      | 502  | no        | The swap could not meet `minOut` within the attempt bound. A payment whose funds arrived can be [retried](/concepts/payment-lifecycle#retrying-a-failed-payment). |
+| `ORDER_EXPIRED`            | 410  | no        | A deposit order passed its deadline and the process executing it could not re-sign it. Retry the payment once a signer is available. |
 
 `EXECUTION_EXHAUSTED` is terminal by design: every attempt already refetched a route, so retrying is a bet that the price comes back — and while it does not, Mayarin holds the payer's asset against an obligation it cannot discharge. That payment needs operator attention, not another call.
 

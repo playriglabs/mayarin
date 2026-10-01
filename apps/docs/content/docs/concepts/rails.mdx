@@ -22,14 +22,20 @@ Pricing a currency needs a reference rate for its leg, so a deployment may serve
 
 ## Settlement stablecoins
 
-What the merchant is paid in, set per merchant.
+What the merchant is paid in.
 
 | Asset | Decimals | Note                                                                  |
 | ----- | -------- | --------------------------------------------------------------------- |
 | USDC  | 6        | The default                                                           |
-| USDT  | 6        |                                                                       |
+| USDG  | 6        | Global Dollar. The settlement asset on Robinhood Chain                |
 | EURC  | 6        | Euro-denominated — the one stablecoin here that is not a dollar in another representation |
-| PYUSD | 6        |                                                                       |
+| PYUSD | 6        | PayPal USD                                                            |
+
+### Settlement per chain
+
+A merchant sets one settlement asset as the default and can override it per chain — for example USDC everywhere, but USDG on Robinhood Chain. A payment is priced into the settlement asset of the chain it is paid on, and every rail reports it: `GET /v1/payment-links/:id/rails` returns a `settlementAsset` on each rail, so a checkout can say what the merchant receives before the payer picks.
+
+A chain's own settlement asset is always accepted there, whatever else the merchant has turned off.
 
 Which of these a deployment actually admits is configuration, not code — the admissible set and each asset's on-chain identity are one record an operator maintains, so a stablecoin appears here as *supported by the platform* rather than as *enabled on the API you are calling*. Ask `GET /v1/catalog/products` or the hosted checkout what a given merchant offers.
 
@@ -39,22 +45,22 @@ EURC matters for a reason worth stating: `EURC/USDC` is a real exchange rate, no
 
 What a payer can bring. A payer asset is admissible when the deployment has an on-chain identity for it and a way to price it against the merchant's settlement asset.
 
-- **Stablecoins** — USDC, USDT, EURC, PYUSD. Same-asset payments skip the swap entirely.
+- **Stablecoins** — USDC, USDG, EURC, PYUSD. Same-asset payments skip the swap entirely.
 - **Native** — ETH. Payer amounts are rounded to eight decimals, which is what wallet entry fields and exchange UIs settle on; the dust given up is far below the transfer fee.
 
 A merchant chooses which of these to accept. `GET /v1/payment-links/:id` and the hosted checkout show what a given payer can actually use.
 
 ## Chains
 
-| Chain              | Status                                                                 |
-| ------------------ | ---------------------------------------------------------------------- |
-| `base-sepolia`     | Primary testnet — `PaymentRouter` deployed and verified                 |
-| `base`             | Mainnet, unprovisioned                                                  |
-| `ethereum-sepolia` | Testnet                                                                 |
-| `arbitrum-sepolia` | Testnet                                                                 |
-| `arbitrum`         | Mainnet, unprovisioned                                                  |
-| `arc-testnet`      | Circle's chain — USDC-native, the first whose native asset is not ETH   |
-| `robinhood-testnet`| An Orbit chain                                                          |
+| Chain               | Status                                                                | Stablecoins on the testnet deployment |
+| ------------------- | --------------------------------------------------------------------- | ------------------------------------- |
+| `base-sepolia`      | Primary testnet — `PaymentRouter` deployed and verified                | USDC, EURC                            |
+| `base`              | Mainnet, unprovisioned                                                 |                                       |
+| `ethereum-sepolia`  | Testnet                                                                | USDC, EURC, PYUSD                     |
+| `arbitrum-sepolia`  | Testnet                                                                | USDC, USDG, PYUSD                     |
+| `arbitrum`          | Mainnet, unprovisioned                                                 |                                       |
+| `arc-testnet`       | Circle's chain — USDC-native, the first whose native asset is not ETH  | USDC, EURC                            |
+| `robinhood-testnet` | Robinhood Chain, an Arbitrum Orbit chain                               | USDG, USDC                            |
 
 Mayarin currently runs on **testnet**. Its Base Sepolia execution contracts are deployed and verified; the mainnet environment stays deliberately unprovisioned until the documented security and deployment gates are satisfied.
 
