@@ -59,7 +59,7 @@ nodes, rails and flow; `--color-forest` is its accessible counterpart for type.
 
 Type uses HB Set through `--font-heading` for `h1`–`h3`, `--font-display` for display accents,
 and `--font-brand` for the wordmark. `--font-sans` (Geist) handles everything read, while
-`--font-mono` (Cascadia Code, then Geist Mono) handles labels and code — the mono weights are
+`--font-mono` (JetBrains Mono, then Geist Mono) handles labels and code — the mono weights are
 imported latin-only, since the snippets are ASCII.
 
 ## Structure
