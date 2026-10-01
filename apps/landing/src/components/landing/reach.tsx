@@ -4,7 +4,7 @@ import type { City } from "../globe.tsx";
 import { Globe } from "../globe.tsx";
 import { Reveal } from "../reveal.tsx";
 import { CURRENCY_MARKETS, type CurrencyRegion } from "./currency-markets.ts";
-import { NetworkMarks } from "./network-marks.tsx";
+import { MarkStack, NETWORKS } from "./network-marks.tsx";
 
 /**
  * Regional markers keep the globe legible as currency coverage grows. They
@@ -32,6 +32,11 @@ const FEATURED_CURRENCIES = CURRENCY_MARKETS.filter(({ code }) =>
   ...currency,
   detail: getAsset(currency.code).name.split(" ").at(-1) ?? currency.code,
 }));
+
+/** The stablecoins a merchant can choose to settle in; which one is offered depends on the chain. */
+const SETTLEMENT_MARKS = (
+  ["USDC", "USDG", "EURC", "PYUSD"] as const satisfies readonly AssetCode[]
+).map((code) => ({ name: `${code} · ${getAsset(code).name}`, src: assetLogoUrl(code) }));
 
 const OTHER_CURRENCY_COUNT = CURRENCY_MARKETS.length - FEATURED_CURRENCIES.length;
 
@@ -78,19 +83,9 @@ export function Reach() {
         <Reveal class="md:col-span-2 lg:col-span-1">
           <p class="text-sm text-slate-600">Settled in</p>
           <div class="mt-7 flex flex-wrap items-center gap-x-2.5 gap-y-3">
-            <img
-              src={assetLogoUrl("USDC")}
-              alt=""
-              aria-hidden="true"
-              width="26"
-              height="26"
-              loading="lazy"
-              decoding="async"
-              class="size-6.5 shrink-0 rounded-full object-contain"
-            />
-            <strong class="text-base font-medium">USDC</strong>
-            <span class="text-xs text-slate-600">On</span>
-            <NetworkMarks ring="ring-paper" />
+            <MarkStack marks={SETTLEMENT_MARKS} label="Settlement stablecoins" ring="ring-paper" />
+            <span class="text-xs text-slate-600">on</span>
+            <MarkStack marks={NETWORKS} label="Networks" ring="ring-paper" />
           </div>
 
           <p class="mt-5 max-w-70 text-xs leading-relaxed text-slate-600">

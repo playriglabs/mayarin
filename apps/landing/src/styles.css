@@ -46,6 +46,21 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* The chargeback feed: the list starts one row up and settles into place. */
+@keyframes feed-shift {
+  from {
+    transform: translateY(calc(-1 * var(--feed-step)));
+  }
+}
+
+/* The use-case visuals swap with the selected industry. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;

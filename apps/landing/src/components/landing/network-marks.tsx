@@ -2,8 +2,9 @@ import { chainLogoUrl } from "@mayarin/chain";
 import clsx from "clsx";
 
 /**
- * The networks a payment can arrive on. Base, Arbitrum and Arc resolve through
- * `chainLogoUrl`, the same function the hosted checkout renders from.
+ * The networks a payment can arrive on. Base, Arbitrum, Arc and Robinhood
+ * resolve through `chainLogoUrl`, the same function the hosted checkout renders
+ * from.
  *
  * Ethereum has no entry in `CHAIN_IDS`, so it carries a local mark — it is
  * named because the product says so, not because the chain registry does. The
@@ -12,36 +13,64 @@ import clsx from "clsx";
  */
 export const NETWORKS = [
   { name: "Ethereum", src: "/chains/ethereum.svg" },
-  { name: "Arbitrum", src: chainLogoUrl("arbitrum") },
   { name: "Arc", src: chainLogoUrl("arc-testnet") },
   { name: "Base", src: chainLogoUrl("base") },
+  { name: "Arbitrum", src: chainLogoUrl("arbitrum") },
+  { name: "Robinhood Chain", src: chainLogoUrl("robinhood-testnet") },
 ] as const;
 
-/** Overlapped into a stack, so the ring has to be painted in the section's own ground. */
-export function NetworkMarks({
+export interface Mark {
+  readonly name: string;
+  readonly src: string | undefined;
+}
+
+/**
+ * Logos overlapped into a stack, each naming itself in a tooltip on hover or
+ * keyboard focus. The ring has to be painted in the section's own ground.
+ */
+export function MarkStack({
+  marks,
+  label,
   ring = "ring-v2-mist",
   class: className = "",
 }: {
+  readonly marks: readonly Mark[];
+  /** Names the list for assistive tech, e.g. "Settlement stablecoins". */
+  readonly label: string;
   readonly ring?: string;
   readonly class?: string;
 }) {
   return (
-    <div class={clsx("flex items-center -space-x-2", className)}>
-      {NETWORKS.map((network) =>
-        network.src ? (
-          <img
-            key={network.name}
-            src={network.src}
-            alt={network.name}
-            title={network.name}
-            width="26"
-            height="26"
-            loading="lazy"
-            decoding="async"
-            class={clsx("size-6.5 shrink-0 rounded-full object-contain ring-2", ring)}
-          />
+    <ul aria-label={label} class={clsx("flex items-center -space-x-2", className)}>
+      {marks.map((mark) =>
+        mark.src ? (
+          <li
+            key={mark.name}
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: Focus reveals the tooltip for keyboard users.
+            tabIndex={0}
+            class="group relative rounded-full outline-offset-2 hover:z-10 focus-visible:z-10"
+          >
+            <img
+              src={mark.src}
+              alt={mark.name}
+              width="26"
+              height="26"
+              loading="lazy"
+              decoding="async"
+              class={clsx(
+                "size-6.5 shrink-0 rounded-full object-contain ring-2 transition-transform duration-200 group-hover:-translate-y-0.5",
+                ring,
+              )}
+            />
+            <span
+              aria-hidden="true"
+              class="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-medium text-paper opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+            >
+              {mark.name}
+            </span>
+          </li>
         ) : undefined,
       )}
-    </div>
+    </ul>
   );
 }

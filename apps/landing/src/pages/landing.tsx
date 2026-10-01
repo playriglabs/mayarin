@@ -1,5 +1,6 @@
 import { useEffect } from "preact/hooks";
 import { Footer } from "../components/footer.tsx";
+import { Benefits } from "../components/landing/benefits.tsx";
 import { Capabilities } from "../components/landing/capabilities.tsx";
 import { Developers } from "../components/landing/developers.tsx";
 import { EarlyAccessCta } from "../components/landing/early-access-cta.tsx";
@@ -26,6 +27,7 @@ export function Landing() {
           <Opportunity />
           <PaymentReach />
           <ValueStrip />
+          <Benefits />
           <Capabilities />
           <UseCases />
           <Reach />

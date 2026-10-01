@@ -2,8 +2,8 @@ import { RailMark } from "./rail-mark.tsx";
 import { Check } from "./ui.tsx";
 
 const RAILS = [
-  { asset: "USDC", chain: "base", label: "Base" },
-  { asset: "EURC", chain: "arbitrum", label: "Arbitrum One" },
+  { asset: "EURC", chain: "base", label: "Base" },
+  { asset: "USDG", chain: "arbitrum", label: "Arbitrum" },
   { asset: "ETH", chain: "base", label: "Base" },
   { asset: "PYUSD", chain: "ethereum", label: "Ethereum" },
 ] as const;
@@ -73,7 +73,7 @@ export function PaymentReach() {
               ))}
             </div>
             <div class="mt-6 rounded-lg bg-forest px-4 py-3 text-center text-sm font-medium text-paper">
-              Pay with USDC
+              Pay with EURC
             </div>
           </div>
 
@@ -87,7 +87,7 @@ export function PaymentReach() {
             </p>
             <dl class="mt-6 space-y-4 text-sm">
               {[
-                ["Customer paid", "USDC on Base"],
+                ["Customer paid", "EURC on Base"],
                 ["You receive", "USDC"],
                 ["Destination", "Your wallet"],
                 ["Payment status", "Settled"],
