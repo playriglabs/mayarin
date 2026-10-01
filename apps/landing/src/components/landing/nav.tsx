@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "preact/hooks";
 const LINKS = [
   { label: "Capabilities", href: "#capabilities" },
   { label: "Use cases", href: "#use-cases" },
-  { label: "Platforms", href: "#platform" },
 ] as const;
 
 const LOGIN_URL = "https://dashboard-testnet.mayarin.xyz/login";

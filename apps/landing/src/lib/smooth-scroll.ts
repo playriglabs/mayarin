@@ -5,6 +5,18 @@ import { gsap, registerGsap, ScrollTrigger } from "./gsap.ts";
 const HEADER_OFFSET = -88;
 
 /**
+ * Anchor scrolls take longer the further they travel. One fixed duration felt
+ * right for a header link to the next section and far too fast for a footer
+ * link back to the top, which crossed the whole page — globe and all — in about
+ * a second and stuttered on the way.
+ */
+function anchorDuration(distance: number): number {
+  return Math.min(2.2, Math.max(0.9, 0.6 + distance / 3_000));
+}
+
+const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+
+/**
  * Lenis drives the page scroll. In-page anchors are routed through it too —
  * otherwise a `#hash` link jumps instantly and the smoothing only applies to
  * wheel and touch, which reads as two different scrolls on one page.
@@ -34,15 +46,25 @@ export function startSmoothScroll(): () => void {
     if (!(target instanceof Element)) return;
 
     const anchor = target.closest("a");
-    const href = anchor?.getAttribute("href");
-    if (!href?.startsWith("#") || href === "#") return;
+    if (!anchor?.href) return;
 
-    const destination = document.querySelector(href);
+    // `#faq` and `/#faq` both point here when this is the landing page; the
+    // footer uses the second so it still works from /brand-kit/.
+    const url = new URL(anchor.href);
+    if (url.origin !== window.location.origin || url.pathname !== window.location.pathname) return;
+    if (url.hash === "" || url.hash === "#") return;
+
+    const destination = document.getElementById(decodeURIComponent(url.hash.slice(1)));
     if (!destination) return;
 
     event.preventDefault();
-    lenis.scrollTo(destination as HTMLElement, { offset: HEADER_OFFSET });
-    window.history.replaceState(null, "", href);
+    const distance = Math.abs(destination.getBoundingClientRect().top + HEADER_OFFSET);
+    lenis.scrollTo(destination, {
+      offset: HEADER_OFFSET,
+      duration: anchorDuration(distance),
+      easing: easeInOutCubic,
+    });
+    window.history.replaceState(null, "", url.hash);
   };
 
   document.addEventListener("click", onClick);

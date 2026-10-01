@@ -12,6 +12,7 @@ const COLUMNS = [
         href: "https://docs.mayarin.xyz/sdk/typescript/commerce#payment-links",
       },
       { label: "Invoicing", href: "https://docs.mayarin.xyz/sdk/typescript/commerce#invoices" },
+      { label: "Subscriptions", href: "https://docs.mayarin.xyz/guides/subscriptions" },
       { label: "Agent payments", href: "https://docs.mayarin.xyz/guides/x402" },
       { label: "WooCommerce", href: "https://docs.mayarin.xyz/guides/woocommerce" },
     ],
@@ -19,12 +20,12 @@ const COLUMNS = [
   {
     heading: "Platform",
     links: [
-      { label: "How it works", href: "/#platform" },
+      { label: "Why Mayarin", href: "/#benefits" },
       { label: "Payment capabilities", href: "/#capabilities" },
       { label: "Currencies & networks", href: "/#reach" },
       {
         label: "Stablecoin settlement",
-        href: "https://docs.mayarin.xyz/concepts/payment-lifecycle",
+        href: "https://docs.mayarin.xyz/concepts/rails#settlement-stablecoins",
       },
       { label: "Use cases", href: "/#use-cases" },
     ],
@@ -33,9 +34,10 @@ const COLUMNS = [
     heading: "Developers",
     links: [
       { label: "Documentation", href: "https://docs.mayarin.xyz" },
+      { label: "Quickstart", href: "https://docs.mayarin.xyz/quickstart" },
       { label: "API reference", href: "https://docs.mayarin.xyz/api-reference" },
       { label: "TypeScript SDK", href: "https://docs.mayarin.xyz/sdk/typescript" },
-      { label: "Quickstart", href: "https://docs.mayarin.xyz/quickstart" },
+      { label: "Webhooks", href: "https://docs.mayarin.xyz/guides/webhooks" },
     ],
   },
   {
