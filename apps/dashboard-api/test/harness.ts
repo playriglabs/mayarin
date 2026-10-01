@@ -51,6 +51,7 @@ import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing
 import { InMemoryPayoutBatchRepository } from "@mayarin/payouts/testing";
 import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
+import { InMemorySubscriptionRepository } from "@mayarin/subscriptions/testing";
 import { ManagedWalletProvisioner, SettlementAddressResolver } from "@mayarin/wallet";
 import {
   FakeMerchantKeyProvider,
@@ -84,6 +85,7 @@ import { PayoutService } from "../src/services/payout-service.ts";
 import { RegistrationService } from "../src/services/registration-service.ts";
 import { SessionService } from "../src/services/session-service.ts";
 import { SettlementReadService } from "../src/services/settlement-read-service.ts";
+import { SubscriptionService } from "../src/services/subscription-service.ts";
 import { UserService } from "../src/services/user-service.ts";
 import type {
   SendVerificationEmailRequest,
@@ -463,6 +465,19 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     clock,
   });
 
+  // Subscriptions (#296): the real service over in-memory repos, so a test can
+  // drive `tick()` against the harness clock and read the invoices it issued.
+  const subscriptionRepository = new InMemorySubscriptionRepository();
+  const subscriptions = new SubscriptionService({
+    subscriptions: subscriptionRepository,
+    merchants,
+    customers,
+    invoices,
+    emails: invoiceEmails,
+    checkoutBaseUrl: config.checkoutBaseUrl,
+    clock,
+  });
+
   const container: Container = {
     config,
     auth: authService,
@@ -484,6 +499,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     webhooks,
     wallets,
     payouts,
+    subscriptions,
     x402Resources,
     merchantWallets,
     settlementAddresses: settlementAddressResolver,

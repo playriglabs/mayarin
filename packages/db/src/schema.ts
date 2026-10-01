@@ -990,6 +990,41 @@ export const payoutBatches = pgTable(
   ],
 );
 
+/**
+ * Subscriptions (#296). The schedule (anchor, interval, cycles billed) and the
+ * lifecycle state; the next billing date is derived from the anchor, never
+ * stored, so month-end clamping cannot drift. Each billed cycle is an invoice
+ * carrying `metadata.subscriptionId`.
+ */
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: text("id").primaryKey(),
+    merchantId: text("merchant_id")
+      .notNull()
+      .references(() => merchants.id),
+    customerId: text("customer_id").notNull(),
+    subscriberName: text("subscriber_name").notNull(),
+    subscriberEmail: text("subscriber_email"),
+    description: text("description").notNull(),
+    amount: minorUnits("amount").notNull(),
+    asset: text("asset").notNull(),
+    interval: text("interval").notNull(),
+    anchorAt: timestamp("anchor_at", { withTimezone: true, mode: "date" }).notNull(),
+    billedCycles: integer("billed_cycles").notNull(),
+    daysUntilDue: integer("days_until_due").notNull(),
+    state: text("state").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true, mode: "date" }),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    index("subscriptions_merchant_idx").on(table.merchantId, table.createdAt),
+    index("subscriptions_state_idx").on(table.state, table.createdAt),
+  ],
+);
+
 /** A payout row as it is stored: money as a minor-unit string, the only shape JSON keeps exact. */
 export interface PayoutBatchRowJson {
   readonly line: number;

@@ -313,6 +313,9 @@ describe("deposit card", () => {
     expect(html).toContain("Rp 50.000,00");
     expect(html).toContain("0 USDC");
     expect(html).toContain("Payment details");
+    // The rules that decide whether a transfer completes the payment.
+    expect(html).toContain("Key things to note");
+    expect(html).toContain("transfers add up");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('aria-hidden="true"');
   });
@@ -385,15 +388,27 @@ describe("outcome", () => {
 
   test("each terminal state has words, not placeholders, and keeps the reference", () => {
     const done = renderToStaticMarkup(
-      <Outcome status="COMPLETED" intentId="pi_1" statusUrl={statusUrl} />,
+      <Outcome
+        status="COMPLETED"
+        intentId="pi_1"
+        statusUrl={statusUrl}
+        merchantName="Warung Kopi"
+      />,
     );
     expect(done).toContain("Payment completed");
     expect(done).toContain("pi_1");
     expect(
-      renderToStaticMarkup(<Outcome status="EXPIRED" intentId="pi_1" statusUrl={statusUrl} />),
+      renderToStaticMarkup(
+        <Outcome
+          status="EXPIRED"
+          intentId="pi_1"
+          statusUrl={statusUrl}
+          merchantName="Warung Kopi"
+        />,
+      ),
     ).toContain("Payment expired");
     const failed = renderToStaticMarkup(
-      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} />,
+      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} merchantName="Warung Kopi" />,
     );
     expect(failed).toContain("Payment failed");
     expect(failed).not.toContain("—");
@@ -401,15 +416,23 @@ describe("outcome", () => {
 
   test("a completed payment offers its invoice and receipt, a failed one neither (#293)", () => {
     const done = renderToStaticMarkup(
-      <Outcome status="COMPLETED" intentId="pi_1" statusUrl={statusUrl} />,
+      <Outcome
+        status="COMPLETED"
+        intentId="pi_1"
+        statusUrl={statusUrl}
+        merchantName="Warung Kopi"
+      />,
     );
     expect(done).toContain('href="/v1/payments/pi_1/invoice.pdf"');
     expect(done).toContain('href="/v1/payments/pi_1/receipt.pdf"');
 
     const failed = renderToStaticMarkup(
-      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} />,
+      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} merchantName="Warung Kopi" />,
     );
     expect(failed).not.toContain(".pdf");
+    // Failed or expired: who to ask, with the reference they will ask for.
+    expect(failed).toContain("contacting Warung Kopi");
+    expect(done).not.toContain("Already sent funds?");
   });
 });
 
@@ -425,6 +448,14 @@ describe("invoice page", () => {
     expect(html).toContain("Powered by <strong>mayarin.xyz</strong>");
     // Asset and network stay one valid, selectable pair (#244).
     expect(html).toContain("Pay with");
+    // One payment panel (#296 UX): an estimate in the chosen asset, and no
+    // strip repeating the buyer's email and the picker beside the document.
+    // Owed: the document and the payment side by side, like a payment link.
+    expect(html).toContain("checkout-shell invoice-shell");
+    expect(html).toContain("Pay this invoice");
+    expect(html).toContain("Estimated total in");
+    expect(html).not.toContain("Recipient");
+    expect(html).not.toContain("Payment method");
     expect(html).toContain("Arc Testnet");
     expect(html).toContain("Pay Rp 125.000,00");
   });

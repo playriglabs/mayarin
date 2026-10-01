@@ -489,6 +489,27 @@
   .payment-details {
     @apply mt-8 border-y border-line;
   }
+  /* A second fold directly under the first shares its hairline. */
+  .payment-details-next {
+    @apply mt-0 border-t-0;
+  }
+  .payment-notes {
+    @apply m-0 mb-3 flex list-none flex-col gap-2.5 p-0;
+  }
+  .payment-notes li {
+    @apply relative pl-7 text-xs leading-relaxed text-muted;
+  }
+  .payment-notes li::before {
+    @apply absolute top-0.5 left-0 flex size-4 items-center justify-center rounded-full text-[10px] font-bold text-paper;
+  }
+  .payment-notes li.do::before {
+    @apply bg-brand;
+    content: "✓";
+  }
+  .payment-notes li.dont::before {
+    @apply bg-danger;
+    content: "✕";
+  }
   .payment-details-trigger {
     @apply flex min-h-12 w-full cursor-pointer items-center justify-between gap-4 border-0 bg-transparent px-0 py-2.5 text-left text-xs font-medium text-ink;
   }
@@ -573,6 +594,9 @@
   }
   .state-view .reference {
     @apply mt-6;
+  }
+  .state-view .support-note {
+    @apply mt-5 max-w-sm rounded-control border border-line bg-surface px-4 py-3 text-xs leading-relaxed text-muted;
   }
   .state-view .documents {
     @apply mt-6 grid w-full max-w-sm grid-cols-2 gap-2.5;
@@ -785,13 +809,15 @@
   /* The settlement receipt: what paid this document, and on which network.
      Bordered rather than tabled because it is a fact about money that arrived,
      not another line of what was sold. */
-  /* Recipient and rails, side by side under the parties — the strip the
-     reference invoice carries above its line items. */
-  .detail-strip {
-    @apply mb-4 flex flex-wrap items-start justify-between gap-6;
+  /* An owed invoice splits like the payment-link page: the document is the
+     summary column, a little wider than a link's because it carries a table. */
+  .invoice-document {
+    @apply xl:items-center xl:justify-center;
   }
-  .payment-method {
-    @apply mt-1.5 flex items-center gap-3;
+  /* Centred in its column, like the payment panel beside it, rather than
+     pinned to the top and hugging the divider the way a link's summary is. */
+  .invoice-document .summary-inner {
+    @apply max-w-xl xl:min-h-0;
   }
   .settled {
     @apply mt-6 border border-line p-4;
@@ -866,6 +892,21 @@
   main,
   .document {
     max-width: none;
+  }
+  /* The split invoice prints as its document column alone. */
+  .checkout-shell {
+    display: block;
+    min-height: 0;
+  }
+  .checkout-summary {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: white;
+  }
+  .summary-inner {
+    max-width: none;
+    min-height: 0;
   }
   .primary,
   .screen-only {

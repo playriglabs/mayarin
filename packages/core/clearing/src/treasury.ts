@@ -14,10 +14,14 @@
  *   → post the swap and the gas → SETTLING
  * ```
  *
- * The order is **reused, never re-signed**. It was signed at `PRICE_LOCKED` and
- * persisted with the transaction; re-signing on a retry would issue a second
- * order for one payment, and the only thing stopping both from executing is
- * that the contract consumes `intentId` — a race, not a design.
+ * The order is **reused verbatim, never re-signed here**. It was signed at
+ * `PRICE_LOCKED` and persisted with the transaction. When its deadline has
+ * passed, the engine re-signs it — same economic terms, fresh deadline —
+ * before calling the executor; renewal stays above this layer, and it stays
+ * deposit-match-only, where the relayer holds the only copy so no second live
+ * order ever exists. The on-chain guard (`consumed[intentId]` +
+ * `AlreadyConsumed`, effect before every interaction) is what bounds any
+ * orphan, not this function happening to run once.
  *
  * Effects are injected. This file decides *what* happens and in what order;
  * `TreasuryExecutionPort` is the only thing that touches a key or a chain, and
@@ -63,7 +67,8 @@ export interface SweepRequest {
 export interface ExecuteRequest {
   readonly clearingTransactionId: string;
   readonly chain: ChainId;
-  /** The persisted signed order, verbatim. Never rebuilt, never re-signed. */
+  /** The persisted signed order, verbatim. Renewed by the engine before this
+   * call when its deadline had passed; the executor never re-signs. */
   readonly order: ContractOrder;
   /** What the payer deposited, now held by the operator. */
   readonly inputAmount: Money;

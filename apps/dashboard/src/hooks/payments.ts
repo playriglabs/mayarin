@@ -15,7 +15,7 @@
 import type { ApiError } from "@/lib/api/client";
 import { paymentsApi } from "@/lib/api/payments";
 import { useLiveChannel } from "@/lib/live-updates";
-import { useEffectQuery } from "@/lib/query";
+import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
   DepositResponse,
   PaymentDetailResponse,
@@ -98,5 +98,24 @@ export function useDeposit(id: string | undefined, active = true) {
       if (deposit === null) return false;
       return BigInt(deposit.received.amount) < BigInt(deposit.amount.amount) ? POLL_MS : false;
     },
+  });
+}
+
+/**
+ * POST `/payments/:id/retry` — reopen a failed payment whose funds arrived, so
+ * the ordinary steps can settle it.
+ *
+ * Invalidates the detail the button sits on — the reopened payment is
+ * `PROCESSING` again, so the page's own live-polling takes over from there —
+ * and the list, where the row's badge still says `FAILED`.
+ */
+export function useRetrySettlement(id: string) {
+  return useEffectMutation<void, void, ApiError>({
+    mutation: () => paymentsApi.retry(id),
+    toast: { loading: "Retrying settlement…", success: "Payment reopened" },
+    invalidate: [
+      ["payments", "detail", id],
+      ["payments", "list"],
+    ],
   });
 }

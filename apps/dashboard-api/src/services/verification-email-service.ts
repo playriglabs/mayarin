@@ -2,7 +2,7 @@
 
 import { ConfigurationError, ProviderError } from "@mayarin/shared";
 import { Resend } from "resend";
-import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_IMG } from "./email-brand.ts";
+import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_ATTACHMENT, LOGO_IMG } from "./email-brand.ts";
 
 export interface SendVerificationEmailRequest {
   readonly email: string;
@@ -48,6 +48,7 @@ export class ResendVerificationEmailSender implements VerificationEmailSender {
         subject: `${request.code} is your Mayarin verification code`,
         html: renderVerificationHtml(request),
         text: renderVerificationText(request),
+        attachments: [LOGO_ATTACHMENT],
         tags: [{ name: "category", value: "verification" }],
       });
       // Deliberately no idempotency key: every resend is a new code, and a

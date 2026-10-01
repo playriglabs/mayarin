@@ -16,6 +16,7 @@ import {
 import { NotFoundError } from "@mayarin/shared";
 import { type Context, Hono } from "hono";
 import type { Container } from "../container.ts";
+import { toClearingDto } from "../dto/clearing.ts";
 import { toContractCallDto } from "../dto/contract-call.ts";
 import { toDepositDto } from "../dto/deposit.ts";
 import { toPaymentDto } from "../dto/payment.ts";
@@ -140,6 +141,30 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       refunds: refunds.map(toRefundDto),
       summary: toRefundSummaryDto(summary),
     });
+  });
+
+  /**
+   * Retries a payment that failed after the payer's funds arrived — a clearing
+   * step broke on something since fixed, a swap pool missing from the config,
+   * a settlement asset not yet whitelisted, while the money sat at the deposit
+   * address. Reopens it and replays the ordinary steps; each is idempotent per
+   * state, so nothing that already happened happens twice.
+   *
+   * Public by unguessable payment id, the same rule as the status read above:
+   * the engine itself refuses what must not be retried — a payment that is not
+   * `FAILED`, or whose funds never arrived — and the retry only ever settles to
+   * the merchant's own configured destination.
+   */
+  app.post("/:id/retry", async (c) => {
+    // The caller holds whichever id they were handed, so resolve through the
+    // same view the status route uses rather than assuming a clearing id.
+    const { transaction } = await container.paymentApp.getPayment(c.req.param("id"));
+    if (transaction === null) {
+      throw new NotFoundError("This payment has no clearing transaction to retry", {});
+    }
+
+    const progress = await container.engine.retry(transaction.id);
+    return c.json({ clearing: toClearingDto(progress.transaction) });
   });
 
   /**

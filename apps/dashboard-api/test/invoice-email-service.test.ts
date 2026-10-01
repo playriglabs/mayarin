@@ -45,6 +45,11 @@ describe("ResendInvoiceEmailSender", () => {
     // The mark, not a text eyebrow, and with an alt for a client that blocks
     // images.
     expect(calls[0]?.payload.html).toContain('alt="Mayarin"');
+    // The logo rides inside the message: remote images are blocked on first open.
+    expect(calls[0]?.payload.html).toContain('src="cid:mayarin-logo"');
+    expect(calls[0]?.payload.attachments).toEqual([
+      expect.objectContaining({ contentId: "mayarin-logo", contentType: "image/png" }),
+    ]);
     expect(calls[0]?.payload.html).not.toContain("Mayarin invoice</p>");
     // The card, the totals panel and the button, each with its own radius.
     expect(calls[0]?.payload.html).toContain("border-radius:16px");

@@ -19,7 +19,7 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
-import type { AssetCode, Money } from "@mayarin/shared";
+import { type AssetCode, MayarinError, type Money } from "@mayarin/shared";
 import type { LockedRate } from "./types.ts";
 
 /**
@@ -102,4 +102,40 @@ export interface ContractLockRequest {
  */
 export interface ContractPaymentPlanner {
   lock(request: ContractLockRequest): Promise<ContractLock>;
+  /**
+   * Re-signs a persisted order with a fresh deadline. Same economic terms —
+   * same `intentId`, `minOut`, `fee`, recipients — so no party is asked to
+   * consent to anything it did not already agree to.
+   *
+   * Deposit-match only. The relayer submits the order, so the old one never
+   * left Mayarin and there is never a second live order in a payer's hands;
+   * on-chain double execution is blocked by the router consuming `intentId`
+   * (`AlreadyConsumed`). The connected-wallet path hands its order to the
+   * payer and must not renew.
+   */
+  renew(request: ContractRenewRequest): Promise<ContractOrder>;
+}
+
+/**
+ * Everything `renew` needs: the chain (the order itself carries none, and
+ * the EIP-712 domain is per-chain), the persisted order to re-sign, and the
+ * new execution deadline.
+ */
+export interface ContractRenewRequest {
+  readonly chain: ChainId;
+  readonly order: ContractOrder;
+  /** The new execution deadline; floored to whole seconds like `assembleOrder`. */
+  readonly expiresAt: Date;
+}
+
+/**
+ * The persisted order's deadline has passed and no planner could renew it.
+ * Terminal: an expired order cannot execute on-chain, and a re-sign is the
+ * only way forward — so the payment fails with this reason rather than
+ * burning attempts against a revert the contract is guaranteed to raise.
+ */
+export class OrderExpiredError extends MayarinError {
+  readonly code = "ORDER_EXPIRED";
+  readonly httpStatus = 410;
+  override readonly retryable = false;
 }

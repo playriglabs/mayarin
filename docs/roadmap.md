@@ -203,7 +203,12 @@ guess. **An expired lock fails; it never re-quotes** — a new `minOut` is a new
 price, and a new price needs the payer's consent. The contract enforces the same
 deadline on-chain, so a payment failed here cannot settle later. **The signed
 order is persisted, the route never is** — a resumed step reuses the signature
-rather than re-signing, and on-chain truth is `PaymentCompleted`.
+rather than re-signing, and on-chain truth is `PaymentCompleted`. The one
+exception is the deposit path: an order whose deadline expired before execution
+is re-signed there with the same economic terms and a fresh deadline, because
+the relayer holds the only copy (no second live order exists) and the contract's
+`consumed[intentId]` guard bounds any orphan — a renewal extends the window, it
+never re-quotes.
 
 ### Indexer & Event Ingestion
 

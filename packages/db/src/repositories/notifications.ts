@@ -69,6 +69,7 @@ export class DrizzleWebhookOutbox implements WebhookOutbox {
           notInArray(clearingEvents.type, [
             "settlement.broadcast",
             "settlement.swap",
+            "order.renewed",
           ] satisfies ClearingEventType[]),
           cursor === undefined ? undefined : gt(clearingEvents.id, cursor),
         ),

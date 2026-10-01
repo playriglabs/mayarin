@@ -260,6 +260,13 @@
       "when": 1790816400000,
       "tag": "0036_payout_batches_source_address",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790820000000,
+      "tag": "0037_subscriptions",
+      "breakpoints": true
     }
   ]
 }

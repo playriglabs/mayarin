@@ -189,5 +189,18 @@ export const CLEARING_EVENT_TYPES = [
   "payer-surplus.refund.broadcast",
   /** The payer-surplus return was read back and its liability was cleared. */
   "payer-surplus.refund.confirmed",
+  /**
+   * A failed transaction reopened for a retried settlement: `FAILED` back to
+   * `ASSET_RECEIVED`, allowed only when the payer's funds had arrived. The
+   * payload carries the failure it replaces, so the log still says what went
+   * wrong the first time.
+   */
+  "state.reopened",
+  /**
+   * The persisted deposit-match order had expired and was re-signed — same
+   * economic terms, fresh deadline — before the executor submitted it. No
+   * state change; the payload carries both deadlines.
+   */
+  "order.renewed",
 ] as const;
 export type ClearingEventType = (typeof CLEARING_EVENT_TYPES)[number];

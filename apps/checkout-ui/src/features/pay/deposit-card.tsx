@@ -26,6 +26,10 @@ export function DepositCard({
   const amount = walletAmount(deposit.amount.formatted);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const detailsId = useId();
+  // Open by default: these are the mistakes that lose a payment, and a payer
+  // reads them before sending, not after.
+  const [notesOpen, setNotesOpen] = useState(true);
+  const notesId = useId();
 
   return (
     <>
@@ -156,6 +160,49 @@ export function DepositCard({
           </div>
         </div>
       </div>
+      {/* The rules that decide whether a transfer completes this payment.
+          Only what the deposit path guarantees: an amount that reaches the
+          total funds it (transfers add up), and only this asset on this
+          network is ever counted. */}
+      <div className="payment-details payment-details-next">
+        <button
+          type="button"
+          className="payment-details-trigger"
+          aria-expanded={notesOpen}
+          aria-controls={notesId}
+          onClick={() => setNotesOpen((open) => !open)}
+        >
+          <span>Key things to note</span>
+          <span className="details-chevron" aria-hidden="true" />
+        </button>
+        <div
+          id={notesId}
+          className={`payment-details-collapse${notesOpen ? " open" : ""}`}
+          aria-hidden={!notesOpen}
+          inert={!notesOpen}
+        >
+          <div className="payment-details-clip">
+            <ul className="payment-notes">
+              <li className="do">Keep this page open until the payment is confirmed.</li>
+              <li className="do">
+                Send the exact amount before the timer runs out. The price is locked until then.
+              </li>
+              <li className="do">
+                Sent too little? Send the rest to the same address before the timer ends — transfers
+                add up.
+              </li>
+              <li className="dont">
+                Only {deposit.amount.asset} on <ChainLabel chain={deposit.chain} size={16} />{" "}
+                completes this payment. Any other asset or network is not counted.
+              </li>
+              <li className="dont">
+                Don&apos;t send from an exchange that deducts its fee from the amount — the payment
+                would arrive short.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
       <button
         type="button"
         className="copy"
@@ -164,11 +211,6 @@ export function DepositCard({
       >
         {copied === "address" ? "Address copied" : "Copy payment address"}
       </button>
-      <p className="estimate-note">
-        Send the exact amount using {deposit.amount.asset} on{" "}
-        <ChainLabel chain={deposit.chain} size={18} /> only. Other assets or networks cannot
-        complete this payment.
-      </p>
     </>
   );
 }

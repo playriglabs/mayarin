@@ -192,6 +192,30 @@ export function markFailed(intent: PaymentIntent, reason: string, now: Date): Pa
   return transition(intent, "FAILED", now, { failureReason: reason });
 }
 
+/**
+ * Reopens an intent whose clearing failed after the payer's funds arrived, so
+ * a retried settlement can complete it (#296 follow-up).
+ *
+ * Deliberately outside the transition table: `FAILED` stays terminal for every
+ * ordinary path, and this one exists only for the engine's `retry`, which has
+ * already checked that the money is there to settle.
+ */
+export function reopenIntent(intent: PaymentIntent, now: Date): PaymentIntent {
+  if (intent.status !== "FAILED") {
+    throw new InvalidStateTransitionError(`Payment intent ${intent.id} has not failed`, {
+      id: intent.id,
+      status: intent.status,
+    });
+  }
+  const { failureReason: _failureReason, ...rest } = intent;
+  return {
+    ...rest,
+    status: "PROCESSING",
+    updatedAt: new Date(now),
+    version: intent.version + 1,
+  };
+}
+
 export function markExpired(intent: PaymentIntent, now: Date): PaymentIntent {
   return transition(intent, "EXPIRED", now, {});
 }

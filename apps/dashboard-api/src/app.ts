@@ -33,6 +33,7 @@ import { paymentRoutes } from "./routes/payments.ts";
 import { payoutRoutes } from "./routes/payouts.ts";
 import { settingsRoutes } from "./routes/settings.ts";
 import { settlementRoutes } from "./routes/settlements.ts";
+import { subscriptionRoutes } from "./routes/subscriptions.ts";
 import { walletRoutes } from "./routes/wallets.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
 import { x402ResourceRoutes } from "./routes/x402-resources.ts";
@@ -149,6 +150,11 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // The merchant's customer directory. Same permission as the catalog: a
   // customer is a commerce record the merchant manages, like a product, and
   // never decides where the money lands.
+  // Subscriptions (#296): a schedule of invoices, so the invoices' permission.
+  v1.use("/subscriptions", requireAuth(), requirePermission("catalog:manage"));
+  v1.use("/subscriptions/*", requireAuth(), requirePermission("catalog:manage"));
+  v1.route("/subscriptions", subscriptionRoutes(container));
+
   v1.use("/customers", requireAuth(), requirePermission("catalog:manage"));
   v1.use("/customers/*", requireAuth(), requirePermission("catalog:manage"));
   v1.route("/customers", customerRoutes(container));

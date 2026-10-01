@@ -13,6 +13,7 @@ export * from "./repositories/payment-intent.ts";
 export * from "./repositories/payouts.ts";
 export * from "./repositories/refund.ts";
 export * from "./repositories/stablecoin.ts";
+export * from "./repositories/subscriptions.ts";
 export * from "./repositories/wallet.ts";
 export * from "./repositories/x402.ts";
 export * from "./repositories/x402-payable-quotes.ts";

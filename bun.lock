@@ -166,6 +166,7 @@
         "@mayarin/provider-turnkey": "workspace:*",
         "@mayarin/provider-x402-local": "workspace:*",
         "@mayarin/shared": "workspace:*",
+        "@mayarin/subscriptions": "workspace:*",
         "@mayarin/wallet": "workspace:*",
         "@mayarin/x402": "workspace:*",
         "effect": "^3.0.0",
@@ -447,6 +448,13 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/core/subscriptions": {
+      "name": "@mayarin/subscriptions",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/core/wallet": {
       "name": "@mayarin/wallet",
       "version": "0.1.0",
@@ -480,6 +488,7 @@
         "@mayarin/provider-stablecoin": "workspace:*",
         "@mayarin/qr-parser": "workspace:*",
         "@mayarin/shared": "workspace:*",
+        "@mayarin/subscriptions": "workspace:*",
         "@mayarin/wallet": "workspace:*",
         "@mayarin/x402": "workspace:*",
         "drizzle-orm": "^0.45.2",
@@ -1513,6 +1522,8 @@
     "@mayarin/studio": ["@mayarin/studio@workspace:apps/studio"],
 
     "@mayarin/subgraph": ["@mayarin/subgraph@workspace:packages/subgraph"],
+
+    "@mayarin/subscriptions": ["@mayarin/subscriptions@workspace:packages/core/subscriptions"],
 
     "@mayarin/wallet": ["@mayarin/wallet@workspace:packages/core/wallet"],
 

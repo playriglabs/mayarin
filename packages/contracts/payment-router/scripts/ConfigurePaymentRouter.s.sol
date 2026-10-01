@@ -39,6 +39,9 @@ import {PaymentRouter} from "../src/PaymentRouter.sol";
 ///                          (0x AllowanceHolder / Uniswap SwapRouter02)
 ///        INPUT_ASSETS      comma-separated payer ERC-20s to admit
 ///                          (empty is valid: native-only accepts no ERC-20 payer)
+///        SETTLEMENT_ASSETS comma-separated settlement ERC-20s to admit — a
+///                          merchant settling a chain in EURC or PYUSD needs it
+///                          here, or every payment into it reverts at CLEARING
 contract ConfigurePaymentRouter is Script {
     /// @dev Fixed salt: the operation id is derived from it plus the calls, so a
     ///      re-run with the same config collides — which is the desired
@@ -50,14 +53,15 @@ contract ConfigurePaymentRouter is Script {
         address routerAddress = vm.envAddress("PAYMENT_ROUTER");
         address[] memory dexRouters = vm.envOr("DEX_ROUTERS", ",", new address[](0));
         address[] memory inputAssets = vm.envOr("INPUT_ASSETS", ",", new address[](0));
+        address[] memory settlementAssets = vm.envOr("SETTLEMENT_ASSETS", ",", new address[](0));
 
-        if (dexRouters.length == 0 && inputAssets.length == 0) {
-            revert("nothing to configure: set DEX_ROUTERS and/or INPUT_ASSETS");
+        if (dexRouters.length == 0 && inputAssets.length == 0 && settlementAssets.length == 0) {
+            revert("nothing to configure: set DEX_ROUTERS, INPUT_ASSETS and/or SETTLEMENT_ASSETS");
         }
 
         TimelockController timelock = TimelockController(payable(timelockAddress));
 
-        uint256 total = dexRouters.length + inputAssets.length;
+        uint256 total = dexRouters.length + inputAssets.length + settlementAssets.length;
         address[] memory targets = new address[](total);
         uint256[] memory values = new uint256[](total);
         bytes[] memory payloads = new bytes[](total);
@@ -73,6 +77,13 @@ contract ConfigurePaymentRouter is Script {
             targets[index] = routerAddress;
             values[index] = 0;
             payloads[index] = abi.encodeCall(PaymentRouter.addInputAsset, (inputAssets[i]));
+            index += 1;
+        }
+        for (uint256 i = 0; i < settlementAssets.length; i += 1) {
+            targets[index] = routerAddress;
+            values[index] = 0;
+            payloads[index] =
+                abi.encodeCall(PaymentRouter.addSettlementAsset, (settlementAssets[i]));
             index += 1;
         }
 
@@ -100,6 +111,9 @@ contract ConfigurePaymentRouter is Script {
         }
         for (uint256 i = 0; i < inputAssets.length; i += 1) {
             console2.log("Input asset:     ", inputAssets[i]);
+        }
+        for (uint256 i = 0; i < settlementAssets.length; i += 1) {
+            console2.log("Settlement asset:", settlementAssets[i]);
         }
     }
 }

@@ -1,8 +1,8 @@
 /**
- * Payments API — read-only surface over `/payments`. Returns `Effect`s; never
- * calls `fetch` directly. Every account is merchant-scoped, so `/payments`
- * already returns only the caller's own merchant; there is no cross-merchant
- * list endpoint.
+ * Payments API — surface over `/payments`. Returns `Effect`s; never calls
+ * `fetch` directly. Every account is merchant-scoped, so `/payments` already
+ * returns only the caller's own merchant; there is no cross-merchant list
+ * endpoint.
  */
 
 import type { Effect } from "effect";
@@ -30,4 +30,12 @@ export const paymentsApi = {
   /** GET `/payments/:id/deposit` — what the payer must send, for the QR. */
   deposit: (id: string): Effect.Effect<DepositResponse, ApiError> =>
     request<DepositResponse>(`/payments/${encodeURIComponent(id)}/deposit`),
+
+  /**
+   * POST `/payments/:id/retry` — reopen a payment that failed after the payer's
+   * funds arrived, so the ordinary steps can settle it. A payment that must not
+   * be retried answers with the reason.
+   */
+  retry: (id: string): Effect.Effect<void, ApiError> =>
+    request<void>(`/payments/${encodeURIComponent(id)}/retry`, { method: "POST" }),
 };

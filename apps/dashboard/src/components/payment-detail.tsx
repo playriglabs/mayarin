@@ -11,7 +11,12 @@ import { type CartSnapshot, parseCartSnapshot } from "@mayarin/catalog";
 import { addressExplorerUrl, transactionExplorerUrl } from "@mayarin/chain";
 import { formatMoneyLocale, money } from "@mayarin/shared";
 import { getAsset, isAssetCode } from "@mayarin/shared/asset";
-import { ArrowLeftIcon, ArrowSquareOutIcon, DownloadSimpleIcon } from "@phosphor-icons/react";
+import {
+  ArrowLeftIcon,
+  ArrowSquareOutIcon,
+  ArrowsClockwiseIcon,
+  DownloadSimpleIcon,
+} from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { match, P } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
@@ -20,12 +25,12 @@ import { DepositQr } from "@/components/deposit-qr";
 import PaymentTimeline from "@/components/payment-timeline";
 import { TransactionLink } from "@/components/transaction-link";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
-import { useDeposit, usePayment } from "@/hooks/payments";
+import { useDeposit, usePayment, useRetrySettlement } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, labelOf, stepIndex, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
@@ -163,6 +168,9 @@ function PaymentDetail({ id }: { id: string }) {
   // A terminal intent has nothing left for a payer to send, so the deposit view
   // is hidden (below) and its poll is switched off — see `useDeposit`.
   const deposit = useDeposit(id, status === undefined || !TERMINAL_STATUSES.includes(status));
+  // Called unconditionally: the button it drives is rendered only on a FAILED
+  // payment, and a hook behind that render would be a conditional one.
+  const retry = useRetrySettlement(id);
 
   return (
     <section className="flex flex-col gap-6">
@@ -227,6 +235,21 @@ function PaymentDetail({ id }: { id: string }) {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  {/* A failed payment can be retried once whatever broke it is
+                      fixed — the button disappears with the FAILED status it
+                      clears, because the invalidated detail reads back
+                      PROCESSING. A payment that must not be retried answers
+                      with the reason, as a toast from the mutation. */}
+                  {intent.status === "FAILED" && clearing !== null && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => void retry.mutateAsync()}
+                      disabled={retry.isPending}
+                    >
+                      <ArrowsClockwiseIcon size={14} aria-hidden="true" />
+                      Retry settlement
+                    </Button>
+                  )}
                   <a
                     href={documents.invoiceUrl}
                     download

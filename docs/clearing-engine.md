@@ -111,6 +111,17 @@ transaction. The route and the router calldata are **not** part of the lock —
 a route goes stale faster than a price, so the checkout API builds it per
 attempt at submit time.
 
+The deposit path renews through the same port. An order whose deadline passed
+before execution — a payment retried a day after a failure, a deposit that
+arrived late — is re-signed with the **same economic terms** and a fresh
+deadline before the executor submits it: the relayer holds the only copy, so no
+second live order exists, the router's `consumed[intentId]` guard bounds any
+orphan, and the merchant's locked `minOut` is untouched, so no re-quote and no
+payer consent is involved. Without a planner to re-sign with, the payment fails
+terminally with `ORDER_EXPIRED` naming the deadline — never as the unlabelled
+revert an expired order otherwise produces. Connected-wallet and x402 orders
+are handed to the payer, so they are out of renewal scope.
+
 Rules specific to the contract path:
 
 - **`ASSET_RECEIPT_MODE` never applies.** The contract funds atomically:

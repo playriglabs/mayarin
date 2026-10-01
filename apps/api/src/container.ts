@@ -108,7 +108,12 @@ import { AssetCapabilities, facilitatorRegistry } from "@mayarin/x402";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
-import { ApiContractPlanner, ContractCheckout, createRouteSources } from "./contract-layer.ts";
+import {
+  ApiContractPlanner,
+  ContractCheckout,
+  createRouteSources,
+  RuntimeRouteSource,
+} from "./contract-layer.ts";
 import { RuntimeMarket, RuntimePriceSource, RuntimeStablecoinRegistry } from "./market.ts";
 import type { ApiKeyVerifier } from "./middleware/api-key.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
@@ -286,6 +291,8 @@ function createX402(deps: {
   merchantRails: DerivedRailCatalog;
   /** The quote lock behind a payable (#273). Shared with `x402Payables`. */
   payableQuotes: DrizzlePayableQuoteRepository;
+  /** The runtime pool set (#95), read per swap so execution matches pricing. */
+  uniswapPools: () => Promise<Config["uniswapPools"]>;
   clock: Clock;
 }): X402Service | undefined {
   const {
@@ -301,6 +308,7 @@ function createX402(deps: {
     railObservations,
     merchantRails,
     payableQuotes,
+    uniswapPools,
     clock,
   } = deps;
 
@@ -313,7 +321,10 @@ function createX402(deps: {
   // The swap half of a cross-asset rail, and its absence is what keeps such a
   // rail out of the `402`. A deployment with no route-capable venue simply does
   // not offer one, rather than pricing a payment it could not execute.
-  const routeSources = [...createRouteSources(config).values()];
+  // Resolved per swap from the runtime pools (#95), like the treasury executor:
+  // a pool added through the admin API must execute wherever it prices.
+  const routeSources =
+    createRouteSources(config).size === 0 ? [] : [new RuntimeRouteSource(config, uniswapPools)];
   const crossAssetSettler =
     routeSources.length === 0
       ? undefined
@@ -536,8 +547,10 @@ function createTreasuryExecutor(deps: {
   config: Config;
   ledger: LedgerService;
   depositAddresses: DrizzleDepositAddressRepository | undefined;
+  /** The runtime pool set (#95), read per swap so execution matches pricing. */
+  uniswapPools: () => Promise<Config["uniswapPools"]>;
 }): TreasuryExecutor | undefined {
-  const { config, ledger, depositAddresses } = deps;
+  const { config, ledger, depositAddresses, uniswapPools } = deps;
 
   if (!config.treasuryExecutionEnabled) return undefined;
   if (config.operatorPrivateKey === undefined || depositAddresses === undefined) return undefined;
@@ -565,13 +578,11 @@ function createTreasuryExecutor(deps: {
   // with a V3 pool on Base and a V2 pool on Arc has both in the map, and
   // wiring only the first made every Arc deposit fail at execution with
   // "pool for EURC/USDC is on base-sepolia".
-  const sources = [...createRouteSources(config).values()];
-
-  if (sources.length === 0) {
+  if (createRouteSources(config).size === 0) {
     throw new ConfigurationError("Treasury execution needs a route-capable venue", {});
   }
 
-  const routes = new FallbackRouteSource(sources);
+  const routes = new RuntimeRouteSource(config, uniswapPools);
 
   const port = new EvmTreasuryExecutionPort({
     clients,
@@ -777,6 +788,7 @@ export function createContainer({
     config,
     ledger,
     depositAddresses,
+    uniswapPools: async () => (await market.uniswapPools()) as Config["uniswapPools"],
   });
 
   const rates = new LiquidityRouter({ source: new RuntimePriceSource(market) });
@@ -1011,6 +1023,7 @@ export function createContainer({
     railObservations,
     merchantRails: railCatalog,
     payableQuotes,
+    uniswapPools: async () => (await market.uniswapPools()) as Config["uniswapPools"],
     clock,
   });
 

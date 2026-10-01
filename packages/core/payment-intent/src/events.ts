@@ -9,6 +9,8 @@ export const PAYMENT_INTENT_EVENT = {
   processing: "payment_intent.processing",
   completed: "payment_intent.completed",
   failed: "payment_intent.failed",
+  /** A failed intent reopened for a retried settlement; its funds had arrived. */
+  reopened: "payment_intent.reopened",
   expired: "payment_intent.expired",
 } as const;
 

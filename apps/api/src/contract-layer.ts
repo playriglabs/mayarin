@@ -21,10 +21,17 @@ import type {
   ClearingEngine,
   ContractLock,
   ContractLockRequest,
+  ContractOrder,
   ContractPaymentPlanner,
+  ContractRenewRequest,
   FeePolicy,
 } from "@mayarin/clearing";
-import type { ExecutableRoute, SwapRouteSource } from "@mayarin/execution";
+import {
+  type ExecutableRoute,
+  FallbackRouteSource,
+  type RouteRequest,
+  type SwapRouteSource,
+} from "@mayarin/execution";
 import type { MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
 import { buildPayEthCall, deriveIntentId, type RouterCall } from "@mayarin/provider-evm";
 import { ZeroExRouteSource } from "@mayarin/provider-swap-0x";
@@ -278,6 +285,49 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     });
   }
 
+  /**
+   * Re-signs a persisted order with a fresh deadline — the recovery path for a
+   * deposit-match payment retried after its order expired.
+   *
+   * No pricing happens here, on purpose: the merchant's `minOut` was locked at
+   * `PRICE_LOCKED` and stays exactly as signed, so renewal changes the
+   * executable window and nothing else. Every economic field is copied
+   * verbatim from the persisted order, including the `intentId` — byte-identical
+   * to what the router's `consumed` guard checks on-chain.
+   */
+  async renew(request: ContractRenewRequest): Promise<ContractOrder> {
+    const { contract } = this.#options;
+    const router = contract.paymentRouters[request.chain];
+    if (router === undefined) {
+      throw new ConfigurationError(`No PaymentRouter deployed on ${request.chain}`, {
+        chain: request.chain,
+      });
+    }
+    const quote = await this.#options.quote();
+
+    const order: Order = {
+      ...toQuoteOrder(request.order),
+      // Floored to whole seconds, exactly like `assembleOrder` and like lock's
+      // `orderDeadline`.
+      deadline: BigInt(request.expiresAt.getTime()) / 1_000n,
+    };
+    const signed = await signOrder(
+      quote.signer,
+      {
+        chainId: EVM_CHAIN_IDS[request.chain],
+        verifyingContract: router as Hex,
+      },
+      order,
+    );
+
+    return {
+      ...request.order,
+      deadline: order.deadline,
+      signature: signed.signature,
+      signer: await quote.signer.address(),
+    };
+  }
+
   async #contractLock(parts: {
     readonly settlementAmount: Money;
     readonly fee: Money;
@@ -467,7 +517,7 @@ export class ContractCheckout {
   }
 }
 
-function toQuoteOrder(order: ClearingContract["order"]): Order {
+function toQuoteOrder(order: ContractOrder): Order {
   return {
     intentId: order.intentId as Hex,
     settlementToken: order.settlementToken as Hex,
@@ -495,6 +545,32 @@ function orderRouteSources(
     .filter(([name]) => name !== pricedBy)
     .map(([, source]) => source);
   return [preferred, ...rest];
+}
+
+/**
+ * Every route-capable venue, rebuilt from the runtime pools on each route.
+ *
+ * The treasury executor and the x402 cross-asset settler are built once at
+ * boot. Handing them `createRouteSources(config)` froze the `.env` pools, so a
+ * pool added through the admin API (#95) priced a payment — the quote layer
+ * reads the runtime config — and then failed it at execution with "Uniswap has
+ * no configured pool". Resolving per route keeps pricing and execution on the
+ * same pool set, the way the contract checkout already does.
+ */
+export class RuntimeRouteSource implements SwapRouteSource {
+  readonly name = "runtime";
+  readonly #config: Config;
+  readonly #pools: () => Promise<Config["uniswapPools"]>;
+
+  constructor(config: Config, pools: () => Promise<Config["uniswapPools"]>) {
+    this.#config = config;
+    this.#pools = pools;
+  }
+
+  async route(request: RouteRequest): Promise<ExecutableRoute> {
+    const sources = [...createRouteSources(this.#config, await this.#pools()).values()];
+    return new FallbackRouteSource(sources).route(request);
+  }
 }
 
 /** Builds the route sources the checkout fetches from, keyed by venue name. */

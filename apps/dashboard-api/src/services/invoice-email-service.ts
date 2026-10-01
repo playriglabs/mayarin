@@ -2,7 +2,7 @@
 
 import { ConfigurationError, ProviderError } from "@mayarin/shared";
 import { Resend } from "resend";
-import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_IMG } from "./email-brand.ts";
+import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_ATTACHMENT, LOGO_IMG } from "./email-brand.ts";
 
 export interface SendInvoiceEmailRequest {
   readonly invoiceId: string;
@@ -54,6 +54,7 @@ export class ResendInvoiceEmailSender implements InvoiceEmailSender {
           subject: `${request.merchantName} sent invoice ${request.invoiceNumber}`,
           html: renderInvoiceHtml(request),
           text: renderInvoiceText(request),
+          attachments: [LOGO_ATTACHMENT],
           tags: [{ name: "category", value: "invoice" }],
         },
         // A retried click reuses its delivery id and remains one message. A
