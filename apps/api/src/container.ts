@@ -30,6 +30,7 @@ import {
   type DatabaseHandle,
   DrizzleApiKeyRepository,
   DrizzleClearingRepository,
+  DrizzleCustomerRepository,
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
   DrizzleInternalSettlementStore,
@@ -45,6 +46,7 @@ import {
   DrizzleProductRepository,
   DrizzleRefundRepository,
   DrizzleSettlementEventRepository,
+  DrizzleSubscriptionRepository,
   DrizzleWatcherCursorRepository,
   DrizzleWebhookCursorRepository,
   DrizzleWebhookDeliveryRepository,
@@ -122,6 +124,7 @@ import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
 import { CachedRailObservations } from "./services/rail-observations.ts";
+import { SubscriptionApiService } from "./services/subscriptions.ts";
 import { FetchWebhookTransport } from "./services/webhook-transport.ts";
 import { X402Service } from "./services/x402.ts";
 import { X402PayableService } from "./services/x402-payables.ts";
@@ -142,6 +145,8 @@ export interface Container {
   readonly commerce: CheckoutService;
   /** Invoices: a payment link that also carries a buyer, a due date and a number (#112). */
   readonly invoices: InvoiceService;
+  /** Recurring plans (#296); the dashboard API's tick bills them. */
+  readonly subscriptions: SubscriptionApiService;
   readonly ledger: LedgerService;
   readonly engine: ClearingEngine;
   /**
@@ -718,6 +723,12 @@ export function createContainer({
     payments: intentRepository,
     clock,
   });
+  const subscriptions = new SubscriptionApiService({
+    subscriptions: new DrizzleSubscriptionRepository(handle.db),
+    customers: new DrizzleCustomerRepository(handle.db),
+    invoices,
+    clock,
+  });
 
   const ledger = new LedgerService({
     repository: new DrizzleLedgerRepository(handle.db, clock),
@@ -1048,6 +1059,7 @@ export function createContainer({
     catalog,
     commerce,
     invoices,
+    subscriptions,
     ledger,
     engine,
     rates,

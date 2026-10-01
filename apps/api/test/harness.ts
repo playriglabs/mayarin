@@ -16,7 +16,11 @@ import {
 } from "@mayarin/auth";
 import { InMemoryApiKeyRepository } from "@mayarin/auth/testing";
 import { CatalogService, CheckoutService } from "@mayarin/catalog";
-import { InMemoryPaymentLinkRepository, InMemoryProductRepository } from "@mayarin/catalog/testing";
+import {
+  InMemoryCustomerRepository,
+  InMemoryPaymentLinkRepository,
+  InMemoryProductRepository,
+} from "@mayarin/catalog/testing";
 import {
   BasisPointsFeePolicy,
   ClearingEngine,
@@ -41,6 +45,7 @@ import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
 import { InMemoryMarketConfigStore } from "@mayarin/shared/testing";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
+import { InMemorySubscriptionRepository } from "@mayarin/subscriptions/testing";
 import { WalletGuard } from "@mayarin/wallet";
 import { InMemoryMerchantWalletRepository } from "@mayarin/wallet/testing";
 import { createApp } from "../src/app.ts";
@@ -51,6 +56,7 @@ import { chainReceipts, QuotePricingSource } from "../src/rails.ts";
 import { createApiKeyVerifier } from "../src/services/api-key-verifier.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 import { PaymentStream } from "../src/services/payment-stream.ts";
+import { SubscriptionApiService } from "../src/services/subscriptions.ts";
 
 export const WEBHOOK_SECRET = "whsec_mayarin_test";
 
@@ -206,6 +212,14 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     defaultSettlementAsset: config.settlementAsset,
   });
 
+  const invoices = new InvoiceService({
+    invoices: new InMemoryInvoiceRepository(),
+    checkout: commerce,
+    payments: intentRepository,
+    clock,
+  });
+  const customers = new InMemoryCustomerRepository();
+
   const container: Container = {
     config,
     verifyApiKey: createApiKeyVerifier({ keys: apiKeys, clock }),
@@ -214,10 +228,11 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     rails,
     catalog: new CatalogService({ products, links, clock }),
     commerce,
-    invoices: new InvoiceService({
-      invoices: new InMemoryInvoiceRepository(),
-      checkout: commerce,
-      payments: intentRepository,
+    invoices,
+    subscriptions: new SubscriptionApiService({
+      subscriptions: new InMemorySubscriptionRepository(),
+      customers,
+      invoices,
       clock,
     }),
     ledger,

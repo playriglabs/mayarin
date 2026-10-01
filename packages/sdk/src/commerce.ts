@@ -5,6 +5,7 @@ import type {
   CreateInvoiceBody,
   CreatePaymentLinkBody,
   CreateProductBody,
+  CreateSubscriptionBody,
   EditInvoiceBodyDto,
   InvoiceDto,
   InvoiceViewDto,
@@ -13,6 +14,7 @@ import type {
   PaymentLinkDto,
   PaymentRailsDto,
   ProductDto,
+  SubscriptionDto,
   UpdateProductBody,
 } from "@mayarin/api/dto";
 import type { RequestOptions, Transport } from "./transport.ts";
@@ -96,6 +98,26 @@ export interface CommerceModule {
       body?: CheckoutInvoiceBody,
       options?: RequestOptions,
     ) => Promise<PaymentIntentDto>;
+  };
+  /**
+   * Recurring plans (#296), send-to-pay: every cycle Mayarin issues the
+   * subscriber an invoice and emails its pay link. Payments on a cycle carry
+   * `metadata.subscriptionId` into the `payment.*` webhooks.
+   */
+  readonly subscriptions: {
+    readonly create: (
+      body: CreateSubscriptionBody,
+      options?: RequestOptions,
+    ) => Promise<SubscriptionDto>;
+    readonly list: (options?: RequestOptions) => Promise<readonly SubscriptionDto[]>;
+    /** The subscription plus every cycle's invoice, newest first, each with its pay `url`. */
+    readonly get: (
+      id: string,
+      options?: RequestOptions,
+    ) => Promise<{ subscription: SubscriptionDto; cycles: readonly InvoiceViewDto[] }>;
+    readonly pause: (id: string, options?: RequestOptions) => Promise<SubscriptionDto>;
+    readonly resume: (id: string, options?: RequestOptions) => Promise<SubscriptionDto>;
+    readonly cancel: (id: string, options?: RequestOptions) => Promise<SubscriptionDto>;
   };
 }
 
@@ -224,7 +246,38 @@ export function createCommerceModule(transport: Transport): CommerceModule {
           )
         ).paymentIntent,
     },
+    subscriptions: {
+      create: async (body, options) =>
+        (await transport.post<{ subscription: SubscriptionDto }>("/subscriptions", body, options))
+          .subscription,
+      list: async (options) =>
+        (
+          await transport.get<{ subscriptions: readonly SubscriptionDto[] }>(
+            "/subscriptions",
+            options,
+          )
+        ).subscriptions,
+      get: async (id, options) =>
+        transport.get<{ subscription: SubscriptionDto; cycles: readonly InvoiceViewDto[] }>(
+          itemPath("/subscriptions", id),
+          options,
+        ),
+      pause: async (id, options) => subscriptionAction(transport, id, "pause", options),
+      resume: async (id, options) => subscriptionAction(transport, id, "resume", options),
+      cancel: async (id, options) => subscriptionAction(transport, id, "cancel", options),
+    },
   };
+}
+
+async function subscriptionAction(
+  transport: Transport,
+  id: string,
+  action: "pause" | "resume" | "cancel",
+  options: RequestOptions | undefined,
+): Promise<SubscriptionDto> {
+  const path = `${itemPath("/subscriptions", id)}/${action}`;
+  return (await transport.post<{ subscription: SubscriptionDto }>(path, undefined, options))
+    .subscription;
 }
 
 /**

@@ -373,6 +373,15 @@ export class DrizzleCustomerRepository implements CustomerRepository {
     return row === undefined ? null : toCustomer(row);
   }
 
+  async findByEmail(merchantId: string, email: string): Promise<Customer | null> {
+    const [row] = await this.#db
+      .select()
+      .from(customers)
+      .where(and(eq(customers.merchantId, merchantId), eq(customers.email, email)))
+      .limit(1);
+    return row === undefined ? null : toCustomer(row);
+  }
+
   async listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]> {
     const filters = [
       eq(customers.merchantId, options.merchantId),

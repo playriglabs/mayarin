@@ -17,5 +17,6 @@ export * from "./payment.ts";
 export * from "./payment-intent.ts";
 export * from "./rails.ts";
 export * from "./refund.ts";
+export * from "./subscription.ts";
 export * from "./x402-payable.ts";
 export * from "./x402-resource.ts";

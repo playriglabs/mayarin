@@ -15,6 +15,9 @@
 
 import type { Money } from "@mayarin/shared";
 
+/** The metadata key a cycle's invoice — and so every payment on it — carries. */
+export const SUBSCRIPTION_METADATA_KEY = "subscriptionId";
+
 export const SUBSCRIPTION_INTERVALS = ["week", "month", "year"] as const;
 
 export type SubscriptionInterval = (typeof SUBSCRIPTION_INTERVALS)[number];

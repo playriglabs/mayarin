@@ -66,6 +66,31 @@ describe("merchant commerce module", () => {
     expect(calls[0]?.url).toBe("https://api.test/v1/invoices");
   });
 
+  test("creates a subscription and returns the plan", async () => {
+    const subscription = { id: "sub_1", state: "active" };
+    const { calls, client } = clientReturning({ subscription });
+    const result = await client.commerce.subscriptions.create({
+      customer: { name: "Ayu", email: "ayu@example.com" },
+      description: "Pro plan",
+      amount: { amount: "29.00", asset: "USD" },
+      interval: "month",
+    });
+    expect(result.id).toBe("sub_1");
+    expect(calls[0]).toMatchObject({ url: "https://api.test/v1/subscriptions", method: "POST" });
+  });
+
+  test("cancels a subscription through its action route", async () => {
+    const { calls, client } = clientReturning({
+      subscription: { id: "sub_1", state: "cancelled" },
+    });
+    const result = await client.commerce.subscriptions.cancel("sub_1");
+    expect(result.state).toBe("cancelled");
+    expect(calls[0]).toMatchObject({
+      url: "https://api.test/v1/subscriptions/sub_1/cancel",
+      method: "POST",
+    });
+  });
+
   test("checks out a cart through /carts/checkout (#113)", async () => {
     const paymentIntent = { id: "pi_1", status: "CREATED" };
     const { calls, client } = clientReturning({

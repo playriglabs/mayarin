@@ -36,6 +36,7 @@ import {
   nextBillingAt,
   pauseSubscription,
   resumeSubscription,
+  SUBSCRIPTION_METADATA_KEY,
   type Subscription,
   type SubscriptionInterval,
   type SubscriptionRepository,
@@ -43,9 +44,6 @@ import {
 import type { Scope } from "../dto/auth.ts";
 import { snapshotOf } from "../merchant-snapshot.ts";
 import type { InvoiceEmailSender } from "./invoice-email-service.ts";
-
-/** The metadata key a cycle's invoice — and so its payments — carry. */
-export const SUBSCRIPTION_METADATA_KEY = "subscriptionId";
 
 const DAY_MS = 86_400_000;
 

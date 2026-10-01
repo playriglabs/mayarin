@@ -22,6 +22,7 @@ import { paymentIntentRoutes } from "./routes/payment-intents.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { quoteRoutes } from "./routes/quotes.ts";
+import { subscriptionRoutes } from "./routes/subscriptions.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
 import { x402Routes } from "./routes/x402.ts";
 import { x402ResourceRoutes } from "./routes/x402-resources.ts";
@@ -98,6 +99,7 @@ export function createApp(container: Container): Hono {
   v1.route("/payment-links", paymentLinkRoutes(container));
   // Invoices (#112): the commerce layer plus a buyer, a due date and a number.
   v1.route("/invoices", invoiceRoutes(container));
+  v1.route("/subscriptions", subscriptionRoutes(container));
 
   const adminToken = container.config.adminToken;
   if (adminToken !== undefined) {

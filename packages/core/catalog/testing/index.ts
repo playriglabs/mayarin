@@ -182,6 +182,13 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     return this.#byId.get(id) ?? null;
   }
 
+  async findByEmail(merchantId: string, email: string): Promise<Customer | null> {
+    for (const customer of this.#byId.values()) {
+      if (customer.merchantId === merchantId && customer.email === email) return customer;
+    }
+    return null;
+  }
+
   async listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]> {
     const q = options.q?.toLocaleLowerCase();
     const direction = options.sort === "created" ? 1 : -1;

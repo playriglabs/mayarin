@@ -46,10 +46,34 @@ Any other email failure fails the cycle, and the next tick retries it.
 
 Payments on a cycle carry `metadata.subscriptionId` (the invoice's metadata
 rides onto its intents), so the existing `payment.*` webhooks already name the
-subscription. A dedicated `subscription.cycle_created` event would need the
+subscription. `SUBSCRIPTION_METADATA_KEY` (`@mayarin/subscriptions`) names
+the key for both surfaces. A dedicated `subscription.cycle_created` event would need the
 webhook model to carry non-payment events, and is left for later.
 
-## API (dashboard, `catalog:manage`)
+## Public API (`apps/api`, secret key)
+
+What a SaaS backend calls at signup. `SubscriptionApiService` writes the same
+table the dashboard does and never bills: the dashboard API's tick bills every
+active row, whichever surface created it.
+
+| Route                                                    | Permission       | What it does                                      |
+| -------------------------------------------------------- | ---------------- | ------------------------------------------------- |
+| `POST /v1/subscriptions`                                 | `catalog:manage` | Create from an inline `customer: { name, email }` |
+| `GET /v1/subscriptions`                                  | any secret key   | The merchant's subscriptions, newest first        |
+| `GET /v1/subscriptions/:id`                              | any secret key   | The subscription and every cycle's invoice view   |
+| `POST /v1/subscriptions/:id/pause`, `/resume`, `/cancel` | `catalog:manage` | Lifecycle transitions; illegal ones answer 409    |
+
+The subscriber arrives inline because a SaaS knows its user's email, not a
+Mayarin customer id. `CustomerRepository.findByEmail` reuses the merchant's
+customer with that email (one per email, by the unique index) or creates one,
+so the dashboard shows one customer however many plans they hold. The email is
+required here: every cycle is emailed. `daysUntilDue` defaults to 7.
+
+Creation is not idempotent. A caller that may retry stores the returned id.
+The SDK exposes the surface as `commerce.subscriptions`, and the integration
+guide is `apps/docs/content/docs/guides/subscriptions.mdx`.
+
+## Dashboard API (`catalog:manage`)
 
 | Route                                                 | What it does                                   |
 | ----------------------------------------------------- | ---------------------------------------------- |

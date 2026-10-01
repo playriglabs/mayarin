@@ -63,6 +63,8 @@ export interface ListCustomersOptions {
 export interface CustomerRepository {
   insert(customer: Customer): Promise<void>;
   findById(id: string): Promise<Customer | null>;
+  /** The merchant's customer with this email — at most one, by the unique index. */
+  findByEmail(merchantId: string, email: string): Promise<Customer | null>;
   listByMerchant(options: ListCustomersOptions): Promise<readonly Customer[]>;
   update(customer: Customer, expectedVersion: number): Promise<void>;
   delete(id: string): Promise<void>;

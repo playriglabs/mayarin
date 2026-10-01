@@ -44,6 +44,7 @@
     "@mayarin/settlement": "workspace:*",
     "@mayarin/shared": "workspace:*",
     "@mayarin/stablecoin": "workspace:*",
+    "@mayarin/subscriptions": "workspace:*",
     "@mayarin/wallet": "workspace:*",
     "@mayarin/x402": "workspace:*",
     "hono": "^4.6.16",
