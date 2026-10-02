@@ -19,6 +19,13 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
@@ -40,31 +47,40 @@ import {
 import { withQuery } from "@/lib/with-query";
 import type { DisputeCaseDto } from "@/types/payment";
 
+type Decision = "release" | "refund" | "split";
+
 function DisputeCase({ id }: { readonly id: string }) {
   const found = useDisputeCase(id);
   const postMessage = useArbiterMessage(id);
-  const [deciding, setDeciding] = useState<"release" | "refund" | "split" | undefined>();
+  const [deciding, setDeciding] = useState<Decision | undefined>();
   /** The merchant's share of a split, in percent (#315). */
   const [payeePercent, setPayeePercent] = useState("50");
-  // Several extensions can be installed at once (MetaMask, Phantom, …); the
-  // arbiter key lives in one of them, so the arbiter picks — MetaMask first.
+  // Several extensions can be installed at once (MetaMask, Phantom, …) and the
+  // arbiter key lives in one of them, so a decision asks which one signs.
   const [wallets, setWallets] = useState<readonly InjectedWallet[]>([]);
-  const [walletName, setWalletName] = useState<string | undefined>();
+  const [choosing, setChoosing] = useState<Decision | undefined>();
 
   useEffect(() => {
     let live = true;
     void discoverWallets().then((found) => {
-      if (!live) return;
-      setWallets(found);
-      setWalletName((found.find((w) => /metamask/i.test(w.name)) ?? found[0])?.name);
+      if (live) setWallets(found);
     });
     return () => {
       live = false;
     };
   }, []);
+
+  /** One wallet signs straight away; with several, the picker opens first. */
+  function start(data: DisputeCaseDto, action: Decision) {
+    setError(undefined);
+    const [only] = wallets;
+    if (only === undefined) setError("No browser wallet found");
+    else if (wallets.length === 1) void decide(data, action, only);
+    else setChoosing(action);
+  }
   const [error, setError] = useState<string | undefined>();
 
-  async function decide(data: DisputeCaseDto, action: "release" | "refund" | "split") {
+  async function decide(data: DisputeCaseDto, action: Decision, wallet: InjectedWallet) {
     setDeciding(action);
     setError(undefined);
     try {
@@ -72,8 +88,6 @@ function DisputeCase({ id }: { readonly id: string }) {
         action === "split"
           ? await runEffect(disputesApi.resolveCall(id, Math.round(Number(payeePercent) * 100)))
           : { to: data.escrow.factory, data: data.escrow.calls[action] };
-      const wallet = wallets.find((w) => w.name === walletName);
-      if (wallet === undefined) throw new Error("No browser wallet found");
       // The factory accepts the decision only from the arbiter.
       const account = await requestSpecificAccount(wallet.provider, data.escrow.terms.arbiter);
       await switchChain(wallet.provider, BigInt(data.escrow.chainId));
@@ -169,36 +183,17 @@ function DisputeCase({ id }: { readonly id: string }) {
                 </dl>
                 {open && (
                   <div className="flex flex-col gap-2 border-t border-border p-4">
-                    {wallets.length > 1 && (
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">Sign with</span>
-                        {wallets.map((wallet) => (
-                          <Button
-                            key={wallet.name}
-                            size="sm"
-                            variant={wallet.name === walletName ? "default" : "secondary"}
-                            aria-pressed={wallet.name === walletName}
-                            onClick={() => setWalletName(wallet.name)}
-                          >
-                            {wallet.icon !== undefined && (
-                              <img src={wallet.icon} alt="" className="size-4 rounded-sm" />
-                            )}
-                            {wallet.name}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         disabled={deciding !== undefined}
-                        onClick={() => void decide(data, "release")}
+                        onClick={() => start(data, "release")}
                       >
                         {deciding === "release" ? "Releasing…" : "Release to merchant"}
                       </Button>
                       <Button
                         variant="secondary"
                         disabled={deciding !== undefined}
-                        onClick={() => void decide(data, "refund")}
+                        onClick={() => start(data, "refund")}
                       >
                         {deciding === "refund" ? "Refunding…" : "Refund buyer"}
                       </Button>
@@ -221,7 +216,7 @@ function DisputeCase({ id }: { readonly id: string }) {
                             variant="secondary"
                             className="h-auto"
                             disabled={deciding !== undefined || !splitValid}
-                            onClick={() => void decide(data, "split")}
+                            onClick={() => start(data, "split")}
                           >
                             {deciding === "split" ? "Splitting…" : "Split"}
                           </Button>
@@ -238,6 +233,41 @@ function DisputeCase({ id }: { readonly id: string }) {
               </Card>
             </section>
           </div>
+
+          <Dialog
+            open={choosing !== undefined}
+            onOpenChange={(next) => {
+              if (!next) setChoosing(undefined);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Sign with</DialogTitle>
+                <DialogDescription>
+                  The wallet holding the arbiter key {shortHash(escrow.terms.arbiter)}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-2">
+                {wallets.map((wallet) => (
+                  <Button
+                    key={wallet.name}
+                    variant="secondary"
+                    className="justify-start"
+                    onClick={() => {
+                      const action = choosing;
+                      setChoosing(undefined);
+                      if (action !== undefined) void decide(data, action, wallet);
+                    }}
+                  >
+                    {wallet.icon !== undefined && (
+                      <img src={wallet.icon} alt="" className="size-5 rounded-sm" />
+                    )}
+                    {wallet.name}
+                  </Button>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       );
     })
