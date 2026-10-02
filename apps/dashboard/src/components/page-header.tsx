@@ -29,7 +29,7 @@ function PageHeader({
       {...props}
     >
       <div className="flex flex-col gap-3">
-        <h1 className="text-[26px] font-medium text-foreground">{title}</h1>
+        <h1 className="font-display text-[26px] font-medium text-foreground">{title}</h1>
         {description !== undefined && (
           <p className="text-base text-muted-foreground">{description}</p>
         )}
