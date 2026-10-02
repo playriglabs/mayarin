@@ -243,7 +243,9 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     engine,
     rates,
     paymentApp,
-    escrow: new EscrowService(paymentApp, {}, new InMemoryEscrowDisputeLog(), clock),
+    escrow: new EscrowService(paymentApp, {}, new InMemoryEscrowDisputeLog(), clock, {
+      opened: async () => {},
+    }),
     payerStanding: new PayerStanding(
       { payerRecord: async () => ({ escrowed: 0, disputes: 0, lost: 0 }) },
       async () => DEFAULT_DISPUTE_STANDING,

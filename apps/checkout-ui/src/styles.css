@@ -453,6 +453,9 @@
   .escrow-status-released {
     @apply bg-brand/12 text-brand;
   }
+  .escrow-status-split {
+    @apply bg-brand/12 text-brand;
+  }
   .escrow-status-refunded {
     @apply bg-line text-muted;
   }
@@ -466,8 +469,12 @@
   .dispute-thread {
     @apply mt-4 flex flex-col gap-3 border-t border-line pt-4;
   }
+  /* A fixed height that scrolls, so a long thread never pushes the page down. */
   .dispute-thread ol {
-    @apply m-0 flex list-none flex-col gap-2 p-0;
+    @apply m-0 flex max-h-56 list-none flex-col gap-2 overflow-y-auto overscroll-contain p-0;
+  }
+  .state-view .dispute-thread .dispute-reference {
+    @apply m-0 text-xs text-muted;
   }
   .dispute-message {
     @apply rounded-control border border-line bg-paper px-3 py-2;
@@ -488,10 +495,18 @@
     @apply text-xs font-medium text-ink;
   }
   .dispute-thread textarea {
-    @apply w-full resize-y rounded-control border border-field bg-paper px-3 py-2 font-[inherit] text-sm text-ink;
+    @apply block w-full resize-none rounded-control border border-field bg-paper px-3 py-2 font-[inherit] text-sm text-ink;
   }
-  .dispute-thread button.secondary {
-    @apply min-h-10;
+  /* "Sign and send" and "Release payment" share one row. */
+  .dispute-actions {
+    @apply grid grid-cols-2 gap-2.5;
+  }
+  .dispute-actions button.primary,
+  .dispute-actions button.secondary {
+    @apply mt-0 min-h-11;
+  }
+  .dispute-actions button:only-child {
+    @apply col-span-2;
   }
   .escrow-actions {
     @apply mt-5 grid grid-cols-2 gap-2.5;

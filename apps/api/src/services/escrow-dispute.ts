@@ -17,9 +17,14 @@ import type {
 } from "@mayarin/db";
 
 export interface EscrowDisputeLog {
-  open(input: OpenDispute, now: Date): Promise<EscrowDispute>;
+  /** `opened` is true only for the call that created the case file. */
+  open(input: OpenDispute, now: Date): Promise<{ dispute: EscrowDispute; opened: boolean }>;
   findByPaymentIntentId(paymentIntentId: string): Promise<EscrowDispute | undefined>;
-  close(paymentIntentId: string, status: "released" | "refunded", now: Date): Promise<void>;
+  close(
+    paymentIntentId: string,
+    status: "released" | "refunded" | "split",
+    now: Date,
+  ): Promise<void>;
   listOpen(): Promise<readonly EscrowDispute[]>;
   markAlerted(id: string, alert: DisputeAlert): Promise<void>;
   listMessages(disputeId: string): Promise<readonly DisputeMessage[]>;
@@ -63,6 +68,11 @@ export function alertDue(dispute: EscrowDispute, now: Date): DisputeAlert | unde
 }
 
 export type DisputeAlertSink = (text: string) => Promise<void>;
+
+/** Tells the merchant a dispute was opened on one of their payments (#313). */
+export interface DisputeNotifier {
+  opened(dispute: EscrowDispute): Promise<void>;
+}
 
 /**
  * Logs the warning, and posts it as `{ text }` when a webhook is configured.

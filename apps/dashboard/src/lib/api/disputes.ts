@@ -22,4 +22,23 @@ export const disputesApi = {
       method: "POST",
       body: { body },
     }),
+
+  /** GET `/disputes/:id/resolve` — the split call for the arbiter's wallet (#315). */
+  resolveCall: (
+    id: string,
+    payeeBps: number,
+  ): Effect.Effect<{ readonly to: string; readonly data: string }, ApiError> =>
+    request<{ readonly to: string; readonly data: string }>(
+      `/disputes/${encodeURIComponent(id)}/resolve?payeeBps=${payeeBps}`,
+    ),
+
+  /** GET `/escrow-disputes` — the caller's merchant's own disputes, with the open count. */
+  forMerchant: (): Effect.Effect<
+    { readonly disputes: readonly DisputeDto[]; readonly open: number },
+    ApiError
+  > => request<{ disputes: readonly DisputeDto[]; open: number }>("/escrow-disputes"),
+
+  /** GET `/escrow-disputes/:id` — one of the merchant's own disputes, with its thread. */
+  merchantCase: (id: string): Effect.Effect<DisputeCaseDto, ApiError> =>
+    request<DisputeCaseDto>(`/escrow-disputes/${encodeURIComponent(id)}`),
 };

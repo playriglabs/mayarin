@@ -489,7 +489,12 @@ function fingerprintOf(
       ? []
       : command.escrow === null
         ? ["escrow:none"]
-        : [`escrow:${command.escrow.holdSeconds}:${command.escrow.arbiter ?? ""}`]),
+        : [
+            `escrow:${command.escrow.holdSeconds}:${command.escrow.arbiter ?? ""}${
+              // Appended only when set, so fingerprints stored before #315 still match.
+              command.escrow.bondBps === undefined ? "" : `:${command.escrow.bondBps}`
+            }`,
+          ]),
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }

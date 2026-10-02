@@ -31,6 +31,12 @@ export function disputeRoutes(container: Container): Hono<{ Variables: AuthVars 
     return c.json(toDisputeCaseDto(await container.disputes.case(c.req.param("id"))));
   });
 
+  /** The split call (#315); the arbiter's wallet sends it, nothing here signs. */
+  app.get("/:id/resolve", async (c) => {
+    const payeeBps = Number(c.req.query("payeeBps"));
+    return c.json(await container.disputes.resolveCall(c.req.param("id"), payeeBps));
+  });
+
   app.post("/:id/messages", csrfMiddleware(), async (c) => {
     const { body } = disputeMessageBodySchema.parse(await c.req.json());
     const message = await container.disputes.postArbiterMessage(c.req.param("id"), body);

@@ -1,0 +1,11 @@
+---
+import DisputeCase from "../../components/dispute-case.tsx";
+import Protected from "../../layouts/dashboard.astro";
+
+const { id } = Astro.params;
+if (id === undefined) return Astro.redirect("/arbitration");
+---
+
+<Protected title="Dispute">
+  <DisputeCase id={id} client:load />
+</Protected>

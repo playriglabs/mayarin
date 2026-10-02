@@ -54,7 +54,7 @@ export const paymentIntents = pgTable(
     // How the payment rail is executed. Null for a fiat-only intent.
     executionPath: text("execution_path"),
     /** Conditional settlement terms (#304). Null for an ordinary payment. */
-    escrow: jsonb("escrow").$type<{ holdSeconds: number; arbiter?: string }>(),
+    escrow: jsonb("escrow").$type<{ holdSeconds: number; arbiter?: string; bondBps?: number }>(),
 
     sourceType: text("source_type").notNull(),
     sourceScheme: text("source_scheme"),
@@ -156,6 +156,8 @@ export const clearingTransactions = pgTable(
       arbiter: string;
       releaseAfter: string;
       resolveBy: string;
+      /** EscrowFactoryV2's dispute bond (#315), decimal minor units; absent on v1. */
+      bond?: string;
     }>(),
     // Set once the escrow is seen closed on chain; the keeper stops polling it.
     escrowOutcome: text("escrow_outcome"),
@@ -402,7 +404,11 @@ export const merchants = pgTable(
     /** Where the merchant is paid on-chain — the order's `merchantSafe`. */
     settlementAddress: text("settlement_address"),
     /** Buyer protection (#304). Null: off. */
-    buyerProtection: jsonb("buyer_protection").$type<{ holdSeconds: number; arbiter?: string }>(),
+    buyerProtection: jsonb("buyer_protection").$type<{
+      holdSeconds: number;
+      arbiter?: string;
+      bondBps?: number;
+    }>(),
     /** Merchant profile, frozen into every intent's snapshot. */
     city: text("city"),
     /** ISO 3166-1 alpha-2, uppercase. */
@@ -1158,7 +1164,7 @@ export const escrowDisputes = pgTable(
     arbiter: text("arbiter").notNull(),
     releaseAfter: timestamp("release_after", { withTimezone: true, mode: "date" }).notNull(),
     resolveBy: timestamp("resolve_by", { withTimezone: true, mode: "date" }).notNull(),
-    /** `open | released | refunded`, CHECK-constrained. */
+    /** `open | released | refunded | split`, CHECK-constrained. */
     status: text("status").notNull(),
     decidedAt: timestamp("decided_at", { withTimezone: true, mode: "date" }),
     /** The last `resolveBy` warning sent: `48h` or `24h`. Null before any. */

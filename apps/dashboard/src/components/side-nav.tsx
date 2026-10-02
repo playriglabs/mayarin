@@ -29,9 +29,12 @@ function isActive(href: string, pathname: string): boolean {
 export default function SideNav({
   pathname,
   permissions,
+  counts = {},
 }: {
   pathname: string;
   permissions: readonly Permission[];
+  /** A number beside an item, keyed by its href — e.g. open disputes. 0 shows nothing. */
+  counts?: Readonly<Record<string, number>>;
 }) {
   return (
     <nav
@@ -90,6 +93,14 @@ export default function SideNav({
                       className={active ? "text-sidebar-marker" : "text-sidebar-muted-foreground"}
                     />
                     <span data-sidebar-nav-label>{label}</span>
+                    {(counts[href] ?? 0) > 0 && (
+                      <span
+                        data-sidebar-nav-label
+                        className="ml-auto min-w-5 rounded-full bg-destructive px-1.5 text-center font-medium text-[11px] text-white leading-5"
+                      >
+                        {counts[href]}
+                      </span>
+                    )}
                     {flag !== undefined && (
                       // The same attribute the label carries, so the collapsed
                       // sidebar hides it by the rule that already exists rather

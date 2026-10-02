@@ -200,7 +200,7 @@ export class DrizzleClearingRepository implements ClearingRepository {
   /** Records that an escrow closed, which takes it off the keeper's list. */
   async markEscrowOutcome(
     clearingTransactionId: string,
-    outcome: "released" | "refunded",
+    outcome: "released" | "refunded" | "split",
   ): Promise<void> {
     await this.#db
       .update(clearingTransactions)
@@ -430,9 +430,13 @@ function contractColumns(transaction: ClearingTransaction) {
       order.escrow === undefined
         ? null
         : {
-            ...order.escrow,
+            factory: order.escrow.factory,
+            payer: order.escrow.payer,
+            payee: order.escrow.payee,
+            arbiter: order.escrow.arbiter,
             releaseAfter: order.escrow.releaseAfter.toString(),
             resolveBy: order.escrow.resolveBy.toString(),
+            ...(order.escrow.bond === undefined ? {} : { bond: order.escrow.bond.toString() }),
           },
   };
 }
@@ -487,9 +491,15 @@ function toContract(row: Row): ClearingContract | undefined {
         ? {}
         : {
             escrow: {
-              ...row.contractEscrow,
+              factory: row.contractEscrow.factory,
+              payer: row.contractEscrow.payer,
+              payee: row.contractEscrow.payee,
+              arbiter: row.contractEscrow.arbiter,
               releaseAfter: BigInt(row.contractEscrow.releaseAfter),
               resolveBy: BigInt(row.contractEscrow.resolveBy),
+              ...(row.contractEscrow.bond === undefined
+                ? {}
+                : { bond: BigInt(row.contractEscrow.bond) }),
             },
           }),
     },

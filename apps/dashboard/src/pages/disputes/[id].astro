@@ -1,6 +1,5 @@
 ---
-import DisputeCase from "../../components/dispute-case.tsx";
-import { PageHeader } from "../../components/page-header.tsx";
+import MerchantDisputeCase from "../../components/merchant-dispute-case.tsx";
 import Protected from "../../layouts/dashboard.astro";
 
 const { id } = Astro.params;
@@ -8,6 +7,5 @@ if (id === undefined) return Astro.redirect("/disputes");
 ---
 
 <Protected title="Dispute">
-  <PageHeader title="Dispute" description="Read both sides, then decide from the arbiter wallet." />
-  <DisputeCase id={id} client:load />
+  <MerchantDisputeCase id={id} client:load />
 </Protected>

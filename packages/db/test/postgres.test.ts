@@ -457,8 +457,10 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       resolveBy: new Date("2026-10-10T00:00:00.000Z"),
     };
 
-    const opened = await repository.open(input, clock.now());
-    const again = await repository.open(input, clock.now());
+    const { dispute: opened, opened: first } = await repository.open(input, clock.now());
+    const { dispute: again, opened: second } = await repository.open(input, clock.now());
+    expect(first).toBe(true);
+    expect(second).toBe(false);
     expect(again.id).toBe(opened.id);
     expect(opened.payer).toBe("0x000000000000000000000000000000000000cafe");
     expect((await repository.listOpen()).map((d) => d.id)).toEqual([opened.id]);

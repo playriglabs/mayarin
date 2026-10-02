@@ -1,0 +1,13 @@
+---
+import DisputesQueue from "../components/disputes-queue.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Arbitration">
+  <PageHeader
+    title="Arbitration"
+    description="Open escrow disputes Mayarin Resolution decides, nearest deadline first."
+  />
+  <DisputesQueue client:load />
+</Protected>

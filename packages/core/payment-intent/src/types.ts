@@ -141,6 +141,12 @@ export interface EscrowRequest {
   readonly holdSeconds: number;
   /** Decides a disputed escrow. Absent: a dispute waits for the payer or the merchant. */
   readonly arbiter?: string;
+  /**
+   * The dispute bond (#315), in basis points of what reaches the escrow: what
+   * the payer posts to dispute, lost if the claim fails. Absent or 0: free.
+   * Applies only where `EscrowFactoryV2` is deployed.
+   */
+  readonly bondBps?: number;
 }
 
 export interface PaymentIntent {

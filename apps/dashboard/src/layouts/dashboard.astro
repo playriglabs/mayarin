@@ -21,6 +21,7 @@ import ThemeToggle from "../components/theme-toggle.tsx";
 import SocialMeta from "../components/social-meta.astro";
 import Toaster from "../components/ui/toaster.tsx";
 import "../styles/global.css";
+import { getApiBase } from "../lib/api/origin";
 import type { UserDto } from "../types/user";
 
 interface Props {
@@ -31,6 +32,20 @@ const { title } = Astro.props;
 
 const user: UserDto | undefined = Astro.locals.user;
 if (user === undefined) return Astro.redirect("/login");
+
+// Open disputes beside "Disputes" in the sidebar (#313), so a merchant notices
+// one without opening each payment. A failed read shows no count, not an error.
+let openDisputes = 0;
+if (user.permissions.includes("payments:read")) {
+  try {
+    const res = await fetch(`${getApiBase()}/escrow-disputes`, {
+      headers: { cookie: `mayarin_session=${Astro.cookies.get("mayarin_session")?.value ?? ""}` },
+    });
+    if (res.ok) openDisputes = ((await res.json()) as { open: number }).open;
+  } catch {
+    openDisputes = 0;
+  }
+}
 
 const isAdmin = user.permissions.includes("admin:access");
 const roleLabel = isAdmin ? "Administrator" : "Merchant";
@@ -166,7 +181,11 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
           <SidebarToggle client:load />
         </div>
 
-        <SideNav pathname={Astro.url.pathname} permissions={user.permissions} />
+        <SideNav
+          pathname={Astro.url.pathname}
+          permissions={user.permissions}
+          counts={{ "/disputes": openDisputes }}
+        />
 
         <div
           data-sidebar-profile

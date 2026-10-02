@@ -26,7 +26,7 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import { createPublicClient, http, type PublicClient } from "viem";
-import { disputeOf, type EscrowDisputeLog } from "./escrow-dispute.ts";
+import { type DisputeNotifier, disputeOf, type EscrowDisputeLog } from "./escrow-dispute.ts";
 import type { PaymentAppService } from "./payment.ts";
 
 /** How long a payer's signed message stays acceptable (#313). */
@@ -62,6 +62,7 @@ export class EscrowService {
   readonly #rpcUrls: Readonly<Partial<Record<ChainId, string>>>;
   readonly #disputes: EscrowDisputeLog;
   readonly #clock: Clock;
+  readonly #notifier: DisputeNotifier;
   readonly #clients = new Map<ChainId, PublicClient>();
 
   constructor(
@@ -69,11 +70,13 @@ export class EscrowService {
     rpcUrls: Readonly<Partial<Record<ChainId, string>>>,
     disputes: EscrowDisputeLog,
     clock: Clock,
+    notifier: DisputeNotifier,
   ) {
     this.#payments = payments;
     this.#rpcUrls = rpcUrls;
     this.#disputes = disputes;
     this.#clock = clock;
+    this.#notifier = notifier;
   }
 
   async view(paymentId: string): Promise<EscrowView> {
@@ -84,7 +87,7 @@ export class EscrowService {
       throw new NotFoundError(`Payment ${paymentId} is not held in escrow`, { paymentId });
     }
 
-    const { factory, payer, payee, arbiter, releaseAfter, resolveBy } = order.escrow;
+    const { factory, payer, payee, arbiter, releaseAfter, resolveBy, bond } = order.escrow;
     const terms: EscrowTerms = {
       intentId: order.intentId as `0x${string}`,
       payer,
@@ -92,6 +95,7 @@ export class EscrowService {
       arbiter,
       releaseAfter,
       resolveBy,
+      ...(bond === undefined ? {} : { bond }),
     };
     const token = order.settlementToken;
     const state = await readEscrowState(this.#client(chain), terms, token, factory);
@@ -101,10 +105,12 @@ export class EscrowService {
     const now = this.#clock.now();
     let record = await this.#disputes.findByPaymentIntentId(intent.id);
     if (record === undefined && state.disputed) {
-      record = await this.#disputes.open(
+      const { dispute, opened } = await this.#disputes.open(
         disputeOf(order, { paymentIntentId: intent.id, merchantId: intent.merchant.id, chain }),
         now,
       );
+      record = dispute;
+      if (opened) await this.#notifier.opened(dispute);
     }
     if (record !== undefined && record.status === "open" && state.outcome !== "held") {
       await this.#disputes.close(intent.id, state.outcome, now);

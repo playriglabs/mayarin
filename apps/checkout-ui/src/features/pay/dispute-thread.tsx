@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { shortAddress } from "../../shared/buyer-protection.tsx";
 import { connectWallet, signMessage } from "../../shared/wallet.ts";
 import type { DisputeMessage } from "./types.ts";
@@ -21,17 +21,30 @@ export function DisputeThread({
   messages,
   open,
   onPosted,
+  release,
+  reference,
 }: {
   readonly statusUrl: string;
   readonly payer: string;
   readonly messages: readonly DisputeMessage[];
   readonly open: boolean;
   readonly onPosted: () => void;
+  /** The escrow's release button, laid out beside "Sign and send" in one row. */
+  readonly release?: ReactNode;
+  /** The dispute's number, to quote when contacting support. */
+  readonly reference: string;
 }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const asked = messages.some((message) => message.author === "payer");
+  const list = useRef<HTMLOListElement>(null);
+
+  // The thread scrolls inside a fixed height; keep the newest message in view.
+  useEffect(() => {
+    const element = list.current;
+    if (element !== null && messages.length > 0) element.scrollTop = element.scrollHeight;
+  }, [messages.length]);
 
   async function send() {
     const body = draft.trim();
@@ -71,8 +84,12 @@ export function DisputeThread({
 
   return (
     <div className="dispute-thread">
+      <p className="dispute-reference">
+        Dispute <strong>#{reference}</strong>. The merchant sees this thread and can answer here or
+        refund you directly; quote the number if you contact support.
+      </p>
       {messages.length > 0 && (
-        <ol>
+        <ol ref={list}>
           {messages.map((message) => (
             <li key={message.id} className={`dispute-message dispute-message-${message.author}`}>
               <span className="dispute-author">{AUTHOR_LABELS[message.author]}</span>
@@ -99,9 +116,12 @@ export function DisputeThread({
             placeholder="What you ordered, what arrived, and any links or tracking."
             onChange={(event) => setDraft(event.target.value)}
           />
-          <button type="submit" className="secondary" disabled={busy || draft.trim() === ""}>
-            {busy ? "Signing…" : "Sign and send"}
-          </button>
+          <div className="dispute-actions">
+            <button type="submit" className="secondary" disabled={busy || draft.trim() === ""}>
+              {busy ? "Signing…" : "Sign and send"}
+            </button>
+            {release}
+          </div>
           {error !== "" && (
             <p className="error" role="alert">
               {error}

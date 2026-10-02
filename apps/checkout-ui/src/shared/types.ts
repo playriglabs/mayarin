@@ -53,6 +53,10 @@ export interface Protection {
   /** Chains with an escrow factory; protection applies on these only. */
   readonly chains: readonly string[];
   readonly required: boolean;
+  /** The dispute bond in basis points of the payment (#315); 0 is free. */
+  readonly bondBps: number;
+  /** Chains where the bond applies; elsewhere disputing is free. */
+  readonly bondChains: readonly string[];
 }
 
 export interface MerchantRef {

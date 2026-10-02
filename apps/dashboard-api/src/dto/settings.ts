@@ -70,6 +70,8 @@ export const updateSettingsBodySchema = z
           .string()
           .regex(/^0x[0-9a-fA-F]{40}$/, "An arbiter must be a 20-byte hex address")
           .optional(),
+        /** The dispute bond (#315), basis points of the payment, 0–2000. */
+        bondBps: z.number().int().min(0).max(2_000).optional(),
       })
       .strict()
       .nullable()

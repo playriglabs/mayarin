@@ -28,6 +28,7 @@ import { disputeRoutes } from "./routes/disputes.ts";
 import { eventLogRoutes } from "./routes/event-logs.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { invoiceRoutes } from "./routes/invoices.ts";
+import { merchantDisputeRoutes } from "./routes/merchant-disputes.ts";
 import { orderRoutes } from "./routes/orders.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
@@ -170,6 +171,11 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // Merchant API keys — bearer-token access with per-key permissions. Same
   // permission as settlement settings: a key decides what an integration can
   // reach within this merchant, the same perimeter settings governs.
+  // A merchant's own disputes (#313): the list that tells them to answer.
+  v1.use("/escrow-disputes", requireAuth(), requirePermission("payments:read"));
+  v1.use("/escrow-disputes/*", requireAuth(), requirePermission("payments:read"));
+  v1.route("/escrow-disputes", merchantDisputeRoutes(container));
+
   // Mayarin Resolution's dispute console (#313). A platform permission, set by
   // an operator and never grantable by a merchant, because it reads disputes
   // across merchants.

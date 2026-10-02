@@ -7,7 +7,7 @@
  */
 
 import type { EscrowRequest } from "@mayarin/payment-intent";
-import { ESCROW_ARBITRATION_SECONDS, ESCROW_CHAINS } from "@mayarin/provider-evm";
+import { ESCROW_ARBITRATION_SECONDS, ESCROW_CHAINS, ESCROW_V2_CHAINS } from "@mayarin/provider-evm";
 import type { Container } from "../container.ts";
 
 export interface ProtectionOffer {
@@ -17,6 +17,10 @@ export interface ProtectionOffer {
   readonly chains: readonly string[];
   /** The merchant asked for escrow on this payment: the wallet is not optional. */
   readonly required: boolean;
+  /** The dispute bond in basis points of the payment (#315); 0 is free. */
+  readonly bondBps: number;
+  /** Where the bond applies — chains with `EscrowFactoryV2`. Elsewhere disputing is free. */
+  readonly bondChains: readonly string[];
 }
 
 /**
@@ -36,6 +40,8 @@ export async function protectionOffer(
     arbiterLabel: arbiterLabel(terms.arbiter, container.config.escrowArbiter),
     chains: ESCROW_CHAINS,
     required: escrow !== undefined,
+    bondBps: terms.bondBps ?? 0,
+    bondChains: ESCROW_V2_CHAINS,
   };
 }
 

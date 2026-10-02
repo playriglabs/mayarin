@@ -95,6 +95,8 @@ export const createBodySchema = z
           .string()
           .regex(/^0x[0-9a-fA-F]{40}$/)
           .optional(),
+        /** The dispute bond (#315), basis points of what reaches the escrow, 0–2000. */
+        bondBps: z.number().int().min(0).max(2_000).optional(),
       })
       // `null` opts this payment out of the merchant's buyer protection.
       .nullable()

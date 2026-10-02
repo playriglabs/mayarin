@@ -48,6 +48,7 @@ import {
   DrizzleRefundRepository,
   DrizzleSettlementEventRepository,
   DrizzleSubscriptionRepository,
+  DrizzleUserRepository,
   DrizzleWatcherCursorRepository,
   DrizzleWebhookCursorRepository,
   DrizzleWebhookDeliveryRepository,
@@ -123,6 +124,7 @@ import type { ApiKeyVerifier } from "./middleware/api-key.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 import { chainReceipts, QuotePricingSource } from "./rails.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
+import { disputeNotifier } from "./services/dispute-notifier.ts";
 import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
@@ -1013,6 +1015,29 @@ export function createContainer({
     });
   }
 
+  // A newly opened dispute is announced to the merchant (#313): a webhook on
+  // the delivery table the dispatcher drains, and an email to its admins.
+  const users = new DrizzleUserRepository(handle.db);
+  const disputeNotices = disputeNotifier({
+    ...(webhookEndpoints === undefined || webhookDeliveries === undefined
+      ? {}
+      : { webhooks: { endpoints: webhookEndpoints, deliveries: webhookDeliveries } }),
+    ...(config.resendApiKey === undefined
+      ? {}
+      : {
+          email: {
+            apiKey: config.resendApiKey,
+            from: config.emailFrom,
+            recipients: async (merchantId: string) =>
+              (await users.listByMerchant(merchantId))
+                .filter((user) => user.permissions.includes("admin:access"))
+                .map((user) => user.email),
+            ...(config.dashboardUrl === undefined ? {} : { dashboardUrl: config.dashboardUrl }),
+          },
+        }),
+    clock,
+  });
+
   // Built after the watchers, because a rail is only real when something is
   // scanning the chain it is on.
   const railCatalog = new DerivedRailCatalog({
@@ -1091,7 +1116,7 @@ export function createContainer({
     engine,
     rates,
     paymentApp,
-    escrow: new EscrowService(paymentApp, config.chainRpcUrls, disputes, clock),
+    escrow: new EscrowService(paymentApp, config.chainRpcUrls, disputes, clock, disputeNotices),
     payerStanding,
     ...(treasury === undefined
       ? {}
@@ -1102,6 +1127,7 @@ export function createContainer({
             send: (chain, to, data) => treasury.port.call(chain, to, data),
             disputes,
             alert: disputeAlertSink(config.escrowAlertWebhookUrl),
+            notifier: disputeNotices,
             clock,
           }),
         }),

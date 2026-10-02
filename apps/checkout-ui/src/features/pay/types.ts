@@ -44,12 +44,23 @@ export interface EscrowPayload {
     /** ISO time at which a still-open dispute refunds the payer. */
     readonly resolveBy: string;
   };
-  readonly outcome: "held" | "released" | "refunded";
+  readonly outcome: "held" | "released" | "refunded" | "split";
   readonly disputed: boolean;
-  readonly calls: { readonly release: string; readonly dispute: string };
+  /** The dispute bond (#315) in settlement-token minor units; null on a v1 escrow. */
+  readonly bond: string | null;
+  /** The settlement token, which the bond is paid in. */
+  readonly token: string;
+  readonly calls: {
+    readonly release: string;
+    readonly dispute: string;
+    /** Approves the bond to the factory, sent to `token` before disputing. Null when free. */
+    readonly approveBond: string | null;
+  };
   /** The dispute's case file and thread (#313); null while nobody has disputed. */
   readonly dispute: {
-    readonly status: "open" | "released" | "refunded";
+    /** The number to quote when contacting support (#313). */
+    readonly reference: string;
+    readonly status: "open" | "released" | "refunded" | "split";
     readonly messages: readonly DisputeMessage[];
   } | null;
 }

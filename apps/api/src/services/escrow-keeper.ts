@@ -27,13 +27,14 @@ import { createPublicClient, http, type PublicClient } from "viem";
 import {
   alertDue,
   type DisputeAlertSink,
+  type DisputeNotifier,
   disputeOf,
   type EscrowDisputeLog,
 } from "./escrow-dispute.ts";
 
 export interface EscrowKeeperRepository {
   listDueEscrows(nowSeconds: number, limit: number): Promise<DueEscrow[]>;
-  markEscrowOutcome(clearingTransactionId: string, outcome: "released" | "refunded"): Promise<void>;
+  markEscrowOutcome(clearingTransactionId: string, outcome: EscrowClosed): Promise<void>;
 }
 
 export interface EscrowKeeperOptions {
@@ -46,11 +47,16 @@ export interface EscrowKeeperOptions {
   readonly disputes: EscrowDisputeLog;
   /** Where a dispute nearing `resolveBy` is announced. */
   readonly alert: DisputeAlertSink;
+  /** Tells the merchant about a dispute this pass found first (#313). */
+  readonly notifier: DisputeNotifier;
   readonly clock: Clock;
   readonly batchSize?: number;
 }
 
 export type EscrowKeeperAction = "release" | "refund";
+
+/** How an escrow ended: whole to one side, or split by the arbiter (#315). */
+export type EscrowClosed = "released" | "refunded" | "split";
 
 export type EscrowStateReader = (
   chain: ChainId,
@@ -144,10 +150,11 @@ export class EscrowKeeper {
     // A dispute nobody reported yet still gets its case file, so the arbiter
     // sees it while there is time left to decide.
     if (state.disputed) {
-      await this.#options.disputes.open(
+      const { dispute, opened } = await this.#options.disputes.open(
         disputeOf(order, { paymentIntentId, merchantId, chain }),
         this.#options.clock.now(),
       );
+      if (opened) await this.#options.notifier.opened(dispute);
     }
     // Nothing to move yet; the next pass looks again.
     if (state.balance === 0n) return undefined;
@@ -177,7 +184,7 @@ export class EscrowKeeper {
   async #recordOutcome(
     clearingTransactionId: string,
     paymentIntentId: string,
-    outcome: "released" | "refunded",
+    outcome: EscrowClosed,
   ): Promise<void> {
     await this.#options.repository.markEscrowOutcome(clearingTransactionId, outcome);
     await this.#options.disputes.close(paymentIntentId, outcome, this.#options.clock.now());
@@ -194,6 +201,7 @@ function termsOf(order: ContractOrder): EscrowTerms {
     arbiter: escrow.arbiter,
     releaseAfter: escrow.releaseAfter,
     resolveBy: escrow.resolveBy,
+    ...(escrow.bond === undefined ? {} : { bond: escrow.bond }),
   };
 }
 

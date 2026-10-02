@@ -84,6 +84,23 @@ export function timestampFromId(id: string): Date {
   return new Date(Number(time));
 }
 
+/**
+ * An 11-digit number read off an id's ULID, for a person to quote — "dispute
+ * #93129301239" over the phone rather than a 26-character id. Derived, not
+ * stored, so every surface shows the same one; the ULID's random tail makes
+ * the low digits as good as random, so two ids rarely share a reference.
+ */
+export function numericReference(id: string): string {
+  const ulidPart = id.includes("_") ? id.slice(id.indexOf("_") + 1) : id;
+  let value = 0n;
+  for (const char of ulidPart) {
+    const digit = ENCODING.indexOf(char);
+    if (digit === -1) throw new Error(`Invalid ULID character: "${char}"`);
+    value = value * 32n + BigInt(digit);
+  }
+  return (value % 10n ** 11n).toString().padStart(11, "0");
+}
+
 function randomBits(): bigint {
   const bytes = crypto.getRandomValues(new Uint8Array(10));
   let value = 0n;

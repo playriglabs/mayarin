@@ -41,6 +41,15 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       if (from.toLowerCase() !== escrow.terms.payer.toLowerCase()) {
         throw new Error(`Switch to the wallet you paid with, ${shortAddress(escrow.terms.payer)}.`);
       }
+      // A v2 escrow with a bond pulls it on dispute (#315): approve it first.
+      if (action === "dispute" && escrow.calls.approveBond !== null) {
+        await sendCall({
+          chainId: escrow.chainId,
+          from,
+          to: escrow.token,
+          data: escrow.calls.approveBond,
+        });
+      }
       await sendCall({
         chainId: escrow.chainId,
         from,
@@ -56,14 +65,25 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
     }
   }
 
+  // With an open dispute, the release sits beside "Sign and send" in the thread.
+  const threadOpen =
+    escrow.dispute !== null && escrow.dispute.status === "open" && escrow.outcome === "held";
+  const releaseButton = (
+    <button type="button" className="primary" disabled={busy} onClick={() => void act("release")}>
+      Release payment
+    </button>
+  );
+
   const status =
     escrow.outcome === "released"
       ? "Released"
-      : escrow.outcome === "refunded"
-        ? "Refunded"
-        : escrow.disputed
-          ? "Disputed"
-          : "Held";
+      : escrow.outcome === "split"
+        ? "Split"
+        : escrow.outcome === "refunded"
+          ? "Refunded"
+          : escrow.disputed
+            ? "Disputed"
+            : "Held";
 
   return (
     <div className="escrow-card" role="status">
@@ -79,11 +99,13 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       <p className="escrow-when">
         {escrow.outcome === "released"
           ? "The payment went to the merchant."
-          : escrow.outcome === "refunded"
-            ? "The payment went back to your wallet."
-            : escrow.disputed
-              ? `Refunded to you if undecided by ${when(escrow.terms.resolveBy)}`
-              : `Releases to the merchant on ${when(escrow.terms.releaseAfter)}`}
+          : escrow.outcome === "split"
+            ? "The arbiter split the payment between you and the merchant."
+            : escrow.outcome === "refunded"
+              ? "The payment went back to your wallet."
+              : escrow.disputed
+                ? `Refunded to you if undecided by ${when(escrow.terms.resolveBy)}`
+                : `Releases to the merchant on ${when(escrow.terms.releaseAfter)}`}
       </p>
       {escrow.outcome === "held" && (
         <p className="escrow-hint">
@@ -92,7 +114,9 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
               ? "The automatic release is stopped. The merchant can refund you."
               : "The automatic release is stopped. The arbiter decides, or the merchant refunds you."
             : holdOpen
-              ? "Got what you paid for? Release it now. Something wrong? Open a dispute first."
+              ? escrow.calls.approveBond === null
+                ? "Got what you paid for? Release it now. Something wrong? Open a dispute first."
+                : "Got what you paid for? Release it now. Something wrong? Open a dispute first — it takes the bond, returned if your claim holds."
               : "The hold has ended. It releases to the merchant shortly."}
         </p>
       )}
@@ -102,21 +126,16 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
           statusUrl={statusUrl}
           payer={escrow.terms.payer}
           messages={escrow.dispute.messages}
-          open={escrow.dispute.status === "open" && escrow.outcome === "held"}
+          open={threadOpen}
           onPosted={() => void load()}
+          release={threadOpen ? releaseButton : undefined}
+          reference={escrow.dispute.reference}
         />
       )}
 
-      {escrow.outcome === "held" && (
+      {escrow.outcome === "held" && !threadOpen && (
         <div className="escrow-actions">
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={() => void act("release")}
-          >
-            Release payment
-          </button>
+          {releaseButton}
           {holdOpen && !escrow.disputed && (
             <button
               type="button"

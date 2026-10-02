@@ -126,9 +126,13 @@ beside it, so the arbiter decides on evidence rather than on silence.
     message is signed (`personal_sign`, EIP-1271 accepted) by the wallet the
     escrow refunds to. The signed text names the payment and the time; a
     signature older than 10 minutes is refused.
-  - **Merchant** — on the payment detail in the dashboard.
+  - **Merchant** — on the payment detail in the dashboard. `/disputes` lists
+    the merchant's own disputes, and the sidebar shows how many are open, so
+    one is noticed without opening each payment. `/disputes/:id` is the case
+    for the merchant: the thread, the reply box and "Refund the buyer" — not
+    release or split, which are the arbiter's.
   - **Arbiter** — in the dashboard console.
-- **The console.** `/disputes` in the dashboard lists every open dispute whose
+- **The console.** `/arbitration` in the dashboard lists every open dispute whose
   arbiter is `ESCROW_ARBITER`, across merchants, nearest `resolveBy` first.
   The decision — release to the merchant or refund the buyer — is sent from
   the arbiter's own wallet straight to the factory; the dashboard signs
@@ -144,6 +148,29 @@ beside it, so the arbiter decides on evidence rather than on silence.
 
   The dashboard API needs `ESCROW_ARBITER` set to the same address as the
   payment API; unset, the console is empty.
+
+- **Telling the merchant.** When a dispute's case file is first opened, the
+  merchant is told at once: a webhook `escrow.disputed` (one delivery per
+  active endpoint, through the same signed, retried queue as payment events;
+  the event `id` is the dispute id) and, with `RESEND_API_KEY`, an email to the
+  merchant's admin accounts with the dispute number and a link
+  (`DASHBOARD_URL`). A failed notice is logged; the dispute stands either way.
+
+  ```json
+  {
+    "id": "dsp_01K…",
+    "type": "escrow.disputed",
+    "occurredAt": "2026-10-02T11:21:00.000Z",
+    "data": {
+      "disputeId": "dsp_01K…",
+      "reference": "92965881664",
+      "paymentIntentId": "pi_01M…",
+      "chain": "base-sepolia",
+      "payer": "0x1d96…f48f6",
+      "resolveBy": "2026-10-10T11:21:00.000Z"
+    }
+  }
+  ```
 
 - **SLA.** Decide within 3 days of the dispute. The keeper warns at 48 hours
   and 24 hours before `resolveBy` — logged, and posted as `{ "text": … }` to
@@ -184,13 +211,54 @@ curl -X PUT "$API/v1/admin/market-config/disputeStanding" \
 - **Limit:** a new wallet starts clean, so this stops repeat abuse from one
   address only. The dispute bond (#315) is what makes abuse cost money.
 
+## Factory v2: dispute bond and split (#315)
+
+`EscrowFactoryV2` (`src/EscrowFactoryV2.sol`, vault `EscrowVaultV2.sol`) adds
+two rules. v1 stays deployed and immutable; escrows made under it keep v1's
+rules, and the backend reads the factory from each stored order, so both
+versions run side by side.
+
+- **Dispute bond.** `Terms` gains `bond` (settlement-token units, part of the
+  salt). `dispute(terms, token)` pulls it from the payer into the escrow, once
+  — the payer approves it to the factory first. `bond == 0` disputes free.
+- **Split.** `resolve(terms, token, payeeBps)` — arbiter only, disputed,
+  before `resolveBy` — sends `payeeBps / 10000` of the payment to the payee
+  and the rest to the payer. Outcome `Split`.
+
+| Move                       | Payment             | Bond                                               |
+| -------------------------- | ------------------- | -------------------------------------------------- |
+| `release` (anyone allowed) | payee               | payee                                              |
+| `refund` (anyone allowed)  | payer               | payer                                              |
+| `resolve(payeeBps)`        | split by `payeeBps` | the majority; payer at 50/50                       |
+| open at `resolveBy`        | payer               | payer — an absent arbiter is not the payer's fault |
+
+A payer who disputes and then releases has conceded, so the bond goes to the
+payee with the payment.
+
+- **Address.** Same deterministic deployer, salt `mayarin.escrow-factory.v2`:
+  `0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18` on every chain
+  (`scripts/DeployEscrowFactoryV2.s.sol`), deployed 2 Oct 2026 on Arbitrum
+  Sepolia, Robinhood testnet, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_V2_CHAINS` in
+  `packages/providers/evm/src/escrow.ts` lists where it is deployed; a new
+  escrow there is made under v2 (bond zero when the merchant sets none), and
+  under v1 elsewhere.
+- **Bond size.** Settings → Buyer protection → Dispute bond, 0–20% of what
+  reaches the escrow (`buyerProtection.bondBps`, or `escrow.bondBps` per
+  payment). The planner fixes it in the terms at the price lock. Checkout
+  states it before the buyer connects, and approves it before disputing.
+- **The bond is in the settlement token.** A buyer who paid in another asset
+  needs that token to dispute.
+- **Console.** Release, refund, or split by the merchant's share in percent;
+  `GET /v1/payments/:id/escrow/resolve?payeeBps=` returns the call.
+
 ## Surfaces
 
 - **Checkout** (link, invoice, cart): states every term, offers "Connect
   wallet"; after payment shows the hold with Release / Dispute, and the dispute thread.
 - **Dashboard:** Settings → Buyer protection; payment detail shows the hold, a
   Refund button (direct from the payee, or `Safe.execTransaction` from its
-  owner) and the dispute thread; `/disputes` is the arbiter console.
+  owner) and the dispute thread; `/disputes` lists the merchant's own disputes;
+  `/arbitration` is the arbiter console.
 - **SDK:** `payments.createIntent({ escrow })`, `payments.getEscrow(id)`.
 
 ## Known limits

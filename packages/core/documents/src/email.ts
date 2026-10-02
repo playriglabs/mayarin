@@ -4,7 +4,8 @@
  * Extracted when the verification email became the second one: the mark, the
  * font stack and the escaping rule are brand and safety decisions, not
  * per-template ones, and two copies would drift the moment one template is
- * restyled.
+ * restyled. Here rather than in one app since the dispute email (#313) is sent
+ * by the payment API while the others are sent by the dashboard API.
  */
 
 /**

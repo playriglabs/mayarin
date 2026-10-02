@@ -23,6 +23,7 @@ export interface DisputeStore {
   findById(id: string): Promise<EscrowDispute | undefined>;
   findByPaymentIntentId(paymentIntentId: string): Promise<EscrowDispute | undefined>;
   listOpen(): Promise<readonly EscrowDispute[]>;
+  listByMerchant(merchantId: string): Promise<readonly EscrowDispute[]>;
   listMessages(disputeId: string): Promise<readonly DisputeMessage[]>;
   addMessage(
     disputeId: string,
@@ -71,6 +72,22 @@ export class DisputeService {
     return this.#append(dispute, "merchant", body);
   }
 
+  /** A merchant's own disputes, newest first, so they know there is one to answer. */
+  async forMerchant(merchantId: string): Promise<readonly EscrowDispute[]> {
+    return this.#store.listByMerchant(merchantId);
+  }
+
+  /** One of the merchant's own disputes: record, thread and live escrow. */
+  async merchantCase(merchantId: string, id: string): Promise<DisputeCase> {
+    const found = await this.#store.findById(id);
+    if (found === undefined || found.merchantId !== merchantId) {
+      throw new NotFoundError("No such dispute", { id });
+    }
+    const escrow = await this.#paymentApi.escrow(found.paymentIntentId);
+    const dispute = (await this.#store.findById(id)) ?? found;
+    return { dispute, messages: await this.#store.listMessages(id), escrow };
+  }
+
   /** Open disputes Mayarin Resolution arbitrates, nearest deadline first. */
   async queue(): Promise<readonly EscrowDispute[]> {
     if (this.#arbiter === undefined) return [];
@@ -85,6 +102,12 @@ export class DisputeService {
     const escrow = await this.#paymentApi.escrow(found.paymentIntentId);
     const dispute = (await this.#store.findById(id)) ?? found;
     return { dispute, messages: await this.#store.listMessages(id), escrow };
+  }
+
+  /** The call for the arbiter's wallet that splits the payment (#315). */
+  async resolveCall(id: string, payeeBps: number): Promise<{ to: string; data: string }> {
+    const dispute = await this.#arbitrated(id);
+    return this.#paymentApi.escrowResolve(dispute.paymentIntentId, payeeBps);
   }
 
   async postArbiterMessage(id: string, body: string): Promise<DisputeMessage> {

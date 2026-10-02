@@ -10,11 +10,12 @@
  */
 
 import { generateId } from "@mayarin/shared";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { clearingTransactions, escrowDisputeMessages, escrowDisputes } from "../schema.ts";
 
-export type DisputeStatus = "open" | "released" | "refunded";
+/** `split` when the arbiter divided a v2 escrow (#315). */
+export type DisputeStatus = "open" | "released" | "refunded" | "split";
 export type DisputeAuthor = "payer" | "merchant" | "arbiter";
 export type DisputeAlert = "48h" | "24h";
 
@@ -79,9 +80,12 @@ export class DrizzleEscrowDisputeRepository {
     this.#db = db;
   }
 
-  /** Opens the case file for a disputed escrow. Idempotent: an existing one is returned. */
-  async open(input: OpenDispute, now: Date): Promise<EscrowDispute> {
-    await this.#db
+  /**
+   * Opens the case file for a disputed escrow. Idempotent: an existing one is
+   * returned with `opened: false`, so only the call that created it notifies.
+   */
+  async open(input: OpenDispute, now: Date): Promise<{ dispute: EscrowDispute; opened: boolean }> {
+    const inserted = await this.#db
       .insert(escrowDisputes)
       .values({
         id: generateId("dsp", now.getTime()),
@@ -97,10 +101,11 @@ export class DrizzleEscrowDisputeRepository {
         status: "open",
         createdAt: now,
       })
-      .onConflictDoNothing({ target: escrowDisputes.paymentIntentId });
-    const opened = await this.findByPaymentIntentId(input.paymentIntentId);
-    if (opened === undefined) throw new Error(`Dispute for ${input.paymentIntentId} not found`);
-    return opened;
+      .onConflictDoNothing({ target: escrowDisputes.paymentIntentId })
+      .returning({ id: escrowDisputes.id });
+    const dispute = await this.findByPaymentIntentId(input.paymentIntentId);
+    if (dispute === undefined) throw new Error(`Dispute for ${input.paymentIntentId} not found`);
+    return { dispute, opened: inserted.length > 0 };
   }
 
   async findById(id: string): Promise<EscrowDispute | undefined> {
@@ -131,8 +136,23 @@ export class DrizzleEscrowDisputeRepository {
     return rows.map(toDispute);
   }
 
+  /** One merchant's disputes, newest first — what the merchant answers. */
+  async listByMerchant(merchantId: string, limit = 100): Promise<readonly EscrowDispute[]> {
+    const rows = await this.#db
+      .select()
+      .from(escrowDisputes)
+      .where(eq(escrowDisputes.merchantId, merchantId))
+      .orderBy(desc(escrowDisputes.createdAt))
+      .limit(limit);
+    return rows.map(toDispute);
+  }
+
   /** Records the chain's outcome. Only an open dispute moves; a closed one stays as it was. */
-  async close(paymentIntentId: string, status: "released" | "refunded", now: Date): Promise<void> {
+  async close(
+    paymentIntentId: string,
+    status: Exclude<DisputeStatus, "open">,
+    now: Date,
+  ): Promise<void> {
     await this.#db
       .update(escrowDisputes)
       .set({ status, decidedAt: now })

@@ -99,6 +99,35 @@ export async function requestAccount(provider: Eip1193Provider): Promise<string>
 }
 
 /**
+ * The connected account that is `wanted`, asking the wallet to connect it when
+ * it is not (#313).
+ *
+ * A wallet exposes to a site only the accounts the user connected to it, and
+ * `eth_requestAccounts` answers with those — so a key imported later, like the
+ * arbiter's, is invisible until it is connected. `wallet_requestPermissions`
+ * opens the wallet's account picker; the list is read again after it.
+ */
+export async function requestSpecificAccount(
+  provider: Eip1193Provider,
+  wanted: string,
+): Promise<string> {
+  const target = wanted.toLowerCase();
+  const listed = async (method: "eth_requestAccounts" | "eth_accounts") => {
+    const accounts = await provider.request({ method });
+    return Array.isArray(accounts)
+      ? accounts.filter((a): a is string => typeof a === "string").map((a) => a.toLowerCase())
+      : [];
+  };
+  if ((await listed("eth_requestAccounts")).includes(target)) return target;
+  await provider.request({ method: "wallet_requestPermissions", params: [{ eth_accounts: {} }] });
+  const after = await listed("eth_accounts");
+  if (after.includes(target)) return target;
+  throw new Error(
+    `Connect ${wanted} in your wallet — it is not among the accounts this site can use (${after.join(", ") || "none"}).`,
+  );
+}
+
+/**
  * Signs the verification message.
  *
  * `personal_sign` takes `[message, address]` in that order — reversed, wallets

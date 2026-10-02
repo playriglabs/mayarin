@@ -11,6 +11,7 @@ import {
   CardholderIcon,
   ChartLineIcon,
   FileTextIcon,
+  GavelIcon,
   GearSixIcon,
   GlobeIcon,
   type Icon,
@@ -61,6 +62,8 @@ interface NavGroup {
 const PRIMARY: readonly NavItem[] = [
   { href: "/", label: "Overview", icon: SquaresFourIcon },
   { href: "/payments", label: "Payments", icon: ReceiptIcon },
+  // A merchant's own escrow disputes (#313), with the open count beside it.
+  { href: "/disputes", label: "Disputes", icon: ScalesIcon, permission: "payments:read" },
   { href: "/orders", label: "Orders", icon: ShoppingCartIcon },
   { href: "/invoices", label: "Invoices", icon: FileTextIcon, permission: "catalog:manage" },
   {
@@ -123,17 +126,17 @@ const ADMIN: NavItem = {
 };
 
 /** Mayarin Resolution's console (#313); only operator accounts hold the permission. */
-const DISPUTES: NavItem = {
-  href: "/disputes",
-  label: "Disputes",
-  icon: ScalesIcon,
+const ARBITRATION: NavItem = {
+  href: "/arbitration",
+  label: "Arbitration",
+  icon: GavelIcon,
   permission: "disputes:arbitrate",
 };
 
 const NAV_GROUPS: readonly NavGroup[] = [
   { label: "Menu", items: PRIMARY },
   { label: "Developers", items: DEVELOPERS },
-  { label: "Tools", items: [...CONFIGURATION, ADMIN, DISPUTES] },
+  { label: "Tools", items: [...CONFIGURATION, ADMIN, ARBITRATION] },
 ];
 
 export type { NavGroup, NavItem };
