@@ -3,6 +3,7 @@
  */
 
 import type { DisputeMessage, EscrowDispute } from "@mayarin/db";
+import { numericReference } from "@mayarin/shared";
 import { z } from "zod";
 import type { DisputeCase } from "../services/disputes.ts";
 
@@ -20,6 +21,8 @@ export function toDisputeMessageDto(message: DisputeMessage) {
 export function toDisputeDto(dispute: EscrowDispute) {
   return {
     id: dispute.id,
+    /** The number a person quotes, e.g. 93129301239. */
+    reference: numericReference(dispute.id),
     paymentIntentId: dispute.paymentIntentId,
     merchantId: dispute.merchantId,
     chain: dispute.chain,

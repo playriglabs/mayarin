@@ -158,7 +158,9 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
         {data.dispute !== null && (
           <div className="flex flex-col gap-3 border-t border-border p-4">
             <div className="flex flex-col gap-1">
-              <p className="font-medium text-foreground text-sm">Dispute</p>
+              <p className="font-medium text-foreground text-sm">
+                Dispute #{data.dispute.reference}
+              </p>
               <p className="text-muted-foreground text-xs">
                 {data.dispute.status === "open"
                   ? `Answer with your evidence. Undecided by ${formatDateTime(data.terms.resolveBy)}, the buyer is refunded.`

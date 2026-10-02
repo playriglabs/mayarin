@@ -62,6 +62,7 @@ function DisputesQueue() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Dispute</TableHead>
               <TableHead>Payment</TableHead>
               <TableHead>Network</TableHead>
               <TableHead>Buyer</TableHead>
@@ -75,10 +76,13 @@ function DisputesQueue() {
                 <TableCell>
                   <a
                     href={`/disputes/${dispute.id}`}
-                    className="font-mono text-xs underline decoration-input underline-offset-2 hover:decoration-foreground"
+                    className="font-medium underline decoration-input underline-offset-2 hover:decoration-foreground"
                   >
-                    {dispute.paymentIntentId}
+                    #{dispute.reference}
                   </a>
+                </TableCell>
+                <TableCell className="font-mono text-muted-foreground text-xs">
+                  {dispute.paymentIntentId}
                 </TableCell>
                 <TableCell>{chainLabel(dispute.chain)}</TableCell>
                 <TableCell className="font-mono text-xs" title={dispute.payer}>

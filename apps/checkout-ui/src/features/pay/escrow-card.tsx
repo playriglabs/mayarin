@@ -129,6 +129,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
           open={threadOpen}
           onPosted={() => void load()}
           release={threadOpen ? releaseButton : undefined}
+          reference={escrow.dispute.reference}
         />
       )}
 

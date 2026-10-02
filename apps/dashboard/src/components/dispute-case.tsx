@@ -15,6 +15,7 @@ import { match } from "ts-pattern";
 import { DetailRow } from "@/components/detail-row";
 import { DisputeThread } from "@/components/dispute-thread";
 import { deadlineTone } from "@/components/disputes-queue";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -89,115 +90,123 @@ function DisputeCase({ id }: { readonly id: string }) {
       const splitValid = /^\d{1,3}$/.test(payeePercent) && Number(payeePercent) <= 100;
       const open = dispute.status === "open" && escrow.outcome === "held";
       return (
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-4">
-          <section className="flex flex-col gap-3">
-            <SectionHeader title="Evidence" />
-            <Card>
-              <DisputeThread
-                messages={data.messages}
-                viewer="arbiter"
-                open={open}
-                pending={postMessage.isPending}
-                onSend={(body) => postMessage.mutateAsync(body)}
-              />
-            </Card>
-          </section>
+        <>
+          <PageHeader
+            title={`Dispute #${dispute.reference}`}
+            description="Read both sides, then decide from the arbiter wallet."
+          />
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-4">
+            <section className="flex flex-col gap-3">
+              <SectionHeader title="Evidence" />
+              <Card>
+                <DisputeThread
+                  messages={data.messages}
+                  viewer="arbiter"
+                  open={open}
+                  pending={postMessage.isPending}
+                  onSend={(body) => postMessage.mutateAsync(body)}
+                />
+              </Card>
+            </section>
 
-          <section className="flex flex-col gap-3">
-            <SectionHeader title="Decision" />
-            <Card className="gap-0 p-0">
-              <div className="flex items-start justify-between gap-3 border-b border-border p-4">
-                <div className="flex flex-col gap-1">
-                  <p className="font-medium text-foreground text-sm">
-                    {open
-                      ? "Waiting for your decision"
-                      : escrow.outcome === "released"
-                        ? "Released to the merchant"
-                        : escrow.outcome === "split"
-                          ? "Split between both sides"
-                          : "Refunded to the buyer"}
-                  </p>
-                  {open && (
-                    <p className="text-muted-foreground text-xs">
-                      Undecided by the deadline, the buyer is refunded.
+            <section className="flex flex-col gap-3">
+              <SectionHeader title="Decision" />
+              <Card className="gap-0 p-0">
+                <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+                  <div className="flex flex-col gap-1">
+                    <p className="font-medium text-foreground text-sm">
+                      {open
+                        ? "Waiting for your decision"
+                        : escrow.outcome === "released"
+                          ? "Released to the merchant"
+                          : escrow.outcome === "split"
+                            ? "Split between both sides"
+                            : "Refunded to the buyer"}
                     </p>
+                    {open && (
+                      <p className="text-muted-foreground text-xs">
+                        Undecided by the deadline, the buyer is refunded.
+                      </p>
+                    )}
+                  </div>
+                  {open ? (
+                    <Badge variant={deadlineTone(dispute.resolveBy)}>
+                      {formatDateTime(dispute.resolveBy)}
+                    </Badge>
+                  ) : (
+                    <Badge variant="success">Decided</Badge>
                   )}
                 </div>
-                {open ? (
-                  <Badge variant={deadlineTone(dispute.resolveBy)}>
-                    {formatDateTime(dispute.resolveBy)}
-                  </Badge>
-                ) : (
-                  <Badge variant="success">Decided</Badge>
-                )}
-              </div>
-              <dl className="flex flex-col px-4">
-                <DetailRow label="Payment">
-                  <span className="font-mono text-xs">{dispute.paymentIntentId}</span>
-                </DetailRow>
-                <DetailRow label="Network">{chainLabel(dispute.chain)}</DetailRow>
-                <DetailRow label="Buyer">
-                  <span title={dispute.payer} className="font-mono text-xs">
-                    {shortHash(dispute.payer)}
-                  </span>
-                </DetailRow>
-                <DetailRow label="Merchant">
-                  <span title={dispute.payee} className="font-mono text-xs">
-                    {shortHash(dispute.payee)}
-                  </span>
-                </DetailRow>
-                <DetailRow label="Opened">{formatDateTime(dispute.openedAt)}</DetailRow>
-              </dl>
-              {open && (
-                <div className="flex flex-col gap-2 border-t border-border p-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      disabled={deciding !== undefined}
-                      onClick={() => void decide(data, "release")}
-                    >
-                      {deciding === "release" ? "Releasing…" : "Release to merchant"}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={deciding !== undefined}
-                      onClick={() => void decide(data, "refund")}
-                    >
-                      {deciding === "refund" ? "Refunding…" : "Refund buyer"}
-                    </Button>
-                  </div>
-                  {escrow.bond !== null && (
-                    <div className="flex items-end gap-2">
-                      <label className="flex flex-1 flex-col gap-1 text-xs" htmlFor="split-share">
-                        <span className="text-muted-foreground">
-                          Or split — merchant's share (%)
-                        </span>
-                        <Input
-                          id="split-share"
-                          inputMode="numeric"
-                          value={payeePercent}
-                          onChange={(event) => setPayeePercent(event.target.value)}
-                          aria-invalid={!splitValid}
-                        />
-                      </label>
+                <dl className="flex flex-col px-4">
+                  <DetailRow label="Payment">
+                    <span className="font-mono text-xs">{dispute.paymentIntentId}</span>
+                  </DetailRow>
+                  <DetailRow label="Network">{chainLabel(dispute.chain)}</DetailRow>
+                  <DetailRow label="Buyer">
+                    <span title={dispute.payer} className="font-mono text-xs">
+                      {shortHash(dispute.payer)}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label="Merchant">
+                    <span title={dispute.payee} className="font-mono text-xs">
+                      {shortHash(dispute.payee)}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label="Opened">{formatDateTime(dispute.openedAt)}</DetailRow>
+                </dl>
+                {open && (
+                  <div className="flex flex-col gap-2 border-t border-border p-4">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        disabled={deciding !== undefined}
+                        onClick={() => void decide(data, "release")}
+                      >
+                        {deciding === "release" ? "Releasing…" : "Release to merchant"}
+                      </Button>
                       <Button
                         variant="secondary"
-                        disabled={deciding !== undefined || !splitValid}
-                        onClick={() => void decide(data, "split")}
+                        disabled={deciding !== undefined}
+                        onClick={() => void decide(data, "refund")}
                       >
-                        {deciding === "split" ? "Splitting…" : "Split"}
+                        {deciding === "refund" ? "Refunding…" : "Refund buyer"}
                       </Button>
                     </div>
-                  )}
-                  <p className="text-subtle-foreground text-xs">
-                    Sent from the arbiter wallet {shortHash(escrow.terms.arbiter)}. Final: the
-                    escrow moves its whole balance once.
-                  </p>
-                  {error !== undefined && <p className="text-destructive text-sm">{error}</p>}
-                </div>
-              )}
-            </Card>
-          </section>
-        </div>
+                    {escrow.bond !== null && (
+                      <div className="flex flex-col gap-1">
+                        <label className="text-muted-foreground text-xs" htmlFor="split-share">
+                          Or split — merchant's share (%)
+                        </label>
+                        <div className="flex items-stretch gap-2">
+                          <Input
+                            id="split-share"
+                            inputMode="numeric"
+                            value={payeePercent}
+                            onChange={(event) => setPayeePercent(event.target.value)}
+                            aria-invalid={!splitValid}
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="secondary"
+                            className="h-auto"
+                            disabled={deciding !== undefined || !splitValid}
+                            onClick={() => void decide(data, "split")}
+                          >
+                            {deciding === "split" ? "Splitting…" : "Split"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-subtle-foreground text-xs">
+                      Sent from the arbiter wallet {shortHash(escrow.terms.arbiter)}. Final: the
+                      escrow moves its whole balance once.
+                    </p>
+                    {error !== undefined && <p className="text-destructive text-sm">{error}</p>}
+                  </div>
+                )}
+              </Card>
+            </section>
+          </div>
+        </>
       );
     })
     .exhaustive();

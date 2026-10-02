@@ -58,6 +58,8 @@ export interface EscrowPayload {
   };
   /** The dispute's case file and thread (#313); null while nobody has disputed. */
   readonly dispute: {
+    /** The number to quote when contacting support (#313). */
+    readonly reference: string;
     readonly status: "open" | "released" | "refunded" | "split";
     readonly messages: readonly DisputeMessage[];
   } | null;

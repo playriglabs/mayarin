@@ -22,6 +22,7 @@ export function DisputeThread({
   open,
   onPosted,
   release,
+  reference,
 }: {
   readonly statusUrl: string;
   readonly payer: string;
@@ -30,6 +31,8 @@ export function DisputeThread({
   readonly onPosted: () => void;
   /** The escrow's release button, laid out beside "Sign and send" in one row. */
   readonly release?: ReactNode;
+  /** The dispute's number, to quote when contacting support. */
+  readonly reference: string;
 }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -81,6 +84,9 @@ export function DisputeThread({
 
   return (
     <div className="dispute-thread">
+      <p className="dispute-reference">
+        Dispute <strong>#{reference}</strong> — quote it if you contact support.
+      </p>
       {messages.length > 0 && (
         <ol ref={list}>
           {messages.map((message) => (

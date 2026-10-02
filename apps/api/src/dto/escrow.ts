@@ -5,6 +5,7 @@
 import { EVM_CHAIN_IDS } from "@mayarin/chain";
 import type { DisputeMessage } from "@mayarin/db";
 import { escrowBondApproveCalldata } from "@mayarin/provider-evm";
+import { numericReference } from "@mayarin/shared";
 import { z } from "zod";
 import type { EscrowView } from "../services/escrow.ts";
 import type { Standing } from "../services/payer-standing.ts";
@@ -62,6 +63,8 @@ export function toEscrowDto(view: EscrowView, payerStanding: Standing) {
         ? null
         : {
             id: view.dispute.record.id,
+            /** The number a person quotes, e.g. 93129301239 (#313). */
+            reference: numericReference(view.dispute.record.id),
             status: view.dispute.record.status,
             openedAt: view.dispute.record.createdAt.toISOString(),
             decidedAt: view.dispute.record.decidedAt?.toISOString() ?? null,

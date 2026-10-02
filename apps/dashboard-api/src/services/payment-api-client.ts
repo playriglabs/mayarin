@@ -87,6 +87,7 @@ export interface EscrowView {
   /** The dispute's case file and thread (#313); null while nobody has disputed. */
   readonly dispute: {
     readonly id: string;
+    readonly reference: string;
     readonly status: "open" | "released" | "refunded" | "split";
     readonly openedAt: string;
     readonly decidedAt: string | null;

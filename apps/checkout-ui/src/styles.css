@@ -473,6 +473,9 @@
   .dispute-thread ol {
     @apply m-0 flex max-h-56 list-none flex-col gap-2 overflow-y-auto overscroll-contain p-0;
   }
+  .state-view .dispute-thread .dispute-reference {
+    @apply m-0 text-xs text-muted;
+  }
   .dispute-message {
     @apply rounded-control border border-line bg-paper px-3 py-2;
   }

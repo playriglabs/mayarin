@@ -161,6 +161,8 @@ export interface EscrowDto {
   /** The dispute's case file and thread (#313); null while nobody has disputed. */
   readonly dispute: {
     readonly id: string;
+    /** The number a person quotes (#313), e.g. 93129301239. */
+    readonly reference: string;
     readonly status: "open" | "released" | "refunded" | "split";
     readonly openedAt: string;
     readonly decidedAt: string | null;
@@ -179,6 +181,8 @@ export interface DisputeMessageDto {
 /** An open dispute in the arbiter's queue (#313), from GET `/disputes`. */
 export interface DisputeDto {
   readonly id: string;
+  /** The number a person quotes, e.g. 93129301239. */
+  readonly reference: string;
   readonly paymentIntentId: string;
   readonly merchantId: string;
   readonly chain: string;

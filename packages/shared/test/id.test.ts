@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateId, hasPrefix, timestampFromId, ulid } from "../src/id.ts";
+import { generateId, hasPrefix, numericReference, timestampFromId, ulid } from "../src/id.ts";
 import { idSchema } from "../src/schema.ts";
 
 describe("generateId", () => {
@@ -53,5 +53,15 @@ describe("auth id prefixes", () => {
     expect(() => idSchema("usr").parse(sessionId)).toThrow();
     expect(() => idSchema("ses").parse(generateId("pi"))).toThrow();
     expect(() => idSchema("mrc").parse(generateId("pi"))).toThrow();
+  });
+});
+
+describe("numericReference (#313)", () => {
+  test("is eleven digits, stable for one id, and different for another", () => {
+    const first = generateId("dsp");
+    const reference = numericReference(first);
+    expect(reference).toMatch(/^\d{11}$/);
+    expect(numericReference(first)).toBe(reference);
+    expect(numericReference(generateId("dsp"))).not.toBe(reference);
   });
 });
