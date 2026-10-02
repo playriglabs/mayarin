@@ -34,32 +34,53 @@ export function BuyerProtection({
     }
   }
 
+  // One line up front — what protection is, and the one action. The terms stay
+  // on the page, one click away, so the card does not outweigh the pay button.
   return (
     <div className="escrow-note">
-      <p>
-        <strong>Buyer protection.</strong> Your payment is held for{" "}
-        {holdDuration(protection.holdSeconds)} until you confirm delivery. Disputes are decided by{" "}
-        {protection.arbiterLabel}; if undecided, you're refunded.
-      </p>
-      <p>
-        {protection.required
-          ? "Connect your wallet to release or dispute later."
-          : "Connect your wallet to turn it on."}
-      </p>
-      {payerAddress === null ? (
-        <button type="button" className="secondary" onClick={() => void connect()}>
-          Connect wallet
-        </button>
-      ) : (
-        <p className="escrow-wallet">
-          Protected · wallet <code>{shortAddress(payerAddress)}</code>{" "}
-          {!protection.required && (
+      <div className="escrow-row">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="escrow-icon">
+          <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6L12 3Z" />
+          {payerAddress !== null && <path d="m8.5 12 2.5 2.5 4.5-5" />}
+        </svg>
+        <div className="escrow-copy">
+          <p>
+            <strong>Buyer protection</strong>
+            {!protection.required && payerAddress === null && " · optional"}
+          </p>
+          <p>
+            {payerAddress === null ? (
+              `Held ${holdDuration(protection.holdSeconds)} until you confirm delivery`
+            ) : (
+              <>
+                On · wallet <code>{shortAddress(payerAddress)}</code>
+              </>
+            )}
+          </p>
+        </div>
+        {payerAddress === null ? (
+          <button type="button" className="escrow-action" onClick={() => void connect()}>
+            Connect wallet
+          </button>
+        ) : (
+          !protection.required && (
             <button type="button" className="link-button" onClick={() => onPayerAddress(null)}>
               Remove
             </button>
-          )}
+          )
+        )}
+      </div>
+      <details className="escrow-terms">
+        <summary>How it works</summary>
+        <p>
+          Your payment is held for {holdDuration(protection.holdSeconds)} until you confirm
+          delivery, then released to the merchant. Disputes are decided by {protection.arbiterLabel}
+          ; if undecided, you're refunded.{" "}
+          {protection.required
+            ? "Connect the wallet you pay from to release or dispute later."
+            : "Connect the wallet you pay from to turn it on."}
         </p>
-      )}
+      </details>
       {error !== "" && (
         <p className="error" role="alert">
           {error}

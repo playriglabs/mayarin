@@ -1,5 +1,5 @@
 import { chainLabel } from "@mayarin/chain";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { RailMark } from "./rail-mark.tsx";
 import type { Rail } from "./types.ts";
 
@@ -8,7 +8,8 @@ import type { Rail } from "./types.ts";
  *
  * Keeping the pair together prevents invalid combinations and scales without
  * turning checkout into two walls of buttons. The selected rail is the only
- * row visible at rest; opening it reveals a bounded, scrollable radio list.
+ * row visible at rest; opening it floats a bounded, scrollable radio list over
+ * the form, so the page below does not jump.
  * Server order is preserved: the API ranks by what the rails have been doing
  * (#260), so the healthiest rail is the one offered first. A degraded rail
  * stays selectable and carries a note — the payer who holds only that asset
@@ -33,7 +34,27 @@ export function RailPicker({
   const [open, setOpen] = useState(false);
   const listId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
   const current = selected ?? rails[0];
+
+  // A floating list closes the way a menu does: a click outside, or Escape.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!anchorRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
 
   if (rails.length <= 1 || current === undefined) return null;
 
@@ -44,33 +65,30 @@ export function RailPicker({
       <span className="label" id={`${listId}-label`}>
         Pay with
       </span>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="rail-picker-trigger"
-        aria-expanded={open}
-        aria-controls={listId}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <RailMark asset={current.asset} chain={current.chain} size={30} />
-        <span className="rail-picker-copy">
-          <strong>{current.asset}</strong>
-          <span>{chainLabel(current.chain)}</span>
-        </span>
-        <span className="rail-picker-change">Change</span>
-        <span className="rail-picker-chevron" aria-hidden="true" />
-      </button>
-      {current.standing === "degraded" && (
-        <span className="rail-standing rail-standing-trigger">{DEGRADED_NOTE}</span>
-      )}
+      <div ref={anchorRef} className="rail-picker-anchor">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="rail-picker-trigger"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <RailMark asset={current.asset} chain={current.chain} size={30} />
+          <span className="rail-picker-copy">
+            <strong>{current.asset}</strong>
+            <span>{chainLabel(current.chain)}</span>
+          </span>
+          <span className="rail-picker-change">Change</span>
+          <span className="rail-picker-chevron" aria-hidden="true" />
+        </button>
 
-      <div
-        id={listId}
-        className={`rail-options-collapse${open ? " open" : ""}`}
-        aria-hidden={!open}
-        inert={!open}
-      >
-        <div className="rail-options-clip">
+        <div
+          id={listId}
+          className={`rail-options-popover${open ? " open" : ""}`}
+          aria-hidden={!open}
+          inert={!open}
+        >
           <div className="rail-options" role="radiogroup" aria-labelledby={`${listId}-label`}>
             {rails.map((rail) => {
               const checked = rail.asset === current.asset && rail.chain === current.chain;
@@ -101,6 +119,9 @@ export function RailPicker({
           </div>
         </div>
       </div>
+      {current.standing === "degraded" && (
+        <span className="rail-standing rail-standing-trigger">{DEGRADED_NOTE}</span>
+      )}
     </div>
   );
 }

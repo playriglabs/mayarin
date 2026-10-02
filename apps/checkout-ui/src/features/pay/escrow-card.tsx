@@ -55,30 +55,47 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
     }
   }
 
-  const headline =
+  const status =
     escrow.outcome === "released"
-      ? "Released to the merchant"
+      ? "Released"
       : escrow.outcome === "refunded"
-        ? "Refunded to your wallet"
+        ? "Refunded"
         : escrow.disputed
-          ? "Held in escrow — disputed"
-          : "Held in escrow";
+          ? "Disputed"
+          : "Held";
 
   return (
     <div className="escrow-card" role="status">
-      <p className="section-kicker">Buyer protection</p>
-      <h3>{headline}</h3>
+      <div className="escrow-card-head">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="escrow-icon">
+          <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6L12 3Z" />
+          <path d="m8.5 12 2.5 2.5 4.5-5" />
+        </svg>
+        <p className="section-kicker">Buyer protection</p>
+        <span className={`escrow-status escrow-status-${status.toLowerCase()}`}>{status}</span>
+      </div>
+
+      <p className="escrow-when">
+        {escrow.outcome === "released"
+          ? "The payment went to the merchant."
+          : escrow.outcome === "refunded"
+            ? "The payment went back to your wallet."
+            : escrow.disputed
+              ? `Refunded to you if undecided by ${when(escrow.terms.resolveBy)}`
+              : `Releases to the merchant on ${when(escrow.terms.releaseAfter)}`}
+      </p>
       {escrow.outcome === "held" && (
-        <p>
+        <p className="escrow-hint">
           {escrow.disputed
-            ? `The automatic release is stopped. ${
-                escrow.terms.arbiter === ZERO_ADDRESS
-                  ? ""
-                  : "The arbiter decides, or the merchant refunds you; "
-              }if nothing is decided by ${new Date(escrow.terms.resolveBy).toLocaleString()}, you are refunded.`
-            : `Releases to the merchant automatically on ${releaseAfter.toLocaleString()}.`}
+            ? escrow.terms.arbiter === ZERO_ADDRESS
+              ? "The automatic release is stopped. The merchant can refund you."
+              : "The automatic release is stopped. The arbiter decides, or the merchant refunds you."
+            : holdOpen
+              ? "Got what you paid for? Release it now. Something wrong? Open a dispute first."
+              : "The hold has ended. It releases to the merchant shortly."}
         </p>
       )}
+
       {escrow.outcome === "held" && (
         <div className="escrow-actions">
           <button
@@ -87,7 +104,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
             disabled={busy}
             onClick={() => void act("release")}
           >
-            Release to merchant
+            Release payment
           </button>
           {holdOpen && !escrow.disputed && (
             <button
@@ -108,6 +125,11 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       )}
     </div>
   );
+}
+
+/** "Oct 3, 4:36 PM" — a date the payer reads at a glance. */
+function when(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";

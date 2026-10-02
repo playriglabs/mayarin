@@ -170,7 +170,7 @@
     @apply max-w-xl;
   }
   .section-kicker {
-    @apply m-0 mb-2 text-[11px] font-bold tracking-widest text-brand uppercase;
+    @apply m-0 mb-2 text-[11px] text-brand capitalize;
   }
   .checkout-panel h2 {
     @apply m-0 text-2xl leading-tight font-semibold tracking-tight sm:text-[28px];
@@ -242,24 +242,22 @@
   .rail-picker-trigger[aria-expanded="true"] .rail-picker-chevron {
     @apply -rotate-135;
   }
-  .rail-options-collapse {
-    @apply grid grid-rows-[0fr] opacity-0 motion-reduce:transition-none;
+  /* The list floats over the form rather than pushing it down. */
+  .rail-picker-anchor {
+    @apply relative;
+  }
+  .rail-options-popover {
+    @apply pointer-events-none absolute inset-x-0 top-full z-30 mt-2 origin-top -translate-y-1 scale-[0.98] opacity-0 motion-reduce:transition-none;
     transition:
-      grid-template-rows 200ms ease-out,
       opacity 150ms ease-out,
-      margin-top 200ms ease-out;
+      translate 200ms cubic-bezier(0.16, 1, 0.3, 1),
+      scale 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .rail-options-collapse.open {
-    @apply mt-2 grid-rows-[1fr] opacity-100;
-  }
-  .rail-options-clip {
-    @apply min-h-0 overflow-hidden;
+  .rail-options-popover.open {
+    @apply pointer-events-auto translate-y-0 scale-100 opacity-100;
   }
   .rail-options {
-    @apply max-h-72 -translate-y-1 overflow-y-auto overscroll-contain rounded-control border border-line bg-paper p-1 transition-transform duration-200 ease-out motion-reduce:translate-y-0 motion-reduce:transition-none;
-  }
-  .rail-options-collapse.open .rail-options {
-    @apply translate-y-0;
+    @apply max-h-72 overflow-y-auto overscroll-contain rounded-control border border-line bg-paper p-1 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.45)];
   }
   .rail-option {
     @apply min-h-13 cursor-pointer rounded-md px-3 py-2 transition-colors duration-150;
@@ -363,28 +361,115 @@
     @apply mt-5 rounded-panel border border-line bg-surface p-4;
   }
   .escrow-note p {
-    @apply mt-0 mb-3 text-xs leading-relaxed text-muted;
+    @apply m-0 text-xs leading-relaxed text-muted;
   }
   .escrow-note strong {
     @apply font-semibold text-ink;
   }
-  .escrow-wallet {
-    @apply mb-0!;
+  .escrow-row {
+    @apply flex items-center gap-3;
+  }
+  .escrow-icon {
+    @apply size-5 shrink-0 fill-none stroke-ink;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .escrow-copy {
+    @apply min-w-0 flex-1;
+  }
+  button.escrow-action {
+    @apply shrink-0 rounded-control border border-field bg-paper px-3 py-1.5 text-xs font-medium text-ink transition-colors duration-200 hover:bg-surface;
+  }
+  /* The terms open by height, not a jump. `interpolate-size` lets `height`
+     animate to `auto`; a browser without it just opens instantly. */
+  .escrow-terms {
+    @apply mt-3 border-t border-line pt-3;
+    interpolate-size: allow-keywords;
+  }
+  .escrow-terms::details-content {
+    @apply h-0 overflow-hidden opacity-0;
+    transition:
+      height 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      content-visibility 0.3s allow-discrete;
+  }
+  .escrow-terms[open]::details-content {
+    @apply h-auto opacity-100;
+  }
+  .escrow-terms summary {
+    @apply flex cursor-pointer list-none items-center gap-1.5 text-xs text-muted hover:text-ink;
+  }
+  .escrow-terms summary::-webkit-details-marker {
+    display: none;
+  }
+  /* A chevron that turns as the terms open. */
+  .escrow-terms summary::after {
+    @apply size-1.5 -translate-y-px rotate-45 border-r border-b border-current transition-transform duration-300 content-[''];
+  }
+  .escrow-terms[open] summary::after {
+    @apply translate-y-px -rotate-135;
+  }
+  .escrow-terms p {
+    @apply mt-2;
+  }
+  .escrow-note .error {
+    @apply mt-2;
   }
   button.link-button {
     @apply ml-1 border-0 bg-transparent p-0 text-xs text-muted underline;
   }
   .escrow-card {
-    @apply mt-6 w-full rounded-panel border border-line p-4.5 text-left;
+    @apply mt-6 w-full rounded-panel border border-line bg-surface p-5 text-left;
   }
-  .escrow-card h3 {
-    @apply mt-1 mb-1.5;
+  /* `.state-view p` centres and narrows every paragraph; the card's own text
+     runs flush left at full width. */
+  .state-view .escrow-card p {
+    @apply mx-0 mt-0 max-w-none;
   }
-  .escrow-card p {
-    @apply mt-0 mb-0 text-sm text-muted;
+  .escrow-card-head {
+    @apply flex items-center gap-2;
+  }
+  .escrow-card-head .escrow-icon {
+    @apply size-4 stroke-brand;
+  }
+  .escrow-card-head .section-kicker {
+    @apply m-0 flex-1;
+  }
+  /* Held is waiting (amber), disputed needs attention (red), released is done. */
+  .escrow-status {
+    @apply rounded-full px-2.5 py-0.5 text-[11px] font-semibold;
+  }
+  .escrow-status-held {
+    @apply bg-warning/12 text-warning;
+  }
+  .escrow-status-disputed {
+    @apply bg-danger/12 text-danger;
+  }
+  .escrow-status-released {
+    @apply bg-brand/12 text-brand;
+  }
+  .escrow-status-refunded {
+    @apply bg-line text-muted;
+  }
+  .state-view .escrow-card .escrow-when {
+    @apply mt-4 text-base font-medium text-ink;
+  }
+  .state-view .escrow-card .escrow-hint {
+    @apply mt-1.5 text-sm text-muted;
   }
   .escrow-actions {
-    @apply mt-1 flex flex-col gap-2.5;
+    @apply mt-5 grid grid-cols-2 gap-2.5;
+  }
+  .escrow-actions button.primary,
+  .escrow-actions button.secondary {
+    @apply mt-0 min-h-11;
+  }
+  .escrow-actions button:only-child {
+    @apply col-span-2;
+  }
+  .state-view .escrow-card .error {
+    @apply mt-3;
   }
   .unavailable {
     @apply mt-7 rounded-panel border border-line p-4.5;
@@ -757,6 +842,10 @@
       animation: none;
       stroke-dashoffset: 0;
     }
+    .escrow-terms::details-content,
+    .escrow-terms summary::after {
+      transition: none;
+    }
   }
 
   /* The split checkout needs more than an iPad landscape width. At 1024px a
@@ -770,6 +859,13 @@
 
   .document {
     @apply w-full max-w-3xl;
+  }
+  /* A settled invoice stands alone, so it sits in the middle of the screen.
+     `min-h` rather than `h`: a long invoice still grows and scrolls. */
+  @media screen {
+    body:has(main.document) {
+      @apply min-h-dvh items-center py-12;
+    }
   }
   .card {
     @apply border border-line p-5;
