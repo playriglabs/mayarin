@@ -411,11 +411,8 @@ function Settings() {
                           Buyer protection
                         </Label>
                         <p className="text-sm text-muted-foreground">
-                          A buyer who pays from a connected wallet on Arbitrum Sepolia or Robinhood
-                          Chain has their payment held in escrow. It reaches you when they release
-                          it, or on its own when the hold ends without a dispute. You can refund at
-                          any time. A dispute is decided by the arbiter; one still open 7 days after
-                          the hold refunds the buyer.
+                          Hold the buyer's payment until they confirm delivery. It's released to you
+                          automatically when the hold ends.
                         </p>
                       </div>
                     </div>
@@ -444,9 +441,7 @@ function Settings() {
                             className="font-mono text-xs"
                           />
                           <FieldDescription>
-                            Leave it blank for Mayarin Resolution, a neutral arbiter that can only
-                            send a disputed payment to you or to the buyer. It cannot be your own
-                            address.
+                            Decides disputes. Blank uses Mayarin Resolution.
                           </FieldDescription>
                           {arbiterInvalid && (
                             <FieldError>Enter a 20-byte hex address, or leave it blank.</FieldError>

@@ -65,7 +65,8 @@ releaseAfter, resolveBy)`, `salt = keccak256(abi.encode(terms))`, address =
   carried value) so status is one call rather than a log scan.
 - **Whole balance.** A move transfers everything the vault holds.
 - Deterministic deployer (`scripts/DeployEscrowFactory.s.sol`): one address on
-  every chain, `0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45`. `ESCROW_CHAINS` in
+  every chain, `0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45` — deployed on Arbitrum
+  Sepolia, Robinhood testnet, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_CHAINS` in
   `packages/providers/evm/src/escrow.ts` lists where it is deployed.
 
 ## No router change

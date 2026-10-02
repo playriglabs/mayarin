@@ -37,16 +37,14 @@ export function BuyerProtection({
   return (
     <div className="escrow-note">
       <p>
-        <strong>Buyer protection.</strong> Your payment is held in escrow for{" "}
-        {holdDuration(protection.holdSeconds)}. Release it once your order arrives, or open a
-        dispute before then. Disputes are decided by {protection.arbiterLabel}; one still open{" "}
-        {holdDuration(protection.arbitrationSeconds)} after the hold refunds you. The merchant can
-        refund you at any time.
+        <strong>Buyer protection.</strong> Your payment is held for{" "}
+        {holdDuration(protection.holdSeconds)} until you confirm delivery. Disputes are decided by{" "}
+        {protection.arbiterLabel}; if undecided, you're refunded.
       </p>
       <p>
         {protection.required
-          ? "Connect the wallet you will release from. You can still pay from any wallet or exchange."
-          : "Connect the wallet you will release from to turn it on. Without it, your payment goes to the merchant directly."}
+          ? "Connect your wallet to release or dispute later."
+          : "Connect your wallet to turn it on."}
       </p>
       {payerAddress === null ? (
         <button type="button" className="secondary" onClick={() => void connect()}>

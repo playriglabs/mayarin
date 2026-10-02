@@ -36,7 +36,13 @@ export const ESCROW_VAULT_INIT_CODE_HASH =
 export const ESCROW_ARBITRATION_SECONDS = 7 * 24 * 60 * 60;
 
 /** Chains `EscrowFactory` is deployed on. An escrowed payment anywhere else is refused. */
-export const ESCROW_CHAINS: readonly ChainId[] = ["arbitrum-sepolia", "robinhood-testnet"];
+export const ESCROW_CHAINS: readonly ChainId[] = [
+  "arbitrum-sepolia",
+  "robinhood-testnet",
+  "base-sepolia",
+  "ethereum-sepolia",
+  "arc-testnet",
+];
 
 export const ESCROW_FACTORY_ABI = parseAbi([
   "function release((bytes32 intentId, address payer, address payee, address arbiter, uint64 releaseAfter, uint64 resolveBy) terms, address token) returns (uint256)",
