@@ -458,6 +458,37 @@
   .state-view .escrow-card .escrow-hint {
     @apply mt-1.5 text-sm text-muted;
   }
+  /* The payer's dispute thread (#313). */
+  .dispute-thread {
+    @apply mt-4 flex flex-col gap-3 border-t border-line pt-4;
+  }
+  .dispute-thread ol {
+    @apply m-0 flex list-none flex-col gap-2 p-0;
+  }
+  .dispute-message {
+    @apply rounded-control border border-line bg-paper px-3 py-2;
+  }
+  .dispute-message-payer {
+    @apply bg-surface;
+  }
+  .state-view .dispute-thread .dispute-message p {
+    @apply mt-1 text-sm whitespace-pre-wrap text-ink;
+  }
+  .dispute-author {
+    @apply text-xs font-semibold text-muted;
+  }
+  .dispute-thread form {
+    @apply flex flex-col gap-2;
+  }
+  .dispute-label {
+    @apply text-xs font-medium text-ink;
+  }
+  .dispute-thread textarea {
+    @apply w-full resize-y rounded-control border border-field bg-paper px-3 py-2 font-[inherit] text-sm text-ink;
+  }
+  .dispute-thread button.secondary {
+    @apply min-h-10;
+  }
   .escrow-actions {
     @apply mt-5 grid grid-cols-2 gap-2.5;
   }

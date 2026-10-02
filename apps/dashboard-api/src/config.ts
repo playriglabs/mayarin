@@ -105,6 +105,15 @@ const configSchema = z.object({
    * the dashboard is where merchant wallets are created.
    */
   treasuryAddress: z.string().min(1).optional(),
+  /**
+   * Mayarin Resolution's address (#313), the same `ESCROW_ARBITER` the payment
+   * API names in escrow terms. The disputes console lists only disputes it
+   * arbitrates; unset, the console is empty.
+   */
+  escrowArbiter: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/, "ESCROW_ARBITER must be an EVM address")
+    .optional(),
 
   // --- Managed wallet provisioning (#11) ---------------------------------
   /**
@@ -243,6 +252,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     resendApiKey: env.RESEND_API_KEY,
     emailFrom: env.RESEND_FROM_EMAIL,
     treasuryAddress: env.TREASURY_ADDRESS,
+    escrowArbiter: env.ESCROW_ARBITER,
     walletProvisioningEnabled: env.WALLET_PROVISIONING_ENABLED,
     walletProvisionChains: env.WALLET_PROVISION_CHAINS,
     walletProvisionRpcUrl: env.WALLET_PROVISION_RPC_URL,

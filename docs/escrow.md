@@ -110,13 +110,57 @@ worker every 60 seconds:
 So a 1-day hold pays the merchant within about a minute of the day ending. It
 needs the chain worker running with treasury execution enabled.
 
+## Disputes (#313)
+
+The chain decides where the money goes; the dispute record is the case file
+beside it, so the arbiter decides on evidence rather than on silence.
+
+- **Opening.** A dispute record (`escrow_disputes`) opens the first time the
+  chain shows `disputed` — when anyone reads the escrow view (the checkout
+  reloads it right after the dispute transaction), or at the latest when the
+  keeper reaches the escrow at `releaseAfter`. It closes when the chain shows
+  the funds moved.
+- **Evidence.** An append-only thread (`escrow_dispute_messages`), up to 2,000
+  characters a message:
+  - **Buyer** — on the paid checkout page. Checkout has no session, so each
+    message is signed (`personal_sign`, EIP-1271 accepted) by the wallet the
+    escrow refunds to. The signed text names the payment and the time; a
+    signature older than 10 minutes is refused.
+  - **Merchant** — on the payment detail in the dashboard.
+  - **Arbiter** — in the dashboard console.
+- **The console.** `/disputes` in the dashboard lists every open dispute whose
+  arbiter is `ESCROW_ARBITER`, across merchants, nearest `resolveBy` first.
+  The decision — release to the merchant or refund the buyer — is sent from
+  the arbiter's own wallet straight to the factory; the dashboard signs
+  nothing. Only accounts holding the platform permission `disputes:arbitrate`
+  reach it. No merchant can grant it — not to an account, not to an API key —
+  so an operator sets it in the database:
+
+  ```sql
+  update users
+     set permissions = array_append(permissions, 'disputes:arbitrate')
+   where email = 'resolution@mayarin.xyz';
+  ```
+
+  The dashboard API needs `ESCROW_ARBITER` set to the same address as the
+  payment API; unset, the console is empty.
+
+- **SLA.** Decide within 3 days of the dispute. The keeper warns at 48 hours
+  and 24 hours before `resolveBy` — logged, and posted as `{ "text": … }` to
+  `ESCROW_ALERT_WEBHOOK_URL` when set (a Slack or Discord incoming webhook). A
+  dispute that reaches `resolveBy` undecided refunds the buyer, and is an
+  incident, not a normal outcome.
+- **A merchant-named arbiter** decides from its own wallet with the calldata
+  in `GET /v1/payments/:id/escrow`; the console lists only Mayarin
+  Resolution's disputes.
+
 ## Surfaces
 
 - **Checkout** (link, invoice, cart): states every term, offers "Connect
-  wallet"; after payment shows the hold with Release / Dispute.
-- **Dashboard:** Settings → Buyer protection; payment detail shows the hold and
-  a Refund button (direct from the payee, or `Safe.execTransaction` from its
-  owner).
+  wallet"; after payment shows the hold with Release / Dispute, and the dispute thread.
+- **Dashboard:** Settings → Buyer protection; payment detail shows the hold, a
+  Refund button (direct from the payee, or `Safe.execTransaction` from its
+  owner) and the dispute thread; `/disputes` is the arbiter console.
 - **SDK:** `payments.createIntent({ escrow })`, `payments.getEscrow(id)`.
 
 ## Known limits

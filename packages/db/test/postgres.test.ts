@@ -51,6 +51,7 @@ import {
   DrizzleWatcherCursorRepository,
 } from "../src/repositories/chain.ts";
 import { DrizzleClearingRepository } from "../src/repositories/clearing.ts";
+import { DrizzleEscrowDisputeRepository } from "../src/repositories/escrow-dispute.ts";
 import { DrizzleLedgerRepository } from "../src/repositories/ledger.ts";
 import {
   DrizzleWebhookCursorRepository,
@@ -121,7 +122,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -440,6 +441,43 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     await clearingRepository.insert(transaction, [event]);
     return transaction.id;
   }
+
+  test("keeps one dispute per payment and an ordered, append-only thread (#313)", async () => {
+    const repository = new DrizzleEscrowDisputeRepository(handle.db);
+    const intent = await confirmedIntent();
+    const input = {
+      paymentIntentId: intent.id,
+      merchantId: intent.merchant.id,
+      chain: "arbitrum-sepolia",
+      factory: "0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45",
+      payer: "0x000000000000000000000000000000000000CAFE",
+      payee: "0x000000000000000000000000000000000000BEEF",
+      arbiter: "0x00000000000000000000000000000000000000A1",
+      releaseAfter: new Date("2026-10-03T00:00:00.000Z"),
+      resolveBy: new Date("2026-10-10T00:00:00.000Z"),
+    };
+
+    const opened = await repository.open(input, clock.now());
+    const again = await repository.open(input, clock.now());
+    expect(again.id).toBe(opened.id);
+    expect(opened.payer).toBe("0x000000000000000000000000000000000000cafe");
+    expect((await repository.listOpen()).map((d) => d.id)).toEqual([opened.id]);
+
+    await repository.addMessage(opened.id, "payer", "Never arrived", clock.now());
+    await repository.addMessage(opened.id, "merchant", "Tracking: 123", clock.now());
+    expect((await repository.listMessages(opened.id)).map((m) => m.author)).toEqual([
+      "payer",
+      "merchant",
+    ]);
+
+    await repository.markAlerted(opened.id, "48h");
+    await repository.close(intent.id, "refunded", clock.now());
+    await repository.close(intent.id, "released", clock.now());
+    const closed = await repository.findByPaymentIntentId(intent.id);
+    expect(closed?.status).toBe("refunded");
+    expect(closed?.alerted).toBe("48h");
+    expect(await repository.listOpen()).toEqual([]);
+  });
 
   test("allocates one deposit address per clearing transaction", async () => {
     const repository = new DrizzleDepositAddressRepository(handle.db);

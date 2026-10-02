@@ -19,7 +19,7 @@ import type { Container } from "../container.ts";
 import { toClearingDto } from "../dto/clearing.ts";
 import { toContractCallDto } from "../dto/contract-call.ts";
 import { toDepositDto } from "../dto/deposit.ts";
-import { toEscrowDto } from "../dto/escrow.ts";
+import { disputeMessageBodySchema, toDisputeMessageDto, toEscrowDto } from "../dto/escrow.ts";
 import { toPaymentDto } from "../dto/payment.ts";
 import { refundBodySchema, toRefundDto, toRefundSummaryDto } from "../dto/refund.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
@@ -188,6 +188,17 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    */
   app.get("/:id/escrow", async (c) => {
     return c.json({ escrow: toEscrowDto(await container.escrow.view(c.req.param("id"))) });
+  });
+
+  /**
+   * The payer's message in their dispute (#313). Open like the escrow view —
+   * checkout has no session — so the body carries a signature from the wallet
+   * the escrow refunds to, and only that wallet is accepted.
+   */
+  app.post("/:id/escrow/dispute/messages", async (c) => {
+    const input = disputeMessageBodySchema.parse(await c.req.json());
+    const message = await container.escrow.postPayerMessage(c.req.param("id"), input);
+    return c.json({ message: toDisputeMessageDto(message) }, 201);
   });
 
   return app;

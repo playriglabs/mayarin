@@ -43,6 +43,8 @@ export const ID_PREFIXES = {
   emailVerification: "evf",
   payoutBatch: "pob",
   subscription: "sub",
+  escrowDispute: "dsp",
+  escrowDisputeMessage: "dsm",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];

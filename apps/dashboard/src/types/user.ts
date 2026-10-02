@@ -11,8 +11,13 @@ export type Permission =
   | "users:manage"
   | "admin:access"
   | "settings:manage"
-  | "catalog:manage";
+  | "catalog:manage"
+  | "disputes:arbitrate";
 
+/**
+ * What a merchant may grant its own accounts and API keys — every permission
+ * but the platform's `disputes:arbitrate` (#313), which an operator sets.
+ */
 export const PERMISSION_LIST = [
   "payments:read",
   "users:manage",
@@ -37,6 +42,7 @@ export const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
   "admin:access": "Admin dashboard",
   "settings:manage": "Change settlement settings",
   "catalog:manage": "Manage products and payment links",
+  "disputes:arbitrate": "Arbitrate escrow disputes",
 } as const;
 
 export interface UserDto {

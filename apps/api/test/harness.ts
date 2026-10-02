@@ -58,6 +58,7 @@ import { EscrowService } from "../src/services/escrow.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 import { PaymentStream } from "../src/services/payment-stream.ts";
 import { SubscriptionApiService } from "../src/services/subscriptions.ts";
+import { InMemoryEscrowDisputeLog } from "./fixtures/escrow-disputes.ts";
 
 export const WEBHOOK_SECRET = "whsec_mayarin_test";
 
@@ -241,7 +242,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     engine,
     rates,
     paymentApp,
-    escrow: new EscrowService(paymentApp, {}),
+    escrow: new EscrowService(paymentApp, {}, new InMemoryEscrowDisputeLog(), clock),
     stream,
     refunds: new RefundService({
       clearing: clearingRepository,

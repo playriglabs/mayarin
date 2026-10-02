@@ -1134,6 +1134,62 @@ export const x402Resources = pgTable(
  * against them), and the EIP-3009 nonce claim that serialises two agents
  * racing one obligation.
  */
+/**
+ * An escrow dispute (#313): the off-chain record beside the on-chain
+ * `disputed` flag. The chain decides where the money goes; this row is the
+ * case file — who is involved, the deadline, and the evidence thread — so the
+ * arbiter decides on something other than silence.
+ *
+ * One per payment. `status` follows the chain: `open` while the escrow is held,
+ * then `released` or `refunded` once it is seen closed.
+ */
+export const escrowDisputes = pgTable(
+  "escrow_disputes",
+  {
+    id: text("id").primaryKey(),
+    paymentIntentId: text("payment_intent_id")
+      .notNull()
+      .references(() => paymentIntents.id),
+    merchantId: text("merchant_id").notNull(),
+    chain: text("chain").notNull(),
+    factory: text("factory").notNull(),
+    payer: text("payer").notNull(),
+    payee: text("payee").notNull(),
+    arbiter: text("arbiter").notNull(),
+    releaseAfter: timestamp("release_after", { withTimezone: true, mode: "date" }).notNull(),
+    resolveBy: timestamp("resolve_by", { withTimezone: true, mode: "date" }).notNull(),
+    /** `open | released | refunded`, CHECK-constrained. */
+    status: text("status").notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true, mode: "date" }),
+    /** The last `resolveBy` warning sent: `48h` or `24h`. Null before any. */
+    alerted: text("alerted"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("escrow_disputes_payment_intent_idx").on(table.paymentIntentId),
+    index("escrow_disputes_open_idx").on(table.status, table.resolveBy),
+  ],
+);
+
+/**
+ * One message in a dispute's thread (#313). Append-only: evidence is never
+ * edited or removed, so what the arbiter read is what each side wrote.
+ */
+export const escrowDisputeMessages = pgTable(
+  "escrow_dispute_messages",
+  {
+    id: text("id").primaryKey(),
+    disputeId: text("dispute_id")
+      .notNull()
+      .references(() => escrowDisputes.id),
+    /** `payer | merchant | arbiter`, CHECK-constrained. */
+    author: text("author").notNull(),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [index("escrow_dispute_messages_dispute_idx").on(table.disputeId, table.createdAt)],
+);
+
 export const x402PayableQuotes = pgTable(
   "x402_payable_quotes",
   {
@@ -1192,4 +1248,6 @@ export const schema = {
   webhookCursors,
   x402Resources,
   x402PayableQuotes,
+  escrowDisputes,
+  escrowDisputeMessages,
 };

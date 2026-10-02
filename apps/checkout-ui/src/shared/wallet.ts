@@ -47,3 +47,11 @@ export async function sendCall(call: {
     params: [{ from: call.from, to: call.to, data: call.data }],
   })) as string;
 }
+
+/** Signs `message` with `from` (`personal_sign`); resolves with the signature. */
+export async function signMessage(from: string, message: string): Promise<string> {
+  const hex = `0x${Array.from(new TextEncoder().encode(message), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("")}`;
+  return (await provider().request({ method: "personal_sign", params: [hex, from] })) as string;
+}

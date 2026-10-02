@@ -31,6 +31,8 @@ type Row = typeof clearingTransactions.$inferSelect;
 /** One escrow the keeper may need to close (#304). */
 export interface DueEscrow {
   readonly clearingTransactionId: string;
+  readonly paymentIntentId: string;
+  readonly merchantId: string;
   readonly chain: ChainId;
   /** The signed order; `order.escrow` is always present here. */
   readonly order: ContractOrder;
@@ -183,7 +185,15 @@ export class DrizzleClearingRepository implements ClearingRepository {
     return rows.flatMap(({ transaction, chain }) => {
       const order = toContract(transaction)?.order;
       if (order?.escrow === undefined || chain === null || !isChainId(chain)) return [];
-      return [{ clearingTransactionId: transaction.id, chain, order }];
+      return [
+        {
+          clearingTransactionId: transaction.id,
+          paymentIntentId: transaction.paymentIntentId,
+          merchantId: transaction.merchantId,
+          chain,
+          order,
+        },
+      ];
     });
   }
 

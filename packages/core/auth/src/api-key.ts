@@ -10,7 +10,7 @@
 
 import { generateId, ValidationError } from "@mayarin/shared";
 import type { Permission } from "./permission.ts";
-import { isPermission } from "./permission.ts";
+import { isPermission, PLATFORM_PERMISSIONS } from "./permission.ts";
 
 /**
  * What a key is safe to be seen by (#113).
@@ -76,6 +76,9 @@ export function createApiKey(input: CreateApiKeyInput): ApiKey {
   for (const permission of input.permissions) {
     if (!isPermission(permission)) {
       throw new ValidationError(`Unknown permission "${String(permission)}"`, { permission });
+    }
+    if (PLATFORM_PERMISSIONS.includes(permission)) {
+      throw new ValidationError(`"${permission}" cannot be granted to an API key`, { permission });
     }
   }
 

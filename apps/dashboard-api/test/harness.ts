@@ -70,6 +70,7 @@ import { chainReceipts } from "../src/rails.ts";
 import { ApiKeyService } from "../src/services/api-key-service.ts";
 import { AuthService } from "../src/services/auth-service.ts";
 import { CustomerService } from "../src/services/customer-service.ts";
+import { DisputeService } from "../src/services/disputes.ts";
 import { EventLogService } from "../src/services/event-log-service.ts";
 import type {
   InvoiceEmailSender,
@@ -94,6 +95,7 @@ import type {
 import { WalletService } from "../src/services/wallet-service.ts";
 import { WebhookService } from "../src/services/webhook-service.ts";
 import { X402ResourceService } from "../src/services/x402-resource-service.ts";
+import { InMemoryDisputeStore } from "./fixtures/dispute-store.ts";
 
 /**
  * The deployment's fee destination, exported so a test can try to claim it.
@@ -478,6 +480,14 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     clock,
   });
 
+  const disputeStore = new InMemoryDisputeStore();
+  const disputes = new DisputeService({
+    store: disputeStore,
+    paymentApi,
+    arbiter: config.escrowArbiter,
+    clock,
+  });
+
   const container: Container = {
     config,
     auth: authService,
@@ -496,6 +506,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     settlements: settlementView,
     eventLogs,
     paymentApi,
+    disputes,
     webhooks,
     wallets,
     payouts,
@@ -579,6 +590,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     apiKeyRepository,
     eventLogRepository,
     paymentApiCalls,
+    disputeStore,
     /** Lets a test name the payment id the fake mints. */
     setMintedPaymentId: (id: string) => {
       mintedPaymentId = id;
