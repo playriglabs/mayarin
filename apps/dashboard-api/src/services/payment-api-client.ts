@@ -75,6 +75,8 @@ export interface EscrowView {
   readonly disputed: boolean;
   readonly balance: string;
   readonly calls: { readonly release: string; readonly refund: string; readonly dispute: string };
+  /** Whether the payer's wallet may still take buyer protection (#314). */
+  readonly payerStanding: "good" | "flagged";
   /** The dispute's case file and thread (#313); null while nobody has disputed. */
   readonly dispute: {
     readonly id: string;

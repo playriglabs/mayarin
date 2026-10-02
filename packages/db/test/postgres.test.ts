@@ -477,6 +477,12 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     expect(closed?.status).toBe("refunded");
     expect(closed?.alerted).toBe("48h");
     expect(await repository.listOpen()).toEqual([]);
+    // Refunded is a claim that held; only a release after a dispute counts as lost (#314).
+    expect(await repository.payerRecord("0x000000000000000000000000000000000000CAFE")).toEqual({
+      escrowed: 0,
+      disputes: 1,
+      lost: 0,
+    });
   });
 
   test("allocates one deposit address per clearing transaction", async () => {

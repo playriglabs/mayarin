@@ -51,10 +51,11 @@ import { InMemoryMerchantWalletRepository } from "@mayarin/wallet/testing";
 import { createApp } from "../src/app.ts";
 import { type Config, loadConfig } from "../src/config.ts";
 import type { Container } from "../src/container.ts";
-import { RuntimeMarket } from "../src/market.ts";
+import { DEFAULT_DISPUTE_STANDING, RuntimeMarket } from "../src/market.ts";
 import { chainReceipts, QuotePricingSource } from "../src/rails.ts";
 import { createApiKeyVerifier } from "../src/services/api-key-verifier.ts";
 import { EscrowService } from "../src/services/escrow.ts";
+import { PayerStanding } from "../src/services/payer-standing.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 import { PaymentStream } from "../src/services/payment-stream.ts";
 import { SubscriptionApiService } from "../src/services/subscriptions.ts";
@@ -243,6 +244,10 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     rates,
     paymentApp,
     escrow: new EscrowService(paymentApp, {}, new InMemoryEscrowDisputeLog(), clock),
+    payerStanding: new PayerStanding(
+      { payerRecord: async () => ({ escrowed: 0, disputes: 0, lost: 0 }) },
+      async () => DEFAULT_DISPUTE_STANDING,
+    ),
     stream,
     refunds: new RefundService({
       clearing: clearingRepository,

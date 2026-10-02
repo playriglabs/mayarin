@@ -126,6 +126,7 @@ import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
+import { PayerStanding } from "./services/payer-standing.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
 import { CachedRailObservations } from "./services/rail-observations.ts";
@@ -234,6 +235,8 @@ export interface Container {
   readonly checkout?: ContractCheckout;
   /** Escrow state and calldata for a conditional-settlement payment (#304). */
   readonly escrow: EscrowService;
+  /** Whether a payer wallet may still take buyer protection (#314). */
+  readonly payerStanding: PayerStanding;
   /**
    * Closes escrows whose hold or arbitration window has ended (#304). Present
    * only with treasury execution, whose operator key sends the calls.
@@ -696,6 +699,9 @@ export function createContainer({
     new DrizzleMerchantRepository(handle.db),
   );
 
+  const disputes = new DrizzleEscrowDisputeRepository(handle.db);
+  const payerStanding = new PayerStanding(disputes, () => market.disputeStanding());
+
   const intentRepository = new DrizzlePaymentIntentRepository(handle.db);
   const intents = new PaymentIntentService({
     repository: intentRepository,
@@ -707,6 +713,8 @@ export function createContainer({
     merchantPolicies,
     // Buyer protection applies only where an escrow factory is deployed.
     escrowChains: ESCROW_CHAINS,
+    // A wallet that keeps losing disputes is not offered protection (#314).
+    payerStanding,
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
@@ -959,7 +967,6 @@ export function createContainer({
   // Refunds run after the state machine has finished, against a transaction the
   // engine will never touch again — so a service beside it, not a step inside it.
   const clearingRepository = new DrizzleClearingRepository(handle.db);
-  const disputes = new DrizzleEscrowDisputeRepository(handle.db);
   const refunds = new RefundService({
     clearing: clearingRepository,
     refunds: new DrizzleRefundRepository(handle.db),
@@ -1085,6 +1092,7 @@ export function createContainer({
     rates,
     paymentApp,
     escrow: new EscrowService(paymentApp, config.chainRpcUrls, disputes, clock),
+    payerStanding,
     ...(treasury === undefined
       ? {}
       : {

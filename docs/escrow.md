@@ -154,6 +154,36 @@ beside it, so the arbiter decides on evidence rather than on silence.
   in `GET /v1/payments/:id/escrow`; the console lists only Mayarin
   Resolution's disputes.
 
+## Payer standing (#314)
+
+A wallet that keeps disputing — and keeps losing — stops being offered buyer
+protection. Its record is counted, not stored: escrowed payments from it, its
+disputes, and disputes that ended **released** to the merchant (a claim that
+did not hold). A refunded dispute is a claim that held and costs nothing.
+
+A wallet is **flagged** once it has lost `maxLostDisputes` disputes, or — past
+`minEscrows` escrowed payments — disputed more than `maxDisputeRateBps` of
+them. The rules are runtime config (key `disputeStanding`, default
+`{ "maxLostDisputes": 2, "maxDisputeRateBps": 5000, "minEscrows": 4 }`):
+
+```bash
+curl -X PUT "$API/v1/admin/market-config/disputeStanding" \
+  -H "authorization: Bearer $ADMIN_TOKEN" -H "content-type: application/json" \
+  -d '{ "value": { "maxLostDisputes": 3, "maxDisputeRateBps": 4000, "minEscrows": 5 } }'
+```
+
+- **Checkout** asks `GET /v1/payers/:address/protection` (`{ eligible }`, never
+  the history) when the buyer connects. Optional protection then stays off —
+  the buyer can still pay, and the merchant is paid directly. Required
+  protection blocks the payment with a reason.
+- **The API** enforces the same rule in `PaymentIntentService`: a flagged
+  wallet never gets the merchant's default protection, and an escrow the
+  merchant requires is refused to it.
+- **The merchant** sees "Buyer standing: Good / Flagged" on an escrowed
+  payment, not the wallet's history with other merchants.
+- **Limit:** a new wallet starts clean, so this stops repeat abuse from one
+  address only. The dispute bond (#315) is what makes abuse cost money.
+
 ## Surfaces
 
 - **Checkout** (link, invoice, cart): states every term, offers "Connect

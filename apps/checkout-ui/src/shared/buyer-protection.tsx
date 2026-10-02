@@ -23,12 +23,25 @@ export function BuyerProtection({
   readonly onPayerAddress: (address: string | null) => void;
 }) {
   const [error, setError] = useState("");
+  const [ineligible, setIneligible] = useState(false);
   if (!protectionApplies(protection, rail)) return null;
 
   async function connect() {
     setError("");
+    setIneligible(false);
     try {
-      onPayerAddress(await connectWallet());
+      const address = await connectWallet();
+      // A wallet that keeps losing disputes no longer gets protection (#314).
+      // Optional protection then simply stays off; required protection blocks.
+      const response = await fetch(`/v1/payers/${address}/protection`);
+      const { eligible } = response.ok
+        ? ((await response.json()) as { eligible: boolean })
+        : { eligible: true };
+      if (!eligible) {
+        setIneligible(true);
+        return;
+      }
+      onPayerAddress(address);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to connect a wallet");
     }
@@ -81,6 +94,13 @@ export function BuyerProtection({
             : "Connect the wallet you pay from to turn it on."}
         </p>
       </details>
+      {ineligible && (
+        <p className={protection.required ? "error" : "escrow-ineligible"} role="alert">
+          {protection.required
+            ? "This payment requires buyer protection, which this wallet can no longer use."
+            : "Buyer protection isn't available for this wallet. You can still pay — the merchant is paid directly."}
+        </p>
+      )}
       {error !== "" && (
         <p className="error" role="alert">
           {error}

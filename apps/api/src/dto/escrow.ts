@@ -6,6 +6,7 @@ import { EVM_CHAIN_IDS } from "@mayarin/chain";
 import type { DisputeMessage } from "@mayarin/db";
 import { z } from "zod";
 import type { EscrowView } from "../services/escrow.ts";
+import type { Standing } from "../services/payer-standing.ts";
 
 /** A payer's message in their dispute, signed by the wallet they paid with (#313). */
 export const disputeMessageBodySchema = z.object({
@@ -23,7 +24,7 @@ export function toDisputeMessageDto(message: DisputeMessage) {
   };
 }
 
-export function toEscrowDto(view: EscrowView) {
+export function toEscrowDto(view: EscrowView, payerStanding: Standing) {
   return {
     chain: view.chain,
     /** For `wallet_switchEthereumChain` before sending a call. */
@@ -44,6 +45,8 @@ export function toEscrowDto(view: EscrowView) {
     disputed: view.state.disputed,
     balance: view.state.balance.toString(),
     calls: view.calls,
+    /** Whether the payer's wallet may still take buyer protection (#314). Never the history. */
+    payerStanding,
     dispute:
       view.dispute === undefined
         ? null
