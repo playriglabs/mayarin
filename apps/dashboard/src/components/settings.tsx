@@ -274,7 +274,7 @@ function Settings() {
                   </Tabs.List>
                   {activeTab !== "history" && (
                     <Button
-                      size="sm"
+                      size="default"
                       className="w-full sm:w-auto"
                       onClick={save}
                       disabled={

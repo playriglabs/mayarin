@@ -4,19 +4,29 @@
  *
  * Built to stay readable as networks and assets grow. Each network is one
  * summary line — what it settles in, how many assets it takes — and its asset
- * picker opens only when edited, so fifteen chains are fifteen lines rather
- * than a wall of toggles. Everything listed comes from the deployment
+ * picker opens in a dialog only when edited, so fifteen chains are fifteen
+ * lines rather than a wall of toggles. Everything listed comes from the deployment
  * (`supported`), never from a list in this file: a chain or stablecoin added to
  * the deployment appears here without a UI change.
  */
 
 import { chainLabel } from "@mayarin/chain";
-import { CaretDownIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { CaretRightIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { AssetLabel, AssetLogo, AssetStack } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -169,7 +179,9 @@ export function NetworkSettings({
   readonly draft: NetworkDraft;
   readonly onChange: (next: NetworkDraft) => void;
 }) {
-  const [open, setOpen] = useState<string | null>(null);
+  // The chain outlives `open` so the dialog keeps its content while it fades out.
+  const [editing, setEditing] = useState<string | undefined>(undefined);
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   const needle = query.trim().toLowerCase();
@@ -181,6 +193,7 @@ export function NetworkSettings({
             chainLabel(entry.chain).toLowerCase().includes(needle) ||
             entry.assets.some((asset) => asset.toLowerCase().includes(needle)),
         );
+  const editingEntry = supported.find((entry) => entry.chain === editing);
 
   return (
     <div className="flex flex-col gap-3">
@@ -206,86 +219,72 @@ export function NetworkSettings({
           <NetworkRow
             key={entry.chain}
             entry={entry}
-            supported={supported}
             draft={draft}
-            onChange={onChange}
-            open={open === entry.chain}
-            onToggle={() => setOpen((current) => (current === entry.chain ? null : entry.chain))}
+            onOpen={() => {
+              setEditing(entry.chain);
+              setOpen(true);
+            }}
           />
         ))}
         {shown.length === 0 && (
           <li className="p-4 text-muted-foreground text-sm">No network matches “{query}”.</li>
         )}
       </ul>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg">
+          {editingEntry !== undefined && (
+            <NetworkEditor
+              key={editingEntry.chain}
+              entry={editingEntry}
+              supported={supported}
+              draft={draft}
+              onChange={onChange}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function isCustomized(draft: NetworkDraft, chain: string): boolean {
+  return (
+    draft.acceptedAssetsByChain[chain] !== undefined ||
+    draft.settlementAssetByChain[chain] !== undefined
+  );
+}
+
+/** What a network accepts, always including what it settles in. */
+function acceptedWithSettlement(draft: NetworkDraft, entry: SupportedChainDto): readonly string[] {
+  const settlesIn = settlementOn(draft, entry.chain);
+  return [...new Set([settlesIn, ...acceptedOn(draft, entry.chain, entry.assets)])].filter(
+    (asset) => entry.assets.includes(asset),
   );
 }
 
 function NetworkRow({
   entry,
-  supported,
   draft,
-  onChange,
-  open,
-  onToggle,
+  onOpen,
 }: {
   readonly entry: SupportedChainDto;
-  readonly supported: readonly SupportedChainDto[];
   readonly draft: NetworkDraft;
-  readonly onChange: (next: NetworkDraft) => void;
-  readonly open: boolean;
-  readonly onToggle: () => void;
+  readonly onOpen: () => void;
 }) {
-  const [assetQuery, setAssetQuery] = useState("");
   const chain = entry.chain;
   const settlesIn = settlementOn(draft, chain);
-  const accepted = [...new Set([settlesIn, ...acceptedOn(draft, chain, entry.assets)])].filter(
-    (asset) => entry.assets.includes(asset),
-  );
-  const customized =
-    draft.acceptedAssetsByChain[chain] !== undefined ||
-    draft.settlementAssetByChain[chain] !== undefined;
-  const settlementChoices: SelectOption[] = entry.settlementAssets.map((asset) => ({
-    value: asset,
-    label: asset,
-  }));
+  const accepted = acceptedWithSettlement(draft, entry);
   // A default the network does not carry cannot settle here, and the row says
   // so rather than showing a choice that would drop every rail.
   const settleable = entry.settlementAssets.includes(settlesIn);
-
-  // The settlement asset first, the rest alphabetically, so an asset sits in
-  // the same place on every network.
-  const assetNeedle = assetQuery.trim().toLowerCase();
-  const assets = [...entry.assets]
-    .sort((x, y) => (x === settlesIn ? -1 : y === settlesIn ? 1 : x.localeCompare(y)))
-    .filter((asset) => assetNeedle === "" || asset.toLowerCase().includes(assetNeedle));
-  const panelId = `network-${chain}`;
-
-  function toggle(asset: string, on: boolean) {
-    const current = acceptedOn(draft, chain, entry.assets);
-    const next = on ? [...new Set([...current, asset])] : current.filter((a) => a !== asset);
-    onChange({ ...draft, acceptedAssetsByChain: withAccepted(draft, chain, next, entry.assets) });
-  }
-
-  function reset() {
-    const acceptedByChain = { ...draft.acceptedAssetsByChain };
-    const settlementByChain = { ...draft.settlementAssetByChain };
-    delete acceptedByChain[chain];
-    delete settlementByChain[chain];
-    onChange({
-      ...draft,
-      acceptedAssetsByChain: acceptedByChain,
-      settlementAssetByChain: settlementByChain,
-    });
-  }
 
   return (
     <li>
       <button
         type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={onToggle}
+        aria-haspopup="dialog"
+        onClick={onOpen}
         className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {/* Stacked on a phone — the network, then what it does — and one line
@@ -310,123 +309,229 @@ function NetworkRow({
               <AssetStack assets={accepted} size={18} />
               {accepted.length} of {entry.assets.length} accepted
             </span>
-            {customized && <Badge variant="brand">Custom</Badge>}
+            {isCustomized(draft, chain) && <Badge variant="brand">Custom</Badge>}
           </span>
         </span>
-        <CaretDownIcon
-          size={14}
-          aria-hidden="true"
-          className={cn("text-muted-foreground transition-transform", open && "rotate-180")}
-        />
+        <CaretRightIcon size={14} aria-hidden="true" className="text-muted-foreground" />
       </button>
+    </li>
+  );
+}
 
-      {open && (
-        <div id={panelId} className="flex flex-col gap-4 border-border border-t bg-muted/20 p-4">
-          <div className="flex flex-col gap-2">
-            <span className="font-medium text-xs">Payers can send</span>
-            {entry.assets.length > SEARCH_FROM && (
-              <Input
-                value={assetQuery}
-                onChange={(event) => setAssetQuery(event.target.value)}
-                placeholder="Search assets"
-                aria-label={`Search assets on ${chainLabel(chain)}`}
-                className="h-8 max-w-60 text-xs"
+/**
+ * One network's choices, in a dialog. The asset list is a scrolling column of
+ * checkboxes rather than a row of pills, so forty assets cost the same screen
+ * as four; search and select-all/clear take over once the list gets long.
+ * Edits land in the draft as they are made — the page's Save still commits.
+ */
+function NetworkEditor({
+  entry,
+  supported,
+  draft,
+  onChange,
+}: {
+  readonly entry: SupportedChainDto;
+  readonly supported: readonly SupportedChainDto[];
+  readonly draft: NetworkDraft;
+  readonly onChange: (next: NetworkDraft) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const chain = entry.chain;
+  const settlesIn = settlementOn(draft, chain);
+  const settleable = entry.settlementAssets.includes(settlesIn);
+  const accepted = acceptedWithSettlement(draft, entry);
+  const customized = isCustomized(draft, chain);
+  const settlementChoices: SelectOption[] = entry.settlementAssets.map((asset) => ({
+    value: asset,
+    label: asset,
+  }));
+
+  // The settlement asset first, the rest alphabetically, so an asset sits in
+  // the same place on every network.
+  const needle = query.trim().toLowerCase();
+  const assets = [...entry.assets]
+    .sort((x, y) => (x === settlesIn ? -1 : y === settlesIn ? 1 : x.localeCompare(y)))
+    .filter((asset) => needle === "" || asset.toLowerCase().includes(needle));
+
+  function setAccepted(next: readonly string[]) {
+    onChange({ ...draft, acceptedAssetsByChain: withAccepted(draft, chain, next, entry.assets) });
+  }
+
+  function toggle(asset: string, on: boolean) {
+    const current = acceptedOn(draft, chain, entry.assets);
+    setAccepted(on ? [...new Set([...current, asset])] : current.filter((a) => a !== asset));
+  }
+
+  function reset() {
+    const acceptedByChain = { ...draft.acceptedAssetsByChain };
+    const settlementByChain = { ...draft.settlementAssetByChain };
+    delete acceptedByChain[chain];
+    delete settlementByChain[chain];
+    onChange({
+      ...draft,
+      acceptedAssetsByChain: acceptedByChain,
+      settlementAssetByChain: settlementByChain,
+    });
+  }
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          <ChainLabel chain={chain} />
+        </DialogTitle>
+        <DialogDescription>
+          What payers can send on this network, and what you are paid in.
+        </DialogDescription>
+      </DialogHeader>
+
+      {settlementChoices.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="font-medium text-xs">You are paid in</span>
+          <Select
+            items={settlementChoices}
+            value={settlesIn}
+            onValueChange={(next) =>
+              onChange({ ...draft, settlementAssetByChain: withSettlement(draft, chain, next) })
+            }
+          >
+            <SelectTrigger aria-label={`Settlement asset on ${chainLabel(chain)}`} className="h-9">
+              <SelectValue
+                placeholder="Choose asset"
+                renderValue={(option) => <AssetLabel symbol={option.value} size={16} />}
               />
-            )}
-            <fieldset
-              aria-label={`Assets accepted on ${chainLabel(chain)}`}
-              className="m-0 flex flex-wrap gap-2 border-0 p-0"
-            >
-              {assets.map((asset) => {
-                const on = accepted.includes(asset);
-                // Each network keeps at least one asset, and always accepts
-                // what it settles in.
-                const locked = asset === settlesIn || (on && accepted.length === 1);
-                return (
-                  <button
-                    key={asset}
-                    type="button"
-                    aria-pressed={on}
-                    disabled={locked}
-                    title={
-                      asset === settlesIn
-                        ? "A network always accepts what it settles in"
-                        : locked
-                          ? "Each network keeps at least one asset"
-                          : undefined
-                    }
-                    onClick={() => toggle(asset, !on)}
-                    className={cn(
-                      "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed",
-                      on
-                        ? "border-brand bg-brand/10 text-foreground dark:border-electric dark:bg-electric/10"
-                        : "border-border text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <AssetLogo
-                      symbol={asset}
-                      size={16}
-                      className={on ? "" : "opacity-50 grayscale"}
-                    />
-                    {asset}
-                  </button>
-                );
-              })}
-            </fieldset>
-          </div>
-
-          {settlementChoices.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="font-medium text-xs">You are paid in</span>
-              <Select
-                items={settlementChoices}
-                value={settlesIn}
-                onValueChange={(next) =>
-                  onChange({
-                    ...draft,
-                    settlementAssetByChain: withSettlement(draft, chain, next),
-                  })
-                }
-              >
-                <SelectTrigger
-                  aria-label={`Settlement asset on ${chainLabel(chain)}`}
-                  className="h-9 w-48"
-                >
-                  <SelectValue
-                    placeholder="Choose asset"
-                    renderValue={(option) => <AssetLabel symbol={option.value} size={16} />}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {settlementChoices.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <AssetLabel symbol={option.value} size={16} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2">
-            {supported.length > 1 && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => onChange(applyToAll(draft, chain, supported))}
-              >
-                Apply to all networks
-              </Button>
-            )}
-            {customized && (
-              <Button type="button" variant="ghost" size="sm" onClick={reset}>
-                Reset to default
-              </Button>
-            )}
-          </div>
+            </SelectTrigger>
+            <SelectContent>
+              {settlementChoices.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  <AssetLabel symbol={option.value} size={16} />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
-    </li>
+
+      <div className="flex min-h-0 flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium text-xs">
+            Payers can send{" "}
+            <span className="text-muted-foreground">
+              · {accepted.length} of {entry.assets.length}
+            </span>
+          </span>
+          <span className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={accepted.length === entry.assets.length}
+              onClick={() => setAccepted(entry.assets)}
+            >
+              Select all
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              // Clearing keeps the settlement asset, so it needs one to keep.
+              disabled={!settleable || accepted.length === 1}
+              onClick={() => setAccepted([settlesIn])}
+            >
+              Clear
+            </Button>
+          </span>
+        </div>
+
+        {entry.assets.length > SEARCH_FROM && (
+          <div className="relative">
+            <MagnifyingGlassIcon
+              size={14}
+              aria-hidden="true"
+              className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 text-muted-foreground"
+            />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search assets"
+              aria-label={`Search assets on ${chainLabel(chain)}`}
+              className="h-9 pl-8"
+            />
+          </div>
+        )}
+
+        <ul
+          aria-label={`Assets accepted on ${chainLabel(chain)}`}
+          className="flex max-h-80 min-h-0 flex-col divide-y divide-border overflow-y-auto rounded-lg border border-border"
+        >
+          {assets.map((asset) => {
+            const on = accepted.includes(asset);
+            // Each network keeps at least one asset, and always accepts what
+            // it settles in.
+            const isSettlement = asset === settlesIn;
+            const locked = isSettlement || (on && accepted.length === 1);
+            const id = `accept-${chain}-${asset}`;
+            return (
+              <li key={asset}>
+                <label
+                  htmlFor={id}
+                  title={
+                    isSettlement
+                      ? "A network always accepts what it settles in"
+                      : locked
+                        ? "Each network keeps at least one asset"
+                        : undefined
+                  }
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 text-sm transition-colors",
+                    locked ? "cursor-not-allowed" : "cursor-pointer hover:bg-muted/40",
+                  )}
+                >
+                  <Checkbox
+                    id={id}
+                    checked={on}
+                    disabled={locked}
+                    onCheckedChange={(checked) => toggle(asset, checked)}
+                  />
+                  <AssetLogo
+                    symbol={asset}
+                    size={20}
+                    className={on ? "" : "opacity-50 grayscale"}
+                  />
+                  <span className={cn("flex-1", on ? "text-foreground" : "text-muted-foreground")}>
+                    {asset}
+                  </span>
+                  {isSettlement && <Badge variant="brand">Settles here</Badge>}
+                </label>
+              </li>
+            );
+          })}
+          {assets.length === 0 && (
+            <li className="p-4 text-muted-foreground text-sm">No asset matches “{query}”.</li>
+          )}
+        </ul>
+      </div>
+
+      <DialogFooter className="flex-wrap items-center justify-between">
+        <span className="flex items-center gap-2">
+          {supported.length > 1 && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => onChange(applyToAll(draft, chain, supported))}
+            >
+              Apply to all networks
+            </Button>
+          )}
+          {customized && (
+            <Button type="button" variant="ghost" size="sm" onClick={reset}>
+              Reset to default
+            </Button>
+          )}
+        </span>
+        <DialogClose render={<Button type="button" size="sm" />}>Done</DialogClose>
+      </DialogFooter>
+    </>
   );
 }
