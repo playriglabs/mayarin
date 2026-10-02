@@ -46,19 +46,23 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
   const [status, tone] =
     data.outcome === "released"
       ? (["Released", "success"] as const)
-      : data.outcome === "refunded"
-        ? (["Refunded", "default"] as const)
-        : data.disputed
-          ? (["Disputed", "destructive"] as const)
-          : (["Held", "warning"] as const);
+      : data.outcome === "split"
+        ? (["Split", "success"] as const)
+        : data.outcome === "refunded"
+          ? (["Refunded", "default"] as const)
+          : data.disputed
+            ? (["Disputed", "destructive"] as const)
+            : (["Held", "warning"] as const);
   const headline =
     data.outcome === "released"
       ? "Released to you"
-      : data.outcome === "refunded"
-        ? "Refunded to the payer"
-        : data.disputed
-          ? "Disputed by the payer — automatic release stopped"
-          : `Releases to you on ${formatDateTime(data.terms.releaseAfter)}`;
+      : data.outcome === "split"
+        ? "Split by the arbiter between you and the payer"
+        : data.outcome === "refunded"
+          ? "Refunded to the payer"
+          : data.disputed
+            ? "Disputed by the payer — automatic release stopped"
+            : `Releases to you on ${formatDateTime(data.terms.releaseAfter)}`;
   const hint =
     data.outcome !== "held"
       ? undefined

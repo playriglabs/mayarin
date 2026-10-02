@@ -22,4 +22,13 @@ export const disputesApi = {
       method: "POST",
       body: { body },
     }),
+
+  /** GET `/disputes/:id/resolve` — the split call for the arbiter's wallet (#315). */
+  resolveCall: (
+    id: string,
+    payeeBps: number,
+  ): Effect.Effect<{ readonly to: string; readonly data: string }, ApiError> =>
+    request<{ readonly to: string; readonly data: string }>(
+      `/disputes/${encodeURIComponent(id)}/resolve?payeeBps=${payeeBps}`,
+    ),
 };

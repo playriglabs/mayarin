@@ -40,6 +40,8 @@ import {
   ESCROW_ARBITRATION_SECONDS,
   ESCROW_CHAINS,
   ESCROW_FACTORY,
+  ESCROW_FACTORY_V2,
+  ESCROW_V2_CHAINS,
   escrowAddress,
   escrowArbiter,
   type RouterCall,
@@ -223,7 +225,13 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       verifyingContract: router as Hex,
     };
     const intentId = deriveIntentId(request.clearingTransactionId);
-    const escrow = this.#escrow(request, intentId, merchantSafe, now);
+    const escrow = this.#escrow(
+      request,
+      intentId,
+      merchantSafe,
+      now,
+      subtract(settlementAmount, fee),
+    );
     const context = {
       intentId,
       settlementToken,
@@ -316,6 +324,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     intentId: string,
     payee: string,
     now: Date,
+    held: Money,
   ): ContractEscrow | undefined {
     if (request.escrow === undefined) return undefined;
     if (!ESCROW_CHAINS.includes(request.chain)) {
@@ -335,14 +344,18 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       });
     }
     const releaseAfter = Math.floor(now.getTime() / 1_000) + request.escrow.holdSeconds;
-    return {
-      factory: ESCROW_FACTORY,
+    const terms = {
       payer,
       payee,
       arbiter,
       releaseAfter: BigInt(releaseAfter),
       resolveBy: BigInt(releaseAfter + ESCROW_ARBITRATION_SECONDS),
     };
+    // v2 where it is deployed (#315): every new escrow there carries a bond,
+    // zero when the merchant asks for none, so one chain has one factory.
+    if (!ESCROW_V2_CHAINS.includes(request.chain)) return { factory: ESCROW_FACTORY, ...terms };
+    const bond = (held.amount * BigInt(request.escrow.bondBps ?? 0)) / 10_000n;
+    return { factory: ESCROW_FACTORY_V2, ...terms, bond };
   }
 
   /**

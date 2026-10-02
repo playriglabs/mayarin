@@ -18,12 +18,15 @@ import { deadlineTone } from "@/components/disputes-queue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useArbiterMessage, useDisputeCase } from "@/hooks/disputes";
 import { ApiError } from "@/lib/api/client";
+import { disputesApi } from "@/lib/api/disputes";
 import { formatDateTime } from "@/lib/date";
+import { runEffect } from "@/lib/run";
 import {
   discoverWallets,
   requestAccount,
@@ -38,13 +41,19 @@ import type { DisputeCaseDto } from "@/types/payment";
 function DisputeCase({ id }: { readonly id: string }) {
   const found = useDisputeCase(id);
   const postMessage = useArbiterMessage(id);
-  const [deciding, setDeciding] = useState<"release" | "refund" | undefined>();
+  const [deciding, setDeciding] = useState<"release" | "refund" | "split" | undefined>();
+  /** The merchant's share of a split, in percent (#315). */
+  const [payeePercent, setPayeePercent] = useState("50");
   const [error, setError] = useState<string | undefined>();
 
-  async function decide(data: DisputeCaseDto, action: "release" | "refund") {
+  async function decide(data: DisputeCaseDto, action: "release" | "refund" | "split") {
     setDeciding(action);
     setError(undefined);
     try {
+      const call =
+        action === "split"
+          ? await runEffect(disputesApi.resolveCall(id, Math.round(Number(payeePercent) * 100)))
+          : { to: data.escrow.factory, data: data.escrow.calls[action] };
       const [wallet] = await discoverWallets();
       if (wallet === undefined) throw new Error("No browser wallet found");
       const account = await requestAccount(wallet.provider);
@@ -54,11 +63,7 @@ function DisputeCase({ id }: { readonly id: string }) {
         );
       }
       await switchChain(wallet.provider, BigInt(data.escrow.chainId));
-      const hash = await sendTransaction(wallet.provider, {
-        from: account,
-        to: data.escrow.factory,
-        data: data.escrow.calls[action],
-      });
+      const hash = await sendTransaction(wallet.provider, { from: account, ...call });
       await waitForReceipt(wallet.provider, hash);
       await found.refetch();
     } catch (cause) {
@@ -81,6 +86,7 @@ function DisputeCase({ id }: { readonly id: string }) {
     ))
     .with({ status: "success" }, ({ data }) => {
       const { dispute, escrow } = data;
+      const splitValid = /^\d{1,3}$/.test(payeePercent) && Number(payeePercent) <= 100;
       const open = dispute.status === "open" && escrow.outcome === "held";
       return (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-4">
@@ -105,9 +111,11 @@ function DisputeCase({ id }: { readonly id: string }) {
                   <p className="font-medium text-foreground text-sm">
                     {open
                       ? "Waiting for your decision"
-                      : dispute.status === "released" || escrow.outcome === "released"
+                      : escrow.outcome === "released"
                         ? "Released to the merchant"
-                        : "Refunded to the buyer"}
+                        : escrow.outcome === "split"
+                          ? "Split between both sides"
+                          : "Refunded to the buyer"}
                   </p>
                   {open && (
                     <p className="text-muted-foreground text-xs">
@@ -157,6 +165,29 @@ function DisputeCase({ id }: { readonly id: string }) {
                       {deciding === "refund" ? "Refunding…" : "Refund buyer"}
                     </Button>
                   </div>
+                  {escrow.bond !== null && (
+                    <div className="flex items-end gap-2">
+                      <label className="flex flex-1 flex-col gap-1 text-xs" htmlFor="split-share">
+                        <span className="text-muted-foreground">
+                          Or split — merchant's share (%)
+                        </span>
+                        <Input
+                          id="split-share"
+                          inputMode="numeric"
+                          value={payeePercent}
+                          onChange={(event) => setPayeePercent(event.target.value)}
+                          aria-invalid={!splitValid}
+                        />
+                      </label>
+                      <Button
+                        variant="secondary"
+                        disabled={deciding !== undefined || !splitValid}
+                        onClick={() => void decide(data, "split")}
+                      >
+                        {deciding === "split" ? "Splitting…" : "Split"}
+                      </Button>
+                    </div>
+                  )}
                   <p className="text-subtle-foreground text-xs">
                     Sent from the arbiter wallet {shortHash(escrow.terms.arbiter)}. Final: the
                     escrow moves its whole balance once.

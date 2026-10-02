@@ -145,10 +145,12 @@ export interface EscrowDto {
     readonly releaseAfter: string;
     readonly resolveBy: string;
   };
-  readonly outcome: "held" | "released" | "refunded";
+  readonly outcome: "held" | "released" | "refunded" | "split";
   readonly disputed: boolean;
   /** Settlement-token minor units still held. */
   readonly balance: string;
+  /** The dispute bond (#315) in minor units; null on a v1 escrow, which cannot be split. */
+  readonly bond: string | null;
   /** Calldata per action, sent to `factory`. The contract decides who may send it. */
   readonly calls: { readonly release: string; readonly refund: string; readonly dispute: string };
   /**
@@ -159,7 +161,7 @@ export interface EscrowDto {
   /** The dispute's case file and thread (#313); null while nobody has disputed. */
   readonly dispute: {
     readonly id: string;
-    readonly status: "open" | "released" | "refunded";
+    readonly status: "open" | "released" | "refunded" | "split";
     readonly openedAt: string;
     readonly decidedAt: string | null;
     readonly messages: readonly DisputeMessageDto[];
@@ -182,7 +184,7 @@ export interface DisputeDto {
   readonly chain: string;
   readonly payer: string;
   readonly payee: string;
-  readonly status: "open" | "released" | "refunded";
+  readonly status: "open" | "released" | "refunded" | "split";
   readonly releaseAfter: string;
   readonly resolveBy: string;
   readonly openedAt: string;

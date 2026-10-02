@@ -184,6 +184,45 @@ curl -X PUT "$API/v1/admin/market-config/disputeStanding" \
 - **Limit:** a new wallet starts clean, so this stops repeat abuse from one
   address only. The dispute bond (#315) is what makes abuse cost money.
 
+## Factory v2: dispute bond and split (#315)
+
+`EscrowFactoryV2` (`src/EscrowFactoryV2.sol`, vault `EscrowVaultV2.sol`) adds
+two rules. v1 stays deployed and immutable; escrows made under it keep v1's
+rules, and the backend reads the factory from each stored order, so both
+versions run side by side.
+
+- **Dispute bond.** `Terms` gains `bond` (settlement-token units, part of the
+  salt). `dispute(terms, token)` pulls it from the payer into the escrow, once
+  — the payer approves it to the factory first. `bond == 0` disputes free.
+- **Split.** `resolve(terms, token, payeeBps)` — arbiter only, disputed,
+  before `resolveBy` — sends `payeeBps / 10000` of the payment to the payee
+  and the rest to the payer. Outcome `Split`.
+
+| Move                       | Payment             | Bond                                               |
+| -------------------------- | ------------------- | -------------------------------------------------- |
+| `release` (anyone allowed) | payee               | payee                                              |
+| `refund` (anyone allowed)  | payer               | payer                                              |
+| `resolve(payeeBps)`        | split by `payeeBps` | the majority; payer at 50/50                       |
+| open at `resolveBy`        | payer               | payer — an absent arbiter is not the payer's fault |
+
+A payer who disputes and then releases has conceded, so the bond goes to the
+payee with the payment.
+
+- **Address.** Same deterministic deployer, salt `mayarin.escrow-factory.v2`:
+  `0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18` on every chain
+  (`scripts/DeployEscrowFactoryV2.s.sol`). `ESCROW_V2_CHAINS` in
+  `packages/providers/evm/src/escrow.ts` lists where it is deployed; a new
+  escrow there is made under v2 (bond zero when the merchant sets none), and
+  under v1 elsewhere.
+- **Bond size.** Settings → Buyer protection → Dispute bond, 0–20% of what
+  reaches the escrow (`buyerProtection.bondBps`, or `escrow.bondBps` per
+  payment). The planner fixes it in the terms at the price lock. Checkout
+  states it before the buyer connects, and approves it before disputing.
+- **The bond is in the settlement token.** A buyer who paid in another asset
+  needs that token to dispute.
+- **Console.** Release, refund, or split by the merchant's share in percent;
+  `GET /v1/payments/:id/escrow/resolve?payeeBps=` returns the call.
+
 ## Surfaces
 
 - **Checkout** (link, invoice, cart): states every term, offers "Connect

@@ -87,6 +87,12 @@ export class DisputeService {
     return { dispute, messages: await this.#store.listMessages(id), escrow };
   }
 
+  /** The call for the arbiter's wallet that splits the payment (#315). */
+  async resolveCall(id: string, payeeBps: number): Promise<{ to: string; data: string }> {
+    const dispute = await this.#arbitrated(id);
+    return this.#paymentApi.escrowResolve(dispute.paymentIntentId, payeeBps);
+  }
+
   async postArbiterMessage(id: string, body: string): Promise<DisputeMessage> {
     return this.#append(await this.#arbitrated(id), "arbiter", body);
   }

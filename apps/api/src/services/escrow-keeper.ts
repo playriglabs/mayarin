@@ -33,7 +33,7 @@ import {
 
 export interface EscrowKeeperRepository {
   listDueEscrows(nowSeconds: number, limit: number): Promise<DueEscrow[]>;
-  markEscrowOutcome(clearingTransactionId: string, outcome: "released" | "refunded"): Promise<void>;
+  markEscrowOutcome(clearingTransactionId: string, outcome: EscrowClosed): Promise<void>;
 }
 
 export interface EscrowKeeperOptions {
@@ -51,6 +51,9 @@ export interface EscrowKeeperOptions {
 }
 
 export type EscrowKeeperAction = "release" | "refund";
+
+/** How an escrow ended: whole to one side, or split by the arbiter (#315). */
+export type EscrowClosed = "released" | "refunded" | "split";
 
 export type EscrowStateReader = (
   chain: ChainId,
@@ -177,7 +180,7 @@ export class EscrowKeeper {
   async #recordOutcome(
     clearingTransactionId: string,
     paymentIntentId: string,
-    outcome: "released" | "refunded",
+    outcome: EscrowClosed,
   ): Promise<void> {
     await this.#options.repository.markEscrowOutcome(clearingTransactionId, outcome);
     await this.#options.disputes.close(paymentIntentId, outcome, this.#options.clock.now());
@@ -194,6 +197,7 @@ function termsOf(order: ContractOrder): EscrowTerms {
     arbiter: escrow.arbiter,
     releaseAfter: escrow.releaseAfter,
     resolveBy: escrow.resolveBy,
+    ...(escrow.bond === undefined ? {} : { bond: escrow.bond }),
   };
 }
 

@@ -453,6 +453,9 @@
   .escrow-status-released {
     @apply bg-brand/12 text-brand;
   }
+  .escrow-status-split {
+    @apply bg-brand/12 text-brand;
+  }
   .escrow-status-refunded {
     @apply bg-line text-muted;
   }

@@ -111,6 +111,13 @@ export const MIN_ESCROW_HOLD_SECONDS = 24 * 60 * 60;
 /** The longest hold an escrow may carry: a quarter, the usual chargeback window. */
 export const MAX_ESCROW_HOLD_SECONDS = 90 * 24 * 60 * 60;
 
+/**
+ * The largest dispute bond (#315): a fifth of the payment. Enough to make a
+ * bad-faith dispute cost something, not so much that a genuine one is priced
+ * out.
+ */
+export const MAX_ESCROW_BOND_BPS = 2_000;
+
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 
 export function assertEscrow(escrow: EscrowRequest): void {
@@ -128,6 +135,17 @@ export function assertEscrow(escrow: EscrowRequest): void {
     throw new ValidationError("Escrow arbiter must be an EVM address", {
       arbiter: escrow.arbiter,
     });
+  }
+  if (
+    escrow.bondBps !== undefined &&
+    (!Number.isInteger(escrow.bondBps) ||
+      escrow.bondBps < 0 ||
+      escrow.bondBps > MAX_ESCROW_BOND_BPS)
+  ) {
+    throw new ValidationError(
+      `The dispute bond must be a whole number of basis points from 0 to ${MAX_ESCROW_BOND_BPS} (20%)`,
+      { bondBps: escrow.bondBps },
+    );
   }
 }
 

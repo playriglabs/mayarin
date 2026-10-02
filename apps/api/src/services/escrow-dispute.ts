@@ -19,7 +19,11 @@ import type {
 export interface EscrowDisputeLog {
   open(input: OpenDispute, now: Date): Promise<EscrowDispute>;
   findByPaymentIntentId(paymentIntentId: string): Promise<EscrowDispute | undefined>;
-  close(paymentIntentId: string, status: "released" | "refunded", now: Date): Promise<void>;
+  close(
+    paymentIntentId: string,
+    status: "released" | "refunded" | "split",
+    now: Date,
+  ): Promise<void>;
   listOpen(): Promise<readonly EscrowDispute[]>;
   markAlerted(id: string, alert: DisputeAlert): Promise<void>;
   listMessages(disputeId: string): Promise<readonly DisputeMessage[]>;

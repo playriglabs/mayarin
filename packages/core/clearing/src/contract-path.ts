@@ -77,6 +77,11 @@ export interface ContractEscrow {
   readonly releaseAfter: bigint;
   /** Unix seconds after which a still-disputed escrow refunds the payer. */
   readonly resolveBy: bigint;
+  /**
+   * Settlement-token units the payer posts to dispute (#315). Present — even
+   * as `0n` — when `factory` is `EscrowFactoryV2`; absent on a v1 escrow.
+   */
+  readonly bond?: bigint;
 }
 
 /** Everything `lock` freezes: the price, the signed order, and the display leg. */

@@ -89,6 +89,8 @@ export function BuyerProtection({
           Your payment is held for {holdDuration(protection.holdSeconds)} until you confirm
           delivery, then released to the merchant. Disputes are decided by {protection.arbiterLabel}
           ; if undecided, you're refunded.{" "}
+          {bondApplies(protection, rail) &&
+            `Opening a dispute takes a bond of ${protection.bondBps / 100}% of the payment, returned if your claim holds and paid to the merchant if it doesn't. `}
           {protection.required
             ? "Connect the wallet you pay from to release or dispute later."
             : "Connect the wallet you pay from to turn it on."}
@@ -108,6 +110,11 @@ export function BuyerProtection({
       )}
     </div>
   );
+}
+
+/** Whether disputing costs a bond on this rail (#315): the merchant set one, on a v2 chain. */
+function bondApplies(protection: Protection, rail: Rail | undefined): boolean {
+  return protection.bondBps > 0 && rail !== undefined && protection.bondChains.includes(rail.chain);
 }
 
 /** Whether protection is on offer for this rail: the merchant offers it, on this chain. */

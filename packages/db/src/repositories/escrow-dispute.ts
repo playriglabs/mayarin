@@ -14,7 +14,8 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { clearingTransactions, escrowDisputeMessages, escrowDisputes } from "../schema.ts";
 
-export type DisputeStatus = "open" | "released" | "refunded";
+/** `split` when the arbiter divided a v2 escrow (#315). */
+export type DisputeStatus = "open" | "released" | "refunded" | "split";
 export type DisputeAuthor = "payer" | "merchant" | "arbiter";
 export type DisputeAlert = "48h" | "24h";
 
@@ -132,7 +133,11 @@ export class DrizzleEscrowDisputeRepository {
   }
 
   /** Records the chain's outcome. Only an open dispute moves; a closed one stays as it was. */
-  async close(paymentIntentId: string, status: "released" | "refunded", now: Date): Promise<void> {
+  async close(
+    paymentIntentId: string,
+    status: Exclude<DisputeStatus, "open">,
+    now: Date,
+  ): Promise<void> {
     await this.#db
       .update(escrowDisputes)
       .set({ status, decidedAt: now })

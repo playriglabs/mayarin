@@ -281,6 +281,13 @@
       "when": 1790827200000,
       "tag": "0039_escrow_disputes",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790830800000,
+      "tag": "0040_escrow_split",
+      "breakpoints": true
     }
   ]
 }

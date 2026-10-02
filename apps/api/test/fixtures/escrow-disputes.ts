@@ -36,7 +36,7 @@ export class InMemoryEscrowDisputeLog implements EscrowDisputeLog {
     return this.disputes.get(paymentIntentId);
   }
 
-  async close(paymentIntentId: string, status: "released" | "refunded", now: Date) {
+  async close(paymentIntentId: string, status: "released" | "refunded" | "split", now: Date) {
     const dispute = this.disputes.get(paymentIntentId);
     if (dispute === undefined || dispute.status !== "open") return;
     this.disputes.set(paymentIntentId, { ...dispute, status, decidedAt: now });

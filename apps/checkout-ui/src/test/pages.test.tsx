@@ -606,6 +606,8 @@ describe("escrow (#304)", () => {
       arbiterLabel: "Mayarin Resolution",
       chains: ["arbitrum-sepolia"],
       required: false,
+      bondBps: 0,
+      bondChains: [],
     };
     const wallet = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
     const arb = {

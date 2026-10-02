@@ -71,16 +71,23 @@ export interface EscrowView {
     readonly releaseAfter: string;
     readonly resolveBy: string;
   };
-  readonly outcome: "held" | "released" | "refunded";
+  readonly outcome: "held" | "released" | "refunded" | "split";
   readonly disputed: boolean;
   readonly balance: string;
-  readonly calls: { readonly release: string; readonly refund: string; readonly dispute: string };
+  /** The dispute bond (#315) in minor units; null on a v1 escrow, which cannot be split. */
+  readonly bond: string | null;
+  readonly calls: {
+    readonly release: string;
+    readonly refund: string;
+    readonly dispute: string;
+    readonly approveBond: string | null;
+  };
   /** Whether the payer's wallet may still take buyer protection (#314). */
   readonly payerStanding: "good" | "flagged";
   /** The dispute's case file and thread (#313); null while nobody has disputed. */
   readonly dispute: {
     readonly id: string;
-    readonly status: "open" | "released" | "refunded";
+    readonly status: "open" | "released" | "refunded" | "split";
     readonly openedAt: string;
     readonly decidedAt: string | null;
     readonly messages: readonly {
@@ -216,6 +223,16 @@ export class PaymentApiClient {
       `/payments/${encodeURIComponent(paymentIntentId)}/escrow`,
     );
     return response.escrow;
+  }
+
+  /** The arbiter's split of a disputed v2 escrow (#315): the call for the arbiter's wallet. */
+  async escrowResolve(
+    paymentIntentId: string,
+    payeeBps: number,
+  ): Promise<{ readonly to: string; readonly data: string }> {
+    return this.#get<{ to: string; data: string }>(
+      `/payments/${encodeURIComponent(paymentIntentId)}/escrow/resolve?payeeBps=${payeeBps}`,
+    );
   }
 
   /**

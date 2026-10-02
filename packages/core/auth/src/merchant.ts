@@ -110,7 +110,12 @@ export interface Merchant {
 export interface BuyerProtection {
   readonly holdSeconds: number;
   readonly arbiter?: string;
+  /** The dispute bond in basis points of the payment (#315); absent or 0 is free. */
+  readonly bondBps?: number;
 }
+
+/** Same ceiling the payment intent enforces: a fifth of the payment. */
+const MAX_BOND_BPS = 2_000;
 
 /** Same bounds the payment intent enforces: a day to a quarter. */
 const MIN_HOLD_SECONDS = 24 * 60 * 60;
@@ -384,17 +389,27 @@ function normaliseBuyerProtection(
       holdSeconds,
     });
   }
-  if (protection.arbiter === undefined) return { holdSeconds };
+  const { bondBps } = protection;
+  if (
+    bondBps !== undefined &&
+    (!Number.isInteger(bondBps) || bondBps < 0 || bondBps > MAX_BOND_BPS)
+  ) {
+    throw new ValidationError("The dispute bond must be between 0% and 20% of the payment", {
+      bondBps,
+    });
+  }
+  const bond = bondBps === undefined || bondBps === 0 ? {} : { bondBps };
+  if (protection.arbiter === undefined) return { holdSeconds, ...bond };
   const arbiter = normaliseAddress(protection.arbiter);
   if (arbiter === settlementAddress) {
     throw new ValidationError("The arbiter cannot be your own settlement address", {});
   }
-  return { holdSeconds, arbiter };
+  return { holdSeconds, arbiter, ...bond };
 }
 
 function renderBuyerProtection(protection: BuyerProtection | undefined): string | undefined {
   if (protection === undefined) return undefined;
-  return `${protection.holdSeconds}s${protection.arbiter === undefined ? "" : ` arbiter ${protection.arbiter}`}`;
+  return `${protection.holdSeconds}s${protection.arbiter === undefined ? "" : ` arbiter ${protection.arbiter}`}${protection.bondBps === undefined ? "" : ` bond ${protection.bondBps}bps`}`;
 }
 
 function normaliseCity(value: string): string {

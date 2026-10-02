@@ -95,6 +95,8 @@ interface Draft {
   readonly protectionOn: boolean;
   readonly protectionDays: string;
   readonly protectionArbiter: string;
+  /** The dispute bond as a percent of the payment (#315), "0" for none. */
+  readonly protectionBond: string;
   readonly city: string;
   readonly countryCode: string;
 }
@@ -113,6 +115,7 @@ function draftOf(settings: SettingsDto): Draft {
     protectionOn: settings.buyerProtection !== null,
     protectionDays: String(Math.round((settings.buyerProtection?.holdSeconds ?? 7 * DAY) / DAY)),
     protectionArbiter: settings.buyerProtection?.arbiter ?? "",
+    protectionBond: String((settings.buyerProtection?.bondBps ?? 0) / 100),
     city: settings.city ?? "",
     countryCode: settings.countryCode ?? "",
   };
@@ -124,6 +127,11 @@ const DAY = 86_400;
 function isValidHoldDays(value: string): boolean {
   const days = Number(value);
   return Number.isInteger(days) && days >= 1 && days <= 90;
+}
+
+/** 0–20%, at most two decimals — whole basis points, as the API takes. */
+function isValidBondPercent(value: string): boolean {
+  return /^\d{1,2}(\.\d{1,2})?$/.test(value.trim()) && Number(value) <= 20;
 }
 
 function reasonOf(error: unknown): string {
@@ -184,6 +192,7 @@ function Settings() {
   // back as a provider fault instead of as the typo it is.
   const addressInvalid = draft !== null && !isValidSettlementAddress(draft.settlementAddress);
   const holdInvalid = draft?.protectionOn === true && !isValidHoldDays(draft.protectionDays);
+  const bondInvalid = draft?.protectionOn === true && !isValidBondPercent(draft.protectionBond);
   const arbiterInvalid =
     draft?.protectionOn === true && !isValidSettlementAddress(draft.protectionArbiter);
   useEffect(() => {
@@ -207,6 +216,7 @@ function Settings() {
               ...(orNull(draft.protectionArbiter) === null
                 ? {}
                 : { arbiter: draft.protectionArbiter.trim() }),
+              bondBps: Math.round(Number(draft.protectionBond) * 100),
             }
           : null,
         city: orNull(draft.city),
@@ -281,6 +291,7 @@ function Settings() {
                         update.isPending ||
                         addressInvalid ||
                         holdInvalid ||
+                        bondInvalid ||
                         arbiterInvalid ||
                         JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
                       }
@@ -418,7 +429,7 @@ function Settings() {
                     </div>
 
                     {draft.protectionOn && (
-                      <div className="grid gap-4 md:grid-cols-[10rem_1fr]">
+                      <div className="grid gap-4 md:grid-cols-[10rem_10rem_1fr]">
                         <Field>
                           <FieldLabel htmlFor="protection-days">Hold (days)</FieldLabel>
                           <Input
@@ -429,6 +440,20 @@ function Settings() {
                             aria-invalid={holdInvalid}
                           />
                           {holdInvalid && <FieldError>Between 1 and 90 days.</FieldError>}
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="protection-bond">Dispute bond (%)</FieldLabel>
+                          <Input
+                            id="protection-bond"
+                            inputMode="decimal"
+                            value={draft.protectionBond}
+                            onChange={(e) => edit({ ...draft, protectionBond: e.target.value })}
+                            aria-invalid={bondInvalid}
+                          />
+                          <FieldDescription>
+                            The buyer posts it to dispute and loses it if the claim fails.
+                          </FieldDescription>
+                          {bondInvalid && <FieldError>Between 0 and 20.</FieldError>}
                         </Field>
                         <Field>
                           <FieldLabel htmlFor="protection-arbiter">Arbiter</FieldLabel>

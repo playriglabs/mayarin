@@ -22,7 +22,12 @@ export interface SettingsDto {
   /** What the merchant chose. `null` is "not chosen", not "nowhere to pay". */
   readonly settlementAddress: string | null;
   /** Buyer protection (#304); `null` is off. */
-  readonly buyerProtection: { readonly holdSeconds: number; readonly arbiter?: string } | null;
+  readonly buyerProtection: {
+    readonly holdSeconds: number;
+    readonly arbiter?: string;
+    /** The dispute bond in basis points (#315). */
+    readonly bondBps?: number;
+  } | null;
   /** Where the money actually goes: the choice, or the managed wallet. */
   readonly effectiveSettlementAddress: string | null;
   readonly city: string | null;
@@ -61,7 +66,12 @@ export interface UpdateSettingsRequest {
   /** `null` clears it; an absent field leaves it alone. */
   readonly settlementAddress?: string | null;
   /** `null` turns buyer protection off. */
-  readonly buyerProtection?: { readonly holdSeconds: number; readonly arbiter?: string } | null;
+  readonly buyerProtection?: {
+    readonly holdSeconds: number;
+    readonly arbiter?: string;
+    /** The dispute bond in basis points (#315). */
+    readonly bondBps?: number;
+  } | null;
   readonly city?: string | null;
   readonly countryCode?: string | null;
 }

@@ -4,6 +4,7 @@
 
 import { EVM_CHAIN_IDS } from "@mayarin/chain";
 import type { DisputeMessage } from "@mayarin/db";
+import { escrowBondApproveCalldata } from "@mayarin/provider-evm";
 import { z } from "zod";
 import type { EscrowView } from "../services/escrow.ts";
 import type { Standing } from "../services/payer-standing.ts";
@@ -44,7 +45,16 @@ export function toEscrowDto(view: EscrowView, payerStanding: Standing) {
     outcome: view.state.outcome,
     disputed: view.state.disputed,
     balance: view.state.balance.toString(),
-    calls: view.calls,
+    /** The dispute bond (#315) in settlement-token minor units; `null` on a v1 escrow. */
+    bond: view.terms.bond === undefined ? null : view.terms.bond.toString(),
+    calls: {
+      ...view.calls,
+      /** Sent to `token` before `dispute` when the bond is not zero. */
+      approveBond:
+        view.terms.bond === undefined || view.terms.bond === 0n
+          ? null
+          : escrowBondApproveCalldata(view.terms),
+    },
     /** Whether the payer's wallet may still take buyer protection (#314). Never the history. */
     payerStanding,
     dispute:

@@ -13,7 +13,8 @@ import {
   type PaymentDocument,
   receiptDocument,
 } from "@mayarin/documents";
-import { NotFoundError } from "@mayarin/shared";
+import { escrowResolveCalldata } from "@mayarin/provider-evm";
+import { NotFoundError, ValidationError } from "@mayarin/shared";
 import { type Context, Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toClearingDto } from "../dto/clearing.ts";
@@ -190,6 +191,27 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     const view = await container.escrow.view(c.req.param("id"));
     const standing = await container.payerStanding.standing(view.terms.payer);
     return c.json({ escrow: toEscrowDto(view, standing) });
+  });
+
+  /**
+   * The arbiter's split of a disputed v2 escrow (#315): `payeeBps` of the
+   * payment to the merchant, the rest to the buyer. Calldata only — the
+   * arbiter's wallet sends it, and the factory accepts it only from the
+   * arbiter, so this is as open as the escrow view.
+   */
+  app.get("/:id/escrow/resolve", async (c) => {
+    const payeeBps = Number(c.req.query("payeeBps"));
+    if (!Number.isInteger(payeeBps) || payeeBps < 0 || payeeBps > 10_000) {
+      throw new ValidationError("payeeBps is a whole number from 0 to 10000", {});
+    }
+    const view = await container.escrow.view(c.req.param("id"));
+    if (view.terms.bond === undefined) {
+      throw new ValidationError("This escrow predates split decisions; release or refund it", {});
+    }
+    return c.json({
+      to: view.factory,
+      data: escrowResolveCalldata(view.terms, view.token, payeeBps),
+    });
   });
 
   /**
