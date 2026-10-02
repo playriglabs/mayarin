@@ -117,6 +117,15 @@ const configSchema = z.object({
    * Unset: the warning is only logged by the chain worker.
    */
   escrowAlertWebhookUrl: z.string().url("ESCROW_ALERT_WEBHOOK_URL must be a URL").optional(),
+  /**
+   * Email for a newly opened dispute (#313), sent to the merchant's admin
+   * accounts through Resend — the same key and sender the dashboard uses.
+   * Unset key: no email; the webhook `escrow.disputed` still goes out.
+   */
+  resendApiKey: z.string().min(1).optional(),
+  emailFrom: z.string().min(1).default("Mayarin <onboarding@resend.dev>"),
+  /** The dashboard's origin, for the link in that email. Unset: the email names the page. */
+  dashboardUrl: z.string().url("DASHBOARD_URL must be a URL").optional(),
   chainAssets: jsonObject<TokenMap>("CHAIN_ASSETS", "{}"),
   /**
    * The chain's own currency, which has no contract address and emits no
@@ -957,6 +966,9 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainRpcUrls: env.CHAIN_RPC_URLS,
     escrowArbiter: env.ESCROW_ARBITER,
     escrowAlertWebhookUrl: env.ESCROW_ALERT_WEBHOOK_URL,
+    resendApiKey: env.RESEND_API_KEY,
+    emailFrom: env.RESEND_FROM_EMAIL,
+    dashboardUrl: env.DASHBOARD_URL,
     chainAssets: env.CHAIN_ASSETS,
     subgraphEndpoints: env.SUBGRAPH_ENDPOINTS,
     subgraphApiKey: env.SUBGRAPH_API_KEY,

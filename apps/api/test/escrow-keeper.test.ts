@@ -42,6 +42,7 @@ function harness(rows: DueEscrow[], state: EscrowState) {
   const sent: { to: string; data: string }[] = [];
   const disputes = new InMemoryEscrowDisputeLog();
   const alerts: string[] = [];
+  const notified: string[] = [];
   const keeper = new EscrowKeeper({
     repository: {
       listDueEscrows: async () => rows,
@@ -58,9 +59,14 @@ function harness(rows: DueEscrow[], state: EscrowState) {
     alert: async (text) => {
       alerts.push(text);
     },
+    notifier: {
+      opened: async (dispute) => {
+        notified.push(dispute.paymentIntentId);
+      },
+    },
     clock: new FixedClock(NOW),
   });
-  return { keeper, marked, sent, disputes, alerts };
+  return { keeper, marked, sent, disputes, alerts, notified };
 }
 
 const held = (disputed = false): EscrowState => ({
@@ -108,10 +114,12 @@ describe("EscrowKeeper (#304)", () => {
 });
 
 describe("EscrowKeeper disputes (#313)", () => {
-  test("opens the case file for a dispute nobody reported", async () => {
-    const { keeper, disputes } = harness([due("clr_1")], held(true));
+  test("opens the case file for a dispute nobody reported, and tells the merchant once", async () => {
+    const { keeper, disputes, notified } = harness([due("clr_1")], held(true));
 
     await keeper.tick();
+    await keeper.tick();
+    expect(notified).toEqual(["pi_clr_1"]);
     const dispute = await disputes.findByPaymentIntentId("pi_clr_1");
     expect(dispute?.status).toBe("open");
     expect(dispute?.merchantId).toBe("mrc_1");

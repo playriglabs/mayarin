@@ -80,9 +80,12 @@ export class DrizzleEscrowDisputeRepository {
     this.#db = db;
   }
 
-  /** Opens the case file for a disputed escrow. Idempotent: an existing one is returned. */
-  async open(input: OpenDispute, now: Date): Promise<EscrowDispute> {
-    await this.#db
+  /**
+   * Opens the case file for a disputed escrow. Idempotent: an existing one is
+   * returned with `opened: false`, so only the call that created it notifies.
+   */
+  async open(input: OpenDispute, now: Date): Promise<{ dispute: EscrowDispute; opened: boolean }> {
+    const inserted = await this.#db
       .insert(escrowDisputes)
       .values({
         id: generateId("dsp", now.getTime()),
@@ -98,10 +101,11 @@ export class DrizzleEscrowDisputeRepository {
         status: "open",
         createdAt: now,
       })
-      .onConflictDoNothing({ target: escrowDisputes.paymentIntentId });
-    const opened = await this.findByPaymentIntentId(input.paymentIntentId);
-    if (opened === undefined) throw new Error(`Dispute for ${input.paymentIntentId} not found`);
-    return opened;
+      .onConflictDoNothing({ target: escrowDisputes.paymentIntentId })
+      .returning({ id: escrowDisputes.id });
+    const dispute = await this.findByPaymentIntentId(input.paymentIntentId);
+    if (dispute === undefined) throw new Error(`Dispute for ${input.paymentIntentId} not found`);
+    return { dispute, opened: inserted.length > 0 };
   }
 
   async findById(id: string): Promise<EscrowDispute | undefined> {

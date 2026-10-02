@@ -17,9 +17,9 @@ export class InMemoryEscrowDisputeLog implements EscrowDisputeLog {
   readonly messages: DisputeMessage[] = [];
   #next = 0;
 
-  async open(input: OpenDispute, now: Date): Promise<EscrowDispute> {
+  async open(input: OpenDispute, now: Date): Promise<{ dispute: EscrowDispute; opened: boolean }> {
     const existing = this.disputes.get(input.paymentIntentId);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) return { dispute: existing, opened: false };
     const dispute: EscrowDispute = {
       ...input,
       id: `dsp_${++this.#next}`,
@@ -29,7 +29,7 @@ export class InMemoryEscrowDisputeLog implements EscrowDisputeLog {
       createdAt: now,
     };
     this.disputes.set(input.paymentIntentId, dispute);
-    return dispute;
+    return { dispute, opened: true };
   }
 
   async findByPaymentIntentId(paymentIntentId: string): Promise<EscrowDispute | undefined> {

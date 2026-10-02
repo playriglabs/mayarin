@@ -149,6 +149,29 @@ beside it, so the arbiter decides on evidence rather than on silence.
   The dashboard API needs `ESCROW_ARBITER` set to the same address as the
   payment API; unset, the console is empty.
 
+- **Telling the merchant.** When a dispute's case file is first opened, the
+  merchant is told at once: a webhook `escrow.disputed` (one delivery per
+  active endpoint, through the same signed, retried queue as payment events;
+  the event `id` is the dispute id) and, with `RESEND_API_KEY`, an email to the
+  merchant's admin accounts with the dispute number and a link
+  (`DASHBOARD_URL`). A failed notice is logged; the dispute stands either way.
+
+  ```json
+  {
+    "id": "dsp_01K…",
+    "type": "escrow.disputed",
+    "occurredAt": "2026-10-02T11:21:00.000Z",
+    "data": {
+      "disputeId": "dsp_01K…",
+      "reference": "92965881664",
+      "paymentIntentId": "pi_01M…",
+      "chain": "base-sepolia",
+      "payer": "0x1d96…f48f6",
+      "resolveBy": "2026-10-10T11:21:00.000Z"
+    }
+  }
+  ```
+
 - **SLA.** Decide within 3 days of the dispute. The keeper warns at 48 hours
   and 24 hours before `resolveBy` — logged, and posted as `{ "text": … }` to
   `ESCROW_ALERT_WEBHOOK_URL` when set (a Slack or Discord incoming webhook). A
