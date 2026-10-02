@@ -1,0 +1,56 @@
+diff --git a/_cjs/utils/rpc/http.js b/_cjs/utils/rpc/http.js
+index 33c8cad6c6e6bf019fee01bfbf6cac4f8cc4f3e2..baa090686d400bc9f0f1f1c27fa7f66a0d759b33 100644
+--- a/_cjs/utils/rpc/http.js
++++ b/_cjs/utils/rpc/http.js
+@@ -149,7 +149,12 @@ async function readResponseBody(response, { maxResponseBodySize }) {
+         return body;
+     }
+     finally {
+-        reader.releaseLock();
++        // Bun throws ERR_INVALID_STATE here when the stream already errored,
++        // masking the real network error. Patched in by Mayarin.
++        try {
++            reader.releaseLock();
++        }
++        catch { }
+     }
+ }
+ function parseUrl(url_) {
+diff --git a/_esm/utils/rpc/http.js b/_esm/utils/rpc/http.js
+index 8ef72bb5a42bb8df6cbb467466447b10330869aa..2c7e9848ef7aac5d52ebec7bc1f31fc7baad1321 100644
+--- a/_esm/utils/rpc/http.js
++++ b/_esm/utils/rpc/http.js
+@@ -147,7 +147,12 @@ async function readResponseBody(response, { maxResponseBodySize }) {
+         return body;
+     }
+     finally {
+-        reader.releaseLock();
++        // Bun throws ERR_INVALID_STATE here when the stream already errored,
++        // masking the real network error. Patched in by Mayarin.
++        try {
++            reader.releaseLock();
++        }
++        catch { }
+     }
+ }
+ /** @internal */
+diff --git a/utils/rpc/http.ts b/utils/rpc/http.ts
+index 9b0da28315e50111f29ed7d919b03e6177c487b5..668b3323d1bc38c29c548644554e0ba49a744082 100644
+--- a/utils/rpc/http.ts
++++ b/utils/rpc/http.ts
+@@ -256,8 +256,13 @@ async function readResponseBody(
+     body += decoder.decode()
+     return body
+   } finally {
+-    reader.releaseLock()
+-  }
++        // Bun throws ERR_INVALID_STATE here when the stream already errored,
++        // masking the real network error. Patched in by Mayarin.
++        try {
++            reader.releaseLock()
++        }
++        catch { }
++    }
+ }
+ 
+ /** @internal */
