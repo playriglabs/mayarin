@@ -157,6 +157,8 @@ export const clearingTransactions = pgTable(
       releaseAfter: string;
       resolveBy: string;
     }>(),
+    // Set once the escrow is seen closed on chain; the keeper stops polling it.
+    escrowOutcome: text("escrow_outcome"),
 
     // What `PaymentCompleted` reported (#12). Kept beside the locked figures
     // rather than replacing them: a payment where the two differ is the signal

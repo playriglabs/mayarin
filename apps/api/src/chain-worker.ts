@@ -4,6 +4,7 @@ import { CHAIN_IDS } from "@mayarin/chain";
 import { ConfigurationError } from "@mayarin/shared";
 import { loadConfig } from "./config.ts";
 import { createContainer, watchedPairs } from "./container.ts";
+import { startEscrowKeeper } from "./services/escrow-keeper.ts";
 import { startIndexerLoops, startWatcherLoops } from "./services/watcher-loops.ts";
 
 const config = loadConfig();
@@ -50,6 +51,11 @@ const stopIndexerLoops = startIndexerLoops({
   maxBackoffMs: chain.indexerMaxBackoffMs,
 });
 
+// Releases an escrow once its hold ends, and refunds a dispute nobody decided
+// by `resolveBy` (#304). Needs the operator key, so only with treasury execution.
+const stopEscrowKeeper =
+  container.escrowKeeper === undefined ? () => {} : startEscrowKeeper(container.escrowKeeper);
+
 console.log(
   `[chain-worker] watching ${pairs.length} chain/asset pair(s) and ${container.indexers.size} router(s)`,
 );
@@ -61,6 +67,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   console.log(`[chain-worker] received ${signal}; stopping`);
   stopWatcherLoops();
   stopIndexerLoops();
+  stopEscrowKeeper();
   await container.close();
   process.exit(0);
 };

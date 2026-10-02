@@ -3,4 +3,5 @@
 -- buyer-protection default.
 ALTER TABLE "payment_intents" ADD COLUMN "escrow" jsonb;--> statement-breakpoint
 ALTER TABLE "clearing_transactions" ADD COLUMN "contract_escrow" jsonb;--> statement-breakpoint
+ALTER TABLE "clearing_transactions" ADD COLUMN "escrow_outcome" text;--> statement-breakpoint
 ALTER TABLE "merchants" ADD COLUMN "buyer_protection" jsonb;

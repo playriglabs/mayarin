@@ -91,6 +91,24 @@ addresses stay valid.
 - `GET /v1/payments/:id/escrow` reads outcome, dispute flag and balance from the
   chain and returns calldata per action. Mayarin submits nothing.
 
+## The keeper
+
+"Anyone" may close a due escrow, but someone has to send the transaction.
+`EscrowKeeper` (`apps/api/src/services/escrow-keeper.ts`) runs in the chain
+worker every 60 seconds:
+
+- lists escrows whose hold has ended and that are not yet seen closed
+  (`clearing_transactions.escrow_outcome is null`);
+- reads each one on chain; one already closed by the payer, merchant or arbiter
+  is only recorded;
+- undisputed → `release` to the merchant; disputed and past `resolveBy` →
+  `refund` to the payer; disputed within the window → left for the arbiter;
+- sends with the operator key through the treasury executor's nonce lock. The
+  operator pays gas and nothing else: the destination is fixed by the terms.
+
+So a 1-day hold pays the merchant within about a minute of the day ending. It
+needs the chain worker running with treasury execution enabled.
+
 ## Surfaces
 
 - **Checkout** (link, invoice, cart): states every term, offers "Connect
