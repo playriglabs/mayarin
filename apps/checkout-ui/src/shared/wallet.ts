@@ -35,10 +35,13 @@ export async function sendCall(call: {
   readonly data: string;
 }): Promise<string> {
   const wallet = provider();
-  await wallet.request({
-    method: "wallet_switchEthereumChain",
-    params: [{ chainId: `0x${BigInt(call.chainId).toString(16)}` }],
-  });
+  const chainId = `0x${BigInt(call.chainId).toString(16)}`;
+  // Switch only when needed: a switch prompt followed at once by a send prompt
+  // has broken MetaMask's confirmation window ("reading 'origin'").
+  const current = (await wallet.request({ method: "eth_chainId" })) as string;
+  if (BigInt(current) !== BigInt(chainId)) {
+    await wallet.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
+  }
   return (await wallet.request({
     method: "eth_sendTransaction",
     params: [{ from: call.from, to: call.to, data: call.data }],
