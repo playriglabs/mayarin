@@ -55,7 +55,7 @@ const AUTH_PATHS = new Set(["/login", "/register", "/verify"]);
  */
 const PERMISSION_PREFIXES: ReadonlyArray<readonly [string, Permission]> = [
   ["/admin", "admin:access"],
-  ["/disputes", "disputes:arbitrate"],
+  ["/arbitration", "disputes:arbitrate"],
   ["/links", "catalog:manage"],
   ["/catalog", "catalog:manage"],
   ["/customers", "catalog:manage"],

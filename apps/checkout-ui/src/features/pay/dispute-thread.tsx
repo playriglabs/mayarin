@@ -85,7 +85,8 @@ export function DisputeThread({
   return (
     <div className="dispute-thread">
       <p className="dispute-reference">
-        Dispute <strong>#{reference}</strong> — quote it if you contact support.
+        Dispute <strong>#{reference}</strong>. The merchant sees this thread and can answer here or
+        refund you directly; quote the number if you contact support.
       </p>
       {messages.length > 0 && (
         <ol ref={list}>

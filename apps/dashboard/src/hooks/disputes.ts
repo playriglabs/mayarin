@@ -38,3 +38,14 @@ export function useArbiterMessage(id: string) {
     invalidate: [["disputes", "case", id]],
   });
 }
+
+/** The merchant's own disputes (#313), newest first. */
+export function useMerchantDisputes() {
+  return useEffectQuery<
+    { readonly disputes: readonly DisputeDto[]; readonly open: number },
+    ApiError
+  >({
+    queryKey: ["disputes", "merchant"],
+    query: () => disputesApi.forMerchant(),
+  });
+}

@@ -23,6 +23,7 @@ export interface DisputeStore {
   findById(id: string): Promise<EscrowDispute | undefined>;
   findByPaymentIntentId(paymentIntentId: string): Promise<EscrowDispute | undefined>;
   listOpen(): Promise<readonly EscrowDispute[]>;
+  listByMerchant(merchantId: string): Promise<readonly EscrowDispute[]>;
   listMessages(disputeId: string): Promise<readonly DisputeMessage[]>;
   addMessage(
     disputeId: string,
@@ -69,6 +70,11 @@ export class DisputeService {
       throw new NotFoundError("This payment has no dispute", { paymentIntentId });
     }
     return this.#append(dispute, "merchant", body);
+  }
+
+  /** A merchant's own disputes, newest first, so they know there is one to answer. */
+  async forMerchant(merchantId: string): Promise<readonly EscrowDispute[]> {
+    return this.#store.listByMerchant(merchantId);
   }
 
   /** Open disputes Mayarin Resolution arbitrates, nearest deadline first. */

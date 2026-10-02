@@ -10,7 +10,7 @@
  */
 
 import { generateId } from "@mayarin/shared";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { clearingTransactions, escrowDisputeMessages, escrowDisputes } from "../schema.ts";
 
@@ -129,6 +129,17 @@ export class DrizzleEscrowDisputeRepository {
       .from(escrowDisputes)
       .where(eq(escrowDisputes.status, "open"))
       .orderBy(asc(escrowDisputes.resolveBy));
+    return rows.map(toDispute);
+  }
+
+  /** One merchant's disputes, newest first — what the merchant answers. */
+  async listByMerchant(merchantId: string, limit = 100): Promise<readonly EscrowDispute[]> {
+    const rows = await this.#db
+      .select()
+      .from(escrowDisputes)
+      .where(eq(escrowDisputes.merchantId, merchantId))
+      .orderBy(desc(escrowDisputes.createdAt))
+      .limit(limit);
     return rows.map(toDispute);
   }
 

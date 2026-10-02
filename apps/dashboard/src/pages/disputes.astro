@@ -1,5 +1,5 @@
 ---
-import DisputesQueue from "../components/disputes-queue.tsx";
+import MerchantDisputes from "../components/merchant-disputes.tsx";
 import { PageHeader } from "../components/page-header.tsx";
 import Protected from "../layouts/dashboard.astro";
 ---
@@ -7,7 +7,7 @@ import Protected from "../layouts/dashboard.astro";
 <Protected title="Disputes">
   <PageHeader
     title="Disputes"
-    description="Open escrow disputes Mayarin Resolution decides, nearest deadline first."
+    description="Buyers who disputed an escrowed payment. Open one to answer with your evidence, or refund."
   />
-  <DisputesQueue client:load />
+  <MerchantDisputes client:load />
 </Protected>

@@ -126,9 +126,11 @@ beside it, so the arbiter decides on evidence rather than on silence.
     message is signed (`personal_sign`, EIP-1271 accepted) by the wallet the
     escrow refunds to. The signed text names the payment and the time; a
     signature older than 10 minutes is refused.
-  - **Merchant** — on the payment detail in the dashboard.
+  - **Merchant** — on the payment detail in the dashboard. `/disputes` lists
+    the merchant's own disputes, and the sidebar shows how many are open, so
+    one is noticed without opening each payment.
   - **Arbiter** — in the dashboard console.
-- **The console.** `/disputes` in the dashboard lists every open dispute whose
+- **The console.** `/arbitration` in the dashboard lists every open dispute whose
   arbiter is `ESCROW_ARBITER`, across merchants, nearest `resolveBy` first.
   The decision — release to the merchant or refund the buyer — is sent from
   the arbiter's own wallet straight to the factory; the dashboard signs
@@ -230,7 +232,8 @@ payee with the payment.
   wallet"; after payment shows the hold with Release / Dispute, and the dispute thread.
 - **Dashboard:** Settings → Buyer protection; payment detail shows the hold, a
   Refund button (direct from the payee, or `Safe.execTransaction` from its
-  owner) and the dispute thread; `/disputes` is the arbiter console.
+  owner) and the dispute thread; `/disputes` lists the merchant's own disputes;
+  `/arbitration` is the arbiter console.
 - **SDK:** `payments.createIntent({ escrow })`, `payments.getEscrow(id)`.
 
 ## Known limits

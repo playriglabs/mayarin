@@ -75,7 +75,7 @@ function DisputesQueue() {
               <TableRow key={dispute.id}>
                 <TableCell>
                   <a
-                    href={`/disputes/${dispute.id}`}
+                    href={`/arbitration/${dispute.id}`}
                     className="font-medium underline decoration-input underline-offset-2 hover:decoration-foreground"
                   >
                     #{dispute.reference}

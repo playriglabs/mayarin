@@ -31,4 +31,10 @@ export const disputesApi = {
     request<{ readonly to: string; readonly data: string }>(
       `/disputes/${encodeURIComponent(id)}/resolve?payeeBps=${payeeBps}`,
     ),
+
+  /** GET `/escrow-disputes` — the caller's merchant's own disputes, with the open count. */
+  forMerchant: (): Effect.Effect<
+    { readonly disputes: readonly DisputeDto[]; readonly open: number },
+    ApiError
+  > => request<{ disputes: readonly DisputeDto[]; open: number }>("/escrow-disputes"),
 };

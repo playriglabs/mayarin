@@ -154,3 +154,23 @@ describe("dispute routes (#313)", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("merchant disputes (#313)", () => {
+  test("a merchant lists only its own disputes, with the open count", async () => {
+    const harness = await seed();
+    const mine = generateId("dsp");
+    const done = generateId("dsp");
+    harness.disputeStore.disputes.push(
+      dispute({ id: mine, merchantId: harness.merchantId }),
+      dispute({ id: done, merchantId: harness.merchantId, status: "refunded" }),
+      dispute({ id: generateId("dsp"), merchantId: "mrc_other" }),
+    );
+    const { jar } = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await harness.request("GET", "/v1/escrow-disputes", { cookies: jar });
+    expect(res.status).toBe(200);
+    expect(res.body?.open).toBe(1);
+    expect(res.body?.disputes.map((d: { id: string }) => d.id).sort()).toEqual([done, mine].sort());
+    expect(res.body?.disputes[0].reference).toMatch(/^\d{11}$/);
+  });
+});

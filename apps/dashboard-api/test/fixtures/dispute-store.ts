@@ -19,6 +19,10 @@ export class InMemoryDisputeStore implements DisputeStore {
     return this.disputes.filter((dispute) => dispute.status === "open");
   }
 
+  async listByMerchant(merchantId: string) {
+    return this.disputes.filter((dispute) => dispute.merchantId === merchantId).reverse();
+  }
+
   async listMessages(disputeId: string) {
     return this.messages.filter((message) => message.disputeId === disputeId);
   }
