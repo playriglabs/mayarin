@@ -47,6 +47,19 @@ export interface EscrowPayload {
   readonly outcome: "held" | "released" | "refunded";
   readonly disputed: boolean;
   readonly calls: { readonly release: string; readonly dispute: string };
+  /** The dispute's case file and thread (#313); null while nobody has disputed. */
+  readonly dispute: {
+    readonly status: "open" | "released" | "refunded";
+    readonly messages: readonly DisputeMessage[];
+  } | null;
+}
+
+/** One message in a dispute's thread (#313). */
+export interface DisputeMessage {
+  readonly id: string;
+  readonly author: "payer" | "merchant" | "arbiter";
+  readonly body: string;
+  readonly createdAt: string;
 }
 
 /** What the status endpoint returns, as far as this page reads it. */

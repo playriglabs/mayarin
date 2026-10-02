@@ -111,6 +111,12 @@ const configSchema = z.object({
     .string()
     .regex(/^0x[0-9a-fA-F]{40}$/, "ESCROW_ARBITER must be an EVM address")
     .optional(),
+  /**
+   * Where a dispute nearing `resolveBy` is announced (#313) — any endpoint
+   * taking `{ "text": "…" }`, a Slack or Discord incoming webhook for one.
+   * Unset: the warning is only logged by the chain worker.
+   */
+  escrowAlertWebhookUrl: z.string().url("ESCROW_ALERT_WEBHOOK_URL must be a URL").optional(),
   chainAssets: jsonObject<TokenMap>("CHAIN_ASSETS", "{}"),
   /**
    * The chain's own currency, which has no contract address and emits no
@@ -950,6 +956,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,
     escrowArbiter: env.ESCROW_ARBITER,
+    escrowAlertWebhookUrl: env.ESCROW_ALERT_WEBHOOK_URL,
     chainAssets: env.CHAIN_ASSETS,
     subgraphEndpoints: env.SUBGRAPH_ENDPOINTS,
     subgraphApiKey: env.SUBGRAPH_API_KEY,

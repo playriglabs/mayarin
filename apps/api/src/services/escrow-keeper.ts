@@ -24,6 +24,12 @@ import {
 } from "@mayarin/provider-evm";
 import type { Clock } from "@mayarin/shared";
 import { createPublicClient, http, type PublicClient } from "viem";
+import {
+  alertDue,
+  type DisputeAlertSink,
+  disputeOf,
+  type EscrowDisputeLog,
+} from "./escrow-dispute.ts";
 
 export interface EscrowKeeperRepository {
   listDueEscrows(nowSeconds: number, limit: number): Promise<DueEscrow[]>;
@@ -36,6 +42,10 @@ export interface EscrowKeeperOptions {
   readonly read: EscrowStateReader;
   /** Sends one call from the operator and waits for it; throws on a revert. */
   readonly send: (chain: ChainId, to: string, data: `0x${string}`) => Promise<string>;
+  /** The dispute case files (#313): opened when the chain shows a dispute, closed with the escrow. */
+  readonly disputes: EscrowDisputeLog;
+  /** Where a dispute nearing `resolveBy` is announced. */
+  readonly alert: DisputeAlertSink;
   readonly clock: Clock;
   readonly batchSize?: number;
 }
@@ -93,11 +103,31 @@ export class EscrowKeeper {
         );
       }
     }
+    await this.#alert();
     return done;
   }
 
+  /** Warns about open disputes nearing `resolveBy`, each threshold once (#313). */
+  async #alert(): Promise<void> {
+    const now = this.#options.clock.now();
+    for (const dispute of await this.#options.disputes.listOpen()) {
+      const alert = alertDue(dispute, now);
+      if (alert === undefined) continue;
+      try {
+        await this.#options.alert(
+          `Dispute on ${dispute.paymentIntentId} is undecided with ${alert === "24h" ? "under 24 hours" : "under 48 hours"} left — it refunds the payer at ${dispute.resolveBy.toISOString()}.`,
+        );
+        await this.#options.disputes.markAlerted(dispute.id, alert);
+      } catch (error) {
+        console.error(
+          `[escrow-keeper] alert for ${dispute.id}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
   async #close(
-    { clearingTransactionId, chain, order }: DueEscrow,
+    { clearingTransactionId, paymentIntentId, merchantId, chain, order }: DueEscrow,
     now: bigint,
   ): Promise<EscrowKeeperAction | "recorded" | undefined> {
     const escrow = order.escrow;
@@ -108,8 +138,16 @@ export class EscrowKeeper {
     if (state === undefined) return undefined;
 
     if (state.outcome !== "held") {
-      await this.#options.repository.markEscrowOutcome(clearingTransactionId, state.outcome);
+      await this.#recordOutcome(clearingTransactionId, paymentIntentId, state.outcome);
       return "recorded";
+    }
+    // A dispute nobody reported yet still gets its case file, so the arbiter
+    // sees it while there is time left to decide.
+    if (state.disputed) {
+      await this.#options.disputes.open(
+        disputeOf(order, { paymentIntentId, merchantId, chain }),
+        this.#options.clock.now(),
+      );
     }
     // Nothing to move yet; the next pass looks again.
     if (state.balance === 0n) return undefined;
@@ -127,12 +165,22 @@ export class EscrowKeeper {
       escrowCalldata(action, terms, order.settlementToken),
     );
 
-    await this.#options.repository.markEscrowOutcome(
+    await this.#recordOutcome(
       clearingTransactionId,
+      paymentIntentId,
       action === "release" ? "released" : "refunded",
     );
     console.log(`[escrow-keeper] ${action} ${clearingTransactionId} in ${hash}`);
     return action;
+  }
+
+  async #recordOutcome(
+    clearingTransactionId: string,
+    paymentIntentId: string,
+    outcome: "released" | "refunded",
+  ): Promise<void> {
+    await this.#options.repository.markEscrowOutcome(clearingTransactionId, outcome);
+    await this.#options.disputes.close(paymentIntentId, outcome, this.#options.clock.now());
   }
 }
 

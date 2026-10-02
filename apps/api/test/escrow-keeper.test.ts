@@ -3,6 +3,7 @@ import type { DueEscrow } from "@mayarin/db";
 import type { EscrowState } from "@mayarin/provider-evm";
 import { FixedClock } from "@mayarin/shared";
 import { EscrowKeeper } from "../src/services/escrow-keeper.ts";
+import { InMemoryEscrowDisputeLog } from "./fixtures/escrow-disputes.ts";
 
 const NOW = new Date("2026-10-10T00:00:00.000Z");
 const NOW_S = BigInt(NOW.getTime() / 1_000);
@@ -11,6 +12,8 @@ const FACTORY = "0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45";
 function due(id: string, resolveBy = NOW_S + 86_400n): DueEscrow {
   return {
     clearingTransactionId: id,
+    paymentIntentId: `pi_${id}`,
+    merchantId: "mrc_1",
     chain: "arbitrum-sepolia",
     order: {
       intentId: `0x${"11".repeat(32)}`,
@@ -37,6 +40,8 @@ function due(id: string, resolveBy = NOW_S + 86_400n): DueEscrow {
 function harness(rows: DueEscrow[], state: EscrowState) {
   const marked: [string, string][] = [];
   const sent: { to: string; data: string }[] = [];
+  const disputes = new InMemoryEscrowDisputeLog();
+  const alerts: string[] = [];
   const keeper = new EscrowKeeper({
     repository: {
       listDueEscrows: async () => rows,
@@ -49,9 +54,13 @@ function harness(rows: DueEscrow[], state: EscrowState) {
       sent.push({ to, data });
       return "0xhash";
     },
+    disputes,
+    alert: async (text) => {
+      alerts.push(text);
+    },
     clock: new FixedClock(NOW),
   });
-  return { keeper, marked, sent };
+  return { keeper, marked, sent, disputes, alerts };
 }
 
 const held = (disputed = false): EscrowState => ({
@@ -95,5 +104,81 @@ describe("EscrowKeeper (#304)", () => {
     expect(await keeper.tick()).toEqual([{ id: "clr_1", action: "recorded" }]);
     expect(sent).toHaveLength(0);
     expect(marked).toEqual([["clr_1", "refunded"]]);
+  });
+});
+
+describe("EscrowKeeper disputes (#313)", () => {
+  test("opens the case file for a dispute nobody reported", async () => {
+    const { keeper, disputes } = harness([due("clr_1")], held(true));
+
+    await keeper.tick();
+    const dispute = await disputes.findByPaymentIntentId("pi_clr_1");
+    expect(dispute?.status).toBe("open");
+    expect(dispute?.merchantId).toBe("mrc_1");
+    expect(dispute?.resolveBy).toEqual(new Date(Number(NOW_S + 86_400n) * 1_000));
+  });
+
+  test("closes the case file with the refund at resolveBy", async () => {
+    const { keeper, disputes } = harness([due("clr_1", NOW_S)], held(true));
+
+    await keeper.tick();
+    expect((await disputes.findByPaymentIntentId("pi_clr_1"))?.status).toBe("refunded");
+  });
+
+  test("closes the case file when the arbiter already decided", async () => {
+    const { keeper, disputes } = harness([due("clr_1")], {
+      outcome: "released",
+      disputed: true,
+      balance: 0n,
+    });
+    await disputes.open(
+      {
+        paymentIntentId: "pi_clr_1",
+        merchantId: "mrc_1",
+        chain: "arbitrum-sepolia",
+        factory: FACTORY,
+        payer: "0xcafe",
+        payee: "0xbeef",
+        arbiter: "0xa1",
+        releaseAfter: NOW,
+        resolveBy: NOW,
+      },
+      NOW,
+    );
+
+    await keeper.tick();
+    expect((await disputes.findByPaymentIntentId("pi_clr_1"))?.status).toBe("released");
+  });
+
+  test("warns once at 48 hours and once at 24 hours before resolveBy", async () => {
+    const { keeper, disputes, alerts } = harness([], held(true));
+    const open = (id: string, hoursLeft: number) =>
+      disputes.open(
+        {
+          paymentIntentId: id,
+          merchantId: "mrc_1",
+          chain: "arbitrum-sepolia",
+          factory: FACTORY,
+          payer: "0xcafe",
+          payee: "0xbeef",
+          arbiter: "0xa1",
+          releaseAfter: NOW,
+          resolveBy: new Date(NOW.getTime() + hoursLeft * 3_600_000),
+        },
+        NOW,
+      );
+    await open("pi_far", 72);
+    await open("pi_two_days", 40);
+    await open("pi_one_day", 10);
+
+    await keeper.tick();
+    expect(alerts).toHaveLength(2);
+    expect(alerts.some((text) => text.includes("pi_two_days"))).toBe(true);
+    expect(alerts.some((text) => text.includes("pi_one_day"))).toBe(true);
+    expect((await disputes.findByPaymentIntentId("pi_two_days"))?.alerted).toBe("48h");
+    expect((await disputes.findByPaymentIntentId("pi_one_day"))?.alerted).toBe("24h");
+
+    await keeper.tick();
+    expect(alerts).toHaveLength(2);
   });
 });

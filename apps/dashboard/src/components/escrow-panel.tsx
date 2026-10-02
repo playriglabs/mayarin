@@ -12,10 +12,12 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { Effect } from "effect";
 import { useState } from "react";
 import { DetailRow } from "@/components/detail-row";
+import { DisputeThread } from "@/components/dispute-thread";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeader } from "@/components/ui/section-header";
+import { useMerchantDisputeMessage } from "@/hooks/disputes";
 import { useEscrow } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
 import { paymentsApi } from "@/lib/api/payments";
@@ -33,6 +35,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain: string }) {
   const escrow = useEscrow(id);
+  const postMessage = useMerchantDisputeMessage(id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -135,6 +138,26 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
           </DetailRow>
           <DetailRow label="Auto-release">{formatDateTime(data.terms.releaseAfter)}</DetailRow>
         </dl>
+
+        {data.dispute !== null && (
+          <div className="flex flex-col gap-3 border-t border-border p-4">
+            <div className="flex flex-col gap-1">
+              <p className="font-medium text-foreground text-sm">Dispute</p>
+              <p className="text-muted-foreground text-xs">
+                {data.dispute.status === "open"
+                  ? `Answer with your evidence. Undecided by ${formatDateTime(data.terms.resolveBy)}, the buyer is refunded.`
+                  : "Decided. The thread is kept as it was."}
+              </p>
+            </div>
+            <DisputeThread
+              messages={data.dispute.messages}
+              viewer="merchant"
+              open={data.dispute.status === "open"}
+              pending={postMessage.isPending}
+              onSend={(body) => postMessage.mutateAsync(body)}
+            />
+          </div>
+        )}
 
         {(data.outcome === "held" || error !== undefined) && (
           <div className="flex flex-col gap-2 border-t border-border p-4">

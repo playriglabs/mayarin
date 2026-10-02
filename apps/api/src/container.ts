@@ -33,6 +33,7 @@ import {
   DrizzleCustomerRepository,
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
+  DrizzleEscrowDisputeRepository,
   DrizzleInternalSettlementStore,
   DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
@@ -123,6 +124,7 @@ import type { QuoteLayer } from "./quote-layer.ts";
 import { chainReceipts, QuotePricingSource } from "./rails.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
 import { EscrowService } from "./services/escrow.ts";
+import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
@@ -957,6 +959,7 @@ export function createContainer({
   // Refunds run after the state machine has finished, against a transaction the
   // engine will never touch again — so a service beside it, not a step inside it.
   const clearingRepository = new DrizzleClearingRepository(handle.db);
+  const disputes = new DrizzleEscrowDisputeRepository(handle.db);
   const refunds = new RefundService({
     clearing: clearingRepository,
     refunds: new DrizzleRefundRepository(handle.db),
@@ -1081,7 +1084,7 @@ export function createContainer({
     engine,
     rates,
     paymentApp,
-    escrow: new EscrowService(paymentApp, config.chainRpcUrls),
+    escrow: new EscrowService(paymentApp, config.chainRpcUrls, disputes, clock),
     ...(treasury === undefined
       ? {}
       : {
@@ -1089,6 +1092,8 @@ export function createContainer({
             repository: clearingRepository,
             read: rpcEscrowStateReader(config.chainRpcUrls),
             send: (chain, to, data) => treasury.port.call(chain, to, data),
+            disputes,
+            alert: disputeAlertSink(config.escrowAlertWebhookUrl),
             clock,
           }),
         }),

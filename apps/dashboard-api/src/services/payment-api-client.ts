@@ -69,11 +69,25 @@ export interface EscrowView {
     readonly payee: string;
     readonly arbiter: string;
     readonly releaseAfter: string;
+    readonly resolveBy: string;
   };
   readonly outcome: "held" | "released" | "refunded";
   readonly disputed: boolean;
   readonly balance: string;
   readonly calls: { readonly release: string; readonly refund: string; readonly dispute: string };
+  /** The dispute's case file and thread (#313); null while nobody has disputed. */
+  readonly dispute: {
+    readonly id: string;
+    readonly status: "open" | "released" | "refunded";
+    readonly openedAt: string;
+    readonly decidedAt: string | null;
+    readonly messages: readonly {
+      readonly id: string;
+      readonly author: "payer" | "merchant" | "arbiter";
+      readonly body: string;
+      readonly createdAt: string;
+    }[];
+  } | null;
 }
 
 /**

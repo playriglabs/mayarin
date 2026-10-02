@@ -10,6 +10,7 @@ import { type ApiError, request } from "@/lib/api/client";
 import { listPath } from "@/lib/api/list-path";
 import type {
   DepositResponse,
+  DisputeMessageDto,
   EscrowRefundResponse,
   EscrowResponse,
   PaymentDetailResponse,
@@ -51,4 +52,14 @@ export const paymentsApi = {
       method: "POST",
       body: { from },
     }),
+
+  /** POST `/payments/:id/escrow/dispute/messages` — the merchant's answer in a dispute (#313). */
+  disputeMessage: (
+    id: string,
+    body: string,
+  ): Effect.Effect<{ message: DisputeMessageDto }, ApiError> =>
+    request<{ message: DisputeMessageDto }>(
+      `/payments/${encodeURIComponent(id)}/escrow/dispute/messages`,
+      { method: "POST", body: { body } },
+    ),
 };

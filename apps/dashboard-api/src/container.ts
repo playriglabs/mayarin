@@ -45,6 +45,7 @@ import {
   DrizzleCustomerRepository,
   DrizzleDepositRepository,
   DrizzleEmailVerificationRepository,
+  DrizzleEscrowDisputeRepository,
   DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
   DrizzleMerchantAccountRepository,
@@ -118,6 +119,7 @@ import {
 } from "./services/api-key-service.ts";
 import { AuthService } from "./services/auth-service.ts";
 import { CustomerService } from "./services/customer-service.ts";
+import { DisputeService, type DisputeStore } from "./services/disputes.ts";
 import { EventLogService } from "./services/event-log-service.ts";
 import {
   type InvoiceEmailSender,
@@ -187,6 +189,8 @@ export interface Container {
    * a third-party POS would use rather than a second implementation of them.
    */
   readonly paymentApi: PaymentApiClient;
+  /** Escrow disputes (#313): the merchant's answers and the arbiter's console. */
+  readonly disputes: DisputeService;
   /** Webhook endpoints and delivery inspection (#13), scoped the same way. */
   readonly webhooks: WebhookService;
   /** Merchant wallets and proof of control (#11). */
@@ -296,6 +300,7 @@ export interface CreateContainerOptions {
   readonly walletBalances?: WalletBalanceReader;
   /** Overridable for tests: a fake payment API rather than a real HTTP one. */
   readonly paymentApi?: PaymentApiClient;
+  readonly disputeStore?: DisputeStore;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -597,6 +602,14 @@ export function createContainer(options: CreateContainerOptions): Container {
     ...(contractCode === undefined ? {} : { code: contractCode }),
   });
 
+  const disputes = new DisputeService({
+    store:
+      options.disputeStore ?? new DrizzleEscrowDisputeRepository(handle?.db ?? throwIfNoHandle()),
+    paymentApi,
+    arbiter: config.escrowArbiter,
+    clock,
+  });
+
   return {
     config,
     auth: authService,
@@ -615,6 +628,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     settlements,
     eventLogs,
     paymentApi,
+    disputes,
     webhooks,
     wallets,
     payouts,

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  GRANTABLE_PERMISSIONS,
   isPermission,
   MERCHANT_ADMIN_PERMISSIONS,
   PERMISSION_LABELS,
@@ -7,14 +8,20 @@ import {
 } from "../src/permission.ts";
 
 describe("permission", () => {
-  test("the permission list is exactly the five flags", () => {
+  test("the permission list is the five merchant flags plus the platform's arbiter", () => {
     expect(PERMISSION_LIST).toEqual([
       "payments:read",
       "users:manage",
       "admin:access",
       "settings:manage",
       "catalog:manage",
+      "disputes:arbitrate",
     ]);
+  });
+
+  test("a merchant can grant every permission but disputes:arbitrate (#313)", () => {
+    expect(GRANTABLE_PERMISSIONS).not.toContain("disputes:arbitrate");
+    expect(GRANTABLE_PERMISSIONS).toHaveLength(PERMISSION_LIST.length - 1);
   });
 
   test("isPermission narrows and rejects unknown values", () => {
@@ -32,7 +39,7 @@ describe("permission", () => {
     }
   });
 
-  test("a freshly seeded merchant-admin carries every permission", () => {
+  test("a freshly seeded merchant-admin carries every grantable permission", () => {
     expect(MERCHANT_ADMIN_PERMISSIONS).toEqual([
       "payments:read",
       "users:manage",

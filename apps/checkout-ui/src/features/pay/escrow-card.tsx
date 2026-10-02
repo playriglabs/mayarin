@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { shortAddress } from "../../shared/buyer-protection.tsx";
 import { connectWallet, sendCall } from "../../shared/wallet.ts";
+import { DisputeThread } from "./dispute-thread.tsx";
 import type { EscrowPayload } from "./types.ts";
 
 /**
@@ -94,6 +95,16 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
               ? "Got what you paid for? Release it now. Something wrong? Open a dispute first."
               : "The hold has ended. It releases to the merchant shortly."}
         </p>
+      )}
+
+      {escrow.dispute !== null && (
+        <DisputeThread
+          statusUrl={statusUrl}
+          payer={escrow.terms.payer}
+          messages={escrow.dispute.messages}
+          open={escrow.dispute.status === "open" && escrow.outcome === "held"}
+          onPosted={() => void load()}
+        />
       )}
 
       {escrow.outcome === "held" && (

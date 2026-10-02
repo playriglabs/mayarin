@@ -20,6 +20,7 @@ import {
   PaperPlaneTiltIcon,
   ReceiptIcon,
   RepeatIcon,
+  ScalesIcon,
   ShoppingCartIcon,
   SquaresFourIcon,
   UsersThreeIcon,
@@ -121,10 +122,18 @@ const ADMIN: NavItem = {
   permission: "admin:access",
 };
 
+/** Mayarin Resolution's console (#313); only operator accounts hold the permission. */
+const DISPUTES: NavItem = {
+  href: "/disputes",
+  label: "Disputes",
+  icon: ScalesIcon,
+  permission: "disputes:arbitrate",
+};
+
 const NAV_GROUPS: readonly NavGroup[] = [
   { label: "Menu", items: PRIMARY },
   { label: "Developers", items: DEVELOPERS },
-  { label: "Tools", items: [...CONFIGURATION, ADMIN] },
+  { label: "Tools", items: [...CONFIGURATION, ADMIN, DISPUTES] },
 ];
 
 export type { NavGroup, NavItem };

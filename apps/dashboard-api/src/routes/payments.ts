@@ -11,6 +11,7 @@ import { UnauthorizedError, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
+import { disputeMessageBodySchema, toDisputeMessageDto } from "../dto/disputes.ts";
 import { toPaymentDetailDto, toPaymentIntentDto } from "../dto/payment.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
@@ -179,6 +180,20 @@ export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars 
         ? { from: from.toLowerCase(), to: escrow.factory.toLowerCase(), data }
         : safeCallTransaction(escrow.terms.payee, from, escrow.factory, data);
     return c.json({ chainId: escrow.chainId, transaction });
+  });
+
+  /**
+   * The merchant's answer in a dispute over this payment (#313) — evidence of
+   * delivery, or an offer to refund. Scoped by the session's merchant, so a
+   * payment of another merchant is a 404.
+   */
+  app.post("/:id/escrow/dispute/messages", csrfMiddleware(), async (c) => {
+    const scope = c.get("scope");
+    if (scope === undefined) throw new UnauthorizedError("Authentication required");
+    const { body } = disputeMessageBodySchema.parse(await c.req.json());
+    const { intent } = await container.payments.get(scope, c.req.param("id"));
+    const message = await container.disputes.postMerchantMessage(scope.merchantId, intent.id, body);
+    return c.json({ message: toDisputeMessageDto(message) }, 201);
   });
 
   /**

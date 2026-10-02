@@ -143,11 +143,52 @@ export interface EscrowDto {
     readonly payee: string;
     readonly arbiter: string;
     readonly releaseAfter: string;
+    readonly resolveBy: string;
   };
   readonly outcome: "held" | "released" | "refunded";
   readonly disputed: boolean;
   /** Settlement-token minor units still held. */
   readonly balance: string;
+  /** Calldata per action, sent to `factory`. The contract decides who may send it. */
+  readonly calls: { readonly release: string; readonly refund: string; readonly dispute: string };
+  /** The dispute's case file and thread (#313); null while nobody has disputed. */
+  readonly dispute: {
+    readonly id: string;
+    readonly status: "open" | "released" | "refunded";
+    readonly openedAt: string;
+    readonly decidedAt: string | null;
+    readonly messages: readonly DisputeMessageDto[];
+  } | null;
+}
+
+/** One message in a dispute's thread (#313). */
+export interface DisputeMessageDto {
+  readonly id: string;
+  readonly author: "payer" | "merchant" | "arbiter";
+  readonly body: string;
+  readonly createdAt: string;
+}
+
+/** An open dispute in the arbiter's queue (#313), from GET `/disputes`. */
+export interface DisputeDto {
+  readonly id: string;
+  readonly paymentIntentId: string;
+  readonly merchantId: string;
+  readonly chain: string;
+  readonly payer: string;
+  readonly payee: string;
+  readonly status: "open" | "released" | "refunded";
+  readonly releaseAfter: string;
+  readonly resolveBy: string;
+  readonly openedAt: string;
+  readonly decidedAt: string | null;
+}
+
+/** GET `/disputes/:id` — one case for the arbiter. */
+export interface DisputeCaseDto {
+  readonly dispute: DisputeDto;
+  readonly messages: readonly DisputeMessageDto[];
+  readonly escrow: EscrowDto;
 }
 
 export interface EscrowResponse {

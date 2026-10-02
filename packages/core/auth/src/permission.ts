@@ -16,7 +16,8 @@ export type Permission =
   | "users:manage"
   | "admin:access"
   | "settings:manage"
-  | "catalog:manage";
+  | "catalog:manage"
+  | "disputes:arbitrate";
 
 export const PERMISSION_LIST: readonly Permission[] = [
   "payments:read",
@@ -24,7 +25,21 @@ export const PERMISSION_LIST: readonly Permission[] = [
   "admin:access",
   "settings:manage",
   "catalog:manage",
+  "disputes:arbitrate",
 ];
+
+/**
+ * Permissions that belong to the platform, not to a merchant (#313). They are
+ * set by an operator in the database and never granted through a merchant's
+ * own surfaces — a merchant who could grant `disputes:arbitrate` could judge
+ * disputes over their own payments.
+ */
+export const PLATFORM_PERMISSIONS: readonly Permission[] = ["disputes:arbitrate"];
+
+/** What a merchant may grant to its own accounts and API keys. */
+export const GRANTABLE_PERMISSIONS: readonly Permission[] = PERMISSION_LIST.filter(
+  (permission) => !PLATFORM_PERMISSIONS.includes(permission),
+);
 
 /** Human labels, exhaustive by construction. */
 export const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
@@ -40,6 +55,8 @@ export const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
   // no reason to be able to redirect the payout, which is why this is not
   // folded into `settings:manage`.
   "catalog:manage": "Manage products and payment links",
+  // Mayarin Resolution's console: every open dispute, across merchants.
+  "disputes:arbitrate": "Arbitrate escrow disputes",
 } as const;
 
 export function isPermission(value: unknown): value is Permission {
