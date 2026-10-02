@@ -127,6 +127,18 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
               {shortHash(data.terms.payer)}
             </span>
           </DetailRow>
+          <DetailRow label="Buyer standing">
+            {data.payerStanding === "flagged" ? (
+              <Badge
+                variant="warning"
+                title="This wallet has lost or opened too many disputes; new payments from it are not protected."
+              >
+                Flagged
+              </Badge>
+            ) : (
+              <span className="text-muted-foreground">Good</span>
+            )}
+          </DetailRow>
           <DetailRow label="Arbiter">
             {data.terms.arbiter === ZERO_ADDRESS ? (
               <span className="text-subtle-foreground">None</span>

@@ -39,6 +39,7 @@ import {
   type MerchantAssetPolicySource,
   settlementAssetOnChain,
 } from "./merchant-policy.ts";
+import type { PayerStandingSource } from "./payer-standing.ts";
 import type { ListPaymentIntentsOptions, PaymentIntentRepository } from "./repository.ts";
 import type {
   EscrowRequest,
@@ -92,6 +93,12 @@ export interface PaymentIntentServiceOptions {
    * there; elsewhere the payment settles as usual. Empty or absent: never.
    */
   readonly escrowChains?: readonly ChainId[];
+  /**
+   * Whether a payer wallet has lost the right to buyer protection (#314). A
+   * flagged wallet pays the merchant directly, and an escrow the merchant
+   * requires is refused. Absent: every wallet is in good standing.
+   */
+  readonly payerStanding?: PayerStandingSource;
   readonly defaults: {
     readonly settlementAsset: AssetCode;
     readonly provider: string;
@@ -108,6 +115,7 @@ export class PaymentIntentService {
   readonly #registry: StablecoinRegistry | undefined;
   readonly #merchantPolicies: MerchantAssetPolicySource | undefined;
   readonly #escrowChains: readonly ChainId[];
+  readonly #payerStanding: PayerStandingSource | undefined;
   readonly #defaults: PaymentIntentServiceOptions["defaults"];
 
   constructor(options: PaymentIntentServiceOptions) {
@@ -117,6 +125,7 @@ export class PaymentIntentService {
     this.#registry = options.registry;
     this.#merchantPolicies = options.merchantPolicies;
     this.#escrowChains = options.escrowChains ?? [];
+    this.#payerStanding = options.payerStanding;
     this.#defaults = options.defaults;
   }
 
@@ -177,10 +186,11 @@ export class PaymentIntentService {
       await this.#assertPayerRail(command.merchant.id, command.payment, executionPath, policy);
     }
 
+    if (command.escrow != null) await this.#assertProtectable(command.payment);
     const escrow =
       command.escrow === null
         ? undefined
-        : (command.escrow ?? this.#protection(policy, command.payment, executionPath));
+        : (command.escrow ?? (await this.#protection(policy, command.payment, executionPath)));
 
     const fingerprint = fingerprintOf(command, settlementAsset, provider, executionPath);
 
@@ -273,13 +283,14 @@ export class PaymentIntentService {
     // with its own settlement asset replaces it once the chain is known.
     const settlementAsset =
       policy?.settlementAssetByChain?.[payment.chain] ?? intent.settlementAsset;
+    if (intent.escrow !== undefined) await this.#assertProtectable(payment);
     const next = choosePaymentOn(
       intent,
       payment,
       path,
       settlementAsset,
       this.#clock.now(),
-      this.#protection(policy, payment, path),
+      await this.#protection(policy, payment, path),
     );
     if (next === intent) return intent;
 
@@ -294,15 +305,33 @@ export class PaymentIntentService {
    * release anything, and is paid out as usual — so protection is something
    * the merchant offers and the payer takes up by connecting.
    */
-  #protection(
+  async #protection(
     policy: MerchantAssetPolicy | undefined,
     payment: PaymentRail | undefined,
     executionPath: ExecutionPath | undefined,
-  ): EscrowRequest | undefined {
+  ): Promise<EscrowRequest | undefined> {
     const protection = policy?.buyerProtection;
     if (protection === undefined || payment?.payerAddress === undefined) return undefined;
     if (executionPath === undefined || executionPath === "x402") return undefined;
-    return this.#escrowChains.includes(payment.chain) ? protection : undefined;
+    if (!this.#escrowChains.includes(payment.chain)) return undefined;
+    // A wallet that keeps losing disputes is not offered protection (#314):
+    // the payment still goes through, straight to the merchant.
+    return (await this.#flagged(payment.payerAddress)) ? undefined : protection;
+  }
+
+  /** An escrow the merchant requires cannot be taken by a flagged wallet (#314). */
+  async #assertProtectable(payment: PaymentRail | undefined): Promise<void> {
+    if (payment?.payerAddress === undefined) return;
+    if (await this.#flagged(payment.payerAddress)) {
+      throw new ValidationError(
+        "This payment requires buyer protection, which this wallet can no longer use",
+        { payerAddress: payment.payerAddress },
+      );
+    }
+  }
+
+  async #flagged(payer: string): Promise<boolean> {
+    return (await this.#payerStanding?.isFlagged(payer)) ?? false;
   }
 
   async confirm(id: string): Promise<PaymentIntent> {

@@ -10,9 +10,9 @@
  */
 
 import { generateId } from "@mayarin/shared";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
-import { escrowDisputeMessages, escrowDisputes } from "../schema.ts";
+import { clearingTransactions, escrowDisputeMessages, escrowDisputes } from "../schema.ts";
 
 export type DisputeStatus = "open" | "released" | "refunded";
 export type DisputeAuthor = "payer" | "merchant" | "arbiter";
@@ -56,6 +56,18 @@ export type OpenDispute = Pick<
   | "releaseAfter"
   | "resolveBy"
 >;
+
+/**
+ * One wallet's escrow history across every merchant (#314). Counts only — no
+ * payment, merchant or amount — which is all standing needs.
+ */
+export interface PayerRecord {
+  /** Escrowed payments that settled into escrow from this wallet. */
+  readonly escrowed: number;
+  readonly disputes: number;
+  /** Disputes that ended released to the merchant: the payer's claim did not hold. */
+  readonly lost: number;
+}
 
 type Row = typeof escrowDisputes.$inferSelect;
 type MessageRow = typeof escrowDisputeMessages.$inferSelect;
@@ -131,6 +143,29 @@ export class DrizzleEscrowDisputeRepository {
 
   async markAlerted(id: string, alert: DisputeAlert): Promise<void> {
     await this.#db.update(escrowDisputes).set({ alerted: alert }).where(eq(escrowDisputes.id, id));
+  }
+
+  async payerRecord(payer: string): Promise<PayerRecord> {
+    const wallet = payer.toLowerCase();
+    const [escrowed] = await this.#db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(clearingTransactions)
+      .where(sql`
+        ${clearingTransactions.state} = 'SUCCESS'
+        and lower(${clearingTransactions.contractEscrow} ->> 'payer') = ${wallet}
+      `);
+    const [disputes] = await this.#db
+      .select({
+        count: sql<number>`count(*)::int`,
+        lost: sql<number>`count(*) filter (where ${escrowDisputes.status} = 'released')::int`,
+      })
+      .from(escrowDisputes)
+      .where(eq(escrowDisputes.payer, wallet));
+    return {
+      escrowed: escrowed?.count ?? 0,
+      disputes: disputes?.count ?? 0,
+      lost: disputes?.lost ?? 0,
+    };
   }
 
   /** The thread, oldest first. */

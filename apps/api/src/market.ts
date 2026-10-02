@@ -59,6 +59,7 @@ export const MARKET_CONFIG_KEYS = [
   "coinbaseProducts",
   "chainlinkFeeds",
   "uniswapPools",
+  "disputeStanding",
 ] as const;
 
 export type MarketConfigKey = (typeof MARKET_CONFIG_KEYS)[number];
@@ -94,6 +95,26 @@ const coinbaseProductsSchema = z.record(z.string(), z.string());
 const chainlinkFeedsSchema = z.record(z.string(), z.unknown());
 const uniswapPoolsSchema = z.record(z.string(), z.unknown());
 
+/**
+ * When a payer wallet loses buyer protection (#314). Flagged once it has lost
+ * `maxLostDisputes` disputes, or — past `minEscrows` escrowed payments — once
+ * more than `maxDisputeRateBps` of them were disputed.
+ */
+const disputeStandingSchema = z.object({
+  maxLostDisputes: z.number().int().min(1),
+  maxDisputeRateBps: z.number().int().min(1).max(10_000),
+  minEscrows: z.number().int().min(1),
+});
+
+export type DisputeStandingRules = z.infer<typeof disputeStandingSchema>;
+
+/** The rules until an operator writes their own: two lost disputes, or over half disputed past four. */
+export const DEFAULT_DISPUTE_STANDING: DisputeStandingRules = {
+  maxLostDisputes: 2,
+  maxDisputeRateBps: 5_000,
+  minEscrows: 4,
+};
+
 const SCHEMAS: Readonly<Record<MarketConfigKey, z.ZodTypeAny>> = {
   stablecoins: stablecoinsSchema,
   exchangeRates: exchangeRatesSchema,
@@ -102,6 +123,7 @@ const SCHEMAS: Readonly<Record<MarketConfigKey, z.ZodTypeAny>> = {
   coinbaseProducts: coinbaseProductsSchema,
   chainlinkFeeds: chainlinkFeedsSchema,
   uniswapPools: uniswapPoolsSchema,
+  disputeStanding: disputeStandingSchema,
 };
 
 /** Validates a value for a key, throwing rather than storing something unreadable. */
@@ -126,6 +148,7 @@ interface MarketSnapshot {
   readonly coinbaseProducts: Record<string, unknown>;
   readonly chainlinkFeeds: Record<string, unknown>;
   readonly uniswapPools: Record<string, unknown>;
+  readonly disputeStanding: DisputeStandingRules;
 }
 
 /** Everything rebuilt from one snapshot, cached until that snapshot is replaced. */
@@ -233,6 +256,11 @@ export class RuntimeMarket {
     return (await this.#snapshotOf()).stablecoins;
   }
 
+  /** When a payer wallet loses buyer protection (#314). */
+  async disputeStanding(): Promise<DisputeStandingRules> {
+    return (await this.#snapshotOf()).disputeStanding;
+  }
+
   /** The current pool map, for the route sources the contract path builds per call. */
   async uniswapPools(): Promise<Record<string, unknown>> {
     return (await this.#snapshotOf()).uniswapPools;
@@ -296,6 +324,7 @@ export class RuntimeMarket {
       coinbaseProducts: read<Record<string, unknown>>("coinbaseProducts"),
       chainlinkFeeds: read<Record<string, unknown>>("chainlinkFeeds"),
       uniswapPools: read<Record<string, unknown>>("uniswapPools"),
+      disputeStanding: read<DisputeStandingRules>("disputeStanding"),
     };
 
     this.#snapshot = snapshot;
@@ -387,6 +416,8 @@ function environmentValues(config: Config): Readonly<Record<MarketConfigKey, unk
     coinbaseProducts: config.coinbaseProducts,
     chainlinkFeeds: config.chainlinkFeeds,
     uniswapPools: config.uniswapPools,
+    // Not an environment value: a platform policy, set at runtime only.
+    disputeStanding: DEFAULT_DISPUTE_STANDING,
   };
 }
 

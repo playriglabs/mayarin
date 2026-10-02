@@ -458,8 +458,11 @@ describe("buyer protection (#304)", () => {
   const protection = { holdSeconds: 7 * 86_400 };
   const payerAddress = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
 
-  function protectedService() {
+  function protectedService(flagged: readonly string[] = []) {
     return new PaymentIntentService({
+      payerStanding: {
+        isFlagged: async (payer) => flagged.includes(payer.toLowerCase()),
+      },
       repository: new InMemoryPaymentIntentRepository(),
       clock: new FixedClock(NOW),
       defaults: {
@@ -524,5 +527,27 @@ describe("buyer protection (#304)", () => {
 
     const chosen = await svc.choosePayment(minted.id, { ...rail, payerAddress });
     expect(chosen.escrow).toEqual(protection);
+  });
+
+  test("a flagged wallet is not offered protection and pays the merchant directly (#314)", async () => {
+    const svc = protectedService([payerAddress.toLowerCase()]);
+    const intent = await svc.create({ ...base, payment: { ...rail, payerAddress } });
+    expect(intent.escrow).toBeUndefined();
+
+    const minted = await svc.create(base);
+    const chosen = await svc.choosePayment(minted.id, { ...rail, payerAddress });
+    expect(chosen.escrow).toBeUndefined();
+  });
+
+  test("an escrow the merchant requires is refused to a flagged wallet (#314)", async () => {
+    const svc = protectedService([payerAddress.toLowerCase()]);
+    await expect(
+      svc.create({ ...base, payment: { ...rail, payerAddress }, escrow: protection }),
+    ).rejects.toThrow("can no longer use");
+
+    const required = await svc.create({ ...base, escrow: protection });
+    await expect(svc.choosePayment(required.id, { ...rail, payerAddress })).rejects.toThrow(
+      "can no longer use",
+    );
   });
 });

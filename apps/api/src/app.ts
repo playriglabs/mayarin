@@ -18,6 +18,7 @@ import { healthRoutes } from "./routes/health.ts";
 import { invoicePageRoutes } from "./routes/invoice-page.ts";
 import { invoiceRoutes } from "./routes/invoices.ts";
 import { mcpRoutes } from "./routes/mcp.ts";
+import { payerRoutes } from "./routes/payers.ts";
 import { paymentIntentRoutes } from "./routes/payment-intents.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
@@ -85,6 +86,8 @@ export function createApp(container: Container): Hono {
   );
   v1.route("/payment-intents", paymentIntentRoutes(container));
   v1.route("/payments", paymentRoutes(container));
+  // Whether a wallet may take buyer protection (#314), for the hosted checkout.
+  v1.route("/payers", payerRoutes(container));
   // Indicative pricing, for a counter showing a payer what each accepted asset
   // would take. Locks nothing and records nothing (#15).
   v1.route("/quotes", quoteRoutes(container));

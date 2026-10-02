@@ -413,8 +413,12 @@
   .escrow-terms p {
     @apply mt-2;
   }
-  .escrow-note .error {
+  .escrow-note .error,
+  .escrow-note .escrow-ineligible {
     @apply mt-2;
+  }
+  .escrow-note .escrow-ineligible {
+    @apply text-warning;
   }
   button.link-button {
     @apply ml-1 border-0 bg-transparent p-0 text-xs text-muted underline;
@@ -548,7 +552,7 @@
   /* The joining line, from under this icon to the next one. */
   .status-timeline li:not(:last-child)::after {
     content: "";
-    @apply absolute top-8 bottom-1 left-[0.9375rem] w-0.5 rounded-full bg-line;
+    @apply absolute top-8 bottom-1 left-3.75 w-0.5 rounded-full bg-line;
   }
   .status-timeline li.done:not(:last-child)::after {
     @apply bg-brand;

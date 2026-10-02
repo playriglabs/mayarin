@@ -187,7 +187,9 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * and the factory, not this route, decides who may send each call.
    */
   app.get("/:id/escrow", async (c) => {
-    return c.json({ escrow: toEscrowDto(await container.escrow.view(c.req.param("id"))) });
+    const view = await container.escrow.view(c.req.param("id"));
+    const standing = await container.payerStanding.standing(view.terms.payer);
+    return c.json({ escrow: toEscrowDto(view, standing) });
   });
 
   /**
