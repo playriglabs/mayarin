@@ -65,6 +65,15 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
     }
   }
 
+  // With an open dispute, the release sits beside "Sign and send" in the thread.
+  const threadOpen =
+    escrow.dispute !== null && escrow.dispute.status === "open" && escrow.outcome === "held";
+  const releaseButton = (
+    <button type="button" className="primary" disabled={busy} onClick={() => void act("release")}>
+      Release payment
+    </button>
+  );
+
   const status =
     escrow.outcome === "released"
       ? "Released"
@@ -117,21 +126,15 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
           statusUrl={statusUrl}
           payer={escrow.terms.payer}
           messages={escrow.dispute.messages}
-          open={escrow.dispute.status === "open" && escrow.outcome === "held"}
+          open={threadOpen}
           onPosted={() => void load()}
+          release={threadOpen ? releaseButton : undefined}
         />
       )}
 
-      {escrow.outcome === "held" && (
+      {escrow.outcome === "held" && !threadOpen && (
         <div className="escrow-actions">
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={() => void act("release")}
-          >
-            Release payment
-          </button>
+          {releaseButton}
           {holdOpen && !escrow.disputed && (
             <button
               type="button"
