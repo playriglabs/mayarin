@@ -31,7 +31,7 @@ import { runEffect } from "@/lib/run";
 import {
   discoverWallets,
   type InjectedWallet,
-  requestAccount,
+  requestSpecificAccount,
   sendTransaction,
   switchChain,
   waitForReceipt,
@@ -74,12 +74,8 @@ function DisputeCase({ id }: { readonly id: string }) {
           : { to: data.escrow.factory, data: data.escrow.calls[action] };
       const wallet = wallets.find((w) => w.name === walletName);
       if (wallet === undefined) throw new Error("No browser wallet found");
-      const account = await requestAccount(wallet.provider);
-      if (account.toLowerCase() !== data.escrow.terms.arbiter.toLowerCase()) {
-        throw new Error(
-          `Connect the arbiter wallet ${shortHash(data.escrow.terms.arbiter)} — the factory accepts the decision only from it.`,
-        );
-      }
+      // The factory accepts the decision only from the arbiter.
+      const account = await requestSpecificAccount(wallet.provider, data.escrow.terms.arbiter);
       await switchChain(wallet.provider, BigInt(data.escrow.chainId));
       const hash = await sendTransaction(wallet.provider, { from: account, ...call });
       await waitForReceipt(wallet.provider, hash);
