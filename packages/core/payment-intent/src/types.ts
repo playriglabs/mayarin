@@ -125,6 +125,24 @@ export function usesDepositAddress(path: ExecutionPath | undefined): boolean {
   return path === undefined || path === "deposit-match";
 }
 
+/**
+ * Conditional settlement (#304): the payment settles into a per-intent escrow
+ * instead of the merchant's address, and moves on when the payer releases it,
+ * the hold ends without a dispute, the merchant refunds it, or — after a
+ * dispute — the arbiter decides.
+ *
+ * The terms name the payer, so the rail must carry `payerAddress` before the
+ * price is locked. That rules out x402, whose payer is known only once it has
+ * signed. On deposit-match the payer names the wallet they will release from;
+ * any wallet may still fund the deposit address.
+ */
+export interface EscrowRequest {
+  /** How long after the price lock an undisputed escrow becomes releasable by anyone. */
+  readonly holdSeconds: number;
+  /** Decides a disputed escrow. Absent: a dispute waits for the payer or the merchant. */
+  readonly arbiter?: string;
+}
+
 export interface PaymentIntent {
   readonly id: string;
   readonly status: PaymentIntentStatus;
@@ -144,6 +162,8 @@ export interface PaymentIntent {
    * contract path.
    */
   readonly executionPath?: ExecutionPath;
+  /** Present when the payment settles into escrow (#304). */
+  readonly escrow?: EscrowRequest;
   readonly source: PaymentSource;
   readonly metadata: Readonly<Record<string, string>>;
   /**

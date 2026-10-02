@@ -25,6 +25,27 @@ export interface PayBootstrap {
    * `null` once a rail is chosen: the page then shows the payment itself.
    */
   readonly choice: RailChoice | null;
+  /**
+   * Present when the payment settles into escrow (#304): the payer names the
+   * wallet they will release from, and the paid page shows the hold.
+   */
+  readonly escrow: { readonly holdSeconds: number } | null;
+}
+
+/** `GET /v1/payments/:id/escrow`, as far as this page reads it. */
+export interface EscrowPayload {
+  readonly chainId: string;
+  readonly factory: string;
+  readonly terms: {
+    readonly payer: string;
+    readonly payee: string;
+    readonly arbiter: string;
+    /** ISO time after which an undisputed escrow is releasable by anyone. */
+    readonly releaseAfter: string;
+  };
+  readonly outcome: "held" | "released" | "refunded";
+  readonly disputed: boolean;
+  readonly calls: { readonly release: string; readonly dispute: string };
 }
 
 /** What the status endpoint returns, as far as this page reads it. */

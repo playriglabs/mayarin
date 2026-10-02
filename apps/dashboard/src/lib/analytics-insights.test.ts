@@ -22,6 +22,7 @@ function payment(
     settlementAsset: "USDC",
     provider: "stablecoin",
     payment: { asset: "USDC", chain: "base-sepolia" },
+    escrow: null,
     source: { type: "manual" },
     merchantReference: null,
     metadata: { payerCountryCode: "ID" },

@@ -121,6 +121,7 @@ import type { ApiKeyVerifier } from "./middleware/api-key.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 import { chainReceipts, QuotePricingSource } from "./rails.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
+import { EscrowService } from "./services/escrow.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
 import { CachedRailObservations } from "./services/rail-observations.ts";
@@ -227,6 +228,8 @@ export interface Container {
   readonly chainHead?: (chain: ChainId) => Promise<BlockRef>;
   /** Contract-path checkout (#61). Present only when `CONTRACT_PATH_ENABLED` is true. */
   readonly checkout?: ContractCheckout;
+  /** Escrow state and calldata for a conditional-settlement payment (#304). */
+  readonly escrow: EscrowService;
   /**
    * Ingests `PaymentCompleted` (#8), one per chain with a deployed router.
    *
@@ -1064,6 +1067,7 @@ export function createContainer({
     engine,
     rates,
     paymentApp,
+    escrow: new EscrowService(paymentApp, config.chainRpcUrls),
     refunds,
     ...(stream === undefined ? {} : { stream }),
     adapters,

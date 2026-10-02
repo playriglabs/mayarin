@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import { connectWallet } from "../../shared/wallet.ts";
 import { canContinueWithQuote, useQuoteEstimate } from "../link/use-quote-estimate.ts";
 import type { PayBootstrap, RailChoice } from "./types.ts";
 
@@ -23,12 +24,25 @@ export function ChooseRail({
   const [rail, setRail] = useState(rails[0]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // An escrowed payment names the payer's wallet in its terms (#304): that
+  // wallet releases or disputes later, and receives a refund.
+  const [payerAddress, setPayerAddress] = useState<string | null>(null);
+  const needsWallet = bootstrap.escrow !== null && payerAddress === null;
+
+  async function connect() {
+    setError("");
+    try {
+      setPayerAddress(await connectWallet());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to connect a wallet");
+    }
+  }
 
   const estimate = useQuoteEstimate(bootstrap.amount.formatted, bootstrap.amount.asset, rail);
   const quoteReady = canContinueWithQuote(estimate);
 
   async function pay() {
-    if (rail === undefined || !quoteReady || busy) return;
+    if (rail === undefined || !quoteReady || busy || needsWallet) return;
     setBusy(true);
     setError("");
 
@@ -39,7 +53,11 @@ export function ChooseRail({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          payment: { asset: rail.asset, chain: rail.chain },
+          payment: {
+            asset: rail.asset,
+            chain: rail.chain,
+            ...(payerAddress === null ? {} : { payerAddress }),
+          },
           executionPath: "deposit-match",
         }),
       });
@@ -102,10 +120,29 @@ export function ChooseRail({
             The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
             <strong>{railSummary(rail)}</strong> to the address shown there.
           </p>
+          {bootstrap.escrow !== null && (
+            <div className="escrow-note">
+              <p>
+                <strong>Buyer protection.</strong> Your payment is held in escrow for{" "}
+                {holdDuration(bootstrap.escrow.holdSeconds)}. Release it once your order arrives, or
+                open a dispute before then. Connect the wallet you will use to do that — you can
+                still pay from any wallet or exchange.
+              </p>
+              {payerAddress === null ? (
+                <button type="button" className="secondary" onClick={() => void connect()}>
+                  Connect wallet
+                </button>
+              ) : (
+                <p className="escrow-wallet">
+                  Wallet <code>{shortAddress(payerAddress)}</code>
+                </p>
+              )}
+            </div>
+          )}
           <button
             type="button"
             className="primary"
-            disabled={busy || !quoteReady}
+            disabled={busy || !quoteReady || needsWallet}
             onClick={() => void pay()}
           >
             {busy
@@ -125,4 +162,15 @@ export function ChooseRail({
       )}
     </div>
   );
+}
+
+export function holdDuration(seconds: number): string {
+  const days = Math.round(seconds / 86_400);
+  if (days >= 1) return days === 1 ? "1 day" : `${days} days`;
+  const hours = Math.max(1, Math.round(seconds / 3_600));
+  return hours === 1 ? "1 hour" : `${hours} hours`;
+}
+
+export function shortAddress(address: string): string {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }

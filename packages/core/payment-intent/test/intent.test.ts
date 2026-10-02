@@ -201,3 +201,44 @@ describe("payment rail", () => {
     expect(intent.payment).toEqual({ asset: "USDC", chain: "base-sepolia" });
   });
 });
+
+describe("escrow (#304)", () => {
+  const escrow = { holdSeconds: 7 * 24 * 60 * 60 };
+
+  test("an escrowed intent keeps its terms", () => {
+    expect(createPaymentIntent(input({ escrow })).escrow).toEqual(escrow);
+  });
+
+  test("refuses a hold that is not a positive whole number of seconds, or longer than 90 days", () => {
+    for (const holdSeconds of [0, -1, 1.5, 91 * 24 * 60 * 60]) {
+      expect(() => createPaymentIntent(input({ escrow: { holdSeconds } }))).toThrow(
+        ValidationError,
+      );
+    }
+  });
+
+  test("refuses an arbiter that is not an address", () => {
+    expect(() => createPaymentIntent(input({ escrow: { ...escrow, arbiter: "mayarin" } }))).toThrow(
+      ValidationError,
+    );
+  });
+
+  test("needs the payer's address on the rail, and is refused on x402", () => {
+    const rail = { asset: "USDC", chain: "arbitrum-sepolia" } as const;
+    const payerAddress = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
+    expect(() =>
+      createPaymentIntent(input({ escrow, payment: rail, executionPath: "deposit-match" })),
+    ).toThrow(ValidationError);
+
+    const intent = createPaymentIntent(input({ escrow }));
+    expect(() => choosePayment(intent, { ...rail, payerAddress }, "x402", "USDC", NOW)).toThrow(
+      ValidationError,
+    );
+    expect(() => choosePayment(intent, rail, "deposit-match", "USDC", NOW)).toThrow(
+      ValidationError,
+    );
+    expect(
+      choosePayment(intent, { ...rail, payerAddress }, "deposit-match", "USDC", NOW).payment,
+    ).toEqual({ ...rail, payerAddress });
+  });
+});

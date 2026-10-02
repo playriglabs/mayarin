@@ -23,6 +23,7 @@ import {
   parseCartSnapshot,
 } from "@mayarin/catalog";
 import { chainLabel } from "@mayarin/chain";
+import { ESCROW_CHAINS } from "@mayarin/provider-evm";
 import { money, NotFoundError, ValidationError, zero } from "@mayarin/shared";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
@@ -186,9 +187,15 @@ export function checkoutPageRoutes(container: Container): Hono {
       report === undefined
         ? null
         : {
-            rails: await payerRails(
-              container,
-              paymentLink === undefined ? report.rails : linkRails(report, paymentLink),
+            rails: (
+              await payerRails(
+                container,
+                paymentLink === undefined ? report.rails : linkRails(report, paymentLink),
+              )
+            ).filter(
+              // An escrowed payment settles through EscrowFactory, which is
+              // deployed on some chains only (#304).
+              (rail) => intent.escrow === undefined || ESCROW_CHAINS.includes(rail.chain),
             ),
             lockMinutes: Math.max(1, Math.round(container.config.paymentIntentTtlSeconds / 60)),
           };
@@ -207,6 +214,7 @@ export function checkoutPageRoutes(container: Container): Hono {
         successUrl: successUrl ?? null,
         pollMs: POLL_MS,
         choice,
+        escrow: intent.escrow === undefined ? null : { holdSeconds: intent.escrow.holdSeconds },
       }),
     );
   });

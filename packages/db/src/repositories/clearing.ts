@@ -351,6 +351,7 @@ function contractColumns(transaction: ClearingTransaction) {
       contractPayerAsset: null,
       contractExpiresAt: null,
       contractTxHash: null,
+      contractEscrow: null,
     };
   }
 
@@ -369,6 +370,10 @@ function contractColumns(transaction: ClearingTransaction) {
     contractPayerAsset: contract.payerEstimate.asset,
     contractExpiresAt: contract.expiresAt,
     contractTxHash: contract.txHash ?? null,
+    contractEscrow:
+      order.escrow === undefined
+        ? null
+        : { ...order.escrow, releaseAfter: order.escrow.releaseAfter.toString() },
   };
 }
 
@@ -418,6 +423,14 @@ function toContract(row: Row): ClearingContract | undefined {
       deadline: toBigint(row.contractDeadline) ?? 0n,
       signature: row.contractSignature,
       signer: row.contractSigner,
+      ...(row.contractEscrow === null
+        ? {}
+        : {
+            escrow: {
+              ...row.contractEscrow,
+              releaseAfter: BigInt(row.contractEscrow.releaseAfter),
+            },
+          }),
     },
     payerEstimate: toMoney(row.contractPayerEstimate ?? "0", row.contractPayerAsset),
     expiresAt: row.contractExpiresAt,

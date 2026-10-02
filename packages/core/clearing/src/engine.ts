@@ -57,7 +57,11 @@ import {
   ValidationError,
   zero,
 } from "@mayarin/shared";
-import { type ContractPaymentPlanner, OrderExpiredError } from "./contract-path.ts";
+import {
+  type ContractPaymentPlanner,
+  type EscrowLockRequest,
+  OrderExpiredError,
+} from "./contract-path.ts";
 import type { FeePolicy } from "./fees.ts";
 import {
   assetReceivedPosting,
@@ -881,7 +885,16 @@ export class ClearingEngine {
     if (await this.#plansExecutableDeposit(transaction)) {
       return this.#lockExecutableDeposit(transaction);
     }
-    const rail = (await this.#intents.getById(transaction.paymentIntentId)).payment;
+    const intent = await this.#intents.getById(transaction.paymentIntentId);
+    if (intent.escrow !== undefined) {
+      // Escrow exists only as the signed order's recipient. A payment priced
+      // here has no order, so it would quietly settle to the merchant instead.
+      throw new ConfigurationError(
+        `Payment intent ${intent.id} asks for escrow, which needs a signed PaymentRouter order this deployment does not produce for its rail`,
+        { paymentIntentId: intent.id, executionPath: transaction.executionPath },
+      );
+    }
+    const rail = intent.payment;
     const quote = await this.#rates.quote(
       transaction.sourceAmount.asset,
       transaction.settlementAsset,
@@ -1023,6 +1036,7 @@ export class ClearingEngine {
       chain: rail.chain,
       // The payer has no address on this path; excess is Mayarin's.
       payerAddress: treasury,
+      ...escrowLockRequest(intent),
       submission: "relayer",
       // Price freshness and execution availability are different clocks. A
       // scanning or custodial payer may fund until the intent expires, and the
@@ -1221,6 +1235,9 @@ export class ClearingEngine {
       payerAsset: rail.asset,
       chain: rail.chain,
       payerAddress: rail.payerAddress,
+      ...(intent.escrow === undefined
+        ? {}
+        : { escrow: { ...intent.escrow, payer: rail.payerAddress } }),
       submission: "payer",
     });
 
@@ -1610,6 +1627,21 @@ function requireContract(transaction: ClearingTransaction) {
 interface PayerSurplusClaim {
   readonly amount: Money;
   readonly payer: string;
+}
+
+/**
+ * The escrow part of a deposit-match lock request (#304). The payer is the
+ * wallet named on the rail — the order's `refundTo` is the treasury here.
+ */
+function escrowLockRequest(intent: PaymentIntent): { escrow?: EscrowLockRequest } {
+  if (intent.escrow === undefined) return {};
+  const payer = intent.payment?.payerAddress;
+  if (payer === undefined) {
+    throw new ValidationError(`Escrowed payment intent ${intent.id} names no payer address`, {
+      paymentIntentId: intent.id,
+    });
+  }
+  return { escrow: { ...intent.escrow, payer } };
 }
 
 function payerSurplusClaim(events: readonly ClearingEvent[]): PayerSurplusClaim | undefined {

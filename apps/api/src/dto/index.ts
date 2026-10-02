@@ -11,6 +11,7 @@ export * from "./catalog.ts";
 export * from "./clearing.ts";
 export * from "./contract-call.ts";
 export * from "./deposit.ts";
+export * from "./escrow.ts";
 export * from "./invoice.ts";
 export * from "./money.ts";
 export * from "./payment.ts";

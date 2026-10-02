@@ -13,6 +13,7 @@ import { InvoicePage } from "../features/invoice/invoice-page.tsx";
 import type { InvoiceBootstrap } from "../features/invoice/types.ts";
 import { LinkPage } from "../features/link/link-page.tsx";
 import type { LinkBootstrap } from "../features/link/types.ts";
+import { holdDuration } from "../features/pay/choose-rail.tsx";
 import { ConfirmingCard } from "../features/pay/confirming-card.tsx";
 import { DepositCard } from "../features/pay/deposit-card.tsx";
 import { Outcome } from "../features/pay/outcome.tsx";
@@ -60,6 +61,7 @@ const payBootstrap: PayBootstrap = {
   successUrl: null,
   pollMs: 8000,
   choice: null,
+  escrow: null,
 };
 
 const invoiceBootstrap: InvoiceBootstrap = {
@@ -393,6 +395,7 @@ describe("outcome", () => {
         intentId="pi_1"
         statusUrl={statusUrl}
         merchantName="Warung Kopi"
+        escrowed={false}
       />,
     );
     expect(done).toContain("Payment completed");
@@ -404,11 +407,18 @@ describe("outcome", () => {
           intentId="pi_1"
           statusUrl={statusUrl}
           merchantName="Warung Kopi"
+          escrowed={false}
         />,
       ),
     ).toContain("Payment expired");
     const failed = renderToStaticMarkup(
-      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} merchantName="Warung Kopi" />,
+      <Outcome
+        status="FAILED"
+        intentId="pi_1"
+        statusUrl={statusUrl}
+        merchantName="Warung Kopi"
+        escrowed={false}
+      />,
     );
     expect(failed).toContain("Payment failed");
     expect(failed).not.toContain("—");
@@ -421,13 +431,20 @@ describe("outcome", () => {
         intentId="pi_1"
         statusUrl={statusUrl}
         merchantName="Warung Kopi"
+        escrowed={false}
       />,
     );
     expect(done).toContain('href="/v1/payments/pi_1/invoice.pdf"');
     expect(done).toContain('href="/v1/payments/pi_1/receipt.pdf"');
 
     const failed = renderToStaticMarkup(
-      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} merchantName="Warung Kopi" />,
+      <Outcome
+        status="FAILED"
+        intentId="pi_1"
+        statusUrl={statusUrl}
+        merchantName="Warung Kopi"
+        escrowed={false}
+      />,
     );
     expect(failed).not.toContain(".pdf");
     // Failed or expired: who to ask, with the reference they will ask for.
@@ -561,5 +578,27 @@ describe("the shell", () => {
     // would 500 every buyer page while every other test stayed green.
     const html = await Bun.file(new URL("../../index.html", import.meta.url)).text();
     expect(html).toContain("<!--__BOOTSTRAP__-->");
+  });
+});
+
+describe("escrow (#304)", () => {
+  test("a held payment says so instead of saying the merchant was paid", () => {
+    const done = renderToStaticMarkup(
+      <Outcome
+        status="COMPLETED"
+        intentId="pi_1"
+        statusUrl="/v1/payments/pi_1"
+        merchantName="Warung Kopi"
+        escrowed
+      />,
+    );
+    expect(done).toContain("held in escrow");
+    expect(done).not.toContain("The merchant has been paid");
+  });
+
+  test("the hold reads in days or hours", () => {
+    expect(holdDuration(7 * 86_400)).toBe("7 days");
+    expect(holdDuration(86_400)).toBe("1 day");
+    expect(holdDuration(2 * 3_600)).toBe("2 hours");
   });
 });

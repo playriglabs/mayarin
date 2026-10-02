@@ -56,6 +56,26 @@ export interface DepositView {
   readonly required: number;
 }
 
+/** An escrowed payment's hold (#304), as the payment API reports it. Passed through. */
+export interface EscrowView {
+  readonly chain: string;
+  readonly chainId: string;
+  readonly factory: string;
+  readonly address: string;
+  readonly token: string;
+  readonly terms: {
+    readonly intentId: string;
+    readonly payer: string;
+    readonly payee: string;
+    readonly arbiter: string;
+    readonly releaseAfter: string;
+  };
+  readonly outcome: "held" | "released" | "refunded";
+  readonly disputed: boolean;
+  readonly balance: string;
+  readonly calls: { readonly release: string; readonly refund: string; readonly dispute: string };
+}
+
 /**
  * What one accepted asset would cost the payer.
  *
@@ -172,6 +192,14 @@ export class PaymentApiClient {
       `/payments/${encodeURIComponent(paymentIntentId)}`,
     );
     return payment.deposit ?? null;
+  }
+
+  /** Where an escrowed payment's funds are (#304). Ask only for an escrowed intent. */
+  async escrow(paymentIntentId: string): Promise<EscrowView> {
+    const response = await this.#get<{ escrow: EscrowView }>(
+      `/payments/${encodeURIComponent(paymentIntentId)}/escrow`,
+    );
+    return response.escrow;
   }
 
   /**

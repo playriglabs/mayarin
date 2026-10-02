@@ -40,6 +40,7 @@ import {
 } from "./merchant-policy.ts";
 import type { ListPaymentIntentsOptions, PaymentIntentRepository } from "./repository.ts";
 import type {
+  EscrowRequest,
   ExecutionPath,
   MerchantSnapshot,
   PaymentIntent,
@@ -56,6 +57,8 @@ export interface CreatePaymentIntentCommand {
   readonly payment?: PaymentRail;
   /** How the `payment` rail is executed. Ignored for a fiat-only intent. */
   readonly executionPath?: ExecutionPath;
+  /** Settle into escrow (#304). Contract path only. */
+  readonly escrow?: EscrowRequest;
   readonly metadata?: Readonly<Record<string, string>>;
   /** The merchant's own order/invoice id. Opaque to Mayarin, indexed for lookup. */
   readonly merchantReference?: string;
@@ -185,6 +188,7 @@ export class PaymentIntentService {
       provider,
       ...(command.payment === undefined ? {} : { payment: command.payment }),
       ...(executionPath === undefined ? {} : { executionPath }),
+      ...(command.escrow === undefined ? {} : { escrow: command.escrow }),
       source: command.source,
       ...(command.metadata === undefined ? {} : { metadata: command.metadata }),
       ...(command.merchantReference === undefined
@@ -409,6 +413,11 @@ function fingerprintOf(
     command.payment === undefined ? "none" : `${command.payment.chain}:${command.payment.asset}`,
     executionPath ?? "default",
     command.source.type === "qr" ? command.source.payload : "manual",
+    // Appended only when present, so every fingerprint stored before escrow
+    // existed still matches its replay.
+    ...(command.escrow === undefined
+      ? []
+      : [`escrow:${command.escrow.holdSeconds}:${command.escrow.arbiter ?? ""}`]),
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }

@@ -95,6 +95,7 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
                 intentId={intentId}
                 statusUrl={bootstrap.statusUrl}
                 merchantName={bootstrap.merchant.name}
+                escrowed={bootstrap.escrow !== null}
               />
             ))
             .with({ deposit: P.nullish }, () => (

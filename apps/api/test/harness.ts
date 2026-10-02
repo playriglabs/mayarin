@@ -54,6 +54,7 @@ import type { Container } from "../src/container.ts";
 import { RuntimeMarket } from "../src/market.ts";
 import { chainReceipts, QuotePricingSource } from "../src/rails.ts";
 import { createApiKeyVerifier } from "../src/services/api-key-verifier.ts";
+import { EscrowService } from "../src/services/escrow.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 import { PaymentStream } from "../src/services/payment-stream.ts";
 import { SubscriptionApiService } from "../src/services/subscriptions.ts";
@@ -220,6 +221,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   });
   const customers = new InMemoryCustomerRepository();
 
+  const paymentApp = new PaymentAppService({ intents, engine, ledger });
   const container: Container = {
     config,
     verifyApiKey: createApiKeyVerifier({ keys: apiKeys, clock }),
@@ -238,7 +240,8 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     ledger,
     engine,
     rates,
-    paymentApp: new PaymentAppService({ intents, engine, ledger }),
+    paymentApp,
+    escrow: new EscrowService(paymentApp, {}),
     stream,
     refunds: new RefundService({
       clearing: clearingRepository,

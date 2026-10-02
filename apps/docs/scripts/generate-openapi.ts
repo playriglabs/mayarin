@@ -148,6 +148,10 @@ const paymentIntentSchema = z
     provider: z.string().nullable(),
     payment: paymentRailSchema.nullable(),
     executionPath: z.string().nullable(),
+    escrow: z
+      .object({ holdSeconds: z.number().int(), arbiter: z.string().optional() })
+      .nullable()
+      .describe("Conditional settlement terms; null for an ordinary payment."),
     source: z.string(),
     metadata: z.record(z.string(), z.string()),
     merchantReference: z.string().nullable(),
@@ -276,6 +280,29 @@ const contractCallSchema = z
     expiresAt: z.string(),
   })
   .openapi("ContractCall");
+
+const escrowSchema = z
+  .object({
+    chain: z.string(),
+    chainId: z.string(),
+    factory: z.string().describe("EscrowFactory; send `calls[action]` here."),
+    address: z.string().describe("The per-payment escrow address the funds settled into."),
+    token: z.string(),
+    terms: z.object({
+      intentId: z.string(),
+      payer: z.string(),
+      payee: z.string(),
+      arbiter: z.string(),
+      releaseAfter: z
+        .string()
+        .describe("ISO time after which an undisputed escrow is releasable by anyone."),
+    }),
+    outcome: z.enum(["held", "released", "refunded"]),
+    disputed: z.boolean(),
+    balance: z.string().describe("Settlement-token minor units still held."),
+    calls: z.object({ release: z.string(), refund: z.string(), dispute: z.string() }),
+  })
+  .openapi("Escrow");
 
 const refundSchema = z
   .object({
@@ -740,6 +767,22 @@ registry.registerPath({
     "200": jsonResponse(contractCallSchema, "Signed order and submit payload."),
     "404": errorResponse("Contract path not enabled, or no such payment."),
     "410": errorResponse("Quote lock expired."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/payments/{id}/escrow",
+  tags: ["Payments"],
+  operationId: "getPaymentEscrow",
+  summary: "Get an escrowed payment's hold",
+  description:
+    "Where an escrowed payment's funds are, read from the chain, and the calldata to release, refund or dispute them. The escrow contract decides who may send each call: the payer releases or disputes, the merchant refunds, anyone releases once an undisputed hold ends.",
+  security: noAuth,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(z.object({ escrow: escrowSchema }), "The escrow."),
+    "404": errorResponse("No such payment, or it is not held in escrow."),
   },
 });
 

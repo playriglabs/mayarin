@@ -19,6 +19,7 @@ import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
 import type {
   ClearingContract,
   ClearingEngine,
+  ContractEscrow,
   ContractLock,
   ContractLockRequest,
   ContractOrder,
@@ -33,7 +34,15 @@ import {
   type SwapRouteSource,
 } from "@mayarin/execution";
 import type { MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/payment-intent";
-import { buildPayEthCall, deriveIntentId, type RouterCall } from "@mayarin/provider-evm";
+import {
+  buildPayEthCall,
+  deriveIntentId,
+  ESCROW_CHAINS,
+  ESCROW_FACTORY,
+  escrowAddress,
+  escrowArbiter,
+  type RouterCall,
+} from "@mayarin/provider-evm";
 import { ZeroExRouteSource } from "@mayarin/provider-swap-0x";
 import { UniswapRouteSource } from "@mayarin/provider-swap-uniswap";
 import { UniswapV2RouteSource } from "@mayarin/provider-swap-uniswap-v2";
@@ -210,10 +219,15 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       chainId: EVM_CHAIN_IDS[request.chain],
       verifyingContract: router as Hex,
     };
+    const intentId = deriveIntentId(request.clearingTransactionId);
+    const escrow = this.#escrow(request, intentId, merchantSafe, now);
     const context = {
-      intentId: deriveIntentId(request.clearingTransactionId),
+      intentId,
       settlementToken,
-      merchantSafe: merchantSafe as Hex,
+      // An escrowed order settles into the escrow; the merchant is its payee.
+      merchantSafe: (escrow === undefined
+        ? merchantSafe
+        : escrowAddress({ ...escrow, intentId })) as Hex,
       refundTo: request.payerAddress as Hex,
     };
     const orderDeadline =
@@ -248,6 +262,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         expiresAt,
         order: signed.order,
         signature: signed.signature,
+        ...(escrow === undefined ? {} : { escrow }),
       });
     }
 
@@ -282,7 +297,37 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       expiresAt: locked.deadline,
       order: signed.order,
       signature: signed.signature,
+      ...(escrow === undefined ? {} : { escrow }),
     });
+  }
+
+  /**
+   * The escrow terms for an escrowed payment (#304), or `undefined`.
+   *
+   * The hold is counted from the price lock, not from payment: the order's
+   * deadline is minutes away, so the difference is noise next to a hold of
+   * days, and the terms must be fixed before the order is signed.
+   */
+  #escrow(
+    request: ContractLockRequest,
+    intentId: string,
+    payee: string,
+    now: Date,
+  ): ContractEscrow | undefined {
+    if (request.escrow === undefined) return undefined;
+    if (!ESCROW_CHAINS.includes(request.chain)) {
+      throw new ValidationError(`Escrow is not available on ${request.chain}`, {
+        chain: request.chain,
+        intentId,
+      });
+    }
+    return {
+      factory: ESCROW_FACTORY,
+      payer: request.escrow.payer,
+      payee,
+      arbiter: escrowArbiter(request.escrow.arbiter),
+      releaseAfter: BigInt(Math.floor(now.getTime() / 1_000) + request.escrow.holdSeconds),
+    };
   }
 
   /**
@@ -336,6 +381,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     readonly expiresAt: Date;
     readonly order: Order;
     readonly signature: Hex;
+    readonly escrow?: ContractEscrow;
   }): Promise<ContractLock> {
     return {
       settlementAmount: parts.settlementAmount,
@@ -353,6 +399,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         deadline: parts.order.deadline,
         signature: parts.signature,
         signer: await (await this.#options.quote()).signer.address(),
+        ...(parts.escrow === undefined ? {} : { escrow: parts.escrow }),
       },
     };
   }

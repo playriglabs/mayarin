@@ -19,6 +19,8 @@ export function toPaymentIntentDto(intent: PaymentIntent) {
     settlementAsset: intent.settlementAsset,
     provider: intent.provider,
     payment: intent.payment ?? null,
+    /** Conditional settlement (#304); `null` for an ordinary payment. */
+    escrow: intent.escrow ?? null,
     source: intent.source,
     merchantReference: intent.merchantReference ?? null,
     metadata: intent.metadata ?? {},
