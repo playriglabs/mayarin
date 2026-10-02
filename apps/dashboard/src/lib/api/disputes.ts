@@ -37,4 +37,8 @@ export const disputesApi = {
     { readonly disputes: readonly DisputeDto[]; readonly open: number },
     ApiError
   > => request<{ disputes: readonly DisputeDto[]; open: number }>("/escrow-disputes"),
+
+  /** GET `/escrow-disputes/:id` — one of the merchant's own disputes, with its thread. */
+  merchantCase: (id: string): Effect.Effect<DisputeCaseDto, ApiError> =>
+    request<DisputeCaseDto>(`/escrow-disputes/${encodeURIComponent(id)}`),
 };

@@ -49,3 +49,23 @@ export function useMerchantDisputes() {
     query: () => disputesApi.forMerchant(),
   });
 }
+
+/** One of the merchant's own disputes, with its thread and live escrow. */
+export function useMerchantDisputeCase(id: string) {
+  return useEffectQuery<DisputeCaseDto, ApiError>({
+    queryKey: ["disputes", "merchant-case", id],
+    query: () => disputesApi.merchantCase(id),
+  });
+}
+
+/** The merchant's message in dispute `id`, posted on its payment. */
+export function useMerchantCaseMessage(id: string, paymentId: string) {
+  return useEffectMutation<Posted, string, ApiError>({
+    mutation: (body) => paymentsApi.disputeMessage(paymentId, body),
+    toast: { loading: "Sending…", success: "Sent to the arbiter" },
+    invalidate: [
+      ["disputes", "merchant-case", id],
+      ["payments", "escrow", paymentId],
+    ],
+  });
+}

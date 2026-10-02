@@ -173,4 +173,14 @@ describe("merchant disputes (#313)", () => {
     expect(res.body?.disputes.map((d: { id: string }) => d.id).sort()).toEqual([done, mine].sort());
     expect(res.body?.disputes[0].reference).toMatch(/^\d{11}$/);
   });
+
+  test("a merchant cannot open another merchant's dispute", async () => {
+    const harness = await seed();
+    const theirs = generateId("dsp");
+    harness.disputeStore.disputes.push(dispute({ id: theirs, merchantId: "mrc_other" }));
+    const { jar } = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await harness.request("GET", `/v1/escrow-disputes/${theirs}`, { cookies: jar });
+    expect(res.status).toBe(404);
+  });
 });

@@ -173,6 +173,7 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // reach within this merchant, the same perimeter settings governs.
   // A merchant's own disputes (#313): the list that tells them to answer.
   v1.use("/escrow-disputes", requireAuth(), requirePermission("payments:read"));
+  v1.use("/escrow-disputes/*", requireAuth(), requirePermission("payments:read"));
   v1.route("/escrow-disputes", merchantDisputeRoutes(container));
 
   // Mayarin Resolution's dispute console (#313). A platform permission, set by

@@ -10,7 +10,7 @@
  */
 
 import { chainLabel, shortHash } from "@mayarin/chain";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { match } from "ts-pattern";
 import { DetailRow } from "@/components/detail-row";
 import { DisputeThread } from "@/components/dispute-thread";
@@ -19,24 +19,17 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
+import { useWalletPicker } from "@/components/wallet-picker";
 import { useArbiterMessage, useDisputeCase } from "@/hooks/disputes";
 import { ApiError } from "@/lib/api/client";
 import { disputesApi } from "@/lib/api/disputes";
 import { formatDateTime } from "@/lib/date";
 import { runEffect } from "@/lib/run";
 import {
-  discoverWallets,
   type InjectedWallet,
   requestSpecificAccount,
   sendTransaction,
@@ -55,30 +48,16 @@ function DisputeCase({ id }: { readonly id: string }) {
   const [deciding, setDeciding] = useState<Decision | undefined>();
   /** The merchant's share of a split, in percent (#315). */
   const [payeePercent, setPayeePercent] = useState("50");
-  // Several extensions can be installed at once (MetaMask, Phantom, …) and the
-  // arbiter key lives in one of them, so a decision asks which one signs.
-  const [wallets, setWallets] = useState<readonly InjectedWallet[]>([]);
-  const [choosing, setChoosing] = useState<Decision | undefined>();
-
-  useEffect(() => {
-    let live = true;
-    void discoverWallets().then((found) => {
-      if (live) setWallets(found);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
+  const picker = useWalletPicker("The wallet holding this deployment's arbiter key.");
+  const [error, setError] = useState<string | undefined>();
 
   /** One wallet signs straight away; with several, the picker opens first. */
   function start(data: DisputeCaseDto, action: Decision) {
     setError(undefined);
-    const [only] = wallets;
-    if (only === undefined) setError("No browser wallet found");
-    else if (wallets.length === 1) void decide(data, action, only);
-    else setChoosing(action);
+    if (!picker.pick((wallet) => void decide(data, action, wallet))) {
+      setError("No browser wallet found");
+    }
   }
-  const [error, setError] = useState<string | undefined>();
 
   async function decide(data: DisputeCaseDto, action: Decision, wallet: InjectedWallet) {
     setDeciding(action);
@@ -234,40 +213,7 @@ function DisputeCase({ id }: { readonly id: string }) {
             </section>
           </div>
 
-          <Dialog
-            open={choosing !== undefined}
-            onOpenChange={(next) => {
-              if (!next) setChoosing(undefined);
-            }}
-          >
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Sign with</DialogTitle>
-                <DialogDescription>
-                  The wallet holding the arbiter key {shortHash(escrow.terms.arbiter)}.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-2">
-                {wallets.map((wallet) => (
-                  <Button
-                    key={wallet.name}
-                    variant="secondary"
-                    className="justify-start"
-                    onClick={() => {
-                      const action = choosing;
-                      setChoosing(undefined);
-                      if (action !== undefined) void decide(data, action, wallet);
-                    }}
-                  >
-                    {wallet.icon !== undefined && (
-                      <img src={wallet.icon} alt="" className="size-5 rounded-sm" />
-                    )}
-                    {wallet.name}
-                  </Button>
-                ))}
-              </div>
-            </DialogContent>
-          </Dialog>
+          {picker.picker}
         </>
       );
     })

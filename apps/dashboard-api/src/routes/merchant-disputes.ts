@@ -7,7 +7,7 @@
 import { UnauthorizedError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
-import { toDisputeDto } from "../dto/disputes.ts";
+import { toDisputeCaseDto, toDisputeDto } from "../dto/disputes.ts";
 import type { AuthVars } from "../middleware/types.ts";
 
 export function merchantDisputeRoutes(container: Container): Hono<{ Variables: AuthVars }> {
@@ -21,6 +21,14 @@ export function merchantDisputeRoutes(container: Container): Hono<{ Variables: A
       disputes: disputes.map(toDisputeDto),
       open: disputes.filter((dispute) => dispute.status === "open").length,
     });
+  });
+
+  app.get("/:id", async (c) => {
+    const scope = c.get("scope");
+    if (scope === undefined) throw new UnauthorizedError("Authentication required");
+    return c.json(
+      toDisputeCaseDto(await container.disputes.merchantCase(scope.merchantId, c.req.param("id"))),
+    );
   });
 
   return app;

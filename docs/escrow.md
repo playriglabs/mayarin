@@ -128,7 +128,9 @@ beside it, so the arbiter decides on evidence rather than on silence.
     signature older than 10 minutes is refused.
   - **Merchant** — on the payment detail in the dashboard. `/disputes` lists
     the merchant's own disputes, and the sidebar shows how many are open, so
-    one is noticed without opening each payment.
+    one is noticed without opening each payment. `/disputes/:id` is the case
+    for the merchant: the thread, the reply box and "Refund the buyer" — not
+    release or split, which are the arbiter's.
   - **Arbiter** — in the dashboard console.
 - **The console.** `/arbitration` in the dashboard lists every open dispute whose
   arbiter is `ESCROW_ARBITER`, across merchants, nearest `resolveBy` first.

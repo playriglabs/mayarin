@@ -77,6 +77,17 @@ export class DisputeService {
     return this.#store.listByMerchant(merchantId);
   }
 
+  /** One of the merchant's own disputes: record, thread and live escrow. */
+  async merchantCase(merchantId: string, id: string): Promise<DisputeCase> {
+    const found = await this.#store.findById(id);
+    if (found === undefined || found.merchantId !== merchantId) {
+      throw new NotFoundError("No such dispute", { id });
+    }
+    const escrow = await this.#paymentApi.escrow(found.paymentIntentId);
+    const dispute = (await this.#store.findById(id)) ?? found;
+    return { dispute, messages: await this.#store.listMessages(id), escrow };
+  }
+
   /** Open disputes Mayarin Resolution arbitrates, nearest deadline first. */
   async queue(): Promise<readonly EscrowDispute[]> {
     if (this.#arbiter === undefined) return [];

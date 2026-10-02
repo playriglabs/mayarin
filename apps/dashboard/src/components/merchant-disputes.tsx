@@ -2,8 +2,7 @@
  * A merchant's own escrow disputes (#313).
  *
  * The list exists so a dispute is noticed: without it, a merchant learns of
- * one only by opening that payment. Each row opens the payment, where the
- * thread, the reply box and the refund button already are.
+ * one only by opening that payment. Each row opens the dispute itself.
  */
 
 import { chainLabel } from "@mayarin/chain";
@@ -80,7 +79,7 @@ function MerchantDisputes() {
                 <TableRow key={dispute.id}>
                   <TableCell>
                     <a
-                      href={`/payments/${dispute.paymentIntentId}`}
+                      href={`/disputes/${dispute.id}`}
                       className="font-medium underline decoration-input underline-offset-2 hover:decoration-foreground"
                     >
                       #{dispute.reference}

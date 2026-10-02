@@ -9,7 +9,6 @@
 
 import { addressExplorerUrl, shortHash } from "@mayarin/chain";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
-import { Effect } from "effect";
 import { useState } from "react";
 import { DetailRow } from "@/components/detail-row";
 import { DisputeThread } from "@/components/dispute-thread";
@@ -17,25 +16,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeader } from "@/components/ui/section-header";
+import { useWalletPicker } from "@/components/wallet-picker";
 import { useMerchantDisputeMessage } from "@/hooks/disputes";
 import { useEscrow } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
-import { paymentsApi } from "@/lib/api/payments";
 import { formatDateTime } from "@/lib/date";
-import {
-  discoverWallets,
-  requestAccount,
-  sendTransaction,
-  switchChain,
-  waitForReceipt,
-  walletErrorMessage,
-} from "@/lib/wallet";
+import { refundEscrow } from "@/lib/escrow-refund";
+import { walletErrorMessage } from "@/lib/wallet";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain: string }) {
   const escrow = useEscrow(id);
   const postMessage = useMerchantDisputeMessage(id);
+  const picker = useWalletPicker("The wallet that owns your settlement address, or its Safe.");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
@@ -73,26 +67,18 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
         : "The payer can release it early or open a dispute before then.";
   const explorer = addressExplorerUrl(chain, data.address);
 
-  async function refund() {
-    if (data == null) return;
-    setBusy(true);
+  function refund() {
     setError(undefined);
-    try {
-      const [wallet] = await discoverWallets();
-      if (wallet === undefined) throw new Error("No browser wallet found");
-      const account = await requestAccount(wallet.provider);
-      const { chainId, transaction } = await Effect.runPromise(
-        paymentsApi.escrowRefund(id, account),
-      );
-      await switchChain(wallet.provider, BigInt(chainId));
-      const hash = await sendTransaction(wallet.provider, transaction);
-      await waitForReceipt(wallet.provider, hash);
-      await escrow.refetch();
-    } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : walletErrorMessage(cause));
-    } finally {
-      setBusy(false);
-    }
+    const started = picker.pick((wallet) => {
+      setBusy(true);
+      refundEscrow(id, wallet)
+        .then(() => escrow.refetch())
+        .catch((cause: unknown) =>
+          setError(cause instanceof ApiError ? cause.message : walletErrorMessage(cause)),
+        )
+        .finally(() => setBusy(false));
+    });
+    if (!started) setError("No browser wallet found");
   }
 
   return (
@@ -186,7 +172,7 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
                   Refunds are sent from your settlement wallet. For a managed Safe, connect its
                   owner wallet.
                 </p>
-                <Button variant="secondary" disabled={busy} onClick={() => void refund()}>
+                <Button variant="secondary" disabled={busy} onClick={refund}>
                   {busy ? "Refunding…" : "Refund the payer"}
                 </Button>
               </div>
@@ -194,6 +180,7 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
           </div>
         )}
       </Card>
+      {picker.picker}
     </section>
   );
 }
