@@ -17,11 +17,11 @@ import {
   ArrowsClockwiseIcon,
   DownloadSimpleIcon,
 } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
 import { match, P } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
 import { DepositQr } from "@/components/deposit-qr";
+import { DetailRow } from "@/components/detail-row";
 import { EscrowPanel } from "@/components/escrow-panel";
 import PaymentTimeline from "@/components/payment-timeline";
 import { TransactionLink } from "@/components/transaction-link";
@@ -48,16 +48,6 @@ function reasonOf(error: unknown): string {
       (e) => e.message,
     )
     .otherwise(() => "Failed to load this payment");
-}
-
-/** One key/value line. Rendered inside a `<dl>` so the pairing is real. */
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border py-2 last:border-b-0">
-      <dt className="shrink-0 text-sm text-foreground/50">{label}</dt>
-      <dd className="min-w-0 text-right text-sm text-foreground">{children}</dd>
-    </div>
-  );
 }
 
 /** Human currency identity; the code disambiguates symbols shared by markets. */
@@ -146,17 +136,17 @@ function CartItems({ cart }: { readonly cart: CartSnapshot }) {
       <Card>
         <dl className="flex flex-col">
           {cart.lines.map((line, index) => (
-            <Row
+            <DetailRow
               // biome-ignore lint/suspicious/noArrayIndexKey: a frozen receipt, lines never reorder
               key={index}
               label={line.quantity === 1 ? line.name : `${line.name} × ${line.quantity}`}
             >
               {snapshotDisplay(line.unitPrice, cart.currency)}
-            </Row>
+            </DetailRow>
           ))}
-          <Row label="Total">
+          <DetailRow label="Total">
             <span className="font-medium">{snapshotDisplay(cart.total, cart.currency)}</span>
-          </Row>
+          </DetailRow>
         </dl>
       </Card>
     </section>
@@ -308,13 +298,15 @@ function PaymentDetail({ id }: { id: string }) {
                   <SectionHeader title="Payment intent" />
                   <Card className="flex-1">
                     <dl className="flex flex-col">
-                      <Row label="Customer amount">{intent.amount.display}</Row>
-                      <Row label="Customer currency">{assetName(intent.amount.asset)}</Row>
-                      <Row label="Settles in">
+                      <DetailRow label="Customer amount">{intent.amount.display}</DetailRow>
+                      <DetailRow label="Customer currency">
+                        {assetName(intent.amount.asset)}
+                      </DetailRow>
+                      <DetailRow label="Settles in">
                         <AssetLabel symbol={intent.settlementAsset} size={18} />
-                      </Row>
-                      <Row label="Provider">{intent.provider}</Row>
-                      <Row label="Payer rail">
+                      </DetailRow>
+                      <DetailRow label="Provider">{intent.provider}</DetailRow>
+                      <DetailRow label="Payer rail">
                         {intent.payment === null ? (
                           <span className="text-subtle-foreground">Not selected</span>
                         ) : (
@@ -324,8 +316,8 @@ function PaymentDetail({ id }: { id: string }) {
                             <ChainLabel chain={intent.payment.chain} size={18} />
                           </span>
                         )}
-                      </Row>
-                      <Row label="Purchased via">
+                      </DetailRow>
+                      <DetailRow label="Purchased via">
                         <span className="inline-flex flex-wrap items-baseline justify-end gap-1.5">
                           <span>{purchase.label}</span>
                           {purchase.reference !== undefined && (
@@ -334,17 +326,17 @@ function PaymentDetail({ id }: { id: string }) {
                             </span>
                           )}
                         </span>
-                      </Row>
-                      <Row label="Created">
+                      </DetailRow>
+                      <DetailRow label="Created">
                         <time dateTime={isoAttr(intent.createdAt)}>
                           {formatDateTime(intent.createdAt)}
                         </time>
-                      </Row>
-                      <Row label="Expires">
+                      </DetailRow>
+                      <DetailRow label="Expires">
                         <time dateTime={isoAttr(intent.expiresAt)}>
                           {formatDateTime(intent.expiresAt)}
                         </time>
-                      </Row>
+                      </DetailRow>
                     </dl>
                   </Card>
                 </section>
@@ -354,11 +346,11 @@ function PaymentDetail({ id }: { id: string }) {
                     <SectionHeader title="Clearing" />
                     <Card className="flex-1">
                       <dl className="flex flex-col">
-                        <Row label="State">
+                        <DetailRow label="State">
                           <Badge variant={toneOf(clearing.state)}>{labelOf(clearing.state)}</Badge>
-                        </Row>
-                        <Row label="Priced amount">{clearing.sourceAmount.display}</Row>
-                        <Row label="Payer sends">
+                        </DetailRow>
+                        <DetailRow label="Priced amount">{clearing.sourceAmount.display}</DetailRow>
+                        <DetailRow label="Payer sends">
                           {deposit.isPending ? (
                             <span className="text-subtle-foreground">Loading…</span>
                           ) : payerDeposit == null ? (
@@ -369,8 +361,8 @@ function PaymentDetail({ id }: { id: string }) {
                               display={payerDeposit.amount.display}
                             />
                           )}
-                        </Row>
-                        <Row label="Received">
+                        </DetailRow>
+                        <DetailRow label="Received">
                           {deposit.isPending ? (
                             <span className="text-subtle-foreground">Loading…</span>
                           ) : payerDeposit == null ? (
@@ -381,8 +373,8 @@ function PaymentDetail({ id }: { id: string }) {
                               display={payerDeposit.received.display}
                             />
                           )}
-                        </Row>
-                        <Row label="Settlement">
+                        </DetailRow>
+                        <DetailRow label="Settlement">
                           {clearing.settlementAmount === null ? (
                             <span className="text-subtle-foreground">Not priced yet</span>
                           ) : (
@@ -391,8 +383,8 @@ function PaymentDetail({ id }: { id: string }) {
                               display={clearing.settlementAmount.display}
                             />
                           )}
-                        </Row>
-                        <Row label="Fee">
+                        </DetailRow>
+                        <DetailRow label="Fee">
                           {clearing.fee === null ? (
                             <span className="text-subtle-foreground">—</span>
                           ) : (
@@ -401,8 +393,8 @@ function PaymentDetail({ id }: { id: string }) {
                               display={clearing.fee.display}
                             />
                           )}
-                        </Row>
-                        <Row label="Net to merchant">
+                        </DetailRow>
+                        <DetailRow label="Net to merchant">
                           {clearing.netAmount === null ? (
                             <span className="text-subtle-foreground">—</span>
                           ) : (
@@ -411,8 +403,8 @@ function PaymentDetail({ id }: { id: string }) {
                               display={clearing.netAmount.display}
                             />
                           )}
-                        </Row>
-                        <Row label="Locked rate">
+                        </DetailRow>
+                        <DetailRow label="Locked rate">
                           {clearing.rate === null ? (
                             <span className="text-subtle-foreground">Not locked</span>
                           ) : (
@@ -420,8 +412,8 @@ function PaymentDetail({ id }: { id: string }) {
                               {clearing.rate.from}/{clearing.rate.to} · {clearing.rate.source}
                             </span>
                           )}
-                        </Row>
-                        <Row label="Provider reference">
+                        </DetailRow>
+                        <DetailRow label="Provider reference">
                           {clearing.providerReference === null ? (
                             <span className="text-subtle-foreground">—</span>
                           ) : (
@@ -430,7 +422,7 @@ function PaymentDetail({ id }: { id: string }) {
                               transactionHash={clearing.providerReference}
                             />
                           )}
-                        </Row>
+                        </DetailRow>
                       </dl>
                     </Card>
                   </section>
