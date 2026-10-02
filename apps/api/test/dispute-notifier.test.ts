@@ -64,7 +64,7 @@ describe("dispute notifier (#313)", () => {
   });
 
   test("emails the merchant's admins with the reference and a link", async () => {
-    const sent: { to: string[]; subject: string; text: string }[] = [];
+    const sent: { to: string[]; subject: string; text: string; html: string }[] = [];
     const notifier = disputeNotifier({
       email: {
         apiKey: "re_test",
@@ -86,6 +86,9 @@ describe("dispute notifier (#313)", () => {
     expect(sent[0]?.to).toEqual(["owner@shop.example"]);
     expect(sent[0]?.subject).toMatch(/^Dispute #\d{11} opened/);
     expect(sent[0]?.text).toContain(`https://dashboard.mayarin.xyz/disputes/${opened.id}`);
+    expect(sent[0]?.html).toContain(`href="https://dashboard.mayarin.xyz/disputes/${opened.id}"`);
+    expect(sent[0]?.html).toContain("Geist");
+    expect(sent[0]?.html).toContain("cid:mayarin-logo");
   });
 
   test("a failing channel is logged, never thrown", async () => {

@@ -1,8 +1,8 @@
 /** Transactional delivery of an email verification code through Resend. */
 
+import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_ATTACHMENT, LOGO_IMG } from "@mayarin/documents";
 import { ConfigurationError, ProviderError } from "@mayarin/shared";
 import { Resend } from "resend";
-import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_ATTACHMENT, LOGO_IMG } from "./email-brand.ts";
 
 export interface SendVerificationEmailRequest {
   readonly email: string;
