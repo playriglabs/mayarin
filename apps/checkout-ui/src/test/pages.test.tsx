@@ -19,6 +19,7 @@ import { Outcome } from "../features/pay/outcome.tsx";
 import { PayPage } from "../features/pay/pay-page.tsx";
 import { timelineSteps } from "../features/pay/status-timeline.tsx";
 import type { PayBootstrap } from "../features/pay/types.ts";
+import { holdDuration, railBody } from "../shared/buyer-protection.tsx";
 import type { MoneyDto } from "../shared/types.ts";
 
 function idr(display: string): MoneyDto {
@@ -31,6 +32,7 @@ function usdc(amount: string, formatted: string, display: string): MoneyDto {
 
 const linkBootstrap: LinkBootstrap = {
   page: "link",
+  protection: null,
   linkId: "plk_1",
   kind: "fixed",
   title: "Paket",
@@ -60,10 +62,13 @@ const payBootstrap: PayBootstrap = {
   successUrl: null,
   pollMs: 8000,
   choice: null,
+  protection: null,
+  escrowed: false,
 };
 
 const invoiceBootstrap: InvoiceBootstrap = {
   page: "invoice",
+  protection: null,
   invoiceId: "inv_1",
   number: "INV-0001",
   status: "issued",
@@ -393,6 +398,7 @@ describe("outcome", () => {
         intentId="pi_1"
         statusUrl={statusUrl}
         merchantName="Warung Kopi"
+        escrowed={false}
       />,
     );
     expect(done).toContain("Payment completed");
@@ -404,11 +410,18 @@ describe("outcome", () => {
           intentId="pi_1"
           statusUrl={statusUrl}
           merchantName="Warung Kopi"
+          escrowed={false}
         />,
       ),
     ).toContain("Payment expired");
     const failed = renderToStaticMarkup(
-      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} merchantName="Warung Kopi" />,
+      <Outcome
+        status="FAILED"
+        intentId="pi_1"
+        statusUrl={statusUrl}
+        merchantName="Warung Kopi"
+        escrowed={false}
+      />,
     );
     expect(failed).toContain("Payment failed");
     expect(failed).not.toContain("—");
@@ -421,13 +434,20 @@ describe("outcome", () => {
         intentId="pi_1"
         statusUrl={statusUrl}
         merchantName="Warung Kopi"
+        escrowed={false}
       />,
     );
     expect(done).toContain('href="/v1/payments/pi_1/invoice.pdf"');
     expect(done).toContain('href="/v1/payments/pi_1/receipt.pdf"');
 
     const failed = renderToStaticMarkup(
-      <Outcome status="FAILED" intentId="pi_1" statusUrl={statusUrl} merchantName="Warung Kopi" />,
+      <Outcome
+        status="FAILED"
+        intentId="pi_1"
+        statusUrl={statusUrl}
+        merchantName="Warung Kopi"
+        escrowed={false}
+      />,
     );
     expect(failed).not.toContain(".pdf");
     // Failed or expired: who to ask, with the reference they will ask for.
@@ -561,5 +581,53 @@ describe("the shell", () => {
     // would 500 every buyer page while every other test stayed green.
     const html = await Bun.file(new URL("../../index.html", import.meta.url)).text();
     expect(html).toContain("<!--__BOOTSTRAP__-->");
+  });
+});
+
+describe("escrow (#304)", () => {
+  test("a held payment says so instead of saying the merchant was paid", () => {
+    const done = renderToStaticMarkup(
+      <Outcome
+        status="COMPLETED"
+        intentId="pi_1"
+        statusUrl="/v1/payments/pi_1"
+        merchantName="Warung Kopi"
+        escrowed
+      />,
+    );
+    expect(done).toContain("held in escrow");
+    expect(done).not.toContain("The merchant has been paid");
+  });
+
+  test("the wallet rides on the rail only where protection applies", () => {
+    const protection = {
+      holdSeconds: 7 * 86_400,
+      arbitrationSeconds: 7 * 86_400,
+      arbiterLabel: "Mayarin Resolution",
+      chains: ["arbitrum-sepolia"],
+      required: false,
+    };
+    const wallet = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
+    const arb = {
+      chain: "arbitrum-sepolia",
+      asset: "USDC",
+      contract: null,
+      settlementAsset: "USDC",
+    };
+    const base = { ...arb, chain: "base-sepolia" };
+
+    expect(railBody(arb, protection, wallet)).toEqual({
+      asset: "USDC",
+      chain: "arbitrum-sepolia",
+      payerAddress: wallet,
+    });
+    expect(railBody(base, protection, wallet)).toEqual({ asset: "USDC", chain: "base-sepolia" });
+    expect(railBody(arb, null, wallet)).toEqual({ asset: "USDC", chain: "arbitrum-sepolia" });
+  });
+
+  test("the hold reads in days or hours", () => {
+    expect(holdDuration(7 * 86_400)).toBe("7 days");
+    expect(holdDuration(86_400)).toBe("1 day");
+    expect(holdDuration(2 * 3_600)).toBe("2 hours");
   });
 });

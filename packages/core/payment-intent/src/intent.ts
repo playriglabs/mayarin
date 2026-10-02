@@ -15,6 +15,7 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import type {
+  EscrowRequest,
   ExecutionPath,
   MerchantSnapshot,
   PaymentIntent,
@@ -43,6 +44,7 @@ export interface CreatePaymentIntentInput {
   readonly payment?: PaymentRail;
   /** How the `payment` rail is executed. Absent for a fiat-only intent. */
   readonly executionPath?: ExecutionPath;
+  readonly escrow?: EscrowRequest;
   readonly source: PaymentSource;
   readonly metadata?: Readonly<Record<string, string>>;
   readonly merchantReference?: string;
@@ -66,6 +68,13 @@ export function createPaymentIntent(input: CreatePaymentIntentInput): PaymentInt
     });
   }
 
+  if (input.escrow !== undefined) {
+    assertEscrow(input.escrow);
+    if (input.payment !== undefined && input.executionPath !== undefined) {
+      assertEscrowRail(input.payment, input.executionPath);
+    }
+  }
+
   const createdAt = new Date(input.now);
 
   return {
@@ -77,6 +86,7 @@ export function createPaymentIntent(input: CreatePaymentIntentInput): PaymentInt
     provider: input.provider,
     ...(input.payment === undefined ? {} : { payment: input.payment }),
     ...(input.executionPath === undefined ? {} : { executionPath: input.executionPath }),
+    ...(input.escrow === undefined ? {} : { escrow: input.escrow }),
     source: input.source,
     metadata: input.metadata ?? {},
     ...(input.merchantReference === undefined
@@ -91,6 +101,46 @@ export function createPaymentIntent(input: CreatePaymentIntentInput): PaymentInt
     expiresAt: new Date(createdAt.getTime() + input.ttlSeconds * 1_000),
     version: 1,
   };
+}
+
+/**
+ * The shortest hold: a day, so "buyer protection" always leaves the buyer time
+ * to look at what they bought before it releases on its own.
+ */
+export const MIN_ESCROW_HOLD_SECONDS = 24 * 60 * 60;
+/** The longest hold an escrow may carry: a quarter, the usual chargeback window. */
+export const MAX_ESCROW_HOLD_SECONDS = 90 * 24 * 60 * 60;
+
+const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
+
+export function assertEscrow(escrow: EscrowRequest): void {
+  if (
+    !Number.isInteger(escrow.holdSeconds) ||
+    escrow.holdSeconds < MIN_ESCROW_HOLD_SECONDS ||
+    escrow.holdSeconds > MAX_ESCROW_HOLD_SECONDS
+  ) {
+    throw new ValidationError(
+      `Escrow hold must be a whole number of seconds between ${MIN_ESCROW_HOLD_SECONDS} (1 day) and ${MAX_ESCROW_HOLD_SECONDS} (90 days)`,
+      { holdSeconds: escrow.holdSeconds },
+    );
+  }
+  if (escrow.arbiter !== undefined && !ADDRESS_PATTERN.test(escrow.arbiter)) {
+    throw new ValidationError("Escrow arbiter must be an EVM address", {
+      arbiter: escrow.arbiter,
+    });
+  }
+}
+
+/** Escrow terms name the payer, so the rail must know the payer before the price lock. */
+function assertEscrowRail(payment: PaymentRail, executionPath: ExecutionPath): void {
+  if (executionPath === "x402") {
+    throw new ValidationError("Escrow is not available on the x402 path", { executionPath });
+  }
+  if (payment.payerAddress === undefined || !ADDRESS_PATTERN.test(payment.payerAddress)) {
+    throw new ValidationError("An escrowed payment needs the payer's wallet address", {
+      executionPath,
+    });
+  }
 }
 
 export function isTerminal(intent: PaymentIntent): boolean {
@@ -147,6 +197,8 @@ export function choosePayment(
   executionPath: ExecutionPath,
   settlementAsset: AssetCode,
   now: Date,
+  /** The merchant's buyer protection, taken up only by an intent minted without escrow. */
+  protection?: EscrowRequest,
 ): PaymentIntent {
   if (intent.payment !== undefined) {
     if (intent.payment.asset === payment.asset && intent.payment.chain === payment.chain) {
@@ -158,6 +210,8 @@ export function choosePayment(
       chain: intent.payment.chain,
     });
   }
+  const escrow = intent.escrow ?? protection;
+  if (escrow !== undefined) assertEscrowRail(payment, executionPath);
   if (intent.status !== "CREATED" || isExpired(intent, now)) {
     throw new InvalidStateTransitionError(
       `Payment intent ${intent.id} can no longer take a payment rail`,
@@ -169,6 +223,7 @@ export function choosePayment(
     ...intent,
     payment,
     executionPath,
+    ...(escrow === undefined ? {} : { escrow }),
     settlementAsset,
     updatedAt: new Date(now),
     version: intent.version + 1,

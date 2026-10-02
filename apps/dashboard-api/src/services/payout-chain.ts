@@ -174,6 +174,40 @@ export function payoutTransaction(
   };
 }
 
+/**
+ * One plain `CALL` from a Safe its owner submits, with the same pre-validated
+ * signature `payoutTransaction` uses. For an escrow refund (#304), whose payee
+ * is the merchant's Safe.
+ */
+export function safeCallTransaction(
+  safe: string,
+  owner: string,
+  to: string,
+  data: `0x${string}`,
+): PayoutTransaction {
+  const signature = concatHex([pad(getAddress(owner)), pad("0x00"), "0x01"]);
+  return {
+    from: owner.toLowerCase(),
+    to: safe.toLowerCase(),
+    data: encodeFunctionData({
+      abi: SAFE_ABI,
+      functionName: "execTransaction",
+      args: [
+        getAddress(to),
+        0n,
+        data,
+        0, // CALL
+        0n,
+        0n,
+        0n,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        signature,
+      ],
+    }),
+  };
+}
+
 /** What a transaction did, as its receipt says. */
 export interface PayoutReceipt {
   readonly succeeded: boolean;

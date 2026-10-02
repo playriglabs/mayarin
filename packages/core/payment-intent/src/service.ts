@@ -7,6 +7,7 @@
  */
 
 import { createHash } from "node:crypto";
+import type { ChainId } from "@mayarin/chain";
 import {
   type AssetCode,
   type Clock,
@@ -40,6 +41,7 @@ import {
 } from "./merchant-policy.ts";
 import type { ListPaymentIntentsOptions, PaymentIntentRepository } from "./repository.ts";
 import type {
+  EscrowRequest,
   ExecutionPath,
   MerchantSnapshot,
   PaymentIntent,
@@ -56,6 +58,11 @@ export interface CreatePaymentIntentCommand {
   readonly payment?: PaymentRail;
   /** How the `payment` rail is executed. Ignored for a fiat-only intent. */
   readonly executionPath?: ExecutionPath;
+  /**
+   * Settle into escrow (#304). Absent: the merchant's buyer-protection default
+   * applies where it can. `null`: never, whatever the merchant's default.
+   */
+  readonly escrow?: EscrowRequest | null;
   readonly metadata?: Readonly<Record<string, string>>;
   /** The merchant's own order/invoice id. Opaque to Mayarin, indexed for lookup. */
   readonly merchantReference?: string;
@@ -80,6 +87,11 @@ export interface PaymentIntentServiceOptions {
    * not accept is rejected. Optional for the same reason `registry` is.
    */
   readonly merchantPolicies?: MerchantAssetPolicySource;
+  /**
+   * Chains with an escrow factory. A merchant's buyer protection applies only
+   * there; elsewhere the payment settles as usual. Empty or absent: never.
+   */
+  readonly escrowChains?: readonly ChainId[];
   readonly defaults: {
     readonly settlementAsset: AssetCode;
     readonly provider: string;
@@ -95,6 +107,7 @@ export class PaymentIntentService {
   readonly #events: EventPublisher;
   readonly #registry: StablecoinRegistry | undefined;
   readonly #merchantPolicies: MerchantAssetPolicySource | undefined;
+  readonly #escrowChains: readonly ChainId[];
   readonly #defaults: PaymentIntentServiceOptions["defaults"];
 
   constructor(options: PaymentIntentServiceOptions) {
@@ -103,6 +116,7 @@ export class PaymentIntentService {
     this.#events = options.events ?? noopEventPublisher;
     this.#registry = options.registry;
     this.#merchantPolicies = options.merchantPolicies;
+    this.#escrowChains = options.escrowChains ?? [];
     this.#defaults = options.defaults;
   }
 
@@ -163,6 +177,11 @@ export class PaymentIntentService {
       await this.#assertPayerRail(command.merchant.id, command.payment, executionPath, policy);
     }
 
+    const escrow =
+      command.escrow === null
+        ? undefined
+        : (command.escrow ?? this.#protection(policy, command.payment, executionPath));
+
     const fingerprint = fingerprintOf(command, settlementAsset, provider, executionPath);
 
     if (command.idempotencyKey !== undefined) {
@@ -185,6 +204,7 @@ export class PaymentIntentService {
       provider,
       ...(command.payment === undefined ? {} : { payment: command.payment }),
       ...(executionPath === undefined ? {} : { executionPath }),
+      ...(escrow === undefined ? {} : { escrow }),
       source: command.source,
       ...(command.metadata === undefined ? {} : { metadata: command.metadata }),
       ...(command.merchantReference === undefined
@@ -253,11 +273,36 @@ export class PaymentIntentService {
     // with its own settlement asset replaces it once the chain is known.
     const settlementAsset =
       policy?.settlementAssetByChain?.[payment.chain] ?? intent.settlementAsset;
-    const next = choosePaymentOn(intent, payment, path, settlementAsset, this.#clock.now());
+    const next = choosePaymentOn(
+      intent,
+      payment,
+      path,
+      settlementAsset,
+      this.#clock.now(),
+      this.#protection(policy, payment, path),
+    );
     if (next === intent) return intent;
 
     await this.#assertPayerRail(intent.merchant.id, payment, path, policy);
     return this.#apply(next, intent.version, PAYMENT_INTENT_EVENT.railChosen);
+  }
+
+  /**
+   * The merchant's buyer protection, where it can apply (#304): the payer named
+   * the wallet they would release from, the rail is not x402, and the chain has
+   * an escrow factory. A payer paying from an exchange names no wallet, cannot
+   * release anything, and is paid out as usual — so protection is something
+   * the merchant offers and the payer takes up by connecting.
+   */
+  #protection(
+    policy: MerchantAssetPolicy | undefined,
+    payment: PaymentRail | undefined,
+    executionPath: ExecutionPath | undefined,
+  ): EscrowRequest | undefined {
+    const protection = policy?.buyerProtection;
+    if (protection === undefined || payment?.payerAddress === undefined) return undefined;
+    if (executionPath === undefined || executionPath === "x402") return undefined;
+    return this.#escrowChains.includes(payment.chain) ? protection : undefined;
   }
 
   async confirm(id: string): Promise<PaymentIntent> {
@@ -409,6 +454,13 @@ function fingerprintOf(
     command.payment === undefined ? "none" : `${command.payment.chain}:${command.payment.asset}`,
     executionPath ?? "default",
     command.source.type === "qr" ? command.source.payload : "manual",
+    // Appended only when present, so every fingerprint stored before escrow
+    // existed still matches its replay.
+    ...(command.escrow === undefined
+      ? []
+      : command.escrow === null
+        ? ["escrow:none"]
+        : [`escrow:${command.escrow.holdSeconds}:${command.escrow.arbiter ?? ""}`]),
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }

@@ -3,12 +3,14 @@ import { BasisPointsFeePolicy } from "@mayarin/clearing";
 import { FixedPriceOracle } from "@mayarin/clearing/testing";
 import { priceSourceOf } from "@mayarin/execution";
 import { FixedSwapVenue } from "@mayarin/execution/testing";
+import { ESCROW_FACTORY, escrowAddress } from "@mayarin/provider-evm";
 import { QuoteEngine } from "@mayarin/quote";
 import { FakeOrderSigner } from "@mayarin/quote/testing";
 import { ConfigurationError, FixedClock, money, ValidationError } from "@mayarin/shared";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
 import { type MerchantWallet, SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
 import { InMemoryMerchantWalletRepository } from "@mayarin/wallet/testing";
+import { getAddress } from "viem";
 import { ApiContractPlanner } from "../src/contract-layer.ts";
 import type { QuoteLayer } from "../src/quote-layer.ts";
 
@@ -29,6 +31,7 @@ function createPlanner(
   settlementAddresses?: SettlementAddressResolver,
   relayerGasFeeBasisPoints = 10,
   feeMinimum = "0",
+  escrowArbiter?: string,
 ) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
@@ -65,12 +68,18 @@ function createPlanner(
     ttlSeconds: 120,
   };
   const planner = new ApiContractPlanner({
-    contract: { paymentRouters: { base: ROUTER } },
+    contract: { paymentRouters: { base: ROUTER, "arbitrum-sepolia": ROUTER } },
     quote: async () => quote,
     fees: new BasisPointsFeePolicy(50, feeMinimum),
     relayerGasFees: new BasisPointsFeePolicy(relayerGasFeeBasisPoints),
     stablecoins: new InMemoryStablecoinRegistry([
-      { asset: "USDC", onChain: [{ chain: "base", address: USDC_TOKEN }] },
+      {
+        asset: "USDC",
+        onChain: [
+          { chain: "base", address: USDC_TOKEN },
+          { chain: "arbitrum-sepolia", address: USDC_TOKEN },
+        ],
+      },
     ]),
     merchantPolicies: {
       policyFor: async () => ({
@@ -81,6 +90,7 @@ function createPlanner(
     },
     ...(wallets === undefined ? {} : { wallets }),
     ...(settlementAddresses === undefined ? {} : { settlementAddresses }),
+    ...(escrowArbiter === undefined ? {} : { escrowArbiter }),
     clock,
   });
   return { planner, venue, signer, clock };
@@ -235,6 +245,75 @@ describe("ApiContractPlanner", () => {
     await expect(
       planner.renew({ chain: "base-sepolia", order: lock.order, expiresAt: NOW }),
     ).rejects.toThrow(/No PaymentRouter deployed/);
+  });
+});
+
+describe("conditional settlement (#304)", () => {
+  const ARBITER = "0x000000000000000000000000000000000000a1b1";
+  const escrowed = {
+    ...lockRequest("USDC"),
+    chain: "arbitrum-sepolia",
+    escrow: { holdSeconds: 7 * 24 * 60 * 60, arbiter: ARBITER, payer: PAYER },
+  } as const;
+
+  test("signs the escrow address as merchantSafe; the merchant becomes its payee", async () => {
+    const { planner } = createPlanner();
+
+    const lock = await planner.lock(escrowed);
+    const escrow = lock.order.escrow;
+
+    expect(escrow).toEqual({
+      factory: ESCROW_FACTORY,
+      payer: PAYER,
+      payee: MERCHANT_SAFE,
+      arbiter: getAddress(ARBITER),
+      releaseAfter: BigInt(NOW.getTime() / 1_000 + 7 * 24 * 60 * 60),
+      // The arbiter's window, after which an open dispute refunds the payer.
+      resolveBy: BigInt(NOW.getTime() / 1_000 + 14 * 24 * 60 * 60),
+    });
+    if (escrow === undefined) throw new Error("unreachable");
+    expect(lock.order.merchantSafe).toBe(
+      escrowAddress({ ...escrow, intentId: lock.order.intentId as `0x${string}` }),
+    );
+    expect(lock.order.merchantSafe).not.toBe(MERCHANT_SAFE);
+    expect(lock.order.refundTo).toBe(PAYER);
+  });
+
+  test("an ordinary payment carries no escrow", async () => {
+    const { planner } = createPlanner();
+
+    const lock = await planner.lock({ ...lockRequest("USDC"), chain: "arbitrum-sepolia" });
+
+    expect(lock.order.escrow).toBeUndefined();
+    expect(lock.order.merchantSafe).toBe(MERCHANT_SAFE);
+  });
+
+  test("names Mayarin Resolution when the merchant names no arbiter", async () => {
+    const RESOLUTION = "0x000000000000000000000000000000000000d15c";
+    const { planner } = createPlanner(MERCHANT_SAFE, undefined, undefined, 10, "0", RESOLUTION);
+    const { arbiter: _arbiter, ...noArbiter } = escrowed.escrow;
+
+    const lock = await planner.lock({ ...escrowed, escrow: noArbiter });
+
+    expect(lock.order.escrow?.arbiter).toBe(getAddress(RESOLUTION));
+  });
+
+  test("refuses an arbiter who is the merchant or the payer", async () => {
+    const { planner, signer } = createPlanner();
+
+    for (const arbiter of [MERCHANT_SAFE.toLowerCase(), PAYER]) {
+      await expect(
+        planner.lock({ ...escrowed, escrow: { ...escrowed.escrow, arbiter } }),
+      ).rejects.toThrow(ValidationError);
+    }
+    expect(signer.calls).toHaveLength(0);
+  });
+
+  test("a chain without the escrow factory is refused before signing", async () => {
+    const { planner, signer } = createPlanner();
+
+    await expect(planner.lock({ ...escrowed, chain: "base" })).rejects.toThrow(ValidationError);
+    expect(signer.calls).toHaveLength(0);
   });
 });
 

@@ -1,6 +1,7 @@
 import type {
   ContractCallDto,
   CreatePaymentIntentBody,
+  EscrowDto,
   PaymentDto,
   PaymentIntentDto,
 } from "@mayarin/api/dto";
@@ -15,6 +16,12 @@ export interface PaymentModule {
   readonly confirmIntent: (id: string, options?: RequestOptions) => Promise<PaymentDto>;
   readonly get: (id: string, options?: RequestOptions) => Promise<PaymentDto>;
   readonly getContractCall: (id: string, options?: RequestOptions) => Promise<ContractCallDto>;
+  /**
+   * Where an escrowed payment's funds are, and the calldata to release, refund
+   * or dispute them (#304). Send `calls[action]` to `factory` from the wallet
+   * the terms allow.
+   */
+  readonly getEscrow: (id: string, options?: RequestOptions) => Promise<EscrowDto>;
 }
 
 export function createPaymentModule(transport: Transport): PaymentModule {
@@ -39,5 +46,12 @@ export function createPaymentModule(transport: Transport): PaymentModule {
     get: (id, options) => transport.get(`/payments/${encodeURIComponent(id)}`, options),
     getContractCall: (id, options) =>
       transport.get(`/payments/${encodeURIComponent(id)}/contract-call`, options),
+    getEscrow: async (id, options) => {
+      const response = await transport.get<{ escrow: EscrowDto }>(
+        `/payments/${encodeURIComponent(id)}/escrow`,
+        options,
+      );
+      return response.escrow;
+    },
   };
 }

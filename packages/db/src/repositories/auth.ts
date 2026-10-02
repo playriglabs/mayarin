@@ -370,6 +370,7 @@ export class DrizzleMerchantAssetPolicySource implements MerchantAssetPolicySour
       acceptedAssets: merchant.acceptedAssets,
       acceptedAssetsByChain: merchant.acceptedAssetsByChain ?? {},
       ...present("settlementAddress", merchant.settlementAddress ?? null),
+      ...present("buyerProtection", merchant.buyerProtection ?? null),
     };
   }
 }
@@ -383,6 +384,7 @@ function toMerchant(row: MerchantRow): Merchant {
     acceptedAssets: row.acceptedAssets.map((asset) => assertAssetCode(asset, row.id)),
     acceptedAssetsByChain: toAcceptedByChain(row),
     ...present("settlementAddress", row.settlementAddress),
+    ...present("buyerProtection", row.buyerProtection),
     ...present("city", row.city),
     ...present("countryCode", row.countryCode),
     createdAt: row.createdAt,
@@ -447,6 +449,8 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
       ]),
     ),
     settlementAddress: merchant.settlementAddress ?? null,
+    buyerProtection:
+      merchant.buyerProtection === undefined ? null : { ...merchant.buyerProtection },
     city: merchant.city ?? null,
     countryCode: merchant.countryCode ?? null,
     createdAt: merchant.createdAt,

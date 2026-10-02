@@ -1,4 +1,4 @@
-import { isChainId } from "@mayarin/chain";
+import { type ChainId, isChainId } from "@mayarin/chain";
 import {
   type ClearingContract,
   type ClearingDeposit,
@@ -7,6 +7,7 @@ import {
   type ClearingRepository,
   type ClearingState,
   type ClearingTransaction,
+  type ContractOrder,
   type OnChainSettlement,
   TERMINAL_CLEARING_STATES,
 } from "@mayarin/clearing";
@@ -23,9 +24,17 @@ import {
   toOptionalMoney,
 } from "../mapping.ts";
 import { notifyPaymentChanged } from "../notify.ts";
-import { clearingEvents, clearingTransactions } from "../schema.ts";
+import { clearingEvents, clearingTransactions, paymentIntents } from "../schema.ts";
 
 type Row = typeof clearingTransactions.$inferSelect;
+
+/** One escrow the keeper may need to close (#304). */
+export interface DueEscrow {
+  readonly clearingTransactionId: string;
+  readonly chain: ChainId;
+  /** The signed order; `order.escrow` is always present here. */
+  readonly order: ContractOrder;
+}
 type EventRow = typeof clearingEvents.$inferSelect;
 
 export class DrizzleClearingRepository implements ClearingRepository {
@@ -150,6 +159,43 @@ export class DrizzleClearingRepository implements ClearingRepository {
       .orderBy(asc(clearingTransactions.createdAt))
       .limit(limit);
     return rows.map(toDomain);
+  }
+
+  /**
+   * Escrowed payments whose hold has ended and whose escrow has not been seen
+   * closed (#304) — the escrow keeper's work list. Disputed ones stay on it
+   * until they close, so the keeper can apply the refund default at
+   * `resolveBy`. Oldest hold first.
+   */
+  async listDueEscrows(nowSeconds: number, limit: number): Promise<DueEscrow[]> {
+    const rows = await this.#db
+      .select({ transaction: clearingTransactions, chain: paymentIntents.paymentChain })
+      .from(clearingTransactions)
+      .innerJoin(paymentIntents, eq(paymentIntents.id, clearingTransactions.paymentIntentId))
+      .where(sql`
+        ${clearingTransactions.state} = 'SUCCESS'
+        and ${clearingTransactions.contractEscrow} is not null
+        and ${clearingTransactions.escrowOutcome} is null
+        and (${clearingTransactions.contractEscrow} ->> 'releaseAfter')::bigint <= ${nowSeconds}
+      `)
+      .orderBy(sql`(${clearingTransactions.contractEscrow} ->> 'releaseAfter')::bigint`)
+      .limit(limit);
+    return rows.flatMap(({ transaction, chain }) => {
+      const order = toContract(transaction)?.order;
+      if (order?.escrow === undefined || chain === null || !isChainId(chain)) return [];
+      return [{ clearingTransactionId: transaction.id, chain, order }];
+    });
+  }
+
+  /** Records that an escrow closed, which takes it off the keeper's list. */
+  async markEscrowOutcome(
+    clearingTransactionId: string,
+    outcome: "released" | "refunded",
+  ): Promise<void> {
+    await this.#db
+      .update(clearingTransactions)
+      .set({ escrowOutcome: outcome })
+      .where(eq(clearingTransactions.id, clearingTransactionId));
   }
 
   async listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]> {
@@ -351,6 +397,7 @@ function contractColumns(transaction: ClearingTransaction) {
       contractPayerAsset: null,
       contractExpiresAt: null,
       contractTxHash: null,
+      contractEscrow: null,
     };
   }
 
@@ -369,6 +416,14 @@ function contractColumns(transaction: ClearingTransaction) {
     contractPayerAsset: contract.payerEstimate.asset,
     contractExpiresAt: contract.expiresAt,
     contractTxHash: contract.txHash ?? null,
+    contractEscrow:
+      order.escrow === undefined
+        ? null
+        : {
+            ...order.escrow,
+            releaseAfter: order.escrow.releaseAfter.toString(),
+            resolveBy: order.escrow.resolveBy.toString(),
+          },
   };
 }
 
@@ -418,6 +473,15 @@ function toContract(row: Row): ClearingContract | undefined {
       deadline: toBigint(row.contractDeadline) ?? 0n,
       signature: row.contractSignature,
       signer: row.contractSigner,
+      ...(row.contractEscrow === null
+        ? {}
+        : {
+            escrow: {
+              ...row.contractEscrow,
+              releaseAfter: BigInt(row.contractEscrow.releaseAfter),
+              resolveBy: BigInt(row.contractEscrow.resolveBy),
+            },
+          }),
     },
     payerEstimate: toMoney(row.contractPayerEstimate ?? "0", row.contractPayerAsset),
     expiresAt: row.contractExpiresAt,

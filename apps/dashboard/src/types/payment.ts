@@ -46,6 +46,8 @@ export interface PaymentIntentDto {
   readonly settlementAsset: string;
   readonly provider: string;
   readonly payment: PaymentRail | null;
+  /** Conditional settlement (#304); `null` for an ordinary payment. */
+  readonly escrow: { readonly holdSeconds: number; readonly arbiter?: string } | null;
   readonly source: PaymentSource;
   readonly merchantReference: string | null;
   readonly metadata: Readonly<Record<string, string>>;
@@ -128,6 +130,34 @@ export interface DepositDto {
   readonly received: MoneyDto;
   /** Confirmations a transfer needs before the payment counts as funded. */
   readonly required: number;
+}
+
+/** An escrowed payment's hold (#304), from GET `/payments/:id/escrow`. */
+export interface EscrowDto {
+  readonly chain: string;
+  readonly chainId: string;
+  readonly factory: string;
+  readonly address: string;
+  readonly terms: {
+    readonly payer: string;
+    readonly payee: string;
+    readonly arbiter: string;
+    readonly releaseAfter: string;
+  };
+  readonly outcome: "held" | "released" | "refunded";
+  readonly disputed: boolean;
+  /** Settlement-token minor units still held. */
+  readonly balance: string;
+}
+
+export interface EscrowResponse {
+  readonly escrow: EscrowDto | null;
+}
+
+/** POST `/payments/:id/escrow/refund` — the transaction for the merchant's wallet. */
+export interface EscrowRefundResponse {
+  readonly chainId: string;
+  readonly transaction: { readonly from: string; readonly to: string; readonly data: string };
 }
 
 export interface DepositResponse {

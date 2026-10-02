@@ -7,13 +7,14 @@
  */
 
 import { csvLine, PAYMENT_CSV_COLUMNS, paymentCsvRow } from "@mayarin/documents";
-import { UnauthorizedError } from "@mayarin/shared";
+import { UnauthorizedError, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
 import { toPaymentDetailDto, toPaymentIntentDto } from "../dto/payment.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
+import { safeCallTransaction } from "../services/payout-chain.ts";
 import { refreshStream } from "./refresh-stream.ts";
 
 const listQuerySchema = z.object({
@@ -29,6 +30,8 @@ const listQuerySchema = z.object({
 });
 
 const exportQuerySchema = listQuerySchema.omit({ limit: true, cursor: true });
+
+const refundBodySchema = z.object({ from: z.string().regex(/^0x[0-9a-fA-F]{40}$/) });
 
 export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
@@ -141,6 +144,41 @@ export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars 
           ? null
           : `${container.config.checkoutBaseUrl}/checkout/qr?value=${encodeURIComponent(deposit.uri)}`,
     });
+  });
+
+  /**
+   * An escrowed payment's hold (#304): where the funds are and who may move
+   * them. `null` for an ordinary payment, which never asks the payment API.
+   */
+  app.get("/:id/escrow", async (c) => {
+    const scope = c.get("scope");
+    if (scope === undefined) throw new UnauthorizedError("Authentication required");
+    const { intent } = await container.payments.get(scope, c.req.param("id"));
+    if (intent.escrow === undefined) return c.json({ escrow: null });
+    return c.json({ escrow: await container.paymentApi.escrow(intent.id) });
+  });
+
+  /**
+   * The refund transaction for the merchant's wallet to send (#304). Mayarin
+   * signs nothing: the factory pays back only when the payee — the merchant's
+   * address — calls it. A connected wallet that is the payee calls directly;
+   * otherwise the payee is the merchant's Safe and `from` is its owner.
+   */
+  app.post("/:id/escrow/refund", csrfMiddleware(), async (c) => {
+    const scope = c.get("scope");
+    if (scope === undefined) throw new UnauthorizedError("Authentication required");
+    const { from } = refundBodySchema.parse(await c.req.json());
+    const { intent } = await container.payments.get(scope, c.req.param("id"));
+    if (intent.escrow === undefined) {
+      throw new ValidationError("This payment is not held in escrow");
+    }
+    const escrow = await container.paymentApi.escrow(intent.id);
+    const data = escrow.calls.refund as `0x${string}`;
+    const transaction =
+      from.toLowerCase() === escrow.terms.payee.toLowerCase()
+        ? { from: from.toLowerCase(), to: escrow.factory.toLowerCase(), data }
+        : safeCallTransaction(escrow.terms.payee, from, escrow.factory, data);
+    return c.json({ chainId: escrow.chainId, transaction });
   });
 
   /**

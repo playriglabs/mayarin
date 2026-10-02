@@ -187,6 +187,24 @@
               "null"
             ]
           },
+          "escrow": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "holdSeconds": {
+                "type": "integer"
+              },
+              "arbiter": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "holdSeconds"
+            ],
+            "description": "Buyer-protection escrow terms; null for an ordinary payment."
+          },
           "source": {
             "type": "string"
           },
@@ -245,6 +263,7 @@
           "provider",
           "payment",
           "executionPath",
+          "escrow",
           "source",
           "metadata",
           "merchantReference",
@@ -681,6 +700,107 @@
           "transaction",
           "payerEstimate",
           "expiresAt"
+        ]
+      },
+      "Escrow": {
+        "type": "object",
+        "properties": {
+          "chain": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "string"
+          },
+          "factory": {
+            "type": "string",
+            "description": "EscrowFactory; send `calls[action]` here."
+          },
+          "address": {
+            "type": "string",
+            "description": "The per-payment escrow address the funds settled into."
+          },
+          "token": {
+            "type": "string"
+          },
+          "terms": {
+            "type": "object",
+            "properties": {
+              "intentId": {
+                "type": "string"
+              },
+              "payer": {
+                "type": "string"
+              },
+              "payee": {
+                "type": "string"
+              },
+              "arbiter": {
+                "type": "string"
+              },
+              "releaseAfter": {
+                "type": "string",
+                "description": "ISO time after which an undisputed escrow is releasable by anyone."
+              },
+              "resolveBy": {
+                "type": "string",
+                "description": "ISO time at which a dispute nobody decided refunds the payer."
+              }
+            },
+            "required": [
+              "intentId",
+              "payer",
+              "payee",
+              "arbiter",
+              "releaseAfter",
+              "resolveBy"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "held",
+              "released",
+              "refunded"
+            ]
+          },
+          "disputed": {
+            "type": "boolean"
+          },
+          "balance": {
+            "type": "string",
+            "description": "Settlement-token minor units still held."
+          },
+          "calls": {
+            "type": "object",
+            "properties": {
+              "release": {
+                "type": "string"
+              },
+              "refund": {
+                "type": "string"
+              },
+              "dispute": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "release",
+              "refund",
+              "dispute"
+            ]
+          }
+        },
+        "required": [
+          "chain",
+          "chainId",
+          "factory",
+          "address",
+          "token",
+          "terms",
+          "outcome",
+          "disputed",
+          "balance",
+          "calls"
         ]
       },
       "Refund": {
@@ -1946,6 +2066,25 @@
                       "x402"
                     ]
                   },
+                  "escrow": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "holdSeconds": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0
+                      },
+                      "arbiter": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      }
+                    },
+                    "required": [
+                      "holdSeconds"
+                    ]
+                  },
                   "provider": {
                     "type": "string",
                     "minLength": 1
@@ -2360,6 +2499,57 @@
           },
           "410": {
             "description": "Quote lock expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments/{id}/escrow": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "operationId": "getPaymentEscrow",
+        "summary": "Get an escrowed payment's hold",
+        "description": "Where an escrowed payment's funds are, read from the chain, and the calldata to release, refund or dispute them. The escrow contract decides who may send each call: the payer releases or disputes, the merchant refunds, anyone releases once an undisputed hold ends.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The escrow.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "escrow": {
+                      "$ref": "#/components/schemas/Escrow"
+                    }
+                  },
+                  "required": [
+                    "escrow"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such payment, or it is not held in escrow.",
             "content": {
               "application/json": {
                 "schema": {

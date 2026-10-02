@@ -17,6 +17,7 @@ function payment(
     settlementAsset: "USDC",
     provider: "stablecoin",
     payment: null,
+    escrow: null,
     source: { type: "manual" },
     merchantReference: null,
     metadata: {},

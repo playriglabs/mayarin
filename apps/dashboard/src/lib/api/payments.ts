@@ -10,6 +10,8 @@ import { type ApiError, request } from "@/lib/api/client";
 import { listPath } from "@/lib/api/list-path";
 import type {
   DepositResponse,
+  EscrowRefundResponse,
+  EscrowResponse,
   PaymentDetailResponse,
   PaymentListFilter,
   PaymentListResponse,
@@ -38,4 +40,15 @@ export const paymentsApi = {
    */
   retry: (id: string): Effect.Effect<void, ApiError> =>
     request<void>(`/payments/${encodeURIComponent(id)}/retry`, { method: "POST" }),
+
+  /** GET `/payments/:id/escrow` — where an escrowed payment's funds are (#304). */
+  escrow: (id: string): Effect.Effect<EscrowResponse, ApiError> =>
+    request<EscrowResponse>(`/payments/${encodeURIComponent(id)}/escrow`),
+
+  /** POST `/payments/:id/escrow/refund` — the refund transaction for `from` to send. */
+  escrowRefund: (id: string, from: string): Effect.Effect<EscrowRefundResponse, ApiError> =>
+    request<EscrowRefundResponse>(`/payments/${encodeURIComponent(id)}/escrow/refund`, {
+      method: "POST",
+      body: { from },
+    }),
 };

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BuyerProtection, protectionApplies, railBody } from "../../shared/buyer-protection.tsx";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
 import { canContinueWithQuote, useQuoteEstimate } from "../link/use-quote-estimate.ts";
 import type { PayBootstrap, RailChoice } from "./types.ts";
@@ -23,12 +24,18 @@ export function ChooseRail({
   const [rail, setRail] = useState(rails[0]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // An escrowed payment names the payer's wallet in its terms (#304): that
+  // wallet releases or disputes later, and receives a refund.
+  const [payerAddress, setPayerAddress] = useState<string | null>(null);
+  const { protection } = bootstrap;
+  const needsWallet =
+    protection?.required === true && protectionApplies(protection, rail) && payerAddress === null;
 
   const estimate = useQuoteEstimate(bootstrap.amount.formatted, bootstrap.amount.asset, rail);
   const quoteReady = canContinueWithQuote(estimate);
 
   async function pay() {
-    if (rail === undefined || !quoteReady || busy) return;
+    if (rail === undefined || !quoteReady || busy || needsWallet) return;
     setBusy(true);
     setError("");
 
@@ -39,7 +46,7 @@ export function ChooseRail({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          payment: { asset: rail.asset, chain: rail.chain },
+          payment: railBody(rail, protection, payerAddress),
           executionPath: "deposit-match",
         }),
       });
@@ -102,10 +109,16 @@ export function ChooseRail({
             The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
             <strong>{railSummary(rail)}</strong> to the address shown there.
           </p>
+          <BuyerProtection
+            protection={protection}
+            rail={rail}
+            payerAddress={payerAddress}
+            onPayerAddress={setPayerAddress}
+          />
           <button
             type="button"
             className="primary"
-            disabled={busy || !quoteReady}
+            disabled={busy || !quoteReady || needsWallet}
             onClick={() => void pay()}
           >
             {busy

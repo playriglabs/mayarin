@@ -15,6 +15,7 @@
 
 import type { ChainId } from "@mayarin/chain";
 import type { AssetCode } from "@mayarin/shared";
+import type { EscrowRequest } from "./types.ts";
 
 /** What one merchant will be paid in, and what they will take payment in. */
 export interface MerchantAssetPolicy {
@@ -47,6 +48,11 @@ export interface MerchantAssetPolicy {
    * which would pay every merchant into the same wallet.
    */
   readonly settlementAddress?: string;
+  /**
+   * Buyer protection (#304): the escrow a payer who connects a wallet gets by
+   * default. Absent: off.
+   */
+  readonly buyerProtection?: EscrowRequest;
 }
 
 /** Reads one merchant's asset policy. */

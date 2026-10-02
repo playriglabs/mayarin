@@ -19,6 +19,7 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
+import type { EscrowRequest } from "@mayarin/payment-intent";
 import { type AssetCode, MayarinError, type Money } from "@mayarin/shared";
 import type { LockedRate } from "./types.ts";
 
@@ -36,7 +37,7 @@ export interface ContractOrder {
   readonly minOut: bigint;
   /** The fee the contract splits out of `minOut`, in minor units. */
   readonly fee: bigint;
-  /** Receives `minOut − fee`. */
+  /** Receives `minOut − fee`. For an escrowed order, the escrow address. */
   readonly merchantSafe: string;
   /** Receives execution excess and unconsumed input — the payer's address. */
   readonly refundTo: string;
@@ -45,6 +46,37 @@ export interface ContractOrder {
   readonly signature: string;
   /** The quote-signer address the contract verifies against. */
   readonly signer: string;
+  /**
+   * Present when `merchantSafe` is an escrow (#304). Unsigned by the router —
+   * the terms are bound by the escrow address itself, which is
+   * `EscrowFactory.escrowAddress(intentId, payer, payee, arbiter, releaseAfter, resolveBy)`.
+   */
+  readonly escrow?: ContractEscrow;
+}
+
+/**
+ * The escrow an intent asked for, plus who the payer is. Not always the order's
+ * `refundTo`: on deposit-match that is the treasury, and the payer is the
+ * wallet they named.
+ */
+export interface EscrowLockRequest extends EscrowRequest {
+  readonly payer: string;
+}
+
+/** The escrow terms besides the order's `intentId`. */
+export interface ContractEscrow {
+  /** `EscrowFactory` on this chain. */
+  readonly factory: string;
+  /** Releases or disputes; receives a refund. */
+  readonly payer: string;
+  /** The merchant's settlement address — where a release goes. */
+  readonly payee: string;
+  /** `0x000…0` when the terms name no arbiter. */
+  readonly arbiter: string;
+  /** Unix seconds after which an undisputed escrow is releasable by anyone. */
+  readonly releaseAfter: bigint;
+  /** Unix seconds after which a still-disputed escrow refunds the payer. */
+  readonly resolveBy: bigint;
 }
 
 /** Everything `lock` freezes: the price, the signed order, and the display leg. */
@@ -75,6 +107,8 @@ export interface ContractLockRequest {
   readonly chain: ChainId;
   /** The payer's address, from the intent's rail — the order's `refundTo`. */
   readonly payerAddress: string;
+  /** Settle into escrow instead of the merchant's address (#304). */
+  readonly escrow?: EscrowLockRequest;
   /**
    * Who submits the PaymentRouter transaction.
    *

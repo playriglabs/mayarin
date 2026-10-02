@@ -352,6 +352,40 @@
   .error {
     @apply mt-3 mb-0 text-xs text-danger;
   }
+  button.secondary {
+    @apply min-h-11 w-full rounded-control border border-field bg-paper px-4 py-2.5 font-medium text-ink transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  button.secondary:not([disabled]):hover {
+    @apply bg-surface;
+  }
+  /* Conditional settlement (#304): the hold, before payment and after it. */
+  .escrow-note {
+    @apply mt-5 rounded-panel border border-line bg-surface p-4;
+  }
+  .escrow-note p {
+    @apply mt-0 mb-3 text-xs leading-relaxed text-muted;
+  }
+  .escrow-note strong {
+    @apply font-semibold text-ink;
+  }
+  .escrow-wallet {
+    @apply mb-0!;
+  }
+  button.link-button {
+    @apply ml-1 border-0 bg-transparent p-0 text-xs text-muted underline;
+  }
+  .escrow-card {
+    @apply mt-6 w-full rounded-panel border border-line p-4.5 text-left;
+  }
+  .escrow-card h3 {
+    @apply mt-1 mb-1.5;
+  }
+  .escrow-card p {
+    @apply mt-0 mb-0 text-sm text-muted;
+  }
+  .escrow-actions {
+    @apply mt-1 flex flex-col gap-2.5;
+  }
   .unavailable {
     @apply mt-7 rounded-panel border border-line p-4.5;
   }

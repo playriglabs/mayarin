@@ -453,3 +453,76 @@ describe("a native payer asset", () => {
     ).rejects.toThrow(/not a deposit asset/i);
   });
 });
+
+describe("buyer protection (#304)", () => {
+  const protection = { holdSeconds: 7 * 86_400 };
+  const payerAddress = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
+
+  function protectedService() {
+    return new PaymentIntentService({
+      repository: new InMemoryPaymentIntentRepository(),
+      clock: new FixedClock(NOW),
+      defaults: {
+        settlementAsset: "USDC",
+        provider: "mock",
+        executionPath: "deposit-match",
+        ttlSeconds: 900,
+      },
+      merchantPolicies: {
+        policyFor: async () => ({
+          settlementAsset: "USDC" as const,
+          acceptedAssets: [],
+          buyerProtection: protection,
+        }),
+      },
+      escrowChains: ["arbitrum-sepolia"],
+    });
+  }
+
+  const base = { merchant, amount: money(5_000_000n, "IDR"), source: { type: "manual" } } as const;
+  const rail = { asset: "USDC", chain: "arbitrum-sepolia" } as const;
+
+  test("a payer who connects a wallet takes up the merchant's protection", async () => {
+    const intent = await protectedService().create({
+      ...base,
+      payment: { ...rail, payerAddress },
+    });
+    expect(intent.escrow).toEqual(protection);
+  });
+
+  test("a payer without a wallet, on x402, or on a chain without escrow is paid out as usual", async () => {
+    const svc = protectedService();
+    expect((await svc.create({ ...base, payment: rail })).escrow).toBeUndefined();
+    expect(
+      (
+        await svc.create({
+          ...base,
+          payment: { ...rail, payerAddress },
+          executionPath: "x402",
+        })
+      ).escrow,
+    ).toBeUndefined();
+    expect(
+      (await svc.create({ ...base, payment: { asset: "USDC", chain: "base", payerAddress } }))
+        .escrow,
+    ).toBeUndefined();
+  });
+
+  test("escrow: null opts one payment out", async () => {
+    const intent = await protectedService().create({
+      ...base,
+      payment: { ...rail, payerAddress },
+      escrow: null,
+    });
+    expect(intent.escrow).toBeUndefined();
+  });
+
+  test("a rail chosen later takes up protection when it names the payer's wallet", async () => {
+    const svc = protectedService();
+    const minted = await svc.create(base);
+    expect(minted.escrow).toBeUndefined();
+
+    const chosen = await svc.choosePayment(minted.id, { ...rail, payerAddress });
+    expect(chosen.escrow).toEqual(protection);
+  });
+});

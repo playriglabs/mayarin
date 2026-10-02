@@ -73,6 +73,7 @@ import {
 import {
   type ChainClients,
   Create2DepositAddressDeriver,
+  ESCROW_CHAINS,
   EvmChainClient,
   EvmContractCodeReader,
   EvmCrossAssetSettler,
@@ -121,6 +122,8 @@ import type { ApiKeyVerifier } from "./middleware/api-key.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 import { chainReceipts, QuotePricingSource } from "./rails.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
+import { EscrowService } from "./services/escrow.ts";
+import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
 import { CachedRailObservations } from "./services/rail-observations.ts";
@@ -227,6 +230,13 @@ export interface Container {
   readonly chainHead?: (chain: ChainId) => Promise<BlockRef>;
   /** Contract-path checkout (#61). Present only when `CONTRACT_PATH_ENABLED` is true. */
   readonly checkout?: ContractCheckout;
+  /** Escrow state and calldata for a conditional-settlement payment (#304). */
+  readonly escrow: EscrowService;
+  /**
+   * Closes escrows whose hold or arbitration window has ended (#304). Present
+   * only with treasury execution, whose operator key sends the calls.
+   */
+  readonly escrowKeeper?: EscrowKeeper;
   /**
    * Ingests `PaymentCompleted` (#8), one per chain with a deployed router.
    *
@@ -554,7 +564,7 @@ function createTreasuryExecutor(deps: {
   depositAddresses: DrizzleDepositAddressRepository | undefined;
   /** The runtime pool set (#95), read per swap so execution matches pricing. */
   uniswapPools: () => Promise<Config["uniswapPools"]>;
-}): TreasuryExecutor | undefined {
+}): { executor: TreasuryExecutor; port: EvmTreasuryExecutionPort } | undefined {
   const { config, ledger, depositAddresses, uniswapPools } = deps;
 
   if (!config.treasuryExecutionEnabled) return undefined;
@@ -610,7 +620,10 @@ function createTreasuryExecutor(deps: {
     ...(config.chain === undefined ? {} : { confirmations: config.chain.confirmations }),
   });
 
-  return new TreasuryExecutor({ port, ledger, maxAttempts: config.treasuryMaxAttempts });
+  return {
+    executor: new TreasuryExecutor({ port, ledger, maxAttempts: config.treasuryMaxAttempts }),
+    port,
+  };
 }
 
 /**
@@ -690,6 +703,8 @@ export function createContainer({
     // A merchant's own settlement asset outranks `config.settlementAsset`,
     // which stays as the fallback for a merchant that has not chosen one.
     merchantPolicies,
+    // Buyer protection applies only where an escrow factory is deployed.
+    escrowChains: ESCROW_CHAINS,
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
@@ -791,16 +806,18 @@ export function createContainer({
           // it, rather than finding out at their first payment that a settings
           // field nobody mentioned was load-bearing.
           settlementAddresses,
+          ...(config.escrowArbiter === undefined ? {} : { escrowArbiter: config.escrowArbiter }),
           clock,
         })
       : undefined;
 
-  const treasuryExecutor = createTreasuryExecutor({
+  const treasury = createTreasuryExecutor({
     config,
     ledger,
     depositAddresses,
     uniswapPools: async () => (await market.uniswapPools()) as Config["uniswapPools"],
   });
+  const treasuryExecutor = treasury?.executor;
 
   const rates = new LiquidityRouter({ source: new RuntimePriceSource(market) });
 
@@ -1064,6 +1081,17 @@ export function createContainer({
     engine,
     rates,
     paymentApp,
+    escrow: new EscrowService(paymentApp, config.chainRpcUrls),
+    ...(treasury === undefined
+      ? {}
+      : {
+          escrowKeeper: new EscrowKeeper({
+            repository: clearingRepository,
+            read: rpcEscrowStateReader(config.chainRpcUrls),
+            send: (chain, to, data) => treasury.port.call(chain, to, data),
+            clock,
+          }),
+        }),
     refunds,
     ...(stream === undefined ? {} : { stream }),
     adapters,

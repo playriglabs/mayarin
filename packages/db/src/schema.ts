@@ -53,6 +53,8 @@ export const paymentIntents = pgTable(
     payerAddress: text("payer_address"),
     // How the payment rail is executed. Null for a fiat-only intent.
     executionPath: text("execution_path"),
+    /** Conditional settlement terms (#304). Null for an ordinary payment. */
+    escrow: jsonb("escrow").$type<{ holdSeconds: number; arbiter?: string }>(),
 
     sourceType: text("source_type").notNull(),
     sourceScheme: text("source_scheme"),
@@ -145,6 +147,18 @@ export const clearingTransactions = pgTable(
     contractPayerAsset: text("contract_payer_asset"),
     contractExpiresAt: timestamp("contract_expires_at", { withTimezone: true, mode: "date" }),
     contractTxHash: text("contract_tx_hash"),
+    // Escrow terms (#304) when `contract_merchant_safe` is an escrow address.
+    // `releaseAfter` and `resolveBy` are unix seconds as decimal strings — jsonb has no bigint.
+    contractEscrow: jsonb("contract_escrow").$type<{
+      factory: string;
+      payer: string;
+      payee: string;
+      arbiter: string;
+      releaseAfter: string;
+      resolveBy: string;
+    }>(),
+    // Set once the escrow is seen closed on chain; the keeper stops polling it.
+    escrowOutcome: text("escrow_outcome"),
 
     // What `PaymentCompleted` reported (#12). Kept beside the locked figures
     // rather than replacing them: a payment where the two differ is the signal
@@ -387,6 +401,8 @@ export const merchants = pgTable(
       .default({}),
     /** Where the merchant is paid on-chain — the order's `merchantSafe`. */
     settlementAddress: text("settlement_address"),
+    /** Buyer protection (#304). Null: off. */
+    buyerProtection: jsonb("buyer_protection").$type<{ holdSeconds: number; arbiter?: string }>(),
     /** Merchant profile, frozen into every intent's snapshot. */
     city: text("city"),
     /** ISO 3166-1 alpha-2, uppercase. */

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BuyerProtection } from "../../shared/buyer-protection.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import { currencySymbol, sanitizeAmount } from "../../shared/currency.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
@@ -31,6 +32,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [payerAddress, setPayerAddress] = useState<string | null>(null);
 
   const typedAmount = total === null ? amount : total.formatted;
   const displayCurrency = currencySymbol(currency);
@@ -53,7 +55,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       const response = await fetch(`/v1/payment-links/${bootstrap.linkId}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(checkoutBody(bootstrap, amount, rail)),
+        body: JSON.stringify(checkoutBody(bootstrap, amount, rail, payerAddress)),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -147,6 +149,13 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                   {estimate.message}
                 </p>
               )}
+
+              <BuyerProtection
+                protection={bootstrap.protection}
+                rail={rail}
+                payerAddress={payerAddress}
+                onPayerAddress={setPayerAddress}
+              />
 
               <p className="checkout-note">
                 The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}

@@ -27,6 +27,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Combobox,
   ComboboxContent,
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/combobox";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
 import {
@@ -89,6 +91,10 @@ interface Draft {
    */
   readonly acceptedAssetsByChain: Readonly<Record<string, readonly string[]>>;
   readonly settlementAddress: string;
+  /** Buyer protection (#304): off, or a hold in whole days and an optional arbiter. */
+  readonly protectionOn: boolean;
+  readonly protectionDays: string;
+  readonly protectionArbiter: string;
   readonly city: string;
   readonly countryCode: string;
 }
@@ -104,9 +110,20 @@ function draftOf(settings: SettingsDto): Draft {
     acceptedAssets: settings.acceptedAssets,
     acceptedAssetsByChain: settings.acceptedAssetsByChain,
     settlementAddress: settings.settlementAddress ?? "",
+    protectionOn: settings.buyerProtection !== null,
+    protectionDays: String(Math.round((settings.buyerProtection?.holdSeconds ?? 7 * DAY) / DAY)),
+    protectionArbiter: settings.buyerProtection?.arbiter ?? "",
     city: settings.city ?? "",
     countryCode: settings.countryCode ?? "",
   };
+}
+
+const DAY = 86_400;
+
+/** Whole days between 1 and 90 — the bounds the API enforces. */
+function isValidHoldDays(value: string): boolean {
+  const days = Number(value);
+  return Number.isInteger(days) && days >= 1 && days <= 90;
 }
 
 function reasonOf(error: unknown): string {
@@ -166,6 +183,9 @@ function Settings() {
   // chain for contract code before it validates, so a malformed address came
   // back as a provider fault instead of as the typo it is.
   const addressInvalid = draft !== null && !isValidSettlementAddress(draft.settlementAddress);
+  const holdInvalid = draft?.protectionOn === true && !isValidHoldDays(draft.protectionDays);
+  const arbiterInvalid =
+    draft?.protectionOn === true && !isValidSettlementAddress(draft.protectionArbiter);
   useEffect(() => {
     if (loaded !== undefined) setDraft(draftOf(loaded));
   }, [loaded]);
@@ -181,6 +201,14 @@ function Settings() {
         acceptedAssets: draft.acceptedAssets,
         acceptedAssetsByChain: draft.acceptedAssetsByChain,
         settlementAddress: orNull(draft.settlementAddress),
+        buyerProtection: draft.protectionOn
+          ? {
+              holdSeconds: Number(draft.protectionDays) * DAY,
+              ...(orNull(draft.protectionArbiter) === null
+                ? {}
+                : { arbiter: draft.protectionArbiter.trim() }),
+            }
+          : null,
         city: orNull(draft.city),
         countryCode: orNull(draft.countryCode),
       });
@@ -252,6 +280,8 @@ function Settings() {
                       disabled={
                         update.isPending ||
                         addressInvalid ||
+                        holdInvalid ||
+                        arbiterInvalid ||
                         JSON.stringify(draft) === JSON.stringify(draftOf(loaded))
                       }
                     >
@@ -365,6 +395,60 @@ function Settings() {
                         {loaded.canSettleOnChain ? "Can settle on chain" : "No address"}
                       </Badge>
                     </div>
+                  </Card>
+
+                  <Card className="mt-6 flex flex-col gap-4 p-4">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="buyer-protection"
+                        checked={draft.protectionOn}
+                        onCheckedChange={(checked) =>
+                          edit({ ...draft, protectionOn: checked === true })
+                        }
+                      />
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="buyer-protection" className="cursor-pointer">
+                          Buyer protection
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Hold the buyer's payment until they confirm delivery. It's released to you
+                          automatically when the hold ends.
+                        </p>
+                      </div>
+                    </div>
+
+                    {draft.protectionOn && (
+                      <div className="grid gap-4 md:grid-cols-[10rem_1fr]">
+                        <Field>
+                          <FieldLabel htmlFor="protection-days">Hold (days)</FieldLabel>
+                          <Input
+                            id="protection-days"
+                            inputMode="numeric"
+                            value={draft.protectionDays}
+                            onChange={(e) => edit({ ...draft, protectionDays: e.target.value })}
+                            aria-invalid={holdInvalid}
+                          />
+                          {holdInvalid && <FieldError>Between 1 and 90 days.</FieldError>}
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="protection-arbiter">Arbiter</FieldLabel>
+                          <Input
+                            id="protection-arbiter"
+                            value={draft.protectionArbiter}
+                            onChange={(e) => edit({ ...draft, protectionArbiter: e.target.value })}
+                            placeholder="Mayarin Resolution"
+                            aria-invalid={arbiterInvalid}
+                            className="font-mono text-xs"
+                          />
+                          <FieldDescription>
+                            Decides disputes. Blank uses Mayarin Resolution.
+                          </FieldDescription>
+                          {arbiterInvalid && (
+                            <FieldError>Enter a 20-byte hex address, or leave it blank.</FieldError>
+                          )}
+                        </Field>
+                      </div>
+                    )}
                   </Card>
                 </Tabs.Panel>
 

@@ -19,6 +19,7 @@ import type { Container } from "../container.ts";
 import { toClearingDto } from "../dto/clearing.ts";
 import { toContractCallDto } from "../dto/contract-call.ts";
 import { toDepositDto } from "../dto/deposit.ts";
+import { toEscrowDto } from "../dto/escrow.ts";
 import { toPaymentDto } from "../dto/payment.ts";
 import { refundBodySchema, toRefundDto, toRefundSummaryDto } from "../dto/refund.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
@@ -178,6 +179,15 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       throw new NotFoundError("The contract execution path is not enabled on this deployment", {});
     }
     return c.json(toContractCallDto(await checkout.contractCall(c.req.param("id"))));
+  });
+
+  /**
+   * Where an escrowed payment's funds are, and the calldata to move them
+   * (#304). Open like `contract-call`: the terms are public on chain anyway,
+   * and the factory, not this route, decides who may send each call.
+   */
+  app.get("/:id/escrow", async (c) => {
+    return c.json({ escrow: toEscrowDto(await container.escrow.view(c.req.param("id"))) });
   });
 
   return app;

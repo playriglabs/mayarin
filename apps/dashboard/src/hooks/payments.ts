@@ -18,6 +18,7 @@ import { useLiveChannel } from "@/lib/live-updates";
 import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
   DepositResponse,
+  EscrowResponse,
   PaymentDetailResponse,
   PaymentIntentStatus,
   PaymentListFilter,
@@ -117,5 +118,13 @@ export function useRetrySettlement(id: string) {
       ["payments", "detail", id],
       ["payments", "list"],
     ],
+  });
+}
+
+/** GET `/payments/:id/escrow` — the hold on an escrowed payment (#304). */
+export function useEscrow(id: string) {
+  return useEffectQuery<EscrowResponse, ApiError>({
+    queryKey: ["payments", "escrow", id],
+    query: () => paymentsApi.escrow(id),
   });
 }

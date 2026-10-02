@@ -1,3 +1,4 @@
+import { EscrowCard } from "./escrow-card.tsx";
 import { ExpiredArt, FailedArt, SuccessArt } from "./illustrations.tsx";
 
 /** A page with folded corner and text lines — the invoice. */
@@ -33,8 +34,11 @@ export function Outcome({
   intentId,
   statusUrl,
   merchantName,
+  escrowed,
 }: {
   readonly status: string;
+  /** The payment settled into escrow (#304): the merchant is not paid yet. */
+  readonly escrowed: boolean;
   readonly intentId: string;
   /** Who to contact when a payment did not go through. */
   readonly merchantName: string;
@@ -48,7 +52,9 @@ export function Outcome({
   // clearing transactions and executor attempts — a sentence for an operator
   // reading the dashboard, not for the person holding the phone.
   const note = paid
-    ? "The merchant has been paid. You can safely close this page."
+    ? escrowed
+      ? "Your payment is held in escrow until you release it or the hold ends."
+      : "The merchant has been paid. You can safely close this page."
     : expired
       ? "The time to pay ran out before a payment arrived. Start a new payment to try again."
       : "Start a new payment to try again.";
@@ -58,6 +64,7 @@ export function Outcome({
       {paid ? <SuccessArt /> : expired ? <ExpiredArt /> : <FailedArt />}
       <h2>{heading}</h2>
       <p>{note}</p>
+      {paid && escrowed && <EscrowCard statusUrl={statusUrl} />}
       {paid && (
         <div className="documents">
           <a href={`${statusUrl}/invoice.pdf`} download>

@@ -100,6 +100,17 @@ const configSchema = z.object({
     .default("false")
     .transform((value) => value === "true"),
   chainRpcUrls: jsonObject<RpcUrlMap>("CHAIN_RPC_URLS", "{}"),
+  /**
+   * Mayarin Resolution (#304): the neutral arbiter an escrowed payment names
+   * when its merchant names none. It can only choose between the payer and
+   * the payee of a disputed escrow — never send funds anywhere else — so it is
+   * a decision key, not a custody key. Unset: disputes have no arbiter and
+   * refund the payer at `resolveBy`.
+   */
+  escrowArbiter: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/, "ESCROW_ARBITER must be an EVM address")
+    .optional(),
   chainAssets: jsonObject<TokenMap>("CHAIN_ASSETS", "{}"),
   /**
    * The chain's own currency, which has no contract address and emits no
@@ -938,6 +949,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     exchangeRates: env.EXCHANGE_RATES,
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,
+    escrowArbiter: env.ESCROW_ARBITER,
     chainAssets: env.CHAIN_ASSETS,
     subgraphEndpoints: env.SUBGRAPH_ENDPOINTS,
     subgraphApiKey: env.SUBGRAPH_API_KEY,

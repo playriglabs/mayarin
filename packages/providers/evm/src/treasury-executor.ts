@@ -446,6 +446,16 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     return { permit, permitSignature };
   }
 
+  /**
+   * One plain call from the operator, under the same nonce lock as every other
+   * submission, waited to the confirmation depth. For the escrow keeper (#304),
+   * which shares this key and this process. Throws on a revert.
+   */
+  async call(chain: ChainId, to: string, data: Hex): Promise<string> {
+    const { txHash } = await this.#submit(chain, getAddress(to), data, 0n);
+    return txHash;
+  }
+
   /** Submits, waits for the confirmation depth, and measures what it produced. */
   async #submit(
     chain: ChainId,

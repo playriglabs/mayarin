@@ -1,7 +1,9 @@
-import type { LineItem, MerchantRef, MoneyDto, Rail } from "../../shared/types.ts";
+import type { LineItem, MerchantRef, MoneyDto, Protection, Rail } from "../../shared/types.ts";
 
 /** The link page: what is being sold, in what asset, and one button. */
 export interface LinkBootstrap {
+  /** Buyer protection the merchant offers (#304); the buyer opts in by connecting a wallet. */
+  readonly protection: Protection | null;
   readonly page: "link";
   readonly linkId: string;
   readonly kind: "fixed" | "open" | "catalog";

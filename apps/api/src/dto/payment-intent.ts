@@ -82,6 +82,23 @@ export const createBodySchema = z
      * can only take `deposit-match`. Omitted, the deployment default stands.
      */
     executionPath: z.enum(EXECUTION_PATHS).optional(),
+    /**
+     * Conditional settlement (#304): settle into escrow, releasable by the payer
+     * at once or by anyone after `holdSeconds` (1–90 days) unless disputed. Needs
+     * the payer's wallet on the rail; not on x402. Omitted: the merchant's buyer
+     * protection applies when the payer connects a wallet. `null`: never.
+     */
+    escrow: z
+      .object({
+        holdSeconds: z.number().int().positive(),
+        arbiter: z
+          .string()
+          .regex(/^0x[0-9a-fA-F]{40}$/)
+          .optional(),
+      })
+      // `null` opts this payment out of the merchant's buyer protection.
+      .nullable()
+      .optional(),
     provider: z.string().min(1).optional(),
     metadata: z.record(z.string(), z.string()).optional(),
     /** The caller's own order/invoice id. Stored, indexed, never interpreted. */
@@ -111,6 +128,8 @@ export function toPaymentIntentDto(intent: PaymentIntent) {
      * `null` for a fiat-only intent, which has no rail to execute.
      */
     executionPath: intent.executionPath ?? null,
+    /** The escrow this payment settles into (#304); `null` for an ordinary payment. */
+    escrow: intent.escrow ?? null,
     source: intent.source,
     metadata: intent.metadata,
     /** The merchant's own order id, echoed back untouched. */

@@ -354,7 +354,7 @@ function MarketsVisual() {
     <div ref={root} class="relative h-64 w-full">
       <div
         data-dots
-        class="absolute inset-0 bg-[radial-gradient(var(--color-forest)_1px,transparent_1.2px)] bg-size-[10px_10px] opacity-20 [mask-image:radial-gradient(ellipse_at_center,black_35%,transparent_75%)]"
+        class="absolute inset-0 bg-[radial-gradient(var(--color-forest)_1px,transparent_1.2px)] bg-size-[10px_10px] opacity-20 mask-[radial-gradient(ellipse_at_center,black_35%,transparent_75%)]"
       />
       <svg
         data-wires
@@ -437,7 +437,7 @@ function ChargebackVisual() {
           $0 <TrendUp />
         </p>
       </div>
-      <div class="h-62 overflow-hidden border-l border-dashed border-line pl-4 [--feed-step:3.125rem] [mask-image:linear-gradient(to_bottom,transparent,black_45%)]">
+      <div class="h-62 overflow-hidden border-l border-dashed border-line pl-4 [--feed-step:3.125rem] mask-[linear-gradient(to_bottom,transparent,black_45%)]">
         <ul
           key={tick}
           class="space-y-2.5 text-xs motion-safe:animate-[feed-shift_600ms_var(--ease-out-expo)] md:text-sm"

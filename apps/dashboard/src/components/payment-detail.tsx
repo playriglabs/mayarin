@@ -22,6 +22,7 @@ import { match, P } from "ts-pattern";
 import { AssetAmount, AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
 import { DepositQr } from "@/components/deposit-qr";
+import { EscrowPanel } from "@/components/escrow-panel";
 import PaymentTimeline from "@/components/payment-timeline";
 import { TransactionLink } from "@/components/transaction-link";
 import { Badge } from "@/components/ui/badge";
@@ -282,6 +283,12 @@ function PaymentDetail({ id }: { id: string }) {
                   <Badge variant={toneOf(intent.status)}>{intentStatusLabel(intent.status)}</Badge>
                 </div>
               </header>
+
+              {intent.escrow !== null &&
+                intent.payment !== null &&
+                intent.status === "COMPLETED" && (
+                  <EscrowPanel id={intent.id} chain={intent.payment.chain} />
+                )}
 
               {/* The code the payer scans, while there is still a payment to
                   pay. Shown above everything else because a merchant opening a
