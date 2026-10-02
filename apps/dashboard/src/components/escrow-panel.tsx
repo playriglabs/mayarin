@@ -93,18 +93,11 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
       <SectionHeader title="Escrow" />
       <Card className="gap-0 p-0">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-4">
-          <div className="flex min-w-0 flex-col gap-2">
-            <Badge variant={tone} className="w-fit">
-              {status}
-            </Badge>
+          <div className="flex min-w-0 flex-col gap-1">
             <p className="font-medium text-base text-foreground">{headline}</p>
             {hint !== undefined && <p className="text-muted-foreground text-sm">{hint}</p>}
           </div>
-          {data.outcome === "held" && (
-            <Button variant="secondary" disabled={busy} onClick={() => void refund()}>
-              {busy ? "Refunding…" : "Refund the payer"}
-            </Button>
-          )}
+          <Badge variant={tone}>{status}</Badge>
         </div>
 
         <dl className="flex flex-col px-4">
@@ -144,13 +137,18 @@ export function EscrowPanel({ id, chain }: { readonly id: string; readonly chain
         </dl>
 
         {(data.outcome === "held" || error !== undefined) && (
-          <div className="flex flex-col gap-1 border-t border-border p-4">
+          <div className="flex flex-col gap-2 border-t border-border p-4">
             {error !== undefined && <p className="text-destructive text-sm">{error}</p>}
             {data.outcome === "held" && (
-              <p className="text-subtle-foreground text-xs">
-                Refunds are sent from your settlement wallet. For a managed Safe, connect its owner
-                wallet.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-subtle-foreground text-xs">
+                  Refunds are sent from your settlement wallet. For a managed Safe, connect its
+                  owner wallet.
+                </p>
+                <Button variant="secondary" disabled={busy} onClick={() => void refund()}>
+                  {busy ? "Refunding…" : "Refund the payer"}
+                </Button>
+              </div>
             )}
           </div>
         )}
