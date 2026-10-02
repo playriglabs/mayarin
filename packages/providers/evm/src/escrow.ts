@@ -60,7 +60,13 @@ export const ESCROW_CHAINS: readonly ChainId[] = [
  * under v2 — with the merchant's bond, which may be zero — and under v1
  * everywhere else, so v2 rolls out one chain at a time.
  */
-export const ESCROW_V2_CHAINS: readonly ChainId[] = [];
+export const ESCROW_V2_CHAINS: readonly ChainId[] = [
+  "arbitrum-sepolia",
+  "robinhood-testnet",
+  "base-sepolia",
+  "ethereum-sepolia",
+  "arc-testnet",
+];
 
 export const ESCROW_FACTORY_ABI = parseAbi([
   "function release((bytes32 intentId, address payer, address payee, address arbiter, uint64 releaseAfter, uint64 resolveBy) terms, address token) returns (uint256)",

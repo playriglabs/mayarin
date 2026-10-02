@@ -3,7 +3,7 @@ import { BasisPointsFeePolicy } from "@mayarin/clearing";
 import { FixedPriceOracle } from "@mayarin/clearing/testing";
 import { priceSourceOf } from "@mayarin/execution";
 import { FixedSwapVenue } from "@mayarin/execution/testing";
-import { ESCROW_FACTORY, escrowAddress } from "@mayarin/provider-evm";
+import { ESCROW_FACTORY_V2, escrowAddress } from "@mayarin/provider-evm";
 import { QuoteEngine } from "@mayarin/quote";
 import { FakeOrderSigner } from "@mayarin/quote/testing";
 import { ConfigurationError, FixedClock, money, ValidationError } from "@mayarin/shared";
@@ -263,13 +263,15 @@ describe("conditional settlement (#304)", () => {
     const escrow = lock.order.escrow;
 
     expect(escrow).toEqual({
-      factory: ESCROW_FACTORY,
+      // A v2 chain (#315): every new escrow carries a bond, zero when none is set.
+      factory: ESCROW_FACTORY_V2,
       payer: PAYER,
       payee: MERCHANT_SAFE,
       arbiter: getAddress(ARBITER),
       releaseAfter: BigInt(NOW.getTime() / 1_000 + 7 * 24 * 60 * 60),
       // The arbiter's window, after which an open dispute refunds the payer.
       resolveBy: BigInt(NOW.getTime() / 1_000 + 14 * 24 * 60 * 60),
+      bond: 0n,
     });
     if (escrow === undefined) throw new Error("unreachable");
     expect(lock.order.merchantSafe).toBe(
@@ -277,6 +279,15 @@ describe("conditional settlement (#304)", () => {
     );
     expect(lock.order.merchantSafe).not.toBe(MERCHANT_SAFE);
     expect(lock.order.refundTo).toBe(PAYER);
+  });
+
+  test("fixes the bond at the lock as a share of what reaches the escrow (#315)", async () => {
+    const { planner } = createPlanner();
+
+    const lock = await planner.lock({ ...escrowed, escrow: { ...escrowed.escrow, bondBps: 500 } });
+
+    expect(lock.order.escrow?.bond).toBe(((lock.order.minOut - lock.order.fee) * 500n) / 10_000n);
+    expect(lock.order.escrow?.bond).toBeGreaterThan(0n);
   });
 
   test("an ordinary payment carries no escrow", async () => {

@@ -210,7 +210,8 @@ payee with the payment.
 
 - **Address.** Same deterministic deployer, salt `mayarin.escrow-factory.v2`:
   `0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18` on every chain
-  (`scripts/DeployEscrowFactoryV2.s.sol`). `ESCROW_V2_CHAINS` in
+  (`scripts/DeployEscrowFactoryV2.s.sol`), deployed 2 Oct 2026 on Arbitrum
+  Sepolia, Robinhood testnet, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_V2_CHAINS` in
   `packages/providers/evm/src/escrow.ts` lists where it is deployed; a new
   escrow there is made under v2 (bond zero when the merchant sets none), and
   under v1 elsewhere.
