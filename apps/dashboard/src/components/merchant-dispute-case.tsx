@@ -79,7 +79,7 @@ function MerchantDisputeCase({ id }: { readonly id: string }) {
           <div className="grid gap-8 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-4">
             <section className="flex flex-col gap-3">
               <SectionHeader title="Conversation" />
-              <Card>
+              <Card className="flex-1">
                 <DisputeThread
                   messages={data.messages}
                   viewer="merchant"
@@ -92,7 +92,7 @@ function MerchantDisputeCase({ id }: { readonly id: string }) {
 
             <section className="flex flex-col gap-3">
               <SectionHeader title="Case" />
-              <Card className="gap-0 p-0">
+              <Card className="flex-1 gap-0 p-0">
                 <div className="flex items-start justify-between gap-3 border-b border-border p-4">
                   <div className="flex flex-col gap-1">
                     <p className="font-medium text-foreground text-sm">{OUTCOME[escrow.outcome]}</p>
