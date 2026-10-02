@@ -151,7 +151,7 @@ const paymentIntentSchema = z
     escrow: z
       .object({ holdSeconds: z.number().int(), arbiter: z.string().optional() })
       .nullable()
-      .describe("Conditional settlement terms; null for an ordinary payment."),
+      .describe("Buyer-protection escrow terms; null for an ordinary payment."),
     source: z.string(),
     metadata: z.record(z.string(), z.string()),
     merchantReference: z.string().nullable(),
@@ -296,6 +296,9 @@ const escrowSchema = z
       releaseAfter: z
         .string()
         .describe("ISO time after which an undisputed escrow is releasable by anyone."),
+      resolveBy: z
+        .string()
+        .describe("ISO time at which a dispute nobody decided refunds the payer."),
     }),
     outcome: z.enum(["held", "released", "refunded"]),
     disputed: z.boolean(),

@@ -105,6 +105,19 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
       ...(body.settlementAddress === undefined
         ? {}
         : { settlementAddress: body.settlementAddress }),
+      ...(body.buyerProtection === undefined
+        ? {}
+        : {
+            buyerProtection:
+              body.buyerProtection === null
+                ? null
+                : {
+                    holdSeconds: body.buyerProtection.holdSeconds,
+                    ...(body.buyerProtection.arbiter === undefined
+                      ? {}
+                      : { arbiter: body.buyerProtection.arbiter }),
+                  },
+          }),
       ...(body.city === undefined ? {} : { city: body.city }),
       ...(body.countryCode === undefined ? {} : { countryCode: body.countryCode }),
     });

@@ -1,4 +1,4 @@
-import type { MerchantRef, MoneyDto, Rail } from "../../shared/types.ts";
+import type { MerchantRef, MoneyDto, Protection, Rail } from "../../shared/types.ts";
 
 export interface InvoiceLine {
   readonly name: string;
@@ -33,6 +33,8 @@ export interface InvoicePaymentRecord {
 
 /** The invoice page: a document on screen, and the same document on paper. */
 export interface InvoiceBootstrap {
+  /** Buyer protection the merchant offers (#304); the buyer opts in by connecting a wallet. */
+  readonly protection: Protection | null;
   readonly page: "invoice";
   readonly invoiceId: string;
   readonly number: string | null;

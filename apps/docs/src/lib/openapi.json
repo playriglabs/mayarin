@@ -203,7 +203,7 @@
             "required": [
               "holdSeconds"
             ],
-            "description": "Conditional settlement terms; null for an ordinary payment."
+            "description": "Buyer-protection escrow terms; null for an ordinary payment."
           },
           "source": {
             "type": "string"
@@ -740,6 +740,10 @@
               "releaseAfter": {
                 "type": "string",
                 "description": "ISO time after which an undisputed escrow is releasable by anyone."
+              },
+              "resolveBy": {
+                "type": "string",
+                "description": "ISO time at which a dispute nobody decided refunds the payer."
               }
             },
             "required": [
@@ -747,7 +751,8 @@
               "payer",
               "payee",
               "arbiter",
-              "releaseAfter"
+              "releaseAfter",
+              "resolveBy"
             ]
           },
           "outcome": {
@@ -2062,7 +2067,10 @@
                     ]
                   },
                   "escrow": {
-                    "type": "object",
+                    "type": [
+                      "object",
+                      "null"
+                    ],
                     "properties": {
                       "holdSeconds": {
                         "type": "integer",

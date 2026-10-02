@@ -18,6 +18,7 @@ contract EscrowTest is Test {
     address internal stranger = makeAddr("stranger");
 
     uint64 internal constant HOLD_ENDS = 1_000_000;
+    uint64 internal constant RESOLVE_BY = HOLD_ENDS + 7 days;
     uint256 internal constant AMOUNT = 25_000_000;
 
     function setUp() public {
@@ -32,7 +33,8 @@ contract EscrowTest is Test {
             payer: payer,
             payee: payee,
             arbiter: arbiter_,
-            releaseAfter: HOLD_ENDS
+            releaseAfter: HOLD_ENDS,
+            resolveBy: RESOLVE_BY
         });
     }
 
@@ -67,6 +69,9 @@ contract EscrowTest is Test {
         t = _terms(arbiter);
         t.releaseAfter = HOLD_ENDS + 1;
         assertTrue(factory.escrowAddress(t) != original, "releaseAfter");
+        t = _terms(arbiter);
+        t.resolveBy = RESOLVE_BY + 1;
+        assertTrue(factory.escrowAddress(t) != original, "resolveBy");
         t = _terms(arbiter);
         t.intentId = keccak256("intent-2");
         assertTrue(factory.escrowAddress(t) != original, "intentId");
@@ -220,23 +225,65 @@ contract EscrowTest is Test {
         assertEq(usdc.balanceOf(payee), AMOUNT);
     }
 
-    function test_no_arbiter_means_a_dispute_waits_for_the_parties() public {
+    function test_without_an_arbiter_a_dispute_waits_until_resolve_by() public {
         EscrowFactory.Terms memory terms = _terms(address(0));
         _fund(terms);
 
         vm.prank(payer);
         factory.dispute(terms);
 
-        // address(0) can never be msg.sender, but the explicit check keeps the
-        // rule readable rather than relying on that.
-        vm.warp(HOLD_ENDS + 1);
+        vm.warp(RESOLVE_BY - 1);
+        vm.prank(stranger);
+        vm.expectRevert(EscrowFactory.NotAllowed.selector);
+        factory.refund(terms, IERC20(address(usdc)));
         vm.prank(stranger);
         vm.expectRevert(EscrowFactory.NotAllowed.selector);
         factory.release(terms, IERC20(address(usdc)));
 
-        vm.prank(payee);
+        vm.warp(RESOLVE_BY);
+        vm.prank(stranger);
         factory.refund(terms, IERC20(address(usdc)));
         assertEq(usdc.balanceOf(payer), AMOUNT);
+    }
+
+    function test_an_unresolved_dispute_refunds_the_payer_by_default() public {
+        EscrowFactory.Terms memory terms = _terms(arbiter);
+        _fund(terms);
+        vm.prank(payer);
+        factory.dispute(terms);
+
+        vm.warp(RESOLVE_BY);
+        // The arbiter's window is over; the default is the buyer's.
+        vm.prank(arbiter);
+        vm.expectRevert(EscrowFactory.NotAllowed.selector);
+        factory.release(terms, IERC20(address(usdc)));
+
+        vm.prank(stranger);
+        factory.refund(terms, IERC20(address(usdc)));
+        assertEq(usdc.balanceOf(payer), AMOUNT);
+    }
+
+    function test_the_payee_cannot_arbitrate_its_own_dispute() public {
+        EscrowFactory.Terms memory terms = _terms(payee);
+        _fund(terms);
+        vm.prank(payer);
+        factory.dispute(terms);
+
+        // As payee it may still refund, but it cannot release a disputed escrow.
+        vm.prank(payee);
+        vm.expectRevert(EscrowFactory.NotAllowed.selector);
+        factory.release(terms, IERC20(address(usdc)));
+    }
+
+    function test_the_payer_cannot_arbitrate_its_own_dispute() public {
+        EscrowFactory.Terms memory terms = _terms(payer);
+        _fund(terms);
+        vm.prank(payer);
+        factory.dispute(terms);
+
+        vm.prank(payer);
+        vm.expectRevert(EscrowFactory.NotAllowed.selector);
+        factory.refund(terms, IERC20(address(usdc)));
     }
 
     // ------------------------------------------------------------------

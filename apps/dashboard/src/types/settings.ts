@@ -21,6 +21,8 @@ export interface SettingsDto {
   readonly acceptedAssetsByChain: Readonly<Record<string, readonly string[]>>;
   /** What the merchant chose. `null` is "not chosen", not "nowhere to pay". */
   readonly settlementAddress: string | null;
+  /** Buyer protection (#304); `null` is off. */
+  readonly buyerProtection: { readonly holdSeconds: number; readonly arbiter?: string } | null;
   /** Where the money actually goes: the choice, or the managed wallet. */
   readonly effectiveSettlementAddress: string | null;
   readonly city: string | null;
@@ -58,6 +60,8 @@ export interface UpdateSettingsRequest {
   readonly acceptedAssetsByChain?: Readonly<Record<string, readonly string[]>>;
   /** `null` clears it; an absent field leaves it alone. */
   readonly settlementAddress?: string | null;
+  /** `null` turns buyer protection off. */
+  readonly buyerProtection?: { readonly holdSeconds: number; readonly arbiter?: string } | null;
   readonly city?: string | null;
   readonly countryCode?: string | null;
 }

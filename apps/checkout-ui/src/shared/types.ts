@@ -39,6 +39,22 @@ export interface Rail {
   readonly standing?: "healthy" | "degraded" | "unobserved";
 }
 
+/**
+ * Buyer protection on offer (#304), as the API states it. `required` when the
+ * merchant asked for escrow on this one payment; otherwise the buyer opts in
+ * by connecting a wallet.
+ */
+export interface Protection {
+  readonly holdSeconds: number;
+  /** After the hold, how long the arbiter has before an open dispute refunds the buyer. */
+  readonly arbitrationSeconds: number;
+  /** "Mayarin Resolution", a shortened address, or "no one". */
+  readonly arbiterLabel: string;
+  /** Chains with an escrow factory; protection applies on these only. */
+  readonly chains: readonly string[];
+  readonly required: boolean;
+}
+
 export interface MerchantRef {
   readonly name: string;
   readonly city: string;

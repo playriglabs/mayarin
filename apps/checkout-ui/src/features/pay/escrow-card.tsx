@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { shortAddress } from "../../shared/buyer-protection.tsx";
 import { connectWallet, sendCall } from "../../shared/wallet.ts";
-import { shortAddress } from "./choose-rail.tsx";
 import type { EscrowPayload } from "./types.ts";
 
 /**
@@ -71,11 +71,12 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       {escrow.outcome === "held" && (
         <p>
           {escrow.disputed
-            ? "The automatic release is stopped. The merchant can refund you"
-            : `Releases to the merchant automatically on ${releaseAfter.toLocaleString()}`}
-          {escrow.disputed && escrow.terms.arbiter !== ZERO_ADDRESS
-            ? ", or the arbiter decides."
-            : "."}
+            ? `The automatic release is stopped. ${
+                escrow.terms.arbiter === ZERO_ADDRESS
+                  ? ""
+                  : "The arbiter decides, or the merchant refunds you; "
+              }if nothing is decided by ${new Date(escrow.terms.resolveBy).toLocaleString()}, you are refunded.`
+            : `Releases to the merchant automatically on ${releaseAfter.toLocaleString()}.`}
         </p>
       )}
       {escrow.outcome === "held" && (

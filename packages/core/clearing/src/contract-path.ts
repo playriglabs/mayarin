@@ -49,7 +49,7 @@ export interface ContractOrder {
   /**
    * Present when `merchantSafe` is an escrow (#304). Unsigned by the router —
    * the terms are bound by the escrow address itself, which is
-   * `EscrowFactory.escrowAddress(intentId, payer, payee, arbiter, releaseAfter)`.
+   * `EscrowFactory.escrowAddress(intentId, payer, payee, arbiter, releaseAfter, resolveBy)`.
    */
   readonly escrow?: ContractEscrow;
 }
@@ -75,6 +75,8 @@ export interface ContractEscrow {
   readonly arbiter: string;
   /** Unix seconds after which an undisputed escrow is releasable by anyone. */
   readonly releaseAfter: bigint;
+  /** Unix seconds after which a still-disputed escrow refunds the payer. */
+  readonly resolveBy: bigint;
 }
 
 /** Everything `lock` freezes: the price, the signed order, and the display leg. */

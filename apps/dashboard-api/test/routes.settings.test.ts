@@ -185,6 +185,32 @@ describe("PATCH /settings", () => {
     });
   });
 
+  test("buyer protection turns on and off, and refuses a hold under a day (#304)", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const on = await patch(harness, auth, { buyerProtection: { holdSeconds: 7 * 86_400 } });
+    expect(on.status).toBe(200);
+    expect(on.body?.settings.buyerProtection).toEqual({ holdSeconds: 7 * 86_400 });
+
+    const short = await patch(harness, auth, { buyerProtection: { holdSeconds: 3_600 } });
+    expect(short.status).toBe(400);
+
+    const off = await patch(harness, auth, { buyerProtection: null });
+    expect(off.body?.settings.buyerProtection).toBeNull();
+  });
+
+  test("the merchant cannot arbitrate its own buyer protection (#304)", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    await patch(harness, auth, { settlementAddress: ADDRESS });
+
+    const { status } = await patch(harness, auth, {
+      buyerProtection: { holdSeconds: 7 * 86_400, arbiter: ADDRESS },
+    });
+    expect(status).toBe(400);
+  });
+
   test("a three-letter country code is refused", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);

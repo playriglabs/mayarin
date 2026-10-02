@@ -73,6 +73,7 @@ import {
 import {
   type ChainClients,
   Create2DepositAddressDeriver,
+  ESCROW_CHAINS,
   EvmChainClient,
   EvmContractCodeReader,
   EvmCrossAssetSettler,
@@ -693,6 +694,8 @@ export function createContainer({
     // A merchant's own settlement asset outranks `config.settlementAsset`,
     // which stays as the fallback for a merchant that has not chosen one.
     merchantPolicies,
+    // Buyer protection applies only where an escrow factory is deployed.
+    escrowChains: ESCROW_CHAINS,
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
@@ -794,6 +797,7 @@ export function createContainer({
           // it, rather than finding out at their first payment that a settings
           // field nobody mentioned was load-bearing.
           settlementAddresses,
+          ...(config.escrowArbiter === undefined ? {} : { escrowArbiter: config.escrowArbiter }),
           clock,
         })
       : undefined;

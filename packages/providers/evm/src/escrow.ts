@@ -23,19 +23,25 @@ import {
   zeroAddress,
 } from "viem";
 
-export const ESCROW_FACTORY = "0xd56E903c8E31953a0cD1c2f691f55A0e2b41A95F";
+export const ESCROW_FACTORY = "0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45";
 
 /** `EscrowFactory.INIT_CODE_HASH()` — keccak of `EscrowVault`'s creation code. */
 export const ESCROW_VAULT_INIT_CODE_HASH =
   "0x670f4e5d0d7a9aae5bef60b138a4473f8006ec857ae11dd2f908bdd9e2238e72";
 
+/**
+ * How long the arbiter has to decide a dispute once the hold has ended. A
+ * dispute still open after it refunds the payer — the card-chargeback default.
+ */
+export const ESCROW_ARBITRATION_SECONDS = 7 * 24 * 60 * 60;
+
 /** Chains `EscrowFactory` is deployed on. An escrowed payment anywhere else is refused. */
 export const ESCROW_CHAINS: readonly ChainId[] = ["arbitrum-sepolia", "robinhood-testnet"];
 
 export const ESCROW_FACTORY_ABI = parseAbi([
-  "function release((bytes32 intentId, address payer, address payee, address arbiter, uint64 releaseAfter) terms, address token) returns (uint256)",
-  "function refund((bytes32 intentId, address payer, address payee, address arbiter, uint64 releaseAfter) terms, address token) returns (uint256)",
-  "function dispute((bytes32 intentId, address payer, address payee, address arbiter, uint64 releaseAfter) terms)",
+  "function release((bytes32 intentId, address payer, address payee, address arbiter, uint64 releaseAfter, uint64 resolveBy) terms, address token) returns (uint256)",
+  "function refund((bytes32 intentId, address payer, address payee, address arbiter, uint64 releaseAfter, uint64 resolveBy) terms, address token) returns (uint256)",
+  "function dispute((bytes32 intentId, address payer, address payee, address arbiter, uint64 releaseAfter, uint64 resolveBy) terms)",
   "function disputed(bytes32 salt) view returns (bool)",
   "function outcome(bytes32 salt) view returns (uint8)",
 ]);
@@ -48,8 +54,10 @@ export interface EscrowTerms {
   readonly payee: string;
   /** `0x000…0` for no arbiter. */
   readonly arbiter: string;
-  /** Unix seconds. */
+  /** Unix seconds after which an undisputed escrow is releasable by anyone. */
   readonly releaseAfter: bigint;
+  /** Unix seconds after which a still-disputed escrow refunds the payer. */
+  readonly resolveBy: bigint;
 }
 
 function onChainTerms(terms: EscrowTerms) {
@@ -59,6 +67,7 @@ function onChainTerms(terms: EscrowTerms) {
     payee: getAddress(terms.payee),
     arbiter: getAddress(terms.arbiter),
     releaseAfter: terms.releaseAfter,
+    resolveBy: terms.resolveBy,
   };
 }
 
@@ -73,8 +82,9 @@ export function escrowSalt(terms: EscrowTerms): `0x${string}` {
         { type: "address" },
         { type: "address" },
         { type: "uint64" },
+        { type: "uint64" },
       ],
-      [t.intentId, t.payer, t.payee, t.arbiter, t.releaseAfter],
+      [t.intentId, t.payer, t.payee, t.arbiter, t.releaseAfter, t.resolveBy],
     ),
   );
 }

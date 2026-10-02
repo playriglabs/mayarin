@@ -84,7 +84,9 @@ export const createBodySchema = z
     executionPath: z.enum(EXECUTION_PATHS).optional(),
     /**
      * Conditional settlement (#304): settle into escrow, releasable by the payer
-     * at once or by anyone after `holdSeconds` unless disputed. Contract path only.
+     * at once or by anyone after `holdSeconds` (1–90 days) unless disputed. Needs
+     * the payer's wallet on the rail; not on x402. Omitted: the merchant's buyer
+     * protection applies when the payer connects a wallet. `null`: never.
      */
     escrow: z
       .object({
@@ -94,6 +96,8 @@ export const createBodySchema = z
           .regex(/^0x[0-9a-fA-F]{40}$/)
           .optional(),
       })
+      // `null` opts this payment out of the merchant's buyer protection.
+      .nullable()
       .optional(),
     provider: z.string().min(1).optional(),
     metadata: z.record(z.string(), z.string()).optional(),

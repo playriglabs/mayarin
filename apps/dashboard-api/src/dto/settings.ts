@@ -59,6 +59,22 @@ export const updateSettingsBodySchema = z
       ])
       .optional(),
     /**
+     * Buyer protection (#304): hold a payer's payment in escrow when they pay
+     * from a connected wallet. `null` turns it off. `arbiter` replaces Mayarin
+     * Resolution; it cannot be the merchant's own settlement address.
+     */
+    buyerProtection: z
+      .object({
+        holdSeconds: z.number().int(),
+        arbiter: z
+          .string()
+          .regex(/^0x[0-9a-fA-F]{40}$/, "An arbiter must be a 20-byte hex address")
+          .optional(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
+    /**
      * Merchant profile (#15). Frozen into the snapshot every payment link and
      * intent carries, so it is edited here and nowhere a buyer can reach.
      */
@@ -98,6 +114,8 @@ export function toSettingsDto(merchant: Merchant, effectiveSettlementAddress?: s
     acceptedAssetsByChain: merchant.acceptedAssetsByChain ?? {},
     /** What the merchant chose. `null` is "not chosen", not "nowhere to pay". */
     settlementAddress: merchant.settlementAddress ?? null,
+    /** Buyer protection (#304); `null` is off. */
+    buyerProtection: merchant.buyerProtection ?? null,
     city: merchant.city ?? null,
     countryCode: merchant.countryCode ?? null,
     /**

@@ -1,4 +1,4 @@
-import type { LineItem, MerchantRef, MoneyDto, Rail } from "../../shared/types.ts";
+import type { LineItem, MerchantRef, MoneyDto, Protection, Rail } from "../../shared/types.ts";
 
 /** What the payer chooses from, for an intent minted without a rail. */
 export interface RailChoice {
@@ -25,11 +25,10 @@ export interface PayBootstrap {
    * `null` once a rail is chosen: the page then shows the payment itself.
    */
   readonly choice: RailChoice | null;
-  /**
-   * Present when the payment settles into escrow (#304): the payer names the
-   * wallet they will release from, and the paid page shows the hold.
-   */
-  readonly escrow: { readonly holdSeconds: number } | null;
+  /** Buyer protection on offer while the rail is being chosen (#304). */
+  readonly protection: Protection | null;
+  /** The payment settles into escrow: the paid page shows the hold. */
+  readonly escrowed: boolean;
 }
 
 /** `GET /v1/payments/:id/escrow`, as far as this page reads it. */
@@ -42,6 +41,8 @@ export interface EscrowPayload {
     readonly arbiter: string;
     /** ISO time after which an undisputed escrow is releasable by anyone. */
     readonly releaseAfter: string;
+    /** ISO time at which a still-open dispute refunds the payer. */
+    readonly resolveBy: string;
   };
   readonly outcome: "held" | "released" | "refunded";
   readonly disputed: boolean;

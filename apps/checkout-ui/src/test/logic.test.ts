@@ -53,6 +53,7 @@ describe("payment status deposit", () => {
 function linkBootstrap(overrides: Partial<LinkBootstrap> = {}): LinkBootstrap {
   return {
     page: "link",
+    protection: null,
     linkId: "plk_1",
     kind: "fixed",
     title: "Paket",

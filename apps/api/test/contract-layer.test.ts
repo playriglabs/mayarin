@@ -31,6 +31,7 @@ function createPlanner(
   settlementAddresses?: SettlementAddressResolver,
   relayerGasFeeBasisPoints = 10,
   feeMinimum = "0",
+  escrowArbiter?: string,
 ) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
@@ -89,6 +90,7 @@ function createPlanner(
     },
     ...(wallets === undefined ? {} : { wallets }),
     ...(settlementAddresses === undefined ? {} : { settlementAddresses }),
+    ...(escrowArbiter === undefined ? {} : { escrowArbiter }),
     clock,
   });
   return { planner, venue, signer, clock };
@@ -266,6 +268,8 @@ describe("conditional settlement (#304)", () => {
       payee: MERCHANT_SAFE,
       arbiter: getAddress(ARBITER),
       releaseAfter: BigInt(NOW.getTime() / 1_000 + 7 * 24 * 60 * 60),
+      // The arbiter's window, after which an open dispute refunds the payer.
+      resolveBy: BigInt(NOW.getTime() / 1_000 + 14 * 24 * 60 * 60),
     });
     if (escrow === undefined) throw new Error("unreachable");
     expect(lock.order.merchantSafe).toBe(
@@ -282,6 +286,27 @@ describe("conditional settlement (#304)", () => {
 
     expect(lock.order.escrow).toBeUndefined();
     expect(lock.order.merchantSafe).toBe(MERCHANT_SAFE);
+  });
+
+  test("names Mayarin Resolution when the merchant names no arbiter", async () => {
+    const RESOLUTION = "0x000000000000000000000000000000000000d15c";
+    const { planner } = createPlanner(MERCHANT_SAFE, undefined, undefined, 10, "0", RESOLUTION);
+    const { arbiter: _arbiter, ...noArbiter } = escrowed.escrow;
+
+    const lock = await planner.lock({ ...escrowed, escrow: noArbiter });
+
+    expect(lock.order.escrow?.arbiter).toBe(getAddress(RESOLUTION));
+  });
+
+  test("refuses an arbiter who is the merchant or the payer", async () => {
+    const { planner, signer } = createPlanner();
+
+    for (const arbiter of [MERCHANT_SAFE.toLowerCase(), PAYER]) {
+      await expect(
+        planner.lock({ ...escrowed, escrow: { ...escrowed.escrow, arbiter } }),
+      ).rejects.toThrow(ValidationError);
+    }
+    expect(signer.calls).toHaveLength(0);
   });
 
   test("a chain without the escrow factory is refused before signing", async () => {

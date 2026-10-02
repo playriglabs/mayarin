@@ -371,6 +371,9 @@
   .escrow-wallet {
     @apply mb-0!;
   }
+  button.link-button {
+    @apply ml-1 border-0 bg-transparent p-0 text-xs text-muted underline;
+  }
   .escrow-card {
     @apply mt-6 w-full rounded-panel border border-line p-4.5 text-left;
   }

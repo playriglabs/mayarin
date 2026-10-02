@@ -2,6 +2,7 @@ import { chainLabel } from "@mayarin/chain";
 import clsx from "clsx";
 import { useState } from "react";
 import { Brand } from "../../shared/brand.tsx";
+import { BuyerProtection, railBody } from "../../shared/buyer-protection.tsx";
 import { PoweredBy } from "../../shared/powered-by.tsx";
 import { RailMark } from "../../shared/rail-mark.tsx";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
@@ -22,6 +23,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [rail, setRail] = useState(bootstrap.rails[0]);
+  const [payerAddress, setPayerAddress] = useState<string | null>(null);
 
   // The outstanding balance in the asset the payer picked, from the same rate
   // source the lock reads — so "Pay Rp 49.000" also says how much PYUSD that is.
@@ -41,7 +43,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          payment: { asset: rail.asset, chain: rail.chain },
+          payment: railBody(rail, bootstrap.protection, payerAddress),
           executionPath: "deposit-match",
         }),
       });
@@ -194,6 +196,13 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
               {estimate.message}
             </p>
           )}
+
+          <BuyerProtection
+            protection={bootstrap.protection}
+            rail={rail}
+            payerAddress={payerAddress}
+            onPayerAddress={setPayerAddress}
+          />
 
           <p className="checkout-note">
             The exact amount is locked on the next step, and you send{" "}

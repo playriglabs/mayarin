@@ -148,13 +148,14 @@ export const clearingTransactions = pgTable(
     contractExpiresAt: timestamp("contract_expires_at", { withTimezone: true, mode: "date" }),
     contractTxHash: text("contract_tx_hash"),
     // Escrow terms (#304) when `contract_merchant_safe` is an escrow address.
-    // `releaseAfter` is unix seconds as a decimal string — jsonb has no bigint.
+    // `releaseAfter` and `resolveBy` are unix seconds as decimal strings — jsonb has no bigint.
     contractEscrow: jsonb("contract_escrow").$type<{
       factory: string;
       payer: string;
       payee: string;
       arbiter: string;
       releaseAfter: string;
+      resolveBy: string;
     }>(),
 
     // What `PaymentCompleted` reported (#12). Kept beside the locked figures
@@ -398,6 +399,8 @@ export const merchants = pgTable(
       .default({}),
     /** Where the merchant is paid on-chain — the order's `merchantSafe`. */
     settlementAddress: text("settlement_address"),
+    /** Buyer protection (#304). Null: off. */
+    buyerProtection: jsonb("buyer_protection").$type<{ holdSeconds: number; arbiter?: string }>(),
     /** Merchant profile, frozen into every intent's snapshot. */
     city: text("city"),
     /** ISO 3166-1 alpha-2, uppercase. */

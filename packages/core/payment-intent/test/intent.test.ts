@@ -209,8 +209,8 @@ describe("escrow (#304)", () => {
     expect(createPaymentIntent(input({ escrow })).escrow).toEqual(escrow);
   });
 
-  test("refuses a hold that is not a positive whole number of seconds, or longer than 90 days", () => {
-    for (const holdSeconds of [0, -1, 1.5, 91 * 24 * 60 * 60]) {
+  test("refuses a hold shorter than a day, longer than 90 days, or fractional", () => {
+    for (const holdSeconds of [0, -1, 3_600, 86_400.5, 91 * 24 * 60 * 60]) {
       expect(() => createPaymentIntent(input({ escrow: { holdSeconds } }))).toThrow(
         ValidationError,
       );

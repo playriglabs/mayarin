@@ -37,6 +37,7 @@ import type { MerchantAssetPolicySource, PaymentIntentService } from "@mayarin/p
 import {
   buildPayEthCall,
   deriveIntentId,
+  ESCROW_ARBITRATION_SECONDS,
   ESCROW_CHAINS,
   ESCROW_FACTORY,
   escrowAddress,
@@ -117,6 +118,8 @@ export interface ContractLayerOptions {
    * to fall back to, and then an unset address is still a refusal.
    */
   readonly settlementAddresses?: SettlementAddressResolver;
+  /** Mayarin Resolution: the arbiter an escrow names when the merchant names none (#304). */
+  readonly escrowArbiter?: string;
   readonly clock: Clock;
 }
 
@@ -321,12 +324,24 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         intentId,
       });
     }
+    const { payer } = request.escrow;
+    const arbiter = escrowArbiter(request.escrow.arbiter ?? this.#options.escrowArbiter);
+    // The contract ignores such an arbiter anyway; refusing here means the payer
+    // is never shown terms whose dispute path cannot work as described.
+    if (sameAddress(arbiter, payer) || sameAddress(arbiter, payee)) {
+      throw new ValidationError("An escrow's arbiter cannot be its payer or its merchant", {
+        intentId,
+        arbiter,
+      });
+    }
+    const releaseAfter = Math.floor(now.getTime() / 1_000) + request.escrow.holdSeconds;
     return {
       factory: ESCROW_FACTORY,
-      payer: request.escrow.payer,
+      payer,
       payee,
-      arbiter: escrowArbiter(request.escrow.arbiter),
-      releaseAfter: BigInt(Math.floor(now.getTime() / 1_000) + request.escrow.holdSeconds),
+      arbiter,
+      releaseAfter: BigInt(releaseAfter),
+      resolveBy: BigInt(releaseAfter + ESCROW_ARBITRATION_SECONDS),
     };
   }
 
@@ -659,4 +674,8 @@ export function createRouteSources(
     // LiFi is price-only by design (#57): no exact-output API, no route source.
   }
   return sources;
+}
+
+function sameAddress(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
 }

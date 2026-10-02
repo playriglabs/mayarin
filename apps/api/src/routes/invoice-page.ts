@@ -21,6 +21,7 @@ import { toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
 import { payerRails } from "../rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
+import { type ProtectionOffer, protectionOffer } from "../services/protection.ts";
 
 export function invoicePageRoutes(container: Container): Hono {
   const app = new Hono();
@@ -40,6 +41,7 @@ export function invoicePageRoutes(container: Container): Hono {
           view,
           `${origin}/v1/invoices/${view.invoice.id}/checkout`,
           await payerRails(container, report.rails),
+          await protectionOffer(container, view.invoice.merchantId, undefined),
         ),
       ),
     );
@@ -54,7 +56,12 @@ export function invoicePageRoutes(container: Container): Hono {
  * Line totals are computed here, not in the browser: money is bigint minor
  * units, and the SPA renders `display` strings without ever doing arithmetic.
  */
-function invoiceBootstrap(view: InvoiceView, checkoutUrl: string, rails: readonly RailDto[]) {
+function invoiceBootstrap(
+  view: InvoiceView,
+  checkoutUrl: string,
+  rails: readonly RailDto[],
+  protection: ProtectionOffer | null,
+) {
   const { invoice, status, paid, outstanding, payments } = view;
   return {
     page: "invoice",
@@ -85,6 +92,7 @@ function invoiceBootstrap(view: InvoiceView, checkoutUrl: string, rails: readonl
     dueAt: invoice.dueAt?.toISOString() ?? null,
     payable: status !== "void" && status !== "draft" && outstanding.amount > 0n,
     rails,
+    protection,
     /**
      * What was paid, and on what. A paid document that names only a figure
      * makes a buyer open a block explorer to answer "did my USDC on Arc land

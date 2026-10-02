@@ -1,3 +1,4 @@
+import { railBody } from "../../shared/buyer-protection.tsx";
 import type { Rail } from "../../shared/types.ts";
 import type { LinkBootstrap } from "./types.ts";
 
@@ -18,6 +19,8 @@ export function checkoutBody(
   bootstrap: LinkBootstrap,
   typedAmount: string,
   rail: Rail | undefined,
+  /** The wallet a buyer connected to take up the merchant's protection (#304). */
+  payerAddress: string | null = null,
 ): Record<string, unknown> {
   return {
     ...(bootstrap.total !== null || bootstrap.currency === null
@@ -26,7 +29,7 @@ export function checkoutBody(
     ...(rail === undefined
       ? {}
       : {
-          payment: { asset: rail.asset, chain: rail.chain },
+          payment: railBody(rail, bootstrap.protection, payerAddress),
           executionPath: "deposit-match",
         }),
   };

@@ -1,37 +1,37 @@
 ---
-title: Escrow
-description: Hold a payment until the buyer confirms delivery, then release it to you automatically.
+title: Buyer protection (escrow)
+description: Hold a payment until the buyer confirms delivery, with rules that are fair to both sides.
 ---
 
-An **escrowed payment** does not go straight to your settlement wallet. It settles into an escrow address that only moves when a condition holds:
+With buyer protection, a payment does not go straight to your settlement wallet. It settles into an escrow address and moves on only when a condition holds:
 
-| Who            | What they can do                               | When                                 |
-| -------------- | ---------------------------------------------- | ------------------------------------ |
-| The buyer      | Release the funds to you                       | Any time                             |
-| Anyone         | Release the funds to you                       | After the hold ends, if not disputed |
-| You            | Refund the buyer                               | Any time                             |
-| The buyer      | Open a dispute, which stops the auto-release   | Before the hold ends                 |
-| Your arbiter   | Release or refund a disputed payment           | After a dispute                      |
+| Who          | Can                                       | When                                   |
+| ------------ | ----------------------------------------- | -------------------------------------- |
+| The buyer    | Release the funds to you                  | Any time                               |
+| Anyone       | Release the funds to you                  | After the hold, if nobody disputed     |
+| You          | Refund the buyer                          | Any time                               |
+| The buyer    | Open a dispute, stopping the auto-release | Before the hold ends                   |
+| The arbiter  | Release or refund a disputed payment      | Up to 7 days after the hold ends       |
+| Anyone       | Refund a dispute nobody decided           | From 7 days after the hold ends        |
 
-The escrow is a smart contract with no owner, no admin and no upgrade. Its terms — buyer, you, arbiter, end of the hold — are fixed by its address, so nobody can change them after the buyer has paid, Mayarin included.
+The escrow is a smart contract with no owner, no admin and no upgrade. Its terms are fixed by its address, so nobody can change them after the buyer pays — Mayarin included.
 
-Use it where the buyer pays before receiving anything: marketplaces, freelance work, pre-orders, or an agent paying for a job that has not run yet.
+## What keeps it fair
 
-```text
-buyer pays ──► PaymentRouter ──► escrow address (held)
-                                     │
-             buyer releases ─────────┼──► your settlement wallet
-             hold ends, no dispute ──┘
-             you refund ─────────────────► buyer's wallet
-```
+- **The hold is 1 to 90 days.** Long enough for the buyer to check the order, short enough that your money is not locked away.
+- **A neutral arbiter.** Disputes go to **Mayarin Resolution** unless you name another arbiter. The arbiter can only send the funds to you or to the buyer. It can never be you or the buyer.
+- **No dispute is stuck.** If the arbiter has not decided 7 days after the hold ends, the buyer is refunded — the same default as a card chargeback.
+- **The buyer sees every term** — hold, arbiter, deadline — before they pay.
 
-## Availability
+## Turn it on for every payment
 
-Escrow runs on **Arbitrum Sepolia** and **Robinhood Chain testnet**, on the deposit and wallet (contract) paths. It is not available on x402. The escrow factory is deployed at the same address on both chains: `0xd56E903c8E31953a0cD1c2f691f55A0e2b41A95F`.
+In the dashboard, open **Settings → Buyer protection**, tick it, and set the hold in days. Payment links, invoices and the hosted checkout then offer protection to the buyer.
 
-## 1. Create an escrowed payment
+The buyer **opts in by connecting a wallet** — the one they will release from. A buyer who pays from an exchange connects nothing and you are paid directly, as usual. Protection applies on **Arbitrum Sepolia** and **Robinhood Chain testnet**, and never on x402.
 
-Add `escrow` when you create the intent. `holdSeconds` is how long the buyer has to release or dispute, up to 90 days. `arbiter` is optional: an address you trust to decide disputes. Without one, a disputed payment waits for the buyer to release or for you to refund.
+## Require it for one payment
+
+Pass `escrow` when you create the intent. The buyer must then connect a wallet.
 
 ```ts
 const intent = await mayarin.payments.createIntent({
@@ -40,30 +40,27 @@ const intent = await mayarin.payments.createIntent({
   escrow: { holdSeconds: 7 * 24 * 60 * 60 },
 });
 
-// Send the buyer to the hosted checkout.
 const url = `https://pay.mayarin.xyz/checkout/pay/${intent.id}`;
 ```
 
-On the hosted checkout, the buyer picks a chain that supports escrow and connects the wallet they will release from. They can still pay from any wallet or exchange.
+Pass `escrow: null` to opt one payment out of your default.
 
-## 2. Watch the hold
-
-Once the payment completes, read the escrow from the payment:
+## Watch the hold
 
 ```ts
 const escrow = await mayarin.payments.getEscrow(intent.id);
 // escrow.outcome: "held" | "released" | "refunded"
-// escrow.disputed, escrow.terms.releaseAfter, escrow.balance
+// escrow.disputed, escrow.terms.releaseAfter, escrow.terms.resolveBy, escrow.balance
 ```
 
-The buyer sees the same state on their payment page, with **Release to merchant** and **Open a dispute** buttons.
+The buyer sees the same state on their payment page, with **Release to merchant** and **Open a dispute**.
 
-## 3. Refund, if you need to
+## Refund
 
-Open the payment in the dashboard and choose **Refund the payer**. Your settlement wallet sends the refund. For a Mayarin-managed Safe, connect its owner wallet.
-
-To refund from your own code, send `escrow.calls.refund` to `escrow.factory` from your settlement address.
+Open the payment in the dashboard and choose **Refund the payer**. Your settlement wallet sends it; for a Mayarin-managed Safe, connect its owner wallet. From code, send `escrow.calls.refund` to `escrow.factory` from your settlement address.
 
 ## Fees
 
-Mayarin's fee is taken when the payment settles into escrow, so a refund returns the amount that was held: the payment minus the fee.
+Mayarin's fee is taken when the payment settles into escrow, so a refund returns the amount held: the payment minus the fee.
+
+The escrow factory is `0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45` on every supported chain.

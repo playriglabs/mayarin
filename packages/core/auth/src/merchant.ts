@@ -77,6 +77,12 @@ export interface Merchant {
    */
   readonly settlementAddress?: string;
   /**
+   * Buyer protection (#304): when set, a payer who pays from a connected
+   * wallet has the payment held in escrow for `holdSeconds`. Absent: off.
+   * `arbiter` replaces Mayarin Resolution as the decider of disputes.
+   */
+  readonly buyerProtection?: BuyerProtection;
+  /**
    * Where the merchant trades, as a buyer is shown it.
    *
    * Part of the merchant snapshot every Payment Intent freezes, and an EMVCo
@@ -100,6 +106,15 @@ export interface Merchant {
    */
   readonly version: number;
 }
+
+export interface BuyerProtection {
+  readonly holdSeconds: number;
+  readonly arbiter?: string;
+}
+
+/** Same bounds the payment intent enforces: a day to a quarter. */
+const MIN_HOLD_SECONDS = 24 * 60 * 60;
+const MAX_HOLD_SECONDS = 90 * 24 * 60 * 60;
 
 export interface MerchantRepository {
   insert(merchant: Merchant): Promise<Merchant>;
@@ -141,6 +156,7 @@ export const MERCHANT_SETTING_FIELDS = [
   "acceptedAssets",
   "acceptedAssetsByChain",
   "settlementAddress",
+  "buyerProtection",
   "city",
   "countryCode",
 ] as const;
@@ -173,6 +189,8 @@ export interface MerchantSettingsPatch {
    * second.
    */
   readonly settlementAddress?: string | null;
+  /** `null` turns buyer protection off; absent leaves it alone. */
+  readonly buyerProtection?: BuyerProtection | null;
   /** Same `null`-clears-it rule as the address. */
   readonly city?: string | null;
   readonly countryCode?: string | null;
@@ -215,12 +233,25 @@ export function updateMerchantSettings(
         ? undefined
         : normaliseAddress(patch.settlementAddress);
 
+  const buyerProtection =
+    patch.buyerProtection === undefined
+      ? merchant.buyerProtection
+      : patch.buyerProtection === null
+        ? undefined
+        : normaliseBuyerProtection(patch.buyerProtection, settlementAddress);
+
   const city = patchOptional(patch.city, merchant.city, normaliseCity);
   const countryCode = patchOptional(patch.countryCode, merchant.countryCode, normaliseCountryCode);
 
   // Destructured away rather than spread over: `...merchant` would carry the
   // existing values through, so clearing one would silently leave it in place.
-  const { settlementAddress: _address, city: _city, countryCode: _country, ...rest } = merchant;
+  const {
+    settlementAddress: _address,
+    buyerProtection: _protection,
+    city: _city,
+    countryCode: _country,
+    ...rest
+  } = merchant;
 
   return {
     ...rest,
@@ -229,6 +260,7 @@ export function updateMerchantSettings(
     acceptedAssets,
     acceptedAssetsByChain,
     ...(settlementAddress === undefined ? {} : { settlementAddress }),
+    ...(buyerProtection === undefined ? {} : { buyerProtection }),
     ...(city === undefined ? {} : { city }),
     ...(countryCode === undefined ? {} : { countryCode }),
     updatedAt: new Date(now),
@@ -288,6 +320,16 @@ export function diffMerchantSettings(
     });
   }
 
+  const beforeProtection = renderBuyerProtection(before.buyerProtection);
+  const afterProtection = renderBuyerProtection(after.buyerProtection);
+  if (beforeProtection !== afterProtection) {
+    changes.push({
+      field: "buyerProtection",
+      ...(beforeProtection === undefined ? {} : { previous: beforeProtection }),
+      ...(afterProtection === undefined ? {} : { next: afterProtection }),
+    });
+  }
+
   for (const field of ["settlementAddress", "city", "countryCode"] as const) {
     if (before[field] === after[field]) continue;
     changes.push({
@@ -321,6 +363,38 @@ function normaliseAddress(value: string): string {
     throw new ValidationError("The zero address cannot receive settlement", {});
   }
   return lowered;
+}
+
+/**
+ * Validated here, at the setting, rather than at the first payment it would
+ * break. An arbiter cannot be the merchant's own settlement address: a party
+ * does not judge its own dispute.
+ */
+function normaliseBuyerProtection(
+  protection: BuyerProtection,
+  settlementAddress: string | undefined,
+): BuyerProtection {
+  const { holdSeconds } = protection;
+  if (
+    !Number.isInteger(holdSeconds) ||
+    holdSeconds < MIN_HOLD_SECONDS ||
+    holdSeconds > MAX_HOLD_SECONDS
+  ) {
+    throw new ValidationError("The buyer protection hold must be between 1 and 90 days", {
+      holdSeconds,
+    });
+  }
+  if (protection.arbiter === undefined) return { holdSeconds };
+  const arbiter = normaliseAddress(protection.arbiter);
+  if (arbiter === settlementAddress) {
+    throw new ValidationError("The arbiter cannot be your own settlement address", {});
+  }
+  return { holdSeconds, arbiter };
+}
+
+function renderBuyerProtection(protection: BuyerProtection | undefined): string | undefined {
+  if (protection === undefined) return undefined;
+  return `${protection.holdSeconds}s${protection.arbiter === undefined ? "" : ` arbiter ${protection.arbiter}`}`;
 }
 
 function normaliseCity(value: string): string {

@@ -10,14 +10,15 @@ const TERMS = {
   payee: "0x000000000000000000000000000000000000bEEF",
   arbiter: zeroAddress,
   releaseAfter: 1_790_000_000n,
+  resolveBy: 1_790_604_800n,
 };
 
 describe("escrow", () => {
   test("salt and address match EscrowFactory", () => {
     expect(escrowSalt(TERMS)).toBe(
-      "0xa4f5119dab1191915cb8c570e96dadedb88f7bd41a4bb5fd9b91466a785b98ef",
+      "0x4c1c5f961e0b5b762a988b064da027b1bf41ed19c8421ee22cc2528ee84a271d",
     );
-    expect(escrowAddress(TERMS)).toBe("0xD8BDC7Bcb72B9872527D83e4092F0211da924c47");
+    expect(escrowAddress(TERMS)).toBe("0x6263F75B7315EE30c9AEe4d924AD62D8c9D42dCd");
   });
 
   test("every term moves the address", () => {

@@ -103,19 +103,24 @@ export function createPaymentIntent(input: CreatePaymentIntentInput): PaymentInt
   };
 }
 
+/**
+ * The shortest hold: a day, so "buyer protection" always leaves the buyer time
+ * to look at what they bought before it releases on its own.
+ */
+export const MIN_ESCROW_HOLD_SECONDS = 24 * 60 * 60;
 /** The longest hold an escrow may carry: a quarter, the usual chargeback window. */
 export const MAX_ESCROW_HOLD_SECONDS = 90 * 24 * 60 * 60;
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 
-function assertEscrow(escrow: EscrowRequest): void {
+export function assertEscrow(escrow: EscrowRequest): void {
   if (
     !Number.isInteger(escrow.holdSeconds) ||
-    escrow.holdSeconds <= 0 ||
+    escrow.holdSeconds < MIN_ESCROW_HOLD_SECONDS ||
     escrow.holdSeconds > MAX_ESCROW_HOLD_SECONDS
   ) {
     throw new ValidationError(
-      `Escrow hold must be a whole number of seconds between 1 and ${MAX_ESCROW_HOLD_SECONDS}`,
+      `Escrow hold must be a whole number of seconds between ${MIN_ESCROW_HOLD_SECONDS} (1 day) and ${MAX_ESCROW_HOLD_SECONDS} (90 days)`,
       { holdSeconds: escrow.holdSeconds },
     );
   }
@@ -192,6 +197,8 @@ export function choosePayment(
   executionPath: ExecutionPath,
   settlementAsset: AssetCode,
   now: Date,
+  /** The merchant's buyer protection, taken up only by an intent minted without escrow. */
+  protection?: EscrowRequest,
 ): PaymentIntent {
   if (intent.payment !== undefined) {
     if (intent.payment.asset === payment.asset && intent.payment.chain === payment.chain) {
@@ -203,7 +210,8 @@ export function choosePayment(
       chain: intent.payment.chain,
     });
   }
-  if (intent.escrow !== undefined) assertEscrowRail(payment, executionPath);
+  const escrow = intent.escrow ?? protection;
+  if (escrow !== undefined) assertEscrowRail(payment, executionPath);
   if (intent.status !== "CREATED" || isExpired(intent, now)) {
     throw new InvalidStateTransitionError(
       `Payment intent ${intent.id} can no longer take a payment rail`,
@@ -215,6 +223,7 @@ export function choosePayment(
     ...intent,
     payment,
     executionPath,
+    ...(escrow === undefined ? {} : { escrow }),
     settlementAsset,
     updatedAt: new Date(now),
     version: intent.version + 1,

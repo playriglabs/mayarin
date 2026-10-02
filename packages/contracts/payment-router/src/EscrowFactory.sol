@@ -14,8 +14,14 @@ import {EscrowVault} from "./EscrowVault.sol";
 ///         - **anyone** releases them to the payee once `releaseAfter` has
 ///           passed, unless the payer disputed before it;
 ///         - the **payee** refunds them to the payer, at any time;
-///         - after a dispute, the **arbiter** (if the terms name one) releases
-///           or refunds.
+///         - after a dispute, the **arbiter** releases or refunds until
+///           `resolveBy`;
+///         - a dispute still open at `resolveBy` refunds the payer, callable by
+///           anyone — so no escrow is ever stuck, and an absent or negligent
+///           arbiter falls back to the buyer, as a card chargeback does.
+///
+///         An arbiter that is also the payer or the payee is ignored: a party
+///         cannot judge its own dispute.
 ///
 /// @dev The terms are the CREATE2 salt, so they are fixed by the address the
 ///      payer paid to: nobody — not Mayarin, not the merchant — can change who
@@ -36,12 +42,15 @@ contract EscrowFactory {
         address payer;
         /// @dev The merchant's settlement address — where a release goes.
         address payee;
-        /// @dev Decides a disputed escrow. `address(0)` = no arbiter: a
-        ///      disputed escrow then moves only by payer release or payee refund.
+        /// @dev Decides a disputed escrow until `resolveBy`. `address(0)`, or
+        ///      an address that is also the payer or payee, means no arbiter.
         address arbiter;
         /// @dev Unix seconds after which an undisputed escrow may be released
         ///      by anyone.
         uint64 releaseAfter;
+        /// @dev Unix seconds after which a still-disputed escrow may be
+        ///      refunded by anyone. After `releaseAfter`.
+        uint64 resolveBy;
     }
 
     enum Outcome {
@@ -83,7 +92,7 @@ contract EscrowFactory {
         bytes32 salt = saltOf(terms);
         bool isDisputed = disputed[salt];
         bool allowed = msg.sender == terms.payer
-            || (isDisputed && terms.arbiter != address(0) && msg.sender == terms.arbiter)
+            || (isDisputed && _arbitrates(terms) && block.timestamp < terms.resolveBy)
             || (!isDisputed && block.timestamp >= terms.releaseAfter);
         if (!allowed) revert NotAllowed();
 
@@ -95,8 +104,10 @@ contract EscrowFactory {
     /// @notice Moves the escrowed `token` back to the payer.
     function refund(Terms calldata terms, IERC20 token) external returns (uint256 amount) {
         bytes32 salt = saltOf(terms);
+        bool isDisputed = disputed[salt];
         bool allowed = msg.sender == terms.payee
-            || (disputed[salt] && terms.arbiter != address(0) && msg.sender == terms.arbiter);
+            || (isDisputed && _arbitrates(terms) && block.timestamp < terms.resolveBy)
+            || (isDisputed && block.timestamp >= terms.resolveBy);
         if (!allowed) revert NotAllowed();
 
         amount = _vault(salt).transferAll(token, terms.payer);
@@ -111,6 +122,12 @@ contract EscrowFactory {
 
         disputed[saltOf(terms)] = true;
         emit Disputed(terms.intentId);
+    }
+
+    /// @dev The caller is the terms' arbiter, and the arbiter is neither party.
+    function _arbitrates(Terms calldata terms) internal view returns (bool) {
+        return msg.sender == terms.arbiter && terms.arbiter != address(0)
+            && terms.arbiter != terms.payer && terms.arbiter != terms.payee;
     }
 
     function _vaultAddress(bytes32 salt) internal view returns (address) {

@@ -46,12 +46,14 @@ export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(body.executionPath === undefined ? {} : { executionPath: body.executionPath }),
       ...(body.escrow === undefined
         ? {}
-        : {
-            escrow: {
-              holdSeconds: body.escrow.holdSeconds,
-              ...(body.escrow.arbiter === undefined ? {} : { arbiter: body.escrow.arbiter }),
-            },
-          }),
+        : body.escrow === null
+          ? { escrow: null }
+          : {
+              escrow: {
+                holdSeconds: body.escrow.holdSeconds,
+                ...(body.escrow.arbiter === undefined ? {} : { arbiter: body.escrow.arbiter }),
+              },
+            }),
       ...(body.provider === undefined ? {} : { provider: body.provider }),
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
       ...(body.merchantReference === undefined

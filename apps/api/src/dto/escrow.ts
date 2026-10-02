@@ -19,6 +19,8 @@ export function toEscrowDto(view: EscrowView) {
       payee: view.terms.payee,
       arbiter: view.terms.arbiter,
       releaseAfter: new Date(Number(view.terms.releaseAfter) * 1_000).toISOString(),
+      /** A dispute still open at this time refunds the payer. */
+      resolveBy: new Date(Number(view.terms.resolveBy) * 1_000).toISOString(),
     },
     outcome: view.state.outcome,
     disputed: view.state.disputed,

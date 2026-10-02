@@ -373,7 +373,11 @@ function contractColumns(transaction: ClearingTransaction) {
     contractEscrow:
       order.escrow === undefined
         ? null
-        : { ...order.escrow, releaseAfter: order.escrow.releaseAfter.toString() },
+        : {
+            ...order.escrow,
+            releaseAfter: order.escrow.releaseAfter.toString(),
+            resolveBy: order.escrow.resolveBy.toString(),
+          },
   };
 }
 
@@ -429,6 +433,7 @@ function toContract(row: Row): ClearingContract | undefined {
             escrow: {
               ...row.contractEscrow,
               releaseAfter: BigInt(row.contractEscrow.releaseAfter),
+              resolveBy: BigInt(row.contractEscrow.resolveBy),
             },
           }),
     },

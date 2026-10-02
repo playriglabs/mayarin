@@ -49,13 +49,14 @@ export class EscrowService {
       throw new NotFoundError(`Payment ${paymentId} is not held in escrow`, { paymentId });
     }
 
-    const { factory, payer, payee, arbiter, releaseAfter } = order.escrow;
+    const { factory, payer, payee, arbiter, releaseAfter, resolveBy } = order.escrow;
     const terms: EscrowTerms = {
       intentId: order.intentId as `0x${string}`,
       payer,
       payee,
       arbiter,
       releaseAfter,
+      resolveBy,
     };
     const token = order.settlementToken;
 

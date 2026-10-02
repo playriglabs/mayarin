@@ -13,13 +13,13 @@ import { InvoicePage } from "../features/invoice/invoice-page.tsx";
 import type { InvoiceBootstrap } from "../features/invoice/types.ts";
 import { LinkPage } from "../features/link/link-page.tsx";
 import type { LinkBootstrap } from "../features/link/types.ts";
-import { holdDuration } from "../features/pay/choose-rail.tsx";
 import { ConfirmingCard } from "../features/pay/confirming-card.tsx";
 import { DepositCard } from "../features/pay/deposit-card.tsx";
 import { Outcome } from "../features/pay/outcome.tsx";
 import { PayPage } from "../features/pay/pay-page.tsx";
 import { timelineSteps } from "../features/pay/status-timeline.tsx";
 import type { PayBootstrap } from "../features/pay/types.ts";
+import { holdDuration, railBody } from "../shared/buyer-protection.tsx";
 import type { MoneyDto } from "../shared/types.ts";
 
 function idr(display: string): MoneyDto {
@@ -32,6 +32,7 @@ function usdc(amount: string, formatted: string, display: string): MoneyDto {
 
 const linkBootstrap: LinkBootstrap = {
   page: "link",
+  protection: null,
   linkId: "plk_1",
   kind: "fixed",
   title: "Paket",
@@ -61,11 +62,13 @@ const payBootstrap: PayBootstrap = {
   successUrl: null,
   pollMs: 8000,
   choice: null,
-  escrow: null,
+  protection: null,
+  escrowed: false,
 };
 
 const invoiceBootstrap: InvoiceBootstrap = {
   page: "invoice",
+  protection: null,
   invoiceId: "inv_1",
   number: "INV-0001",
   status: "issued",
@@ -594,6 +597,32 @@ describe("escrow (#304)", () => {
     );
     expect(done).toContain("held in escrow");
     expect(done).not.toContain("The merchant has been paid");
+  });
+
+  test("the wallet rides on the rail only where protection applies", () => {
+    const protection = {
+      holdSeconds: 7 * 86_400,
+      arbitrationSeconds: 7 * 86_400,
+      arbiterLabel: "Mayarin Resolution",
+      chains: ["arbitrum-sepolia"],
+      required: false,
+    };
+    const wallet = "0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0";
+    const arb = {
+      chain: "arbitrum-sepolia",
+      asset: "USDC",
+      contract: null,
+      settlementAsset: "USDC",
+    };
+    const base = { ...arb, chain: "base-sepolia" };
+
+    expect(railBody(arb, protection, wallet)).toEqual({
+      asset: "USDC",
+      chain: "arbitrum-sepolia",
+      payerAddress: wallet,
+    });
+    expect(railBody(base, protection, wallet)).toEqual({ asset: "USDC", chain: "base-sepolia" });
+    expect(railBody(arb, null, wallet)).toEqual({ asset: "USDC", chain: "arbitrum-sepolia" });
   });
 
   test("the hold reads in days or hours", () => {

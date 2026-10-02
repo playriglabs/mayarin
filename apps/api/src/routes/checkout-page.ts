@@ -34,6 +34,7 @@ import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
 import { linkRails, payerRails } from "../rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
+import { type ProtectionOffer, protectionOffer } from "../services/protection.ts";
 
 /**
  * The fallback poll interval, carried to the SPA in the pay bootstrap.
@@ -214,7 +215,13 @@ export function checkoutPageRoutes(container: Container): Hono {
         successUrl: successUrl ?? null,
         pollMs: POLL_MS,
         choice,
-        escrow: intent.escrow === undefined ? null : { holdSeconds: intent.escrow.holdSeconds },
+        // Offered only while the rail is being chosen; the paid page reads the
+        // escrow itself.
+        protection:
+          choice === null
+            ? null
+            : await protectionOffer(container, intent.merchant.id, intent.escrow),
+        escrowed: intent.escrow !== undefined,
       }),
     );
   });
@@ -266,6 +273,7 @@ export function checkoutPageRoutes(container: Container): Hono {
                 : null,
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
+          protection: await protectionOffer(container, link.merchant.id, undefined),
         }),
       ),
     );
@@ -331,6 +339,8 @@ export function checkoutSuccessUrl(base: string | undefined, intentId: string): 
 
 interface LinkBootstrapOptions {
   readonly link: PaymentLink;
+  /** Buyer protection the merchant offers (#304). */
+  readonly protection: ProtectionOffer | null;
   readonly payable: boolean;
   /** Priced lines and total, for a link that prices itself. Absent for `open`. */
   readonly preview: LinkPreview | undefined;
@@ -368,7 +378,8 @@ interface LinkBootstrapOptions {
  *   `POST /v1/quotes` — the same rate provider the lock will read.
  */
 async function linkBootstrap(options: LinkBootstrapOptions) {
-  const { link, payable, preview, rails, unpayableReason, ttlSeconds, products } = options;
+  const { link, payable, preview, rails, unpayableReason, ttlSeconds, products, protection } =
+    options;
   const currency = link.currency ?? link.amount?.asset;
 
   // An open link has no total until the buyer types one; everything else shows
@@ -414,6 +425,7 @@ async function linkBootstrap(options: LinkBootstrapOptions) {
     rails,
     unpayableReason,
     lockMinutes: Math.max(1, Math.round(ttlSeconds / 60)),
+    protection,
   };
 }
 
