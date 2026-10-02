@@ -10,7 +10,7 @@
  */
 
 import { chainLabel, shortHash } from "@mayarin/chain";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { DetailRow } from "@/components/detail-row";
 import { DisputeThread } from "@/components/dispute-thread";
@@ -30,6 +30,7 @@ import { formatDateTime } from "@/lib/date";
 import { runEffect } from "@/lib/run";
 import {
   discoverWallets,
+  type InjectedWallet,
   requestAccount,
   sendTransaction,
   switchChain,
@@ -45,6 +46,22 @@ function DisputeCase({ id }: { readonly id: string }) {
   const [deciding, setDeciding] = useState<"release" | "refund" | "split" | undefined>();
   /** The merchant's share of a split, in percent (#315). */
   const [payeePercent, setPayeePercent] = useState("50");
+  // Several extensions can be installed at once (MetaMask, Phantom, …); the
+  // arbiter key lives in one of them, so the arbiter picks — MetaMask first.
+  const [wallets, setWallets] = useState<readonly InjectedWallet[]>([]);
+  const [walletName, setWalletName] = useState<string | undefined>();
+
+  useEffect(() => {
+    let live = true;
+    void discoverWallets().then((found) => {
+      if (!live) return;
+      setWallets(found);
+      setWalletName((found.find((w) => /metamask/i.test(w.name)) ?? found[0])?.name);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   const [error, setError] = useState<string | undefined>();
 
   async function decide(data: DisputeCaseDto, action: "release" | "refund" | "split") {
@@ -55,7 +72,7 @@ function DisputeCase({ id }: { readonly id: string }) {
         action === "split"
           ? await runEffect(disputesApi.resolveCall(id, Math.round(Number(payeePercent) * 100)))
           : { to: data.escrow.factory, data: data.escrow.calls[action] };
-      const [wallet] = await discoverWallets();
+      const wallet = wallets.find((w) => w.name === walletName);
       if (wallet === undefined) throw new Error("No browser wallet found");
       const account = await requestAccount(wallet.provider);
       if (account.toLowerCase() !== data.escrow.terms.arbiter.toLowerCase()) {
@@ -156,6 +173,25 @@ function DisputeCase({ id }: { readonly id: string }) {
                 </dl>
                 {open && (
                   <div className="flex flex-col gap-2 border-t border-border p-4">
+                    {wallets.length > 1 && (
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">Sign with</span>
+                        {wallets.map((wallet) => (
+                          <Button
+                            key={wallet.name}
+                            size="sm"
+                            variant={wallet.name === walletName ? "default" : "secondary"}
+                            aria-pressed={wallet.name === walletName}
+                            onClick={() => setWalletName(wallet.name)}
+                          >
+                            {wallet.icon !== undefined && (
+                              <img src={wallet.icon} alt="" className="size-4 rounded-sm" />
+                            )}
+                            {wallet.name}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         disabled={deciding !== undefined}
@@ -172,7 +208,7 @@ function DisputeCase({ id }: { readonly id: string }) {
                       </Button>
                     </div>
                     {escrow.bond !== null && (
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1 mt-3">
                         <label className="text-muted-foreground text-xs" htmlFor="split-share">
                           Or split — merchant's share (%)
                         </label>
