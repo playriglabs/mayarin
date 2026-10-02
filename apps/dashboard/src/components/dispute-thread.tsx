@@ -4,7 +4,7 @@
  * open. Append-only on the server, so there is no edit and no delete here.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/date";
@@ -34,6 +34,13 @@ export function DisputeThread({
   readonly onSend: (body: string) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState("");
+  const list = useRef<HTMLOListElement>(null);
+
+  // The thread scrolls inside a fixed height; keep the newest message in view.
+  useEffect(() => {
+    const element = list.current;
+    if (element !== null && messages.length > 0) element.scrollTop = element.scrollHeight;
+  }, [messages.length]);
 
   async function send() {
     await onSend(draft);
@@ -45,7 +52,10 @@ export function DisputeThread({
       {messages.length === 0 ? (
         <p className="text-muted-foreground text-sm">No messages yet.</p>
       ) : (
-        <ol className="flex flex-col gap-2">
+        <ol
+          ref={list}
+          className="flex max-h-80 flex-col gap-2 overflow-y-auto overscroll-contain pr-1"
+        >
           {messages.map((message) => {
             const own = message.author === viewer;
             return (
