@@ -62,6 +62,8 @@ export interface Protection {
 export interface MerchantRef {
   readonly name: string;
   readonly city: string;
+  /** The logo uploaded in dashboard Settings, or `null` for the Mayarin mark. */
+  readonly logoUrl: string | null;
 }
 
 /** A priced line on the order summary — the link page and the payment page show the same one. */

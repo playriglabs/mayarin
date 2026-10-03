@@ -87,6 +87,9 @@
   .brand img {
     @apply block size-10 object-contain;
   }
+  .brand-merchant img {
+    @apply rounded-lg;
+  }
 
   .checkout-shell {
     @apply grid min-h-dvh w-full max-w-none grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(32rem,1fr)];

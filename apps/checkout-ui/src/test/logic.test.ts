@@ -57,7 +57,7 @@ function linkBootstrap(overrides: Partial<LinkBootstrap> = {}): LinkBootstrap {
     linkId: "plk_1",
     kind: "fixed",
     title: "Paket",
-    merchant: { name: "Warung Kopi", city: "Jakarta" },
+    merchant: { name: "Warung Kopi", city: "Jakarta", logoUrl: null },
     payable: true,
     currency: "IDR",
     total: {

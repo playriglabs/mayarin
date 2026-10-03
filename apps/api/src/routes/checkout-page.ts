@@ -32,6 +32,7 @@ import sharp from "sharp";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
+import { merchantLogoUrl } from "../merchant-logo.ts";
 import { linkRails, payerRails } from "../rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
 import { fetchLogo } from "../services/document-pdf.ts";
@@ -213,7 +214,11 @@ export function checkoutPageRoutes(container: Container): Hono {
         page: "pay",
         intentId: intent.id,
         amount: toMoneyDto(intent.amount),
-        merchant: { name: intent.merchant.name, city: intent.merchant.city },
+        merchant: {
+          name: intent.merchant.name,
+          city: intent.merchant.city,
+          logoUrl: await merchantLogoUrl(container, intent.merchant.id),
+        },
         title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
         lines: await intentLines(container, intent.metadata[CART_METADATA_KEY]),
         expiresAt: intent.expiresAt.toISOString(),
@@ -281,6 +286,7 @@ export function checkoutPageRoutes(container: Container): Hono {
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
           protection: await protectionOffer(container, link.merchant.id, undefined),
+          logoUrl: await merchantLogoUrl(container, link.merchant.id),
         }),
       ),
     );
@@ -314,8 +320,8 @@ async function qrSvg(value: string, mark?: QrMark): Promise<string> {
  */
 async function merchantLogoMark(container: Container, linkId: string): Promise<QrMark | undefined> {
   const link = await container.catalog.getLink(linkId);
-  const logoUrl = (await container.merchants.findById(link.merchant.id))?.logoUrl;
-  if (logoUrl === undefined) return undefined;
+  const logoUrl = await merchantLogoUrl(container, link.merchant.id);
+  if (logoUrl === null) return undefined;
   const bytes = await fetchLogo(logoUrl);
   if (bytes === undefined) return undefined;
   const mime =
@@ -406,6 +412,7 @@ interface LinkBootstrapOptions {
   readonly unpayableReason: string | null;
   readonly ttlSeconds: number;
   readonly products: Pick<Container["catalog"], "getProduct">;
+  readonly logoUrl: string | null;
 }
 
 /**
@@ -421,8 +428,17 @@ interface LinkBootstrapOptions {
  *   `POST /v1/quotes` — the same rate provider the lock will read.
  */
 async function linkBootstrap(options: LinkBootstrapOptions) {
-  const { link, payable, preview, rails, unpayableReason, ttlSeconds, products, protection } =
-    options;
+  const {
+    link,
+    payable,
+    preview,
+    rails,
+    unpayableReason,
+    ttlSeconds,
+    products,
+    protection,
+    logoUrl,
+  } = options;
   const currency = link.currency ?? link.amount?.asset;
 
   // An open link has no total until the buyer types one; everything else shows
@@ -460,7 +476,7 @@ async function linkBootstrap(options: LinkBootstrapOptions) {
     linkId: link.id,
     kind: link.kind,
     title: link.title ?? link.merchant.name,
-    merchant: { name: link.merchant.name, city: link.merchant.city },
+    merchant: { name: link.merchant.name, city: link.merchant.city, logoUrl },
     payable,
     currency: currency ?? null,
     total,
