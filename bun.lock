@@ -186,6 +186,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@mayarin/notifications": "workspace:*",
+        "@mayarin/react": "workspace:*",
         "@mayarin/sdk": "workspace:*",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
@@ -686,6 +687,22 @@
         "@mayarin/shared": "workspace:*",
         "@mayarin/x402": "workspace:*",
         "viem": "^2.21.0",
+      },
+    },
+    "packages/react": {
+      "name": "@mayarin/react",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+      },
+      "peerDependencies": {
+        "react": ">=18",
       },
     },
     "packages/sdk": {
@@ -1532,6 +1549,8 @@
     "@mayarin/qr-parser": ["@mayarin/qr-parser@workspace:packages/core/qr-parser"],
 
     "@mayarin/quote": ["@mayarin/quote@workspace:packages/core/quote"],
+
+    "@mayarin/react": ["@mayarin/react@workspace:packages/react"],
 
     "@mayarin/sdk": ["@mayarin/sdk@workspace:packages/sdk"],
 

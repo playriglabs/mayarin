@@ -8,10 +8,12 @@
  * Thin by design: validate input, call an application service, shape a response.
  */
 
-import { NotFoundError } from "@mayarin/shared";
+import type { MerchantSnapshot } from "@mayarin/payment-intent";
+import { NotFoundError, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import {
+  type CheckoutCartBody,
   checkoutCartBodySchema,
   createProductBodySchema,
   toIntentOptions,
@@ -21,6 +23,7 @@ import {
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
 import {
   type ApiKeyAuthEnv,
+  type ApiKeyScope,
   assertMerchant,
   requireApiKey,
   requirePublishableKey,
@@ -107,14 +110,16 @@ export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   // `/payment-links/:id/checkout` and `/invoices/:id/checkout`, which stay open.
   app.post("/checkout", requirePublishableKey(container.verifyApiKey), async (c) => {
     const body = checkoutCartBodySchema.parse(await c.req.json());
-    assertMerchant(c.get("scope"), body.merchant.id);
+    const scope = c.get("scope");
+    if (body.merchant?.id !== undefined) assertMerchant(scope, body.merchant.id);
     const idempotencyKey = c.req.header("Idempotency-Key");
 
     const { merchant, currency, lines, ...options } = body;
+    const snapshot = await cartMerchant(container, scope, merchant ?? {});
     const intentOptions = toIntentOptions(options);
     const metadata = withPayerCountry(intentOptions.metadata, c.req.header("CF-IPCountry"));
     const intent = await container.commerce.checkoutCart({
-      merchant: toMerchantSnapshot(merchant),
+      merchant: snapshot,
       currency,
       lines,
       ...intentOptions,
@@ -136,4 +141,44 @@ export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   });
 
   return app;
+}
+
+/**
+ * The merchant a cart intent records — always the key's own merchant. A secret
+ * key that sends the full snapshot keeps it, exactly as before; everything
+ * else, and every publishable key whatever it sends, reads the merchant's own
+ * profile, so a browser cannot put another shop's name on the checkout page.
+ */
+async function cartMerchant(
+  container: Container,
+  scope: ApiKeyScope,
+  body: NonNullable<CheckoutCartBody["merchant"]>,
+): Promise<MerchantSnapshot> {
+  const { merchantId } = scope;
+  const { name, city, countryCode, categoryCode } = body;
+  if (
+    scope.kind === "secret" &&
+    name !== undefined &&
+    city !== undefined &&
+    countryCode !== undefined
+  ) {
+    return toMerchantSnapshot({ id: merchantId, name, city, countryCode, categoryCode });
+  }
+
+  const merchant = await container.merchants.findById(merchantId);
+  if (merchant === null) {
+    throw new NotFoundError(`Merchant ${merchantId} not found`, { merchantId });
+  }
+  if (merchant.city === undefined || merchant.countryCode === undefined) {
+    throw new ValidationError(
+      "Set your city and country in settings before taking a cart checkout",
+      { merchantId },
+    );
+  }
+  return {
+    id: merchant.id,
+    name: merchant.name,
+    city: merchant.city,
+    countryCode: merchant.countryCode,
+  };
 }

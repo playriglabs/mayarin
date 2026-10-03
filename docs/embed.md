@@ -23,6 +23,44 @@ Build the script with `bun run --cwd packages/embed build`; it lands in
 dependencies. A bundler user can instead `import "@mayarin/embed"`, or import
 `register` to pick the tag name.
 
+## React: `@mayarin/react`
+
+`packages/react` is the React form, and it does something the element cannot:
+it mints the intent itself, so a merchant needs no payment link and no product
+catalog on the dashboard. It is a button and a hook over
+`@mayarin/sdk/browser`, with React as a peer dependency:
+
+```tsx
+// Server mode: the merchant's backend mints with its secret key.
+<PayButton checkout={() => fetch("/api/pay", { method: "POST" }).then((r) => r.json())}>
+  Pay with crypto
+</PayButton>
+
+// Browser mode: a publishable key mints one ad-hoc cart line.
+<PayButton publishableKey="pk_..." baseUrl="https://api.mayarin.xyz"
+  amount="150000.00" currency="IDR" merchantReference="order_123">
+  Continue
+</PayButton>
+```
+
+`children` is any node, or `({ loading }) => node`; every other prop goes on
+the `<button>`, which carries no styling. `useMayarinCheckout` is the headless
+form. A click redirects to the hosted checkout. There is no iframe, and the
+`postMessage` follow-up below still applies.
+
+**The price is only as trusted as whoever sends it.** In browser mode the amount
+comes from the page, so a buyer can edit it. That is acceptable for donations,
+tips and open amounts. For a sale, the merchant must either use server mode or
+check the paid amount against its order (by `merchantReference`) in the webhook.
+Stripe drew the same line when it retired client-only Checkout.
+
+**The merchant is not the browser's to name.** `POST /v1/carts/checkout` takes
+`merchant` as optional and always records the key's own merchant. A publishable
+key gets the snapshot (name, city, country) from the merchant's profile, whatever
+the body says. Otherwise a page could print another shop's name on the checkout.
+A secret key that sends the full snapshot keeps it. A merchant with no city or
+country set is refused with a 400, as an invoice is.
+
 ## Attributes
 
 | Attribute  | Required | Meaning                                                                           |
@@ -68,10 +106,9 @@ embed goes blank at once.
 
 ## Deliberate v1 limits
 
-- **A link id is the only input.** Publishable keys (`pk_...`) now exist and a
-  browser can mint from a cart payload through `@mayarin/sdk/browser` — but the
-  element does not do it yet. A cart-payload attribute on the element is a
-  follow-up on the embed.
+- **A link id is the only input to the element.** Minting from an amount in the
+  browser is `@mayarin/react`'s job (above). A cart-payload attribute on the
+  element is a follow-up.
 - **No completion events.** The element does not tell the merchant's page that
   the payment settled; the buyer sees the outcome inside the frame, and the
   merchant's systems learn it from webhooks (#13). A `postMessage` status
