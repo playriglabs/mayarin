@@ -45,3 +45,6 @@ if (flags.skipGate) {
 await run("Build and deploy the demo", ["bun", "run", "--cwd", "apps/demo", "deploy"]);
 
 console.log("\nDemo deployment complete.");
+
+// A module, so top-level `await` is allowed.
+export {};

@@ -254,3 +254,6 @@ if (wants("pay")) {
 
 await smoke();
 console.log("\nDeployment finished. Review the worker logs per docs/deployment.md step 7.");
+
+// A module, so top-level `await` is allowed.
+export {};

@@ -42,6 +42,7 @@ const policies: readonly ServicePolicy[] = [
     name: "core-api",
     configPath: "apps/api/src/config.ts",
     overrides: {
+      DASHBOARD_URL: "https://dashboard-testnet.mayarin.xyz",
       DATABASE_URL: "$" + "{{Postgres.DATABASE_URL}}",
       LEFTHOOK: "0",
       NODE_ENV: "production",
@@ -67,6 +68,7 @@ const policies: readonly ServicePolicy[] = [
     name: "chain-worker",
     configPath: "apps/api/src/config.ts",
     overrides: {
+      DASHBOARD_URL: "https://dashboard-testnet.mayarin.xyz",
       DATABASE_URL: "$" + "{{Postgres.DATABASE_URL}}",
       LEFTHOOK: "0",
       NODE_ENV: "production",
@@ -166,3 +168,6 @@ for (const policy of selectedPolicies) {
 
   console.log(`[railway:env] ${policy.name}: synchronized ${Object.keys(variables).length} keys`);
 }
+
+// A module, so top-level `await` is allowed.
+export {};

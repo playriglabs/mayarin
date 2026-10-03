@@ -28,3 +28,6 @@ await run([
   "--filter=@mayarin/dashboard-api",
   "--filter=@mayarin/dashboard",
 ]);
+
+// A module, so top-level `await` is allowed.
+export {};
