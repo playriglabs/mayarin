@@ -1,13 +1,14 @@
 # Release PRs and npm publishing for the public packages (@mayarin/sdk,
-# @mayarin/react). release-please reads conventional commits touching each
-# package and keeps a release PR open; merging it tags the release, and the
-# publish job ships the tagged package with npm trusted publishing (OIDC) — no
-# npm token is stored in the repository.
+# @mayarin/react). Manual on purpose — a merge to main releases nothing.
+#
+# Run it once: release-please reads the conventional commits touching each
+# package and opens (or updates) a release PR. Merge that PR, then run it
+# again: release-please tags the release and the publish job ships it with npm
+# trusted publishing (OIDC) — no npm token is stored in the repository.
 name: release
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
