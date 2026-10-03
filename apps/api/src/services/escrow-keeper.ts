@@ -34,7 +34,11 @@ import {
 
 export interface EscrowKeeperRepository {
   listDueEscrows(nowSeconds: number, limit: number): Promise<DueEscrow[]>;
-  markEscrowOutcome(clearingTransactionId: string, outcome: EscrowClosed): Promise<void>;
+  markEscrowOutcome(
+    clearingTransactionId: string,
+    outcome: EscrowClosed,
+    closedAt: Date,
+  ): Promise<void>;
 }
 
 export interface EscrowKeeperOptions {
@@ -49,6 +53,8 @@ export interface EscrowKeeperOptions {
   readonly alert: DisputeAlertSink;
   /** Tells the merchant about a dispute this pass found first (#313). */
   readonly notifier: DisputeNotifier;
+  /** Tells the merchant they got paid when an escrow releases undisputed; absent without email. */
+  readonly paid?: { released(clearingTransactionId: string): Promise<void> };
   readonly clock: Clock;
   readonly batchSize?: number;
 }
@@ -186,8 +192,17 @@ export class EscrowKeeper {
     paymentIntentId: string,
     outcome: EscrowClosed,
   ): Promise<void> {
-    await this.#options.repository.markEscrowOutcome(clearingTransactionId, outcome);
-    await this.#options.disputes.close(paymentIntentId, outcome, this.#options.clock.now());
+    const now = this.#options.clock.now();
+    await this.#options.repository.markEscrowOutcome(clearingTransactionId, outcome, now);
+    await this.#options.disputes.close(paymentIntentId, outcome, now);
+    // A disputed release is the arbiter's decision, told through the dispute;
+    // only a hold that ran out quietly is "you got paid".
+    if (
+      outcome === "released" &&
+      (await this.#options.disputes.findByPaymentIntentId(paymentIntentId)) === undefined
+    ) {
+      await this.#options.paid?.released(clearingTransactionId);
+    }
   }
 }
 

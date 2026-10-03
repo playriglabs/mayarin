@@ -1,6 +1,14 @@
 /** Transactional delivery of an issued invoice through Resend. */
 
-import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_ATTACHMENT, LOGO_IMG } from "@mayarin/documents";
+import {
+  EMAIL_ATTACHMENTS,
+  EMAIL_FOOTER,
+  EMAIL_FOOTER_TEXT,
+  EMAIL_HEAD,
+  escapeHtml,
+  FONT_STACK,
+  LOGO_IMG,
+} from "@mayarin/documents";
 import { ConfigurationError, ProviderError } from "@mayarin/shared";
 import { Resend } from "resend";
 
@@ -53,8 +61,8 @@ export class ResendInvoiceEmailSender implements InvoiceEmailSender {
           to: request.buyerEmail,
           subject: `${request.merchantName} sent invoice ${request.invoiceNumber}`,
           html: renderInvoiceHtml(request),
-          text: renderInvoiceText(request),
-          attachments: [LOGO_ATTACHMENT],
+          text: `${renderInvoiceText(request)}\n${EMAIL_FOOTER_TEXT}`,
+          attachments: [...EMAIL_ATTACHMENTS],
           tags: [{ name: "category", value: "invoice" }],
         },
         // A retried click reuses its delivery id and remains one message. A
@@ -123,6 +131,7 @@ ${EMAIL_HEAD}
             <p style="margin:0;font-size:12px;line-height:1.5"><a href="${url}" style="color:#2563eb;font-family:${FONT_STACK}">Pay with this link</a></p>
           </td></tr>
         </table>
+        ${EMAIL_FOOTER}
       </td></tr>
     </table>
   </body>

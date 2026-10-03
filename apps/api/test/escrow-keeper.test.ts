@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { DueEscrow } from "@mayarin/db";
 import type { EscrowState } from "@mayarin/provider-evm";
 import { FixedClock } from "@mayarin/shared";
+import { disputeOf } from "../src/services/escrow-dispute.ts";
 import { EscrowKeeper } from "../src/services/escrow-keeper.ts";
 import { InMemoryEscrowDisputeLog } from "./fixtures/escrow-disputes.ts";
 
@@ -43,6 +44,7 @@ function harness(rows: DueEscrow[], state: EscrowState) {
   const disputes = new InMemoryEscrowDisputeLog();
   const alerts: string[] = [];
   const notified: string[] = [];
+  const paid: string[] = [];
   const keeper = new EscrowKeeper({
     repository: {
       listDueEscrows: async () => rows,
@@ -64,9 +66,14 @@ function harness(rows: DueEscrow[], state: EscrowState) {
         notified.push(dispute.paymentIntentId);
       },
     },
+    paid: {
+      released: async (id) => {
+        paid.push(id);
+      },
+    },
     clock: new FixedClock(NOW),
   });
-  return { keeper, marked, sent, disputes, alerts, notified };
+  return { keeper, marked, sent, disputes, alerts, notified, paid };
 }
 
 const held = (disputed = false): EscrowState => ({
@@ -188,5 +195,32 @@ describe("EscrowKeeper disputes (#313)", () => {
 
     await keeper.tick();
     expect(alerts).toHaveLength(2);
+  });
+});
+
+describe("EscrowKeeper paid notice", () => {
+  test("tells the merchant they got paid when the hold ends undisputed", async () => {
+    const { keeper, paid } = harness([due("clr_1")], held());
+    await keeper.tick();
+    expect(paid).toEqual(["clr_1"]);
+  });
+
+  test("says nothing when the arbiter released a disputed escrow", async () => {
+    const row = due("clr_1");
+    const { keeper, disputes, paid } = harness([row], {
+      outcome: "released",
+      disputed: true,
+      balance: 0n,
+    });
+    await disputes.open(
+      disputeOf(row.order, {
+        paymentIntentId: row.paymentIntentId,
+        merchantId: "mrc_1",
+        chain: row.chain,
+      }),
+      NOW,
+    );
+    await keeper.tick();
+    expect(paid).toEqual([]);
   });
 });

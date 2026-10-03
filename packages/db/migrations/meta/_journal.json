@@ -288,6 +288,13 @@
       "when": 1790830800000,
       "tag": "0040_escrow_split",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790834400000,
+      "tag": "0041_notifications",
+      "breakpoints": true
     }
   ]
 }

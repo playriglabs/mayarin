@@ -201,10 +201,11 @@ export class DrizzleClearingRepository implements ClearingRepository {
   async markEscrowOutcome(
     clearingTransactionId: string,
     outcome: "released" | "refunded" | "split",
+    closedAt: Date,
   ): Promise<void> {
     await this.#db
       .update(clearingTransactions)
-      .set({ escrowOutcome: outcome })
+      .set({ escrowOutcome: outcome, escrowClosedAt: closedAt })
       .where(eq(clearingTransactions.id, clearingTransactionId));
   }
 

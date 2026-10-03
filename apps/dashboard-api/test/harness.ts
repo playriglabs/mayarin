@@ -78,6 +78,7 @@ import type {
 } from "../src/services/invoice-email-service.ts";
 import { MerchantCatalogService } from "../src/services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "../src/services/merchant-settings-service.ts";
+import { NotificationService } from "../src/services/notification-service.ts";
 import { OrderReadService } from "../src/services/order-read-service.ts";
 import { PaymentApiClient } from "../src/services/payment-api-client.ts";
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
@@ -96,6 +97,7 @@ import { WalletService } from "../src/services/wallet-service.ts";
 import { WebhookService } from "../src/services/webhook-service.ts";
 import { X402ResourceService } from "../src/services/x402-resource-service.ts";
 import { InMemoryDisputeStore } from "./fixtures/dispute-store.ts";
+import { InMemoryNotificationStore } from "./fixtures/notification-store.ts";
 
 /**
  * The deployment's fee destination, exported so a test can try to claim it.
@@ -481,6 +483,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   });
 
   const disputeStore = new InMemoryDisputeStore();
+  const notificationStore = new InMemoryNotificationStore();
+  const notifications = new NotificationService({ store: notificationStore, clock });
   const disputes = new DisputeService({
     store: disputeStore,
     paymentApi,
@@ -505,6 +509,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     apiKeys,
     settlements: settlementView,
     eventLogs,
+    notifications,
     paymentApi,
     disputes,
     webhooks,
@@ -591,6 +596,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     eventLogRepository,
     paymentApiCalls,
     disputeStore,
+    notificationStore,
     /** Lets a test name the payment id the fake mints. */
     setMintedPaymentId: (id: string) => {
       mintedPaymentId = id;

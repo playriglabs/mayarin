@@ -16,7 +16,16 @@
 
 import { chainLabel, shortHash } from "@mayarin/chain";
 import type { EscrowDispute } from "@mayarin/db";
-import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_ATTACHMENT, LOGO_IMG } from "@mayarin/documents";
+import {
+  EMAIL_ATTACHMENTS,
+  EMAIL_FOOTER,
+  EMAIL_FOOTER_TEXT,
+  EMAIL_HEAD,
+  escapeHtml,
+  FONT_STACK,
+  LOGO_IMG,
+  toRestAttachments,
+} from "@mayarin/documents";
 import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
 import { type Clock, generateId, numericReference } from "@mayarin/shared";
 import type { DisputeNotifier } from "./escrow-dispute.ts";
@@ -122,16 +131,8 @@ async function sendEmail(
       to,
       subject: `Dispute #${reference} opened — please respond`,
       html: renderDisputeHtml(dispute, reference, url),
-      text: renderDisputeText(dispute, reference, url),
-      // The REST shape of `LOGO_ATTACHMENT`: snake_case, as the SDK sends it.
-      attachments: [
-        {
-          path: LOGO_ATTACHMENT.path,
-          filename: LOGO_ATTACHMENT.filename,
-          content_type: LOGO_ATTACHMENT.contentType,
-          content_id: LOGO_ATTACHMENT.contentId,
-        },
-      ],
+      text: `${renderDisputeText(dispute, reference, url)}\n${EMAIL_FOOTER_TEXT}`,
+      attachments: toRestAttachments(EMAIL_ATTACHMENTS),
       tags: [{ name: "category", value: "dispute" }],
     }),
   });
@@ -177,7 +178,7 @@ ${EMAIL_HEAD}
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:16px">
           <tr><td style="padding:32px;font-family:${FONT_STACK}">
             ${LOGO_IMG}
-            <p style="margin:0 0 8px;color:#b91c1c;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-family:${FONT_STACK}">Dispute opened</p>
+            <p style="margin:0 0 8px;color:#b91c1c;font-size:14px;font-weight:700;text-transform:capitalize;font-family:${FONT_STACK}">Dispute opened</p>
             <h1 style="margin:0 0 12px;font-size:28px;font-weight:700;line-height:1.25;font-family:${FONT_STACK}">Dispute #${number}</h1>
             <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6;font-family:${FONT_STACK}">A buyer disputed a payment held in escrow, so its automatic release to you is stopped. Answer with your evidence — tracking, proof of delivery — or refund the buyer. Mayarin Resolution reads both sides and decides.</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:12px;background:#fafaf9;border:1px solid #f0efee;border-radius:12px;font-family:${FONT_STACK}">
@@ -191,6 +192,7 @@ ${EMAIL_HEAD}
             ${action}
           </td></tr>
         </table>
+        ${EMAIL_FOOTER}
       </td></tr>
     </table>
   </body>

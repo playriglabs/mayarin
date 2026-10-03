@@ -128,6 +128,7 @@ import { disputeNotifier } from "./services/dispute-notifier.ts";
 import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
+import { PaidNotifier } from "./services/paid-notifier.ts";
 import { PayerStanding } from "./services/payer-standing.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
@@ -244,6 +245,8 @@ export interface Container {
    * only with treasury execution, whose operator key sends the calls.
    */
   readonly escrowKeeper?: EscrowKeeper;
+  /** "You got paid" emails; absent without `RESEND_API_KEY`. */
+  readonly paidNotices?: PaidNotifier;
   /**
    * Ingests `PaymentCompleted` (#8), one per chain with a deployed router.
    *
@@ -1018,6 +1021,10 @@ export function createContainer({
   // A newly opened dispute is announced to the merchant (#313): a webhook on
   // the delivery table the dispatcher drains, and an email to its admins.
   const users = new DrizzleUserRepository(handle.db);
+  const adminEmails = async (merchantId: string) =>
+    (await users.listByMerchant(merchantId))
+      .filter((user) => user.permissions.includes("admin:access"))
+      .map((user) => user.email);
   const disputeNotices = disputeNotifier({
     ...(webhookEndpoints === undefined || webhookDeliveries === undefined
       ? {}
@@ -1028,15 +1035,30 @@ export function createContainer({
           email: {
             apiKey: config.resendApiKey,
             from: config.emailFrom,
-            recipients: async (merchantId: string) =>
-              (await users.listByMerchant(merchantId))
-                .filter((user) => user.permissions.includes("admin:access"))
-                .map((user) => user.email),
+            recipients: adminEmails,
             ...(config.dashboardUrl === undefined ? {} : { dashboardUrl: config.dashboardUrl }),
           },
         }),
     clock,
   });
+
+  // "You got paid": its own cursor on the clearing log, plus the
+  // keeper's undisputed releases. Email only, so nothing without Resend.
+  const paidNotices =
+    config.resendApiKey === undefined
+      ? undefined
+      : new PaidNotifier({
+          outbox: new DrizzleWebhookOutbox(handle.db),
+          cursor: new DrizzleWebhookCursorRepository(handle.db, "paid-email"),
+          transactions: clearingRepository,
+          email: {
+            apiKey: config.resendApiKey,
+            from: config.emailFrom,
+            recipients: adminEmails,
+            ...(config.dashboardUrl === undefined ? {} : { dashboardUrl: config.dashboardUrl }),
+          },
+          clock,
+        });
 
   // Built after the watchers, because a rail is only real when something is
   // scanning the chain it is on.
@@ -1128,9 +1150,11 @@ export function createContainer({
             disputes,
             alert: disputeAlertSink(config.escrowAlertWebhookUrl),
             notifier: disputeNotices,
+            ...(paidNotices === undefined ? {} : { paid: paidNotices }),
             clock,
           }),
         }),
+    ...(paidNotices === undefined ? {} : { paidNotices }),
     refunds,
     ...(stream === undefined ? {} : { stream }),
     adapters,

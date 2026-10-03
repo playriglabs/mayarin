@@ -1,6 +1,14 @@
 /** Transactional delivery of an email verification code through Resend. */
 
-import { EMAIL_HEAD, escapeHtml, FONT_STACK, LOGO_ATTACHMENT, LOGO_IMG } from "@mayarin/documents";
+import {
+  EMAIL_ATTACHMENTS,
+  EMAIL_FOOTER,
+  EMAIL_FOOTER_TEXT,
+  EMAIL_HEAD,
+  escapeHtml,
+  FONT_STACK,
+  LOGO_IMG,
+} from "@mayarin/documents";
 import { ConfigurationError, ProviderError } from "@mayarin/shared";
 import { Resend } from "resend";
 
@@ -47,8 +55,8 @@ export class ResendVerificationEmailSender implements VerificationEmailSender {
         to: request.email,
         subject: `${request.code} is your Mayarin verification code`,
         html: renderVerificationHtml(request),
-        text: renderVerificationText(request),
-        attachments: [LOGO_ATTACHMENT],
+        text: `${renderVerificationText(request)}\n${EMAIL_FOOTER_TEXT}`,
+        attachments: [...EMAIL_ATTACHMENTS],
         tags: [{ name: "category", value: "verification" }],
       });
       // Deliberately no idempotency key: every resend is a new code, and a
@@ -108,6 +116,7 @@ ${EMAIL_HEAD}
             <p style="margin:0;color:#78716c;font-size:12px;line-height:1.5">If you did not ask for this, ignore this email — the account stays unusable without the code, and nobody can sign in to it.</p>
           </td></tr>
         </table>
+        ${EMAIL_FOOTER}
       </td></tr>
     </table>
   </body>

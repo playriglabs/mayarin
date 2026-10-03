@@ -29,6 +29,7 @@ import { eventLogRoutes } from "./routes/event-logs.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { invoiceRoutes } from "./routes/invoices.ts";
 import { merchantDisputeRoutes } from "./routes/merchant-disputes.ts";
+import { notificationRoutes } from "./routes/notifications.ts";
 import { orderRoutes } from "./routes/orders.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
@@ -118,6 +119,12 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   v1.use("/event-logs", requireAuth(), requirePermission("payments:read"));
   v1.use("/event-logs/*", requireAuth(), requirePermission("payments:read"));
   v1.route("/event-logs", eventLogRoutes(container));
+
+  // The bell. Same permission as payments: most of it is payments, and the
+  // configuration notices in it are filtered to settings managers.
+  v1.use("/notifications", requireAuth(), requirePermission("payments:read"));
+  v1.use("/notifications/*", requireAuth(), requirePermission("payments:read"));
+  v1.route("/notifications", notificationRoutes(container));
 
   // The commerce view of a merchant's payments — line items and the customer,
   // rather than the clearing rail. Same permission as payments: it is the same

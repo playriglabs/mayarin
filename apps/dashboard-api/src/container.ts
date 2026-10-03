@@ -51,6 +51,7 @@ import {
   DrizzleMerchantAccountRepository,
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantEventRepository,
+  DrizzleMerchantNotificationRepository,
   DrizzleMerchantRepository,
   DrizzleMerchantSettingChangeRepository,
   DrizzleMerchantWalletRepository,
@@ -128,6 +129,7 @@ import {
 } from "./services/invoice-email-service.ts";
 import { MerchantCatalogService } from "./services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
+import { NotificationService, type NotificationStore } from "./services/notification-service.ts";
 import { OrderReadService } from "./services/order-read-service.ts";
 import { PaymentApiClient } from "./services/payment-api-client.ts";
 import {
@@ -181,6 +183,7 @@ export interface Container {
   readonly settlements: SettlementReadService;
   /** The merchant's unified event timeline — clearing, settlement, webhooks. Read-only. */
   readonly eventLogs: EventLogService;
+  readonly notifications: NotificationService;
   /**
    * The payment API, as a client (#15).
    *
@@ -301,6 +304,8 @@ export interface CreateContainerOptions {
   /** Overridable for tests: a fake payment API rather than a real HTTP one. */
   readonly paymentApi?: PaymentApiClient;
   readonly disputeStore?: DisputeStore;
+  /** Notification feed repo. A test supplies an in-memory fake. */
+  readonly notificationStore?: NotificationStore;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -475,6 +480,14 @@ export function createContainer(options: CreateContainerOptions): Container {
       options.eventLogRepo ?? new DrizzleMerchantEventRepository(handle?.db ?? throwIfNoHandle()),
   });
 
+  // The bell: a derived read over the records above, plus a per-user seen mark.
+  const notifications = new NotificationService({
+    store:
+      options.notificationStore ??
+      new DrizzleMerchantNotificationRepository(handle?.db ?? throwIfNoHandle()),
+    clock,
+  });
+
   // Webhook inspection (#13). The dispatcher itself runs in the payment API;
   // the dashboard only reads and re-queues, scoped to the caller's merchant.
   const webhooks = new WebhookService({
@@ -627,6 +640,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     apiKeys,
     settlements,
     eventLogs,
+    notifications,
     paymentApi,
     disputes,
     webhooks,

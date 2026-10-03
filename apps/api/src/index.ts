@@ -96,6 +96,26 @@ if (webhooks !== undefined && config.webhookIntervalMs > 0) {
   console.log(`[webhooks] dispatching every ${config.webhookIntervalMs}ms`);
 }
 
+// "You got paid" emails, read off the clearing log on their own cursor. Same
+// guard as the dispatcher: a slow pass is skipped, never overlapped.
+const paidNotices = container.paidNotices;
+if (paidNotices !== undefined) {
+  let mailing = false;
+  setInterval(() => {
+    if (mailing) return;
+    mailing = true;
+    void paidNotices
+      .tick()
+      .catch((error) => {
+        console.error("[paid-notifier] tick failed", error);
+      })
+      .finally(() => {
+        mailing = false;
+      });
+  }, 30_000);
+  console.log("[paid-notifier] mailing every 30000ms");
+}
+
 // The expiry sweep runs on its own timer in the watcher's shape: a failed pass
 // leaves the abandoned transactions where they were, so the next pass repeats
 // them. Independent of the chain layer — a chainless deployment still expires.

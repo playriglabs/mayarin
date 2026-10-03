@@ -47,9 +47,18 @@ describe("ResendInvoiceEmailSender", () => {
     expect(calls[0]?.payload.html).toContain('alt="Mayarin"');
     // The logo rides inside the message: remote images are blocked on first open.
     expect(calls[0]?.payload.html).toContain('src="cid:mayarin-logo"');
+    // The logo and the footer icons, each referenced by its `cid:`.
     expect(calls[0]?.payload.attachments).toEqual([
       expect.objectContaining({ contentId: "mayarin-logo", contentType: "image/png" }),
+      expect.objectContaining({ contentId: "mayarin-x", contentType: "image/png" }),
+      expect.objectContaining({ contentId: "mayarin-linkedin", contentType: "image/png" }),
+      expect.objectContaining({ contentId: "mayarin-email", contentType: "image/png" }),
     ]);
+    // The footer: where to find Mayarin, on every email.
+    expect(calls[0]?.payload.html).toContain('src="cid:mayarin-x"');
+    expect(calls[0]?.payload.html).toContain("https://x.com/mayarin_xyz");
+    expect(calls[0]?.payload.html).toContain("mailto:hello@mayarin.xyz");
+    expect(calls[0]?.payload.text).toContain("hello@mayarin.xyz");
     expect(calls[0]?.payload.html).not.toContain("Mayarin invoice</p>");
     // The card, the totals panel and the button, each with its own radius.
     expect(calls[0]?.payload.html).toContain("border-radius:16px");

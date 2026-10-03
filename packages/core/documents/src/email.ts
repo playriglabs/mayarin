@@ -8,6 +8,8 @@
  * by the payment API while the others are sent by the dashboard API.
  */
 
+import { EMAIL_ICON_PNG, LINKEDIN_ICON_PNG, X_ICON_PNG } from "./email-icons.ts";
+
 /**
  * The Mayarin mark, as a PNG on the public site.
  *
@@ -63,6 +65,77 @@ export const LOGO_ATTACHMENT = {
 
 /** The logo block that opens the card. */
 export const LOGO_IMG = `<img src="cid:${LOGO_CID}" width="48" height="48" alt="Mayarin" style="display:block;margin:0 0 24px;border:0;border-radius:8px" />`;
+
+export const MAYARIN_EMAIL = "hello@mayarin.xyz";
+export const MAYARIN_X_URL = "https://x.com/mayarin_xyz";
+export const MAYARIN_LINKEDIN_URL = "https://linkedin.com/company/mayarin";
+const MAYARIN_SITE_URL = "https://mayarin.xyz";
+
+/**
+ * Every attachment a Mayarin email carries: the logo, and the footer icons.
+ * In the SDK's camelCase shape; a raw REST send maps it with `toRestAttachments`.
+ */
+export const EMAIL_ATTACHMENTS = [
+  LOGO_ATTACHMENT,
+  { content: X_ICON_PNG, filename: "x.png", contentType: "image/png", contentId: "mayarin-x" },
+  {
+    content: LINKEDIN_ICON_PNG,
+    filename: "linkedin.png",
+    contentType: "image/png",
+    contentId: "mayarin-linkedin",
+  },
+  {
+    content: EMAIL_ICON_PNG,
+    filename: "email.png",
+    contentType: "image/png",
+    contentId: "mayarin-email",
+  },
+] as const;
+
+/** `EMAIL_ATTACHMENTS` in the REST API's snake_case — what the SDK sends on the wire. */
+export function toRestAttachments(
+  attachments: readonly {
+    readonly path?: string;
+    readonly content?: string;
+    readonly filename: string;
+    readonly contentType: string;
+    readonly contentId: string;
+  }[],
+): readonly Record<string, string>[] {
+  return attachments.map((attachment) => ({
+    ...(attachment.path === undefined ? {} : { path: attachment.path }),
+    ...(attachment.content === undefined ? {} : { content: attachment.content }),
+    filename: attachment.filename,
+    content_type: attachment.contentType,
+    content_id: attachment.contentId,
+  }));
+}
+
+const footerIcon = (href: string, cid: string, alt: string) =>
+  `<a href="${href}" style="display:inline-block;margin:0 8px;text-decoration:none"><img src="cid:${cid}" width="20" height="20" alt="${alt}" style="display:block;border:0" /></a>`;
+
+/**
+ * The footer under every card: where to find Mayarin and what it is. Placed
+ * after the card's table, inside the same centred cell.
+ */
+export const EMAIL_FOOTER = `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;font-family:${FONT_STACK}">
+          <tr><td align="center" style="padding:24px 16px 0">
+            ${footerIcon(MAYARIN_X_URL, "mayarin-x", "X")}${footerIcon(MAYARIN_LINKEDIN_URL, "mayarin-linkedin", "LinkedIn")}${footerIcon(`mailto:${MAYARIN_EMAIL}`, "mayarin-email", "Email")}
+          </td></tr>
+          <tr><td align="center" style="padding:16px 16px 0;color:#78716c;font-size:12px;line-height:1.6;font-family:${FONT_STACK}">
+            Mayarin — Your business a world of ways to pay.
+          </td></tr>
+          <tr><td align="center" style="padding:4px 16px 0;color:#78716c;font-size:12px;line-height:1.6;font-family:${FONT_STACK}">
+            <a href="mailto:${MAYARIN_EMAIL}" style="color:#57534e;text-decoration:none">${MAYARIN_EMAIL}</a> · <a href="${MAYARIN_SITE_URL}" style="color:#57534e;text-decoration:none">mayarin.xyz</a>
+          </td></tr>
+        </table>`;
+
+/** The plain-text footer, for the `text` part. */
+export const EMAIL_FOOTER_TEXT = `--
+Mayarin — Your business a world of ways to pay.
+${MAYARIN_EMAIL} · ${MAYARIN_SITE_URL}
+X: ${MAYARIN_X_URL} · LinkedIn: ${MAYARIN_LINKEDIN_URL}
+`;
 
 export function escapeHtml(value: string): string {
   return value.replace(

@@ -88,6 +88,7 @@ with access already vouched for the address.
 | `GET /audit`, `/audit/:id`                                                   | `payments:read`   | Compliance record with ledger ↔ chain reconciliation            |
 | `GET /settlements`                                                           | `payments:read`   | What clearing booked, plus what the chain reported              |
 | `GET /event-logs`, `/event-logs/events`                                      | `payments:read`   | Clearing, settlement and webhook events in one timeline         |
+| `GET /notifications`, `POST /notifications/read`                             | `payments:read`   | The bell: payments, disputes, refunds, account changes          |
 | `GET /orders`, `/orders/:id`                                                 | `payments:read`   | The commerce view of a payment — lines, customer, status        |
 | `GET/POST/PATCH /catalog/products[/:id]`                                     | `catalog:manage`  | Products, priced per currency                                   |
 | `GET/POST /payment-links`, `/:id/disable`, `/:id/charge`, `/:id/quote`       | `catalog:manage`  | Link templates, counter sale, and indicative pricing            |
@@ -102,6 +103,20 @@ with access already vouched for the address.
 | `GET/POST /webhooks/endpoints`, `/deliveries`                                | `settings:manage` | Endpoints, secret rotation, delivery inspection                 |
 | `GET/POST/DELETE /api-keys[/:id]`                                            | `settings:manage` | Bearer access to this API, permissions a subset of the caller's |
 | `GET/POST /admin/users`                                                      | `admin:access`    | Accounts within the caller's own merchant                       |
+
+**Notifications** are derived, like the event log: each one is a record the
+system already keeps (a clearing event, a dispute, a refund, a settings change, a
+sign-in), read per source with a bound and merged, newest fifty. The only stored
+state is each account's "seen up to" mark, `users.notifications_read_at`.
+Escrowed payments are "held" at `SUCCESS` and "paid" when the escrow releases
+undisputed (`clearing_transactions.escrow_closed_at`). Sign-ins, API keys,
+settings and failed webhooks are shown only to `settings:manage` accounts.
+
+One notification is also emailed: **"You got paid"**, to the merchant's admin
+accounts through Resend (`RESEND_API_KEY`). The payment API reads `SUCCESS`
+off the clearing log on its own cursor (`paid-email`) for payments without
+escrow; the escrow keeper mails an escrowed one when its hold ends undisputed.
+A first run mails nothing from before it started.
 
 A dashboard **API key** is bearer-token access to this surface, with per-key
 permissions that can only be a subset of the merchant's own. The secret is shown

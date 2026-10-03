@@ -161,6 +161,8 @@ export const clearingTransactions = pgTable(
     }>(),
     // Set once the escrow is seen closed on chain; the keeper stops polling it.
     escrowOutcome: text("escrow_outcome"),
+    /** When the keeper saw the escrow close; with no dispute, when the merchant was paid. */
+    escrowClosedAt: timestamp("escrow_closed_at", { withTimezone: true, mode: "date" }),
 
     // What `PaymentCompleted` reported (#12). Kept beside the locked figures
     // rather than replacing them: a payment where the two differ is the signal
@@ -443,6 +445,8 @@ export const users = pgTable(
      * exists but cannot sign in — a self-registration that never finished.
      */
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true, mode: "date" }),
+    /** The reader's "seen up to" mark for notifications; later ones are unread. */
+    notificationsReadAt: timestamp("notifications_read_at", { withTimezone: true, mode: "date" }),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },
