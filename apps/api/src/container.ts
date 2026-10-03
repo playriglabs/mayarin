@@ -6,6 +6,7 @@
  * swappable.
  */
 
+import type { MerchantRepository } from "@mayarin/auth";
 import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import {
   type BlockRef,
@@ -189,6 +190,8 @@ export interface Container {
    * decided.
    */
   readonly merchantPolicies: MerchantAssetPolicySource;
+  /** Merchant records, read for the logo an invoice or receipt PDF carries. */
+  readonly merchants: MerchantRepository;
   /**
    * Which `(chain, asset)` pairs a payer can actually be paid on (#244).
    *
@@ -700,9 +703,8 @@ export function createContainer({
           })
         : new HdDepositAddressDeriver({ xpub: chain.xpub });
 
-  const merchantPolicies = new DrizzleMerchantAssetPolicySource(
-    new DrizzleMerchantRepository(handle.db),
-  );
+  const merchants = new DrizzleMerchantRepository(handle.db);
+  const merchantPolicies = new DrizzleMerchantAssetPolicySource(merchants);
 
   const disputes = new DrizzleEscrowDisputeRepository(handle.db);
   const payerStanding = new PayerStanding(disputes, () => market.disputeStanding());
@@ -1101,7 +1103,7 @@ export function createContainer({
     rates,
     intents,
     engine,
-    merchants: new DrizzleMerchantRepository(handle.db),
+    merchants,
     merchantPolicies,
     settlementAddresses,
     quote: config.quote === undefined ? undefined : resolveQuote,
@@ -1162,6 +1164,7 @@ export function createContainer({
     registry,
     market,
     merchantPolicies,
+    merchants,
     rails: railCatalog,
     ...(railObservations === undefined ? {} : { railObservations }),
     walletGuard,

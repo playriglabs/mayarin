@@ -24,7 +24,7 @@ import { disputeMessageBodySchema, toDisputeMessageDto, toEscrowDto } from "../d
 import { toPaymentDto } from "../dto/payment.ts";
 import { refundBodySchema, toRefundDto, toRefundSummaryDto } from "../dto/refund.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
-import { renderDocumentPdf } from "../services/document-pdf.ts";
+import { fetchLogo, renderDocumentPdf } from "../services/document-pdf.ts";
 
 /**
  * Everything the invoice and receipt of one payment are built from (#293).
@@ -38,16 +38,19 @@ async function documentSources(container: Container, id: string): Promise<Docume
   const invoice =
     invoiceId === undefined ? undefined : await container.invoices.getInvoice(invoiceId);
   const funding = deposit?.deposits.find((entry) => entry.status === "CONFIRMED");
+  const logoUrl = (await container.merchants.findById(intent.merchant.id))?.logoUrl;
   return {
     intent,
     transaction,
     ...(invoice === undefined ? {} : { invoice }),
     ...(funding === undefined ? {} : { fundingTxHash: funding.txHash }),
+    ...(logoUrl === undefined ? {} : { merchantLogoUrl: logoUrl }),
   };
 }
 
 async function pdfResponse(c: Context, doc: PaymentDocument): Promise<Response> {
-  const bytes = await renderDocumentPdf(doc);
+  const logo = doc.seller.logoUrl === undefined ? undefined : await fetchLogo(doc.seller.logoUrl);
+  const bytes = await renderDocumentPdf(doc, logo);
   const name = `${doc.kind}-${doc.invoiceNumber.replace(/[^\w-]/g, "-")}.pdf`;
   return c.body(bytes, 200, {
     "Content-Type": "application/pdf",

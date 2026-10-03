@@ -118,11 +118,13 @@ export function invoiceRoutes(container: Container): Hono<{ Variables: AuthVars 
 
     const view = await container.invoices.viewInvoice(invoice.id);
     const dto = toInvoiceViewDto(view, checkoutBaseUrl);
+    const merchant = await container.settings.get(scope);
     const delivery = await container.invoiceEmails.sendInvoice({
       invoiceId: invoice.id,
       deliveryId: body.deliveryId,
       invoiceNumber: invoice.number,
       merchantName: invoice.merchant.name,
+      merchantLogoUrl: merchant.logoUrl,
       buyerName: invoice.buyer.name,
       buyerEmail,
       total: dto.total.display,

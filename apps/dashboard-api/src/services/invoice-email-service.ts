@@ -1,13 +1,14 @@
 /** Transactional delivery of an issued invoice through Resend. */
 
 import {
-  EMAIL_ATTACHMENTS,
   EMAIL_FOOTER,
   EMAIL_FOOTER_TEXT,
   EMAIL_HEAD,
   escapeHtml,
   FONT_STACK,
   LOGO_IMG,
+  logoImg,
+  merchantEmailAttachments,
 } from "@mayarin/documents";
 import { ConfigurationError, ProviderError } from "@mayarin/shared";
 import { Resend } from "resend";
@@ -18,6 +19,8 @@ export interface SendInvoiceEmailRequest {
   readonly deliveryId: string;
   readonly invoiceNumber: string;
   readonly merchantName: string;
+  /** The merchant's uploaded logo; `undefined` sends Mayarin's. */
+  readonly merchantLogoUrl: string | undefined;
   readonly buyerName: string;
   readonly buyerEmail: string;
   readonly total: string;
@@ -62,7 +65,7 @@ export class ResendInvoiceEmailSender implements InvoiceEmailSender {
           subject: `${request.merchantName} sent invoice ${request.invoiceNumber}`,
           html: renderInvoiceHtml(request),
           text: `${renderInvoiceText(request)}\n${EMAIL_FOOTER_TEXT}`,
-          attachments: [...EMAIL_ATTACHMENTS],
+          attachments: merchantEmailAttachments(request.merchantLogoUrl),
           tags: [{ name: "category", value: "invoice" }],
         },
         // A retried click reuses its delivery id and remains one message. A
@@ -118,7 +121,7 @@ ${EMAIL_HEAD}
       <tr><td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:16px">
           <tr><td style="padding:32px;font-family:${FONT_STACK}">
-            ${LOGO_IMG}
+            ${request.merchantLogoUrl === undefined ? LOGO_IMG : logoImg(request.merchantName)}
             <h1 style="margin:0 0 12px;font-size:28px;font-weight:700;line-height:1.25">Invoice ${number}</h1>
             <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6">Hi ${buyer}, ${merchant} sent you an invoice. Review it securely and choose a supported crypto asset to pay.</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:28px;background:#fafaf9;border:1px solid #f0efee;border-radius:12px;font-family:${FONT_STACK}">

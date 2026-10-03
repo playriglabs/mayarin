@@ -64,7 +64,12 @@ export const LOGO_ATTACHMENT = {
 } as const;
 
 /** The logo block that opens the card. */
-export const LOGO_IMG = `<img src="cid:${LOGO_CID}" width="48" height="48" alt="Mayarin" style="display:block;margin:0 0 24px;border:0;border-radius:8px" />`;
+export const LOGO_IMG = logoImg("Mayarin");
+
+/** The logo block, with the `alt` naming whose logo it is. */
+export function logoImg(alt: string): string {
+  return `<img src="cid:${LOGO_CID}" width="48" height="48" alt="${escapeHtml(alt)}" style="display:block;margin:0 0 24px;border:0;border-radius:8px" />`;
+}
 
 export const MAYARIN_EMAIL = "hello@mayarin.xyz";
 export const MAYARIN_X_URL = "https://x.com/mayarin_xyz";
@@ -91,6 +96,26 @@ export const EMAIL_ATTACHMENTS = [
     contentId: "mayarin-email",
   },
 ] as const;
+
+/**
+ * `EMAIL_ATTACHMENTS` with the merchant's logo in place of Mayarin's, for an
+ * email a merchant sends its buyer (an invoice, a subscription bill). The
+ * footer icons stay: Mayarin is still who delivered it.
+ */
+export function merchantEmailAttachments(logoUrl: string | undefined) {
+  if (logoUrl === undefined) return [...EMAIL_ATTACHMENTS];
+  const png = logoUrl.toLowerCase().endsWith(".png");
+  const [, ...icons] = EMAIL_ATTACHMENTS;
+  return [
+    {
+      path: logoUrl,
+      filename: png ? "logo.png" : "logo.jpg",
+      contentType: png ? "image/png" : "image/jpeg",
+      contentId: LOGO_CID,
+    },
+    ...icons,
+  ];
+}
 
 /** `EMAIL_ATTACHMENTS` in the REST API's snake_case — what the SDK sends on the wire. */
 export function toRestAttachments(

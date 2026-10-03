@@ -29,6 +29,11 @@ export interface DocumentSources {
   readonly customer?: Customer;
   /** The payer's funding transfer on the deposit-match path. */
   readonly fundingTxHash?: string;
+  /**
+   * The merchant's current logo. Read live rather than frozen into the
+   * snapshot: it is branding, not a term of the payment.
+   */
+  readonly merchantLogoUrl?: string;
 }
 
 const TX_HASH = /^0x[\da-f]{64}$/i;
@@ -59,7 +64,7 @@ export function invoiceDocument(sources: DocumentSources): PaymentDocument {
     invoiceNumber: invoice?.number ?? derivedNumber(intent.id),
     issuedAt: invoice?.issuedAt ?? intent.createdAt,
     dueAt: invoice?.dueAt ?? intent.expiresAt,
-    seller: sellerOf(intent),
+    seller: sellerOf(intent, sources.merchantLogoUrl),
     ...(billTo === undefined ? {} : { billTo }),
     ...(memo === undefined ? {} : { memo }),
     lines,
@@ -100,9 +105,13 @@ export function settlementHashOf(transaction: ClearingTransaction): string | und
   );
 }
 
-function sellerOf(intent: PaymentIntent): DocumentParty {
+function sellerOf(intent: PaymentIntent, logoUrl: string | undefined): DocumentParty {
   const { name, city, countryCode } = intent.merchant;
-  return { name, lines: [city, countryCode].filter((line) => line !== "") };
+  return {
+    name,
+    lines: [city, countryCode].filter((line) => line !== ""),
+    ...(logoUrl === undefined ? {} : { logoUrl }),
+  };
 }
 
 function billToOf({ intent, invoice, customer }: DocumentSources): DocumentParty | undefined {

@@ -18,6 +18,8 @@ export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 export interface DocumentParty {
   readonly name: string;
   readonly lines: readonly string[];
+  /** The party's logo, a public PNG or JPEG. Only the seller has one. */
+  readonly logoUrl?: string;
 }
 
 export interface DocumentLine {

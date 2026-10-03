@@ -12,6 +12,16 @@ describe("derivedNumber", () => {
 });
 
 describe("invoiceDocument", () => {
+  test("the seller carries the merchant's logo when one is given", () => {
+    const doc = invoiceDocument({
+      intent: intent(),
+      transaction: transaction(),
+      merchantLogoUrl: "https://pub-test.r2.dev/logo.png",
+    });
+
+    expect(doc.seller.logoUrl).toBe("https://pub-test.r2.dev/logo.png");
+  });
+
   test("a plain payment prints one line for the whole amount", () => {
     const doc = invoiceDocument({ intent: intent(), transaction: transaction() });
 

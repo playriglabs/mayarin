@@ -26,6 +26,7 @@ describe("ResendInvoiceEmailSender", () => {
       deliveryId: "00000000-0000-4000-8000-000000000001",
       invoiceNumber: "INV/2026/0001",
       merchantName: "Mayarin & Co",
+      merchantLogoUrl: undefined,
       buyerName: "Client <Finance>",
       buyerEmail: "owner@example.com",
       total: "Rp 250.000,00",
@@ -70,5 +71,48 @@ describe("ResendInvoiceEmailSender", () => {
     // nowhere to hide a link.
     expect(calls[0]?.payload.html).toContain(">Pay with this link</a>");
     expect(calls[0]?.payload.text).toContain("https://pay.example.com/invoices/inv_1/view");
+  });
+
+  test("an uploaded merchant logo replaces Mayarin's", async () => {
+    const calls: CreateEmailOptions[] = [];
+    const sender = new ResendInvoiceEmailSender({
+      apiKey: "re_test",
+      from: "Mayarin <onboarding@resend.dev>",
+      resend: {
+        emails: {
+          send: async (payload) => {
+            calls.push(payload);
+            return { data: { id: "eml_resend_2" }, error: null, headers: null };
+          },
+        },
+      },
+    });
+
+    await sender.sendInvoice({
+      invoiceId: "inv_2",
+      deliveryId: "00000000-0000-4000-8000-000000000002",
+      invoiceNumber: "INV/2026/0002",
+      merchantName: "Toko Kopi",
+      merchantLogoUrl: "https://pub-test.r2.dev/merchant-logos/mrc_1/01J.png",
+      buyerName: "Client",
+      buyerEmail: "owner@example.com",
+      total: "Rp 1,00",
+      outstanding: "Rp 1,00",
+      dueAt: null,
+      url: "https://pay.example.com/invoices/inv_2/view",
+    });
+
+    // Same `cid:`, different image behind it — and named for the merchant.
+    expect(calls[0]?.html).toContain('src="cid:mayarin-logo"');
+    expect(calls[0]?.html).toContain('alt="Toko Kopi"');
+    expect(calls[0]?.attachments?.[0]).toEqual(
+      expect.objectContaining({
+        path: "https://pub-test.r2.dev/merchant-logos/mrc_1/01J.png",
+        contentId: "mayarin-logo",
+        contentType: "image/png",
+      }),
+    );
+    // Mayarin's footer icons still ride along.
+    expect(calls[0]?.attachments).toHaveLength(4);
   });
 });

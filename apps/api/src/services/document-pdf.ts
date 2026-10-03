@@ -176,7 +176,42 @@ function paymentRows(doc: PaymentDocument): readonly (readonly [string, string])
   return rows;
 }
 
-export async function renderDocumentPdf(doc: PaymentDocument): Promise<Uint8Array<ArrayBuffer>> {
+/**
+ * The merchant's logo bytes, for the top-right corner.
+ *
+ * A logo that cannot be fetched in time is left off rather than failing the
+ * PDF: the invoice is the document, the logo is decoration on it.
+ */
+export async function fetchLogo(url: string): Promise<Uint8Array | undefined> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(3_000) });
+    if (!res.ok) return undefined;
+    return new Uint8Array(await res.arrayBuffer());
+  } catch {
+    return undefined;
+  }
+}
+
+const LOGO_SIZE = 56;
+
+/** Draws the logo at the top-right, its top edge level with the page margin. PNG or JPEG only. */
+async function drawLogo(pdf: PDFDocument, page: PDFPage, bytes: Uint8Array): Promise<void> {
+  const png = bytes[0] === 0x89 && bytes[1] === 0x50;
+  const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
+  if (!png && !jpeg) return;
+  const image = png ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+  page.drawImage(image, {
+    x: RIGHT - LOGO_SIZE,
+    y: PAGE_HEIGHT - MARGIN - LOGO_SIZE,
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
+  });
+}
+
+export async function renderDocumentPdf(
+  doc: PaymentDocument,
+  logo?: Uint8Array,
+): Promise<Uint8Array<ArrayBuffer>> {
   const pdf = await PDFDocument.create();
   const isReceipt = doc.kind === "receipt";
   pdf.setTitle(`${isReceipt ? "Receipt" : "Invoice"} ${doc.invoiceNumber}`);
@@ -188,6 +223,8 @@ export async function renderDocumentPdf(doc: PaymentDocument): Promise<Uint8Arra
     regular: await pdf.embedFont(StandardFonts.Helvetica),
     bold: await pdf.embedFont(StandardFonts.HelveticaBold),
   };
+
+  if (logo !== undefined) await drawLogo(pdf, pen.page, logo);
 
   let y = PAGE_HEIGHT - MARGIN - 20;
   text(pen, isReceipt ? "Receipt" : "Invoice", MARGIN, y, { size: 24, bold: true });

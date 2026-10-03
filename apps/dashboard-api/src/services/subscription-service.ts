@@ -232,6 +232,7 @@ export class SubscriptionService {
           deliveryId: key.replace(/[^\w-]/g, "-"),
           invoiceNumber: invoice.number,
           merchantName: invoice.merchant.name,
+          merchantLogoUrl: merchant.logoUrl,
           buyerName: invoice.buyer.name,
           buyerEmail: email,
           total,

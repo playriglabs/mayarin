@@ -14,7 +14,7 @@ import {
   MERCHANT_ADMIN_PERMISSIONS,
   type Permission,
 } from "@mayarin/auth";
-import { InMemoryApiKeyRepository } from "@mayarin/auth/testing";
+import { InMemoryApiKeyRepository, InMemoryMerchantRepository } from "@mayarin/auth/testing";
 import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import {
   InMemoryCustomerRepository,
@@ -229,6 +229,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     verifyApiKey: createApiKeyVerifier({ keys: apiKeys, clock }),
     intents,
     merchantPolicies,
+    merchants: new InMemoryMerchantRepository(),
     rails,
     catalog: new CatalogService({ products, links, clock }),
     commerce,
