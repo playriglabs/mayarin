@@ -24,11 +24,15 @@ export function DepositCard({
   readonly onCopy: (target: CopyTarget, text: string) => void;
 }) {
   const amount = walletAmount(deposit.amount.formatted);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  // One section open at a time: both open pushes the copy button below the
+  // fold. The notes start open — they are the mistakes that lose a payment,
+  // and a payer reads them before sending, not after.
+  const [openSection, setOpenSection] = useState<"details" | "notes" | null>("notes");
+  const toggle = (section: "details" | "notes") =>
+    setOpenSection((current) => (current === section ? null : section));
+  const detailsOpen = openSection === "details";
+  const notesOpen = openSection === "notes";
   const detailsId = useId();
-  // Open by default: these are the mistakes that lose a payment, and a payer
-  // reads them before sending, not after.
-  const [notesOpen, setNotesOpen] = useState(true);
   const notesId = useId();
 
   return (
@@ -108,7 +112,7 @@ export function DepositCard({
           className="payment-details-trigger"
           aria-expanded={detailsOpen}
           aria-controls={detailsId}
-          onClick={() => setDetailsOpen((open) => !open)}
+          onClick={() => toggle("details")}
         >
           <span>Payment details</span>
           <span className="details-chevron" aria-hidden="true" />
@@ -170,7 +174,7 @@ export function DepositCard({
           className="payment-details-trigger"
           aria-expanded={notesOpen}
           aria-controls={notesId}
-          onClick={() => setNotesOpen((open) => !open)}
+          onClick={() => toggle("notes")}
         >
           <span>Key things to note</span>
           <span className="details-chevron" aria-hidden="true" />
