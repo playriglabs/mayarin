@@ -291,8 +291,9 @@ function NetworkRow({
             from `sm` up. The caret keeps its own column either way, so it never
             floats between the two. */}
         <span className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <span className="font-medium text-sm sm:min-w-44 sm:flex-1">
+          <span className="flex items-center gap-2 font-medium text-sm sm:min-w-44 sm:flex-1">
             <ChainLabel chain={chain} className="whitespace-nowrap" />
+            {isCustomized(draft, chain) && <Badge variant="brand">Custom</Badge>}
           </span>
           <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground text-xs">
             <span className="flex items-center gap-2">
@@ -309,7 +310,6 @@ function NetworkRow({
               <AssetStack assets={accepted} size={18} />
               {accepted.length} of {entry.assets.length} accepted
             </span>
-            {isCustomized(draft, chain) && <Badge variant="brand">Custom</Badge>}
           </span>
         </span>
         <CaretRightIcon size={14} aria-hidden="true" className="text-muted-foreground" />
