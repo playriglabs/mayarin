@@ -11,7 +11,7 @@ With buyer protection, a payment does not go straight to your settlement wallet.
 | Anyone       | Release the funds to you                  | After the hold, if nobody disputed     |
 | You          | Refund the buyer                          | Any time                               |
 | The buyer    | Open a dispute, stopping the auto-release | Before the hold ends                   |
-| The arbiter  | Release or refund a disputed payment      | Up to 7 days after the hold ends       |
+| The arbiter  | Release, refund or split a disputed payment | Up to 7 days after the hold ends     |
 | Anyone       | Refund a dispute nobody decided           | From 7 days after the hold ends        |
 
 When the hold ends without a dispute, **Mayarin releases the funds to you automatically**, within about a minute. Mayarin pays the gas for that release; it cannot send the funds anywhere but to you. A dispute nobody decided is refunded to the buyer the same way.
@@ -23,7 +23,9 @@ The escrow is a smart contract with no owner, no admin and no upgrade. Its terms
 - **The hold is 1 to 90 days.** Long enough for the buyer to check the order, short enough that your money is not locked away.
 - **A neutral arbiter.** Disputes go to **Mayarin Resolution** unless you name another arbiter. The arbiter can only send the funds to you or to the buyer. It can never be you or the buyer.
 - **No dispute is stuck.** If the arbiter has not decided 7 days after the hold ends, the buyer is refunded — the same default as a card chargeback.
-- **The buyer sees every term** — hold, arbiter, deadline — before they pay.
+- **The buyer sees every term** — hold, arbiter, deadline, dispute bond — before they pay.
+- **Disputing costs a bond, if you set one.** See [dispute bond](#dispute-bond).
+- **Repeat disputers lose protection.** See [buyer standing](#buyer-standing).
 
 ## Turn it on for every payment
 
@@ -36,26 +38,74 @@ The buyer **opts in by connecting a wallet** — the one they will release from.
 Pass `escrow` when you create the intent. The buyer must then connect a wallet.
 
 ```ts
-const intent = await mayarin.payments.createIntent({
+const intent = await mayarin.payment.createIntent({
   merchant: { id: "merchant_123", name: "Northwind Coffee", city: "Singapore", countryCode: "SG" },
   amount: { amount: "120.00", asset: "USD" },
-  escrow: { holdSeconds: 7 * 24 * 60 * 60 },
+  escrow: { holdSeconds: 7 * 24 * 60 * 60, bondBps: 500 },
 });
 
 const url = `https://pay.mayarin.xyz/checkout/pay/${intent.id}`;
 ```
 
-Pass `escrow: null` to opt one payment out of your default.
+`arbiter` (an address) and `bondBps` are optional; omitted, your defaults apply. Pass `escrow: null` to opt one payment out of your default.
 
 ## Watch the hold
 
 ```ts
-const escrow = await mayarin.payments.getEscrow(intent.id);
-// escrow.outcome: "held" | "released" | "refunded"
+const escrow = await mayarin.payment.getEscrow(intent.id);
+// escrow.outcome: "held" | "released" | "refunded" | "split"
 // escrow.disputed, escrow.terms.releaseAfter, escrow.terms.resolveBy, escrow.balance
+// escrow.bond          — the dispute bond in settlement-token minor units, or null
+// escrow.payerStanding — "good" | "flagged"
+// escrow.dispute       — null, or { reference, status, openedAt, decidedAt, messages }
 ```
 
-The buyer sees the same state on their payment page, with **Release to merchant** and **Open a dispute**.
+Amounts are decimal strings in the settlement token's minor units. The buyer sees the same state on their payment page, with **Release to merchant** and **Open a dispute**.
+
+## When a buyer disputes
+
+You are told at once:
+
+- a webhook `escrow.disputed`, through the same signed, retried delivery as payment events — the event `id` is the dispute id;
+- an email to your admin accounts with the dispute number and a link to it;
+- a notification in the dashboard.
+
+```json
+{
+  "id": "dsp_01K…",
+  "type": "escrow.disputed",
+  "occurredAt": "2026-10-02T11:21:00.000Z",
+  "data": {
+    "disputeId": "dsp_01K…",
+    "reference": "92965881664",
+    "paymentIntentId": "pi_01M…",
+    "chain": "base-sepolia",
+    "payer": "0x1d96…f48f6",
+    "resolveBy": "2026-10-10T11:21:00.000Z"
+  }
+}
+```
+
+The buyer states their case in the dispute's thread, from their payment page, and the arbiter answers there. You read the same thread in the dashboard under **Disputes**. Mayarin Resolution aims to decide within 3 days of the dispute.
+
+## Dispute bond
+
+Set a bond in **Settings → Buyer protection → Dispute bond**, 0–20% of what reaches the escrow, or per payment with `escrow.bondBps`. The buyer posts it, in the settlement token, when they dispute; checkout states it before they connect and asks them to approve it before disputing.
+
+| Outcome                         | Payment              | Bond                     |
+| ------------------------------- | -------------------- | ------------------------ |
+| Released to you                 | You                  | You                      |
+| Refunded to the buyer           | Buyer                | Buyer                    |
+| Arbiter splits it               | Split by your share  | Whoever gets the larger share; the buyer at 50/50 |
+| Nobody decided by the deadline  | Buyer                | Buyer                    |
+
+A buyer who disputes and then releases has conceded, so the bond goes to you with the payment. A bond of zero disputes free.
+
+## Buyer standing
+
+A wallet that keeps disputing and keeps losing stops being offered buyer protection — with you and with every other merchant. When such a wallet connects, optional protection stays off and you are paid directly; a payment where you required protection is refused to it.
+
+On an escrowed payment you see the buyer's standing, **Good** or **Flagged**, never their history with other merchants. A new wallet starts clean, so standing stops repeat abuse from one address; the bond is what makes abuse cost money.
 
 ## Refund
 
@@ -65,4 +115,4 @@ Open the payment in the dashboard and choose **Refund the payer**. Your settleme
 
 Mayarin's fee is taken when the payment settles into escrow, so a refund returns the amount held: the payment minus the fee.
 
-The escrow factory is `0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45` on every supported chain.
+The escrow factory is `0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18` on every supported chain. Escrows made before 2 October 2026 live under the first factory, `0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45`, which has no bond and no split; `escrow.factory` always names the right one, so send calls there rather than to a hard-coded address.

@@ -34,6 +34,17 @@ the same document.
 A link or cart payment has no invoice series to belong to, which is why its
 number is derived rather than allocated: there is no counter to agree with.
 
+## Merchant logo
+
+A merchant that uploaded a logo (dashboard Settings → General, see
+[api.md](./api.md#merchant-profile-and-logo)) gets it top-right on both PDFs,
+level with the title. It is the one input that is **not** a snapshot: the logo
+is read from the merchant at render time, because it is branding, not a term of
+the payment. A logo that cannot be fetched within 3 s is left off rather than
+failing the document — the invoice is the document, the logo decoration on it.
+Only PNG and JPEG are drawn. No logo, no image: the PDF never falls back to
+Mayarin's mark.
+
 ## The receipt's proof
 
 Where a card receipt prints "Visa - 2778", this one prints what the chain
@@ -53,6 +64,26 @@ payment priced in the settlement asset itself prints no rate.
 Money is printed in the human form (`formatMoneyLocale`, `en-US`). The standard
 Helvetica faces cover Latin-1; a character outside it prints as `?` rather than
 failing the render.
+
+## Emails
+
+Every Mayarin email is one card plus a shared footer, both in
+`packages/core/documents/src/email.ts`: the logo opens the card, and the footer
+(`EMAIL_FOOTER`, plain-text twin `EMAIL_FOOTER_TEXT`) carries X, LinkedIn and
+email icons, the tagline and the contact line. Images travel as inline
+attachments (`EMAIL_ATTACHMENTS`, referenced by `cid:`), not remote URLs, so a
+client that blocks remote images still shows them.
+
+Whose logo opens the card depends on who the email is from:
+
+| Email                                             | Logo                           |
+| ------------------------------------------------- | ------------------------------ |
+| Invoice, subscription bill (merchant → buyer)     | The merchant's, else Mayarin's |
+| Verification code, "You got paid", dispute notice | Mayarin's                      |
+
+`merchantEmailAttachments(logoUrl)` swaps the merchant's logo in behind the same
+`cid:`, as a `path` attachment Resend fetches, with the merchant's name as alt
+text. The footer stays Mayarin's either way: Mayarin is still who delivered it.
 
 ## CSV export
 

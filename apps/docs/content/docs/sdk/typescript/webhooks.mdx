@@ -30,7 +30,7 @@ Both use WebCrypto, so they run in Node, Bun, and Cloudflare Workers without a N
 }
 ```
 
-`type` is one of `payment.created`, `payment.state_changed`, `payment.failed`. `state` is the clearing state the payment moved to — `SUCCESS` is the terminal one. A delivery carries ids and a state, never figures you could book against: [a webhook is a signal, not truth](/concepts/payment-lifecycle).
+`type` is one of `payment.created`, `payment.state_changed`, `payment.failed`, or `escrow.disputed` when a buyer disputes an escrowed payment — its `data` carries the dispute instead of a state; see [buyer protection](/guides/escrow#when-a-buyer-disputes). `state` is the clearing state the payment moved to — `SUCCESS` is the terminal one. A delivery carries ids and a state, never figures you could book against: [a webhook is a signal, not truth](/concepts/payment-lifecycle).
 
 Put your own order id in the intent's `metadata` (or `merchantReference`) at creation, and `data.metadata` gives you the match without a lookup table.
 

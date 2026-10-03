@@ -42,6 +42,18 @@ against"`.
 Boot-time and validated is the right shape: a deployment with a bad value should
 fail to start, not fail on its first payment.
 
+### Logo storage (dashboard API)
+
+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` and
+`R2_PUBLIC_URL` point the dashboard API at the Cloudflare R2 bucket merchant
+logos are uploaded to. `R2_PUBLIC_URL` is the bucket's public origin (its
+`r2.dev` URL or a custom domain) a logo is served from — the URL stored on the
+merchant and fetched by the PDF renderer and Resend.
+
+All five or none. Unset, the dashboard API boots, shows the generated avatar,
+and refuses an upload. Partly set, it refuses to boot and names the missing
+ones: `"Logo storage needs R2_BUCKET, R2_PUBLIC_URL"`.
+
 ### API rate limiting
 
 Both versioned HTTP surfaces use a per-process, per-client token bucket. The

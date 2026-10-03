@@ -417,6 +417,8 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
 - ☑ Webhook delivery to merchant integrations (signed, retry, idempotent) — `packages/core/notifications`, driven off the clearing event log
 - ☑ Merchant-owned webhook endpoints and delivery inspection in the dashboard API
 - ☑ Real-time payment status — SSE on the hosted checkout, backed by Postgres `NOTIFY`
+- ☑ In-app notifications — the dashboard bell and `/notifications` page, derived from records the system already keeps; only a per-user seen mark is stored
+- ☑ "You got paid" email to the merchant's admins — on `SUCCESS`, or when an escrow hold ends undisputed
 
 ### Developer SDK
 
@@ -442,7 +444,9 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
   ceremony (`navigator.credentials.create`, then a Turnkey request stamped by
   that passkey); the other two paths are complete
 - ☑ Settings — settlement asset, accepted assets, settlement address, merchant
-  profile, and the change history behind them
+  profile (company logo on R2, registration number), and the change history
+  behind them
+- ☑ Onboarding tour on first sign-in
 - ☑ Developers → Webhooks: endpoints, secret rotation, delivery inspection, replay
 - ☑ Orders — `/orders`, a derived read of cart-bearing or referenced payment
   intents. Line items, the linked customer, and the payment status — no

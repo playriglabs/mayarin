@@ -12,6 +12,7 @@ description: Create intents, confirm them, inspect status, and obtain contract c
 | `confirmIntent(id, options?)`   | `PaymentDto`        | Lock the price and start clearing.                    |
 | `get(id, options?)`             | `PaymentDto`        | Full view: intent, clearing, deposit, timeline.       |
 | `getContractCall(id, options?)` | `ContractCallDto`   | Fetch fresh calldata for a wallet to submit.          |
+| `getEscrow(id, options?)`       | `EscrowDto`         | Where an escrowed payment's funds are, and its calls. |
 
 `get` accepts a payment intent ID or a clearing transaction ID.
 
@@ -51,6 +52,7 @@ intent.executionPath; // "on-chain-contract" | "deposit-match" | null
 | `merchantReference` | Your own order id. Stored, indexed, echoed back, never interpreted.                                        |
 | `metadata`          | Free-form string map, carried through to webhooks.                                                         |
 | `ttlSeconds`        | How long the intent stays payable before it expires.                                                       |
+| `escrow`            | `{ holdSeconds, arbiter?, bondBps? }` requires [buyer protection](/guides/escrow); `null` opts out of the merchant default. |
 
 Pass `merchantReference` whenever you have one — it is what lets a webhook or a reconciliation query find your order without a lookup table.
 
@@ -101,6 +103,18 @@ call.expiresAt; // refetch after this
 
 A native-asset payer can send `call.transaction` as-is. An ERC-20 payer assembles `payERC20` client-side, because only their wallet can sign the Permit2 authorisation. `minOut` is the merchant's protection: the contract reverts rather than settling less.
 
+### Escrowed payments
+
+A payment with [buyer protection](/guides/escrow) settles into a per-payment escrow. `getEscrow` reads its state and the calldata each party sends to `escrow.factory`:
+
+```ts
+const escrow = await mayarin.payment.getEscrow(intent.id);
+
+escrow.outcome; // "held" | "released" | "refunded" | "split"
+escrow.terms.releaseAfter; // auto-release time, if undisputed
+escrow.calls.refund; // send to escrow.factory from the settlement address
+```
+
 ## Status and reconciliation
 
 `PaymentIntentDto.status` is one of `CREATED`, `CONFIRMED`, `PROCESSING`, `COMPLETED`, `FAILED`, `EXPIRED`. The clearing state machine underneath is finer-grained and visible in `payment.timeline` — see [payment lifecycle](/concepts/payment-lifecycle).
@@ -141,7 +155,7 @@ GET /v1/payments/:id/invoice.pdf
 GET /v1/payments/:id/receipt.pdf
 ```
 
-The receipt carries the settlement proof: the asset paid, the network, the cleared rate, the settled amount, the fee and a link to the transaction on the explorer. Link to these directly from your order page; the hosted checkout's success screen offers the same downloads.
+The receipt carries the settlement proof: the asset paid, the network, the cleared rate, the settled amount, the fee and a link to the transaction on the explorer. Both carry the company logo uploaded in dashboard **Settings → General**, top right; without one, the document prints without a logo. Link to these directly from your order page; the hosted checkout's success screen offers the same downloads.
 
 ## Retrying a failed payment
 

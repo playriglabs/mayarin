@@ -84,6 +84,10 @@ settlement and payer asset, and additional chains including Arc testnet. See
 
 **Settlement per chain, and USDG.** A merchant's settlement asset can differ per chain, and each rail from `GET /v1/payment-links/:id/rails` reports its `settlementAsset`. USDG (Global Dollar) is a settlement and payer asset, on Arbitrum Sepolia and Robinhood Chain testnet. See [currencies, assets and chains](/concepts/rails).
 
+**Buyer protection (escrow).** `escrow: { holdSeconds, arbiter?, bondBps? }` on a payment intent settles it into a per-payment escrow, and `GET /v1/payments/:id/escrow` (`payment.getEscrow` in the SDK) reports where the funds are, the dispute, and the calls to release or refund. A dispute is announced by the `escrow.disputed` webhook. The arbiter can split a disputed payment, and a merchant can require a dispute bond. See [the guide](/guides/escrow).
+
+**Merchant logo on documents.** Invoice and receipt PDFs, and invoice and subscription emails to your buyers, carry the logo uploaded in dashboard Settings.
+
 **Hosted checkout URL on cart checkout.** `POST /v1/carts/checkout` returns `url`, the absolute hosted checkout page for the new intent.
 
 None of these require a client change. A client pinned to `2026-08-11` keeps

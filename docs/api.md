@@ -97,6 +97,7 @@ with access already vouched for the address.
 | `GET/POST /x402-resources`, `/:id/list`, `/:id/unlist`, `DELETE /:id`        | `catalog:manage`  | The merchant's own agent-payable endpoints                      |
 | `GET/POST /subscriptions`, `/:id/pause`, `/:id/resume`, `/:id/cancel`        | `catalog:manage`  | Recurring plans, one invoice per cycle (#296)                   |
 | `GET/PATCH /settings`, `GET /settings/history`                               | `settings:manage` | Settlement config, merchant profile, change trail               |
+| `PUT/DELETE /settings/logo`                                                  | `settings:manage` | Upload or remove the company logo (R2)                          |
 | `GET/POST /wallets`, `/:id/challenge`, `/:id/verify`, `/managed`, `/passkey` | `settings:manage` | Payout addresses and proof of control                           |
 | `GET /wallets/balance`, `GET /wallets/withdrawals`, `POST /wallets/withdraw` | `settings:manage` | Balance, successful withdrawal history, and moving out          |
 | `GET /payouts`, `POST /payouts/prepare`, `POST /payouts`                     | `settings:manage` | Batch payouts: calldata to sign, chain-verified record (#295)   |
@@ -117,6 +118,27 @@ accounts through Resend (`RESEND_API_KEY`). The payment API reads `SUCCESS`
 off the clearing log on its own cursor (`paid-email`) for payments without
 escrow; the escrow keeper mails an escrowed one when its hold ends undisputed.
 A first run mails nothing from before it started.
+
+### Merchant profile and logo
+
+`GET /settings` opens with the merchant's profile: `name`, `logoUrl`,
+`registrationNumber` (#1, #2, … in sign-up order), `registeredAt`, and
+`createdBy` — the email of the account that registered the merchant (its
+earliest user) and whether that email is verified, which is what the
+dashboard's Verified badge means.
+
+`PUT /settings/logo` takes the image itself as the body. The dashboard crops it
+to a square and sends a 512 px PNG; the server reads the type from the bytes,
+not the header, accepts PNG or JPEG up to 2 MB, and stores it in Cloudflare R2
+under a fresh key per upload, so a cached old logo never shadows a new one.
+`DELETE /settings/logo` clears it and the dashboard draws a generated avatar
+seeded by the merchant id. Both are CSRF-guarded and recorded in the settings
+change trail like any other setting. Where the logo then appears is in
+[documents.md](./documents.md#merchant-logo).
+
+Migration 0042 adds `merchants.logo_url` and `merchants.registration_number`,
+numbering existing merchants by `created_at` before making the column an
+identity.
 
 A dashboard **API key** is bearer-token access to this surface, with per-key
 permissions that can only be a subset of the merchant's own. The secret is shown
