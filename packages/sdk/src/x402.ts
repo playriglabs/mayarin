@@ -33,6 +33,7 @@ import {
   X402_VERSION,
 } from "@mayarin/x402";
 import { errorFromResponse } from "./errors.ts";
+import { apiOrigin } from "./transport.ts";
 
 export type X402GateErrorCode = "PRICE_UNAVAILABLE" | "SETTLE_UNAVAILABLE";
 
@@ -128,7 +129,7 @@ export function createX402Gate(config: X402GateConfig): X402Gate {
   const fetchFn = config.fetch ?? globalThis.fetch;
   const now = config.now ?? (() => new Date());
   const replays = config.replays ?? createReplayStore(now);
-  const base = config.baseUrl.replace(/\/+$/, "");
+  const base = apiOrigin(config.baseUrl);
   const resourcePath = `/x402/resources/${encodeURIComponent(config.resourceId)}`;
 
   async function quote(): Promise<PaymentRequired> {

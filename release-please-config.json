@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "c5b1b7e693dee78f4d51c403cb8861ccc85c6aa0",
+  "release-type": "node",
+  "include-component-in-tag": true,
+  "prerelease": true,
+  "versioning": "prerelease",
+  "prerelease-type": "next",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "packages": {
+    "packages/sdk": {
+      "component": "sdk",
+      "package-name": "@mayarin/sdk",
+      "extra-files": ["src/version.ts"]
+    },
+    "packages/react": {
+      "component": "react",
+      "package-name": "@mayarin/react"
+    }
+  }
+}

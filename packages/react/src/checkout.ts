@@ -78,12 +78,29 @@ export async function resolveCheckoutUrl(
 ): Promise<string> {
   if (options.checkout !== undefined) {
     const result = await options.checkout();
-    return typeof result === "string" ? result : result.url;
+    return checkoutUrl(typeof result === "string" ? result : result.url);
   }
   const client = createMayarinBrowser({
     baseUrl: options.baseUrl,
     publishableKey: options.publishableKey,
     fetch: fetcher,
   });
-  return (await client.commerce.carts.checkout(cartBody(options))).url;
+  return checkoutUrl((await client.commerce.carts.checkout(cartBody(options))).url);
+}
+
+/**
+ * The page navigates to whatever this returns, so only a web URL passes: a
+ * `javascript:` URL from a backend echoing user input would run in the page.
+ */
+function checkoutUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new TypeError(`The checkout URL is not a URL: ${value}`);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new TypeError(`The checkout URL must be http(s), got ${url.protocol}`);
+  }
+  return url.href;
 }

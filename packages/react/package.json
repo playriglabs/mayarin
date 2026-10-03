@@ -1,13 +1,16 @@
 {
   "name": "@mayarin/react",
-  "version": "0.1.0",
+  "version": "0.1.0-next.0",
+  "description": "React pay button and checkout hook for Mayarin.",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown",
+    "stage": "bun run build && bun run ../../scripts/stage-npm.ts packages/react"
   },
   "dependencies": {
     "@mayarin/sdk": "workspace:*"
@@ -19,6 +22,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tsdown": "^0.23.0"
   }
 }

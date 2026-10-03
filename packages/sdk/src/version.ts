@@ -10,4 +10,4 @@ export const MAYARIN_VERSION = "2026-08-11";
 
 /** Package identity sent as `User-Agent` where the runtime allows it. */
 export const SDK_NAME = "@mayarin/sdk";
-export const SDK_VERSION = "0.1.0";
+export const SDK_VERSION = "0.1.0-next.0"; // x-release-please-version

@@ -3,10 +3,28 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { createMarkdownRenderer } from "fumadocs-core/content/md";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { DynamicCodeBlock } from "fumadocs-ui/components/dynamic-codeblock";
+import {
+  type ComponentProps,
+  type FormEvent,
+  isValidElement,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import remarkGfm from "remark-gfm";
 import type { AskAiMessage } from "@/lib/ask-ai";
 
-const { Markdown } = createMarkdownRenderer();
+// GFM for tables: plain remark ran a table's rows into one line of pipes.
+const { Markdown } = createMarkdownRenderer({ remarkPlugins: [remarkGfm] });
+
+/** A fenced block in an answer, highlighted like the pages' code (Shiki, loaded on first use). */
+function Pre({ children }: ComponentProps<"pre">) {
+  if (!isValidElement<{ className?: string; children?: unknown }>(children))
+    return <pre>{children}</pre>;
+  const lang = /language-(\S+)/.exec(children.props.className ?? "")?.[1] ?? "text";
+  return <DynamicCodeBlock lang={lang} code={String(children.props.children ?? "").trimEnd()} />;
+}
 
 /**
  * The conversation is kept in this browser so it survives a page change, a
@@ -202,7 +220,7 @@ export function AskAi() {
                       return (
                         // biome-ignore lint/suspicious/noArrayIndexKey: Parts carry no id and only ever append.
                         <div key={index} className="prose prose-sm max-w-none">
-                          <Markdown>{part.text}</Markdown>
+                          <Markdown components={{ pre: Pre }}>{part.text}</Markdown>
                         </div>
                       );
                     }
@@ -225,7 +243,9 @@ export function AskAi() {
               <p className="text-xs text-red-500">
                 {error.message.includes("Too many")
                   ? "Too many questions. Try again in a few minutes."
-                  : "Something went wrong. Try again."}
+                  : error.message.includes("out of capacity")
+                    ? "Ask AI is out of capacity for today. Try again tomorrow."
+                    : "Something went wrong. Try again."}
               </p>
             )}
             <div ref={bottom} />

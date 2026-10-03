@@ -69,6 +69,8 @@ export interface CommerceModule {
      */
     readonly rails: (id: string, options?: RequestOptions) => Promise<PaymentRailsDto>;
     readonly disable: (id: string, options?: RequestOptions) => Promise<PaymentLinkDto>;
+    readonly listInIndex: (id: string, options?: RequestOptions) => Promise<PaymentLinkDto>;
+    readonly unlistFromIndex: (id: string, options?: RequestOptions) => Promise<PaymentLinkDto>;
     readonly checkout: (
       id: string,
       body?: CheckoutPaymentLinkBody,
@@ -93,6 +95,8 @@ export interface CommerceModule {
       options?: RequestOptions,
     ) => Promise<InvoiceDto>;
     readonly void: (id: string, options?: RequestOptions) => Promise<InvoiceDto>;
+    readonly listInIndex: (id: string, options?: RequestOptions) => Promise<InvoiceDto>;
+    readonly unlistFromIndex: (id: string, options?: RequestOptions) => Promise<InvoiceDto>;
     readonly checkout: (
       id: string,
       body?: CheckoutInvoiceBody,
@@ -196,6 +200,8 @@ export function createCommerceModule(transport: Transport): CommerceModule {
             options,
           )
         ).paymentLink,
+      listInIndex: (id, options) => paymentLinkAction(transport, id, "list", options),
+      unlistFromIndex: (id, options) => paymentLinkAction(transport, id, "unlist", options),
       checkout: async (id, body = {}, options) =>
         (
           await transport.post<{ paymentIntent: PaymentIntentDto }>(
@@ -237,6 +243,8 @@ export function createCommerceModule(transport: Transport): CommerceModule {
             options,
           )
         ).invoice,
+      listInIndex: (id, options) => invoiceAction(transport, id, "list", options),
+      unlistFromIndex: (id, options) => invoiceAction(transport, id, "unlist", options),
       checkout: async (id, body = {}, options) =>
         (
           await transport.post<{ paymentIntent: PaymentIntentDto }>(
@@ -267,6 +275,34 @@ export function createCommerceModule(transport: Transport): CommerceModule {
       cancel: async (id, options) => subscriptionAction(transport, id, "cancel", options),
     },
   };
+}
+
+async function paymentLinkAction(
+  transport: Transport,
+  id: string,
+  action: "list" | "unlist",
+  options: RequestOptions | undefined,
+): Promise<PaymentLinkDto> {
+  const response = await transport.post<{ paymentLink: PaymentLinkDto }>(
+    `${itemPath("/payment-links", id)}/${action}`,
+    undefined,
+    options,
+  );
+  return response.paymentLink;
+}
+
+async function invoiceAction(
+  transport: Transport,
+  id: string,
+  action: "list" | "unlist",
+  options: RequestOptions | undefined,
+): Promise<InvoiceDto> {
+  const response = await transport.post<{ invoice: InvoiceDto }>(
+    `${itemPath("/invoices", id)}/${action}`,
+    undefined,
+    options,
+  );
+  return response.invoice;
 }
 
 async function subscriptionAction(

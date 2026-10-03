@@ -11,11 +11,24 @@
  * matters.
  */
 
-import type { Invoice, InvoicePayment, InvoiceView } from "@mayarin/invoicing";
-import { assetCodeSchema, decimalMoneySchema, timestampSchema } from "@mayarin/shared";
+import type { ChainId } from "@mayarin/chain";
+import type {
+  Invoice,
+  InvoicePayment,
+  InvoiceState,
+  InvoiceStatus,
+  InvoiceView,
+} from "@mayarin/invoicing";
+import type { MerchantSnapshot } from "@mayarin/payment-intent";
+import {
+  type AssetCode,
+  assetCodeSchema,
+  decimalMoneySchema,
+  timestampSchema,
+} from "@mayarin/shared";
 import { z } from "zod";
 import { intentOptionsSchema } from "./catalog.ts";
-import { toMoneyDto } from "./money.ts";
+import { type MoneyDto, toMoneyDto } from "./money.ts";
 import { merchantSchema } from "./payment-intent.ts";
 
 const metadataSchema = z.record(z.string(), z.string()).optional();
@@ -131,7 +144,40 @@ export function toIssueInvoiceCommand(body: IssueInvoiceBody) {
  * to assemble from a base URL it would have to be told separately — the same
  * reasoning as a payment link.
  */
-export function toInvoiceDto(invoice: Invoice, baseUrl: string) {
+export interface InvoiceDto {
+  readonly id: string;
+  readonly merchantId: string;
+  readonly merchant: MerchantSnapshot;
+  readonly number: string | null;
+  readonly sequence: number | null;
+  readonly state: InvoiceState;
+  readonly buyer: {
+    readonly name: string;
+    readonly email: string | null;
+    readonly taxId: string | null;
+    readonly address: string | null;
+  };
+  readonly currency: AssetCode;
+  readonly lines: readonly {
+    readonly productId: string | null;
+    readonly name: string;
+    readonly unitPrice: MoneyDto;
+    readonly quantity: number;
+  }[];
+  readonly total: MoneyDto;
+  readonly notes: string | null;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly url: string;
+  readonly issuedAt: string | null;
+  readonly dueAt: string | null;
+  readonly voidedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly version: number;
+  readonly listed: boolean;
+}
+
+export function toInvoiceDto(invoice: Invoice, baseUrl: string): InvoiceDto {
   return {
     id: invoice.id,
     merchantId: invoice.merchantId,
@@ -167,8 +213,6 @@ export function toInvoiceDto(invoice: Invoice, baseUrl: string) {
   };
 }
 
-export type InvoiceDto = ReturnType<typeof toInvoiceDto>;
-
 /**
  * One completed payment on the wire.
  *
@@ -177,7 +221,14 @@ export type InvoiceDto = ReturnType<typeof toInvoiceDto>;
  * reconciling several chains with the same unanswered question. `null` for a
  * fiat-only intent, which has no chain to name.
  */
-export function toInvoicePaymentDto(payment: InvoicePayment) {
+export interface InvoicePaymentDto {
+  readonly intentId: string;
+  readonly amount: MoneyDto;
+  readonly rail: { readonly asset: AssetCode; readonly chain: ChainId } | null;
+  readonly paidAt: string;
+}
+
+export function toInvoicePaymentDto(payment: InvoicePayment): InvoicePaymentDto {
   return {
     intentId: payment.intentId,
     amount: toMoneyDto(payment.amount),
@@ -187,10 +238,15 @@ export function toInvoicePaymentDto(payment: InvoicePayment) {
   };
 }
 
-export type InvoicePaymentDto = ReturnType<typeof toInvoicePaymentDto>;
-
 /** The invoice with everything derived from its payments, which is what a reader wants. */
-export function toInvoiceViewDto(view: InvoiceView, baseUrl: string) {
+export interface InvoiceViewDto extends InvoiceDto {
+  readonly status: InvoiceStatus;
+  readonly paid: MoneyDto;
+  readonly outstanding: MoneyDto;
+  readonly payments: readonly InvoicePaymentDto[];
+}
+
+export function toInvoiceViewDto(view: InvoiceView, baseUrl: string): InvoiceViewDto {
   return {
     ...toInvoiceDto(view.invoice, baseUrl),
     status: view.status,
@@ -199,5 +255,3 @@ export function toInvoiceViewDto(view: InvoiceView, baseUrl: string) {
     payments: view.payments.map(toInvoicePaymentDto),
   };
 }
-
-export type InvoiceViewDto = ReturnType<typeof toInvoiceViewDto>;

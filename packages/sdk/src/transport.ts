@@ -50,7 +50,7 @@ export function createTransport(config: TransportConfig): Transport {
   const fetchFn = config.fetch ?? globalThis.fetch;
   const generateKey = config.generateIdempotencyKey ?? (() => crypto.randomUUID());
   // Every module path is relative to the versioned API base (#138).
-  const baseUrl = `${config.baseUrl.replace(/\/+$/, "")}/v1`;
+  const baseUrl = `${apiOrigin(config.baseUrl)}/v1`;
 
   async function request<T>(
     method: "GET" | "POST" | "PATCH" | "DELETE",
@@ -78,6 +78,9 @@ export function createTransport(config: TransportConfig): Transport {
       response = await fetchFn(buildUrl(baseUrl, path, options.query), {
         method,
         headers,
+        // The API never redirects. Following one would resend the bearer key
+        // to wherever the `Location` points.
+        redirect: "error",
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       });
@@ -107,6 +110,25 @@ export function createTransport(config: TransportConfig): Transport {
     patch: (path, body, options = {}) => request("PATCH", path, body, options),
     delete: (path, options = {}) => request("DELETE", path, undefined, options),
   };
+}
+
+/**
+ * The API origin without a trailing slash. Refuses plain `http` except on a
+ * loopback host: every request carries the key as a bearer token, and over
+ * plain HTTP anyone on the path can read it.
+ */
+export function apiOrigin(baseUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    throw new TypeError(`baseUrl is not a URL: ${baseUrl}`);
+  }
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+    throw new TypeError("baseUrl must use https (plain http is allowed for localhost only)");
+  }
+  return baseUrl.replace(/\/+$/, "");
 }
 
 function buildUrl(baseUrl: string, path: string, query: QueryParams | undefined): string {

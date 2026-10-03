@@ -18,7 +18,7 @@ The client exposes [`commerce`](/sdk/typescript/commerce), [`payment`](/sdk/type
 
 | Field                    | Required | Meaning                                                                       |
 | ------------------------ | -------- | ----------------------------------------------------------------------------- |
-| `baseUrl`                | yes      | API origin, e.g. `https://api.mayarin.xyz`. No `/v1`, trailing slash optional. |
+| `baseUrl`                | yes      | API origin, e.g. `https://api.mayarin.xyz`. No `/v1`, trailing slash optional. `https` only, except `http://localhost`. |
 | `secretKey`              | yes      | `sk_…` minted under **API keys** in the dashboard — see [getting a key](/guides/authentication#get-a-key). Server-side only. |
 | `preset`                 | no       | Config bundle for module defaults. Only `merchant` exists today.               |
 | `fetch`                  | no       | Replacement for the global `fetch` — instrumentation, proxies, tests.          |

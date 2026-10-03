@@ -24,6 +24,16 @@ export interface MayarinClient extends BaseMayarinClient {
 }
 
 export function createMayarin(config: MayarinConfig): MayarinClient {
+  // The browser entry's config has no field for a secret, but a type cannot
+  // stop this module from being bundled into a page. Refuse at runtime.
+  if ("window" in globalThis && "document" in globalThis) {
+    throw new TypeError(
+      "createMayarin runs on a server only: a secret key in a browser bundle is public. Use @mayarin/sdk/browser with a publishable key.",
+    );
+  }
+  if (!config.secretKey.startsWith("sk_")) {
+    throw new TypeError("secretKey must be a secret key (sk_...)");
+  }
   const client = buildClient(config, { secretKey: config.secretKey });
   return {
     ...client,

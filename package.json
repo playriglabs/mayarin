@@ -66,7 +66,8 @@
     "test": "bun test",
     "test:contracts": "bun run --cwd packages/contracts/payment-router test",
     "test:woocommerce": "docker run --rm -v ./plugins/woocommerce:/plugin -w /plugin php:8.3-cli sh -c 'find . -name \"*.php\" | sort | xargs -n1 php -l && php tests/run.php'",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "publish:npm": "bun test packages/sdk packages/react && bun run --cwd packages/sdk stage && bun run --cwd packages/react stage && bunx publint packages/sdk/npm && bunx publint packages/react/npm && npm publish packages/sdk/npm --tag next && npm publish packages/react/npm --tag next"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",

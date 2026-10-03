@@ -7,9 +7,15 @@
  */
 
 import { decimalMoneySchema, timestampSchema } from "@mayarin/shared";
-import { nextBillingAt, SUBSCRIPTION_INTERVALS, type Subscription } from "@mayarin/subscriptions";
+import {
+  nextBillingAt,
+  SUBSCRIPTION_INTERVALS,
+  type Subscription,
+  type SubscriptionInterval,
+  type SubscriptionState,
+} from "@mayarin/subscriptions";
 import { z } from "zod";
-import { toMoneyDto } from "./money.ts";
+import { type MoneyDto, toMoneyDto } from "./money.ts";
 
 export const createSubscriptionBodySchema = z
   .object({
@@ -30,7 +36,26 @@ export const createSubscriptionBodySchema = z
 
 export type CreateSubscriptionBody = z.input<typeof createSubscriptionBodySchema>;
 
-export function toSubscriptionDto(subscription: Subscription) {
+export interface SubscriptionDto {
+  readonly id: string;
+  readonly subscriber: {
+    readonly customerId: string;
+    readonly name: string;
+    readonly email: string | null;
+  };
+  readonly description: string;
+  readonly amount: MoneyDto;
+  readonly interval: SubscriptionInterval;
+  readonly state: SubscriptionState;
+  readonly billedCycles: number;
+  readonly daysUntilDue: number;
+  readonly anchorAt: string;
+  readonly nextBillingAt: string | null;
+  readonly createdAt: string;
+  readonly cancelledAt: string | null;
+}
+
+export function toSubscriptionDto(subscription: Subscription): SubscriptionDto {
   return {
     id: subscription.id,
     subscriber: {
@@ -51,5 +76,3 @@ export function toSubscriptionDto(subscription: Subscription) {
     cancelledAt: subscription.cancelledAt?.toISOString() ?? null,
   };
 }
-
-export type SubscriptionDto = ReturnType<typeof toSubscriptionDto>;

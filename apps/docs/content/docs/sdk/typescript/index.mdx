@@ -6,7 +6,7 @@ description: Typed access to payments, commerce, QR helpers, webhook verificatio
 `@mayarin/sdk` is Mayarin's hand-written TypeScript client. It pins the API revision, adds `/v1`, generates idempotency keys for writes, maps failures into one typed error, and separates secret-key server usage from publishable-key browser usage.
 
 ```bash
-bun add @mayarin/sdk
+bun add @mayarin/sdk@next
 ```
 
 ## Three entry points
@@ -17,7 +17,7 @@ bun add @mayarin/sdk
 | `@mayarin/sdk/browser`     | publishable (`pk_…`), optional | catalog read and cart checkout only                                                      |
 | `@mayarin/sdk/x402/connect` | none                          | connect middleware for the [x402 gate](/sdk/typescript/x402)                              |
 
-The split is enforced by types, not by a runtime check: `MayarinBrowserConfig` has no `secretKey` field, and the browser commerce module has no `create` or `update`. A secret key in browser code does not compile.
+The split is enforced by types and checked again at runtime. `MayarinBrowserConfig` has no `secretKey` field, and the browser commerce module has no `create` or `update`, so a secret key in browser code does not compile. Because a type cannot stop a bundler, `createMayarin` also throws when it runs in a browser or gets anything but an `sk_` key, and `createMayarinBrowser` throws on anything but a `pk_` key.
 
 The x402 subpath is separate for a different reason: the request-time gate is **keyless**. Your secret key registers a resource once, through `@mayarin/sdk`, and never appears on the path a payer's request takes.
 
@@ -31,7 +31,8 @@ import { x402Connect } from "@mayarin/sdk/x402/connect"; // the gate
 
 Every module call goes through one transport, so no module re-implements the table stakes:
 
-- **Versioned base URL.** `baseUrl` is the API origin; the transport appends `/v1`. Never include it yourself.
+- **Versioned base URL.** `baseUrl` is the API origin; the transport appends `/v1`. Never include it yourself. It must be `https` — plain `http` is accepted for `localhost`, `127.0.0.1` and `[::1]` only, since every request carries the key.
+- **No redirects.** A redirect response fails the request instead of being followed, so the key is never sent to another host.
 - **`Mayarin-Version` header.** Pinned per SDK build (`MAYARIN_VERSION`, currently `2026-08-11`), the date revision inside `/v1`. See [API versioning](/concepts/versioning).
 - **Bearer auth.** The secret or publishable key, whichever the entry point holds.
 - **`Idempotency-Key` on every write.** Auto-generated with `crypto.randomUUID()` unless you pass your own — see [idempotency](#idempotency).

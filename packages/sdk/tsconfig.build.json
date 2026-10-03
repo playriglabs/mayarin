@@ -1,0 +1,62 @@
+{
+  // Declaration build only (tsdown). The paths point every private workspace
+  // package at its source so tsc emits declarations for it and the bundler can
+  // inline them; resolved through node_modules, tsc would treat them as
+  // external libraries and emit nothing.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "paths": {
+      "@mayarin/api/dto": ["../../apps/api/src/dto/index.ts"],
+      "@mayarin/auth": ["../../packages/core/auth/src/index.ts"],
+      "@mayarin/catalog": ["../../packages/core/catalog/src/index.ts"],
+      "@mayarin/chain": ["../../packages/core/chain/src/index.ts"],
+      "@mayarin/clearing": ["../../packages/core/clearing/src/index.ts"],
+      "@mayarin/compliance": ["../../packages/core/compliance/src/index.ts"],
+      "@mayarin/contracts": ["../../packages/contracts/abis/src/index.ts"],
+      "@mayarin/dashboard-api": ["../../apps/dashboard-api/src/index.ts"],
+      "@mayarin/db": ["../../packages/db/src/index.ts"],
+      "@mayarin/db/schema": ["../../packages/db/src/schema.ts"],
+      "@mayarin/documents": ["../../packages/core/documents/src/index.ts"],
+      "@mayarin/embed": ["../../packages/embed/src/index.ts"],
+      "@mayarin/execution": ["../../packages/core/execution/src/index.ts"],
+      "@mayarin/http": ["../../packages/http/src/index.ts"],
+      "@mayarin/invoicing": ["../../packages/core/invoicing/src/index.ts"],
+      "@mayarin/ledger": ["../../packages/core/ledger/src/index.ts"],
+      "@mayarin/notifications": ["../../packages/core/notifications/src/index.ts"],
+      "@mayarin/payment-intent": ["../../packages/core/payment-intent/src/index.ts"],
+      "@mayarin/payouts": ["../../packages/core/payouts/src/index.ts"],
+      "@mayarin/provider-argon2": ["../../packages/providers/argon2/src/index.ts"],
+      "@mayarin/provider-chainlink": ["../../packages/providers/chainlink/src/index.ts"],
+      "@mayarin/provider-coinbase": ["../../packages/providers/coinbase/src/index.ts"],
+      "@mayarin/provider-evm": ["../../packages/providers/evm/src/index.ts"],
+      "@mayarin/provider-fx": ["../../packages/providers/fx/src/index.ts"],
+      "@mayarin/provider-mock": ["../../packages/providers/mock/src/index.ts"],
+      "@mayarin/provider-pyth": ["../../packages/providers/pyth/src/index.ts"],
+      "@mayarin/provider-stablecoin": ["../../packages/providers/stablecoin/src/index.ts"],
+      "@mayarin/provider-subgraph": ["../../packages/providers/subgraph/src/index.ts"],
+      "@mayarin/provider-swap-0x": ["../../packages/providers/swap-0x/src/index.ts"],
+      "@mayarin/provider-swap-lifi": ["../../packages/providers/swap-lifi/src/index.ts"],
+      "@mayarin/provider-swap-uniswap": ["../../packages/providers/swap-uniswap/src/index.ts"],
+      "@mayarin/provider-swap-uniswap-v2": [
+        "../../packages/providers/swap-uniswap-v2/src/index.ts"
+      ],
+      "@mayarin/provider-turnkey": ["../../packages/providers/turnkey/src/index.ts"],
+      "@mayarin/provider-viem-chains": ["../../packages/providers/viem-chains/src/index.ts"],
+      "@mayarin/provider-x402-local": ["../../packages/providers/x402-local/src/index.ts"],
+      "@mayarin/qr-parser": ["../../packages/core/qr-parser/src/index.ts"],
+      "@mayarin/quote": ["../../packages/core/quote/src/index.ts"],
+      "@mayarin/react": ["../../packages/react/src/index.ts"],
+      "@mayarin/settlement": ["../../packages/core/settlement/src/index.ts"],
+      "@mayarin/shared": ["../../packages/shared/src/index.ts"],
+      "@mayarin/shared/asset": ["../../packages/shared/src/asset.ts"],
+      "@mayarin/shared/locale": ["../../packages/shared/src/locale.ts"],
+      "@mayarin/shared/money": ["../../packages/shared/src/money.ts"],
+      "@mayarin/stablecoin": ["../../packages/core/stablecoin/src/index.ts"],
+      "@mayarin/subscriptions": ["../../packages/core/subscriptions/src/index.ts"],
+      "@mayarin/wallet": ["../../packages/core/wallet/src/index.ts"],
+      "@mayarin/x402": ["../../packages/core/x402/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

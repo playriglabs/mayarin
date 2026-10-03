@@ -229,7 +229,7 @@ import { createMayarin } from "@mayarin/sdk";
 
 const mayarin = createMayarin({
   baseUrl: "https://api-testnet.mayarin.xyz",
-  secretKey: process.env.MAYARIN_SECRET_KEY,
+  secretKey: process.env.MAYARIN_SECRET_KEY ?? "",
 });
 
 const link = await mayarin.commerce.paymentLinks.create(

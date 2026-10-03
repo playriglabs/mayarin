@@ -7,11 +7,17 @@
  * diagnosable.
  */
 
-import { type Deposit, EVM_CHAIN_IDS, isOrphanedAfterConfirmed } from "@mayarin/chain";
+import {
+  type ChainId,
+  type Deposit,
+  type DepositStatus,
+  EVM_CHAIN_IDS,
+  isOrphanedAfterConfirmed,
+} from "@mayarin/chain";
 import type { ClearingTransaction } from "@mayarin/clearing";
 import { encodeAddressUri } from "@mayarin/qr-parser";
-import { getAsset, zero } from "@mayarin/shared";
-import { toMoneyDto } from "./money.ts";
+import { type AssetCode, getAsset, zero } from "@mayarin/shared";
+import { type MoneyDto, toMoneyDto } from "./money.ts";
 
 export function toDepositDto(
   transaction: ClearingTransaction,
@@ -23,7 +29,7 @@ export function toDepositDto(
    * a token deposit and absent for a native one — see `depositUri`.
    */
   token?: `0x${string}`,
-) {
+): DepositDto {
   const deposit = transaction.deposit;
   if (deposit === undefined) return null;
 
@@ -65,7 +71,25 @@ export function toDepositDto(
   };
 }
 
-export type DepositDto = ReturnType<typeof toDepositDto>;
+/** `null` when the payment has no deposit address (the contract path, x402, fiat). */
+export type DepositDto = {
+  readonly address: string;
+  readonly chain: ChainId;
+  readonly asset: AssetCode;
+  readonly amount: MoneyDto;
+  readonly uri: string | null;
+  readonly received: MoneyDto;
+  readonly required: number;
+  readonly reviewRequired: boolean;
+  readonly deposits: readonly {
+    readonly txHash: string;
+    readonly logIndex: number;
+    readonly amount: MoneyDto;
+    readonly status: DepositStatus;
+    readonly confirmations: number;
+    readonly firstSeenAt: string;
+  }[];
+} | null;
 
 /**
  * The payer-facing URI for a deposit, or `null` when one cannot be built.

@@ -25,6 +25,10 @@ export interface MayarinBrowserClient extends BaseMayarinClient {
 }
 
 export function createMayarinBrowser(config: MayarinBrowserConfig): MayarinBrowserClient {
+  // The type allows any string; a secret key pasted here ships to every visitor.
+  if (config.publishableKey !== undefined && !config.publishableKey.startsWith("pk_")) {
+    throw new TypeError("publishableKey must be a publishable key (pk_...); never a secret key");
+  }
   const client = buildClient(
     config,
     config.publishableKey === undefined ? {} : { publishableKey: config.publishableKey },
