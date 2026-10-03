@@ -170,7 +170,7 @@
     @apply max-w-xl;
   }
   .section-kicker {
-    @apply m-0 mb-2 text-[11px] text-brand capitalize;
+    @apply m-0 mb-2 text-[12px] font-semibold tracking-[0.12em] text-brand uppercase;
   }
   .checkout-panel h2 {
     @apply m-0 text-2xl leading-tight font-semibold tracking-tight sm:text-[28px];
