@@ -147,6 +147,9 @@
   .product-copy p {
     @apply line-clamp-2;
   }
+  .product-more {
+    @apply m-0 text-sm text-muted;
+  }
   .summary-spacer {
     @apply min-h-7 flex-1 xl:min-h-12;
   }

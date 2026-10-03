@@ -263,6 +263,23 @@ describe("pay page", () => {
     expect(html).toContain("mayarin.xyz");
   });
 
+  test("a long cart shows five lines and counts the rest", () => {
+    const lines = Array.from({ length: 7 }, (_, index) => ({
+      name: `Item ${index + 1}`,
+      description: null,
+      imageUrl: null,
+      quantity: 1,
+      unitPrice: idr("Rp 1.000,00"),
+      lineTotal: idr("Rp 1.000,00"),
+    }));
+    const html = renderToStaticMarkup(
+      <LinkPage bootstrap={{ ...linkBootstrap, kind: "catalog", lines }} />,
+    );
+    expect(html).toContain("Item 5");
+    expect(html).not.toContain("Item 6");
+    expect(html).toContain("+2 more items");
+  });
+
   test("an intent minted without a rail asks how to pay before any address", () => {
     // A storefront's cart checkout: the page used to spin on "Preparing your
     // payment address" forever, because nothing had chosen a rail to lock.
