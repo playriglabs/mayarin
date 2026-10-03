@@ -49,5 +49,7 @@ describe.skipIf(RPC_URLS === undefined)("ChainlinkPriceOracle live", () => {
     expect(price.scaledRate > 0n).toBe(true);
     expect(price.source).toBe("chainlink");
     expect(price.observedAt.getTime()).toBeGreaterThan(0);
-  });
+    // A public testnet RPC answers in well under a second, until it does not;
+    // bun's default 5s turned a slow node into a failed pre-push.
+  }, 20_000);
 });
