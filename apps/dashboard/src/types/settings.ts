@@ -10,6 +10,13 @@ import type { MoneyDto } from "@/types/payment";
 export interface SettingsDto {
   readonly merchantId: string;
   readonly name: string;
+  /** #1, #2, … in sign-up order. */
+  readonly registrationNumber: number | null;
+  readonly registeredAt: string;
+  /** The uploaded company logo; `null` shows the generated avatar. */
+  readonly logoUrl: string | null;
+  /** The account that registered the merchant. */
+  readonly createdBy: { readonly email: string; readonly emailVerified: boolean } | null;
   readonly settlementAsset: string;
   /** Settlement asset overridden per chain. A chain absent settles in `settlementAsset`. */
   readonly settlementAssetByChain: Readonly<Record<string, string>>;

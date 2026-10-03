@@ -480,3 +480,71 @@ describe("cross-tenant isolation", () => {
     expect(status).toBe(200);
   });
 });
+
+describe("merchant profile", () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+
+  async function putLogo(
+    harness: Harness,
+    auth: { jar: Record<string, string>; csrf: string },
+    bytes: Uint8Array,
+  ) {
+    return harness.request("PUT", "/v1/settings/logo", {
+      body: bytes,
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf, "content-type": "image/png" },
+    });
+  }
+
+  test("GET carries the registration number, the date and who registered it", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const { body } = await harness.request("GET", "/v1/settings", { cookies: auth.jar });
+
+    expect(body?.settings).toMatchObject({
+      registrationNumber: 1,
+      logoUrl: null,
+      createdBy: { email: ADMIN_EMAIL, emailVerified: true },
+    });
+    expect(typeof body?.settings.registeredAt).toBe("string");
+  });
+
+  test("an uploaded image becomes the logo, and removing it clears it", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const uploaded = await putLogo(harness, auth, PNG);
+    expect(uploaded.status).toBe(200);
+    expect(uploaded.body?.settings.logoUrl).toBe(`https://logos.test/${harness.merchantId}.png`);
+
+    const removed = await harness.request("DELETE", "/v1/settings/logo", {
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf },
+    });
+    expect(removed.status).toBe(200);
+    expect(removed.body?.settings.logoUrl).toBeNull();
+  });
+
+  test("refuses bytes that are not an image, whatever the header says", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await putLogo(harness, auth, new TextEncoder().encode("<svg onload=alert(1)>"));
+
+    expect(res.status).toBe(400);
+  });
+
+  test("refuses an upload without the CSRF token", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await harness.request("PUT", "/v1/settings/logo", {
+      body: PNG,
+      cookies: auth.jar,
+      headers: { "content-type": "image/png" },
+    });
+
+    expect(res.status).toBe(403);
+  });
+});

@@ -67,6 +67,22 @@ export function useUpdateSettings() {
   });
 }
 
+export function useUploadLogo() {
+  return useEffectMutation<UpdateSettingsResponse, Blob, ApiError>({
+    mutation: (image) => settingsApi.uploadLogo(image),
+    toast: { loading: "Uploading logo…", success: "Logo updated" },
+    invalidate: [SETTINGS_KEY, SETTINGS_HISTORY_KEY],
+  });
+}
+
+export function useRemoveLogo() {
+  return useEffectMutation<UpdateSettingsResponse, void, ApiError>({
+    mutation: () => settingsApi.removeLogo(),
+    toast: { loading: "Removing logo…", success: "Logo removed" },
+    invalidate: [SETTINGS_KEY, SETTINGS_HISTORY_KEY],
+  });
+}
+
 export function useWallets() {
   return useEffectQuery<WalletListResponse, ApiError>({
     queryKey: WALLETS_KEY,

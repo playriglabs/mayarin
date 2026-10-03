@@ -90,7 +90,8 @@ describe("InMemoryMerchantRepository", () => {
     const repo = new InMemoryMerchantRepository();
     const merchant = makeMerchant("Acme");
     await repo.insert(merchant);
-    expect(await repo.findById(merchant.id)).toEqual(merchant);
+    // Storage numbers merchants in insert order, as Postgres does.
+    expect(await repo.findById(merchant.id)).toEqual({ ...merchant, registrationNumber: 1 });
     expect(await repo.findById("mrc_unknown")).toBeNull();
   });
 

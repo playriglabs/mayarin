@@ -415,12 +415,22 @@ export const merchants = pgTable(
     city: text("city"),
     /** ISO 3166-1 alpha-2, uppercase. */
     countryCode: text("country_code"),
+    /** Public URL of the company logo in object storage (R2). Null: none uploaded. */
+    logoUrl: text("logo_url"),
+    /**
+     * The merchant's place in sign-up order — #1, #2, … Assigned by Postgres on
+     * insert and never written by the application.
+     */
+    registrationNumber: integer("registration_number").generatedByDefaultAsIdentity().notNull(),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
     /** Optimistic concurrency control; settlement settings redirect money. */
     version: integer("version").notNull(),
   },
-  (table) => [index("merchants_name_idx").on(table.name)],
+  (table) => [
+    index("merchants_name_idx").on(table.name),
+    uniqueIndex("merchants_registration_number_idx").on(table.registrationNumber),
+  ],
 );
 
 /**

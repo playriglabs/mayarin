@@ -127,6 +127,7 @@ import {
   ResendInvoiceEmailSender,
   UnavailableInvoiceEmailSender,
 } from "./services/invoice-email-service.ts";
+import { type LogoStorage, logoStorageFor } from "./services/logo-storage.ts";
 import { MerchantCatalogService } from "./services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
 import { NotificationService, type NotificationStore } from "./services/notification-service.ts";
@@ -165,6 +166,8 @@ export interface Container {
   readonly compliance: ComplianceService;
   /** Merchant settlement configuration (#95), scoped to the caller's merchant. */
   readonly settings: MerchantSettingsService;
+  /** Company logos, in R2 when configured. */
+  readonly logos: LogoStorage;
   /** Products and payment links (#15), scoped the same way. */
   readonly catalog: MerchantCatalogService;
   /** Numbered invoice lifecycle. Buyer checkout remains in the payment API. */
@@ -306,6 +309,8 @@ export interface CreateContainerOptions {
   readonly disputeStore?: DisputeStore;
   /** Notification feed repo. A test supplies an in-memory fake. */
   readonly notificationStore?: NotificationStore;
+  /** Logo storage. A test supplies a fake rather than a bucket. */
+  readonly logoStorage?: LogoStorage;
 }
 
 export function createContainer(options: CreateContainerOptions): Container {
@@ -631,6 +636,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     payments,
     compliance,
     settings,
+    logos: options.logoStorage ?? logoStorageFor(config),
     catalog,
     invoices,
     invoiceEmails,

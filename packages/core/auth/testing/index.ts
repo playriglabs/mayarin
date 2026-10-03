@@ -119,7 +119,8 @@ export class InMemoryMerchantRepository implements MerchantRepository {
     if (this.#byId.has(merchant.id)) {
       throw new ConflictError(`Merchant ${merchant.id} already exists`, { id: merchant.id });
     }
-    this.#byId.set(merchant.id, merchant);
+    // Numbered like Postgres numbers them: in insert order, by storage.
+    this.#byId.set(merchant.id, { ...merchant, registrationNumber: this.#byId.size + 1 });
     return merchant;
   }
 

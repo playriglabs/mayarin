@@ -39,6 +39,13 @@ export const settingsApi = {
 
   history: (): Effect.Effect<SettingsHistoryResponse, ApiError> =>
     request<SettingsHistoryResponse>("/settings/history"),
+
+  /** The cropped image itself is the body. */
+  uploadLogo: (image: Blob): Effect.Effect<UpdateSettingsResponse, ApiError> =>
+    request<UpdateSettingsResponse>("/settings/logo", { method: "PUT", body: image }),
+
+  removeLogo: (): Effect.Effect<UpdateSettingsResponse, ApiError> =>
+    request<UpdateSettingsResponse>("/settings/logo", { method: "DELETE" }),
 };
 
 export interface LinkWalletRequest {

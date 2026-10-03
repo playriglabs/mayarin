@@ -5,7 +5,7 @@
  * the one on the session, and a field that cannot be sent cannot be forged.
  */
 
-import type { Merchant, MerchantSettingChange } from "@mayarin/auth";
+import type { Merchant, MerchantSettingChange, User } from "@mayarin/auth";
 import { CHAIN_IDS } from "@mayarin/chain";
 import { assetCodeSchema } from "@mayarin/shared";
 import { z } from "zod";
@@ -103,11 +103,25 @@ export const historyQuerySchema = z.object({
  *
  * `undefined` means neither exists, and then a contract-path payment cannot be
  * signed at all.
+ *
+ * `owner` is the account that registered the merchant — its first user.
  */
-export function toSettingsDto(merchant: Merchant, effectiveSettlementAddress?: string) {
+export function toSettingsDto(
+  merchant: Merchant,
+  effectiveSettlementAddress: string | undefined,
+  owner: User | undefined,
+) {
   return {
     merchantId: merchant.id,
     name: merchant.name,
+    /** #1, #2, … in sign-up order. */
+    registrationNumber: merchant.registrationNumber ?? null,
+    registeredAt: merchant.createdAt.toISOString(),
+    logoUrl: merchant.logoUrl ?? null,
+    createdBy:
+      owner === undefined
+        ? null
+        : { email: owner.email, emailVerified: owner.emailVerifiedAt !== undefined },
     settlementAsset: merchant.settlementAsset,
     /** Per-chain override. A chain absent here settles in `settlementAsset`. */
     settlementAssetByChain: merchant.settlementAssetByChain ?? {},

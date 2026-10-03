@@ -93,6 +93,13 @@ export interface Merchant {
   readonly city?: string;
   /** ISO 3166-1 alpha-2, uppercase. */
   readonly countryCode?: string;
+  /** Public URL of the company logo. Absent: none uploaded. */
+  readonly logoUrl?: string;
+  /**
+   * The merchant's place in sign-up order — #1, #2, … Assigned by storage on
+   * insert, so a merchant not yet stored has none.
+   */
+  readonly registrationNumber?: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   /**
@@ -164,6 +171,7 @@ export const MERCHANT_SETTING_FIELDS = [
   "buyerProtection",
   "city",
   "countryCode",
+  "logoUrl",
 ] as const;
 
 export type MerchantSettingField = (typeof MERCHANT_SETTING_FIELDS)[number];
@@ -199,6 +207,8 @@ export interface MerchantSettingsPatch {
   /** Same `null`-clears-it rule as the address. */
   readonly city?: string | null;
   readonly countryCode?: string | null;
+  /** `null` removes the logo; absent leaves it alone. */
+  readonly logoUrl?: string | null;
 }
 
 /**
@@ -247,6 +257,7 @@ export function updateMerchantSettings(
 
   const city = patchOptional(patch.city, merchant.city, normaliseCity);
   const countryCode = patchOptional(patch.countryCode, merchant.countryCode, normaliseCountryCode);
+  const logoUrl = patchOptional(patch.logoUrl, merchant.logoUrl, (value) => value);
 
   // Destructured away rather than spread over: `...merchant` would carry the
   // existing values through, so clearing one would silently leave it in place.
@@ -255,6 +266,7 @@ export function updateMerchantSettings(
     buyerProtection: _protection,
     city: _city,
     countryCode: _country,
+    logoUrl: _logo,
     ...rest
   } = merchant;
 
@@ -268,6 +280,7 @@ export function updateMerchantSettings(
     ...(buyerProtection === undefined ? {} : { buyerProtection }),
     ...(city === undefined ? {} : { city }),
     ...(countryCode === undefined ? {} : { countryCode }),
+    ...(logoUrl === undefined ? {} : { logoUrl }),
     updatedAt: new Date(now),
     version: merchant.version + 1,
   };
@@ -335,7 +348,7 @@ export function diffMerchantSettings(
     });
   }
 
-  for (const field of ["settlementAddress", "city", "countryCode"] as const) {
+  for (const field of ["settlementAddress", "city", "countryCode", "logoUrl"] as const) {
     if (before[field] === after[field]) continue;
     changes.push({
       field,

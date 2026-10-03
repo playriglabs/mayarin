@@ -76,6 +76,7 @@ import type {
   InvoiceEmailSender,
   SendInvoiceEmailRequest,
 } from "../src/services/invoice-email-service.ts";
+import { assertLogo, type LogoStorage } from "../src/services/logo-storage.ts";
 import { MerchantCatalogService } from "../src/services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "../src/services/merchant-settings-service.ts";
 import { NotificationService } from "../src/services/notification-service.ts";
@@ -492,11 +493,17 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     clock,
   });
 
+  // Validates like the R2 adapter, stores nothing.
+  const logos: LogoStorage = {
+    put: async (merchantId, bytes) => `https://logos.test/${merchantId}.${assertLogo(bytes).ext}`,
+  };
+
   const container: Container = {
     config,
     auth: authService,
     sessions: sessionService,
     users: userService,
+    logos,
     payments,
     compliance,
     settings,
@@ -570,7 +577,12 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
         ...init.headers,
         ...(cookieHeader === undefined ? {} : { cookie: cookieHeader }),
       },
-      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      // Raw bytes go as they are — a logo upload is the image itself.
+      ...(init.body === undefined
+        ? {}
+        : {
+            body: init.body instanceof Uint8Array ? init.body.slice() : JSON.stringify(init.body),
+          }),
     });
     const setCookies = response.headers.getSetCookie();
     return {

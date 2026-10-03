@@ -45,6 +45,7 @@ function readCsrfToken(): string | undefined {
 
 export interface RequestOptions {
   readonly method?: string;
+  /** JSON-encoded, except a `Blob`, which is sent as-is with its own type (a logo upload). */
   readonly body?: unknown;
   /** Extra headers (e.g. an explicit `X-CSRF-Token` override). */
   readonly headers?: Record<string, string>;
@@ -58,7 +59,10 @@ export function request<A>(path: string, opts: RequestOptions = {}): Effect.Effe
   const method = opts.method ?? "GET";
   return Effect.gen(function* () {
     const headers: Record<string, string> = { ...opts.headers };
-    if (opts.body !== undefined) headers["content-type"] = "application/json";
+    const raw = opts.body instanceof Blob;
+    if (opts.body !== undefined) {
+      headers["content-type"] = raw ? (opts.body as Blob).type : "application/json";
+    }
     if (MUTATING.has(method.toUpperCase())) {
       const token = readCsrfToken();
       if (token !== undefined) headers["x-csrf-token"] = token;
@@ -71,7 +75,9 @@ export function request<A>(path: string, opts: RequestOptions = {}): Effect.Effe
           credentials: "same-origin",
           headers,
           signal,
-          ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+          ...(opts.body !== undefined
+            ? { body: raw ? (opts.body as Blob) : JSON.stringify(opts.body) }
+            : {}),
         }),
       catch: () => new ApiError({ status: 0, message: "Network error" }),
     });

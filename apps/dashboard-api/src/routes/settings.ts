@@ -6,6 +6,7 @@
  * here takes a merchant id, so there is nothing to tamper with.
  */
 
+import type { Merchant } from "@mayarin/auth";
 import type { ChainId } from "@mayarin/chain";
 import { UnauthorizedError, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
@@ -19,6 +20,7 @@ import {
 import { csrfMiddleware } from "../middleware/csrf.ts";
 import type { AuthVars } from "../middleware/types.ts";
 import { settlementChains } from "../rails.ts";
+import { MAX_LOGO_BYTES } from "../services/logo-storage.ts";
 
 export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
@@ -36,6 +38,20 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
       container.config.walletProvisionChains[0],
       configured,
     );
+
+  /** The account that registered the merchant: its earliest user. */
+  async function ownerOf(merchantId: string) {
+    const users = await container.users.listMerchantUsers(merchantId);
+    return [...users].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+  }
+
+  async function settingsDto(merchant: Merchant) {
+    return toSettingsDto(
+      merchant,
+      await effectiveAddress(merchant.id, merchant.settlementAddress),
+      await ownerOf(merchant.id),
+    );
+  }
 
   /**
    * Refuses a settlement address that exists on some chains and not others (#244).
@@ -75,8 +91,7 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
     const scope = c.get("scope");
     if (scope === undefined) throw new UnauthorizedError("Authentication required");
     const merchant = await container.settings.get(scope);
-    const effective = await effectiveAddress(merchant.id, merchant.settlementAddress);
-    return c.json({ settings: toSettingsDto(merchant, effective) });
+    return c.json({ settings: await settingsDto(merchant) });
   });
 
   // CSRF-guarded like every other state-changing route: this one decides where
@@ -123,10 +138,48 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
     });
 
     return c.json({
-      settings: toSettingsDto(
-        merchant,
-        await effectiveAddress(merchant.id, merchant.settlementAddress),
-      ),
+      settings: await settingsDto(merchant),
+      changes: changes.map(toSettingChangeDto),
+    });
+  });
+
+  /**
+   * Uploads the company logo. The body is the image itself, already cropped by
+   * the dashboard; its type is read from the bytes, not from the header.
+   */
+  app.put("/logo", csrfMiddleware(), async (c) => {
+    const scope = c.get("scope");
+    const session = c.get("session");
+    if (scope === undefined || session === undefined) {
+      throw new UnauthorizedError("Authentication required");
+    }
+    if (Number(c.req.header("content-length") ?? 0) > MAX_LOGO_BYTES) {
+      throw new ValidationError("A logo must be 2 MB or smaller", {});
+    }
+
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    const logoUrl = await container.logos.put(scope.merchantId, bytes, new Date());
+    const { merchant, changes } = await container.settings.update(scope, session.user.id, {
+      logoUrl,
+    });
+    return c.json({
+      settings: await settingsDto(merchant),
+      changes: changes.map(toSettingChangeDto),
+    });
+  });
+
+  /** Removes the logo; the dashboard falls back to the generated avatar. */
+  app.delete("/logo", csrfMiddleware(), async (c) => {
+    const scope = c.get("scope");
+    const session = c.get("session");
+    if (scope === undefined || session === undefined) {
+      throw new UnauthorizedError("Authentication required");
+    }
+    const { merchant, changes } = await container.settings.update(scope, session.user.id, {
+      logoUrl: null,
+    });
+    return c.json({
+      settings: await settingsDto(merchant),
       changes: changes.map(toSettingChangeDto),
     });
   });

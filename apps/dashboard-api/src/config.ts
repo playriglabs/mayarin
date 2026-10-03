@@ -208,6 +208,23 @@ const configSchema = z.object({
     "WALLET_GAS_TOP_UP_BOUNDS",
     "{}",
   ),
+
+  // --- Merchant logos (Cloudflare R2) --------------------------------------
+  /**
+   * Where uploaded company logos are stored. Optional: unset, the dashboard
+   * shows the generated avatar and refuses an upload rather than failing boot.
+   * All five or none — checked in `assertLogoStorage`.
+   */
+  r2AccountId: z.string().min(1).optional(),
+  r2AccessKeyId: z.string().min(1).optional(),
+  r2SecretAccessKey: z.string().min(1).optional(),
+  r2Bucket: z.string().min(1).optional(),
+  /** The bucket's public origin (r2.dev or a custom domain) a logo is served from. */
+  r2PublicUrl: z
+    .string()
+    .url()
+    .transform((value) => value.replace(/\/+$/, ""))
+    .optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -266,6 +283,11 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainRpcUrls: env.CHAIN_RPC_URLS,
     walletGasTopUpBounds: env.WALLET_GAS_TOP_UP_BOUNDS,
+    r2AccountId: env.R2_ACCOUNT_ID,
+    r2AccessKeyId: env.R2_ACCESS_KEY_ID,
+    r2SecretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    r2Bucket: env.R2_BUCKET,
+    r2PublicUrl: env.R2_PUBLIC_URL,
   });
 
   if (!result.success) {
@@ -275,7 +297,23 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
   }
 
   assertWalletProvisioning(result.data);
+  assertLogoStorage(result.data);
   return result.data;
+}
+
+/** Logo storage is all five R2 variables or none of them. */
+function assertLogoStorage(data: Config): void {
+  const vars = [
+    ["R2_ACCOUNT_ID", data.r2AccountId],
+    ["R2_ACCESS_KEY_ID", data.r2AccessKeyId],
+    ["R2_SECRET_ACCESS_KEY", data.r2SecretAccessKey],
+    ["R2_BUCKET", data.r2Bucket],
+    ["R2_PUBLIC_URL", data.r2PublicUrl],
+  ] as const;
+  const missing = vars.filter(([, value]) => value === undefined).map(([name]) => name);
+  if (missing.length > 0 && missing.length < vars.length) {
+    throw new ConfigurationError(`Logo storage needs ${missing.join(", ")}`, { missing });
+  }
 }
 
 /**

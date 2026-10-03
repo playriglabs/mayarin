@@ -19,10 +19,11 @@
  */
 
 import { Tabs } from "@base-ui-components/react/tabs";
-import { BankIcon } from "@phosphor-icons/react";
+import { BankIcon, MapPinIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
+import { MerchantProfile } from "@/components/merchant-profile";
 import { NetworkSettings, settlementOptionsOf } from "@/components/settings-networks";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
@@ -82,10 +84,15 @@ import { ICON_CARD } from "@/lib/icons";
 import { withQuery } from "@/lib/with-query";
 import type { SettingsDto } from "@/types/settings";
 
-/** Every country, alphabetical. */
+/** The country's flag emoji, from its two regional-indicator letters. */
+function flagOf(code: string): string {
+  return String.fromCodePoint(...[...code].map((letter) => 0x1f1e6 + letter.charCodeAt(0) - 65));
+}
+
+/** Every country, alphabetical, shown as its flag and name. */
 const COUNTRY_OPTIONS: readonly ComboboxOption[] = COUNTRIES.map((country) => ({
   value: country.code,
-  label: country.label,
+  label: `${flagOf(country.code)}  ${country.name}`,
 }));
 
 interface Draft {
@@ -532,18 +539,31 @@ function Settings() {
                   value="general"
                   className="flex flex-col gap-6 pt-6 focus-visible:outline-none"
                 >
-                  <Card className="flex flex-col gap-4 p-4">
+                  <MerchantProfile settings={loaded} />
+
+                  <Card className="flex flex-col gap-5 p-5">
+                    <div className="flex flex-col gap-1">
+                      <h3 className="font-medium text-foreground text-sm">Business location</h3>
+                      <p className="text-muted-foreground text-sm">
+                        Shown to buyers on every payment. A payment link needs both.
+                      </p>
+                    </div>
                     {/* One row: a city and a country are one fact — where the
                         merchant is — not two settings a reader hunts for. */}
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field>
                         <FieldLabel htmlFor="merchant-city">City</FieldLabel>
-                        <Input
-                          id="merchant-city"
-                          value={draft.city}
-                          onChange={(e) => edit({ ...draft, city: e.target.value })}
-                          placeholder="Jakarta"
-                        />
+                        <InputGroup>
+                          <InputGroupAddon>
+                            <MapPinIcon size={16} />
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            id="merchant-city"
+                            value={draft.city}
+                            onChange={(e) => edit({ ...draft, city: e.target.value })}
+                            placeholder="Jakarta"
+                          />
+                        </InputGroup>
                       </Field>
 
                       <Field>
@@ -571,10 +591,6 @@ function Settings() {
                         </Combobox>
                       </Field>
                     </div>
-                    <FieldDescription>
-                      Both fields are frozen into every payment a link takes, and a payment link
-                      cannot be created without them.
-                    </FieldDescription>
                   </Card>
 
                   <Card className="flex flex-col gap-4 p-4">

@@ -387,6 +387,8 @@ function toMerchant(row: MerchantRow): Merchant {
     ...present("buyerProtection", row.buyerProtection),
     ...present("city", row.city),
     ...present("countryCode", row.countryCode),
+    ...present("logoUrl", row.logoUrl),
+    registrationNumber: row.registrationNumber,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     version: row.version,
@@ -453,6 +455,8 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
       merchant.buyerProtection === undefined ? null : { ...merchant.buyerProtection },
     city: merchant.city ?? null,
     countryCode: merchant.countryCode ?? null,
+    logoUrl: merchant.logoUrl ?? null,
+    // `registrationNumber` is left out on purpose: Postgres assigns it.
     createdAt: merchant.createdAt,
     updatedAt: merchant.updatedAt,
     version: merchant.version,
