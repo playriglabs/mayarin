@@ -643,6 +643,136 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
 }
 
 /**
+ * The onboarding tour (Driver.js), on the dashboard's tokens.
+ *
+ * Driver.js ships a white popover with grey buttons; these overrides make it
+ * the same surface as every other popover here, in both themes. Scoped to
+ * `.mayarin-tour` (the tour's `popoverClass`) so nothing else is touched.
+ */
+/**
+ * The scrim behind every modal surface — dialogs, alert dialogs, the mobile
+ * menu and the onboarding tour — so they all dim the page the same way, in
+ * both themes. Black, not `--foreground`: a foreground scrim turns white in
+ * dark mode and lightens the page it is meant to push back.
+ *
+ * The tour draws its own SVG overlay; its fill and opacity are set in
+ * `onboarding-tour.tsx` (`overlayColor`, `overlayOpacity`) and must match.
+ */
+:root {
+  --scrim-color: rgb(0 0 0 / 0.35);
+  --scrim-blur: 1.5px;
+}
+
+.app-scrim {
+  background-color: var(--scrim-color);
+  -webkit-backdrop-filter: blur(var(--scrim-blur));
+  backdrop-filter: blur(var(--scrim-blur));
+}
+
+/* Clipped to the dimmed area by `blurOverlay` (onboarding-tour.tsx), so the
+   highlighted element stays sharp. */
+.driver-overlay {
+  -webkit-backdrop-filter: blur(var(--scrim-blur));
+  backdrop-filter: blur(var(--scrim-blur));
+}
+
+.driver-popover.mayarin-tour {
+  font-family: var(--font-sans);
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  min-width: 360px;
+  max-width: 440px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+}
+
+.mayarin-tour .driver-popover-title {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.mayarin-tour .driver-popover-description {
+  color: var(--muted-foreground);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.mayarin-tour .driver-popover-progress-text {
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.mayarin-tour .driver-popover-close-btn {
+  color: var(--muted-foreground);
+}
+
+.mayarin-tour .driver-popover-close-btn:hover,
+.mayarin-tour .driver-popover-close-btn:focus {
+  color: var(--popover-foreground);
+}
+
+.mayarin-tour .driver-popover-footer {
+  margin-top: 24px;
+}
+
+/* A phone keeps its margins: the minimum would push past a narrow screen. */
+@media (max-width: 480px) {
+  .driver-popover.mayarin-tour {
+    min-width: 0;
+    max-width: calc(100vw - 32px);
+  }
+}
+
+.mayarin-tour .driver-popover-footer-btn {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  text-shadow: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  border: 1px solid var(--border);
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+}
+
+.mayarin-tour .driver-popover-footer-btn:hover,
+.mayarin-tour .driver-popover-footer-btn:focus {
+  background-color: var(--muted);
+}
+
+.mayarin-tour .driver-popover-next-btn {
+  border-color: var(--primary);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.mayarin-tour .driver-popover-next-btn:hover,
+.mayarin-tour .driver-popover-next-btn:focus {
+  border-color: var(--brand);
+  background-color: var(--brand);
+  color: #ffffff;
+}
+
+.mayarin-tour .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: var(--popover);
+}
+
+.mayarin-tour .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: var(--popover);
+}
+
+.mayarin-tour .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: var(--popover);
+}
+
+.mayarin-tour .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: var(--popover);
+}
+
+/**
  * Reduced motion.
  *
  * Motion is handled by `MotionProvider` (`reducedMotion="user"`), which covers

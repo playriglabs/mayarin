@@ -53,6 +53,7 @@ export default function SideNav({
             key={group.label}
             aria-labelledby={`nav-${group.label.toLowerCase()}`}
             data-sidebar-section
+            data-tour={`nav-group-${group.label.toLowerCase()}`}
             className="block border-sidebar-border border-b py-3 first:pt-0 last:border-b-0 last:pb-0"
           >
             <h2
@@ -72,6 +73,7 @@ export default function SideNav({
                     href={href}
                     aria-current={active ? "page" : undefined}
                     data-sidebar-link
+                    data-tour={`nav-${href}`}
                     title={label}
                     className={cn(
                       "relative flex min-h-10 shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-base transition-colors duration-200",

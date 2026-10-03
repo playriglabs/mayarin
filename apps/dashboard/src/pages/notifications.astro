@@ -1,0 +1,13 @@
+---
+import Notifications from "../components/notifications.tsx";
+import { PageHeader } from "../components/page-header.tsx";
+import Protected from "../layouts/dashboard.astro";
+---
+
+<Protected title="Notifications">
+  <PageHeader
+    title="Notifications"
+    description="Payments made and paid, disputes, refunds, and changes to your account."
+  />
+  <Notifications client:load />
+</Protected>

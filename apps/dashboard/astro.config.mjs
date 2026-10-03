@@ -41,14 +41,38 @@ export default defineConfig({
     // Every Base UI subpath in `src/` is listed, not just the ones seen
     // crashing. A component added later needs its subpath added here, and the
     // symptom if it is forgotten is this same 504 rather than a build error.
+    //
+    // React and every library the islands share are listed for a worse
+    // symptom: a re-optimise mints a new React chunk, islands already loaded
+    // keep the old one, and the next island to hydrate has two Reacts —
+    // "Invalid hook call" / "Cannot read properties of null (reading
+    // 'useContext')". Any package `src/` imports belongs on this list.
     optimizeDeps: {
       include: [
+        "react",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "react-dom",
+        "react-dom/client",
+        "@phosphor-icons/react",
+        "@tanstack/react-query",
+        "class-variance-authority",
+        "clsx",
+        "driver.js",
+        "effect",
+        "ldrs/react",
+        "motion/react",
+        "sonner",
+        "tailwind-merge",
+        "ts-pattern",
+        "zod",
         "@base-ui-components/react/alert-dialog",
         "@base-ui-components/react/checkbox",
         "@base-ui-components/react/combobox",
         "@base-ui-components/react/dialog",
         "@base-ui-components/react/popover",
         "@base-ui-components/react/select",
+        "@base-ui-components/react/switch",
         "@base-ui-components/react/tabs",
         "@base-ui-components/react/tooltip",
         "recharts",

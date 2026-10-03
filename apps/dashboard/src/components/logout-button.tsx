@@ -97,11 +97,18 @@ function LogoutButton() {
 
           {reason !== null && <Alert variant="destructive">{reason}</Alert>}
 
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={logout.isPending} />
+          {/* Two equal halves: side by side at their own widths, the two
+              buttons read as different sizes. */}
+          <AlertDialogFooter className="grid grid-cols-2">
+            <AlertDialogCancel className="h-10 w-full" disabled={logout.isPending} />
             {/* Signing out ends a session; it destroys nothing, so this is the
                 ordinary filled button rather than the destructive one. */}
-            <AlertDialogAction variant="default" onClick={onConfirm} disabled={logout.isPending}>
+            <AlertDialogAction
+              variant="default"
+              className="h-10 w-full"
+              onClick={onConfirm}
+              disabled={logout.isPending}
+            >
               {logout.isPending ? "Signing out…" : "Sign out"}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -35,6 +35,7 @@ const PROTECTED_PREFIXES = [
   "/webhooks",
   "/api-keys",
   "/event-logs",
+  "/notifications",
   "/settings",
   "/admin",
 ];

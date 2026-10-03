@@ -87,6 +87,7 @@ export default function SearchCommand({ permissions }: { permissions: readonly P
     <>
       <button
         type="button"
+        data-tour="search"
         onClick={() => setOpen(true)}
         className="flex h-10 w-36 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 text-sm text-subtle-foreground transition-colors hover:bg-muted hover:text-foreground md:w-92"
       >

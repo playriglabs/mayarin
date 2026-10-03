@@ -82,7 +82,7 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      className={cn("fixed inset-0 z-60 bg-foreground/20", className)}
+      className={cn("app-scrim fixed inset-0 z-60", className)}
       render={
         <motion.div variants={overlayVariants} initial="initial" animate="animate" exit="exit" />
       }

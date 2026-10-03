@@ -8,8 +8,9 @@
  *     sent to. Changing the address
  *     redirects this merchant's money, which is why the surface has its own
  *     permission and every edit is written to an audit trail shown below.
- *   - Profile: city and country. Frozen into the snapshot every payment link
- *     and payment carries, so a buyer sees them; they move no money.
+ *   - General: city and country, frozen into the snapshot every payment link
+ *     and payment carries, so a buyer sees them; and buyer protection, a
+ *     switch whose terms (hold, dispute bond, arbiter) are set in a dialog.
  *
  * `effectiveSettlementAddress` is where the money actually goes — what the
  * merchant chose, or their managed wallet when they chose nothing. It is shown
@@ -27,7 +28,6 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Combobox,
   ComboboxContent,
@@ -37,6 +37,15 @@ import {
   ComboboxList,
   type ComboboxOption,
 } from "@/components/ui/combobox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +58,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -101,7 +111,7 @@ interface Draft {
   readonly countryCode: string;
 }
 
-const SETTINGS_TABS = ["settlement", "profile", "history"] as const;
+const SETTINGS_TABS = ["settlement", "general", "history"] as const;
 const HISTORY_PAGE_SIZE = 10;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
@@ -160,6 +170,114 @@ function isValidSettlementAddress(value: string): boolean {
   return trimmed === "" || /^0x[0-9a-fA-F]{40}$/.test(trimmed);
 }
 
+type ProtectionTerms = Pick<Draft, "protectionDays" | "protectionBond" | "protectionArbiter">;
+
+/**
+ * The terms buyer protection runs on, asked for when it is switched on (and
+ * from "Edit terms" after). Edits here stay here until confirmed: cancelling
+ * leaves the switch where it was and the draft untouched. Confirming only
+ * changes the draft — "Save settings" is still what stores it.
+ */
+function ProtectionDialog({
+  open,
+  initial,
+  onCancel,
+  onConfirm,
+  confirmLabel,
+}: {
+  readonly open: boolean;
+  readonly initial: ProtectionTerms;
+  readonly onCancel: () => void;
+  readonly onConfirm: (terms: ProtectionTerms) => void;
+  /** "Turn on" when switching it on, "Apply" when editing terms already on. */
+  readonly confirmLabel: string;
+}) {
+  const [terms, setTerms] = useState<ProtectionTerms>(initial);
+  // Each opening starts from the draft, not from whatever was typed and cancelled last time.
+  useEffect(() => {
+    if (open) {
+      setTerms({
+        protectionDays: initial.protectionDays,
+        protectionBond: initial.protectionBond,
+        protectionArbiter: initial.protectionArbiter,
+      });
+    }
+  }, [open, initial.protectionDays, initial.protectionBond, initial.protectionArbiter]);
+
+  const holdInvalid = !isValidHoldDays(terms.protectionDays);
+  const bondInvalid = !isValidBondPercent(terms.protectionBond);
+  const arbiterInvalid = !isValidSettlementAddress(terms.protectionArbiter);
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Buyer protection</DialogTitle>
+          <DialogDescription>
+            The buyer's payment is held in escrow for the hold period, then released to you unless
+            they dispute it.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="protection-days">Hold (days)</FieldLabel>
+              <Input
+                id="protection-days"
+                inputMode="numeric"
+                value={terms.protectionDays}
+                onChange={(e) => setTerms({ ...terms, protectionDays: e.target.value })}
+                aria-invalid={holdInvalid}
+              />
+              {holdInvalid && <FieldError>Between 1 and 90 days.</FieldError>}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="protection-bond">Dispute bond (%)</FieldLabel>
+              <Input
+                id="protection-bond"
+                inputMode="decimal"
+                value={terms.protectionBond}
+                onChange={(e) => setTerms({ ...terms, protectionBond: e.target.value })}
+                aria-invalid={bondInvalid}
+              />
+              {bondInvalid && <FieldError>Between 0 and 20.</FieldError>}
+            </Field>
+          </div>
+          <FieldDescription>
+            The buyer posts the bond to dispute and loses it if the claim fails.
+          </FieldDescription>
+          <Field>
+            <FieldLabel htmlFor="protection-arbiter">Arbiter</FieldLabel>
+            <Input
+              id="protection-arbiter"
+              value={terms.protectionArbiter}
+              onChange={(e) => setTerms({ ...terms, protectionArbiter: e.target.value })}
+              placeholder="Mayarin Resolution"
+              aria-invalid={arbiterInvalid}
+              className="font-mono text-xs"
+            />
+            <FieldDescription>Decides disputes. Blank uses Mayarin Resolution.</FieldDescription>
+            {arbiterInvalid && (
+              <FieldError>Enter a 20-byte hex address, or leave it blank.</FieldError>
+            )}
+          </Field>
+        </div>
+
+        <DialogFooter>
+          <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+          <Button
+            onClick={() => onConfirm(terms)}
+            disabled={holdInvalid || bondInvalid || arbiterInvalid}
+          >
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Settings() {
   const settings = useSettings();
   const history = useSettingsHistory();
@@ -169,6 +287,7 @@ function Settings() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
+  const [protectionDialog, setProtectionDialog] = useState(false);
   // Client-side paging: the history endpoint returns the whole audit trail at
   // once, so a page is a slice. Clamped against the live count, so a save that
   // appends a row cannot leave the pager pointing past the last page.
@@ -269,7 +388,7 @@ function Settings() {
                     {(
                       [
                         ["settlement", "Settlement"],
-                        ["profile", "Profile location"],
+                        ["general", "General"],
                         ["history", "Change history"],
                       ] as const
                     ).map(([value, label]) => (
@@ -407,77 +526,12 @@ function Settings() {
                       </Badge>
                     </div>
                   </Card>
-
-                  <Card className="mt-6 flex flex-col gap-4 p-4">
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        id="buyer-protection"
-                        checked={draft.protectionOn}
-                        onCheckedChange={(checked) =>
-                          edit({ ...draft, protectionOn: checked === true })
-                        }
-                      />
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="buyer-protection" className="cursor-pointer">
-                          Buyer protection
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          Hold the buyer's payment until they confirm delivery. It's released to you
-                          automatically when the hold ends.
-                        </p>
-                      </div>
-                    </div>
-
-                    {draft.protectionOn && (
-                      <div className="grid gap-4 md:grid-cols-[10rem_10rem_1fr]">
-                        <Field>
-                          <FieldLabel htmlFor="protection-days">Hold (days)</FieldLabel>
-                          <Input
-                            id="protection-days"
-                            inputMode="numeric"
-                            value={draft.protectionDays}
-                            onChange={(e) => edit({ ...draft, protectionDays: e.target.value })}
-                            aria-invalid={holdInvalid}
-                          />
-                          {holdInvalid && <FieldError>Between 1 and 90 days.</FieldError>}
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor="protection-bond">Dispute bond (%)</FieldLabel>
-                          <Input
-                            id="protection-bond"
-                            inputMode="decimal"
-                            value={draft.protectionBond}
-                            onChange={(e) => edit({ ...draft, protectionBond: e.target.value })}
-                            aria-invalid={bondInvalid}
-                          />
-                          <FieldDescription>
-                            The buyer posts it to dispute and loses it if the claim fails.
-                          </FieldDescription>
-                          {bondInvalid && <FieldError>Between 0 and 20.</FieldError>}
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor="protection-arbiter">Arbiter</FieldLabel>
-                          <Input
-                            id="protection-arbiter"
-                            value={draft.protectionArbiter}
-                            onChange={(e) => edit({ ...draft, protectionArbiter: e.target.value })}
-                            placeholder="Mayarin Resolution"
-                            aria-invalid={arbiterInvalid}
-                            className="font-mono text-xs"
-                          />
-                          <FieldDescription>
-                            Decides disputes. Blank uses Mayarin Resolution.
-                          </FieldDescription>
-                          {arbiterInvalid && (
-                            <FieldError>Enter a 20-byte hex address, or leave it blank.</FieldError>
-                          )}
-                        </Field>
-                      </div>
-                    )}
-                  </Card>
                 </Tabs.Panel>
 
-                <Tabs.Panel value="profile" className="pt-6 focus-visible:outline-none">
+                <Tabs.Panel
+                  value="general"
+                  className="flex flex-col gap-6 pt-6 focus-visible:outline-none"
+                >
                   <Card className="flex flex-col gap-4 p-4">
                     {/* One row: a city and a country are one fact — where the
                         merchant is — not two settings a reader hunts for. */}
@@ -522,6 +576,72 @@ function Settings() {
                       cannot be created without them.
                     </FieldDescription>
                   </Card>
+
+                  <Card className="flex flex-col gap-4 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="buyer-protection" className="cursor-pointer">
+                          Buyer protection
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Hold the buyer's payment until they confirm delivery. It's released to you
+                          automatically when the hold ends.
+                        </p>
+                      </div>
+                      <Switch
+                        id="buyer-protection"
+                        checked={draft.protectionOn}
+                        onCheckedChange={(checked) =>
+                          checked
+                            ? setProtectionDialog(true)
+                            : edit({ ...draft, protectionOn: false })
+                        }
+                      />
+                    </div>
+
+                    {draft.protectionOn && (
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm">
+                        <dl className="flex flex-wrap gap-x-6 gap-y-1">
+                          <div className="flex gap-1.5">
+                            <dt className="text-muted-foreground">Hold</dt>
+                            <dd>
+                              {draft.protectionDays} {draft.protectionDays === "1" ? "day" : "days"}
+                            </dd>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <dt className="text-muted-foreground">Dispute bond</dt>
+                            <dd>{draft.protectionBond}%</dd>
+                          </div>
+                          <div className="flex min-w-0 gap-1.5">
+                            <dt className="text-muted-foreground">Arbiter</dt>
+                            <dd className="break-all font-mono text-xs leading-5">
+                              {draft.protectionArbiter.trim() === ""
+                                ? "Mayarin Resolution"
+                                : draft.protectionArbiter.trim()}
+                            </dd>
+                          </div>
+                        </dl>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setProtectionDialog(true)}
+                        >
+                          Edit terms
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+
+                  <ProtectionDialog
+                    open={protectionDialog}
+                    initial={draft}
+                    confirmLabel={draft.protectionOn ? "Apply" : "Turn on"}
+                    onCancel={() => setProtectionDialog(false)}
+                    onConfirm={(terms) => {
+                      edit({ ...draft, ...terms, protectionOn: true });
+                      setProtectionDialog(false);
+                    }}
+                  />
                 </Tabs.Panel>
 
                 <Tabs.Panel
