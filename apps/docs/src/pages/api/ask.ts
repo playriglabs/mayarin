@@ -9,7 +9,7 @@
  * shared between instances, which is enough for one docs server.
  */
 
-import { createAgentUIStreamResponse } from "ai";
+import { APICallError, createAgentUIStreamResponse } from "ai";
 import type { APIRoute } from "astro";
 import { askAiAgent, askAiConfigured, docsContext } from "@/lib/ask-ai";
 
@@ -69,6 +69,18 @@ function allow(ip: string, now: number): boolean {
   return true;
 }
 
+/**
+ * What the reader sees when the model call fails mid-stream. A 429 from
+ * Workers AI is almost always the day's free allowance running out, which no
+ * retry fixes until it resets at 00:00 UTC.
+ */
+function streamError(error: unknown): string {
+  if (APICallError.isInstance(error) && error.statusCode === 429) {
+    return "Ask AI is out of capacity for today. Try again tomorrow.";
+  }
+  return "Something went wrong. Try again.";
+}
+
 function error(status: number, message: string): Response {
   return Response.json({ error: message }, { status });
 }
@@ -97,5 +109,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   return createAgentUIStreamResponse({
     agent: askAiAgent,
     uiMessages: await withDocs((messages as WireMessage[]).slice(-MAX_MESSAGES)),
+    onError: streamError,
   });
 };
