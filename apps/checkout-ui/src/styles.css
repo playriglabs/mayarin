@@ -246,15 +246,18 @@
   .rail-picker-anchor {
     @apply relative;
   }
+  /* Closed, the list is also zero-height and clipped: a transparent absolute
+     box still counts toward the page's scrollable area, and on a page whose
+     picker sits low it made the whole page scroll onto empty space. */
   .rail-options-popover {
-    @apply pointer-events-none absolute inset-x-0 top-full z-30 mt-2 origin-top -translate-y-1 scale-[0.98] opacity-0 motion-reduce:transition-none;
+    @apply pointer-events-none invisible absolute inset-x-0 top-full z-30 mt-2 max-h-0 origin-top -translate-y-1 scale-[0.98] overflow-hidden opacity-0 motion-reduce:transition-none;
     transition:
       opacity 150ms ease-out,
       translate 200ms cubic-bezier(0.16, 1, 0.3, 1),
       scale 200ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .rail-options-popover.open {
-    @apply pointer-events-auto translate-y-0 scale-100 opacity-100;
+    @apply pointer-events-auto visible max-h-none translate-y-0 scale-100 overflow-visible opacity-100;
   }
   .rail-options {
     @apply max-h-72 overflow-y-auto overscroll-contain rounded-control border border-line bg-paper p-1 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.45)];
