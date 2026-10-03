@@ -159,7 +159,7 @@ export function Footer() {
               <p class="text-sm text-slate-600">Find us on social</p>
               <div class="flex items-center gap-2">
                 <a
-                  href="https://x.com/mayarinxyz"
+                  href="https://x.com/mayarin_xyz"
                   target="_blank"
                   rel="noreferrer"
                   aria-label="Mayarin on X"

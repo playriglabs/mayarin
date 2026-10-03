@@ -4,8 +4,6 @@
 
 ### The merchant names one price in their own currency. The payer brings whatever they hold. Both numbers are exact.
 
-<a href="https://mayarin.xyz"><img src="./apps/landing/public/images/product/mayarin-overview.png" alt="Mayarin merchant dashboard — overview" /></a>
-
 [![Live on testnet](https://img.shields.io/badge/live%20on-testnet-16A34A)](https://api-testnet.mayarin.xyz)
 
 A programmable clearing layer for humans, applications and autonomous agents.
@@ -147,11 +145,24 @@ Current boundaries: `exact` scheme only, EVM only, and the broadcaster pays gas.
 
 Testnet only. Mainnet is deliberately unprovisioned.
 
+**Arbitrum Sepolia and Robinhood Chain Testnet** (an Arbitrum Orbit L2) share one set of addresses:
+
+| Contract                  | Address                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `PaymentRouter`           | [`0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9`](https://sepolia.arbiscan.io/address/0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9) |
+| `EscrowFactoryV2`         | [`0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18`](https://sepolia.arbiscan.io/address/0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18) |
+| `DepositForwarderFactory` | [`0x4b96e74b963efa7ab7d7497854fc87220bd092c4`](https://sepolia.arbiscan.io/address/0x4b96e74b963efa7ab7d7497854fc87220bd092c4) |
+| `PayoutBatcher`           | [`0xfad1c3ec064ae52676ce874c2ba4d644ff2ad0b9`](https://sepolia.arbiscan.io/address/0xfad1c3ec064ae52676ce874c2ba4d644ff2ad0b9) |
+
+Other chains:
+
 | Chain            | `PaymentRouter`                                                                                  | `DepositForwarderFactory`                                                                        |
 | ---------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
 | Base Sepolia     | [`0xee7c5b5a…`](https://sepolia.basescan.org/address/0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9) | [`0x69c72C51…`](https://sepolia.basescan.org/address/0x69c72C5191149e85CD862FCcccC2A6F699E9582F) |
 | Ethereum Sepolia | [`0xE54E800b…`](https://sepolia.etherscan.io/address/0xE54E800bfFD1fBb5756B7c5E6A4aa40Dd09210E7) | [`0xCa83514c…`](https://sepolia.etherscan.io/address/0xCa83514c0bef26B642f7A69b2ab529c2ab5d7958) |
 | Arc Testnet      | [`0xee7c5b5a…`](https://testnet.arcscan.app/address/0xee7c5b5a9eeaf667a6efb217a8a77534c873f7a9)  | [`0x04cd74e7…`](https://testnet.arcscan.app/address/0x04cd74e77ac145b18d61c6c8d7939e3241dbb60a)  |
+
+`EscrowFactoryV2` and `PayoutBatcher` sit at the same addresses on these three chains too.
 
 ## What you get
 
@@ -162,9 +173,16 @@ Testnet only. Mainnet is deliberately unprovisioned.
 | Money is never a float           | `bigint` minor units end to end, double-entry ledger              |
 | Agents pay per call              | x402 — no account, no API key, one signature                      |
 | Commerce out of the box          | catalog, payment links, invoices, hosted checkout, dashboard, SDK |
+| Buyer protection                 | on-chain escrow: bonded disputes, an arbiter, auto-release        |
+| Recurring and bulk               | subscriptions, and batch payouts in one transaction               |
 | Anyone can check                 | every settlement is a transaction on a public block explorer      |
 
 ## Built with
+
+### Arbitrum
+
+Arbitrum Sepolia and Robinhood Chain Testnet run the full contract set above. Settlement is chosen
+per chain: USDC on Arbitrum, USDG on Robinhood Chain, PYUSD where the merchant settles in it.
 
 ### The Graph
 
@@ -254,7 +272,7 @@ API reference: [docs.mayarin.xyz](https://docs.mayarin.xyz).
 
 **[mayarin.xyz](https://mayarin.xyz)** — shipped and running on testnet: clearing core, double-entry
 ledger, contract and deposit execution, oracle-guarded quotes, commerce and hosted checkout, merchant
-dashboard, SDK, and agent payments.
+dashboard, SDK, agent payments, buyer-protection escrow, subscriptions and batch payouts.
 
 Not done, and not pretended otherwise:
 
