@@ -1,4 +1,5 @@
-import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
+import { useMayarinCheckout } from "@mayarin/react";
+import { type ChangeEvent, type FormEvent, useMemo, useRef, useState } from "react";
 import { checkoutOrder } from "./checkout.ts";
 import { type CheckoutDraft, clearDraft, loadDraft } from "./checkout-draft.ts";
 import { formatIdrMinorUnits } from "./money.ts";
@@ -121,11 +122,6 @@ function Field({
   );
 }
 
-type SubmitState =
-  | { readonly status: "idle" }
-  | { readonly status: "submitting" }
-  | { readonly status: "error"; readonly message: string };
-
 /**
  * The shipping step both entry points converge on. The draft carries the
  * lines; the catalog carries the names and prices. Continue runs the one
@@ -161,7 +157,8 @@ export function ShippingPage({
     };
   });
   const [touched, setTouched] = useState<readonly RequiredField[]>([]);
-  const [state, setState] = useState<SubmitState>({ status: "idle" });
+  /** The order the last checkout created, for the history link after it. */
+  const placedOrderId = useRef<string | undefined>(undefined);
 
   const products = catalog.status === "ready" ? catalog.products : [];
   /** Draft lines joined against the catalog; a product that is gone drops out. */
@@ -195,57 +192,63 @@ export function ShippingPage({
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((current) => ({ ...current, [field]: event.target.value }));
 
-  async function placeOrder(event: FormEvent<HTMLFormElement>): Promise<void> {
+  /**
+   * Server-mode checkout through `@mayarin/react`: the demo's own server mints
+   * the intent with the secret key, so the price never comes from the browser.
+   * The hook owns the busy and error state; `onRedirect` keeps the demo's flow
+   * of landing on the history rather than leaving for the payment page.
+   */
+  async function mintOrder(): Promise<string> {
+    if (draft === null) throw new Error("Nothing to check out.");
+    // The order id exists before the payment does: it is what the checkout
+    // is keyed by, and what comes back on the intent as `merchantReference`.
+    const orderId = newOrderId();
+    const payment = await checkoutOrder(
+      orderId,
+      draft.items.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+    );
+    const order: Order = {
+      id: orderId,
+      createdAt: Date.now(),
+      items: lines.map((line) => ({
+        productId: line.product.id,
+        name: line.product.name,
+        unitPrice: line.product.prices.find((entry) => entry.asset === CURRENCY)?.amount ?? "0",
+        qty: line.quantity,
+      })),
+      subtotal: subtotal.toString(),
+      shipping: {
+        recipientName: form.recipientName.trim(),
+        phone: form.phone.trim(),
+        addressLine1: form.addressLine1.trim(),
+        ...(form.addressLine2.trim() === "" ? {} : { addressLine2: form.addressLine2.trim() }),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        postalCode: form.postalCode.trim(),
+        country: form.country.trim(),
+        ...(form.notes.trim() === "" ? {} : { notes: form.notes.trim() }),
+      },
+      status: "pending_payment",
+      source: draft.source,
+      paymentId: payment.id,
+      paymentUrl: payment.url,
+    };
+    addOrder(order);
+    if (draft.source === "cart") onCartCleared();
+    clearDraft();
+    placedOrderId.current = order.id;
+    return payment.url;
+  }
+
+  const { redirect, loading, error } = useMayarinCheckout({
+    checkout: mintOrder,
+    onRedirect: () => navigate(`/history?new=${placedOrderId.current ?? ""}`),
+  });
+
+  function placeOrder(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    if (draft === null || !canPlace || state.status === "submitting") return;
-    setState({ status: "submitting" });
-    try {
-      // The order id exists before the payment does: it is what the checkout
-      // is keyed by, and what comes back on the intent as `merchantReference`.
-      const orderId = newOrderId();
-      const payment = await checkoutOrder(
-        orderId,
-        draft.items.map((line) => ({ productId: line.productId, quantity: line.quantity })),
-      );
-      const order: Order = {
-        id: orderId,
-        createdAt: Date.now(),
-        items: lines.map((line) => ({
-          productId: line.product.id,
-          name: line.product.name,
-          unitPrice: line.product.prices.find((entry) => entry.asset === CURRENCY)?.amount ?? "0",
-          qty: line.quantity,
-        })),
-        subtotal: subtotal.toString(),
-        shipping: {
-          recipientName: form.recipientName.trim(),
-          phone: form.phone.trim(),
-          addressLine1: form.addressLine1.trim(),
-          ...(form.addressLine2.trim() === "" ? {} : { addressLine2: form.addressLine2.trim() }),
-          city: form.city.trim(),
-          state: form.state.trim(),
-          postalCode: form.postalCode.trim(),
-          country: form.country.trim(),
-          ...(form.notes.trim() === "" ? {} : { notes: form.notes.trim() }),
-        },
-        status: "pending_payment",
-        source: draft.source,
-        paymentId: payment.id,
-        paymentUrl: payment.url,
-      };
-      addOrder(order);
-      if (draft.source === "cart") onCartCleared();
-      clearDraft();
-      navigate(`/history?new=${order.id}`);
-    } catch (error) {
-      setState({
-        status: "error",
-        message:
-          error instanceof Error
-            ? `Checkout could not be prepared. ${error.message}`
-            : "Checkout could not be prepared.",
-      });
-    }
+    if (draft === null || !canPlace) return;
+    void redirect();
   }
 
   function goBack(): void {
@@ -379,10 +382,10 @@ export function ShippingPage({
             <button
               type="submit"
               className="btn-primary"
-              disabled={!canPlace || state.status === "submitting"}
-              aria-busy={state.status === "submitting"}
+              disabled={!canPlace || loading}
+              aria-busy={loading}
             >
-              {state.status === "submitting" ? (
+              {loading ? (
                 <>
                   <span className="spinner" aria-hidden="true" />
                   Preparing…
@@ -392,9 +395,9 @@ export function ShippingPage({
               )}
             </button>
           </div>
-          {state.status === "error" && (
+          {error !== undefined && (
             <p className="notice error" role="alert">
-              {state.message}
+              Checkout could not be prepared. {error.message}
             </p>
           )}
         </form>

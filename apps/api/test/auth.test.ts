@@ -11,6 +11,24 @@ import { createApiHarness, TEST_MERCHANT_ID } from "./harness.ts";
 
 const merchant = { id: TEST_MERCHANT_ID, name: "Warung Kopi", city: "Jakarta", countryCode: "ID" };
 
+/** The merchant's own profile, which a publishable-key cart reads its snapshot from. */
+async function seedMerchant(
+  harness: ReturnType<typeof createApiHarness>,
+  profile: { city?: string; countryCode?: string } = { city: "Jakarta", countryCode: "ID" },
+) {
+  const now = new Date("2026-01-01T00:00:00Z");
+  await harness.container.merchants.insert({
+    id: TEST_MERCHANT_ID,
+    name: "Warung Kopi",
+    settlementAsset: "USDC",
+    acceptedAssets: ["USDC"],
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+    ...profile,
+  });
+}
+
 function productBody(merchantId = TEST_MERCHANT_ID) {
   return {
     merchantId,
@@ -200,17 +218,50 @@ describe("publishable keys (#113)", () => {
 
   test("checks out a cart for its own merchant", async () => {
     const harness = createApiHarness();
+    await seedMerchant(harness);
     mintPk(harness);
     const { status, body } = await harness.request("POST", "/v1/carts/checkout", {
       auth: PK,
       body: {
-        merchant,
         currency: "IDR",
         lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
       },
     });
     expect(status).toBe(201);
     expect(body.paymentIntent.status).toBe("CREATED");
+    expect(body.paymentIntent.merchant.id).toBe(TEST_MERCHANT_ID);
+  });
+
+  test("takes the merchant snapshot from the profile, never from the browser", async () => {
+    const harness = createApiHarness();
+    await seedMerchant(harness);
+    mintPk(harness);
+    const { status, body } = await harness.request("POST", "/v1/carts/checkout", {
+      auth: PK,
+      body: {
+        merchant: { ...merchant, name: "Somebody Else's Shop", city: "Elsewhere" },
+        currency: "IDR",
+        lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
+      },
+    });
+    expect(status).toBe(201);
+    expect(body.paymentIntent.merchant.name).toBe("Warung Kopi");
+    expect(body.paymentIntent.merchant.city).toBe("Jakarta");
+  });
+
+  test("refuses a cart until the merchant has set a city and country", async () => {
+    const harness = createApiHarness();
+    await seedMerchant(harness, {});
+    mintPk(harness);
+    const { status } = await harness.request("POST", "/v1/carts/checkout", {
+      auth: PK,
+      body: {
+        merchant: { id: TEST_MERCHANT_ID },
+        currency: "IDR",
+        lines: [{ name: "Roti", unitPrice: { amount: "12000.00", asset: "IDR" }, quantity: 1 }],
+      },
+    });
+    expect(status).toBe(400);
   });
 
   test("cannot reach another merchant's catalog or checkout", async () => {

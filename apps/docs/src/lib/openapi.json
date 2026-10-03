@@ -2079,6 +2079,11 @@
                       "arbiter": {
                         "type": "string",
                         "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "bondBps": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 2000
                       }
                     },
                     "required": [
@@ -3436,13 +3441,7 @@
                       "categoryCode": {
                         "type": "string"
                       }
-                    },
-                    "required": [
-                      "id",
-                      "name",
-                      "city",
-                      "countryCode"
-                    ]
+                    }
                   },
                   "currency": {
                     "type": "string",
@@ -3570,7 +3569,6 @@
                   }
                 },
                 "required": [
-                  "merchant",
                   "currency",
                   "lines"
                 ]

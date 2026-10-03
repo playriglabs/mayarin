@@ -91,7 +91,13 @@ const cartLineSchema = z.union([
 ]);
 
 export const checkoutCartBodySchema = intentOptionsSchema.extend({
-  merchant: merchantSchema,
+  /**
+   * Optional: the key already names its merchant. A publishable key always
+   * gets the merchant's own name, city and country from the database — a
+   * browser could otherwise print any shop name on the checkout page. A secret
+   * key may still send the full snapshot, and gets the database one otherwise.
+   */
+  merchant: merchantSchema.partial().optional(),
   currency: assetCodeSchema,
   lines: z.array(cartLineSchema).min(1),
 });

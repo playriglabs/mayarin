@@ -52,14 +52,15 @@ window.location.assign(url);
 
 ```ts
 const intent = await mayarin.commerce.carts.checkout({
-  merchant,
   currency: "USD",
   lines: cart.map((line) => ({ productId: line.productId, quantity: line.quantity })),
   merchantReference: orderId,
 });
 
-window.location.assign(`https://pay.mayarin.xyz/checkout/pay/${intent.id}`);
+window.location.assign(intent.url);
 ```
+
+No `merchant` is needed: the publishable key names its merchant, and the intent always carries that merchant's own name, city and country from the dashboard settings, whatever the browser sends. In React, [`PayButton`](/sdk/typescript/react) wraps this call.
 
 The hosted checkout owns asset selection, the wallet connection or deposit instructions, and live payment status — so a storefront hands the payer over and waits for a [webhook](/sdk/typescript/webhooks) rather than tracking clearing itself.
 
