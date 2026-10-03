@@ -5,14 +5,15 @@ description: Create intents, confirm them, inspect status, and obtain contract c
 
 `mayarin.payment` is the low-level payment surface: one intent, priced in the merchant's currency, paid on a crypto rail. [Commerce](/sdk/typescript/commerce) sits above it — a cart, link, or invoice checkout returns the same `PaymentIntentDto` this module creates.
 
-| Method                          | Returns             | Use it for                                            |
-| ------------------------------- | ------------------- | ----------------------------------------------------- |
-| `createIntent(body, options?)`  | `PaymentIntentDto`  | Price a charge and choose the payer's rail.           |
-| `getIntent(id, options?)`       | `PaymentIntentDto`  | Read intent status and its resolved execution path.   |
-| `confirmIntent(id, options?)`   | `PaymentDto`        | Lock the price and start clearing.                    |
-| `get(id, options?)`             | `PaymentDto`        | Full view: intent, clearing, deposit, timeline.       |
-| `getContractCall(id, options?)` | `ContractCallDto`   | Fetch fresh calldata for a wallet to submit.          |
-| `getEscrow(id, options?)`       | `EscrowDto`         | Where an escrowed payment's funds are, and its calls. |
+| Method                          | Returns            | Use it for                                            |
+| ------------------------------- | ------------------ | ----------------------------------------------------- |
+| `createIntent(body, options?)`  | `PaymentIntentDto` | Price a charge and choose the payer's rail.           |
+| `getIntent(id, options?)`       | `PaymentIntentDto` | Read intent status and its resolved execution path.   |
+| `confirmIntent(id, options?)`   | `PaymentDto`       | Lock the price and start clearing.                    |
+| `get(id, options?)`             | `PaymentDto`       | Full view: intent, clearing, deposit, timeline.       |
+| `getContractCall(id, options?)` | `ContractCallDto`  | Fetch fresh calldata for a wallet to submit.          |
+| `getEscrow(id, options?)`       | `EscrowDto`        | Where an escrowed payment's funds are, and its calls. |
+| `retry(id, options?)`           | `ClearingDto`      | Resume a failed payment after funds arrived.          |
 
 `get` accepts a payment intent ID or a clearing transaction ID.
 
@@ -41,17 +42,17 @@ intent.status; // "CREATED"
 intent.executionPath; // "on-chain-contract" | "deposit-match" | null
 ```
 
-| Field               | Meaning                                                                                                  |
-| ------------------- | -------------------------------------------------------------------------------------------------------- |
-| `merchant`          | Snapshot of who is paid — id, name, city, two-letter `countryCode`, optional `categoryCode`.              |
-| `qr`                | Raw EMVCo/QRIS payload, as an alternative to `merchant`. One of the two is required.                       |
-| `amount`            | Decimal string plus asset: `{ amount: "18.50", asset: "SGD" }`. Never a float.                             |
-| `payment`           | The payer's rail: `asset`, `chain` (`base` or `base-sepolia`), and `payerAddress` for the contract path.   |
-| `settlementAsset`   | What the merchant receives. Falls back to the deployment default.                                          |
-| `executionPath`     | `on-chain-contract` or `deposit-match`. Omitted, the deployment default applies.                           |
-| `merchantReference` | Your own order id. Stored, indexed, echoed back, never interpreted.                                        |
-| `metadata`          | Free-form string map, carried through to webhooks.                                                         |
-| `ttlSeconds`        | How long the intent stays payable before it expires.                                                       |
+| Field               | Meaning                                                                                                                     |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `merchant`          | Snapshot of who is paid — id, name, city, two-letter `countryCode`, optional `categoryCode`.                                |
+| `qr`                | Raw EMVCo/QRIS payload, as an alternative to `merchant`. One of the two is required.                                        |
+| `amount`            | Decimal string plus asset: `{ amount: "18.50", asset: "SGD" }`. Never a float.                                              |
+| `payment`           | The payer's rail: `asset`, `chain` (`base` or `base-sepolia`), and `payerAddress` for the contract path.                    |
+| `settlementAsset`   | What the merchant receives. Falls back to the deployment default.                                                           |
+| `executionPath`     | `on-chain-contract` or `deposit-match`. Omitted, the deployment default applies.                                            |
+| `merchantReference` | Your own order id. Stored, indexed, echoed back, never interpreted.                                                         |
+| `metadata`          | Free-form string map, carried through to webhooks.                                                                          |
+| `ttlSeconds`        | How long the intent stays payable before it expires.                                                                        |
 | `escrow`            | `{ holdSeconds, arbiter?, bondBps? }` requires [buyer protection](/guides/escrow); `null` opts out of the merchant default. |
 
 Pass `merchantReference` whenever you have one — it is what lets a webhook or a reconciliation query find your order without a lookup table.
@@ -134,7 +135,7 @@ Treat a webhook as a signal and this call as the truth — the demo storefront (
 
 ```ts
 const event = parseWebhookEvent(rawBody);
-if (event.state === "SUCCESS") {
+if (event?.state === "SUCCESS") {
   const intent = await mayarin.payment.getIntent(event.paymentIntentId);
   if (intent.status === "COMPLETED" && intent.merchant.id === merchantId) {
     markPaid(event.paymentIntentId);
@@ -159,7 +160,15 @@ The receipt carries the settlement proof: the asset paid, the network, the clear
 
 ## Retrying a failed payment
 
-`POST /v1/payments/:id/retry` reopens a payment that failed after the payer's funds arrived and settles it. See [retrying a failed payment](/concepts/payment-lifecycle#retrying-a-failed-payment).
+`retry` reopens a payment that failed after the payer's funds arrived and settles it. The engine refuses a payment that is not failed or never received funds.
+
+```ts
+const clearing = await mayarin.payment.retry(intent.id, {
+  idempotencyKey: `retry:${intent.id}`,
+});
+```
+
+See [retrying a failed payment](/concepts/payment-lifecycle#retrying-a-failed-payment).
 
 ## Expiry
 

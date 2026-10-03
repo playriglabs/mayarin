@@ -7,13 +7,18 @@
 
 import { CHAIN_IDS } from "@mayarin/chain";
 import {
+  type EscrowRequest,
   EXECUTION_PATHS,
+  type ExecutionPath,
   type MerchantSnapshot,
   type PaymentIntent,
+  type PaymentIntentStatus,
+  type PaymentRail,
+  type PaymentSource,
 } from "@mayarin/payment-intent";
-import { assetCodeSchema, decimalMoneySchema } from "@mayarin/shared";
+import { type AssetCode, assetCodeSchema, decimalMoneySchema } from "@mayarin/shared";
 import { z } from "zod";
-import { toMoneyDto } from "./money.ts";
+import { type MoneyDto, toMoneyDto } from "./money.ts";
 
 export const merchantSchema = z.object({
   id: z.string().min(1),
@@ -114,7 +119,29 @@ export const createBodySchema = z
 export type CreateBody = z.infer<typeof createBodySchema>;
 export type CreatePaymentIntentBody = z.input<typeof createBodySchema>;
 
-export function toPaymentIntentDto(intent: PaymentIntent) {
+export interface PaymentIntentDto {
+  readonly id: string;
+  readonly status: PaymentIntentStatus;
+  readonly merchant: MerchantSnapshot;
+  readonly amount: MoneyDto;
+  readonly settlementAsset: AssetCode;
+  readonly provider: string;
+  readonly payment: PaymentRail | null;
+  readonly executionPath: ExecutionPath | null;
+  readonly escrow: EscrowRequest | null;
+  readonly source: PaymentSource;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly merchantReference: string | null;
+  readonly clearingTransactionId: string | null;
+  readonly failureReason: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly expiresAt: string;
+  readonly confirmedAt: string | null;
+  readonly completedAt: string | null;
+}
+
+export function toPaymentIntentDto(intent: PaymentIntent): PaymentIntentDto {
   return {
     id: intent.id,
     status: intent.status,
@@ -145,5 +172,3 @@ export function toPaymentIntentDto(intent: PaymentIntent) {
     completedAt: intent.completedAt?.toISOString() ?? null,
   };
 }
-
-export type PaymentIntentDto = ReturnType<typeof toPaymentIntentDto>;

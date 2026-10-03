@@ -1,6 +1,7 @@
 {
   "name": "@mayarin/sdk",
-  "version": "0.1.0",
+  "version": "0.1.0-next.0",
+  "description": "TypeScript client for Mayarin: commerce, payments, webhooks and x402 gates.",
   "private": true,
   "type": "module",
   "exports": {
@@ -9,7 +10,9 @@
     "./x402/connect": "./src/x402-connect.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown",
+    "stage": "bun run build && bun run ../../scripts/stage-npm.ts packages/sdk"
   },
   "dependencies": {
     "@mayarin/chain": "workspace:*",
@@ -17,6 +20,8 @@
     "@mayarin/x402": "workspace:*"
   },
   "devDependencies": {
-    "@mayarin/api": "workspace:*"
+    "@mayarin/api": "workspace:*",
+    "publint": "^0.3.25",
+    "tsdown": "^0.23.0"
   }
 }

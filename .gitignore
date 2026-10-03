@@ -43,3 +43,6 @@ packages/contracts/*/broadcast/
 __pycache__/
 
 SCALE_UP.md
+
+# Staged npm packages (scripts/stage-npm.ts).
+packages/*/npm/

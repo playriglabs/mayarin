@@ -49,6 +49,15 @@ describe("resolveCheckoutUrl", () => {
     );
   });
 
+  test("refuses a URL that is not http(s) — the page would navigate to it", async () => {
+    await expect(
+      resolveCheckoutUrl({ checkout: async () => "javascript:alert(document.cookie)" }),
+    ).rejects.toThrow("http(s)");
+    await expect(resolveCheckoutUrl({ checkout: async () => "/relative" })).rejects.toThrow(
+      "not a URL",
+    );
+  });
+
   test("browser mode posts the cart with the publishable key", async () => {
     const seen: { url: string; auth: string | null; body: unknown }[] = [];
     const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {

@@ -43,6 +43,16 @@ describe("payment module", () => {
     await client.payment.getIntent("a/b");
     expect(calls[0]?.url).toBe("https://api.test/v1/payment-intents/a%2Fb");
   });
+
+  test("retries a failed funded payment and unwraps its clearing state", async () => {
+    const { calls, client } = clientReturning({ clearing: { id: "clear_1", state: "CLEARING" } });
+    const result = await client.payment.retry("pi/a");
+    expect(result.state).toBe("CLEARING");
+    expect(calls[0]).toMatchObject({
+      url: "https://api.test/v1/payments/pi%2Fa/retry",
+      method: "POST",
+    });
+  });
 });
 
 describe("merchant commerce module", () => {
@@ -106,5 +116,21 @@ describe("merchant commerce module", () => {
     // The buyer URL rides along, so the storefront never builds one itself.
     expect(result.url).toBe("https://pay.test/checkout/pay/pi_1");
     expect(calls[0]).toMatchObject({ url: "https://api.test/v1/carts/checkout", method: "POST" });
+  });
+
+  test("opts payment links and invoices into the public index", async () => {
+    const link = clientReturning({ paymentLink: { id: "link_1", listed: true } });
+    await link.client.commerce.paymentLinks.listInIndex("link/1");
+    expect(link.calls[0]).toMatchObject({
+      url: "https://api.test/v1/payment-links/link%2F1/list",
+      method: "POST",
+    });
+
+    const invoice = clientReturning({ invoice: { id: "inv_1", listed: true } });
+    await invoice.client.commerce.invoices.listInIndex("inv/1");
+    expect(invoice.calls[0]).toMatchObject({
+      url: "https://api.test/v1/invoices/inv%2F1/list",
+      method: "POST",
+    });
   });
 });

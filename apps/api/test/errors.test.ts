@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { ProviderError } from "@mayarin/shared";
 import { Hono } from "hono";
-import { type ErrorBody, errorHandler } from "../src/errors.ts";
+import type { ErrorBody } from "../src/dto/error.ts";
+import { errorHandler } from "../src/errors.ts";
 
 function errorApp(error: Error): Hono {
   const app = new Hono();

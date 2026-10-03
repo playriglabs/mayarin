@@ -7,46 +7,32 @@
  * wallet can sign the Permit2 authorisation.
  */
 
-import { serializeMoney } from "@mayarin/shared";
-import type { ContractCallView } from "../contract-layer.ts";
+import type { ChainId } from "@mayarin/chain";
+import type { SerializedMoney } from "@mayarin/shared";
 
-export function toContractCallDto(view: ContractCallView) {
-  return {
-    chain: view.chain,
-    chainId: view.chainId.toString(),
-    paymentRouter: view.paymentRouter,
-    order: {
-      intentId: view.order.intentId,
-      settlementToken: view.order.settlementToken,
-      minOut: view.order.minOut.toString(),
-      fee: view.order.fee.toString(),
-      merchantSafe: view.order.merchantSafe,
-      refundTo: view.order.refundTo,
-      deadline: view.order.deadline.toString(),
-    },
-    signature: view.signature,
-    route:
-      view.route === null
-        ? null
-        : {
-            router: view.route.router,
-            callData: view.route.callData,
-            expectedIn: serializeMoney(view.route.expectedIn),
-            ...(view.route.expiresAt === undefined
-              ? {}
-              : { expiresAt: view.route.expiresAt.toISOString() }),
-          },
-    transaction:
-      view.payEth === null
-        ? null
-        : {
-            to: view.payEth.to,
-            data: view.payEth.data,
-            value: view.payEth.value.toString(),
-          },
-    payerEstimate: serializeMoney(view.payerEstimate),
-    expiresAt: view.expiresAt.toISOString(),
+type Hex = `0x${string}`;
+
+export interface ContractCallDto {
+  readonly chain: ChainId;
+  readonly chainId: string;
+  readonly paymentRouter: string;
+  readonly order: {
+    readonly intentId: Hex;
+    readonly settlementToken: Hex;
+    readonly minOut: string;
+    readonly fee: string;
+    readonly merchantSafe: Hex;
+    readonly refundTo: Hex;
+    readonly deadline: string;
   };
+  readonly signature: Hex;
+  readonly route: {
+    readonly router: string;
+    readonly callData: Hex;
+    readonly expectedIn: SerializedMoney;
+    readonly expiresAt?: string;
+  } | null;
+  readonly transaction: { readonly to: Hex; readonly data: Hex; readonly value: string } | null;
+  readonly payerEstimate: SerializedMoney;
+  readonly expiresAt: string;
 }
-
-export type ContractCallDto = ReturnType<typeof toContractCallDto>;

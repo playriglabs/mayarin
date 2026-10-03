@@ -5,13 +5,13 @@ description: Manage products, carts, payment links, invoices, and subscriptions.
 
 `mayarin.commerce` groups five surfaces. Each checkout — cart, link, or invoice — returns the same `PaymentIntentDto` the [payments module](/sdk/typescript/payments) works with.
 
-| Group          | Methods                                                        |
-| -------------- | -------------------------------------------------------------- |
-| `products`     | `create`, `list`, `get`, `update`                              |
-| `carts`        | `checkout`                                                     |
-| `paymentLinks` | `create`, `list`, `get`, `disable`, `checkout`                 |
-| `invoices`     | `create`, `list`, `get`, `update`, `issue`, `void`, `checkout` |
-| `subscriptions` | `create`, `list`, `get`, `pause`, `resume`, `cancel`          |
+| Group           | Methods                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| `products`      | `create`, `list`, `get`, `update`                                                                |
+| `carts`         | `checkout`                                                                                       |
+| `paymentLinks`  | `create`, `list`, `get`, `rails`, `disable`, `listInIndex`, `unlistFromIndex`, `checkout`        |
+| `invoices`      | `create`, `list`, `get`, `update`, `issue`, `void`, `listInIndex`, `unlistFromIndex`, `checkout` |
+| `subscriptions` | `create`, `list`, `get`, `pause`, `resume`, `cancel`                                             |
 
 The browser entry point exposes only `products.list`, `products.get`, and `carts.checkout` — see [browser client](/sdk/typescript/browser).
 
@@ -119,6 +119,13 @@ const intent = await mayarin.commerce.paymentLinks.checkout(link.id, {
 await mayarin.commerce.paymentLinks.disable(link.id);
 ```
 
+Public discovery is opt-in and independent from whether the link remains payable:
+
+```ts
+await mayarin.commerce.paymentLinks.listInIndex(link.id);
+await mayarin.commerce.paymentLinks.unlistFromIndex(link.id);
+```
+
 ### Reuse a link instead of minting duplicates
 
 A storefront that mints a link per checkout click accumulates one link per abandoned cart. The demo ([`server/index.ts`](https://github.com/playriglabs/mayarin/blob/main/apps/demo/server/index.ts)) looks for an equivalent payable link first and passes a deterministic idempotency key derived from the cart, so a double-click cannot create two:
@@ -184,6 +191,13 @@ issued.url; // buyer-facing invoice page
 
 ```ts
 await mayarin.commerce.invoices.void(issued.id);
+```
+
+Issued invoices can opt into or out of the same public payable index:
+
+```ts
+await mayarin.commerce.invoices.listInIndex(issued.id);
+await mayarin.commerce.invoices.unlistFromIndex(issued.id);
 ```
 
 `get` returns the invoice plus everything derived from its payments, so no client re-sums what is owed:

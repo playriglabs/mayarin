@@ -22,6 +22,9 @@ export interface VerifyWebhookOptions {
 }
 
 export async function verifyWebhook(options: VerifyWebhookOptions): Promise<void> {
+  // An empty secret is a missing env var, and an HMAC keyed with it is one
+  // anybody can compute.
+  if (options.secret === "") throw new TypeError("The webhook secret is empty");
   const parsed = parseSignature(options.signature);
   if (parsed === undefined)
     throw new MayarinWebhookError("INVALID_SIGNATURE", "The webhook signature is malformed");

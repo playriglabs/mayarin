@@ -9,15 +9,7 @@ import { isMayarinError } from "@mayarin/shared";
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { ZodError } from "zod";
-
-export interface ErrorBody {
-  readonly error: {
-    readonly code: string;
-    readonly message: string;
-    readonly retryable: boolean;
-    readonly details?: Record<string, unknown>;
-  };
-}
+import type { ErrorBody } from "./dto/error.ts";
 
 export function errorHandler(error: Error, c: Context): Response {
   if (error instanceof ZodError) {

@@ -1,4 +1,5 @@
 import type {
+  ClearingDto,
   ContractCallDto,
   CreatePaymentIntentBody,
   EscrowDto,
@@ -22,6 +23,8 @@ export interface PaymentModule {
    * the terms allow.
    */
   readonly getEscrow: (id: string, options?: RequestOptions) => Promise<EscrowDto>;
+  /** Reopen a failed payment whose payer funds were already received. */
+  readonly retry: (id: string, options?: RequestOptions) => Promise<ClearingDto>;
 }
 
 export function createPaymentModule(transport: Transport): PaymentModule {
@@ -52,6 +55,14 @@ export function createPaymentModule(transport: Transport): PaymentModule {
         options,
       );
       return response.escrow;
+    },
+    retry: async (id, options) => {
+      const response = await transport.post<{ clearing: ClearingDto }>(
+        `/payments/${encodeURIComponent(id)}/retry`,
+        undefined,
+        options,
+      );
+      return response.clearing;
     },
   };
 }

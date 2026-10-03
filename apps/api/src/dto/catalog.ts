@@ -5,13 +5,18 @@
  * payment link" mean one thing in every route that touches them.
  */
 
-import type { PaymentLink, Product } from "@mayarin/catalog";
+import type { PaymentLink, PaymentLinkKind, PaymentLinkLine, Product } from "@mayarin/catalog";
 import { isLinkPayable, PAYMENT_LINK_KINDS } from "@mayarin/catalog";
 import { CHAIN_IDS } from "@mayarin/chain";
-import { EXECUTION_PATHS } from "@mayarin/payment-intent";
-import { assetCodeSchema, decimalMoneySchema, timestampSchema } from "@mayarin/shared";
+import { EXECUTION_PATHS, type LinkRail, type MerchantSnapshot } from "@mayarin/payment-intent";
+import {
+  type AssetCode,
+  assetCodeSchema,
+  decimalMoneySchema,
+  timestampSchema,
+} from "@mayarin/shared";
 import { z } from "zod";
-import { toMoneyDto } from "./money.ts";
+import { type MoneyDto, toMoneyDto } from "./money.ts";
 import { merchantSchema } from "./payment-intent.ts";
 
 const metadataSchema = z.record(z.string(), z.string()).optional();
@@ -163,7 +168,21 @@ export function toIntentOptions(body: IntentOptionsBody) {
   };
 }
 
-export function toProductDto(product: Product) {
+export interface ProductDto {
+  readonly id: string;
+  readonly merchantId: string;
+  readonly sku: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly prices: readonly MoneyDto[];
+  readonly active: boolean;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly version: number;
+}
+
+export function toProductDto(product: Product): ProductDto {
   return {
     id: product.id,
     merchantId: product.merchantId,
@@ -179,8 +198,6 @@ export function toProductDto(product: Product) {
   };
 }
 
-export type ProductDto = ReturnType<typeof toProductDto>;
-
 /**
  * A link on the wire.
  *
@@ -188,7 +205,7 @@ export type ProductDto = ReturnType<typeof toProductDto>;
  * point of the object, so it is served rather than left for each client to
  * assemble from a base URL they would have to be told separately.
  */
-export function toPaymentLinkDto(link: PaymentLink, baseUrl: string, now: Date) {
+export function toPaymentLinkDto(link: PaymentLink, baseUrl: string, now: Date): PaymentLinkDto {
   return {
     id: link.id,
     kind: link.kind,
@@ -213,4 +230,23 @@ export function toPaymentLinkDto(link: PaymentLink, baseUrl: string, now: Date) 
   };
 }
 
-export type PaymentLinkDto = ReturnType<typeof toPaymentLinkDto>;
+export interface PaymentLinkDto {
+  readonly id: string;
+  readonly kind: PaymentLinkKind;
+  readonly merchant: MerchantSnapshot;
+  readonly amount: MoneyDto | null;
+  readonly currency: AssetCode | null;
+  readonly lines: readonly PaymentLinkLine[] | null;
+  readonly title: string | null;
+  readonly merchantReference: string | null;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly rails: readonly LinkRail[] | null;
+  readonly url: string;
+  readonly payable: boolean;
+  readonly listed: boolean;
+  readonly expiresAt: string | null;
+  readonly disabledAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly version: number;
+}

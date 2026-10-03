@@ -1,0 +1,60 @@
+# Release PRs and npm publishing for the public packages (@mayarin/sdk,
+# @mayarin/react). release-please reads conventional commits touching each
+# package and keeps a release PR open; merging it tags the release, and the
+# publish job ships the tagged package with npm trusted publishing (OIDC) — no
+# npm token is stored in the repository.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      paths: ${{ steps.release.outputs.paths_released }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.paths != '[]' && needs.release-please.outputs.paths != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      max-parallel: 1
+      matrix:
+        path: ${{ fromJSON(needs.release-please.outputs.paths) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      # Trusted publishing needs npm 11.5.1+, which ships with Node 24.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: bun install --frozen-lockfile
+      - run: bun test ${{ matrix.path }}
+      - run: bun run --cwd ${{ matrix.path }} typecheck
+      - run: bun run --cwd ${{ matrix.path }} stage
+      - run: bunx publint ${{ matrix.path }}/npm
+      # A prerelease (0.1.0-next.3) goes to the `next` tag; only a stable
+      # version moves `latest`.
+      - name: npm publish
+        working-directory: ${{ matrix.path }}/npm
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag=latest
+          case "$version" in *-*) tag=next ;; esac
+          npm publish --provenance --access public --tag "$tag"
