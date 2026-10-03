@@ -206,10 +206,13 @@ const EMPTY_DRAFT: Draft = {
   merchantReference: "",
 };
 
-/** The QR endpoint lives beside the link, on the payment API that serves it. */
+/**
+ * The QR endpoint lives beside the link, on the payment API that serves it.
+ * `link` lets it put the merchant's own logo in the centre when they have one.
+ */
 function qrSrc(link: PaymentLinkDto, download = false): string {
   const origin = new URL(link.url).origin;
-  const query = new URLSearchParams({ value: link.url, brand: "mayarin" });
+  const query = new URLSearchParams({ value: link.url, brand: "mayarin", link: link.id });
   if (download) {
     query.set("download", "true");
     query.set("format", "png");
