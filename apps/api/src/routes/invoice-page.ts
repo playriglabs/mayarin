@@ -19,6 +19,7 @@ import type { Container } from "../container.ts";
 import { toInvoicePaymentDto } from "../dto/invoice.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
+import { merchantLogoUrl } from "../merchant-logo.ts";
 import { payerRails } from "../rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
 import { type ProtectionOffer, protectionOffer } from "../services/protection.ts";
@@ -42,6 +43,7 @@ export function invoicePageRoutes(container: Container): Hono {
           `${origin}/v1/invoices/${view.invoice.id}/checkout`,
           await payerRails(container, report.rails),
           await protectionOffer(container, view.invoice.merchantId, undefined),
+          await merchantLogoUrl(container, view.invoice.merchantId),
         ),
       ),
     );
@@ -61,6 +63,7 @@ function invoiceBootstrap(
   checkoutUrl: string,
   rails: readonly RailDto[],
   protection: ProtectionOffer | null,
+  logoUrl: string | null,
 ) {
   const { invoice, status, paid, outstanding, payments } = view;
   return {
@@ -68,7 +71,7 @@ function invoiceBootstrap(
     invoiceId: invoice.id,
     number: invoice.number ?? null,
     status,
-    merchant: { name: invoice.merchant.name, city: invoice.merchant.city },
+    merchant: { name: invoice.merchant.name, city: invoice.merchant.city, logoUrl },
     buyer: {
       name: invoice.buyer.name,
       email: invoice.buyer.email ?? null,

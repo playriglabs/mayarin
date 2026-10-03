@@ -587,6 +587,52 @@ describe("hosted checkout", () => {
     expect(svg).toContain('rx="0.4" fill="none" stroke="#d4d4d4"');
   });
 
+  test("puts the merchant's own logo on a branded link QR", async () => {
+    const logo = await Bun.file(
+      new URL("../../landing/public/brand-kit/mayarin-white.png", import.meta.url),
+    ).arrayBuffer();
+    const server = Bun.serve({ port: 0, fetch: () => new Response(logo) });
+    try {
+      const harness = createApiHarness();
+      const now = new Date("2026-01-01T00:00:00Z");
+      await harness.container.merchants.insert({
+        id: merchant.id,
+        name: merchant.name,
+        settlementAsset: "USDC",
+        acceptedAssets: ["USDC"],
+        logoUrl: `http://localhost:${server.port}/logo.png`,
+        createdAt: now,
+        updatedAt: now,
+        version: 1,
+      });
+      const link = await harness.request("POST", "/v1/payment-links", {
+        body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+      });
+      const id = link.body.paymentLink.id;
+
+      const svg = await (
+        await harness.app.request(`/checkout/qr?value=lnk&brand=mayarin&link=${id}`)
+      ).text();
+      expect(svg).toContain(`Merchant logo source: http://localhost:${server.port}/logo.png`);
+      expect(svg).toContain('href="data:image/png;base64,');
+    } finally {
+      server.stop(true);
+    }
+  });
+
+  test("keeps the Mayarin mark for a merchant with no logo", async () => {
+    const harness = createApiHarness();
+    const link = await harness.request("POST", "/v1/payment-links", {
+      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+    });
+    const svg = await (
+      await harness.app.request(
+        `/checkout/qr?value=lnk&brand=mayarin&link=${link.body.paymentLink.id}`,
+      )
+    ).text();
+    expect(svg).toContain("Mayarin brand mark source:");
+  });
+
   test("refuses a QR value long enough to be a payload", async () => {
     const harness = createApiHarness();
     const response = await harness.app.request(`/checkout/qr?value=${"a".repeat(513)}`);

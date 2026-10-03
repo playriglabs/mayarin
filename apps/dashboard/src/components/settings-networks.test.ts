@@ -5,6 +5,7 @@ import {
   type NetworkDraft,
   settlementOn,
   settlementOptionsOf,
+  toggledAccepted,
 } from "./settings-networks";
 
 const SUPPORTED = [
@@ -61,5 +62,33 @@ describe("applyToAll", () => {
     // Robinhood can take USDC but not EURC or ETH, and loses USDG by copying.
     expect(next.acceptedAssetsByChain["robinhood-testnet"]).toEqual(["USDC"]);
     expect(next.settlementAssetByChain).toEqual({});
+  });
+});
+
+describe("toggledAccepted", () => {
+  const robinhood = SUPPORTED[2] as (typeof SUPPORTED)[number];
+
+  test("unticks an inherited asset on a network that settles in another one", () => {
+    // Merchant-wide USDC only; Robinhood settles in USDG, which is shown ticked
+    // because a network always accepts what it settles in.
+    const draft: NetworkDraft = {
+      ...DRAFT,
+      acceptedAssets: ["USDC"],
+      settlementAssetByChain: { "robinhood-testnet": "USDG" },
+    };
+    const next = toggledAccepted(draft, robinhood, "USDC", false);
+    expect(next).toEqual(["USDG"]);
+
+    const saved: NetworkDraft = { ...draft, acceptedAssetsByChain: { "robinhood-testnet": next } };
+    expect(acceptedOn(saved, "robinhood-testnet", robinhood.assets)).toEqual(["USDG"]);
+  });
+
+  test("ticks an asset back on", () => {
+    const draft: NetworkDraft = {
+      ...DRAFT,
+      settlementAssetByChain: { "robinhood-testnet": "USDG" },
+      acceptedAssetsByChain: { "robinhood-testnet": ["USDG"] },
+    };
+    expect(toggledAccepted(draft, robinhood, "USDC", true)).toEqual(["USDG", "USDC"]);
   });
 });

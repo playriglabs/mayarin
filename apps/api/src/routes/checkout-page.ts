@@ -32,8 +32,10 @@ import sharp from "sharp";
 import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
+import { merchantLogoUrl } from "../merchant-logo.ts";
 import { linkRails, payerRails } from "../rails.ts";
 import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
+import { fetchLogo } from "../services/document-pdf.ts";
 import { type ProtectionOffer, protectionOffer } from "../services/protection.ts";
 
 /**
@@ -91,7 +93,13 @@ export function checkoutPageRoutes(container: Container): Hono {
         `attachment; filename="mayarin-payment-qr.${png ? "png" : "svg"}"`,
       );
     }
-    const svg = await qrSvg(value, branded);
+    // A branded link QR carries the merchant's own logo when they uploaded one.
+    const linkId = c.req.query("link");
+    const mark = !branded
+      ? undefined
+      : ((linkId === undefined ? undefined : await merchantLogoMark(container, linkId)) ??
+        (await mayarinMark()));
+    const svg = await qrSvg(value, mark);
     if (png) return c.body(await qrPng(svg));
     return c.body(svg);
   });
@@ -206,7 +214,11 @@ export function checkoutPageRoutes(container: Container): Hono {
         page: "pay",
         intentId: intent.id,
         amount: toMoneyDto(intent.amount),
-        merchant: { name: intent.merchant.name, city: intent.merchant.city },
+        merchant: {
+          name: intent.merchant.name,
+          city: intent.merchant.city,
+          logoUrl: await merchantLogoUrl(container, intent.merchant.id),
+        },
         title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
         lines: await intentLines(container, intent.metadata[CART_METADATA_KEY]),
         expiresAt: intent.expiresAt.toISOString(),
@@ -274,6 +286,7 @@ export function checkoutPageRoutes(container: Container): Hono {
           ttlSeconds: container.config.paymentIntentTtlSeconds,
           products: container.catalog,
           protection: await protectionOffer(container, link.merchant.id, undefined),
+          logoUrl: await merchantLogoUrl(container, link.merchant.id),
         }),
       ),
     );
@@ -282,17 +295,50 @@ export function checkoutPageRoutes(container: Container): Hono {
   return app;
 }
 
-async function qrSvg(value: string, branded = false): Promise<string> {
+/** The centre badge: the image as a data URI, and where it came from. */
+interface QrMark {
+  readonly dataUri: string;
+  readonly source: string;
+}
+
+/** Without a `mark` the QR is plain. */
+async function qrSvg(value: string, mark?: QrMark): Promise<string> {
   const svg = await qrToString(value, {
     type: "svg",
     margin: 1,
-    errorCorrectionLevel: branded ? "H" : "M",
+    errorCorrectionLevel: mark === undefined ? "M" : "H",
   });
-  return branded ? withMayarinMark(svg, await mayarinMarkDataUri()) : svg;
+  return mark === undefined ? svg : withMark(svg, mark);
 }
 
-/** Adds the official mark without changing the QR's encoded value. */
-function withMayarinMark(svg: string, dataUri: string): string {
+/**
+ * The link's merchant logo as a data URI, or `undefined` when there is none.
+ *
+ * Inlined rather than linked: neither an `<img>`-loaded SVG nor sharp fetches a
+ * remote `href`. A logo that cannot be fetched leaves the Mayarin mark in place
+ * rather than failing the QR — the code is what scans, the logo is decoration.
+ */
+async function merchantLogoMark(container: Container, linkId: string): Promise<QrMark | undefined> {
+  const link = await container.catalog.getLink(linkId);
+  const logoUrl = await merchantLogoUrl(container, link.merchant.id);
+  if (logoUrl === null) return undefined;
+  const bytes = await fetchLogo(logoUrl);
+  if (bytes === undefined) return undefined;
+  const mime =
+    bytes[0] === 0x89 && bytes[1] === 0x50
+      ? "image/png"
+      : bytes[0] === 0xff && bytes[1] === 0xd8
+        ? "image/jpeg"
+        : undefined;
+  if (mime === undefined) return undefined;
+  return {
+    dataUri: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`,
+    source: `Merchant logo source: ${logoUrl}`,
+  };
+}
+
+/** Adds the centre badge without changing the QR's encoded value. */
+function withMark(svg: string, { dataUri, source }: QrMark): string {
   const side = qrViewBoxSide(svg);
   const roundedMarkSide = Math.round(side * 0.25);
   // Matching parity keeps an integer-sized badge exactly centred on the QR's
@@ -300,7 +346,7 @@ function withMayarinMark(svg: string, dataUri: string): string {
   const markSide = roundedMarkSide % 2 === side % 2 ? roundedMarkSide : roundedMarkSide + 1;
   const markOffset = (side - markSide) / 2;
   const mark = [
-    `<metadata>Mayarin brand mark source: ${MAYARIN_MARK_SOURCE}</metadata>`,
+    `<metadata>${source}</metadata>`,
     `<defs><clipPath id="mayarin-mark-clip"><rect x="${markOffset}" y="${markOffset}" width="${markSide}" height="${markSide}" rx="0.4"/></clipPath></defs>`,
     `<image x="${markOffset}" y="${markOffset}" width="${markSide}" height="${markSide}" href="${dataUri}" preserveAspectRatio="xMidYMid meet" clip-path="url(#mayarin-mark-clip)"/>`,
     `<rect x="${markOffset}" y="${markOffset}" width="${markSide}" height="${markSide}" rx="0.4" fill="none" stroke="#d4d4d4" stroke-width="0.15"/>`,
@@ -314,9 +360,12 @@ function qrViewBoxSide(svg: string): number {
   return Number(side);
 }
 
-async function mayarinMarkDataUri(): Promise<string> {
+async function mayarinMark(): Promise<QrMark> {
   const bytes = await Bun.file(MAYARIN_MARK_FILE).arrayBuffer();
-  return `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
+  return {
+    dataUri: `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
+    source: `Mayarin brand mark source: ${MAYARIN_MARK_SOURCE}`,
+  };
 }
 
 async function qrPng(svg: string): Promise<Uint8Array<ArrayBuffer>> {
@@ -363,6 +412,7 @@ interface LinkBootstrapOptions {
   readonly unpayableReason: string | null;
   readonly ttlSeconds: number;
   readonly products: Pick<Container["catalog"], "getProduct">;
+  readonly logoUrl: string | null;
 }
 
 /**
@@ -378,8 +428,17 @@ interface LinkBootstrapOptions {
  *   `POST /v1/quotes` — the same rate provider the lock will read.
  */
 async function linkBootstrap(options: LinkBootstrapOptions) {
-  const { link, payable, preview, rails, unpayableReason, ttlSeconds, products, protection } =
-    options;
+  const {
+    link,
+    payable,
+    preview,
+    rails,
+    unpayableReason,
+    ttlSeconds,
+    products,
+    protection,
+    logoUrl,
+  } = options;
   const currency = link.currency ?? link.amount?.asset;
 
   // An open link has no total until the buyer types one; everything else shows
@@ -417,7 +476,7 @@ async function linkBootstrap(options: LinkBootstrapOptions) {
     linkId: link.id,
     kind: link.kind,
     title: link.title ?? link.merchant.name,
-    merchant: { name: link.merchant.name, city: link.merchant.city },
+    merchant: { name: link.merchant.name, city: link.merchant.city, logoUrl },
     payable,
     currency: currency ?? null,
     total,

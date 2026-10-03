@@ -11,6 +11,8 @@
 import { Avatar, Style } from "@dicebear/core";
 import loopsDefinition from "@dicebear/styles/loops.json" with { type: "json" };
 import {
+  CheckIcon,
+  CopyIcon,
   PencilSimpleIcon,
   SealCheckIcon,
   TrashIcon,
@@ -32,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRemoveLogo, useUploadLogo } from "@/hooks/settings";
 import { formatDate, isoAttr } from "@/lib/date";
+import { ICON_NAV } from "@/lib/icons";
 import type { SettingsDto } from "@/types/settings";
 
 /** What the picker offers. The server checks the bytes again; this only filters the dialog. */
@@ -136,6 +139,17 @@ export function MerchantProfile({ settings }: { readonly settings: SettingsDto }
   const fileInput = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [pickError, setPickError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function copyMerchantId() {
+    try {
+      await navigator.clipboard.writeText(settings.merchantId);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2_000);
+    } catch {
+      // The id is on screen in full (hover shows it); copying by hand still works.
+    }
+  }
 
   function pick(file: File | undefined) {
     setPickError("");
@@ -231,14 +245,35 @@ export function MerchantProfile({ settings }: { readonly settings: SettingsDto }
         </div>
       </div>
 
-      <dl className="grid border-border border-t text-sm sm:grid-cols-3 sm:divide-x sm:divide-border">
-        <div className="flex flex-col gap-1 px-5 py-4">
+      <dl className="grid border-border border-t text-sm md:grid-cols-4 md:divide-x md:divide-border">
+        <div className="flex min-w-0 flex-col gap-1 px-5 py-4">
+          <dt className="text-muted-foreground text-xs">Merchant ID</dt>
+          <dd className="flex min-w-0 items-center gap-1">
+            <span className="truncate font-mono" title={settings.merchantId}>
+              {settings.merchantId}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 shrink-0 px-1.5"
+              onClick={() => void copyMerchantId()}
+              aria-label="Copy merchant ID"
+            >
+              {copied ? (
+                <CheckIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+              ) : (
+                <CopyIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+              )}
+            </Button>
+          </dd>
+        </div>
+        <div className="flex flex-col gap-1 border-border border-t px-5 py-4 md:border-t-0">
           <dt className="text-muted-foreground text-xs">Registration number</dt>
           <dd className="font-mono">
             {settings.registrationNumber === null ? "—" : `#${settings.registrationNumber}`}
           </dd>
         </div>
-        <div className="flex flex-col gap-1 border-border border-t px-5 py-4 sm:border-t-0">
+        <div className="flex flex-col gap-1 border-border border-t px-5 py-4 md:border-t-0">
           <dt className="text-muted-foreground text-xs">Registered</dt>
           <dd>
             <time dateTime={isoAttr(settings.registeredAt)}>
@@ -246,7 +281,7 @@ export function MerchantProfile({ settings }: { readonly settings: SettingsDto }
             </time>
           </dd>
         </div>
-        <div className="flex min-w-0 flex-col gap-1 border-border border-t px-5 py-4 sm:border-t-0">
+        <div className="flex min-w-0 flex-col gap-1 border-border border-t px-5 py-4 md:border-t-0">
           <dt className="text-muted-foreground text-xs">Created by</dt>
           <dd className="truncate" {...(owner === null ? {} : { title: owner.email })}>
             {owner?.email ?? "—"}

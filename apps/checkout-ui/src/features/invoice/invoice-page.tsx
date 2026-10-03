@@ -75,7 +75,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
 
   const invoiceDocument = (
     <>
-      <Brand />
+      <Brand merchant={bootstrap.merchant} />
       <header className="invoice-head">
         <div>
           <h1>Invoice {bootstrap.number ?? "(draft)"}</h1>

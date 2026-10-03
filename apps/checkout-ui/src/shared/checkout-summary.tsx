@@ -3,6 +3,9 @@ import { Brand } from "./brand.tsx";
 import { PoweredBy } from "./powered-by.tsx";
 import type { LineItem, MerchantRef } from "./types.ts";
 
+/** A long cart stays a summary: the first few lines, then a count of the rest. */
+export const VISIBLE_LINES = 5;
+
 /**
  * What is being bought, on the left of both checkout pages. The link page and
  * the payment page show the same summary so the buyer sees one order across the
@@ -25,7 +28,7 @@ export function CheckoutSummary({
   return (
     <aside className="checkout-summary" aria-label="Order summary">
       <div className="summary-inner">
-        <Brand />
+        <Brand merchant={merchant} />
         <p className="merchant-name mb-5">
           {merchant.name}
           {merchant.city.trim() === "" ? null : ` — ${merchant.city}`}
@@ -35,7 +38,7 @@ export function CheckoutSummary({
 
         {lines !== null && lines.length > 0 && (
           <div className="product-list">
-            {lines.map((line) => (
+            {lines.slice(0, VISIBLE_LINES).map((line) => (
               <article className="product" key={`${line.name}-${line.unitPrice.amount}`}>
                 {line.imageUrl === null ? (
                   <div className="product-placeholder" aria-hidden="true">
@@ -64,6 +67,12 @@ export function CheckoutSummary({
                 </div>
               </article>
             ))}
+            {lines.length > VISIBLE_LINES && (
+              <p className="product-more">
+                +{lines.length - VISIBLE_LINES} more{" "}
+                {lines.length - VISIBLE_LINES === 1 ? "item" : "items"}
+              </p>
+            )}
           </div>
         )}
 

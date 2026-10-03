@@ -256,6 +256,24 @@ function isCustomized(draft: NetworkDraft, chain: string): boolean {
 }
 
 /** What a network accepts, always including what it settles in. */
+/**
+ * One chain's accepted list after ticking or unticking `asset`.
+ *
+ * Starts from the list the dialog shows, settlement asset included. Starting
+ * from `acceptedOn` alone broke when the inherited list lacks the settlement
+ * asset — USDC-only merchant-wide, USDG on Robinhood: unticking USDC left an
+ * empty row, an empty row means "inherit", and USDC came straight back.
+ */
+export function toggledAccepted(
+  draft: NetworkDraft,
+  entry: SupportedChainDto,
+  asset: string,
+  on: boolean,
+): readonly string[] {
+  const current = acceptedWithSettlement(draft, entry);
+  return on ? [...new Set([...current, asset])] : current.filter((a) => a !== asset);
+}
+
 function acceptedWithSettlement(draft: NetworkDraft, entry: SupportedChainDto): readonly string[] {
   const settlesIn = settlementOn(draft, entry.chain);
   return [...new Set([settlesIn, ...acceptedOn(draft, entry.chain, entry.assets)])].filter(
@@ -358,8 +376,7 @@ function NetworkEditor({
   }
 
   function toggle(asset: string, on: boolean) {
-    const current = acceptedOn(draft, chain, entry.assets);
-    setAccepted(on ? [...new Set([...current, asset])] : current.filter((a) => a !== asset));
+    setAccepted(toggledAccepted(draft, entry, asset, on));
   }
 
   function reset() {

@@ -36,7 +36,7 @@ const linkBootstrap: LinkBootstrap = {
   linkId: "plk_1",
   kind: "fixed",
   title: "Paket",
-  merchant: { name: "Warung Kopi", city: "Jakarta" },
+  merchant: { name: "Warung Kopi", city: "Jakarta", logoUrl: null },
   payable: true,
   currency: "IDR",
   total: idr("Rp 50.000,00"),
@@ -53,7 +53,7 @@ const payBootstrap: PayBootstrap = {
   page: "pay",
   intentId: "pi_1",
   amount: idr("Rp 50.000,00"),
-  merchant: { name: "Warung Kopi", city: "Jakarta" },
+  merchant: { name: "Warung Kopi", city: "Jakarta", logoUrl: null },
   title: "Paket",
   lines: null,
   expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
@@ -72,7 +72,7 @@ const invoiceBootstrap: InvoiceBootstrap = {
   invoiceId: "inv_1",
   number: "INV-0001",
   status: "issued",
-  merchant: { name: "Warung Kopi", city: "Jakarta" },
+  merchant: { name: "Warung Kopi", city: "Jakarta", logoUrl: null },
   buyer: { name: "Budi", email: null, taxId: "12.345", address: null },
   lines: [
     {
@@ -261,6 +261,40 @@ describe("pay page", () => {
     expect(html).toContain("https://cdn.example.com/kopi.webp");
     expect(html).toContain("Powered by");
     expect(html).toContain("mayarin.xyz");
+  });
+
+  test("shows the merchant's logo in place of the Mayarin mark when they have one", () => {
+    const withLogo = renderToStaticMarkup(
+      <LinkPage
+        bootstrap={{
+          ...linkBootstrap,
+          merchant: { ...linkBootstrap.merchant, logoUrl: "https://cdn.example.com/logo.png" },
+        }}
+      />,
+    );
+    expect(withLogo).toContain('src="https://cdn.example.com/logo.png"');
+    expect(withLogo).toContain('alt="Warung Kopi"');
+    expect(withLogo).not.toContain("mayarin-white.png");
+
+    const withoutLogo = renderToStaticMarkup(<LinkPage bootstrap={linkBootstrap} />);
+    expect(withoutLogo).toContain("mayarin-white.png");
+  });
+
+  test("a long cart shows five lines and counts the rest", () => {
+    const lines = Array.from({ length: 7 }, (_, index) => ({
+      name: `Item ${index + 1}`,
+      description: null,
+      imageUrl: null,
+      quantity: 1,
+      unitPrice: idr("Rp 1.000,00"),
+      lineTotal: idr("Rp 1.000,00"),
+    }));
+    const html = renderToStaticMarkup(
+      <LinkPage bootstrap={{ ...linkBootstrap, kind: "catalog", lines }} />,
+    );
+    expect(html).toContain("Item 5");
+    expect(html).not.toContain("Item 6");
+    expect(html).toContain("+2 more items");
   });
 
   test("an intent minted without a rail asks how to pay before any address", () => {

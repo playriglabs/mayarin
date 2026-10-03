@@ -28,6 +28,7 @@
 
 import { chainLabel } from "@mayarin/chain";
 import {
+  CaretDownIcon,
   CheckIcon,
   CopyIcon,
   DownloadSimpleIcon,
@@ -206,10 +207,13 @@ const EMPTY_DRAFT: Draft = {
   merchantReference: "",
 };
 
-/** The QR endpoint lives beside the link, on the payment API that serves it. */
+/**
+ * The QR endpoint lives beside the link, on the payment API that serves it.
+ * `link` lets it put the merchant's own logo in the centre when they have one.
+ */
 function qrSrc(link: PaymentLinkDto, download = false): string {
   const origin = new URL(link.url).origin;
-  const query = new URLSearchParams({ value: link.url, brand: "mayarin" });
+  const query = new URLSearchParams({ value: link.url, brand: "mayarin", link: link.id });
   if (download) {
     query.set("download", "true");
     query.set("format", "png");
@@ -480,16 +484,60 @@ function RailChoice({
     chain,
     rails: rails.filter((rail) => rail.chain === chain),
   }));
+  // Closed by default: the counter usually keeps the first rail, and a long
+  // list pushed "Start payment" off screen. Opening shows the same list.
+  const [open, setOpen] = useState(false);
+  const chosen = rails.find((rail) => `${rail.chain}:${rail.asset}` === value);
+  const chosenLine = chosen === undefined ? undefined : lineFor(chosen.chain, chosen.asset);
 
   return (
     <Field>
       <FieldLabel id="charge-rail-label">Customer pays with</FieldLabel>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="charge-rail-list"
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "flex w-full cursor-pointer items-center gap-3 rounded-md border border-border bg-card px-3 py-2 text-left transition-colors hover:bg-accent/50",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          pending && "opacity-60",
+        )}
+      >
+        {chosen === undefined ? (
+          <span className="flex-1 text-muted-foreground text-sm">Choose what they pay with</span>
+        ) : (
+          <>
+            <AssetLogo symbol={chosen.asset} size={24} className="size-6 shrink-0" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-sm">{chosen.asset}</span>
+              <span className="truncate text-subtle-foreground text-xs">
+                {chainLabel(chosen.chain)}
+                {chosen.asset !== chosen.settlementAsset &&
+                  ` · settles in ${chosen.settlementAsset}`}
+              </span>
+            </span>
+            <span className="font-medium text-foreground text-sm tabular-nums">
+              {chosenLine?.amount?.display ?? ""}
+            </span>
+          </>
+        )}
+        <CaretDownIcon
+          aria-hidden="true"
+          className={cn(
+            "size-3.5 shrink-0 text-subtle-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
       {/* Native radios in labels: the browser gives arrow-key navigation and
           grouping for free, and a real input is what a screen reader announces
           as one choice among several. The input is visually hidden; the row it
           labels is what gets styled. Scrolls on its own so the actions below
           stay on screen however many networks there are. */}
       <div
+        id="charge-rail-list"
+        hidden={!open}
         role="radiogroup"
         aria-labelledby="charge-rail-label"
         aria-busy={pending}
@@ -542,7 +590,10 @@ function RailChoice({
                       value={key}
                       checked={selected}
                       disabled={refused}
-                      onChange={() => onSelect(key)}
+                      onChange={() => {
+                        onSelect(key);
+                        setOpen(false);
+                      }}
                       className="sr-only"
                     />
 
