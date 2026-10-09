@@ -201,8 +201,8 @@ dashboard can say which field is missing before a form is filled in.
 Two mounts, and they are not the same thing.
 
 - **`/x402/*` on the payment API, unversioned.** The buyer-facing half: discovery
-  (`GET /x402/resources`, `/x402/payables`), the `402` terms, the facilitator's
-  `verify` and `settle`, and the MCP server at `POST /x402/mcp`. Unversioned for
+  (`GET /x402/resources`, `/x402/payables`), the `402` terms, and the facilitator's
+  `verify` and `settle`. Unversioned for
   the same reason the hosted checkout is — an agent that discovered a resource
   must be able to pay it later.
 - **`/v1/x402/resources` on the payment API, merchant-authed**, and

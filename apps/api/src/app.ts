@@ -17,7 +17,6 @@ import { checkoutPageRoutes } from "./routes/checkout-page.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { invoicePageRoutes } from "./routes/invoice-page.ts";
 import { invoiceRoutes } from "./routes/invoices.ts";
-import { mcpRoutes } from "./routes/mcp.ts";
 import { payerRoutes } from "./routes/payers.ts";
 import { paymentIntentRoutes } from "./routes/payment-intents.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
@@ -124,10 +123,5 @@ export function createApp(container: Container): Hono {
   // public CORS guard above — an agent that has never met Mayarin is the point,
   // and a price is not a secret.
   app.route("/x402", x402Routes(container));
-  // The MCP server, beside the rail it is served over rather than under /v1:
-  // an agent finds it by URL, and a version prefix that moved would invalidate
-  // every `PaymentRequired` already handed out.
-  app.route("/x402/mcp", mcpRoutes(container));
-
   return app;
 }

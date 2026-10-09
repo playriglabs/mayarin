@@ -41,7 +41,7 @@ export function invoicePageRoutes(container: Container): Hono {
         invoiceBootstrap(
           view,
           `${origin}/v1/invoices/${view.invoice.id}/checkout`,
-          await payerRails(container, report.rails),
+          await payerRails(report.rails),
           await protectionOffer(container, view.invoice.merchantId, undefined),
           await merchantLogoUrl(container, view.invoice.merchantId),
         ),

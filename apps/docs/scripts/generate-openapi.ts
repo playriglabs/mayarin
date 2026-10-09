@@ -506,22 +506,7 @@ const x402PayableEntrySchema = z
 const x402RailChoiceSchema = z
   .object({
     chain: z.string().describe("The rail to pay on."),
-    reason: z.string().describe("One line: why this rail, in the terms it was chosen on."),
-    medianHeadroomSeconds: z
-      .number()
-      .optional()
-      .describe("Absent when nothing about this rail was observed."),
-    samples: z.number().int().describe("Settlements the choice was made over."),
-    failures: z
-      .number()
-      .int()
-      .optional()
-      .describe("As recorded. Absent means nobody looked, not none."),
-    unobserved: z
-      .boolean()
-      .describe(
-        "True when no rail had enough observations and the first accepted rail was taken. Say so rather than presenting a fallback as a decision.",
-      ),
+    reason: z.string().describe("Why this deterministic default was selected."),
   })
   .openapi("X402RailChoice");
 
@@ -1427,52 +1412,12 @@ registry.registerPath({
   operationId: "getX402Rail",
   summary: "Which rail to pay on, and why",
   description:
-    "The ordering inside a `402` already carries the answer, but an agent reading `accepts[0]` cannot see what the order was based on. This is that reasoning in the open: median headroom, how many settlements it is over, and whether the choice was a choice at all.\n\n_Headroom_ is the seconds an order had left before its deadline when it landed. `unobserved: true` means no rail had enough observations and the first accepted rail was taken.",
+    "Returns the first accepted rail in merchant configuration. Every accepted rail has already passed capability and pricing checks; a payer may still choose another entry from the `402`.",
   security: noAuth,
   request: { params: idParams },
   responses: {
-    "200": jsonResponse(x402RailChoiceSchema, "The chosen rail and the measurements behind it."),
+    "200": jsonResponse(x402RailChoiceSchema, "The configured default rail."),
     "404": errorResponse("No resource with that id, or x402 is not enabled on this deployment."),
-  },
-});
-
-registry.registerPath({
-  method: "post",
-  path: "/x402/mcp",
-  tags: ["x402"],
-  operationId: "callX402Mcp",
-  summary: "The MCP server — free discovery, paid tools/call",
-  description:
-    "An MCP server over the same rail, speaking JSON-RPC 2.0. `initialize` and `tools/list` are free; `tools/call` costs one authorization and answers `402` until it carries one.\n\nDiscovery is free and answers are paid by design: an agent cannot decide a price is worth paying for a tool it has not been allowed to read the description of.\n\nTwo tools. `rail_stats` reports samples, median headroom, and the worst and best observed per rail; `choose_rail` ranks them and returns the one to pay on. Three refusals never charge — arguments the tool will not accept (refused **before** the gate, since a response cannot be un-served), no settlements observed at all, and a tool that does not exist, which is a tool error rather than a JSON-RPC error so a model can tell 'the server said no' from 'the call never arrived'.\n\nSend the **same body** in both the request that receives the `402` and the retry carrying the signature; a different one is a different purchase settled against the first one's authorization. A JSON-RPC notification (no `id`) is answered `202` with no body.",
-  security: noAuth,
-  request: {
-    body: jsonBody(
-      z.object({
-        jsonrpc: z.literal("2.0"),
-        id: z.union([z.string(), z.number()]).optional().describe("Omit for a notification."),
-        method: z.string().describe("`initialize`, `tools/list`, or `tools/call` — the paid one."),
-        params: z.record(z.string(), z.unknown()).optional(),
-      }),
-    ),
-  },
-  responses: {
-    "200": jsonResponse(
-      z.object({
-        jsonrpc: z.literal("2.0"),
-        id: z.union([z.string(), z.number()]),
-        result: z.record(z.string(), z.unknown()).optional(),
-        error: z
-          .object({ code: z.number().int(), message: z.string() })
-          .optional()
-          .describe("A JSON-RPC error. A refused tool is `result.isError` instead."),
-      }),
-      "The JSON-RPC response.",
-    ),
-    "202": { description: "A notification — no id, so no response." },
-    "402": {
-      description: "`tools/call` with no payment. The price rides `PAYMENT-REQUIRED`.",
-    },
-    "404": errorResponse("x402 is not enabled on this deployment."),
   },
 });
 

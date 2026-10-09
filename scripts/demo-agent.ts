@@ -15,10 +15,8 @@
  * and there is nothing to seed: a line it cannot support is a line it does not
  * print.
  *
- * Three partners appear as decisions rather than as mentions:
+ * Two infrastructure choices appear in the payment rather than as mentions:
  *
- * - **The Graph** — the agent buys the rail choice from the Subgraph MCP before
- *   it buys anything else. The reason string travels with the choice.
  * - **Uniswap** — the rail the agent can actually pay asks for a different asset
  *   than the merchant is owed, and both sides of that conversion are on screen.
  * - **Arc** — where the payment lands, in the merchant's own settlement asset.
@@ -31,10 +29,6 @@
  * - **The refusal.** Tighten `QUOTE_DEVIATION_BPS` and the quote is refused
  *   before the payer signs. The refusal is printed with its reason, and the run
  *   exits non-zero without having spent anything.
- * - **The deletion test** (#231's last load-bearing box). Unset
- *   `SUBGRAPH_ENDPOINTS` and the MCP has nothing to sell: it refuses *before*
- *   charging, and the agent says out loud that its rail is now arbitrary.
- *
  * `--dry-run` prints the trace and stops at the first thing that costs money,
  * which is what a rehearsal wants.
  *
@@ -90,31 +84,14 @@ function required(name: string): string {
 /** A refusal by Mayarin or by a tool, as opposed to this script being broken. */
 class Refused extends Error {}
 
-/**
- * Two servers, and the difference is the demo.
- *
- * `--url` is the **merchant's own** endpoint — `apps/x402-merchant`, an Express
- * app with two dependencies and no key, gating a route it wrote itself. That is
- * what the agent buys, and Mayarin never serves it.
- *
- * `--api` is Mayarin, and the only thing bought there is the rail choice: the
- * Subgraph MCP is Mayarin's own product, so it is the one endpoint in this run
- * that is deliberately not the merchant's.
- */
-const base = argument("api") ?? "https://api-testnet.mayarin.xyz";
+/** The merchant's own endpoint, gated by x402. */
 const resourceUrl = argument("url") ?? "http://localhost:8787/premium";
-const mcpUrl = argument("mcp-url") ?? `${base}/x402/mcp`;
 const chain = (argument("chain") ?? "arc-testnet") as ChainId;
 if (!CHAIN_IDS.includes(chain)) {
   throw new Error(`--chain must be one of ${CHAIN_IDS.join(", ")}, got ${chain}`);
 }
 /** The asset the agent holds. The merchant's is whatever the merchant's is. */
 const payWith = argument("pay-with") ?? "USDC";
-/** The rails the agent asks The Graph about. */
-const candidates = (argument("chains") ?? "base-sepolia,arc-testnet")
-  .split(",")
-  .map((entry) => entry.trim())
-  .filter((entry): entry is ChainId => CHAIN_IDS.includes(entry as ChainId));
 
 const custody = argument("payer") ?? "local-key";
 if (custody !== "local-key" && custody !== "circle") {
@@ -140,9 +117,8 @@ const dryRun = process.argv.includes("--dry-run");
  * policy and must not be narrated as one: a script declining to sign is this
  * script's decision, and says nothing about what any wallet provider enforces.
  */
-const ceilings: Readonly<Record<"resource" | "rail-intelligence", string>> = {
+const ceilings: Readonly<Record<"resource", string>> = {
   resource: argument("ceiling") ?? "0.03",
-  "rail-intelligence": argument("mcp-ceiling") ?? "0.15",
 };
 
 // ---------------------------------------------------------------------------
@@ -346,101 +322,6 @@ function reportSettlement(settlement: SettleResponse): void {
 }
 
 // ---------------------------------------------------------------------------
-// Step 2: buy the rail choice
-// ---------------------------------------------------------------------------
-
-interface RailAnswer {
-  /** The rail the agent was told to pay on, when it was told anything. */
-  readonly chain?: ChainId;
-  readonly reason: string;
-  /** True when no rail intelligence was available and the choice is arbitrary. */
-  readonly arbitrary: boolean;
-}
-
-function mcpCall(name: string, args: Record<string, unknown>): string {
-  return JSON.stringify({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "tools/call",
-    params: { name, arguments: args },
-  });
-}
-
-/** The text a tool answered with, plus whatever structure came beside it. */
-function toolAnswer(payload: string): {
-  readonly text: string;
-  readonly structured: Record<string, unknown>;
-  readonly isError: boolean;
-} {
-  const parsed = JSON.parse(payload) as {
-    result?: {
-      content?: readonly { text?: string }[];
-      structuredContent?: Record<string, unknown>;
-      isError?: boolean;
-    };
-    error?: { message?: string };
-  };
-  if (parsed.error) throw new Refused(`The MCP refused the call: ${parsed.error.message}`);
-  const result = parsed.result ?? {};
-  return {
-    text: result.content?.[0]?.text ?? "",
-    structured: result.structuredContent ?? {},
-    isError: result.isError === true,
-  };
-}
-
-/**
- * Ask The Graph which rail has been settling with room to spare.
- *
- * The question costs money, and that is the interesting part: the agent pays to
- * find out where to pay. Three things can come back and all three are printed —
- * an answer, a tool that refused before charging, and an MCP that is not there.
- */
-async function chooseRailByPaying(): Promise<RailAnswer> {
-  const body = mcpCall("choose_rail", { chains: candidates });
-  let offered: PaymentRequired;
-  try {
-    offered = await quote(mcpUrl, body);
-  } catch (error) {
-    // A `200` here means the tool refused before the gate — by design, so that
-    // an agent is never charged for our own subgraph being unavailable. That is
-    // #231's deletion test, and the honest thing to do is say the rail is now
-    // arbitrary rather than present the first one as a decision.
-    const reason = error instanceof Refused ? error.message : String(error);
-    step("The Graph could not be asked, and nothing was charged for the attempt.");
-    detail(reason);
-    return { reason, arbitrary: true };
-  }
-
-  const rail = offered.accepts[0];
-  if (rail === undefined) throw new Error("The MCP quoted no rail to pay it on");
-  step(`Asking The Graph which rail has headroom. The answer costs ${amountOf(rail)}.`);
-  // The one purchase this agent cannot make an informed choice about, because
-  // the thing it is buying is the informed choice.
-  detail(`Paying for the answer on ${railLine(rail)}, chosen with no advice at all.`);
-  const bought = await pay(mcpUrl, offered, rail, "rail-intelligence", body);
-  reportSettlement(bought.settlement);
-
-  const answer = toolAnswer(bought.body);
-  if (answer.isError) {
-    step("The tool answered without a decision, so the rail is arbitrary.");
-    detail(answer.text);
-    return { reason: answer.text, arbitrary: true };
-  }
-  const chosen = answer.structured.chain;
-  const unobserved = answer.structured.unobserved === true;
-  const chain = CHAIN_IDS.find((entry) => entry === chosen);
-  say();
-  step(`The Graph says: ${answer.text}`);
-  if (unobserved) detail("No rail had enough observed settlements to rank. It says so itself.");
-  return {
-    ...(chain === undefined ? {} : { chain }),
-    reason: answer.text,
-    arbitrary: unobserved,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // The run
 // ---------------------------------------------------------------------------
 
@@ -456,24 +337,18 @@ try {
   for (const rail of offered.accepts) detail(railLine(rail));
   say();
 
-  // 2. Which rail, bought rather than guessed.
-  const answer = await chooseRailByPaying();
-  say();
-
-  // 3. The rail this agent can actually pay, on the chain it was pointed at.
-  const preferred = answer.chain ?? chain;
+  // 2. Use the requested chain when possible, then the merchant's first rail.
+  const preferred = chain;
   const wanted = offered.accepts.filter((rail) => assetOf(rail) === payWith);
   const onPreferred = wanted.find((rail) => rail.network === caip2Of(preferred));
   const accepted = onPreferred ?? wanted[0] ?? offered.accepts[0];
   if (accepted === undefined) throw new Error("The resource offered no rail at all");
-  if (answer.arbitrary) {
-    step(`Paying ${railLine(accepted)} because it was offered first, not because it is better.`);
-  } else if (onPreferred === undefined) {
+  if (onPreferred === undefined) {
     step(
-      `${chainLabel(preferred)} was the better rail, but this resource does not sell ${payWith} there. Paying ${railLine(accepted)}.`,
+      `${chainLabel(preferred)} does not offer ${payWith}; paying the merchant's first compatible rail: ${railLine(accepted)}.`,
     );
   } else {
-    step(`Paying on ${chainLabel(preferred)}, as advised.`);
+    step(`Paying on requested chain ${chainLabel(preferred)}.`);
   }
 
   // 4. What the merchant is owed, against what this agent is being asked for.

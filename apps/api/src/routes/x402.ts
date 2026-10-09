@@ -353,12 +353,11 @@ export function x402Routes(container: Container): Hono<X402Env> {
   });
 
   /**
-   * `GET /x402/resources/:id/rail` — which rail, and why.
+   * `GET /x402/resources/:id/rail` — the configured default rail.
    *
-   * The ordering inside a `402` already carries the answer, but an agent
-   * reading `accepts[0]` cannot see what the order was based on. This is the
-   * reasoning in the open: median headroom, how many settlements it is over,
-   * and whether the choice was a choice at all.
+   * Every accepted rail is capability-checked and priceable. The first
+   * merchant-configured entry is the deterministic default, while a payer may
+   * still select any other entry from the `402`.
    */
   app.get("/resources/:id/rail", async (c) => {
     const service = requireX402(container);

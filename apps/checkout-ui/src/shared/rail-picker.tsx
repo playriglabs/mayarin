@@ -10,15 +10,10 @@ import type { Rail } from "./types.ts";
  * turning checkout into two walls of buttons. The selected rail is the only
  * row visible at rest; opening it floats a bounded, scrollable radio list over
  * the form, so the page below does not jump.
- * Server order is preserved: the API ranks by what the rails have been doing
- * (#260), so the healthiest rail is the one offered first. A degraded rail
- * stays selectable and carries a note — the payer who holds only that asset
- * must still be able to pay. One rail renders no chooser because a question
- * with one answer adds friction.
+ * Server order is preserved, so the merchant's configured preference is the
+ * default. One rail renders no chooser because a question with one answer adds
+ * friction.
  */
-
-/** The one line a degraded rail is allowed to say (#260). */
-const DEGRADED_NOTE = "settling slower than usual";
 export function RailPicker({
   rails,
   selected,
@@ -108,9 +103,6 @@ export function RailPicker({
                   <span className="rail-picker-copy">
                     <strong>{rail.asset}</strong>
                     <span>{chainLabel(rail.chain)}</span>
-                    {rail.standing === "degraded" && (
-                      <span className="rail-standing">{DEGRADED_NOTE}</span>
-                    )}
                   </span>
                   <span className="rail-option-check" aria-hidden="true" />
                 </label>
@@ -119,9 +111,6 @@ export function RailPicker({
           </div>
         </div>
       </div>
-      {current.standing === "degraded" && (
-        <span className="rail-standing rail-standing-trigger">{DEGRADED_NOTE}</span>
-      )}
     </div>
   );
 }

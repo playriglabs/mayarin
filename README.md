@@ -85,7 +85,6 @@ flowchart TB
         EVM["evm · viem"]
         Swap["uniswap · 0x · lifi"]
         Oracle["pyth · chainlink"]
-        Graph["subgraph · The Graph"]
         DB["Drizzle + Postgres"]
     end
 
@@ -126,16 +125,6 @@ the invoice — exact-output, so the merchant gets exactly the invoice or the sw
    swap            operator →  pool        exact-output, bounded by the authorization
                    pool     →  merchant    exactly the invoice
    surplus                                 what the pool did not need, owed back to the payer
-```
-
-**Paid MCP server.** `POST /x402/mcp` sells tools over the same rail: `initialize` and `tools/list`
-are free, `tools/call` costs one authorization. `rail_stats` and `choose_rail` answer which rail to
-pay on, from Mayarin's own settlements subgraph. Discovery is free, answers are paid, and a bad
-request is refused before anything is charged.
-
-```bash
-curl -X POST $API/x402/mcp -H 'content-type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
 Current boundaries: `exact` scheme only, EVM only, and the broadcaster pays gas. Full detail in
@@ -184,13 +173,6 @@ Other chains:
 Arbitrum Sepolia and Robinhood Chain Testnet run the full contract set above. Settlement is chosen
 per chain: USDC on Arbitrum, USDG on Robinhood Chain, PYUSD where the merchant settles in it.
 
-### The Graph
-
-A settlements subgraph on Subgraph Studio (Base Sepolia, Arc testnet) feeds the settlement indexer
-and a paid MCP server at `POST /x402/mcp`. `choose_rail` tells an agent which rail to pay on, from
-how each rail has actually been settling. A Circle agent wallet paid $0.10 for one call:
-[`0xdce241e2…`](https://sepolia.basescan.org/tx/0xdce241e203e3de3fd1fcd2e2e421d5a7d97a5ff8174a3df2314a4bf73baf6c8b).
-
 ### Arc (Circle)
 
 Arc is the merchant's settlement rail. Its gas token and the merchant's settlement asset are the
@@ -209,7 +191,7 @@ decision it makes, and the reason for it:
 
 | Decision          | Signal                                                                |
 | ----------------- | --------------------------------------------------------------------- |
-| Which rail to pay | Settlement headroom from Mayarin's subgraph, bought over x402         |
+| Which rail to pay | Requested chain, then the merchant's first compatible configured rail |
 | Whether to sign   | The quote is checked against an oracle and refused if it has drifted  |
 | How much to spend | A spend ceiling, checked before signing, so nothing over it is signed |
 

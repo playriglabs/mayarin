@@ -32,11 +32,6 @@ export interface Rail {
    * it: it decides whether the payer's asset has a swap leg.
    */
   readonly settlementAsset: string;
-  /**
-   * How this rail has been behaving (#260). Absent when the list was not
-   * ranked. A degraded rail stays selectable — the note informs, it never gates.
-   */
-  readonly standing?: "healthy" | "degraded" | "unobserved";
 }
 
 /**

@@ -252,7 +252,7 @@ describe("indexer loops", () => {
     const timers = fakeTimers();
     const indexer = {
       tick: async () => {
-        throw new ProviderError("subgraph at https://example.test answered 429", {
+        throw new ProviderError("RPC at https://example.test answered 429", {
           status: 429,
           retryAfterMs: 120_000,
         });

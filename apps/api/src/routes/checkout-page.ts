@@ -198,7 +198,6 @@ export function checkoutPageRoutes(container: Container): Hono {
         : {
             rails: (
               await payerRails(
-                container,
                 paymentLink === undefined ? report.rails : linkRails(report, paymentLink),
               )
             ).filter(
@@ -276,7 +275,7 @@ export function checkoutPageRoutes(container: Container): Hono {
           link,
           payable,
           preview,
-          rails: await payerRails(container, offered),
+          rails: await payerRails(offered),
           unpayableReason:
             offeredByLink && !priceable
               ? "This catalog price is no longer available. Contact the merchant for an updated payment link."

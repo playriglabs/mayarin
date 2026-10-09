@@ -361,9 +361,5 @@ rather than replacing the object:
   TIMELOCK=$TIMELOCK
   DEPOSIT_FORWARDER_INIT_CODE_HASH=$FORWARDER_HASH
 
-And into packages/subgraph/networks.json, so the subgraph indexes this router:
-
-  "$CHAIN": { "PaymentRouter": { "address": "$PAYMENT_ROUTER", "startBlock": $DEPLOY_BLOCK } }
-
 $EXPLORER/$PAYMENT_ROUTER
 EOF

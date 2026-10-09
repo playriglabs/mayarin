@@ -1578,30 +1578,12 @@
           },
           "reason": {
             "type": "string",
-            "description": "One line: why this rail, in the terms it was chosen on."
-          },
-          "medianHeadroomSeconds": {
-            "type": "number",
-            "description": "Absent when nothing about this rail was observed."
-          },
-          "samples": {
-            "type": "integer",
-            "description": "Settlements the choice was made over."
-          },
-          "failures": {
-            "type": "integer",
-            "description": "As recorded. Absent means nobody looked, not none."
-          },
-          "unobserved": {
-            "type": "boolean",
-            "description": "True when no rail had enough observations and the first accepted rail was taken. Say so rather than presenting a fallback as a decision."
+            "description": "Why this deterministic default was selected."
           }
         },
         "required": [
           "chain",
-          "reason",
-          "samples",
-          "unobserved"
+          "reason"
         ]
       },
       "X402PaymentRequirements": {
@@ -1956,6 +1938,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       }
@@ -1999,6 +1982,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       },
@@ -2011,12 +1995,14 @@
                           "arbitrum",
                           "arbitrum-sepolia",
                           "robinhood-testnet",
-                          "arc-testnet"
+                          "arc-testnet",
+                          "solana-devnet",
+                          "solana-localnet"
                         ]
                       },
                       "payerAddress": {
                         "type": "string",
-                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                        "pattern": "^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$"
                       }
                     },
                     "required": [
@@ -2055,6 +2041,7 @@
                       "PYUSD",
                       "USDG",
                       "ETH",
+                      "SOL",
                       "BTC"
                     ]
                   },
@@ -2686,6 +2673,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       }
@@ -2806,6 +2794,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       }
@@ -2848,6 +2837,7 @@
                         "PYUSD",
                         "USDG",
                         "ETH",
+                        "SOL",
                         "BTC"
                       ]
                     },
@@ -3024,6 +3014,7 @@
                             "PYUSD",
                             "USDG",
                             "ETH",
+                            "SOL",
                             "BTC"
                           ]
                         }
@@ -3217,6 +3208,7 @@
                             "PYUSD",
                             "USDG",
                             "ETH",
+                            "SOL",
                             "BTC"
                           ]
                         }
@@ -3329,6 +3321,7 @@
                       "PYUSD",
                       "USDG",
                       "ETH",
+                      "SOL",
                       "BTC"
                     ]
                   },
@@ -3370,6 +3363,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       },
@@ -3382,12 +3376,14 @@
                           "arbitrum",
                           "arbitrum-sepolia",
                           "robinhood-testnet",
-                          "arc-testnet"
+                          "arc-testnet",
+                          "solana-devnet",
+                          "solana-localnet"
                         ]
                       },
                       "payerAddress": {
                         "type": "string",
-                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                        "pattern": "^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$"
                       }
                     },
                     "required": [
@@ -3474,6 +3470,7 @@
                       "PYUSD",
                       "USDG",
                       "ETH",
+                      "SOL",
                       "BTC"
                     ]
                   },
@@ -3543,6 +3540,7 @@
                                     "PYUSD",
                                     "USDG",
                                     "ETH",
+                                    "SOL",
                                     "BTC"
                                   ]
                                 }
@@ -3765,6 +3763,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       }
@@ -3805,6 +3804,7 @@
                       "PYUSD",
                       "USDG",
                       "ETH",
+                      "SOL",
                       "BTC"
                     ]
                   },
@@ -3866,7 +3866,9 @@
                             "arbitrum",
                             "arbitrum-sepolia",
                             "robinhood-testnet",
-                            "arc-testnet"
+                            "arc-testnet",
+                            "solana-devnet",
+                            "solana-localnet"
                           ]
                         },
                         "asset": {
@@ -3900,6 +3902,7 @@
                             "PYUSD",
                             "USDG",
                             "ETH",
+                            "SOL",
                             "BTC"
                           ]
                         }
@@ -4215,6 +4218,7 @@
                       "PYUSD",
                       "USDG",
                       "ETH",
+                      "SOL",
                       "BTC"
                     ]
                   },
@@ -4256,6 +4260,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       },
@@ -4268,12 +4273,14 @@
                           "arbitrum",
                           "arbitrum-sepolia",
                           "robinhood-testnet",
-                          "arc-testnet"
+                          "arc-testnet",
+                          "solana-devnet",
+                          "solana-localnet"
                         ]
                       },
                       "payerAddress": {
                         "type": "string",
-                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                        "pattern": "^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$"
                       }
                     },
                     "required": [
@@ -4341,6 +4348,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       }
@@ -4552,6 +4560,7 @@
                       "PYUSD",
                       "USDG",
                       "ETH",
+                      "SOL",
                       "BTC"
                     ]
                   },
@@ -4606,6 +4615,7 @@
                                 "PYUSD",
                                 "USDG",
                                 "ETH",
+                                "SOL",
                                 "BTC"
                               ]
                             }
@@ -4844,6 +4854,7 @@
                                 "PYUSD",
                                 "USDG",
                                 "ETH",
+                                "SOL",
                                 "BTC"
                               ]
                             }
@@ -5212,6 +5223,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       },
@@ -5224,12 +5236,14 @@
                           "arbitrum",
                           "arbitrum-sepolia",
                           "robinhood-testnet",
-                          "arc-testnet"
+                          "arc-testnet",
+                          "solana-devnet",
+                          "solana-localnet"
                         ]
                       },
                       "payerAddress": {
                         "type": "string",
-                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                        "pattern": "^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$"
                       }
                     },
                     "required": [
@@ -5282,6 +5296,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       }
@@ -5402,6 +5417,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       }
@@ -5912,6 +5928,7 @@
                           "PYUSD",
                           "USDG",
                           "ETH",
+                          "SOL",
                           "BTC"
                         ]
                       }
@@ -5935,7 +5952,9 @@
                             "arbitrum",
                             "arbitrum-sepolia",
                             "robinhood-testnet",
-                            "arc-testnet"
+                            "arc-testnet",
+                            "solana-devnet",
+                            "solana-localnet"
                           ]
                         },
                         "asset": {
@@ -5969,6 +5988,7 @@
                             "PYUSD",
                             "USDG",
                             "ETH",
+                            "SOL",
                             "BTC"
                           ]
                         },
@@ -6482,7 +6502,7 @@
         ],
         "operationId": "getX402Rail",
         "summary": "Which rail to pay on, and why",
-        "description": "The ordering inside a `402` already carries the answer, but an agent reading `accepts[0]` cannot see what the order was based on. This is that reasoning in the open: median headroom, how many settlements it is over, and whether the choice was a choice at all.\n\n_Headroom_ is the seconds an order had left before its deadline when it landed. `unobserved: true` means no rail had enough observations and the first accepted rail was taken.",
+        "description": "Returns the first accepted rail in merchant configuration. Every accepted rail has already passed capability and pricing checks; a payer may still choose another entry from the `402`.",
         "security": [],
         "parameters": [
           {
@@ -6496,7 +6516,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The chosen rail and the measurements behind it.",
+            "description": "The configured default rail.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6507,127 +6527,6 @@
           },
           "404": {
             "description": "No resource with that id, or x402 is not enabled on this deployment.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/x402/mcp": {
-      "post": {
-        "tags": [
-          "x402"
-        ],
-        "operationId": "callX402Mcp",
-        "summary": "The MCP server — free discovery, paid tools/call",
-        "description": "An MCP server over the same rail, speaking JSON-RPC 2.0. `initialize` and `tools/list` are free; `tools/call` costs one authorization and answers `402` until it carries one.\n\nDiscovery is free and answers are paid by design: an agent cannot decide a price is worth paying for a tool it has not been allowed to read the description of.\n\nTwo tools. `rail_stats` reports samples, median headroom, and the worst and best observed per rail; `choose_rail` ranks them and returns the one to pay on. Three refusals never charge — arguments the tool will not accept (refused **before** the gate, since a response cannot be un-served), no settlements observed at all, and a tool that does not exist, which is a tool error rather than a JSON-RPC error so a model can tell 'the server said no' from 'the call never arrived'.\n\nSend the **same body** in both the request that receives the `402` and the retry carrying the signature; a different one is a different purchase settled against the first one's authorization. A JSON-RPC notification (no `id`) is answered `202` with no body.",
-        "security": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "jsonrpc": {
-                    "type": "string",
-                    "enum": [
-                      "2.0"
-                    ]
-                  },
-                  "id": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "number"
-                      }
-                    ],
-                    "description": "Omit for a notification."
-                  },
-                  "method": {
-                    "type": "string",
-                    "description": "`initialize`, `tools/list`, or `tools/call` — the paid one."
-                  },
-                  "params": {
-                    "type": "object",
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "jsonrpc",
-                  "method"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The JSON-RPC response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "jsonrpc": {
-                      "type": "string",
-                      "enum": [
-                        "2.0"
-                      ]
-                    },
-                    "id": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "number"
-                        }
-                      ]
-                    },
-                    "result": {
-                      "type": "object",
-                      "additionalProperties": {}
-                    },
-                    "error": {
-                      "type": "object",
-                      "properties": {
-                        "code": {
-                          "type": "integer"
-                        },
-                        "message": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "description": "A JSON-RPC error. A refused tool is `result.isError` instead."
-                    }
-                  },
-                  "required": [
-                    "jsonrpc",
-                    "id"
-                  ]
-                }
-              }
-            }
-          },
-          "202": {
-            "description": "A notification — no id, so no response."
-          },
-          "402": {
-            "description": "`tools/call` with no payment. The price rides `PAYMENT-REQUIRED`."
-          },
-          "404": {
-            "description": "x402 is not enabled on this deployment.",
             "content": {
               "application/json": {
                 "schema": {

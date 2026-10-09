@@ -15,10 +15,7 @@
       "**/*.json",
       "!**/migrations",
       "!apps/docs/src/lib/openapi.json",
-      "!packages/contracts/*/lib",
-      "!packages/subgraph/abis",
-      "!packages/subgraph/generated",
-      "!packages/subgraph/build"
+      "!packages/contracts/*/lib"
     ]
   },
   "formatter": {
@@ -73,19 +70,6 @@
     }
   },
   "overrides": [
-    {
-      "includes": ["packages/subgraph/src/**"],
-      "linter": {
-        "rules": {
-          "style": {
-            "useImportType": "off"
-          },
-          "suspicious": {
-            "noShadowRestrictedNames": "off"
-          }
-        }
-      }
-    },
     {
       "includes": ["**/test/**", "**/*.test.ts"],
       "linter": {

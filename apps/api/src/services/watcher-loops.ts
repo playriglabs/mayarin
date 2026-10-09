@@ -38,12 +38,7 @@ export interface WatcherLoopOptions {
 export interface IndexerLoopOptions {
   readonly indexers: ReadonlyMap<ChainId, IndexerPort>;
   readonly intervalMs: number;
-  /**
-   * Ceiling for the backoff a failing pass falls into.
-   *
-   * A hosted subgraph counts queries, so a pass that fails on a quota keeps its
-   * own quota spent if the next pass arrives on the normal interval.
-   */
+  /** Ceiling for the backoff a failing pass falls into. */
   readonly maxBackoffMs?: number;
   readonly logger?: WatcherLogger;
   readonly timers?: TimerPort;

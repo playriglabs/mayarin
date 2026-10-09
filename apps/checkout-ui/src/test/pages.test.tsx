@@ -148,65 +148,6 @@ describe("link page", () => {
     expect(html).toContain("https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png");
   });
 
-  test("a degraded rail stays selectable and says why", () => {
-    const html = renderToStaticMarkup(
-      <LinkPage
-        bootstrap={{
-          ...linkBootstrap,
-          rails: [
-            {
-              chain: "arc-testnet",
-              asset: "USDC",
-              contract: "0x360000",
-              settlementAsset: "USDC",
-              standing: "healthy",
-            },
-            {
-              chain: "base-sepolia",
-              asset: "USDC",
-              contract: "0x036cbd",
-              settlementAsset: "USDC",
-              standing: "degraded",
-            },
-          ],
-        }}
-      />,
-    );
-    // Offered, and ranked below the healthy rail.
-    expect(html).toContain("Base Sepolia");
-    // The one line it is allowed to say (#260).
-    expect(html).toContain("settling slower than usual");
-    expect(html.match(/settling slower than usual/g)).toHaveLength(1);
-  });
-
-  test("a degraded rail the payer has selected says so at rest", () => {
-    const html = renderToStaticMarkup(
-      <LinkPage
-        bootstrap={{
-          ...linkBootstrap,
-          rails: [
-            {
-              chain: "base-sepolia",
-              asset: "USDC",
-              contract: "0x036cbd",
-              settlementAsset: "USDC",
-              standing: "degraded",
-            },
-            {
-              chain: "arc-testnet",
-              asset: "USDC",
-              contract: "0x360000",
-              settlementAsset: "USDC",
-              standing: "healthy",
-            },
-          ],
-        }}
-      />,
-    );
-    // The trigger's own line, beside the one in the options list.
-    expect(html.match(/settling slower than usual/g)).toHaveLength(2);
-  });
-
   test("a single rail renders no chooser at all", () => {
     const html = renderToStaticMarkup(
       <LinkPage

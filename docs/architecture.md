@@ -93,8 +93,7 @@ that was right with two paths and silently wrong with three. See
 
 ────────────────────────────────────────
 
-              Indexer               ── observes PaymentCompleted
-                                    ── via the settlements subgraph, or the chain
+              Indexer               ── observes PaymentCompleted directly from chain RPC
 
                      │
 
@@ -314,7 +313,6 @@ packages/
                           merchant key provider (passkey-only sub-org)
       ✓ x402-local/       local facilitator — broadcasts the payer's authorization,
                           probes token capability, reads settlement back off the chain
-      ✓ subgraph/         settlement source and rail observations, read from The Graph
       ✓ swap-0x/          ZeroExSwapVenue + ZeroExRouteSource — price read + exact-output route
       ✓ swap-uniswap/     UniswapSwapVenue + UniswapRouteSource — QuoterV2 + exactOutputSingle
       ✓ swap-uniswap-v2/  constant-product venue for chains with no v3 deployment
@@ -329,7 +327,6 @@ packages/
   ✓ http/                 shared HTTP concerns for both API surfaces
   ✓ sdk/                  TypeScript client SDK — commerce, payment, QR, webhooks, x402
   ✓ embed/                embeddable checkout web component
-  ✓ subgraph/             the settlements subgraph source, schema, and manifest
   ✓ shared/               money, assets, ids, errors, events, clock
 
 plugins/
@@ -495,8 +492,7 @@ abstraction is required for the "no wallet, no seed phrase" experience.
 
 - x402 protocol v2, EIP-3009 `transferWithAuthorization`, EIP-712 typed data
 - Local facilitator (`packages/providers/x402-local`) — Mayarin broadcasts
-- The Graph — the settlements subgraph the rail statistics are read from
-- MCP, over the same rail, at `POST /x402/mcp`
+- Deterministic rail order from merchant configuration
 
 #### Settlement Assets
 

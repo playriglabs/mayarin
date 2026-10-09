@@ -13,7 +13,6 @@
 import type { ChainId } from "@mayarin/chain";
 import type { OfferedRail } from "@mayarin/payment-intent";
 import type { AssetCode } from "@mayarin/shared";
-import type { RailStanding } from "@mayarin/x402";
 
 /** One rail, as the checkout page and the SDK read it. */
 export interface RailDto {
@@ -23,15 +22,6 @@ export interface RailDto {
   readonly contract: string | null;
   /** What the merchant is paid in on this rail's chain — what it is priced into. */
   readonly settlementAsset: AssetCode;
-  /**
-   * How the rail has been behaving (#260).
-   *
-   * Absent when the list was not ranked — a single-rail checkout renders
-   * exactly as before, and a deployment without an observation source has
-   * nothing to say. A `degraded` rail stays offered and selectable; the page
-   * adds a note, never a gate.
-   */
-  readonly standing?: RailStanding;
 }
 
 /** The body of `GET /v1/payment-links/:id/rails`. */
@@ -41,12 +31,11 @@ export interface PaymentRailsDto {
   readonly settlementAsset: AssetCode;
 }
 
-export function toRailDto(rail: OfferedRail, standing?: RailStanding): RailDto {
+export function toRailDto(rail: OfferedRail): RailDto {
   return {
     chain: rail.chain,
     asset: rail.asset,
     contract: rail.contract ?? null,
     settlementAsset: rail.settlementAsset,
-    ...(standing === undefined ? {} : { standing }),
   };
 }

@@ -34,7 +34,6 @@
       "@mayarin/provider-mock": ["../../packages/providers/mock/src/index.ts"],
       "@mayarin/provider-pyth": ["../../packages/providers/pyth/src/index.ts"],
       "@mayarin/provider-stablecoin": ["../../packages/providers/stablecoin/src/index.ts"],
-      "@mayarin/provider-subgraph": ["../../packages/providers/subgraph/src/index.ts"],
       "@mayarin/provider-swap-0x": ["../../packages/providers/swap-0x/src/index.ts"],
       "@mayarin/provider-swap-lifi": ["../../packages/providers/swap-lifi/src/index.ts"],
       "@mayarin/provider-swap-uniswap": ["../../packages/providers/swap-uniswap/src/index.ts"],

@@ -55,9 +55,9 @@ client reads, so none of it moved the date.
 
 **Agent payments (x402).** `/v1/x402/resources` registers, lists and unlists an
 endpoint you sell per request. The buyer-facing half is unversioned and keyless:
-`GET /x402/resources/:id/payment-required`, `POST …/verify`, `POST …/settle`, the
-`GET /x402/resources` and `GET /x402/payables` discovery indexes, and an MCP
-server at `POST /x402/mcp`. See [the guide](/guides/x402).
+`GET /x402/resources/:id/payment-required`, `POST …/verify`, `POST …/settle`, and
+the `GET /x402/resources` and `GET /x402/payables` discovery indexes. See
+[the guide](/guides/x402).
 
 **A third execution path.** `executionPath` accepts `x402` beside
 `deposit-match` and `on-chain-contract`, on payment intents, cart checkout and
@@ -66,7 +66,7 @@ invoice checkout, and reports back which path a payment took. See
 
 **Listing an obligation to agents.** `POST /v1/invoices/:id/list` and
 `POST /v1/payment-links/:id/list`, each with an `/unlist` twin. Nothing is listed
-by default, and listing only affects whether something is *found*.
+by default, and listing only affects whether something is _found_.
 
 **Refunds.** `POST /v1/payments/:id/refunds` and `GET /v1/payments/:id/refunds`.
 Idempotent: a repeated key returns the refund it made rather than issuing a

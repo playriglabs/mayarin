@@ -89,7 +89,7 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     const link = await container.catalog.getLink(c.req.param("id"));
     const report = await container.rails.describe(link.merchant.id);
     return c.json({
-      rails: await payerRails(container, linkRails(report, link)),
+      rails: await payerRails(linkRails(report, link)),
       settlementAsset: report.settlementAsset,
     });
   });
