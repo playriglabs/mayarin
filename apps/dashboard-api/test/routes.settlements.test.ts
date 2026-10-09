@@ -209,10 +209,10 @@ describe("GET /settlements", () => {
     });
   });
 
-  test("summary covers every settlement when the table page is limited to seven", async () => {
+  test("summary covers every settlement when the table page is limited to ten", async () => {
     const { harness } = await seed();
     const intents = await Promise.all(
-      Array.from({ length: 8 }, (_, index) =>
+      Array.from({ length: 11 }, (_, index) =>
         harness.intentService.create({
           merchant: { id: "mch_a", name: "Warung A", city: "Jakarta", countryCode: "ID" },
           amount: { amount: BigInt(50_000 + index), asset: "IDR" },
@@ -237,18 +237,18 @@ describe("GET /settlements", () => {
 
     const res = await harness.request("GET", "/v1/settlements", { cookies: jar });
 
-    expect(res.body?.settlements).toHaveLength(7);
+    expect(res.body?.settlements).toHaveLength(10);
     expect(res.body?.summary).toMatchObject({
-      settledCount: 8,
+      settledCount: 11,
       inFlightCount: 0,
       failedCount: 0,
     });
     expect(res.body?.summary.totals).toEqual([
       expect.objectContaining({
         asset: "USDC",
-        count: 8,
-        netAmount: expect.objectContaining({ amount: "23920000" }),
-        fee: expect.objectContaining({ amount: "80000" }),
+        count: 11,
+        netAmount: expect.objectContaining({ amount: "32890000" }),
+        fee: expect.objectContaining({ amount: "110000" }),
       }),
     ]);
     expect(typeof res.body?.nextCursor).toBe("string");

@@ -68,7 +68,7 @@ function CustomerDetail({ id }: { id: string }) {
         .with({ isPending: true }, () => (
           <>
             <StatGridSkeleton />
-            <TableSkeleton rows={7} />
+            <TableSkeleton rows={10} />
           </>
         ))
         .with({ isError: true }, ({ error }) => (

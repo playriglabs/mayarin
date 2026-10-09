@@ -326,7 +326,7 @@ function Invoices() {
       </div>
 
       {match(invoices)
-        .with({ isPending: true }, () => <TableSkeleton rows={7} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={10} />)
         .with({ isError: true }, ({ error }) => (
           <QueryError
             message={reasonOf(error)}

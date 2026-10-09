@@ -263,7 +263,7 @@ function ApiKeys() {
       {failure !== "" && !creating && <Alert variant="destructive">{failure}</Alert>}
 
       {match(keys)
-        .with({ isPending: true }, () => <TableSkeleton rows={7} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={10} />)
         .with({ isError: true }, ({ error }) => (
           <QueryError
             message={reasonOf(error)}

@@ -59,7 +59,7 @@ const configSchema = z.object({
     .enum(["cf-connecting-ip", "socket", "x-forwarded-for", "x-real-ip"])
     .default("socket"),
   /** Page size cap for payment listings. */
-  paymentsPageSize: z.coerce.number().int().positive().max(200).default(7),
+  paymentsPageSize: z.coerce.number().int().positive().max(200).default(10),
   /**
    * Public origin of the payment API, where hosted checkout is served (#15).
    *

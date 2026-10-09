@@ -1,6 +1,6 @@
 import { ValidationError } from "@mayarin/shared";
 
-export const DEFAULT_PAGE_SIZE = 7;
+export const DEFAULT_PAGE_SIZE = 10;
 
 export interface ListCursor {
   readonly id: string;

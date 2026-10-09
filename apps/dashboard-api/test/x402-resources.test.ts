@@ -149,7 +149,7 @@ describe("list", () => {
   test("paginates the merchant's endpoints newest-first without duplicates", async () => {
     const { service, resources } = await serviceWith({});
     await Promise.all(
-      Array.from({ length: 8 }, (_, index) =>
+      Array.from({ length: 11 }, (_, index) =>
         resources.save(
           exampleResource({
             id: `resource-${index}`,
@@ -161,8 +161,8 @@ describe("list", () => {
     );
 
     const first = await service.list(SCOPE);
-    expect(first.items).toHaveLength(7);
-    expect(first.items[0]?.id).toBe("resource-7");
+    expect(first.items).toHaveLength(10);
+    expect(first.items[0]?.id).toBe("resource-10");
     expect(typeof first.nextCursor).toBe("string");
     if (first.nextCursor === null) throw new Error("Expected another resource page");
 
@@ -170,7 +170,7 @@ describe("list", () => {
     expect(second.items).toHaveLength(1);
     expect(second.items[0]?.id).toBe("resource-0");
     expect(second.nextCursor).toBeNull();
-    expect(new Set([...first.items, ...second.items].map((resource) => resource.id)).size).toBe(8);
+    expect(new Set([...first.items, ...second.items].map((resource) => resource.id)).size).toBe(11);
   });
 });
 

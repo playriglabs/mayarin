@@ -149,7 +149,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     DASHBOARD_RATE_LIMIT_REQUESTS: String(options.rateLimitRequests ?? 120),
     RATE_LIMIT_BLOCK_SECONDS: String(options.rateLimitBlockSeconds ?? 300),
     DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS: String(options.loginRateLimitRequests ?? 5),
-    PAYMENTS_PAGE_SIZE: "7",
+    PAYMENTS_PAGE_SIZE: "10",
     // Two chains with different assets, which is the shape #244 exists for:
     // Base takes ETH and USDC, Arc takes only USDC.
     CHAIN_ASSETS:

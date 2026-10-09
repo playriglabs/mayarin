@@ -250,7 +250,7 @@ function Customers() {
       {failure !== "" && editing === null && <Alert variant="destructive">{failure}</Alert>}
 
       {match(customers)
-        .with({ isPending: true }, () => <TableSkeleton rows={7} />)
+        .with({ isPending: true }, () => <TableSkeleton rows={10} />)
         .with({ isError: true }, ({ error }) => (
           <QueryError
             message={reasonOf(error)}
