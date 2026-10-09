@@ -135,10 +135,10 @@ export function BrandKit() {
           </div>
           <div class="self-center">
             <p class="text-lg leading-[1.7] text-slate-600">
-              There is no lockup file. The lockup is the mark set beside the name in Manrope at
-              medium weight, optically kerned so the wordmark tucks under the mark's overhang.
-              Building it from the two parts keeps one source of truth for the mark and lets the
-              name inherit whatever text colour it sits in.
+              There is no lockup file. The lockup is the mark set beside the name in PP Neue
+              Montreal at medium weight, optically kerned so the wordmark tucks under the mark's
+              overhang. Building it from the two parts keeps one source of truth for the mark and
+              lets the name inherit whatever text colour it sits in.
             </p>
           </div>
         </div>

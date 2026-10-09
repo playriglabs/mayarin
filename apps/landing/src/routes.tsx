@@ -32,9 +32,9 @@ export const routes: readonly Route[] = [
     page: () => <Landing />,
     file: "index.html",
     meta: {
-      title: "Mayarin — A world of ways to pay",
+      title: "Mayarin - A world of ways to pay",
       description:
-        "Payments infrastructure for the borderless economy. Local-currency pricing, stablecoin settlement, payouts in minutes — checkout, payment links, invoices, and your payment workspace in one integration.",
+        "Payments infrastructure for the borderless economy. Local-currency pricing, stablecoin settlement, payouts in minutes - checkout, payment links, invoices, and your payment workspace in one integration.",
       canonical: `${SITE_URL}/`,
     },
   },
@@ -43,7 +43,7 @@ export const routes: readonly Route[] = [
     page: () => <BrandKit />,
     file: "brand-kit/index.html",
     meta: {
-      title: "Mayarin — Brand Kit",
+      title: "Mayarin - Brand Kit",
       description:
         "Download the Mayarin brand marks and wordmarks for product, communications and partner surfaces.",
       canonical: `${SITE_URL}/brand-kit`,
@@ -56,7 +56,7 @@ export const notFoundRoute: Route = {
   page: () => <NotFound />,
   file: "404.html",
   meta: {
-    title: "Page not found — Mayarin",
+    title: "Page not found - Mayarin",
     description: "The Mayarin page you requested could not be found.",
   },
 };

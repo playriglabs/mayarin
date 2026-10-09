@@ -35,7 +35,7 @@ const FEATURED_CURRENCIES = CURRENCY_MARKETS.filter(({ code }) =>
 
 /** The stablecoins a merchant can choose to settle in; which one is offered depends on the chain. */
 const SETTLEMENT_MARKS = (
-  ["USDC", "USDG", "EURC", "PYUSD"] as const satisfies readonly AssetCode[]
+  ["USDC", "USDT", "USDG", "EURC", "PYUSD"] as const satisfies readonly AssetCode[]
 ).map((code) => ({ name: `${code} · ${getAsset(code).name}`, src: assetLogoUrl(code) }));
 
 const OTHER_CURRENCY_COUNT = CURRENCY_MARKETS.length - FEATURED_CURRENCIES.length;

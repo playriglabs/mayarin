@@ -29,6 +29,16 @@ const QUESTIONS = [
       "Yes. Mayarin settles in stablecoins to your own wallet, and you can cash them out to your bank account through a third-party provider.",
   },
   {
+    question: "What if the price moves while my customer pays?",
+    answer:
+      "It does not reach you. The rate is locked when your customer chooses how to pay, so you receive the amount you priced, whatever the asset does in the meantime. If the lock runs out before the funds arrive, the payment expires and your customer starts again at the current rate.",
+  },
+  {
+    question: "How do I know a payment really happened?",
+    answer:
+      "Mayarin confirms every payment on-chain itself instead of trusting a notification, then records it in a double-entry ledger. Each step can be safely retried, so a payment is never settled twice or lost halfway.",
+  },
+  {
     question: "Is Mayarin live?",
     answer:
       "Mayarin runs on testnet today, so no real money moves yet. Join early access and we will let you know when live payments open.",

@@ -57,10 +57,10 @@ beyond layout utilities.
 `--color-accent` never carries text on white: at 1.6:1 it fails contrast. Accent green marks
 nodes, rails and flow; `--color-forest` is its accessible counterpart for type.
 
-Type uses HB Set through `--font-heading` for `h1`–`h3`, `--font-display` for display accents,
-and `--font-brand` for the wordmark. `--font-sans` (Geist) handles everything read, while
-`--font-mono` (JetBrains Mono, then Geist Mono) handles labels and code — the mono weights are
-imported latin-only, since the snippets are ASCII.
+Type uses Inter Tight through `--font-heading` for `h1`–`h3`, `--font-display` for display accents,
+and `--font-brand` for the wordmark. Self-hosted PP Neue Montreal through `--font-sans` handles
+everything read, while `--font-mono` (JetBrains Mono, then Geist Mono) handles labels and code —
+the mono weights are imported latin-only, since the snippets are ASCII.
 
 ## Structure
 

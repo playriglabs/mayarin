@@ -38,7 +38,7 @@ export function Opportunity() {
             <p>
               Mayarin brings payment collection, conversion, and stablecoin settlement into one
               integration. Price in your local currency, let customers pay with supported assets,
-              and manage payments in one place—from your first sale to your next market.
+              and manage payments in one place, from your first sale to your next market.
             </p>
           </div>
         </div>
