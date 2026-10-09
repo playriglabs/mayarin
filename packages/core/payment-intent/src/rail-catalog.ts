@@ -25,7 +25,7 @@
  * with code nowhere is an EOA, and the same key controls it on every chain.
  */
 
-import type { ChainId, ContractCodeSource } from "@mayarin/chain";
+import { type ChainId, type ContractCodeSource, isChainAddress } from "@mayarin/chain";
 import type { AssetCode } from "@mayarin/shared";
 import {
   acceptedPayerAssets,
@@ -256,6 +256,8 @@ export class DerivedRailCatalog implements RailCatalog {
 
       if (
         needsSettlement &&
+        configured !== undefined &&
+        isChainAddress(chain, configured) &&
         codeChains !== undefined &&
         codeChains.size > 0 &&
         !codeChains.has(chain)
@@ -323,6 +325,9 @@ export class DerivedRailCatalog implements RailCatalog {
 
     const found = new Set<ChainId>();
     for (const receipt of this.#receipts) {
+      // An EVM address means nothing on Solana, and the reverse; the chain
+      // family it does not belong to is not asked.
+      if (!isChainAddress(receipt.chain, configured)) continue;
       if (await code.hasCode(receipt.chain, configured)) found.add(receipt.chain);
     }
     return found;

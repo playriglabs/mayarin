@@ -26,7 +26,7 @@ const ARC_RECEIPT: ChainReceipt = {
 };
 
 const MERCHANT = "mch_1";
-const SAFE_ON_BASE = "0xbasesafe000000000000000000000000000000ba";
+const SAFE_ON_BASE = "0xba5e5afe000000000000000000000000000000ba";
 
 function policies(policy: MerchantAssetPolicy | undefined): MerchantAssetPolicySource {
   return { policyFor: async () => policy };
@@ -169,14 +169,46 @@ describe("DerivedRailCatalog", () => {
       merchantPolicies: policies({
         settlementAsset: "USDC",
         acceptedAssets: [],
-        settlementAddress: "0xeoa00000000000000000000000000000000000001",
+        settlementAddress: "0xe0a0000000000000000000000000000000000001",
       }),
-      settlement: payTo("0xeoa00000000000000000000000000000000000001"),
+      settlement: payTo("0xe0a0000000000000000000000000000000000001"),
       code: codeOn([]),
     }).describe(MERCHANT);
 
     expect(report.rails).toHaveLength(3);
     expect(report.unavailable).toHaveLength(0);
+  });
+
+  test("an EVM settlement address is not asked about, or held against, a Solana chain", async () => {
+    const asked: ChainId[] = [];
+    const report = await catalog({
+      receipts: [
+        BASE_RECEIPT,
+        {
+          chain: "solana-devnet",
+          tokens: { USDC: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" },
+        },
+      ],
+      merchantPolicies: policies({
+        settlementAsset: "USDC",
+        acceptedAssets: [],
+        settlementAddress: SAFE_ON_BASE,
+      }),
+      settlement: payToPerChain({
+        [BASE]: SAFE_ON_BASE,
+        "solana-devnet": "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",
+      }),
+      code: {
+        hasCode: async (chain) => {
+          asked.push(chain);
+          return chain === BASE;
+        },
+      },
+    }).describe(MERCHANT);
+
+    expect(asked).toEqual([BASE]);
+    expect(report.unavailable).toHaveLength(0);
+    expect(report.rails.map((rail) => rail.chain)).toContain("solana-devnet");
   });
 
   test("the code check is skipped for a managed destination the merchant never configured", async () => {
