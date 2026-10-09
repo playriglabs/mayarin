@@ -6,13 +6,13 @@
 // card silently broke. Nothing to fetch, nothing to fail.
 
 import interTightUrl from "@fontsource-variable/inter-tight/files/inter-tight-latin-wght-normal.woff2?inline";
-import manropeUrl from "@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2?inline";
 import { Renderer } from "@takumi-rs/core";
 import type { APIRoute } from "astro";
 import { render } from "takumi-js";
 import { fromHtml } from "takumi-js/helpers/html";
 import { source } from "@/lib/source";
 import backgroundUrl from "../../../../../../landing/public/og-dynamic.jpeg?inline";
+import neueMontrealUrl from "../../../../../public/fonts/PPNeueMontreal-VariableUpright.woff2?inline";
 
 // Renders an OpenGraph image per docs page. The URL is emitted by
 // `getPageImageUrl` in src/lib/source.ts: `/og/docs/{slugs}/image.jpeg`.
@@ -69,7 +69,7 @@ export const GET: APIRoute = async ({ params }) => {
   <div style="display:flex;flex-direction:column;justify-content:flex-end;width:1200px;height:630px;padding:72px 80px 72px ${TEXT_INSET}px;">
     <div style="display:flex;flex-direction:column;gap:26px;flex-shrink:0;">
       <div style="display:flex;font-size:76px;font-weight:400;line-height:1.04;letter-spacing:-0.035em;max-width:${TEXT_COLUMN}px;word-break:break-word;overflow:hidden;">${escapeHtml(title)}</div>
-      <div style="display:flex;font-family:Manrope,sans-serif;font-size:21px;color:#64748b;">docs.mayarin.xyz</div>
+      <div style="display:flex;font-family:PP Neue Montreal,sans-serif;font-size:21px;color:#64748b;">docs.mayarin.xyz</div>
     </div>
   </div>
 </div>`.trim();
@@ -103,7 +103,7 @@ export const GET: APIRoute = async ({ params }) => {
  * The renderer, built once per process with the brand's two faces.
  *
  * Inter Tight is the landing site's heading face and carries the title;
- * Manrope is its body face and carries the one line of body text on the card.
+ * PP Neue Montreal is its body face and carries the one line of body text on the card.
  * Registering only these two is also what makes the fallback safe: with no face
  * for a family, the renderer reaches for whichever it does have.
  */
@@ -114,8 +114,8 @@ function brandRenderer(): Promise<Renderer> {
     const renderer = new Renderer();
     await renderer.registerFont({ name: "Inter Tight", data: decodeDataUri(interTightUrl) });
     await renderer.registerFont({
-      name: "Manrope",
-      data: decodeDataUri(manropeUrl),
+      name: "PP Neue Montreal",
+      data: decodeDataUri(neueMontrealUrl),
       generic: "sans-serif",
     });
     return renderer;

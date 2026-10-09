@@ -2,10 +2,18 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 @import "fumadocs-openapi/css/preset.css";
-@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/inter-tight";
 @import "@fontsource-variable/geist-mono";
 @import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/instrument-serif/400-italic.css";
+
+@font-face {
+  font-family: "PP Neue Montreal";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/PPNeueMontreal-VariableUpright.woff2") format("woff2");
+}
 
 @theme {
   --color-paper: #ffffff;
@@ -16,7 +24,8 @@
   --color-accent: #0eeb2e;
   --color-forest: #1f6f54;
   --font-display: "Instrument Serif", ui-serif, Georgia, serif;
-  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "PP Neue Montreal", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Inter Tight Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
 }
 
@@ -110,7 +119,7 @@ a[href] {
 .docs-title,
 .prose h2,
 .prose h3 {
-  font-family: var(--font-sans);
+  font-family: var(--font-heading);
   font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 1.12;
