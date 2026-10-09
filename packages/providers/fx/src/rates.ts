@@ -17,12 +17,23 @@ import { scaledRateFrom, ValidationError } from "@mayarin/shared";
 import { z } from "zod";
 
 /** Coinbase `GET /v2/exchange-rates?currency=BASE`: every currency against `BASE`. */
-export const fxLatestResponseSchema = z.object({
+const coinbaseFxResponseSchema = z.object({
   data: z.object({
     currency: z.string(),
     rates: z.record(z.string(), z.string()),
   }),
 });
+
+/** fxratesapi `GET /latest?base=BASE`: every currency against `BASE`. */
+const latestFxResponseSchema = z.object({
+  base: z.string(),
+  rates: z.record(z.string(), z.union([z.string(), z.number()])),
+  timestamp: z.number().optional(),
+  date: z.string().optional(),
+});
+
+/** The two public wire formats supported by the adapter. */
+export const fxLatestResponseSchema = z.union([coinbaseFxResponseSchema, latestFxResponseSchema]);
 
 export type FxLatestResponse = z.infer<typeof fxLatestResponseSchema>;
 

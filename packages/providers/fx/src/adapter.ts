@@ -220,7 +220,7 @@ export class FxRatesPriceOracle implements PriceOracle {
       );
     }
 
-    const url = `${this.#endpoint}/v2/exchange-rates?currency=${encodeURIComponent(base)}`;
+    const url = latestUrl(this.#endpoint, base);
 
     let response: Response;
     try {
@@ -269,14 +269,34 @@ export class FxRatesPriceOracle implements PriceOracle {
         issues: parsed.error.issues.map((issue) => issue.message),
       });
     }
-    // No observation time in the body: the `Date` header is when it was
-    // served, and the clock stands in when a proxy strips it.
-    const served = Date.parse(response.headers.get("date") ?? "");
+    const data = "data" in parsed.data ? parsed.data.data : parsed.data;
+    const rates = Object.fromEntries(
+      Object.entries(data.rates).map(([currency, rate]) => [currency, String(rate)]),
+    );
+    // Prefer the provider's timestamp when one exists. Coinbase has no
+    // observation time in the body, so its HTTP Date remains the fallback.
+    const providerTime =
+      "timestamp" in parsed.data && parsed.data.timestamp !== undefined
+        ? parsed.data.timestamp * 1_000
+        : "date" in parsed.data && parsed.data.date !== undefined
+          ? Date.parse(parsed.data.date)
+          : Number.NaN;
+    const served = Number.isNaN(providerTime)
+      ? Date.parse(response.headers.get("date") ?? "")
+      : providerTime;
     return {
-      rates: parsed.data.data.rates,
+      rates,
       observedAt: Number.isNaN(served) ? new Date(nowMs) : new Date(served),
     };
   }
+}
+
+/** Coinbase keeps its v2 path; latest-style providers use a base query. */
+function latestUrl(endpoint: string, base: string): string {
+  const root = endpoint.replace(/\/+$/, "");
+  return root.includes("api.coinbase.com")
+    ? `${root}/v2/exchange-rates?currency=${encodeURIComponent(base)}`
+    : `${root}/latest?base=${encodeURIComponent(base)}`;
 }
 
 /** A decimal string as an exact pair, or `undefined` when it is not a number. */

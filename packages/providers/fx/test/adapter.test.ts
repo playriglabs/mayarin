@@ -92,6 +92,26 @@ describe("FxRatesPriceOracle", () => {
     expect(calls[0]?.url).toBe("https://api.coinbase.com/v2/exchange-rates?currency=USD");
   });
 
+  test("supports latest-style FX providers with a body timestamp", async () => {
+    const { calls, fn } = stubFetch(() =>
+      json({
+        base: "USD",
+        timestamp: OBSERVED_AT.getTime() / 1_000,
+        rates: { PHP: 62.81 },
+      }),
+    );
+    const source = new FxRatesPriceOracle({
+      feeds: { "PHP/USDC": { symbol: "USD/PHP", invert: true } },
+      endpoint: "https://api.fxratesapi.com",
+      fetchFn: fn,
+      clock: new FixedClock(OBSERVED_AT),
+    });
+
+    const price = await source.reference("PHP", "USDC");
+    expect(calls[0]?.url).toBe("https://api.fxratesapi.com/latest?base=USD");
+    expect(price.observedAt).toEqual(OBSERVED_AT);
+  });
+
   test("stamps the observation with the response's Date header", async () => {
     const { fn } = stubFetch(() => json(fxBody()));
     const clock = new FixedClock(new Date(OBSERVED_AT.getTime() + 5_000));
