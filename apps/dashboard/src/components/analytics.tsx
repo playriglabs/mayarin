@@ -1,45 +1,30 @@
 /**
  * Merchant analytics — a React island over the dedicated `/analytics` read.
  *
- * Two sections, because a payment and its settlement are two different facts
- * about the same money and a merchant asks different questions of each. **Pay
- * ins** is the gross USD value of what buyers were charged, normalized at each
- * payment's locked settlement rate so several source currencies can share one
- * chart. **Pay outs** is what actually reached the merchant, net of fee, in the
- * settlement asset. Charting one and calling it both would hide the fee and
+ * The read is unpaginated, every payment and settlement, so every filter here
+ * is a slice of data already in hand: changing the range, the interval, the
+ * network or the payer asset never waits on the network.
+ *
+ * Four dashboards, because a merchant asks four different questions:
+ *
+ * - **Revenue** — how much came in, before and after fees.
+ * - **Orders** — how many checkouts became payments, and how fast.
+ * - **Settlements** — what reached the merchant, and in what state.
+ * - **Payment mix** — what payers sent, from where, on which network.
+ *
+ * Pay ins are dated by creation (an order belongs to the day it was placed),
+ * pay outs by arrival. Charting one and calling it both would hide the fee and
  * every payment that was taken and never settled.
- *
- * The two sections ask different questions, because the merchant does. **Pay
- * ins** is a sales report: revenue, orders, and what an order is worth — three
- * day-by-day lines, because revenue is read as a trend. **Pay outs** is an
- * operations report: how much moved, what state it ended in, how long it took.
- * Every figure is derived from the unpaginated analytics read, so changing a
- * page in the explorer can never move a chart.
- *
- * ## Colour
- *
- * The charts are single-hue: length carries magnitude, the direct label carries
- * identity, and the hue means only "this is data". Shading by value would be
- * colour following rank, repainted the moment a sort changes.
- *
- * **Status overview and the payer mixes are deliberate exceptions.** Categories
- * share one stacked bar, so colour encodes identity rather than rank. Every
- * segment is repeated in a labelled legend with its count and share, so colour
- * is never the only signal.
- *
- * Each chart ships a real table behind a disclosure, so the numbers are
- * reachable without reading a picture.
  */
 
-import { type AssetCode, assetDecimals, assetSymbol } from "@mayarin/shared/asset";
-import { formatMoneyLocale } from "@mayarin/shared/locale";
-import { money } from "@mayarin/shared/money";
+import { chainLabel } from "@mayarin/chain";
 import { ChartBarIcon, InfoIcon } from "@phosphor-icons/react";
-import { motion } from "motion/react";
+import { useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLogo } from "@/components/asset-logo";
+import { ChainLogo } from "@/components/chain-logo";
+import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Empty,
   EmptyAction,
@@ -47,381 +32,373 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { MetricChart } from "@/components/ui/metric-chart";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
-import { SectionHeader } from "@/components/ui/section-header";
-import { Stat, StatGrid } from "@/components/ui/stat";
 import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Select,
+  SelectContent,
+  SelectItem,
+  type SelectOption,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { dayLabel, type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
 import {
   payerAssetBreakdown,
   payerCountryBreakdown,
-  paymentsIn,
+  payerNetworkBreakdown,
   type RankedInsight,
-  reportingPeriods,
-  settlementsIn,
-  summarizePeriod,
 } from "@/lib/analytics-insights";
-import { payInAmountUsd, settlementsByPaymentIntent } from "@/lib/analytics-movements";
+import {
+  type Filters,
+  filterPayments,
+  filterSettlements,
+  type Interval,
+  isSettled,
+  lastDays,
+  type Metric,
+  metricsOf,
+  ORDERS,
+  paymentsInRange,
+  type Range,
+  REVENUE,
+  SETTLEMENTS,
+  settlementsInRange,
+} from "@/lib/analytics-series";
 import { ApiError } from "@/lib/api/client";
-import { compactMoney } from "@/lib/compact";
 import { countryLabel } from "@/lib/countries";
 import { ICON_CARD } from "@/lib/icons";
-import { toUsdCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
-import type { MoneyDto, PaymentIntentDto } from "@/types/payment";
+import type { AnalyticsResponse } from "@/types/analytics";
+import type { PaymentIntentDto } from "@/types/payment";
 import type { SettlementDto } from "@/types/settlement";
 
-/**
- * The charting window, matching the overview's balance card.
- *
- * The read behind it is unpaginated — every payment and settlement, always — so
- * this slices rather than fetches. One window across the product means the
- * "View more" on the overview opens the same month it was showing, rather than
- * a different window wearing the same title.
- */
-const WINDOW_DAYS = 30;
-
 /* -------------------------------------------------------------------------- */
-/* Derivation                                                                 */
+/* Filters                                                                     */
 /* -------------------------------------------------------------------------- */
 
-interface DayPoint {
-  readonly date: string;
-  readonly volume: bigint;
-  readonly count: number;
+const DASHBOARDS = [
+  { value: "revenue", label: "Revenue" },
+  { value: "orders", label: "Orders" },
+  { value: "settlements", label: "Settlements" },
+  { value: "mix", label: "Payment mix" },
+] as const;
+
+type Dashboard = (typeof DASHBOARDS)[number]["value"];
+
+const INTERVALS: readonly SelectOption[] = [
+  { value: "day", label: "Daily" },
+  { value: "week", label: "Weekly" },
+  { value: "month", label: "Monthly" },
+];
+
+const RANGES: readonly SelectOption[] = [
+  { value: "7", label: "Last 7 days" },
+  { value: "30", label: "Last 30 days" },
+  { value: "90", label: "Last 90 days" },
+  { value: "365", label: "Last 12 months" },
+];
+
+/** A range long enough that a day per point is noise picks a coarser default. */
+function intervalFor(days: number): Interval {
+  if (days >= 365) return "month";
+  if (days >= 90) return "week";
+  return "day";
 }
 
-/** One state's share of a section, in the tone the rest of the product uses. */
-interface StatusSlice {
+const ALL = "all";
+
+function dashboardFromHash(): Dashboard {
+  if (typeof window === "undefined") return "revenue";
+  const hash = window.location.hash.slice(1);
+  return DASHBOARDS.find((dashboard) => dashboard.value === hash)?.value ?? "revenue";
+}
+
+const DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "2-digit", timeZone: "UTC" });
+const MONTH = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const LONG = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+function dateOf(key: string): Date {
+  return new Date(`${key}T00:00:00Z`);
+}
+
+function bucketLabel(interval: Interval): (key: string) => string {
+  return (key) => (interval === "month" ? MONTH : DAY).format(dateOf(key));
+}
+
+function rangeLabel(range: Range): string {
+  return `${LONG.format(dateOf(range.from))} – ${LONG.format(dateOf(range.to))}`;
+}
+
+function FilterSelect({
+  label,
+  items,
+  value,
+  onChange,
+  className,
+}: {
   readonly label: string;
-  readonly count: number;
-  readonly tone: "success" | "warning" | "destructive" | "neutral";
+  readonly items: readonly SelectOption[];
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly className?: string | undefined;
+}) {
+  return (
+    <Select items={items} value={value} onValueChange={onChange}>
+      <SelectTrigger aria-label={label} className={cn("h-9.5 w-auto min-w-32", className)}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {items.map((item) => (
+          <SelectItem key={item.value} value={item.value}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
-interface DurationPoint {
-  readonly date: string;
-  /** Median seconds from created to completed, over the payments that day. */
-  readonly seconds: number;
-  readonly count: number;
-}
-
-/** A row reduced to the three things every chart here needs from it. */
-interface Movement {
-  readonly day: string;
-  readonly amount: bigint | null;
-  readonly seconds: number | null;
-}
-
-function bucketByDay(movements: readonly Movement[]): readonly DayPoint[] {
-  const byDay = new Map<string, { volume: bigint; count: number }>();
-  for (const movement of movements) {
-    if (movement.amount === null) continue;
-    const bucket = byDay.get(movement.day) ?? { volume: 0n, count: 0 };
-    byDay.set(movement.day, {
-      volume: bucket.volume + movement.amount,
-      count: bucket.count + 1,
-    });
-  }
-  return [...byDay.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .slice(-WINDOW_DAYS)
-    .map(([date, bucket]) => ({ date, ...bucket }));
-}
-
-/**
- * How long each day's payments took, as a median.
- *
- * A median rather than a mean, for the reason the rail chooser already uses
- * one: a single payment that sat unpaid for an hour would otherwise describe a
- * day where everything else settled in seconds.
- */
-function bucketDurations(movements: readonly Movement[]): readonly DurationPoint[] {
-  const byDay = new Map<string, number[]>();
-  for (const movement of movements) {
-    if (movement.seconds === null) continue;
-    byDay.set(movement.day, [...(byDay.get(movement.day) ?? []), movement.seconds]);
-  }
-  return [...byDay.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .slice(-WINDOW_DAYS)
-    .map(([date, samples]) => ({ date, seconds: medianOf(samples), count: samples.length }));
-}
-
-function medianOf(samples: readonly number[]): number {
-  const sorted = [...samples].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  const upper = sorted[middle] ?? 0;
-  if (sorted.length % 2 === 1) return upper;
-  return ((sorted[middle - 1] ?? upper) + upper) / 2;
-}
-
-/** Seconds between two timestamps, or `null` when either is missing. */
-function secondsBetween(from: string, to: string | null): number | null {
-  if (to === null) return null;
-  const elapsed = (new Date(to).getTime() - new Date(from).getTime()) / 1000;
-  return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed : null;
-}
-
-/**
- * The locked USD value of what buyers were charged.
- *
- * Dated by creation rather than completion: this is demand, and a payment
- * created on Monday that settles on Tuesday was Monday's.
- */
-function payInMovements(
-  payments: readonly PaymentIntentDto[],
-  settlements: readonly SettlementDto[],
-): Movement[] {
-  const byPaymentIntent = settlementsByPaymentIntent(settlements);
-  return payments.map((payment) => ({
-    day: payment.createdAt.slice(0, 10),
-    amount: payInAmountUsd(payment, byPaymentIntent.get(payment.id)),
-    seconds: secondsBetween(payment.createdAt, payment.completedAt),
-  }));
-}
-
-/**
- * What reached the merchant.
- *
- * `netAmount` rather than `settlementAmount`, because the fee is not the
- * merchant's money and a payout chart that includes it overstates every day.
- * Dated by completion: this is arrival.
- */
-function payOutMovements(
-  settlements: readonly SettlementDto[],
-  rates: Readonly<Record<string, string>>,
-): Movement[] {
-  return settlements.map((settlement) => {
-    const net = settlement.netAmount;
-    return {
-      day: (settlement.completedAt ?? settlement.updatedAt).slice(0, 10),
-      // In USD cents: settlements land in USDC, USDG, EURC… and a chart of one
-      // of them hides the rest. An asset with no rate is left out, not guessed.
-      amount:
-        isSettled(settlement) && net !== null
-          ? toUsdCents(BigInt(net.amount), net.asset, rates)
-          : null,
-      seconds: secondsBetween(settlement.createdAt, settlement.completedAt),
-    };
-  });
-}
-
-function isSettled(settlement: SettlementDto): boolean {
-  return settlement.state === "SUCCESS" || settlement.state === "SETTLED";
-}
-
-/** The USD-cent sum of one money field across settled rows; unpriced assets drop out. */
-function settledUsd(
-  settlements: readonly SettlementDto[],
-  pick: (settlement: SettlementDto) => MoneyDto | null,
-  rates: Readonly<Record<string, string>>,
-): bigint {
-  return settlements.filter(isSettled).reduce((sum, settlement) => {
-    const value = pick(settlement);
-    const cents = value === null ? null : toUsdCents(BigInt(value.amount), value.asset, rates);
-    return sum + (cents ?? 0n);
-  }, 0n);
-}
-
-const PAY_OUT_STATUS: Readonly<Record<string, { label: string; tone: StatusSlice["tone"] }>> = {
-  SUCCESS: { label: "Complete", tone: "success" },
-  SETTLED: { label: "Settled", tone: "success" },
-  SETTLING: { label: "Settling", tone: "warning" },
-  CLEARING: { label: "Clearing", tone: "warning" },
-  FAILED: { label: "Failed", tone: "destructive" },
-};
-
-/**
- * Counts by state, largest first.
- *
- * A state the map does not name still appears, under its own raw name and in
- * the neutral tone. Dropping it would quietly shrink the denominator, and a
- * status overview whose shares do not add up to what happened is worse than one
- * with an unfamiliar word in it.
- */
-function statusesOf(
-  states: readonly string[],
-  vocabulary: Readonly<Record<string, { label: string; tone: StatusSlice["tone"] }>>,
-): readonly StatusSlice[] {
-  const counts = new Map<string, number>();
-  for (const state of states) counts.set(state, (counts.get(state) ?? 0) + 1);
-
-  return [...counts.entries()]
-    .map(([state, count]) => {
-      const known = vocabulary[state];
-      return {
-        label: known?.label ?? state,
-        tone: known?.tone ?? ("neutral" as const),
-        count,
-      };
-    })
-    .sort((a, b) => b.count - a.count);
-}
-
-/** Whole seconds read as noise past a minute; past an hour, so do minutes. */
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3_600) return `${(seconds / 60).toFixed(1)}m`;
-  return `${(seconds / 3_600).toFixed(1)}h`;
+/** Every value the read actually holds, so a filter never offers an empty slice. */
+function optionsOf(
+  values: readonly (string | undefined)[],
+  all: string,
+  labelOf: (value: string) => string,
+): readonly SelectOption[] {
+  const present = [...new Set(values.filter((value): value is string => value !== undefined))];
+  return [
+    { value: ALL, label: all },
+    ...present.sort().map((value) => ({ value, label: labelOf(value) })),
+  ];
 }
 
 /* -------------------------------------------------------------------------- */
-/* Charts                                                                      */
+/* Metric boxes                                                                */
 /* -------------------------------------------------------------------------- */
 
-const TONE_FILL: Readonly<Record<StatusSlice["tone"], string>> = {
-  success: "bg-success",
-  warning: "bg-warning",
-  destructive: "bg-destructive",
-  neutral: "bg-subtle-foreground",
-};
+function Hint({ text }: { readonly text: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label={text}
+              className="cursor-help text-subtle-foreground transition-colors hover:text-foreground"
+            >
+              <InfoIcon size={15} aria-hidden="true" />
+            </button>
+          }
+        />
+        <TooltipContent className="max-w-64">{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
-const ASSET_MIX_FILLS = [
+function Change({ value }: { readonly value: number | undefined }) {
+  if (value === undefined || !Number.isFinite(value) || Math.round(value) === 0) return null;
+  const up = value > 0;
+  return (
+    <span
+      title="Against the period before"
+      className={cn(
+        "rounded-md px-2 py-0.5 text-sm tabular-nums",
+        up ? "bg-success-muted text-success" : "bg-destructive-muted text-destructive",
+      )}
+    >
+      {up ? "+" : ""}
+      {Math.round(value)}%
+    </span>
+  );
+}
+
+/** A box's frame: title row, the big figure, then what it covers. */
+function Box({
+  title,
+  hint,
+  aside,
+  children,
+  className,
+}: {
+  readonly title: string;
+  readonly hint: string;
+  readonly aside?: React.ReactNode;
+  readonly children: React.ReactNode;
+  readonly className?: string | undefined;
+}) {
+  return (
+    <section
+      className={cn("flex min-w-0 flex-col gap-2 border-border border-r border-b py-6", className)}
+    >
+      <header className="flex items-center justify-between gap-4 px-6">
+        <h3 className="flex items-center gap-2 text-[18px] leading-6 text-foreground">
+          {title}
+          <Hint text={hint} />
+        </h3>
+        {aside}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function MetricBox({
+  metric,
+  range,
+  interval,
+  hovered,
+  onHover,
+  className,
+}: {
+  readonly metric: Metric;
+  readonly range: Range;
+  readonly interval: Interval;
+  readonly hovered: number | null;
+  readonly onHover: (index: number | null) => void;
+  readonly className?: string | undefined;
+}) {
+  const point = hovered === null ? undefined : metric.points[hovered];
+  const label = bucketLabel(interval);
+
+  return (
+    <Box
+      title={metric.label}
+      hint={metric.hint}
+      aside={<Change value={metric.change} />}
+      className={className}
+    >
+      <div className="flex flex-col gap-3 px-6">
+        <span className="text-[34px] leading-[40px] font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[44px] xl:leading-[52px]">
+          {point?.display ?? metric.total}
+        </span>
+        <span className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
+          <span aria-hidden="true" className="size-3 rounded-full border-2 border-chart-1" />
+          {point === undefined ? rangeLabel(range) : LONG.format(dateOf(point.date))}
+        </span>
+      </div>
+      <MetricChart
+        points={metric.points}
+        name={metric.label}
+        chart={metric.chart}
+        formatDate={label}
+        activeIndex={hovered}
+        onHover={onHover}
+      />
+    </Box>
+  );
+}
+
+/**
+ * Boxes sharing one ruled surface and one cursor: hovering a day on any chart
+ * moves every chart in the group to that day, so a spike in revenue can be read
+ * against the orders that made it.
+ */
+function MetricGrid({
+  metrics,
+  range,
+  interval,
+  children,
+}: {
+  readonly metrics: readonly Metric[];
+  readonly range: Range;
+  readonly interval: Interval;
+  readonly children?: React.ReactNode;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border">
+      {/* The inset clip hides each box's outer border, so only the rules
+          between boxes show at every breakpoint. */}
+      <div className="grid grid-cols-1 [clip-path:inset(0_1px_1px_0)] lg:grid-cols-2 2xl:grid-cols-3">
+        {metrics.map((metric, index) => (
+          <MetricBox
+            key={metric.key}
+            metric={metric}
+            range={range}
+            interval={interval}
+            hovered={hovered}
+            onHover={setHovered}
+            className={index === 0 ? "lg:col-span-2" : undefined}
+          />
+        ))}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Breakdowns                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const MIX_FILLS = [
   "bg-chart-1",
   "bg-chart-2",
   "bg-chart-3",
   "bg-chart-4",
   "bg-chart-5",
   "bg-chart-6",
-  "bg-chart-7",
-  "bg-chart-8",
 ] as const;
 
-function assetMixFill(index: number): string {
-  return ASSET_MIX_FILLS[index % ASSET_MIX_FILLS.length] ?? "bg-chart-1";
+function mixFill(index: number): string {
+  return MIX_FILLS[index % MIX_FILLS.length] ?? "bg-chart-1";
 }
 
 /**
- * Every state in one bar, with a legend that names each one.
- *
- * Not a Recharts chart: it is one bar and a list, and a charting library adds a
- * canvas, a layout pass and a tooltip to draw a row of divs.
- *
- * The bar alone would leave colour as the only channel. The legend repeats each
- * state by name, count and share, so nothing here depends on telling green from
- * yellow.
+ * Part-to-whole: one stacked bar, then a legend that repeats every segment by
+ * name, count and share — so colour is never the only thing telling them apart.
  */
-function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
-  const total = slices.reduce((acc, slice) => acc + slice.count, 0);
-  if (total === 0) {
-    return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
-  }
-
-  const completed = slices
-    .filter((slice) => slice.tone === "success")
-    .reduce((sum, slice) => sum + slice.count, 0);
-  const completionRate = Math.round((completed / total) * 100);
-
-  return (
-    <div className="flex h-full flex-col gap-6">
-      <div className="flex items-end justify-between gap-6 border-border border-b pb-6">
-        <div className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-xs">Settlement completion</span>
-          <span className="font-medium text-[42px] leading-none tracking-[-0.04em] tabular-nums">
-            {completionRate}%
-          </span>
-        </div>
-        <div className="flex flex-col items-end gap-2 text-right">
-          <span className="text-muted-foreground text-xs">Total settlements</span>
-          <span className="font-medium text-2xl tabular-nums">{total}</span>
-        </div>
-      </div>
-
-      <div aria-hidden="true" className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-        {slices.map((slice) => (
-          <span
-            key={slice.label}
-            className={cn("h-full shrink-0", TONE_FILL[slice.tone])}
-            style={{ width: `${(slice.count / total) * 100}%` }}
-          />
-        ))}
-      </div>
-
-      <ul className="flex flex-col gap-4">
-        {slices.map((slice) => (
-          <li key={slice.label} className="flex flex-col gap-2.5 text-xs">
-            <div className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={cn("size-2.5 shrink-0 rounded-sm", TONE_FILL[slice.tone])}
-                />
-                <span className="text-foreground">{slice.label}</span>
-              </span>
-              <span className="text-muted-foreground tabular-nums">
-                {slice.count} · {Math.round((slice.count / total) * 100)}%
-              </span>
-            </div>
-            <div
-              role="img"
-              aria-label={`${slice.label}: ${slice.count} settlements, ${Math.round((slice.count / total) * 100)} percent`}
-              className="h-1.5 overflow-hidden rounded-full bg-muted"
-            >
-              <span
-                className={cn("block h-full rounded-full", TONE_FILL[slice.tone])}
-                style={{ width: `${(slice.count / total) * 100}%` }}
-              />
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** Part-to-whole payer mix: one stacked bar, then a legend of at most five rows. */
-function PayerMix({
+function Breakdown({
   rows,
   labelOf = (value) => value,
-  withLogo = false,
+  markOf,
 }: {
-  rows: readonly RankedInsight[];
-  labelOf?: (value: string) => string;
-  withLogo?: boolean;
+  readonly rows: readonly RankedInsight[];
+  readonly labelOf?: (value: string) => string;
+  readonly markOf?: (value: string) => React.ReactNode;
 }) {
   if (rows.length === 0) {
-    return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
+    return <p className="px-6 py-14 text-center text-base text-subtle-foreground">Nothing yet.</p>;
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <motion.div
-        aria-hidden="true"
-        className="flex h-3 w-full overflow-hidden bg-muted"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-      >
+    <div className="flex flex-col gap-5 px-6 pt-4">
+      <div aria-hidden="true" className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
         {rows.map((row, index) => (
           <span
             key={row.key}
-            className={cn("h-full shrink-0", assetMixFill(index))}
+            className={cn("h-full shrink-0", mixFill(index))}
             style={{ width: `${row.share * 100}%` }}
           />
         ))}
-      </motion.div>
-
-      <ul className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+      </div>
+      <ul className="flex flex-col gap-3">
         {rows.map((row, index) => (
-          <li key={row.key} className="flex min-w-0 items-center justify-between gap-3 text-xs">
-            <span className="flex min-w-0 items-center gap-2">
-              {withLogo && <AssetLogo symbol={row.key} size={20} />}
-              <span aria-hidden="true" className={cn("size-2.5 shrink-0", assetMixFill(index))} />
+          <li key={row.key} className="flex items-center justify-between gap-3 text-base">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className={cn("size-2.5 shrink-0 rounded-sm", mixFill(index))}
+              />
+              {markOf?.(row.key)}
               <span className="truncate text-foreground">{labelOf(row.key)}</span>
             </span>
-            <span className="shrink-0 tabular-nums text-muted-foreground">
+            <span className="shrink-0 text-muted-foreground tabular-nums">
               {row.count} · {Math.round(row.share * 100)}%
             </span>
           </li>
@@ -431,91 +408,89 @@ function PayerMix({
   );
 }
 
-function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
+const SETTLEMENT_STATES: Readonly<Record<string, string>> = {
+  SUCCESS: "Complete",
+  SETTLED: "Settled",
+  SETTLING: "Settling",
+  CLEARING: "Clearing",
+  FAILED: "Failed",
+};
 
-function comparisonChange(current: bigint | number, previous: bigint | number): string {
-  if (typeof current === "bigint" && typeof previous === "bigint") {
-    if (previous === 0n) return current === 0n ? "—" : "New";
-    const tenths = ((current - previous) * 1_000n) / (previous < 0n ? -previous : previous);
-    return `${tenths >= 0n ? "+" : ""}${Number(tenths) / 10}%`;
+/** Settlements in the range by current state; a state not named here keeps its raw name. */
+function stateBreakdown(settlements: readonly SettlementDto[]): readonly RankedInsight[] {
+  const counts = new Map<string, number>();
+  for (const settlement of settlements) {
+    counts.set(settlement.state, (counts.get(settlement.state) ?? 0) + 1);
   }
-  if (typeof current !== "number" || typeof previous !== "number") return "—";
-  if (previous === 0) return current === 0 ? "—" : "New";
-  const change = ((current - previous) / Math.abs(previous)) * 100;
-  return `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`;
+  const total = settlements.length;
+  return [...counts]
+    .map(([key, count]) => ({ key, count, share: total === 0 ? 0 : count / total }))
+    .sort((a, b) => b.count - a.count);
 }
 
-function ComparisonTable({
-  current,
-  previous,
-}: {
-  current: ReturnType<typeof summarizePeriod>;
-  previous: ReturnType<typeof summarizePeriod>;
-}) {
-  const rows = [
-    {
-      label: "Gross volume",
-      current: formatMoneyLocale(money(current.grossUsd, "USD")),
-      previous: formatMoneyLocale(money(previous.grossUsd, "USD")),
-      change: comparisonChange(current.grossUsd, previous.grossUsd),
-    },
-    {
-      label: "Completed payments",
-      current: String(current.completedCount),
-      previous: String(previous.completedCount),
-      change: comparisonChange(current.completedCount, previous.completedCount),
-    },
-    {
-      label: "Conversion rate",
-      current: formatPercent(current.conversionRate),
-      previous: formatPercent(previous.conversionRate),
-      change: comparisonChange(current.conversionRate, previous.conversionRate),
-    },
-    {
-      label: "Average transaction",
-      current: formatMoneyLocale(money(current.averageUsd, "USD")),
-      previous: formatMoneyLocale(money(previous.averageUsd, "USD")),
-      change: comparisonChange(current.averageUsd, previous.averageUsd),
-    },
-    {
-      label: "Median completion",
-      current: formatDuration(current.completion.medianSeconds),
-      previous: formatDuration(previous.completion.medianSeconds),
-      change: comparisonChange(current.completion.medianSeconds, previous.completion.medianSeconds),
-    },
-  ];
+function StatusBox({ settlements }: { readonly settlements: readonly SettlementDto[] }) {
+  const settled = settlements.filter(isSettled).length;
+  const rate =
+    settlements.length === 0 ? undefined : Math.round((settled / settlements.length) * 100);
 
   return (
-    <Card className="gap-4 rounded-2xl p-6 lg:p-8">
-      <CardTitle hint="The latest thirty days compared with the thirty days immediately before them.">
-        Previous period comparison
-      </CardTitle>
-      <Table>
-        <TableCaption>Current 30 days versus previous 30 days</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Metric</TableHead>
-            <TableHead className="text-right">Current</TableHead>
-            <TableHead className="text-right">Previous</TableHead>
-            <TableHead className="text-right">Change</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.label}>
-              <TableCell>{row.label}</TableCell>
-              <TableCell className="text-right tabular-nums">{row.current}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
-                {row.previous}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{row.change}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+    <Box title="Status overview" hint="Settlements in the range, by their current state.">
+      <div className="flex flex-col gap-3 px-6">
+        <span className="text-[34px] leading-[40px] font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[44px] xl:leading-[52px]">
+          {rate === undefined ? "—" : `${rate}%`}
+        </span>
+        <span className="text-sm text-muted-foreground">
+          {settled} of {settlements.length} settled
+        </span>
+      </div>
+      <Breakdown
+        rows={stateBreakdown(settlements)}
+        labelOf={(state) => SETTLEMENT_STATES[state] ?? state}
+      />
+    </Box>
+  );
+}
+
+function MixGrid({ payments }: { readonly payments: readonly PaymentIntentDto[] }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border">
+      <div className="grid grid-cols-1 [clip-path:inset(0_1px_1px_0)] lg:grid-cols-3">
+        <Box title="Payer assets" hint="What payers sent for completed payments.">
+          <Breakdown
+            rows={payerAssetBreakdown(payments)}
+            markOf={(asset) =>
+              asset === "Others" || asset === "Unknown" ? null : (
+                <AssetLogo symbol={asset} size={18} />
+              )
+            }
+          />
+        </Box>
+        <Box title="Networks" hint="The network each completed payment was paid on.">
+          <Breakdown
+            rows={payerNetworkBreakdown(payments)}
+            labelOf={(chain) =>
+              chain === "Others" || chain === "Unknown" ? chain : chainLabel(chain)
+            }
+            markOf={(chain) =>
+              chain === "Others" || chain === "Unknown" ? null : (
+                <ChainLogo chain={chain} size={18} />
+              )
+            }
+          />
+        </Box>
+        <Box
+          title="Payer countries"
+          hint="Country captured at checkout. Older payments without it show as Unknown."
+        >
+          <Breakdown
+            rows={payerCountryBreakdown(payments)}
+            labelOf={(country) =>
+              country === "Unknown" || country === "Others" ? country : countryLabel(country)
+            }
+          />
+        </Box>
+      </div>
+    </div>
   );
 }
 
@@ -523,368 +498,108 @@ function ComparisonTable({
 /* Page                                                                        */
 /* -------------------------------------------------------------------------- */
 
-/**
- * A chart's numbers, reachable without reading the picture.
- *
- * Capped and scrolled rather than allowed to run. Fourteen rows opened in one
- * card makes three cards in a row three different heights, and the section
- * below it moves down the page every time somebody opens one. The cap is a
- * little over five rows, so it is visibly a window onto more rather than a
- * table that happens to fit.
- */
-function DataDisclosure({ summary, children }: { summary: string; children: React.ReactNode }) {
-  return (
-    <details className="group">
-      <summary className="w-fit cursor-pointer list-none text-muted-foreground text-xs underline decoration-input underline-offset-2 hover:text-foreground">
-        {summary}
-      </summary>
-      <div className="mt-3">{children}</div>
-    </details>
+function Dashboards({ data }: { readonly data: AnalyticsResponse }) {
+  const [dashboard, setDashboard] = useState<Dashboard>(dashboardFromHash);
+  const [days, setDays] = useState(30);
+  const [interval, setBucketInterval] = useState<Interval>("day");
+  const [chain, setChain] = useState(ALL);
+  const [asset, setAsset] = useState(ALL);
+
+  const range = lastDays(new Date(), days);
+  const filters: Filters = {
+    chain: chain === ALL ? undefined : chain,
+    asset: asset === ALL ? undefined : asset,
+  };
+  const payments = filterPayments(data.payments, filters);
+  const settlements = filterSettlements(data.settlements, filters);
+  const input = { payments, settlements, range, interval, rates: data.usdRates };
+
+  const networks = optionsOf(
+    data.payments.map((payment) => payment.payment?.chain),
+    "All networks",
+    chainLabel,
   );
-}
-
-/**
- * A card's title, with the explanation behind an icon rather than under it.
- *
- * Three cards in a row have no space for a sentence each, and the sentence is
- * what makes the difference between "volume" and "volume of what, dated when".
- * The tooltip opens on focus as well as hover, so the explanation is not
- * mouse-only.
- */
-function CardTitle({ children, hint }: { children: React.ReactNode; hint: string }) {
-  return (
-    <h3 className="flex items-center gap-1.5 font-medium text-foreground text-sm">
-      {children}
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                aria-label={hint}
-                className="cursor-help text-subtle-foreground transition-colors hover:text-foreground"
-              >
-                <InfoIcon size={14} weight="regular" aria-hidden="true" />
-              </button>
-            }
-          />
-          <TooltipContent>{hint}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </h3>
+  const assets = optionsOf(
+    data.payments.map((payment) => payment.payment?.asset),
+    "All assets",
+    (value) => value,
   );
-}
 
-/**
- * Money, plotted.
- *
- * The Y axis is formatted from the plotted float; the tooltip is formatted from
- * the exact `bigint`. That split is the point — the axis is a ruler and a
- * rounded ruler is fine, while the figure a merchant reads off the tooltip has
- * to be the one in the ledger.
- */
-function volumePlots(points: readonly DayPoint[], asset: AssetCode): readonly Plot[] {
-  return points.map((point) => ({
-    date: point.date,
-    value: Number(point.volume),
-    label: formatMoneyLocale(money(point.volume, asset)),
-    detail: `${point.count} payment${point.count === 1 ? "" : "s"}`,
-  }));
-}
-
-function durationPlots(points: readonly DurationPoint[]): readonly Plot[] {
-  return points.map((point) => ({
-    date: point.date,
-    value: point.seconds,
-    label: formatDuration(point.seconds),
-    detail: `median over ${point.count} payment${point.count === 1 ? "" : "s"}`,
-  }));
-}
-
-/**
- * Pay ins, as the three questions a merchant actually asks of a sales month:
- * how much came in, how many orders it took, and what an order is worth.
- *
- * Lines rather than columns here, against the rule the pay-out chart follows.
- * Revenue, order count and their ratio are read for their trend — is this month
- * climbing — and a line is what a trend is read off. The pay-out chart stays
- * bars, where each day is a discrete arrival rather than a level.
- *
- * All three derive from one bucketing pass, so revenue, orders and their
- * average can never disagree about the same day.
- */
-function PayInsSection({ daily }: { daily: readonly DayPoint[] }) {
-  const usdSymbol = assetSymbol("USD") ?? "USD";
-  const usdDecimals = assetDecimals("USD");
-  const formatUsdTick = (value: number) =>
-    compactMoney(BigInt(Math.round(value)), usdDecimals, usdSymbol);
-  const formatCountTick = (value: number) => String(Math.round(value));
-  const usd = (amount: bigint) => formatMoneyLocale(money(amount, "USD"));
-  const orders = (count: number) => `${count} order${count === 1 ? "" : "s"}`;
-
-  // Integer division on minor units: an average order value is money, and a
-  // float average of two dollar figures is a rounding error waiting to be
-  // charted.
-  const averageOf = (point: DayPoint) =>
-    point.count === 0 ? 0n : point.volume / BigInt(point.count);
-
-  const revenuePoints: readonly Plot[] = daily.map((point) => ({
-    date: point.date,
-    value: Number(point.volume),
-    label: usd(point.volume),
-    detail: orders(point.count),
-  }));
-  const orderPoints: readonly Plot[] = daily.map((point) => ({
-    date: point.date,
-    value: point.count,
-    label: orders(point.count),
-    detail: usd(point.volume),
-  }));
-  const averagePoints: readonly Plot[] = daily.map((point) => ({
-    date: point.date,
-    value: Number(averageOf(point)),
-    label: usd(averageOf(point)),
-    detail: `${usd(point.volume)} over ${orders(point.count)}`,
-  }));
-
-  const totalOrders = daily.reduce((sum, point) => sum + point.count, 0);
-  const totalRevenue = daily.reduce((sum, point) => sum + point.volume, 0n);
-  const periodAverage = totalOrders === 0 ? 0n : totalRevenue / BigInt(totalOrders);
+  function choose(next: Dashboard) {
+    setDashboard(next);
+    window.history.replaceState(null, "", `#${next}`);
+  }
 
   return (
-    <section id="analytics-revenue" className="flex scroll-mt-8 flex-col gap-3">
-      <SectionHeader title="Pay ins" />
-      <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
-        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
-          <CardTitle hint="Gross USD value at each payment's locked settlement rate, dated by when the payment was created.">
-            Revenue · USD
-          </CardTitle>
-          <TrendChart
-            points={revenuePoints}
-            formatTick={formatUsdTick}
-            className="h-56"
-            ariaLabel={`Revenue over the last ${WINDOW_DAYS} days, totaling ${usd(totalRevenue)}.`}
+    <>
+      <PageHeader
+        title="Analytics"
+        className="mb-6"
+        actions={
+          <fieldset aria-label="Analytics filters" className="flex flex-wrap items-center gap-2">
+            <FilterSelect
+              label="Interval"
+              items={INTERVALS}
+              value={interval}
+              onChange={(value) => setBucketInterval(value as Interval)}
+            />
+            <FilterSelect
+              label="Date range"
+              items={RANGES}
+              value={String(days)}
+              onChange={(value) => {
+                const next = Number(value);
+                setDays(next);
+                setBucketInterval(intervalFor(next));
+              }}
+            />
+            <FilterSelect label="Network" items={networks} value={chain} onChange={setChain} />
+            <FilterSelect label="Payer asset" items={assets} value={asset} onChange={setAsset} />
+          </fieldset>
+        }
+      />
+
+      <nav
+        aria-label="Dashboards"
+        className="mb-6 flex gap-1 overflow-x-auto border-border border-b"
+      >
+        {DASHBOARDS.map((entry) => (
+          <button
+            key={entry.value}
+            type="button"
+            aria-current={dashboard === entry.value ? "page" : undefined}
+            onClick={() => choose(entry.value)}
+            className={cn(
+              "-mb-px shrink-0 border-b-2 px-3 pb-3 text-base transition-colors",
+              dashboard === entry.value
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {entry.label}
+          </button>
+        ))}
+      </nav>
+
+      {match(dashboard)
+        .with("revenue", () => (
+          <MetricGrid
+            metrics={metricsOf(REVENUE, { ...input, cumulative: true })}
+            range={range}
+            interval={interval}
           />
-          <p className="text-xs text-muted-foreground tabular-nums">
-            {usd(totalRevenue)} over the last thirty days
-          </p>
-          <DataDisclosure summary="Show the numbers">
-            <Table containerClassName="max-h-64 overflow-y-auto">
-              <TableCaption>Revenue by day</TableCaption>
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Orders</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {daily.map((point) => (
-                  <TableRow key={point.date}>
-                    <TableCell>{dayLabel(point.date)}</TableCell>
-                    <TableCell className="text-right">{usd(point.volume)}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {point.count}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DataDisclosure>
-        </Card>
-
-        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
-          <CardTitle hint="Completed orders per day. An order counts on the day its payment was created, so it sits in the same day as the revenue it produced.">
-            Orders
-          </CardTitle>
-          <TrendChart
-            points={orderPoints}
-            formatTick={formatCountTick}
-            className="h-56"
-            ariaLabel={`Orders over the last ${WINDOW_DAYS} days, totaling ${orders(totalOrders)}.`}
-          />
-          <p className="text-xs text-muted-foreground tabular-nums">
-            {orders(totalOrders)} over the last thirty days
-          </p>
-          <DataDisclosure summary="Show the numbers">
-            <Table containerClassName="max-h-64 overflow-y-auto">
-              <TableCaption>Orders by day</TableCaption>
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead className="text-right">Orders</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {daily.map((point) => (
-                  <TableRow key={point.date}>
-                    <TableCell>{dayLabel(point.date)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{point.count}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DataDisclosure>
-        </Card>
-
-        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
-          <CardTitle hint="Revenue divided by orders, per day. Revenue can climb because more people bought or because each of them spent more, and this is the card that tells those two apart.">
-            Average order value · USD
-          </CardTitle>
-          <TrendChart
-            points={averagePoints}
-            formatTick={formatUsdTick}
-            className="h-56"
-            ariaLabel={`Average order value over the last ${WINDOW_DAYS} days, averaging ${usd(periodAverage)}.`}
-          />
-          <p className="text-xs text-muted-foreground tabular-nums">
-            {usd(periodAverage)} across the whole period
-          </p>
-          <DataDisclosure summary="Show the numbers">
-            <Table containerClassName="max-h-64 overflow-y-auto">
-              <TableCaption>Average order value by day</TableCaption>
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead className="text-right">Average</TableHead>
-                  <TableHead className="text-right">Orders</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {daily.map((point) => (
-                  <TableRow key={point.date}>
-                    <TableCell>{dayLabel(point.date)}</TableCell>
-                    <TableCell className="text-right">{usd(averageOf(point))}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {point.count}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DataDisclosure>
-        </Card>
-      </div>
-    </section>
-  );
-}
-
-/** One section: how much moved, how it ended, how long it took. */
-function MovementSection({
-  title,
-  asset,
-  daily,
-  statuses,
-  durations,
-  volumeHint,
-  statusHint,
-  durationHint,
-  durationSummary,
-}: {
-  title: string;
-  asset: AssetCode;
-  daily: readonly DayPoint[];
-  statuses: readonly StatusSlice[];
-  durations: readonly DurationPoint[];
-  volumeHint: string;
-  statusHint: string;
-  durationHint: string;
-  durationSummary?: string;
-}) {
-  const decimals = assetDecimals(asset);
-  const symbol = assetSymbol(asset) ?? asset;
-  // Minor units back to a `bigint` for the axis label, which is the only place
-  // a plotted float meets the money formatter.
-  const formatMoneyTick = (value: number) =>
-    compactMoney(BigInt(Math.round(value)), decimals, symbol);
-
-  return (
-    <section
-      id={title === "Pay outs" ? "analytics-payouts" : undefined}
-      className="flex scroll-mt-8 flex-col gap-3"
-    >
-      <SectionHeader title={title} />
-      <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
-        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
-          <CardTitle hint={volumeHint}>Transaction volume · {asset}</CardTitle>
-          {/* Bars: a day's takings are a discrete quantity, and a line
-              between two of them draws a value that never existed. Completion
-              time stays a line — a median is a level, and it does hold
-              between two readings. */}
-          <TrendBars
-            points={volumePlots(daily, asset)}
-            formatTick={formatMoneyTick}
-            className="h-56"
-          />
-          <DataDisclosure summary="Show the numbers">
-            <Table containerClassName="max-h-64 overflow-y-auto">
-              <TableCaption>Volume by day</TableCaption>
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead className="text-right">Volume</TableHead>
-                  <TableHead className="text-right">Payments</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {daily.map((point) => (
-                  <TableRow key={point.date}>
-                    <TableCell>{dayLabel(point.date)}</TableCell>
-                    <TableCell className="text-right">
-                      {formatMoneyLocale(money(point.volume, asset))}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {point.count}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DataDisclosure>
-        </Card>
-
-        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
-          <CardTitle hint={statusHint}>Status overview</CardTitle>
-          <StatusOverview slices={statuses} />
-        </Card>
-
-        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
-          <CardTitle hint={durationHint}>Completion time</CardTitle>
-          <TrendChart
-            points={durationPlots(durations)}
-            formatTick={formatDuration}
-            className="h-56"
-            ariaLabel={`Median settlement completion time over the last ${WINDOW_DAYS} days.`}
-          />
-          {durationSummary !== undefined && (
-            <p className="text-xs text-muted-foreground tabular-nums">{durationSummary}</p>
-          )}
-          <DataDisclosure summary="Show the numbers">
-            <Table containerClassName="max-h-64 overflow-y-auto">
-              <TableCaption>Median completion time by day</TableCaption>
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead className="text-right">Median</TableHead>
-                  <TableHead className="text-right">Payments</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {durations.map((point) => (
-                  <TableRow key={point.date}>
-                    <TableCell>{dayLabel(point.date)}</TableCell>
-                    <TableCell className="text-right">{formatDuration(point.seconds)}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {point.count}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </DataDisclosure>
-        </Card>
-      </div>
-    </section>
+        ))
+        .with("orders", () => (
+          <MetricGrid metrics={metricsOf(ORDERS, input)} range={range} interval={interval} />
+        ))
+        .with("settlements", () => (
+          <MetricGrid metrics={metricsOf(SETTLEMENTS, input)} range={range} interval={interval}>
+            <StatusBox settlements={settlementsInRange(settlements, range)} />
+          </MetricGrid>
+        ))
+        .with("mix", () => <MixGrid payments={paymentsInRange(payments, range)} />)
+        .exhaustive()}
+    </>
   );
 }
 
@@ -893,139 +608,44 @@ function Analytics() {
 
   return match(analytics)
     .with({ status: "pending" }, () => (
-      <PageLoader label="Loading analytics" className="min-h-128" />
+      <>
+        <PageHeader title="Analytics" />
+        <PageLoader label="Loading analytics" className="min-h-128" />
+      </>
     ))
     .with({ status: "error" }, ({ error }) => (
-      <QueryError
-        message={error instanceof ApiError ? error.message : "Failed to load analytics"}
-        retry={() => void analytics.refetch()}
-        retrying={analytics.isFetching}
-      />
+      <>
+        <PageHeader title="Analytics" />
+        <QueryError
+          message={error instanceof ApiError ? error.message : "Failed to load analytics"}
+          retry={() => void analytics.refetch()}
+          retrying={analytics.isFetching}
+        />
+      </>
     ))
-    .with({ status: "success" }, ({ data }) => {
-      const payments = data.payments;
-      const settlements = data.settlements;
-      const periods = reportingPeriods(new Date());
-      const currentPayments = paymentsIn(payments, periods.current);
-      const previousPayments = paymentsIn(payments, periods.previous);
-      const currentSettlements = settlementsIn(settlements, periods.current);
-      const previousSettlements = settlementsIn(settlements, periods.previous);
-      const currentInsight = summarizePeriod(currentPayments, settlements);
-      const previousInsight = summarizePeriod(previousPayments, settlements);
-
-      const rates = data.usdRates;
-      const payIns = payInMovements(currentPayments, settlements);
-
-      const payOuts = payOutMovements(currentSettlements, rates);
-      const payInDaily = bucketByDay(payIns);
-      const payOutDaily = bucketByDay(payOuts);
-      const totalVolume = settledUsd(currentSettlements, (row) => row.netAmount, rates);
-      const totalFees = settledUsd(currentSettlements, (row) => row.fee, rates);
-      const payout = (amount: bigint) =>
-        formatMoneyLocale(money(amount, "USD"), { trimZeroFraction: true });
-      const assetMix = payerAssetBreakdown(currentPayments);
-      const countryMix = payerCountryBreakdown(currentPayments);
-      const previousNet = settledUsd(previousSettlements, (row) => row.netAmount, rates);
-
-      const netChange = comparisonChange(totalVolume, previousNet);
-
-      return (
-        <div className="flex flex-col gap-10">
-          <StatGrid id="analytics-overview" className="scroll-mt-8 rounded-2xl xl:grid-cols-5">
-            <Stat
-              label="Gross volume · USD"
-              value={formatMoneyLocale(money(currentInsight.grossUsd, "USD"), {
-                trimZeroFraction: true,
-              })}
-              hint={`Before fees, across ${currentInsight.completedCount} completed payment${currentInsight.completedCount === 1 ? "" : "s"}.`}
-            />
-            <Stat
-              label="Net settled · USD"
-              value={payout(totalVolume)}
-              hint={`${netChange} versus the previous thirty days.`}
-            />
-            <Stat
-              label="Fees · USD"
-              value={payout(totalFees)}
-              hint="Fees on completed settlements."
-            />
-            <Stat
-              label="Conversion rate"
-              value={formatPercent(currentInsight.conversionRate)}
-              hint={`${currentInsight.completedCount} of ${currentInsight.paymentCount} payment intents completed.`}
-            />
-            <Stat
-              label="Average transaction · USD"
-              value={formatMoneyLocale(money(currentInsight.averageUsd, "USD"), {
-                trimZeroFraction: true,
-              })}
-              hint="Gross USD volume by divided."
-            />
-          </StatGrid>
-
-          {payments.length === 0 && (
-            <Empty>
-              <EmptyMedia>
-                <ChartBarIcon size={ICON_CARD} aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>Charts appear after the first completed payment.</EmptyTitle>
-              <EmptyDescription>
-                Take a payment to begin tracking volume and settlement.
-              </EmptyDescription>
-              <EmptyAction>
-                <a href="/links" className={buttonVariants()}>
-                  Take your first payment
-                </a>
-              </EmptyAction>
-            </Empty>
-          )}
-
-          <PayInsSection daily={payInDaily} />
-
-          <MovementSection
-            title="Pay outs"
-            asset="USD"
-            daily={payOutDaily}
-            statuses={statusesOf(
-              currentSettlements.map((settlement) => settlement.state),
-              PAY_OUT_STATUS,
-            )}
-            durations={bucketDurations(payOuts)}
-            volumeHint="What reached you, net of fee, in USD across every settlement asset, dated by when it settled."
-            statusHint="Settlements completed or updated in the last thirty days, by current state."
-            durationHint="Median time from payment to settlement, per day."
-          />
-
-          <section id="analytics-payment-mix" className="flex scroll-mt-8 flex-col gap-3">
-            <SectionHeader title="Payment mix" />
-            <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-2">
-              <Card className="min-h-64 gap-5 rounded-none border-0 p-6 lg:p-8">
-                <CardTitle hint="Assets buyers used for completed payments in the current period.">
-                  Payer assets
-                </CardTitle>
-                <PayerMix rows={assetMix} withLogo />
-              </Card>
-              <Card className="min-h-64 gap-5 rounded-none border-0 p-6 lg:p-8">
-                <CardTitle hint="Country captured at checkout. Older payments without country metadata remain Unknown.">
-                  Payer countries
-                </CardTitle>
-                <PayerMix
-                  rows={countryMix}
-                  labelOf={(value) =>
-                    value === "Unknown" || value === "Others" ? value : countryLabel(value)
-                  }
-                />
-              </Card>
-            </div>
-          </section>
-
-          <section id="analytics-comparison" className="flex scroll-mt-8 flex-col gap-3">
-            <SectionHeader title="Period comparison" />
-            <ComparisonTable current={currentInsight} previous={previousInsight} />
-          </section>
-        </div>
-      );
-    })
+    .with({ status: "success" }, ({ data }) =>
+      data.payments.length === 0 ? (
+        <>
+          <PageHeader title="Analytics" />
+          <Empty>
+            <EmptyMedia>
+              <ChartBarIcon size={ICON_CARD} aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>Charts appear after the first payment.</EmptyTitle>
+            <EmptyDescription>
+              Take a payment to begin tracking revenue and settlement.
+            </EmptyDescription>
+            <EmptyAction>
+              <a href="/links" className={buttonVariants()}>
+                Take your first payment
+              </a>
+            </EmptyAction>
+          </Empty>
+        </>
+      ) : (
+        <Dashboards data={data} />
+      ),
+    )
     .exhaustive();
 }
 
