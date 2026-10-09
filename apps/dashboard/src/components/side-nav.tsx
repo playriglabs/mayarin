@@ -40,7 +40,7 @@ export default function SideNav({
     <nav
       aria-label="Primary"
       data-sidebar-nav
-      className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-5 py-5"
+      className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-3 py-3"
     >
       {NAV_GROUPS.map((group) => {
         const items = group.items.filter(
@@ -59,7 +59,7 @@ export default function SideNav({
             <h2
               id={`nav-${group.label.toLowerCase()}`}
               data-sidebar-section-label
-              className="mb-2 block text-xs font-medium tracking-[0.08em] text-sidebar-muted-foreground/65 uppercase"
+              className="mb-1.5 block px-2 text-[10px] font-medium tracking-[0.1em] text-sidebar-muted-foreground/60 uppercase"
             >
               {group.label}
             </h2>
@@ -76,25 +76,23 @@ export default function SideNav({
                     data-tour={`nav-${href}`}
                     title={label}
                     className={cn(
-                      "relative flex min-h-10 shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-base transition-colors duration-200",
+                      "relative flex min-h-11 shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-200",
                       active
                         ? "bg-sidebar-accent font-medium text-sidebar-foreground"
                         : "font-normal text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                     )}
                   >
-                    {active && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-sidebar-marker"
-                      />
-                    )}
                     <IconComponent
                       size={SIDEBAR_ICON_SIZE}
                       weight={active ? "fill" : "regular"}
                       aria-hidden="true"
-                      className={active ? "text-sidebar-marker" : "text-sidebar-muted-foreground"}
+                      className={
+                        active ? "text-sidebar-foreground" : "text-sidebar-muted-foreground"
+                      }
                     />
-                    <span data-sidebar-nav-label>{label}</span>
+                    <span data-sidebar-nav-label className="text-base">
+                      {label}
+                    </span>
                     {(counts[href] ?? 0) > 0 && (
                       <span
                         data-sidebar-nav-label

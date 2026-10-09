@@ -1,4 +1,4 @@
-import { ArrowLineLeftIcon } from "@phosphor-icons/react";
+import { CaretLineLeftIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -32,7 +32,7 @@ export default function SidebarToggle() {
       aria-expanded={!collapsed}
       aria-controls="dashboard-sidebar"
     >
-      <ArrowLineLeftIcon
+      <CaretLineLeftIcon
         size={20}
         weight="bold"
         aria-hidden="true"

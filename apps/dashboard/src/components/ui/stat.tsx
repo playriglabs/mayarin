@@ -30,21 +30,28 @@ function Stat({
   hint,
   icon,
   className,
+  valueClassName,
   ...props
 }: {
   label: string;
   value: string;
   hint?: string;
   icon?: React.ReactNode;
+  valueClassName?: string;
 } & React.ComponentProps<"div">) {
   return (
     <div data-slot="stat" className={cn("flex flex-col gap-2 bg-card p-4", className)} {...props}>
-      <span className="label text-muted-foreground">{label}</span>
-      <span className="flex items-center gap-2 text-2xl font-medium text-foreground tabular-nums">
+      <span className="label text-base text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "flex items-center gap-2 text-2xl font-medium text-foreground tabular-nums",
+          valueClassName,
+        )}
+      >
         {icon}
         {value}
       </span>
-      {hint !== undefined && <span className="text-xs text-subtle-foreground mt-1">{hint}</span>}
+      {hint !== undefined && <span className="text-sm text-subtle-foreground mt-1">{hint}</span>}
     </div>
   );
 }

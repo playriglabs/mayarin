@@ -27,6 +27,13 @@ const { title = "Sign in" } = Astro.props;
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link
+      rel="preload"
+      href="/fonts/PPNeueMontreal-VariableUpright.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
     <script is:inline>
       // Before first paint. A stored choice wins; a fresh browser follows the OS.
       const storedTheme = localStorage.getItem("mayarin-theme");

@@ -17,6 +17,13 @@ import SocialMeta from "../components/social-meta.astro";
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link
+      rel="preload"
+      href="/fonts/PPNeueMontreal-VariableUpright.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
     <script is:inline>
       const storedTheme = localStorage.getItem("mayarin-theme");
       const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches

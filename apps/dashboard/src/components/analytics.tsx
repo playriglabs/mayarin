@@ -319,21 +319,27 @@ function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
     return <p className="py-14 text-center text-subtle-foreground text-xs">Nothing yet.</p>;
   }
 
+  const completed = slices
+    .filter((slice) => slice.tone === "success")
+    .reduce((sum, slice) => sum + slice.count, 0);
+  const completionRate = Math.round((completed / total) * 100);
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* No transform at all: it fades in rather than growing. A `scaleX`
-          rasterises the bar's edges through a composited layer, and this is
-          twelve pixels high — every rounding decision is a visible fraction of
-          it. `shrink-0` is not cosmetic either: these widths are the data, and
-          flex is otherwise entitled to shave a percentage that does not divide
-          evenly. */}
-      <motion.div
-        aria-hidden="true"
-        className="flex h-3 w-full overflow-hidden"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-      >
+    <div className="flex h-full flex-col gap-6">
+      <div className="flex items-end justify-between gap-6 border-border border-b pb-6">
+        <div className="flex flex-col gap-2">
+          <span className="text-muted-foreground text-xs">Settlement completion</span>
+          <span className="font-medium text-[42px] leading-none tracking-[-0.04em] tabular-nums">
+            {completionRate}%
+          </span>
+        </div>
+        <div className="flex flex-col items-end gap-2 text-right">
+          <span className="text-muted-foreground text-xs">Total settlements</span>
+          <span className="font-medium text-2xl tabular-nums">{total}</span>
+        </div>
+      </div>
+
+      <div aria-hidden="true" className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
         {slices.map((slice) => (
           <span
             key={slice.label}
@@ -341,18 +347,33 @@ function StatusOverview({ slices }: { slices: readonly StatusSlice[] }) {
             style={{ width: `${(slice.count / total) * 100}%` }}
           />
         ))}
-      </motion.div>
+      </div>
 
-      <ul className="flex flex-col gap-2.5">
+      <ul className="flex flex-col gap-4">
         {slices.map((slice) => (
-          <li key={slice.label} className="flex items-center justify-between gap-3 text-xs">
-            <span className="flex items-center gap-2">
-              <span aria-hidden="true" className={cn("size-2.5 shrink-0", TONE_FILL[slice.tone])} />
-              <span className="text-foreground">{slice.label}</span>
-            </span>
-            <span className="text-muted-foreground">
-              {slice.count} · {Math.round((slice.count / total) * 100)}%
-            </span>
+          <li key={slice.label} className="flex flex-col gap-2.5 text-xs">
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={cn("size-2.5 shrink-0 rounded-sm", TONE_FILL[slice.tone])}
+                />
+                <span className="text-foreground">{slice.label}</span>
+              </span>
+              <span className="text-muted-foreground tabular-nums">
+                {slice.count} · {Math.round((slice.count / total) * 100)}%
+              </span>
+            </div>
+            <div
+              role="img"
+              aria-label={`${slice.label}: ${slice.count} settlements, ${Math.round((slice.count / total) * 100)} percent`}
+              className="h-1.5 overflow-hidden rounded-full bg-muted"
+            >
+              <span
+                className={cn("block h-full rounded-full", TONE_FILL[slice.tone])}
+                style={{ width: `${(slice.count / total) * 100}%` }}
+              />
+            </div>
           </li>
         ))}
       </ul>
@@ -467,7 +488,7 @@ function ComparisonTable({
   ];
 
   return (
-    <Card className="gap-4">
+    <Card className="gap-4 rounded-2xl p-6 lg:p-8">
       <CardTitle hint="The latest thirty days compared with the thirty days immediately before them.">
         Previous period comparison
       </CardTitle>
@@ -631,14 +652,19 @@ function PayInsSection({ daily }: { daily: readonly DayPoint[] }) {
   const periodAverage = totalOrders === 0 ? 0n : totalRevenue / BigInt(totalOrders);
 
   return (
-    <section className="flex flex-col gap-3">
+    <section id="analytics-revenue" className="flex scroll-mt-8 flex-col gap-3">
       <SectionHeader title="Pay ins" />
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="gap-4">
+      <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
+        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
           <CardTitle hint="Gross USD value at each payment's locked settlement rate, dated by when the payment was created.">
             Revenue · USD
           </CardTitle>
-          <TrendChart points={revenuePoints} formatTick={formatUsdTick} />
+          <TrendChart
+            points={revenuePoints}
+            formatTick={formatUsdTick}
+            className="h-56"
+            ariaLabel={`Revenue over the last ${WINDOW_DAYS} days, totaling ${usd(totalRevenue)}.`}
+          />
           <p className="text-xs text-muted-foreground tabular-nums">
             {usd(totalRevenue)} over the last thirty days
           </p>
@@ -667,11 +693,16 @@ function PayInsSection({ daily }: { daily: readonly DayPoint[] }) {
           </DataDisclosure>
         </Card>
 
-        <Card className="gap-4">
+        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
           <CardTitle hint="Completed orders per day. An order counts on the day its payment was created, so it sits in the same day as the revenue it produced.">
             Orders
           </CardTitle>
-          <TrendChart points={orderPoints} formatTick={formatCountTick} />
+          <TrendChart
+            points={orderPoints}
+            formatTick={formatCountTick}
+            className="h-56"
+            ariaLabel={`Orders over the last ${WINDOW_DAYS} days, totaling ${orders(totalOrders)}.`}
+          />
           <p className="text-xs text-muted-foreground tabular-nums">
             {orders(totalOrders)} over the last thirty days
           </p>
@@ -696,11 +727,16 @@ function PayInsSection({ daily }: { daily: readonly DayPoint[] }) {
           </DataDisclosure>
         </Card>
 
-        <Card className="gap-4">
+        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
           <CardTitle hint="Revenue divided by orders, per day. Revenue can climb because more people bought or because each of them spent more, and this is the card that tells those two apart.">
             Average order value · USD
           </CardTitle>
-          <TrendChart points={averagePoints} formatTick={formatUsdTick} />
+          <TrendChart
+            points={averagePoints}
+            formatTick={formatUsdTick}
+            className="h-56"
+            ariaLabel={`Average order value over the last ${WINDOW_DAYS} days, averaging ${usd(periodAverage)}.`}
+          />
           <p className="text-xs text-muted-foreground tabular-nums">
             {usd(periodAverage)} across the whole period
           </p>
@@ -763,16 +799,23 @@ function MovementSection({
     compactMoney(BigInt(Math.round(value)), decimals, symbol);
 
   return (
-    <section className="flex flex-col gap-3">
+    <section
+      id={title === "Pay outs" ? "analytics-payouts" : undefined}
+      className="flex scroll-mt-8 flex-col gap-3"
+    >
       <SectionHeader title={title} />
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="gap-4">
+      <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
+        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
           <CardTitle hint={volumeHint}>Transaction volume · {asset}</CardTitle>
           {/* Bars: a day's takings are a discrete quantity, and a line
               between two of them draws a value that never existed. Completion
               time stays a line — a median is a level, and it does hold
               between two readings. */}
-          <TrendBars points={volumePlots(daily, asset)} formatTick={formatMoneyTick} />
+          <TrendBars
+            points={volumePlots(daily, asset)}
+            formatTick={formatMoneyTick}
+            className="h-56"
+          />
           <DataDisclosure summary="Show the numbers">
             <Table containerClassName="max-h-64 overflow-y-auto">
               <TableCaption>Volume by day</TableCaption>
@@ -800,14 +843,19 @@ function MovementSection({
           </DataDisclosure>
         </Card>
 
-        <Card className="gap-4">
+        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
           <CardTitle hint={statusHint}>Status overview</CardTitle>
           <StatusOverview slices={statuses} />
         </Card>
 
-        <Card className="gap-4">
+        <Card className="min-h-104 gap-5 rounded-none border-0 p-6 lg:p-8">
           <CardTitle hint={durationHint}>Completion time</CardTitle>
-          <TrendChart points={durationPlots(durations)} formatTick={formatDuration} />
+          <TrendChart
+            points={durationPlots(durations)}
+            formatTick={formatDuration}
+            className="h-56"
+            ariaLabel={`Median settlement completion time over the last ${WINDOW_DAYS} days.`}
+          />
           {durationSummary !== undefined && (
             <p className="text-xs text-muted-foreground tabular-nums">{durationSummary}</p>
           )}
@@ -868,33 +916,6 @@ function Analytics() {
       const rates = data.usdRates;
       const payIns = payInMovements(currentPayments, settlements);
 
-      if (payments.length === 0) {
-        return (
-          <div className="flex flex-col gap-8">
-            <StatGrid>
-              <Stat label="Payments" value={String(payments.length)} hint="Across all payments." />
-              <Stat label="Completed" value="0" hint="Nothing to chart yet." />
-              <Stat label="Volume" value="—" hint="No completed payments." />
-              <Stat label="Busiest day" value="—" hint="No completed payments." />
-            </StatGrid>
-            <Empty>
-              <EmptyMedia>
-                <ChartBarIcon size={ICON_CARD} aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle>Charts appear after the first completed payment.</EmptyTitle>
-              <EmptyDescription>
-                Take a payment to begin tracking volume and settlement.
-              </EmptyDescription>
-              <EmptyAction>
-                <a href="/links" className={buttonVariants()}>
-                  Take your first payment
-                </a>
-              </EmptyAction>
-            </Empty>
-          </div>
-        );
-      }
-
       const payOuts = payOutMovements(currentSettlements, rates);
       const payInDaily = bucketByDay(payIns);
       const payOutDaily = bucketByDay(payOuts);
@@ -909,8 +930,8 @@ function Analytics() {
       const netChange = comparisonChange(totalVolume, previousNet);
 
       return (
-        <div className="flex flex-col gap-8">
-          <StatGrid className="xl:grid-cols-5">
+        <div className="flex flex-col gap-10">
+          <StatGrid id="analytics-overview" className="scroll-mt-8 rounded-2xl xl:grid-cols-5">
             <Stat
               label="Gross volume · USD"
               value={formatMoneyLocale(money(currentInsight.grossUsd, "USD"), {
@@ -938,38 +959,53 @@ function Analytics() {
               value={formatMoneyLocale(money(currentInsight.averageUsd, "USD"), {
                 trimZeroFraction: true,
               })}
-              hint="Gross USD volume divided by completed payments."
+              hint="Gross USD volume by divided."
             />
           </StatGrid>
 
-          <PayInsSection daily={payInDaily} />
-
-          {currentSettlements.length > 0 && (
-            <MovementSection
-              title="Pay outs"
-              asset="USD"
-              daily={payOutDaily}
-              statuses={statusesOf(
-                currentSettlements.map((settlement) => settlement.state),
-                PAY_OUT_STATUS,
-              )}
-              durations={bucketDurations(payOuts)}
-              volumeHint="What reached you, net of fee, in USD across every settlement asset, dated by when it settled."
-              statusHint="Settlements completed or updated in the last thirty days, by current state."
-              durationHint="Median time from payment to settlement, per day."
-            />
+          {payments.length === 0 && (
+            <Empty>
+              <EmptyMedia>
+                <ChartBarIcon size={ICON_CARD} aria-hidden="true" />
+              </EmptyMedia>
+              <EmptyTitle>Charts appear after the first completed payment.</EmptyTitle>
+              <EmptyDescription>
+                Take a payment to begin tracking volume and settlement.
+              </EmptyDescription>
+              <EmptyAction>
+                <a href="/links" className={buttonVariants()}>
+                  Take your first payment
+                </a>
+              </EmptyAction>
+            </Empty>
           )}
 
-          <section className="flex flex-col gap-3">
+          <PayInsSection daily={payInDaily} />
+
+          <MovementSection
+            title="Pay outs"
+            asset="USD"
+            daily={payOutDaily}
+            statuses={statusesOf(
+              currentSettlements.map((settlement) => settlement.state),
+              PAY_OUT_STATUS,
+            )}
+            durations={bucketDurations(payOuts)}
+            volumeHint="What reached you, net of fee, in USD across every settlement asset, dated by when it settled."
+            statusHint="Settlements completed or updated in the last thirty days, by current state."
+            durationHint="Median time from payment to settlement, per day."
+          />
+
+          <section id="analytics-payment-mix" className="flex scroll-mt-8 flex-col gap-3">
             <SectionHeader title="Payment mix" />
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="gap-4">
+            <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-2">
+              <Card className="min-h-64 gap-5 rounded-none border-0 p-6 lg:p-8">
                 <CardTitle hint="Assets buyers used for completed payments in the current period.">
                   Payer assets
                 </CardTitle>
                 <PayerMix rows={assetMix} withLogo />
               </Card>
-              <Card className="gap-4">
+              <Card className="min-h-64 gap-5 rounded-none border-0 p-6 lg:p-8">
                 <CardTitle hint="Country captured at checkout. Older payments without country metadata remain Unknown.">
                   Payer countries
                 </CardTitle>
@@ -983,7 +1019,7 @@ function Analytics() {
             </div>
           </section>
 
-          <section className="flex flex-col gap-3">
+          <section id="analytics-comparison" className="flex scroll-mt-8 flex-col gap-3">
             <SectionHeader title="Period comparison" />
             <ComparisonTable current={currentInsight} previous={previousInsight} />
           </section>

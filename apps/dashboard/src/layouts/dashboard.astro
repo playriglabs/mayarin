@@ -16,7 +16,6 @@ import LogoutButton from "../components/logout-button.tsx";
 import LiveUpdates from "../components/live-updates.tsx";
 import NotificationBell from "../components/notification-bell.tsx";
 import OnboardingTour from "../components/onboarding-tour.tsx";
-import SearchCommand from "../components/search-command.tsx";
 import SidebarToggle from "../components/sidebar-toggle.tsx";
 import SideNav from "../components/side-nav.tsx";
 import ThemeToggle from "../components/theme-toggle.tsx";
@@ -73,6 +72,13 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link
+      rel="preload"
+      href="/fonts/PPNeueMontreal-VariableUpright.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin="anonymous"
+    />
     <script is:inline>
       // Before first paint. A stored choice wins; a fresh browser follows the OS.
       const storedTheme = localStorage.getItem("mayarin-theme");
@@ -96,6 +102,12 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
     </script>
   </head>
   <body class="min-h-full">
+    <a
+      href="#main"
+      class="fixed top-3 left-3 z-100 -translate-y-20 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-transform focus:translate-y-0"
+    >
+      Skip to content
+    </a>
     <Toaster client:load />
     <LiveUpdates client:load />
     <OnboardingTour client:load userId={user.id} permissions={user.permissions} />
@@ -131,17 +143,17 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       tabindex="-1"
     ></button>
 
-    <div data-dashboard-frame class="flex min-h-screen pt-11 md:flex-row">
+    <div data-dashboard-frame class="flex min-h-dvh bg-sidebar pt-11 md:flex-row">
       <!-- The landing's dark tone, brought into the product as its anchor. -->
       <aside
         id="dashboard-sidebar"
         data-sidebar
         data-tone="dark"
-        class="fixed top-11 bottom-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shrink-0 -translate-x-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:sticky md:top-11 md:h-[calc(100dvh-2.75rem)] md:w-72 md:translate-x-0"
+        class="fixed top-11 bottom-0 left-0 z-50 flex w-[min(18rem,calc(100vw-3rem))] shrink-0 -translate-x-full flex-col bg-sidebar text-sidebar-foreground md:sticky md:top-11 md:h-[calc(100dvh-2.75rem)] md:w-64 md:translate-x-0"
       >
         <div
           data-sidebar-header
-          class="flex h-16 items-center justify-between gap-2 border-b border-sidebar-border px-3 md:px-2"
+          class="flex h-16 items-center justify-between gap-1 px-3"
         >
           <a
             href="/"
@@ -169,7 +181,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               height="44"
               class="hidden size-11 dark:block"
             />
-            <span class="-ml-1 font-sans text-[26px] font-medium leading-none tracking-[-0.06em]">
+            <span class="-ml-1 font-sans text-[24px] font-medium leading-none tracking-[-0.055em]">
               mayarin
             </span>
           </a>
@@ -181,7 +193,9 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
           >
             <XIcon size={22} weight="bold" aria-hidden="true" />
           </button>
-          <SidebarToggle client:load />
+          <div class="hidden items-center gap-1 md:flex">
+            <SidebarToggle client:load />
+          </div>
         </div>
 
         <SideNav
@@ -189,6 +203,31 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
           permissions={user.permissions}
           counts={{ "/disputes": openDisputes }}
         />
+
+        <nav
+          aria-label="Dashboard utilities"
+          data-sidebar-utilities
+          class="grid grid-cols-4 gap-1 border-t border-sidebar-border px-3 py-2 [&_button]:border-0 [&_button]:text-sidebar-muted-foreground [&_button:hover]:bg-sidebar-accent [&_button:hover]:text-sidebar-foreground"
+        >
+          <ThemeToggle client:load />
+          <a
+            href="/?tour=1"
+            aria-label="Take the tour"
+            title="Take the tour"
+            class="flex size-10 items-center justify-center rounded-lg text-sidebar-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          >
+            <SignpostIcon size={19} weight="regular" aria-hidden="true" />
+          </a>
+          {user.permissions.includes("payments:read") && <NotificationBell client:load />}
+          <a
+            href="/settings"
+            aria-label="Open account settings"
+            title="Account settings"
+            class="flex size-10 items-center justify-center rounded-lg text-sidebar-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          >
+            <UserIcon size={19} weight="regular" aria-hidden="true" />
+          </a>
+        </nav>
 
         <div
           data-sidebar-profile
@@ -213,11 +252,14 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
         </div>
       </aside>
 
-      <main id="main" class="min-w-0 flex-1">
+      <main
+        id="main"
+        class="ml-2 mr-4 my-4 min-w-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card md:ml-0"
+      >
         <header
-          class="flex h-16 items-center justify-between gap-4 border-border bg-sidebar px-4 md:border-b md:px-8 lg:px-10 dark:bg-background"
+          class="flex h-16 items-center justify-between gap-x-4 gap-y-2 border-b border-border bg-background px-4 md:hidden"
         >
-          <div class="flex items-center gap-3">
+          <div class="flex items-center">
             <button
               type="button"
               data-sidebar-open
@@ -232,7 +274,6 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
               </span>
               <XIcon data-menu-close-icon size={22} weight="bold" aria-hidden="true" />
             </button>
-            <SearchCommand client:load permissions={user.permissions} />
           </div>
 
           <nav aria-label="Dashboard shortcuts" class="flex items-center gap-2">
@@ -257,7 +298,7 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
           </nav>
         </header>
 
-        <div class="w-full gap-8 p-4 md:p-8 lg:pt-5 lg:px-10">
+        <div class="mx-auto w-full max-w-[106rem] p-4 md:px-8 md:py-7 lg:px-16 lg:py-8 xl:px-20">
           <slot />
         </div>
       </main>

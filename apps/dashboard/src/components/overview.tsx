@@ -13,7 +13,6 @@ import { money } from "@mayarin/shared/money";
 import {
   CheckCircleIcon,
   CoinsIcon,
-  HourglassMediumIcon,
   MinusIcon,
   ReceiptIcon,
   TrendUpIcon,
@@ -24,16 +23,10 @@ import { match } from "ts-pattern";
 import { ChainStack } from "@/components/chain-logo";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { QueryError } from "@/components/ui/query-error";
-import {
-  BalanceCardSkeleton,
-  MovementCardSkeleton,
-  RecentListSkeleton,
-  StatGridSkeleton,
-} from "@/components/ui/skeleton";
-import { Stat, StatGrid } from "@/components/ui/stat";
-import { type Plot, TrendBars, TrendChart } from "@/components/ui/trend-chart";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Stat } from "@/components/ui/stat";
+import { type Plot, TrendChart } from "@/components/ui/trend-chart";
 import { useAnalytics } from "@/hooks/analytics";
 import { useWalletBalance, useWalletWithdrawalHistory } from "@/hooks/settings";
 import { payInAmountUsd, settlementsByPaymentIntent } from "@/lib/analytics-movements";
@@ -357,12 +350,12 @@ function BalanceOverview({
   }));
 
   return (
-    <Card className="gap-5">
+    <section className="flex min-h-100 min-w-0 flex-col gap-7 bg-card p-6 lg:p-8">
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div className="flex flex-col gap-3">
-          <span className="text-muted-foreground text-xs tracking-wide">Balance</span>
+          <span className="font-medium text-foreground text-base">Balance</span>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-1">
-            <span className="font-medium text-[30px] text-foreground tracking-tight">
+            <span className="font-medium text-[42px] leading-none text-foreground tracking-[-0.04em]">
               {balanceDisplay(shownTotal, asset)}
             </span>
             <TodayIndicator total={today} asset={asset} />
@@ -399,19 +392,19 @@ function BalanceOverview({
       <TrendChart
         points={points}
         formatTick={(value) => balanceDisplay(BigInt(Math.round(value)), asset)}
-        className="h-40"
+        className="mt-auto h-56"
+        ariaLabel={`Balance over the last ${BALANCE_DAYS} days, ending at ${balanceDisplay(total, asset)}.`}
       />
-    </Card>
+    </section>
   );
 }
 
 /**
- * A section's thirty days, as a sparkline and a total.
+ * A section's thirty days, as a Polar-style line and a total.
  *
- * No axes: at this size they would be most of the picture, and the number
- * beside them is the figure anyone reads. "View more" goes to the analytics
- * page, where the same two sections are drawn in full with their status and
- * completion time beside them.
+ * Date ticks and quiet vertical rules make the reporting window legible while
+ * the value axis stays out of the narrower panel. "View more" goes to the
+ * analytics page for the full movement detail.
  */
 function MovementCard({
   title,
@@ -427,18 +420,19 @@ function MovementCard({
   href: string;
 }) {
   const total = points.reduce((sum, point) => sum + point.total, 0n);
-  const hasMovement = total > 0n;
   // `balanceDisplay`, not the raw locale format: a settlement figure belongs in
   // the same money as the balance above it, and `8,375196 USDC` beside `$ 8,39`
   // is one page quoting itself two ways.
-  const formatted = !hasMovement || asset === undefined ? "—" : balanceDisplay(total, asset);
+  const formatted = asset === undefined ? "—" : balanceDisplay(total, asset);
 
   return (
-    <Card className="gap-4">
+    <section className="flex min-h-100 min-w-0 flex-col gap-6 bg-card p-6 lg:p-8">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="font-medium text-foreground text-sm">{title}</span>
-          <span className="font-medium text-2xl text-foreground">{formatted}</span>
+          <span className="font-medium text-foreground text-base">{title}</span>
+          <span className="font-medium text-[42px] leading-none text-foreground tracking-[-0.04em]">
+            {formatted}
+          </span>
           <span className="text-subtle-foreground text-xs mt-1">{hint}</span>
         </div>
         <a
@@ -449,23 +443,19 @@ function MovementCard({
         </a>
       </div>
 
-      {/* `dailyTotals` deliberately fills the thirty-day window with zeroes,
-          so `points.length` cannot distinguish no activity from real data.
-          An all-zero chart adds only a misleading baseline and hover dates. */}
-      {hasMovement && (
-        <TrendBars
-          points={points.map((point) => ({
-            date: point.date,
-            value: Number(point.total),
-            label: asset === undefined ? "—" : balanceDisplay(point.total, asset),
-            detail: title,
-          }))}
-          formatTick={() => ""}
-          className="h-20"
-          showAxes={false}
-        />
-      )}
-    </Card>
+      <TrendChart
+        points={points.map((point) => ({
+          date: point.date,
+          value: Number(point.total),
+          label: asset === undefined ? "—" : balanceDisplay(point.total, asset),
+          detail: title,
+        }))}
+        formatTick={() => ""}
+        className="mt-auto h-56"
+        showYAxis={false}
+        ariaLabel={`${title} over the last ${MOVEMENT_DAYS} days, totaling ${formatted}.`}
+      />
+    </section>
   );
 }
 
@@ -483,7 +473,7 @@ function MovementCard({
  */
 function RecentPayments({ payments }: { payments: readonly PaymentIntentDto[] }) {
   return (
-    <Card className="gap-4">
+    <section className="flex min-h-80 min-w-0 flex-col gap-4 bg-card p-6 lg:p-8">
       <div className="flex items-center justify-between gap-4">
         <span className="font-medium text-foreground text-sm">Recent payments</span>
         <a
@@ -526,7 +516,49 @@ function RecentPayments({ payments }: { payments: readonly PaymentIntentDto[] })
           ))}
         </ul>
       )}
-    </Card>
+    </section>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <div role="status" aria-live="polite" className="flex flex-col gap-7">
+      <span className="sr-only">Loading overview</span>
+      <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
+        <div className="flex min-h-100 flex-col gap-4 bg-card p-6 lg:col-span-2 lg:p-8">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-11 w-44" />
+          <Skeleton className="h-3 w-72 max-w-full" />
+          <Skeleton className="mt-auto h-56 w-full" />
+        </div>
+        <div className="flex min-h-100 flex-col gap-4 bg-card p-6 lg:p-8">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-11 w-36" />
+          <Skeleton className="h-3 w-52 max-w-full" />
+          <Skeleton className="mt-auto h-56 w-full" />
+        </div>
+        {[0, 1, 2].map((cell) => (
+          <div key={cell} className="flex min-h-44 flex-col gap-3 bg-card p-6">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-10 w-28" />
+            <Skeleton className="mt-auto h-3 w-40 max-w-full" />
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
+        <div className="flex min-h-80 flex-col gap-4 bg-card p-6 lg:col-span-2 lg:p-8">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-11 w-36" />
+          <Skeleton className="mt-auto h-44 w-full" />
+        </div>
+        <div className="flex min-h-80 flex-col gap-4 bg-card p-6 lg:p-8">
+          <Skeleton className="h-4 w-32" />
+          {[0, 1, 2, 3, 4].map((row) => (
+            <Skeleton key={row} className="h-8 w-full" />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -536,26 +568,7 @@ function Overview() {
   const withdrawals = useWalletWithdrawalHistory();
 
   return match(analytics)
-    .with({ status: "pending" }, () => (
-      // The page's own shape, in the order it will be read: the balance beside
-      // the recent list, the four stats, then the two movement cards. A
-      // skeleton that does not match is a layout that rearranges itself under
-      // the reader.
-      <div role="status" aria-live="polite" className="flex flex-col gap-8">
-        <span className="sr-only">Loading overview</span>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="min-w-0 lg:col-span-2">
-            <BalanceCardSkeleton />
-          </div>
-          <RecentListSkeleton />
-        </div>
-        <StatGridSkeleton />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <MovementCardSkeleton />
-          <MovementCardSkeleton />
-        </div>
-      </div>
-    ))
+    .with({ status: "pending" }, () => <OverviewSkeleton />)
     .with({ status: "error" }, ({ error }) => (
       <QueryError
         message={error instanceof ApiError ? error.message : "Failed to load the overview"}
@@ -567,6 +580,7 @@ function Overview() {
       const all = data.payments;
       const completed = all.filter((p) => p.status === "COMPLETED").length;
       const pending = all.filter((p) => IN_PROGRESS.has(p.status)).length;
+      const completionRate = all.length === 0 ? 0 : Math.round((completed / all.length) * 100);
       const volume = volumeOf(data.settlements);
       const rates = balance.data?.usdRates ?? {};
       const settlementsByIntent = settlementsByPaymentIntent(data.settlements);
@@ -604,13 +618,9 @@ function Overview() {
       );
 
       return (
-        <div className="flex flex-col gap-8">
-          {/* The two things a merchant opens this page for, side by side and
-              in the order they ask them: how much do I have, and what just
-              came in. The balance takes two thirds because it carries a chart;
-              the list is a column of rows and does not want the width. */}
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="min-w-0 lg:col-span-2">
+        <div className="flex flex-col gap-7">
+          <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
+            <div className="min-w-0 bg-card lg:col-span-2">
               {/* The balance reads RPC state per chain, so it can still be on
                   its way when the analytics rows have landed. The skeleton is
                   the card's own shape — same figure line, same h-40 chart box —
@@ -618,7 +628,11 @@ function Overview() {
               {balance.isPending ? (
                 <div role="status" aria-live="polite">
                   <span className="sr-only">Loading balance</span>
-                  <BalanceCardSkeleton />
+                  <div className="flex min-h-100 flex-col gap-4 bg-card p-6 lg:p-8">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-11 w-44" />
+                    <Skeleton className="mt-auto h-56 w-full" />
+                  </div>
                 </div>
               ) : (
                 <BalanceOverview
@@ -630,22 +644,24 @@ function Overview() {
                 />
               )}
             </div>
-            <RecentPayments payments={recent} />
-          </div>
-
-          {/* Four across now: the balance has its own card above, where it can
-              carry a chart and the networks it is spread over. Leaving it here
-              as well would state the same figure twice on one screen. */}
-          <StatGrid className="xl:grid-cols-4">
+            <MovementCard
+              title="Revenue"
+              hint="Gross USD value at the locked rate, over the last thirty days."
+              points={payInDaily}
+              asset="USD"
+              href="/analytics"
+            />
             <Stat
               label="Payments"
               value={String(all.length)}
-              hint="Across all payments."
+              hint={`${pending} currently in progress.`}
               icon={<ReceiptIcon size={24} weight="regular" aria-hidden="true" />}
+              className="min-h-44 justify-between p-6"
+              valueClassName="text-[40px] leading-none tracking-[-0.04em]"
             />
             <Stat
-              label="Completed"
-              value={String(completed)}
+              label="Completion rate"
+              value={`${completionRate}%`}
               icon={
                 <CheckCircleIcon
                   size={24}
@@ -654,48 +670,31 @@ function Overview() {
                   className="text-success"
                 />
               }
-              hint={
-                all.length === 0
-                  ? "Nothing yet."
-                  : `${Math.round((completed / all.length) * 100)}% of all payments.`
-              }
-            />
-            <Stat
-              label="In progress"
-              value={String(pending)}
-              hint="Created, confirmed or processing."
-              icon={
-                <HourglassMediumIcon
-                  size={24}
-                  weight="regular"
-                  aria-hidden="true"
-                  className="text-warning"
-                />
-              }
+              hint={`${completed} completed payment${completed === 1 ? "" : "s"}.`}
+              className="min-h-44 justify-between p-6"
+              valueClassName="text-[40px] leading-none tracking-[-0.04em]"
             />
             <Stat
               label="Volume"
               value={volume.value}
               hint={volume.hint}
               icon={<CoinsIcon size={24} weight="regular" aria-hidden="true" />}
+              className="min-h-44 justify-between p-6"
+              valueClassName="text-[40px] leading-none tracking-[-0.04em]"
             />
-          </StatGrid>
+          </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <MovementCard
-              title="Revenue"
-              hint="Gross USD value at the locked rate, over the last thirty days."
-              points={payInDaily}
-              asset="USD"
-              href="/analytics"
-            />
-            <MovementCard
-              title="Pay outs"
-              hint="What reached you, net of fee, over the last thirty days."
-              points={payOutDaily}
-              asset="USD"
-              href="/analytics"
-            />
+          <div className="grid gap-px overflow-hidden rounded-2xl border border-border bg-border lg:grid-cols-3">
+            <div className="min-w-0 bg-card lg:col-span-2">
+              <MovementCard
+                title="Pay outs"
+                hint="What reached you, net of fee, over the last thirty days."
+                points={payOutDaily}
+                asset="USD"
+                href="/analytics"
+              />
+            </div>
+            <RecentPayments payments={recent} />
           </div>
         </div>
       );

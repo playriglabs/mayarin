@@ -1,5 +1,5 @@
-import { Square } from "ldrs/react";
-import "ldrs/react/Square.css";
+import { Squircle } from "ldrs/react";
+import "ldrs/react/Squircle.css";
 import { cn } from "@/lib/utils";
 
 interface PageLoaderProps {
@@ -17,7 +17,7 @@ export function PageLoader({ label, className, size = 48 }: PageLoaderProps) {
     >
       <span className="sr-only">{label}</span>
       <span aria-hidden="true" className="mayarin-square-loader">
-        <Square size={size} stroke={size < 40 ? 3 : 4} color="var(--loader-color)" />
+        <Squircle size={size} stroke={size < 40 ? 3 : 4} color="var(--loader-color)" />
       </span>
     </div>
   );

@@ -128,7 +128,7 @@ import type {
   QuoteLine,
   QuoteResponse,
 } from "@/types/catalog";
-import type { MerchantRailDto } from "@/types/settings";
+import type { MerchantRailDto, RailExclusionDto } from "@/types/settings";
 
 const KIND_OPTIONS: readonly SelectOption[] = [
   { value: "fixed", label: "Fixed amount" },
@@ -352,23 +352,31 @@ function AcceptedRailChips({ rails }: { readonly rails: readonly PaymentLinkRail
 function RailSelector({
   idPrefix,
   rails,
+  unavailable,
   selectedKeys,
   disabled,
   onToggle,
 }: {
   readonly idPrefix: string;
   readonly rails: readonly MerchantRailDto[];
+  readonly unavailable: readonly RailExclusionDto[];
   readonly selectedKeys: readonly string[];
   readonly disabled: boolean;
   readonly onToggle: (key: string) => void;
 }) {
+  const exclusions = [
+    ...new Map(
+      unavailable.map((entry) => [`${entry.chain}:${entry.asset ?? "network"}`, entry]),
+    ).values(),
+  ];
+
   return (
     <FieldSet>
       <FieldLegend className="mb-1">Accepted payment rails</FieldLegend>
       <FieldDescription className="mb-3">
         Choose where buyers may pay this link. Changes apply to new checkouts only.
       </FieldDescription>
-      {rails.length === 0 ? (
+      {rails.length === 0 && exclusions.length === 0 ? (
         <Alert role="status">
           No payment rail is available yet. Configure a verified destination in{" "}
           <a href="/wallets" className="underline">
@@ -377,36 +385,76 @@ function RailSelector({
           .
         </Alert>
       ) : (
-        <div className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
-          {rails.map((rail) => {
-            const key = railKey(rail);
-            const inputId = `${idPrefix}-${key.replace(":", "-")}`;
-            const picked = selectedKeys.includes(key);
-            return (
-              <Label
-                key={key}
-                htmlFor={inputId}
-                className={cn(
-                  "flex min-h-11 cursor-pointer items-center gap-3 border p-3 transition-colors",
-                  picked
-                    ? "border-brand bg-brand-muted dark:border-subtle-foreground dark:bg-primary/5"
-                    : "border-border bg-card hover:border-subtle-foreground hover:bg-muted/50",
-                )}
-              >
-                <Checkbox
-                  id={inputId}
-                  checked={picked}
-                  onCheckedChange={() => onToggle(key)}
-                  disabled={disabled}
-                />
-                <RailMark asset={rail.asset} chain={rail.chain} />
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="font-medium text-foreground text-xs">{rail.asset}</span>
-                  <span className="text-subtle-foreground text-xs">{chainLabel(rail.chain)}</span>
-                </span>
-              </Label>
-            );
-          })}
+        <div className="flex max-h-64 flex-col gap-4 overflow-y-auto pr-1">
+          {rails.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {rails.map((rail) => {
+                const key = railKey(rail);
+                const inputId = `${idPrefix}-${key.replace(":", "-")}`;
+                const picked = selectedKeys.includes(key);
+                return (
+                  <Label
+                    key={key}
+                    htmlFor={inputId}
+                    className={cn(
+                      "flex min-h-11 cursor-pointer items-center gap-3 border p-3 transition-colors",
+                      picked
+                        ? "border-brand bg-brand-muted dark:border-subtle-foreground dark:bg-primary/5"
+                        : "border-border bg-card hover:border-subtle-foreground hover:bg-muted/50",
+                    )}
+                  >
+                    <Checkbox
+                      id={inputId}
+                      checked={picked}
+                      onCheckedChange={() => onToggle(key)}
+                      disabled={disabled}
+                    />
+                    <RailMark asset={rail.asset} chain={rail.chain} />
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-medium text-foreground text-xs">{rail.asset}</span>
+                      <span className="text-subtle-foreground text-xs">
+                        {chainLabel(rail.chain)}
+                      </span>
+                    </span>
+                  </Label>
+                );
+              })}
+            </div>
+          )}
+
+          {exclusions.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="font-medium text-muted-foreground text-xs">Unavailable right now</p>
+              {exclusions.map((entry) => (
+                <div
+                  key={`${entry.chain}:${entry.asset ?? "network"}`}
+                  aria-disabled="true"
+                  className="flex min-h-11 items-center gap-3 border border-border bg-muted/40 p-3"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="size-4 shrink-0 rounded border border-border"
+                  />
+                  {entry.asset === null ? (
+                    <ChainLogo chain={entry.chain} size={28} />
+                  ) : (
+                    <RailMark asset={entry.asset} chain={entry.chain} />
+                  )}
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="font-medium text-muted-foreground text-xs">
+                      {entry.asset ?? chainLabel(entry.chain)}
+                    </span>
+                    <span className="text-subtle-foreground text-xs">
+                      {entry.asset === null ? entry.reason : chainLabel(entry.chain)}
+                    </span>
+                    {entry.asset !== null && (
+                      <span className="text-subtle-foreground text-xs">{entry.reason}</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {rails.length > 0 && selectedKeys.length === 0 && (
@@ -1221,6 +1269,7 @@ function PaymentLinks() {
             <RailSelector
               idPrefix="link-rail"
               rails={payerRails}
+              unavailable={rails.data?.unavailable ?? []}
               selectedKeys={selectedRailKeys}
               disabled={create.isPending}
               onToggle={toggleCreateRail}
@@ -1264,6 +1313,7 @@ function PaymentLinks() {
           <RailSelector
             idPrefix="edit-link-rail"
             rails={payerRails}
+            unavailable={rails.data?.unavailable ?? []}
             selectedKeys={editingRailKeys}
             disabled={update.isPending}
             onToggle={toggleEditRail}

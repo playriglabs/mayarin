@@ -36,6 +36,11 @@ function startOfMonth(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
+function currentCalendarDate(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
 function addMonths(date: Date, amount: number): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + amount, 1));
 }
@@ -77,7 +82,7 @@ function DatePicker({
 }: DatePickerProps) {
   const selected = parseIso(value);
   const minimum = min === undefined ? undefined : parseIso(min);
-  const today = startOfMonth(new Date());
+  const today = currentCalendarDate();
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(selected ?? today));
   const days = useMemo(() => calendarDays(visibleMonth), [visibleMonth]);
@@ -156,18 +161,23 @@ function DatePicker({
                 const iso = toIso(date);
                 const outside = date.getUTCMonth() !== visibleMonth.getUTCMonth();
                 const isSelected = iso === value;
+                const isToday = iso === toIso(today);
                 const disabled = minimum !== undefined && date < minimum;
                 return (
                   <button
                     key={iso}
                     type="button"
                     aria-label={accessibleDateLabel.format(date)}
+                    aria-current={isToday ? "date" : undefined}
                     aria-pressed={isSelected}
                     disabled={disabled}
                     onClick={() => choose(date)}
                     className={cn(
                       "size-9 cursor-pointer text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30",
                       outside && "text-subtle-foreground",
+                      isToday &&
+                        !isSelected &&
+                        "rounded-lg bg-brand-muted font-medium text-brand ring-1 ring-brand ring-inset dark:text-electric dark:ring-electric",
                       isSelected &&
                         "bg-brand text-brand-foreground hover:bg-brand dark:bg-electric dark:text-black",
                     )}
@@ -195,8 +205,7 @@ function DatePicker({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  const now = new Date();
-                  const date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+                  const date = currentCalendarDate();
                   if (minimum === undefined || date >= minimum) choose(date);
                 }}
               >

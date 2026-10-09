@@ -22,23 +22,22 @@ function PageHeader({
     // The bottom hairline is the page's first rule — every surface below
     // hangs from it, which is what makes the pages read as one ledger.
     <header
-      className={cn(
-        "flex flex-wrap items-end justify-between gap-4 mt-3 border-b border-border pb-5 mb-4",
-        className,
-      )}
+      className={cn("mb-7 flex flex-wrap items-center justify-between gap-4", className)}
       {...props}
     >
-      <div className="flex flex-col gap-3">
-        <h1 className="font-display text-[26px] font-medium text-foreground">{title}</h1>
+      <div className="flex flex-col">
+        <h1 className="font-sans text-[28px] font-medium tracking-[-0.025em] text-foreground">
+          {title}
+        </h1>
         {description !== undefined && (
-          <p className="text-base text-muted-foreground">{description}</p>
+          <p className="text-base text-muted-foreground mt-3">{description}</p>
         )}
       </div>
       {(actions !== undefined || (actionHref !== undefined && actionLabel !== undefined)) && (
         <div className="flex items-center gap-2">
           {actions}
           {actionHref !== undefined && actionLabel !== undefined && (
-            <a href={actionHref} className={buttonVariants()}>
+            <a href={actionHref} className={buttonVariants({ size: "default" })}>
               {actionLabel}
             </a>
           )}

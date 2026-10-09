@@ -21,7 +21,13 @@ const SUPPORT: NavItem = {
   icon: BookOpenTextIcon,
 };
 
-export default function SearchCommand({ permissions }: { permissions: readonly Permission[] }) {
+export default function SearchCommand({
+  permissions,
+  compact = false,
+}: {
+  permissions: readonly Permission[];
+  compact?: boolean;
+}) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
@@ -88,16 +94,25 @@ export default function SearchCommand({ permissions }: { permissions: readonly P
       <button
         type="button"
         data-tour="search"
+        aria-label={compact ? "Search dashboard" : undefined}
+        title={compact ? `Search dashboard (${shortcut})` : undefined}
         onClick={() => setOpen(true)}
-        className="flex h-10 w-36 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 text-sm text-subtle-foreground transition-colors hover:bg-muted hover:text-foreground md:w-92"
+        className={cn(
+          "flex h-10 cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-card text-sm text-subtle-foreground transition-colors hover:bg-muted hover:text-foreground",
+          compact
+            ? "w-10 justify-center px-0"
+            : "w-10 justify-center px-0 sm:w-36 sm:justify-between sm:px-3 md:w-92",
+        )}
       >
         <span className="flex min-w-0 items-center gap-2">
           <MagnifyingGlassIcon size={16} aria-hidden="true" className="shrink-0" />
-          <span className="hidden truncate sm:inline">Search</span>
+          {!compact && <span className="hidden truncate sm:inline">Search</span>}
         </span>
-        <kbd className="shrink-0 rounded-lg border border-border px-1.5 py-0.5 text-[10px] font-medium">
-          {shortcut}
-        </kbd>
+        {!compact && (
+          <kbd className="hidden shrink-0 rounded-lg border border-border px-1.5 py-0.5 text-[10px] font-medium sm:block">
+            {shortcut}
+          </kbd>
+        )}
       </button>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>

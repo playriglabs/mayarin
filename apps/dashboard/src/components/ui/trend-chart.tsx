@@ -10,10 +10,9 @@
  * already does correctly.
  *
  * Two departures from its defaults, both deliberate. The hue is the product's
- * single chart colour rather than a per-series palette — length carries
- * magnitude here and colour means only "this is data". And the axes are
- * recessive: no grid, no axis lines, two Y labels and two X labels, because a
- * label under every one of fourteen days collides long before it informs.
+ * single chart blue rather than a per-series palette. The axes stay recessive:
+ * no axis lines, two Y labels, and evenly sampled date ticks over faint dashed
+ * rules so a month reads like a reporting window instead of a sparkline.
  */
 
 import { useId } from "react";
@@ -72,6 +71,15 @@ function axisOf(points: readonly Plot[], count: number) {
   };
 }
 
+/** Evenly spaced date keys keep a month readable without colliding labels. */
+function dateTicks(points: readonly Plot[], count = 7): readonly string[] {
+  if (points.length <= count) return points.map((point) => point.date);
+  return Array.from({ length: count }, (_, index) => {
+    const pointIndex = Math.round((index * (points.length - 1)) / (count - 1));
+    return points[pointIndex]?.date ?? "";
+  });
+}
+
 /**
  * A domain given here is a request, not a rule.
  *
@@ -114,17 +122,16 @@ function ChartTooltip({
  * and axis ticks that thin out as the series grows are all things this library
  * already does correctly.
  *
- * Two departures from its defaults, both deliberate. The hue is the product's
- * single chart colour rather than a per-series palette — length carries
- * magnitude here and colour means only "this is data". And the axes are
- * recessive: no grid, no axis lines, two Y labels and two X labels, because a
- * label under every one of fourteen days collides long before it informs.
+ * The single blue series, faint dashed date grid and sampled labels mirror the
+ * overview's reporting language without letting chart chrome outrank the data.
  */
 export function TrendChart({
   points,
   formatTick,
   className = "h-44",
   showAxes = true,
+  showYAxis = true,
+  ariaLabel,
 }: {
   points: readonly Plot[];
   formatTick: (value: number) => string;
@@ -132,6 +139,10 @@ export function TrendChart({
   className?: string;
   /** Off for a sparkline, where the axes would be most of the picture. */
   showAxes?: boolean;
+  /** A compact metric can keep date context without reserving a value gutter. */
+  showYAxis?: boolean;
+  /** Concise chart summary for readers who cannot perceive the plotted line. */
+  ariaLabel?: string;
 }) {
   const gradientId = useId();
   const axis = axisOf(points, 2);
@@ -141,29 +152,34 @@ export function TrendChart({
   }
 
   return (
-    <div className={cn("w-full", className)}>
+    <div
+      className={cn("w-full", className)}
+      role="img"
+      aria-label={ariaLabel ?? "Time series chart"}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={[...points]} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.25} />
-              <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0.02} />
+              <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.12} />
+              <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
             </linearGradient>
           </defs>
+          {showAxes && (
+            <CartesianGrid horizontal={false} stroke="var(--color-border)" strokeDasharray="5 7" />
+          )}
           {showAxes && (
             <XAxis
               dataKey="date"
               tickFormatter={dayLabel}
-              // First and last only: the reference labels the ends of the window
-              // and nothing between them, which is what fits.
-              ticks={[points[0]?.date ?? "", points[points.length - 1]?.date ?? ""]}
+              ticks={[...dateTicks(points)]}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fill: "var(--color-subtle-foreground)" }}
               interval="preserveStartEnd"
             />
           )}
-          {showAxes && (
+          {showAxes && showYAxis && (
             <YAxis
               width={64}
               tickFormatter={formatTick}
@@ -183,7 +199,7 @@ export function TrendChart({
             type="linear"
             dataKey="value"
             stroke="var(--color-chart-1)"
-            strokeWidth={1.5}
+            strokeWidth={2}
             fill={`url(#${gradientId})`}
             // The dot appears on hover only. Fourteen of them at rest is a
             // series competing with itself for attention.

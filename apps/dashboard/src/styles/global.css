@@ -1,9 +1,16 @@
 @import "tailwindcss";
-@import "@fontsource-variable/manrope";
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/inter-tight";
 @import "@fontsource/instrument-serif/400-italic.css";
 @import "@fontsource-variable/geist-mono";
+
+@font-face {
+  font-family: "PP Neue Montreal";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/PPNeueMontreal-VariableUpright.woff2") format("woff2");
+}
 
 /* Use Geist Mono for digits without changing the surrounding text face. */
 @font-face {
@@ -47,6 +54,17 @@ html[data-testnet-notice-dismissed="true"] [data-dashboard-frame] {
 
 html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   top: 0;
+}
+
+/* Keep the long navigation scrollable without showing a rail inside the
+ * intentionally borderless sidebar. Firefox and WebKit use separate APIs. */
+[data-sidebar-nav] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+[data-sidebar-nav]::-webkit-scrollbar {
+  display: none;
 }
 
 @media (min-width: 48rem) {
@@ -115,15 +133,14 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
 
   --border: #eaeaea;
   --input: #d4d4d4;
-  --ring: #1f6f54;
+  --ring: #2563eb;
 
   /* EXTRA — the third step of the grey hierarchy. shadcn stops at two. */
   --subtle-foreground: #9e9e9e;
 
-  /* EXTRA — the landing's electric green (`--color-accent` there). It reads
-     as a marker and a signal on dark surfaces; it is never a text colour on
-     white, where it cannot pass contrast. */
-  --electric: #0eeb2e;
+  /* EXTRA — the dashboard signal hue. Blue is reserved for focus, charts and
+     selected context; success remains a separate semantic green. */
+  --electric: #2563eb;
 
   /* EXTRA — the sidebar, in shadcn's own sidebar-* names so a registry sidebar
      component is already themed.
@@ -139,15 +156,14 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --sidebar-border: #eaeaea;
   --sidebar-accent: #efefef;
   --sidebar-accent-foreground: #111111;
-  /* Forest here, electric on the dark tone. Both pass 12px text on their own
-     surface; neither passes on the other's. */
-  --sidebar-marker: #1f6f54;
+  /* The marker follows the same blue signal hue in both themes. */
+  --sidebar-marker: #2563eb;
 
   /* EXTRA — brand, and the status colours a payment dashboard needs. Each
      pairs with a wash light enough to sit under 12px text. */
-  --brand: #1f6f54;
+  --brand: #2563eb;
   --brand-foreground: #ffffff;
-  --brand-muted: #eef4f1;
+  --brand-muted: #eff6ff;
 
   --success: #1f6f54;
   --success-muted: #eef4f1;
@@ -158,7 +174,7 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   /* Charts are single-hue by design: length carries magnitude, labels carry
      identity. Categorical mix charts use the additional hues below, with a
      labelled legend so colour is never the only identifier. */
-  --chart-1: #1f6f54;
+  --chart-1: #2563eb;
   --chart-2: #2563eb;
   --chart-3: #c2410c;
   --chart-4: #7c3aed;
@@ -179,15 +195,13 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
  *
  * Colour notes:
  *   - Ink inverts: filled buttons become paper on void.
- *   - The forest brand lifts to `#31b285` so 12px text on it stays readable;
- *     its wash is the landing's `--color-plate`.
- *   - Focus and the chart hue go electric, exactly as the landing does on its
- *     dark sections.
+ *   - Blue carries selection, focus and chart data.
+ *   - Green is kept exclusively for successful payment state.
  */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --background: #0a0a0a;
+  --background: #111111;
   --foreground: #fafafa;
 
   --card: #111111;
@@ -199,27 +213,27 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --primary: #fafafa;
   --primary-foreground: #111111;
 
-  --secondary: #1a1a1a;
+  --secondary: #181818;
   --secondary-foreground: #fafafa;
 
-  --muted: #1a1a1a;
+  --muted: #181818;
   --muted-foreground: #8a8a8a;
 
-  --accent: #1a1a1a;
+  --accent: #181818;
   --accent-foreground: #fafafa;
 
   --destructive: #e5484d;
   --destructive-foreground: #ffffff;
 
-  --border: #1e1e1e;
+  --border: #262626;
   --input: #2e2e2e;
-  --ring: #0eeb2e;
+  --ring: #3b82f6;
 
   --subtle-foreground: #616161;
 
-  --brand: #31b285;
-  --brand-foreground: #050505;
-  --brand-muted: #0b2016;
+  --brand: #60a5fa;
+  --brand-foreground: #07111f;
+  --brand-muted: #101c31;
 
   --success: #0eeb2e;
   --success-muted: #0b2016;
@@ -227,7 +241,7 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --warning-muted: #271f04;
   --destructive-muted: #2a1113;
 
-  --chart-1: #0eeb2e;
+  --chart-1: #3b82f6;
   --chart-2: #60a5fa;
   --chart-3: #fb923c;
   --chart-4: #a78bfa;
@@ -235,18 +249,18 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --chart-6: #fb7185;
   --chart-7: #facc15;
   --chart-8: #818cf8;
-  --loader-color: var(--electric);
+  --loader-color: var(--chart-1);
 
   /* The landing's dark tone, which the sidebar carried in both themes until
      light mode got its own. One step off `--background` so the seam reads
      without a border doing all the work. */
-  --sidebar: #050505;
+  --sidebar: #090909;
   --sidebar-foreground: #fafafa;
   --sidebar-muted-foreground: #8a8a8a;
-  --sidebar-border: #1e1e1e;
-  --sidebar-accent: #121212;
+  --sidebar-border: #242424;
+  --sidebar-accent: #171717;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-marker: var(--electric);
+  --sidebar-marker: var(--chart-1);
 }
 
 /* The login CTA keeps the shared default hover in light mode. Only an
@@ -262,94 +276,22 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   }
 }
 
-/* Sonner follows the app's explicit data-theme rather than the OS preference. */
+/*
+ * Sonner follows the app's explicit data-theme rather than the OS preference.
+ * Neutral on purpose: the popover tokens already flip with data-theme, so one
+ * rule covers light and dark.
+ */
 :root .mayarin-toaster[data-sonner-toaster] {
-  --border-radius: 0;
-  --normal-bg: var(--card);
-  --normal-border: var(--brand);
-  --normal-text: var(--brand);
-}
-
-:root .mayarin-toaster [data-sonner-toast][data-styled="true"] {
-  --toast-color: var(--brand);
-  background: var(--card);
-  border-color: var(--toast-color);
-  color: var(--toast-color);
-}
-
-:root .mayarin-toaster [data-sonner-toast][data-type="success"] {
-  --toast-color: var(--success);
-}
-
-:root .mayarin-toaster [data-sonner-toast][data-type="error"] {
-  --toast-color: var(--destructive);
-}
-
-:root .mayarin-toaster [data-sonner-toast][data-type="warning"] {
-  --toast-color: var(--warning);
+  --border-radius: 0.5rem; /* rounded-lg */
+  --normal-bg: var(--popover);
+  --normal-border: var(--border);
+  --normal-text: var(--popover-foreground);
 }
 
 :root .mayarin-toaster [data-sonner-toast] [data-close-button] {
-  background: var(--card);
-  border-color: var(--toast-color);
-  color: var(--toast-color);
-}
-
-:root .mayarin-toaster [data-sonner-toast] [data-close-button]:hover {
-  background: var(--card);
-  border-color: var(--toast-color);
-  color: var(--toast-color);
-}
-
-:root[data-theme="dark"] .mayarin-toaster[data-sonner-toaster] {
-  --normal-bg: var(--sidebar-border);
-  --normal-border: var(--electric);
-  --normal-text: var(--electric);
-}
-
-:root[data-theme="dark"]
-  .mayarin-toaster
-  [data-sonner-toast][data-styled="true"] {
-  --toast-color: var(--electric);
-  background: var(--sidebar-border);
-  border-color: var(--toast-color);
-  color: var(--toast-color);
-}
-
-:root[data-theme="dark"]
-  .mayarin-toaster
-  [data-sonner-toast][data-styled="true"][data-type="success"] {
-  --toast-color: var(--success);
-}
-
-:root[data-theme="dark"]
-  .mayarin-toaster
-  [data-sonner-toast][data-styled="true"][data-type="error"] {
-  --toast-color: var(--destructive);
-}
-
-:root[data-theme="dark"]
-  .mayarin-toaster
-  [data-sonner-toast][data-styled="true"][data-type="warning"] {
-  --toast-color: var(--warning);
-}
-
-:root[data-theme="dark"]
-  .mayarin-toaster
-  [data-sonner-toast]
-  [data-close-button]:hover {
-  background: var(--sidebar-border);
-  border-color: var(--toast-color);
-  color: var(--toast-color);
-}
-
-:root[data-theme="dark"]
-  .mayarin-toaster
-  [data-sonner-toast]
-  [data-close-button] {
-  background: var(--sidebar-border);
-  border-color: var(--toast-color);
-  color: var(--toast-color);
+  background: var(--popover);
+  border-color: var(--border);
+  color: var(--popover-foreground);
 }
 
 @theme inline {
@@ -429,9 +371,11 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --font-weight-medium: 500;
 
   --font-sans:
-    "Dashboard Numbers", "Manrope Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "PP Neue Montreal", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Inter Tight Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display:
+    "Inter Tight Variable", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
   --font-mono:
     "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -596,6 +540,11 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
     flex-direction: column;
     padding-inline: 1.125rem;
   }
+
+  html[data-sidebar-collapsed="true"] [data-sidebar-utilities] {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
 }
 
 @media (max-width: 47.999rem) {
@@ -690,7 +639,7 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
 
 .mayarin-tour .driver-popover-title {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.4;
 }
 
