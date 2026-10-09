@@ -8,8 +8,8 @@
 
 import type { AssetCode, Money } from "@mayarin/shared";
 
-/** EVM chains Mayarin runs on. Widening this is what adds a network. */
-export const CHAIN_IDS = [
+/** EVM chains Mayarin runs on. */
+export const EVM_CHAINS = [
   "ethereum-sepolia",
   "base",
   "base-sepolia",
@@ -19,10 +19,39 @@ export const CHAIN_IDS = [
   "arc-testnet",
 ] as const;
 
+/** Solana clusters Mayarin runs on. */
+export const SOLANA_CHAINS = ["solana-devnet", "solana-localnet"] as const;
+
+/** Every chain family understood by the platform. */
+export const CHAIN_IDS = [...EVM_CHAINS, ...SOLANA_CHAINS] as const;
+
 export type ChainId = (typeof CHAIN_IDS)[number];
+export type EvmChainId = (typeof EVM_CHAINS)[number];
+export type SolanaChainId = (typeof SOLANA_CHAINS)[number];
 
 export function isChainId(value: unknown): value is ChainId {
   return typeof value === "string" && (CHAIN_IDS as readonly string[]).includes(value);
+}
+
+export function isEvmChainId(value: unknown): value is EvmChainId {
+  return typeof value === "string" && (EVM_CHAINS as readonly string[]).includes(value);
+}
+
+export function isSolanaChainId(value: unknown): value is SolanaChainId {
+  return typeof value === "string" && (SOLANA_CHAINS as readonly string[]).includes(value);
+}
+
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const SOLANA_PUBLIC_KEY = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+/** Lightweight wire validation; adapters still parse addresses canonically. */
+export function isChainAddress(chain: ChainId, address: string): boolean {
+  return isEvmChainId(chain) ? EVM_ADDRESS.test(address) : SOLANA_PUBLIC_KEY.test(address);
+}
+
+/** EVM addresses compare case-insensitively; Solana base58 public keys do not. */
+export function normaliseChainAddress(chain: ChainId, address: string): string {
+  return isEvmChainId(chain) ? address.toLowerCase() : address;
 }
 
 /**
@@ -30,7 +59,7 @@ export function isChainId(value: unknown): value is ChainId {
  * EIP-155 id of a chain is the same everywhere Mayarin runs, so it belongs
  * beside `CHAIN_IDS` rather than in any one deployment's config.
  */
-export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
+export const EVM_CHAIN_IDS: Readonly<Record<EvmChainId, bigint>> = {
   "ethereum-sepolia": 11_155_111n,
   base: 8_453n,
   "base-sepolia": 84_532n,
@@ -43,6 +72,12 @@ export const EVM_CHAIN_IDS: Readonly<Record<ChainId, bigint>> = {
   // than a missing one. Add it when the network answers.
   "arc-testnet": 5_042_002n,
 };
+
+/** Returns the EIP-155 id, refusing a non-EVM chain at the adapter boundary. */
+export function evmChainIdOf(chain: ChainId): bigint {
+  if (!isEvmChainId(chain)) throw new Error(`${chain} is not an EVM chain`);
+  return EVM_CHAIN_IDS[chain];
+}
 
 /**
  * What a chain is called when a person reads it.
@@ -60,6 +95,8 @@ export const CHAIN_LABELS: Readonly<Record<ChainId, string>> = {
   "arbitrum-sepolia": "Arbitrum Sepolia",
   "robinhood-testnet": "Robinhood Testnet",
   "arc-testnet": "Arc Testnet",
+  "solana-devnet": "Solana Devnet",
+  "solana-localnet": "Solana Localnet",
 };
 
 /** The label for a chain, falling back to the identifier for an unknown one. */
@@ -71,6 +108,7 @@ const TRUST_WALLET_CHAIN_LOGOS: Readonly<Record<string, string>> = {
   ethereum: "https://assets-cdn.trustwallet.com/blockchains/ethereum/info/logo.png",
   base: "https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png",
   arbitrum: "https://assets-cdn.trustwallet.com/blockchains/arbitrum/info/logo.png",
+  solana: "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
 };
 
 /** A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet. */
@@ -78,6 +116,8 @@ const MAINNET_OF: Readonly<Record<string, string>> = {
   "ethereum-sepolia": "ethereum",
   "base-sepolia": "base",
   "arbitrum-sepolia": "arbitrum",
+  "solana-devnet": "solana",
+  "solana-localnet": "solana",
 };
 
 /**
@@ -119,8 +159,13 @@ export function isMainnetChain(chain: ChainId): boolean {
  * time, so a chain added above cannot arrive here with a different number. x402
  * names networks this way on the wire; nothing else in the domain does yet.
  */
+const SOLANA_CAIP2: Readonly<Record<SolanaChainId, string>> = {
+  "solana-devnet": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  "solana-localnet": "solana:localnet",
+};
+
 export function caip2Of(chain: ChainId): string {
-  return `eip155:${EVM_CHAIN_IDS[chain]}`;
+  return isEvmChainId(chain) ? `eip155:${EVM_CHAIN_IDS[chain]}` : SOLANA_CAIP2[chain];
 }
 
 /**

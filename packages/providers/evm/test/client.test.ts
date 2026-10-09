@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { paymentRouterAbi } from "@mayarin/contracts";
+import { encodeAbiParameters, encodeEventTopics } from "viem";
 import { EvmChainClient } from "../src/client.ts";
 
 const RPC_URLS = process.env.CHAIN_RPC_URLS;
@@ -52,6 +54,114 @@ describe("EvmChainClient configuration", () => {
         addresses: ["0x0000000000000000000000000000000000000001"],
       }),
     ).rejects.toThrow(/token address/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Settlement indexing
+//
+// Keep this test at the JSON-RPC boundary so it covers the real event filter,
+// windowing, ABI decode, and domain mapping in one pass.
+// ---------------------------------------------------------------------------
+
+const ROUTER = "0x552008c0f6870c2f77e5cc1d2eb9bdff03e30ea0";
+const MERCHANT = "0x9ec7b9ccbd9feb765eb0da23c166f5006a0b2343";
+const REFUND_TO = "0x0000000000000000000000000000000000000009";
+const INPUT_ASSET = "0x0000000000000000000000000000000000000010";
+const SETTLEMENT_ASSET = "0x036cbd53842c5426634e7929541ec2318f3dcf7e";
+const INTENT_ID = `0x${"ab".repeat(32)}` as const;
+
+describe("EVM settlement source", () => {
+  test("reads PaymentCompleted directly from RPC in provider-sized windows", async () => {
+    const requested: { fromBlock: string; toBlock: string; address: string }[] = [];
+    const topics = encodeEventTopics({
+      abi: paymentRouterAbi,
+      eventName: "PaymentCompleted",
+      args: { intentId: INTENT_ID, merchantSafe: MERCHANT, refundTo: REFUND_TO },
+    });
+    const data = encodeAbiParameters(
+      [
+        { type: "address" },
+        { type: "address" },
+        { type: "uint256" },
+        { type: "uint256" },
+        { type: "uint256" },
+        { type: "uint256" },
+        { type: "uint256" },
+      ],
+      [INPUT_ASSET, SETTLEMENT_ASSET, 3_100_000n, 2_990_000n, 10_000n, 100_000n, 2_000n],
+    );
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const body = (await request.json()) as {
+          id: number;
+          method: string;
+          params: [{ fromBlock: string; toBlock: string; address: string }];
+        };
+        if (body.method !== "eth_getLogs") {
+          return Response.json({ jsonrpc: "2.0", id: body.id, result: null });
+        }
+
+        const filter = body.params[0];
+        requested.push(filter);
+        const result =
+          filter.fromBlock === "0xa"
+            ? [
+                {
+                  address: ROUTER,
+                  topics,
+                  data,
+                  blockNumber: "0xb",
+                  blockHash: `0x${"bb".repeat(32)}`,
+                  transactionHash: `0x${"cc".repeat(32)}`,
+                  transactionIndex: "0x2",
+                  logIndex: "0x3",
+                  removed: false,
+                },
+              ]
+            : [];
+        return Response.json({ jsonrpc: "2.0", id: body.id, result });
+      },
+    });
+
+    try {
+      const client = new EvmChainClient({
+        rpcUrls: { "base-sepolia": `http://localhost:${server.port}` },
+        tokens: {},
+        logRange: 2,
+      });
+      const settlements = await client.settlements({
+        chain: "base-sepolia",
+        router: ROUTER,
+        fromBlock: 10n,
+        toBlock: 13n,
+      });
+
+      expect(requested.map(({ fromBlock, toBlock }) => ({ fromBlock, toBlock }))).toEqual([
+        { fromBlock: "0xa", toBlock: "0xb" },
+        { fromBlock: "0xc", toBlock: "0xd" },
+      ]);
+      expect(requested.every(({ address }) => address.toLowerCase() === ROUTER.toLowerCase())).toBe(
+        true,
+      );
+      expect(settlements).toEqual([
+        {
+          chain: "base-sepolia",
+          txHash: `0x${"cc".repeat(32)}`,
+          logIndex: 3,
+          blockNumber: 11n,
+          blockHash: `0x${"bb".repeat(32)}`,
+          intentId: INTENT_ID,
+          merchantSafe: MERCHANT.toLowerCase(),
+          settledAmount: 2_990_000n,
+          fee: 10_000n,
+          refundAmount: 100_000n,
+        },
+      ]);
+    } finally {
+      server.stop(true);
+    }
   });
 });
 

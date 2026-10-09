@@ -1,12 +1,12 @@
 /**
  * Postgres adapters for the merchant-wallet ports (#11).
  *
- * Addresses are lowercased on the way in and compared lowercased on the way
- * out. Case is not a way past the guard, and a unique index over a mixed-case
- * column would let the same address be claimed twice.
+ * EVM addresses are lowercased on the way in; Solana base58 is preserved.
+ * Comparisons use the same chain-aware form, so EVM case cannot bypass the
+ * guard without corrupting a case-sensitive Solana public key.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, normaliseChainAddress } from "@mayarin/chain";
 import type {
   ManagedSignerRecord,
   MerchantWallet,
@@ -74,7 +74,10 @@ export class DrizzleMerchantWalletRepository implements MerchantWalletRepository
       .select()
       .from(merchantWallets)
       .where(
-        and(eq(merchantWallets.chain, chain), eq(merchantWallets.address, address.toLowerCase())),
+        and(
+          eq(merchantWallets.chain, chain),
+          eq(merchantWallets.address, normaliseChainAddress(chain, address)),
+        ),
       )
       .limit(1);
     return row === undefined ? null : toWallet(row);
@@ -101,7 +104,7 @@ export class DrizzleWalletChallengeRepository implements WalletChallengeReposito
       id: challenge.id,
       merchantId: challenge.merchantId,
       chain: challenge.chain,
-      address: challenge.address.toLowerCase(),
+      address: normaliseChainAddress(challenge.chain, challenge.address),
       nonce: challenge.nonce,
       expiresAt: challenge.expiresAt,
       consumedAt: null,
@@ -189,7 +192,7 @@ function toWalletRow(wallet: MerchantWallet): typeof merchantWallets.$inferInser
     id: wallet.id,
     merchantId: wallet.merchantId,
     chain: wallet.chain,
-    address: wallet.address.toLowerCase(),
+    address: normaliseChainAddress(wallet.chain, wallet.address),
     provenance: wallet.provenance,
     verifiedAt: wallet.verifiedAt ?? null,
     providerRef: wallet.managed?.ref ?? null,

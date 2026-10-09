@@ -2,10 +2,11 @@
  * In-memory stablecoin registry.
  *
  * Pure: built from a `Stablecoin[]` resolved by config, no I/O. Addresses are
- * lowercased on construction so callers can compare without normalising.
+ * EVM addresses are lowercased on construction so callers can compare without
+ * normalising. Solana base58 public keys remain case-sensitive.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, isEvmChainId } from "@mayarin/chain";
 import type { AssetCode } from "@mayarin/shared";
 import type { Stablecoin, StablecoinRegistry } from "./types.ts";
 
@@ -19,7 +20,7 @@ export class InMemoryStablecoinRegistry implements StablecoinRegistry {
         asset: coin.asset,
         onChain: coin.onChain.map((entry) => ({
           chain: entry.chain,
-          address: entry.address.toLowerCase() as `0x${string}`,
+          address: isEvmChainId(entry.chain) ? entry.address.toLowerCase() : entry.address,
         })),
       });
     }
@@ -44,7 +45,7 @@ export class InMemoryStablecoinRegistry implements StablecoinRegistry {
     return coin.onChain.some((entry) => entry.chain === chain);
   }
 
-  async address(asset: AssetCode, chain: ChainId): Promise<`0x${string}` | undefined> {
+  async address(asset: AssetCode, chain: ChainId): Promise<string | undefined> {
     const coin = this.#byAsset.get(asset);
     if (coin === undefined) return undefined;
     return coin.onChain.find((entry) => entry.chain === chain)?.address;

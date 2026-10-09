@@ -52,8 +52,8 @@ export const updateSettingsBodySchema = z
         z
           .string()
           .regex(
-            /^0x[0-9a-fA-F]{40}$/,
-            "A settlement address must be a 20-byte hex address, e.g. 0x1234…abcd",
+            /^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/,
+            "A settlement address must be an EVM address or Solana public key",
           ),
         z.null(),
       ])

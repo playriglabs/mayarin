@@ -19,7 +19,7 @@ import type { ChainId } from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import type { SwapVenue } from "@mayarin/execution";
-import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
+import { viemChainOf } from "@mayarin/provider-viem-chains";
 import {
   type AssetCode,
   assetDecimals,
@@ -265,7 +265,7 @@ export class UniswapSwapVenue implements SwapVenue {
       throw new ConfigurationError(`No RPC URL configured for ${chain}`, { chain });
     }
 
-    const client = createPublicClient({ chain: VIEM_CHAINS[chain], transport: http(url) });
+    const client = createPublicClient({ chain: viemChainOf(chain), transport: http(url) });
     this.#clients.set(chain, client);
     return client;
   }

@@ -13,7 +13,7 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
-import { caip2Of, EVM_CHAIN_IDS } from "@mayarin/chain";
+import { caip2Of, evmChainIdOf } from "@mayarin/chain";
 import { ProviderError, ValidationError } from "@mayarin/shared";
 import type {
   ConfirmedTransfer,
@@ -88,7 +88,7 @@ export class EvmX402Reader implements SettlementConfirmer {
     const asset = requirements.asset as Address;
     const from = authorization.from as Address;
 
-    const domain = domainOf(requirements, Number(EVM_CHAIN_IDS[this.chain]));
+    const domain = domainOf(requirements, Number(evmChainIdOf(this.chain)));
     // Asked of the chain rather than recovered locally, because a payer is not
     // always a key. A Circle agent wallet is a contract account: what it returns
     // is its signer's ECDSA signature, which recovers to the signer and never to

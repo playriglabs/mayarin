@@ -25,7 +25,7 @@ import type {
   WatchedAddress,
   WatcherCursorRepository,
 } from "@mayarin/chain";
-import { isChainId } from "@mayarin/chain";
+import { isChainId, normaliseChainAddress } from "@mayarin/chain";
 import {
   type AssetCode,
   ConflictError,
@@ -76,7 +76,10 @@ export class DrizzleDepositAddressRepository implements DepositAddressRepository
       derivationIndex,
       chain: input.chain,
       asset: input.asset,
-      address: input.deriver.derive(derivationIndex, input.chain).toLowerCase(),
+      address: normaliseChainAddress(
+        input.chain,
+        input.deriver.derive(derivationIndex, input.chain),
+      ),
       createdAt: new Date(input.now),
     };
 
@@ -180,7 +183,7 @@ export class DrizzleDepositRepository implements DepositRepository {
           chain: transfer.chain,
           txHash: transfer.txHash,
           logIndex: transfer.logIndex,
-          address: transfer.to.toLowerCase(),
+          address: normaliseChainAddress(transfer.chain, transfer.to),
           asset: transfer.asset,
           amount: transfer.amount.toString(),
           blockNumber: transfer.blockNumber.toString(),
@@ -229,10 +232,11 @@ export class DrizzleDepositRepository implements DepositRepository {
   }
 
   async listByAddress(chain: ChainId, address: string): Promise<Deposit[]> {
+    const normalized = normaliseChainAddress(chain, address);
     const rows = await this.#db
       .select()
       .from(chainDeposits)
-      .where(and(eq(chainDeposits.chain, chain), eq(chainDeposits.address, address.toLowerCase())))
+      .where(and(eq(chainDeposits.chain, chain), eq(chainDeposits.address, normalized)))
       .orderBy(asc(chainDeposits.blockNumber));
 
     return rows.map(toDeposit);

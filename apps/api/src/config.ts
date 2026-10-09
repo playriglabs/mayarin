@@ -6,7 +6,14 @@
  */
 
 import { fileURLToPath } from "node:url";
-import { CHAIN_IDS, type ChainId, isChainId, isMainnetChain } from "@mayarin/chain";
+import {
+  CHAIN_IDS,
+  type ChainId,
+  isChainId,
+  isEvmChainId,
+  isMainnetChain,
+  isSolanaChainId,
+} from "@mayarin/chain";
 import type { FxFeed } from "@mayarin/provider-fx";
 import type { PythFeed } from "@mayarin/provider-pyth";
 import {
@@ -135,45 +142,12 @@ const configSchema = z.object({
    */
   chainNativeAssets: jsonObject<Partial<Record<ChainId, AssetCode>>>("CHAIN_NATIVE_ASSETS", "{}"),
   chainConfirmations: jsonObject<ConfirmationMap>("CHAIN_CONFIRMATIONS", "{}"),
-  /**
-   * Where a chain's settlements are read from, when not from the chain.
-   *
-   * A subgraph query URL per chain. Configured chains are read from the
-   * subgraph and clamped to how far it has indexed; the rest keep polling
-   * `eth_getLogs`. This exists because polling cannot keep up on a fast chain:
-   * Arc's blocks are half a second and its provider tier caps a log range at
-   * ten blocks, which is five seconds of chain per call.
-   */
-  subgraphEndpoints: jsonObject<Partial<Record<ChainId, string>>>("SUBGRAPH_ENDPOINTS", "{}"),
-  /**
-   * Bearer token for every subgraph query, Studio and gateway alike.
-   *
-   * Optional: a Studio development URL answers without one. It does not raise
-   * that URL's 3,000-queries-a-day ceiling — only publishing does — but Studio's
-   * own examples send it, and a gateway production URL requires it.
-   */
-  subgraphApiKey: z.string().min(1).optional(),
-  /**
-   * How long one read of the rails is reused.
-   *
-   * `paymentRequired` asks once per `402`, and the answer is a median over the
-   * last hundred settlements — it does not move between two requests a second
-   * apart. Five minutes bounds the cost at 288 queries a day per chain against
-   * a 3,000-a-day development URL, and still reflects a rail that degrades
-   * within one demo.
-   */
-  railObservationTtlSeconds: z.coerce.number().int().positive().default(300),
   chainStartBlocks: jsonObject<StartBlockMap>("CHAIN_START_BLOCKS", "{}"),
   depositXpub: z.string().min(1).optional(),
+  /** Base64 32-byte root used only for deterministic Solana deposit owners. */
+  solanaDepositSeed: z.string().min(1).optional(),
   watcherIntervalMs: z.coerce.number().int().min(0).default(15_000),
-  /**
-   * Delay between settlement-indexer passes, separate from the watcher's.
-   *
-   * The watcher polls our own RPC; the indexer polls a hosted subgraph that
-   * counts every query against a quota. One number for both means either the
-   * watcher crawls or the subgraph tier is spent before the day is over — a
-   * pass costs up to two queries, so 15s on two chains is ~23k queries a day.
-   */
+  /** Delay between settlement-indexer passes. */
   indexerIntervalMs: z.coerce.number().int().min(0).default(60_000),
   /** Ceiling for the indexer's backoff after a failing pass. */
   indexerMaxBackoffMs: z.coerce.number().int().min(0).default(300_000),
@@ -412,6 +386,33 @@ const configSchema = z.object({
     .transform((value) => value === "true"),
   /** Deployed `PaymentRouter` address per chain. */
   paymentRouters: jsonObject<Partial<Record<ChainId, string>>>("PAYMENT_ROUTERS", "{}"),
+  /** Base64 32- or 64-byte Ed25519 secret; local/test deployments only. */
+  solanaOrderSignerSecretKey: z.string().min(1).optional(),
+  /** Per-cluster 32-byte hex domain separating deployments that share a program id. */
+  solanaDeploymentDomains: jsonObject<Partial<Record<ChainId, string>>>(
+    "SOLANA_DEPLOYMENT_DOMAINS",
+    "{}",
+  ),
+  /** SPL-token owner that receives protocol fees on each Solana cluster. */
+  solanaFeeRecipients: jsonObject<Partial<Record<ChainId, string>>>("SOLANA_FEE_RECIPIENTS", "{}"),
+  /** Orca Whirlpool routes used for cross-asset Solana settlement, grouped by cluster. */
+  solanaOrcaPools: jsonObject<
+    Partial<
+      Record<
+        ChainId,
+        readonly {
+          readonly address: string;
+          readonly tokenMintA: string;
+          readonly tokenMintB: string;
+        }[]
+      >
+    >
+  >("SOLANA_ORCA_POOLS", "{}"),
+  /** Persistent v0 lookup tables containing the configured Orca route accounts. */
+  solanaOrcaLookupTables: jsonObject<Partial<Record<ChainId, readonly string[]>>>(
+    "SOLANA_ORCA_LOOKUP_TABLES",
+    "{}",
+  ),
   /**
    * Treasury execution (#69/#81): converts a matched deposit into the
    * settlement asset instead of settling it internally.
@@ -468,9 +469,10 @@ export interface ChainConfig {
   readonly confirmations: Readonly<Record<ChainId, number>>;
   readonly startBlocks: Readonly<Partial<Record<ChainId, bigint>>>;
   readonly xpub: string;
+  readonly solanaDepositSeed?: Uint8Array;
   readonly intervalMs: number;
   readonly catchUpIntervalMs: number;
-  /** Settlement-indexer pass interval. Separate: the indexer polls a metered subgraph. */
+  /** Settlement-indexer pass interval. */
   readonly indexerIntervalMs: number;
   readonly indexerMaxBackoffMs: number;
   readonly blockRange: number;
@@ -507,6 +509,24 @@ export interface QuoteConfig {
 /** Resolved contract-path configuration. Present only when `CONTRACT_PATH_ENABLED=true`. */
 export interface ContractConfig {
   readonly paymentRouters: Readonly<Partial<Record<ChainId, string>>>;
+  readonly solana?: {
+    readonly signerSecretKey: Uint8Array;
+    readonly deploymentDomains: Readonly<Partial<Record<ChainId, Uint8Array>>>;
+    readonly feeRecipients: Readonly<Partial<Record<ChainId, string>>>;
+    readonly orcaPools: Readonly<
+      Partial<
+        Record<
+          ChainId,
+          readonly {
+            readonly address: string;
+            readonly tokenMintA: string;
+            readonly tokenMintB: string;
+          }[]
+        >
+      >
+    >;
+    readonly orcaLookupTables: Readonly<Partial<Record<ChainId, readonly string[]>>>;
+  };
 }
 
 export type Config = RawConfig & {
@@ -516,7 +536,7 @@ export type Config = RawConfig & {
   readonly stablecoins: readonly Stablecoin[];
 };
 
-const SUPPORTED_VENUES = ["0x", "uniswap", "uniswap-v2", "lifi"] as const;
+const SUPPORTED_VENUES = ["0x", "uniswap", "uniswap-v2", "lifi", "orca"] as const;
 
 /**
  * Resolves the quote layer, failing the boot rather than the first quote.
@@ -563,6 +583,9 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
         issues.push("LIFI_FROM_ADDRESS is required for the lifi venue");
       if (Object.keys(data.lifiPairs).length === 0)
         issues.push("LIFI_PAIRS must configure at least one pair");
+    }
+    if (venue === "orca" && Object.values(data.solanaOrcaPools).every((pools) => !pools?.length)) {
+      issues.push("SOLANA_ORCA_POOLS must configure at least one pool for the orca venue");
     }
   }
 
@@ -667,6 +690,7 @@ function resolveQuote(data: RawConfig): QuoteConfig | undefined {
 }
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
+const SOLANA_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 /**
  * Resolves the contract execution path (#61), failing the boot rather than
@@ -699,15 +723,76 @@ function resolveContract(
     if (!(CHAIN_IDS as readonly string[]).includes(chain)) {
       issues.push(`PAYMENT_ROUTERS names an unsupported chain "${chain}"`);
     }
-    if (address === undefined || !ADDRESS_PATTERN.test(address)) {
+    const valid =
+      address !== undefined &&
+      (isSolanaChainId(chain)
+        ? SOLANA_ADDRESS_PATTERN.test(address)
+        : ADDRESS_PATTERN.test(address));
+    if (!valid) {
       issues.push(`PAYMENT_ROUTERS has a malformed address for "${chain}"`);
+    }
+  }
+
+  const solanaChains = routers
+    .map(([chain]) => chain)
+    .filter((chain): chain is ChainId => isChainId(chain) && isSolanaChainId(chain));
+  let solanaSecret: Uint8Array | undefined;
+  if (solanaChains.length > 0) {
+    if (!data.chainEnabled) {
+      issues.push("CHAIN_ENABLED must be true to index Solana PaymentRouter settlements");
+    }
+    if (data.solanaOrderSignerSecretKey === undefined) {
+      issues.push("SOLANA_ORDER_SIGNER_SECRET_KEY is required for a Solana PaymentRouter");
+    } else {
+      solanaSecret = Uint8Array.from(Buffer.from(data.solanaOrderSignerSecretKey, "base64"));
+      if (solanaSecret.length !== 32 && solanaSecret.length !== 64) {
+        issues.push("SOLANA_ORDER_SIGNER_SECRET_KEY must decode to 32 or 64 bytes");
+      }
+    }
+    for (const chain of solanaChains) {
+      const domain = data.solanaDeploymentDomains[chain];
+      const domainHex = domain?.replace(/^0x/, "");
+      if (
+        domainHex === undefined ||
+        !/^[0-9a-fA-F]{64}$/.test(domainHex) ||
+        /^0{64}$/.test(domainHex)
+      ) {
+        issues.push(`SOLANA_DEPLOYMENT_DOMAINS needs a 32-byte hex value for "${chain}"`);
+      }
+      const feeRecipient = data.solanaFeeRecipients[chain];
+      if (
+        feeRecipient === undefined ||
+        !SOLANA_ADDRESS_PATTERN.test(feeRecipient) ||
+        feeRecipient === "11111111111111111111111111111111"
+      ) {
+        issues.push(`SOLANA_FEE_RECIPIENTS needs a public key for "${chain}"`);
+      }
+      if (data.chainRpcUrls[chain] === undefined) {
+        issues.push(`CHAIN_RPC_URLS needs an endpoint for "${chain}"`);
+      }
+      for (const pool of data.solanaOrcaPools[chain] ?? []) {
+        if (
+          !SOLANA_ADDRESS_PATTERN.test(pool.address) ||
+          !SOLANA_ADDRESS_PATTERN.test(pool.tokenMintA) ||
+          !SOLANA_ADDRESS_PATTERN.test(pool.tokenMintB) ||
+          pool.tokenMintA === pool.tokenMintB
+        ) {
+          issues.push(`SOLANA_ORCA_POOLS has a malformed pool for "${chain}"`);
+        }
+      }
+      for (const lookupTable of data.solanaOrcaLookupTables[chain] ?? []) {
+        if (!SOLANA_ADDRESS_PATTERN.test(lookupTable)) {
+          issues.push(`SOLANA_ORCA_LOOKUP_TABLES has a malformed address for "${chain}"`);
+        }
+      }
     }
   }
 
   const routeCapable = (quote?.venues ?? []).filter(
     (venue) => venue === "0x" || venue === "uniswap" || venue === "uniswap-v2",
   );
-  if (quote !== undefined && routeCapable.length === 0) {
+  const hasEvmRouter = routers.some(([chain]) => isChainId(chain) && !isSolanaChainId(chain));
+  if (quote !== undefined && hasEvmRouter && routeCapable.length === 0) {
     issues.push(
       "the contract path needs a route-capable venue (0x, uniswap, or uniswap-v2); LiFi is price-only",
     );
@@ -742,7 +827,28 @@ function resolveContract(
     });
   }
 
-  return { paymentRouters: data.paymentRouters };
+  const deploymentDomains = Object.fromEntries(
+    solanaChains.flatMap((chain) => {
+      const value = data.solanaDeploymentDomains[chain];
+      return value === undefined
+        ? []
+        : [[chain, Uint8Array.from(Buffer.from(value.replace(/^0x/, ""), "hex"))]];
+    }),
+  );
+  return {
+    paymentRouters: data.paymentRouters,
+    ...(solanaChains.length === 0 || solanaSecret === undefined
+      ? {}
+      : {
+          solana: {
+            signerSecretKey: solanaSecret,
+            deploymentDomains,
+            feeRecipients: data.solanaFeeRecipients,
+            orcaPools: data.solanaOrcaPools,
+            orcaLookupTables: data.solanaOrcaLookupTables,
+          },
+        }),
+  };
 }
 
 /**
@@ -780,7 +886,8 @@ function resolveStablecoins(data: RawConfig): readonly Stablecoin[] {
         continue;
       }
       admitted.add(rawAsset);
-      const address = (tokens?.[rawAsset] ?? "").toLowerCase() as `0x${string}`;
+      const rawAddress = tokens?.[rawAsset] ?? "";
+      const address = isSolanaChainId(chain) ? rawAddress : rawAddress.toLowerCase();
       const entries = onChain.get(rawAsset) ?? [];
       entries.push({ chain: chain as ChainId, address });
       onChain.set(rawAsset, entries);
@@ -821,8 +928,21 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
         "alongside a live watcher would fund payments nobody paid",
     );
   }
-  if (data.depositXpub === undefined) {
+  const hasEvmAssets = Object.keys(data.chainAssets).some(
+    (chain) => isChainId(chain) && !isSolanaChainId(chain),
+  );
+  if (hasEvmAssets && data.depositXpub === undefined) {
     issues.push("DEPOSIT_XPUB is required when CHAIN_ENABLED is true");
+  }
+  const hasSolanaAssets = Object.keys(data.chainAssets).some(
+    (chain) => isChainId(chain) && isSolanaChainId(chain),
+  );
+  const solanaDepositSeed =
+    data.solanaDepositSeed === undefined
+      ? undefined
+      : Uint8Array.from(Buffer.from(data.solanaDepositSeed, "base64"));
+  if (hasSolanaAssets && solanaDepositSeed?.length !== 32) {
+    issues.push("SOLANA_DEPOSIT_SEED must decode to exactly 32 bytes");
   }
 
   const confirmations: Partial<Record<ChainId, number>> = {};
@@ -858,6 +978,7 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
       Object.entries(data.chainStartBlocks).map(([chain, block]) => [chain, BigInt(block ?? "0")]),
     ),
     xpub: data.depositXpub ?? "",
+    ...(solanaDepositSeed === undefined ? {} : { solanaDepositSeed }),
     intervalMs: data.watcherIntervalMs,
     catchUpIntervalMs: data.watcherCatchUpIntervalMs,
     indexerIntervalMs: data.indexerIntervalMs,
@@ -903,6 +1024,8 @@ function assertTreasuryExecution(data: RawConfig, quote: QuoteConfig | undefined
   if (!data.treasuryExecutionEnabled) return;
 
   const issues: string[] = [];
+  const routerChains = Object.keys(data.paymentRouters);
+  const hasEvmRouter = routerChains.some(isEvmChainId);
 
   if (!data.contractPathEnabled) {
     issues.push(
@@ -914,23 +1037,23 @@ function assertTreasuryExecution(data: RawConfig, quote: QuoteConfig | undefined
       "TREASURY_EXECUTION_ENABLED needs the quote layer: the deposit path is priced and signed by the same planner the contract path uses",
     );
   }
-  if (data.treasuryAddress === undefined) {
+  if (hasEvmRouter && data.treasuryAddress === undefined) {
     issues.push("TREASURY_ADDRESS is required when TREASURY_EXECUTION_ENABLED is true");
   }
-  if (data.operatorPrivateKey === undefined) {
+  if (hasEvmRouter && data.operatorPrivateKey === undefined) {
     issues.push("OPERATOR_PRIVATE_KEY is required when TREASURY_EXECUTION_ENABLED is true");
   }
-  if (data.depositForwarderInitCodeHash === undefined) {
+  if (hasEvmRouter && data.depositForwarderInitCodeHash === undefined) {
     issues.push(
       "DEPOSIT_FORWARDER_INIT_CODE_HASH is required when TREASURY_EXECUTION_ENABLED is true",
     );
   }
-  for (const chain of Object.keys(data.paymentRouters)) {
-    if (data.depositForwarders[chain as ChainId] === undefined) {
+  for (const chain of routerChains) {
+    if (isEvmChainId(chain) && data.depositForwarders[chain] === undefined) {
       issues.push(`DEPOSIT_FORWARDERS has no factory for ${chain}, which has a PaymentRouter`);
     }
   }
-  if (Object.keys(data.depositForwarders).length === 0) {
+  if (hasEvmRouter && Object.keys(data.depositForwarders).length === 0) {
     // A deposit address must be a forwarder the operator can deploy and sweep.
     // An HD-derived EOA cannot pay its own gas, which is the entire reason the
     // forwarder exists, so an xpub-derived address would take deposits nothing
@@ -970,13 +1093,11 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     emailFrom: env.RESEND_FROM_EMAIL,
     dashboardUrl: env.DASHBOARD_URL,
     chainAssets: env.CHAIN_ASSETS,
-    subgraphEndpoints: env.SUBGRAPH_ENDPOINTS,
-    subgraphApiKey: env.SUBGRAPH_API_KEY,
-    railObservationTtlSeconds: env.RAIL_OBSERVATION_TTL_SECONDS,
     chainNativeAssets: env.CHAIN_NATIVE_ASSETS,
     chainConfirmations: env.CHAIN_CONFIRMATIONS,
     chainStartBlocks: env.CHAIN_START_BLOCKS,
     depositXpub: env.DEPOSIT_XPUB,
+    solanaDepositSeed: env.SOLANA_DEPOSIT_SEED,
     watcherIntervalMs: env.WATCHER_INTERVAL_MS,
     indexerIntervalMs: env.INDEXER_INTERVAL_MS,
     indexerMaxBackoffMs: env.INDEXER_MAX_BACKOFF_MS,
@@ -1046,6 +1167,11 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     awsKmsSignerAddress: env.AWS_KMS_SIGNER_ADDRESS,
     contractPathEnabled: env.CONTRACT_PATH_ENABLED,
     paymentRouters: env.PAYMENT_ROUTERS,
+    solanaOrderSignerSecretKey: env.SOLANA_ORDER_SIGNER_SECRET_KEY,
+    solanaDeploymentDomains: env.SOLANA_DEPLOYMENT_DOMAINS,
+    solanaFeeRecipients: env.SOLANA_FEE_RECIPIENTS,
+    solanaOrcaPools: env.SOLANA_ORCA_POOLS,
+    solanaOrcaLookupTables: env.SOLANA_ORCA_LOOKUP_TABLES,
     treasuryExecutionEnabled: env.TREASURY_EXECUTION_ENABLED,
     x402Enabled: env.X402_ENABLED,
     x402QuoteTtlSeconds: env.X402_QUOTE_TTL_SECONDS,

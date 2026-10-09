@@ -30,6 +30,7 @@ import type {
   DepositRepository,
   SettlementEventRepository,
 } from "@mayarin/chain";
+import { isSolanaChainId } from "@mayarin/chain";
 import type { ClearingRepository } from "@mayarin/clearing";
 import {
   type AuditQueryRepository,
@@ -84,6 +85,7 @@ import {
   EvmWalletBalanceReader,
   ViemSignatureVerifier,
 } from "@mayarin/provider-evm";
+import { SolanaSignatureVerifier, SolanaWalletBalanceReader } from "@mayarin/provider-solana";
 import {
   ApiKeyStamper,
   TurnkeyMerchantKeyProvider,
@@ -525,7 +527,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     challenges:
       options.walletChallenges ??
       new DrizzleWalletChallengeRepository(handle?.db ?? throwIfNoHandle()),
-    verifier: options.signatureVerifier ?? new ViemSignatureVerifier(),
+    verifier: options.signatureVerifier ?? createSignatureVerifier(),
     clock,
     treasuryAddresses,
     merchants,
@@ -714,11 +716,27 @@ function createBalanceReader(config: Config): WalletBalanceReader | undefined {
   }
   if (Object.keys(rpcUrls).length === 0) return undefined;
 
-  return new EvmWalletBalanceReader({
+  const evm = new EvmWalletBalanceReader({
     rpcUrls,
     tokens: config.chainAssets,
     nativeAssets: config.chainNativeAssets,
   });
+  const solana = new SolanaWalletBalanceReader({
+    rpcUrls,
+    tokens: config.chainAssets,
+    nativeAssets: config.chainNativeAssets,
+  });
+  return {
+    balances: (query) => (isSolanaChainId(query.chain) ? solana : evm).balances(query),
+  };
+}
+
+function createSignatureVerifier(): SignatureVerifier {
+  const evm = new ViemSignatureVerifier();
+  const solana = new SolanaSignatureVerifier();
+  return {
+    verify: (input) => (isSolanaChainId(input.chain) ? solana : evm).verify(input),
+  };
 }
 
 /**

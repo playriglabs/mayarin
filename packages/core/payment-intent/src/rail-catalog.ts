@@ -182,6 +182,8 @@ export interface RailCatalogOptions {
    * merchant with nowhere to be paid must not be offered that chain.
    */
   readonly settlement?: SettlementDestinationSource;
+  /** When present, only these chains settle to an on-chain merchant destination. */
+  readonly settlementRequiredChains?: ReadonlySet<ChainId>;
   readonly pricing: RailPricingSource;
   /** What a merchant who has no policy of their own is paid in. */
   readonly defaultSettlementAsset: AssetCode;
@@ -203,6 +205,7 @@ export class DerivedRailCatalog implements RailCatalog {
   readonly #receipts: readonly ChainReceipt[];
   readonly #policies: MerchantAssetPolicySource;
   readonly #settlement: SettlementDestinationSource | undefined;
+  readonly #settlementRequiredChains: ReadonlySet<ChainId> | undefined;
   readonly #pricing: RailPricingSource;
   readonly #defaultSettlementAsset: AssetCode;
   readonly #code: ContractCodeSource | undefined;
@@ -211,6 +214,7 @@ export class DerivedRailCatalog implements RailCatalog {
     this.#receipts = options.receipts;
     this.#policies = options.merchantPolicies;
     this.#settlement = options.settlement;
+    this.#settlementRequiredChains = options.settlementRequiredChains;
     this.#pricing = options.pricing;
     this.#defaultSettlementAsset = options.defaultSettlementAsset;
     this.#code = options.code;
@@ -235,8 +239,13 @@ export class DerivedRailCatalog implements RailCatalog {
 
     for (const receipt of this.#receipts) {
       const chain = receipt.chain;
-      const payTo = await this.#settlement?.destinationFor(merchantId, chain, configured);
-      if (this.#settlement !== undefined && payTo === undefined) {
+      const needsSettlement =
+        this.#settlement !== undefined &&
+        (this.#settlementRequiredChains === undefined || this.#settlementRequiredChains.has(chain));
+      const payTo = needsSettlement
+        ? await this.#settlement?.destinationFor(merchantId, chain, configured)
+        : undefined;
+      if (needsSettlement && payTo === undefined) {
         unavailable.push({
           kind: "no-settlement-destination",
           chain,
@@ -245,7 +254,12 @@ export class DerivedRailCatalog implements RailCatalog {
         continue;
       }
 
-      if (codeChains !== undefined && codeChains.size > 0 && !codeChains.has(chain)) {
+      if (
+        needsSettlement &&
+        codeChains !== undefined &&
+        codeChains.size > 0 &&
+        !codeChains.has(chain)
+      ) {
         unavailable.push({
           kind: "settlement-address-has-no-code",
           chain,

@@ -30,6 +30,20 @@ function managed(overrides: Partial<MerchantWallet> = {}): MerchantWallet {
   };
 }
 
+function linked(overrides: Partial<MerchantWallet> = {}): MerchantWallet {
+  return {
+    id: "wlt_linked",
+    merchantId: MERCHANT,
+    chain: "solana-devnet",
+    address: "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7",
+    provenance: "linked",
+    verifiedAt: NOW,
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...overrides,
+  };
+}
+
 function setup() {
   const wallets = new InMemoryMerchantWalletRepository();
   return { wallets, resolver: new SettlementAddressResolver({ wallets }) };
@@ -101,6 +115,47 @@ describe("resolve", () => {
     await wallets.insert(managed({ merchantId: "mrc_2" }));
 
     await expect(resolver.resolve(MERCHANT, CHAIN, undefined)).rejects.toBeInstanceOf(
+      ConfigurationError,
+    );
+  });
+
+  test("falls back to one verified merchant wallet on the exact Solana chain", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(linked());
+
+    expect(await resolver.resolve(MERCHANT, "solana-devnet", undefined)).toEqual({
+      source: "verified-wallet",
+      address: "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7",
+    });
+  });
+
+  test("an EVM setting does not eclipse the verified Solana wallet", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(linked());
+
+    expect(
+      await resolver.resolve(
+        MERCHANT,
+        "solana-devnet",
+        "0x3333333333333333333333333333333333333333",
+      ),
+    ).toEqual({
+      source: "verified-wallet",
+      address: "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7",
+    });
+  });
+
+  test("requires an explicit choice when two verified wallets could receive settlement", async () => {
+    const { wallets, resolver } = setup();
+    await wallets.insert(linked());
+    await wallets.insert(
+      linked({
+        id: "wlt_second",
+        address: "GgBaCs3N3YKweJ2p4RpXcA4gYfY8jKzKhJm2n9kRcVw5",
+      }),
+    );
+
+    await expect(resolver.resolve(MERCHANT, "solana-devnet", undefined)).rejects.toBeInstanceOf(
       ConfigurationError,
     );
   });

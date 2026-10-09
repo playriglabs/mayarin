@@ -18,7 +18,7 @@ import type {
   TransferQuery,
 } from "@mayarin/chain";
 import { paymentRouterAbi } from "@mayarin/contracts";
-import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
+import { viemChainOf } from "@mayarin/provider-viem-chains";
 import { type AssetCode, ConfigurationError, ProviderError } from "@mayarin/shared";
 import { createPublicClient, getAddress, http, type PublicClient, parseAbiItem } from "viem";
 import { shortReason } from "./errors.ts";
@@ -388,7 +388,7 @@ export class EvmChainClient implements ChainClient {
     }
 
     const client = createPublicClient({
-      chain: VIEM_CHAINS[chain],
+      chain: viemChainOf(chain),
       transport: http(url, { retryCount: this.#retryCount, timeout: this.#timeoutMs }),
     });
     this.#clients.set(chain, client);

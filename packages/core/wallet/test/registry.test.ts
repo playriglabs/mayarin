@@ -98,7 +98,7 @@ describe("assertPayable", () => {
 
     // Same message as the unknown case: distinguishing them would confirm
     // another merchant's payout address to whoever guessed it.
-    expect(message).toContain("managed settlement wallet is missing");
+    expect(message).toContain("verified settlement wallet is missing");
   });
 
   test("a treasury address is refused as a payout destination", async () => {

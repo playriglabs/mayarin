@@ -10,7 +10,7 @@ import { describe, expect, test } from "bun:test";
 import { InMemoryMerchantRepository } from "@mayarin/auth/testing";
 import { ViemSignatureVerifier } from "@mayarin/provider-evm";
 import { ConfigurationError, FixedClock } from "@mayarin/shared";
-import type { PasskeyAttestation } from "@mayarin/wallet";
+import type { PasskeyAttestation, SignatureVerifier } from "@mayarin/wallet";
 import { SettlementAddressResolver } from "@mayarin/wallet";
 import {
   InMemoryMerchantWalletRepository,
@@ -32,13 +32,13 @@ const ATTESTATION: PasskeyAttestation = {
 };
 
 /** No provider at all: neither a key provider nor a provisioner. */
-function service() {
+function service(options: { readonly verifier?: SignatureVerifier } = {}) {
   const wallets = new InMemoryMerchantWalletRepository();
   return new WalletService({
     wallets,
     withdrawals: new InMemoryWalletWithdrawalRepository(),
     challenges: new InMemoryWalletChallengeRepository(),
-    verifier: new ViemSignatureVerifier(),
+    verifier: options.verifier ?? new ViemSignatureVerifier(),
     clock: new FixedClock(NOW),
     merchants: new InMemoryMerchantRepository(),
     chains: ["base-sepolia"],
@@ -72,5 +72,25 @@ describe("a deployment with no wallet provider", () => {
 
     expect(wallet.provenance).toBe("linked");
     expect(wallet.verifiedAt).toBeUndefined();
+  });
+
+  test("preserves and verifies a case-sensitive Solana address", async () => {
+    const address = "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7";
+    const walletService = service({
+      verifier: { verify: async (input) => input.address === address },
+    });
+
+    const wallet = await walletService.link(SCOPE, "solana-devnet", address);
+    const issued = await walletService.challenge(SCOPE, wallet.id);
+    const verified = await walletService.verify(
+      SCOPE,
+      wallet.id,
+      issued.challenge.id,
+      "base64-signature",
+    );
+
+    expect(wallet.address).toBe(address);
+    expect(issued.challenge.address).toBe(address);
+    expect(verified.verifiedAt).toEqual(NOW);
   });
 });

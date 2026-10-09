@@ -361,7 +361,7 @@ export function diffMerchantSettings(
 }
 
 /**
- * A 20-byte hex address, lowercased.
+ * An EVM address (lowercased) or a case-sensitive Solana public key.
  *
  * Not checksum-validated: EIP-55 mixed case is a hint, and rejecting an
  * all-lowercase address a merchant copied from a block explorer would refuse a
@@ -370,12 +370,14 @@ export function diffMerchantSettings(
  */
 function normaliseAddress(value: string): string {
   const trimmed = value.trim();
-  if (!/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
-    throw new ValidationError(
-      "A settlement address must be a 20-byte hex address, e.g. 0x1234…abcd",
-      { settlementAddress: trimmed },
-    );
+  const isEvm = /^0x[0-9a-fA-F]{40}$/.test(trimmed);
+  const isSolana = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(trimmed);
+  if (!isEvm && !isSolana) {
+    throw new ValidationError("A settlement address must be an EVM address or Solana public key", {
+      settlementAddress: trimmed,
+    });
   }
+  if (!isEvm) return trimmed;
   const lowered = trimmed.toLowerCase();
   if (lowered === `0x${"0".repeat(40)}`) {
     throw new ValidationError("The zero address cannot receive settlement", {});

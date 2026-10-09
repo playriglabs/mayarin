@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { CHAIN_IDS, EVM_CHAIN_IDS } from "@mayarin/chain";
+import { EVM_CHAIN_IDS, EVM_CHAINS } from "@mayarin/chain";
 import { VIEM_CHAINS } from "../src/chains.ts";
 
 describe("VIEM_CHAINS", () => {
   test("covers every supported chain", () => {
-    for (const chain of CHAIN_IDS) {
+    for (const chain of EVM_CHAINS) {
       expect(VIEM_CHAINS[chain]).toBeDefined();
     }
   });
@@ -13,7 +13,7 @@ describe("VIEM_CHAINS", () => {
   // and broadcasts with its own `id`, so a mismatch would send a transaction to
   // the wrong network while every check against `EVM_CHAIN_IDS` still passed.
   test("agrees with the EIP-155 ids the domain layer holds", () => {
-    for (const chain of CHAIN_IDS) {
+    for (const chain of EVM_CHAINS) {
       expect(BigInt(VIEM_CHAINS[chain].id)).toBe(EVM_CHAIN_IDS[chain]);
     }
   });
@@ -23,7 +23,7 @@ describe("VIEM_CHAINS", () => {
   // magnitude the day one is not. Pinning the decimals here means viem changing
   // a definition under us fails a test rather than a settlement.
   test("pins the native decimals each chain actually uses", () => {
-    for (const chain of CHAIN_IDS) {
+    for (const chain of EVM_CHAINS) {
       expect(VIEM_CHAINS[chain].nativeCurrency.decimals).toBe(18);
     }
   });

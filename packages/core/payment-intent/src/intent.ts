@@ -6,6 +6,7 @@
  * silently no-opping.
  */
 
+import { isChainAddress } from "@mayarin/chain";
 import {
   type AssetCode,
   generateId,
@@ -154,7 +155,7 @@ function assertEscrowRail(payment: PaymentRail, executionPath: ExecutionPath): v
   if (executionPath === "x402") {
     throw new ValidationError("Escrow is not available on the x402 path", { executionPath });
   }
-  if (payment.payerAddress === undefined || !ADDRESS_PATTERN.test(payment.payerAddress)) {
+  if (payment.payerAddress === undefined || !isChainAddress(payment.chain, payment.payerAddress)) {
     throw new ValidationError("An escrowed payment needs the payer's wallet address", {
       executionPath,
     });

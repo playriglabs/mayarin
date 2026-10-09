@@ -47,6 +47,23 @@ describe("createQuoteLayer", () => {
     expect(layer?.venues.map((venue) => venue.name)).toEqual(["uniswap", "0x"]);
   });
 
+  test("builds Orca as the Solana executable price venue", () => {
+    const layer = createQuoteLayer(
+      loadConfig({
+        ...BASE,
+        ...DEV_SIGNER,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["orca"]',
+        PYTH_FEEDS,
+        SOLANA_ORCA_POOLS:
+          '{"solana-devnet":[{"address":"5GPCnpWwoDayCP5FVCJT1cS7dePufC5FrjPTVvPoUYnm","tokenMintA":"So11111111111111111111111111111111111111112","tokenMintB":"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"}]}',
+      }),
+      clock,
+    );
+
+    expect(layer?.venues.map((venue) => venue.name)).toEqual(["orca"]);
+  });
+
   test("carries the lock terms the quote engine does not own", () => {
     const layer = createQuoteLayer(
       loadConfig({

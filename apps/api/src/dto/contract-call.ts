@@ -12,7 +12,8 @@ import type { SerializedMoney } from "@mayarin/shared";
 
 type Hex = `0x${string}`;
 
-export interface ContractCallDto {
+export interface EvmContractCallDto {
+  readonly kind: "evm";
   readonly chain: ChainId;
   readonly chainId: string;
   readonly paymentRouter: string;
@@ -36,3 +37,28 @@ export interface ContractCallDto {
   readonly payerEstimate: SerializedMoney;
   readonly expiresAt: string;
 }
+
+export interface SolanaContractCallDto {
+  readonly kind: "solana";
+  readonly chain: ChainId;
+  readonly paymentRouter: string;
+  readonly order: {
+    readonly intentId: string;
+    readonly settlementToken: string;
+    readonly minOut: string;
+    readonly fee: string;
+    readonly merchantSafe: string;
+    readonly refundTo: string;
+    readonly deadline: string;
+  };
+  /** Base64 Ed25519 signature over the domain-separated order. */
+  readonly signature: string;
+  /** Base64 transaction for the payer wallet to sign and submit. */
+  readonly transaction: string;
+  /** Base64 account-preparation transactions, submitted before payment. */
+  readonly preparationTransactions: readonly string[];
+  readonly payerEstimate: SerializedMoney;
+  readonly expiresAt: string;
+}
+
+export type ContractCallDto = EvmContractCallDto | SolanaContractCallDto;

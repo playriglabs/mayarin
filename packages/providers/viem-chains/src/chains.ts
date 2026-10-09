@@ -11,7 +11,7 @@
  * it without pulling in a signer's dependency tree.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, type EvmChainId, isEvmChainId } from "@mayarin/chain";
 import { type Chain, defineChain } from "viem";
 import { arbitrum, arbitrumSepolia, arcTestnet, base, baseSepolia, sepolia } from "viem/chains";
 
@@ -40,7 +40,7 @@ export const robinhoodTestnet = defineChain({
 // their block's `transactions` to include deposit transactions, which is
 // unrelated to the generic client's block type and would otherwise force a cast
 // at every call site.
-export const VIEM_CHAINS: Readonly<Record<ChainId, Chain>> = {
+export const VIEM_CHAINS: Readonly<Record<EvmChainId, Chain>> = {
   "ethereum-sepolia": sepolia,
   base,
   "base-sepolia": baseSepolia,
@@ -49,3 +49,8 @@ export const VIEM_CHAINS: Readonly<Record<ChainId, Chain>> = {
   "robinhood-testnet": robinhoodTestnet,
   "arc-testnet": arcTestnet,
 };
+
+export function viemChainOf(chain: ChainId): Chain {
+  if (!isEvmChainId(chain)) throw new Error(`${chain} is not an EVM chain`);
+  return VIEM_CHAINS[chain];
+}

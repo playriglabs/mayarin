@@ -10,12 +10,13 @@ import type { MerchantRepository } from "@mayarin/auth";
 import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import {
   type BlockRef,
-  CHAIN_IDS,
   type ChainClient,
   type ChainId,
+  EVM_CHAINS,
+  isEvmChainId,
+  isSolanaChainId,
   type PaymentCompletionSink,
   SettlementIndexer,
-  type SettlementSource,
   WalletWatcher,
 } from "@mayarin/chain";
 import {
@@ -24,6 +25,7 @@ import {
   LiquidityRouter,
   type RateProvider,
   RefundService,
+  type TreasuryExecutionPort,
   TreasuryExecutor,
 } from "@mayarin/clearing";
 import {
@@ -84,8 +86,17 @@ import {
   HdDepositAddressDeriver,
 } from "@mayarin/provider-evm";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
+import {
+  createSolanaConnection,
+  LocalSolanaOrderSigner,
+  OrcaSolanaRouteSource,
+  SolanaDepositAddressDeriver,
+  SolanaDepositClient,
+  SolanaSettlementClient,
+  SolanaTreasuryExecutionPort,
+  solanaKeypairFromSecret,
+} from "@mayarin/provider-solana";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
-import { SubgraphRailObservations, SubgraphSettlementSource } from "@mayarin/provider-subgraph";
 import {
   EvmAssetCapabilityProbe,
   EvmX402Reader,
@@ -106,7 +117,6 @@ import { SettlementAddressResolver, WalletGuard } from "@mayarin/wallet";
 import type {
   AssetCapabilityProbe,
   AssetPair,
-  RailObservationSource,
   SettlementConfirmer,
   X402Facilitator,
 } from "@mayarin/x402";
@@ -133,7 +143,6 @@ import { PaidNotifier } from "./services/paid-notifier.ts";
 import { PayerStanding } from "./services/payer-standing.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
-import { CachedRailObservations } from "./services/rail-observations.ts";
 import { SubscriptionApiService } from "./services/subscriptions.ts";
 import { FetchWebhookTransport } from "./services/webhook-transport.ts";
 import { X402Service } from "./services/x402.ts";
@@ -201,17 +210,6 @@ export interface Container {
    * Arc was offered ETH, which does not exist there.
    */
   readonly rails: RailCatalog;
-  /**
-   * What the rails have actually been settling like, read from the subgraph (#231).
-   *
-   * Absent unless `SUBGRAPH_ENDPOINTS` names a chain, which is the honest
-   * default: a deployment without one has not measured its rails. Exposed
-   * because two callers want the same answer — `paymentRequired` orders a
-   * resource's `accepts` with it, and the MCP tool sells it — and they must
-   * share one cache. Studio allows 3,000 queries a day account-wide, so a
-   * second observer would halve the budget for nothing.
-   */
-  readonly railObservations?: RailObservationSource;
   /**
    * Market data held in the database rather than the environment (#95).
    *
@@ -313,8 +311,6 @@ function createX402(deps: {
   settlementAddresses: SettlementAddressResolver;
   /** Absent on a deployment with `QUOTE_ENABLED=false`, which serves same-asset rails only. */
   quote: (() => Promise<QuoteLayer>) | undefined;
-  /** Absent unless `SUBGRAPH_ENDPOINTS` names a chain. Shared with the MCP route. */
-  railObservations: RailObservationSource | undefined;
   /** The merchant's rails, as a payable's `402` derives its `accepts` from. */
   merchantRails: DerivedRailCatalog;
   /** The quote lock behind a payable (#273). Shared with `x402Payables`. */
@@ -333,7 +329,6 @@ function createX402(deps: {
     merchantPolicies,
     settlementAddresses,
     quote,
-    railObservations,
     merchantRails,
     payableQuotes,
     uniswapPools,
@@ -359,7 +354,7 @@ function createX402(deps: {
       : new EvmCrossAssetSettler({
           clients: Object.fromEntries(
             Object.entries(rpcUrls).flatMap(([chainId, rpcUrl]) => {
-              if (rpcUrl === undefined) return [];
+              if (rpcUrl === undefined || !isEvmChainId(chainId)) return [];
               const transport = http(rpcUrl);
               return [
                 [
@@ -382,7 +377,7 @@ function createX402(deps: {
   const confirmers = new Map<string, SettlementConfirmer>();
   const probes: AssetCapabilityProbe[] = [];
 
-  for (const chain of CHAIN_IDS) {
+  for (const chain of EVM_CHAINS) {
     const rpcUrl = rpcUrls[chain];
     if (rpcUrl === undefined) continue;
     const transport = http(rpcUrl);
@@ -414,7 +409,6 @@ function createX402(deps: {
 
   return new X402Service({
     resources: new DrizzleX402ResourceRepository(handle.db),
-    ...(railObservations === undefined ? {} : { rails: railObservations }),
     facilitators: facilitatorRegistry(facilitators),
     capabilities: new AssetCapabilities({
       probes,
@@ -480,70 +474,6 @@ function createX402(deps: {
 }
 
 /**
- * What the rails have been doing, read from the same subgraphs.
- *
- * Absent unless `SUBGRAPH_ENDPOINTS` names at least one chain, and that is the
- * honest default: the observation is a median over settlements the subgraph
- * recorded, so a deployment without one has not measured its rails and the
- * `402` should keep listing them in the order the resource declared.
- *
- * Cached here rather than inside the adapter. The adapter's job is to answer
- * the question; how often it is worth asking is a property of this deployment
- * — a Studio development URL allows 3,000 queries a day, and `paymentRequired`
- * runs once per `402`.
- */
-function createRailObservations(config: Config, clock: Clock): RailObservationSource | undefined {
-  const endpoints = config.subgraphEndpoints;
-  if (Object.keys(endpoints).length === 0) return undefined;
-
-  return new CachedRailObservations({
-    source: new SubgraphRailObservations({
-      endpoints,
-      ...(config.subgraphApiKey === undefined ? {} : { apiKey: config.subgraphApiKey }),
-    }),
-    ttlMs: config.railObservationTtlSeconds * 1000,
-    now: () => clock.now(),
-  });
-}
-
-/**
- * Where each chain's settlements are read from.
- *
- * Per chain, and composed here rather than inside an adapter, because the two
- * sources answer for different chains in one deployment: a chain with a
- * `SUBGRAPH_ENDPOINTS` entry is served by the subgraph, and every other chain
- * keeps polling `eth_getLogs` exactly as before.
- *
- * `indexedHead` is the part that makes the substitution safe. The indexer moves
- * its cursor across the range it asked about, so a subgraph that has not caught
- * up must be able to say so; a client reading the chain cannot lag it and
- * answers `undefined`.
- */
-function createSettlementSource(deps: {
-  client: ChainClient;
-  endpoints: Readonly<Partial<Record<ChainId, string>>>;
-  routers: Readonly<Partial<Record<ChainId, string>>>;
-  apiKey: string | undefined;
-}): SettlementSource {
-  const { client, endpoints, routers, apiKey } = deps;
-  if (Object.keys(endpoints).length === 0) return client;
-
-  const subgraph = new SubgraphSettlementSource({
-    endpoints,
-    routers,
-    ...(apiKey === undefined ? {} : { apiKey }),
-  });
-  const servesSubgraph = (chain: ChainId): boolean => endpoints[chain] !== undefined;
-
-  return {
-    settlements: (query) =>
-      servesSubgraph(query.chain) ? subgraph.settlements(query) : client.settlements(query),
-    indexedHead: async (chain) =>
-      servesSubgraph(chain) ? await subgraph.indexedHead(chain) : undefined,
-  };
-}
-
-/**
  * Every `(chain, token)` this deployment could be asked to settle in.
  *
  * Read off the stablecoin registry rather than a second list, and narrowed to
@@ -575,22 +505,42 @@ function createTreasuryExecutor(deps: {
   config: Config;
   ledger: LedgerService;
   depositAddresses: DrizzleDepositAddressRepository | undefined;
+  solanaRuntime:
+    | {
+        readonly connections: Readonly<
+          Partial<Record<ChainId, ReturnType<typeof createSolanaConnection>>>
+        >;
+        readonly deploymentDomains: Readonly<Partial<Record<ChainId, Uint8Array>>>;
+        readonly feeRecipients: Readonly<Partial<Record<ChainId, string>>>;
+        readonly routeSources: Readonly<Partial<Record<ChainId, OrcaSolanaRouteSource>>>;
+      }
+    | undefined;
   /** The runtime pool set (#95), read per swap so execution matches pricing. */
   uniswapPools: () => Promise<Config["uniswapPools"]>;
-}): { executor: TreasuryExecutor; port: EvmTreasuryExecutionPort } | undefined {
-  const { config, ledger, depositAddresses, uniswapPools } = deps;
+}):
+  | {
+      executor: TreasuryExecutor;
+      evmPort: EvmTreasuryExecutionPort | undefined;
+      chains: Set<ChainId>;
+    }
+  | undefined {
+  const { config, ledger, depositAddresses, solanaRuntime, uniswapPools } = deps;
 
   if (!config.treasuryExecutionEnabled) return undefined;
-  if (config.operatorPrivateKey === undefined || depositAddresses === undefined) return undefined;
-
-  const account = privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
+  if (depositAddresses === undefined) return undefined;
+  const evmChains = Object.keys(config.depositForwarders).filter(isEvmChainId);
+  const solanaChains = Object.keys(config.contract?.paymentRouters ?? {}).filter(isSolanaChainId);
+  const account =
+    evmChains.length === 0 || config.operatorPrivateKey === undefined
+      ? undefined
+      : privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
 
   // A client pair per router chain. One pair for the whole executor sent every
   // submission to whichever chain came first in `PAYMENT_ROUTERS` — so a sweep
   // on Arc went to Base's RPC, where the forwarder factory address has no code,
   // and the node answered `execution reverted` with nothing naming the chain.
   const clients: Partial<Record<ChainId, ChainClients>> = {};
-  for (const chainId of Object.keys(config.paymentRouters) as ChainId[]) {
+  for (const chainId of evmChains) {
     const rpcUrl = config.chain?.rpcUrls[chainId];
     if (rpcUrl === undefined) {
       throw new ConfigurationError(`No CHAIN_RPC_URLS entry for ${chainId}`, { chain: chainId });
@@ -606,36 +556,73 @@ function createTreasuryExecutor(deps: {
   // with a V3 pool on Base and a V2 pool on Arc has both in the map, and
   // wiring only the first made every Arc deposit fail at execution with
   // "pool for EURC/USDC is on base-sepolia".
-  if (createRouteSources(config).size === 0) {
+  if (evmChains.length > 0 && createRouteSources(config).size === 0) {
     throw new ConfigurationError("Treasury execution needs a route-capable venue", {});
   }
 
   const routes = new RuntimeRouteSource(config, uniswapPools);
 
-  const port = new EvmTreasuryExecutionPort({
-    clients,
-    account,
-    lookup: {
-      async indexFor(clearingTransactionId) {
-        const allocated = await depositAddresses.findByClearingTransactionId(clearingTransactionId);
-        return allocated?.derivationIndex;
-      },
+  const lookup = {
+    async indexFor(clearingTransactionId: string) {
+      const allocated = await depositAddresses.findByClearingTransactionId(clearingTransactionId);
+      return allocated?.derivationIndex;
     },
-    routes,
-    forwarderFactories: config.depositForwarders,
-    paymentRouters: config.paymentRouters,
-    tokens: config.chainAssets,
-    // Read from configuration rather than assumed to be ETH. It was ETH on every
-    // chain a router had run on, and Arc's own currency is USDC — a gas cost
-    // labelled ETH there is a ledger posting in an asset the chain does not
-    // have. A chain that declares no native asset gets no gas posting at all.
-    nativeAssets: config.chainNativeAssets,
-    ...(config.chain === undefined ? {} : { confirmations: config.chain.confirmations }),
-  });
+  };
+  const evmPort =
+    account === undefined
+      ? undefined
+      : new EvmTreasuryExecutionPort({
+          clients,
+          account,
+          lookup,
+          routes,
+          forwarderFactories: config.depositForwarders,
+          paymentRouters: config.paymentRouters,
+          tokens: config.chainAssets,
+          nativeAssets: config.chainNativeAssets,
+          ...(config.chain === undefined ? {} : { confirmations: config.chain.confirmations }),
+        });
+  const solanaConfig = config.contract?.solana;
+  const depositSeed = config.chain?.solanaDepositSeed;
+  const solanaPort =
+    solanaChains.length === 0 ||
+    solanaRuntime === undefined ||
+    solanaConfig === undefined ||
+    depositSeed === undefined
+      ? undefined
+      : new SolanaTreasuryExecutionPort({
+          connections: solanaRuntime.connections,
+          depositSeed,
+          feePayer: solanaKeypairFromSecret(solanaConfig.signerSecretKey),
+          lookup,
+          paymentRouters: config.paymentRouters,
+          deploymentDomains: solanaRuntime.deploymentDomains,
+          feeRecipients: solanaRuntime.feeRecipients,
+          tokens: config.chainAssets,
+          nativeAssets: config.chainNativeAssets,
+          routeSources: solanaRuntime.routeSources,
+        });
+  const portFor = (chain: ChainId): TreasuryExecutionPort => {
+    const selected = isSolanaChainId(chain) ? solanaPort : evmPort;
+    if (selected === undefined) {
+      throw new ConfigurationError(`No treasury execution port configured for ${chain}`, { chain });
+    }
+    return selected;
+  };
+  const port: TreasuryExecutionPort = {
+    sweep: (request) => portFor(request.chain).sweep(request),
+    execute: (request) => portFor(request.chain).execute(request),
+  };
+  const chains = new Set<ChainId>([
+    ...evmChains,
+    ...(solanaPort === undefined ? [] : (solanaChains as ChainId[])),
+  ]);
+  if (chains.size === 0) return undefined;
 
   return {
     executor: new TreasuryExecutor({ port, ledger, maxAttempts: config.treasuryMaxAttempts }),
-    port,
+    evmPort,
+    chains,
   };
 }
 
@@ -678,8 +665,11 @@ export function createContainer({
   });
   const registry: StablecoinRegistry = new RuntimeStablecoinRegistry(market);
 
+  const hasOnChainAssets = pairsOf(config.stablecoins).length > 0;
   const depositAddresses =
-    chain === undefined ? undefined : new DrizzleDepositAddressRepository(handle.db);
+    chain === undefined || !hasOnChainAssets
+      ? undefined
+      : new DrizzleDepositAddressRepository(handle.db);
   // A deposit the worker will execute must be a forwarder even in the API
   // process, which intentionally has no operator key. Both processes derive
   // the same CREATE2 address from public deployment facts; only the worker can
@@ -693,7 +683,7 @@ export function createContainer({
   const hasForwarders = Object.values(config.depositForwarders).some(
     (factory) => factory !== undefined,
   );
-  const depositDeriver =
+  const evmDepositDeriver =
     chain === undefined
       ? undefined
       : hasForwarders && config.depositForwarderInitCodeHash !== undefined
@@ -702,6 +692,31 @@ export function createContainer({
             initCodeHash: config.depositForwarderInitCodeHash,
           })
         : new HdDepositAddressDeriver({ xpub: chain.xpub });
+  const solanaDepositDeriver =
+    chain?.solanaDepositSeed === undefined
+      ? undefined
+      : new SolanaDepositAddressDeriver({ seed: chain.solanaDepositSeed });
+  const depositDeriver =
+    evmDepositDeriver === undefined && solanaDepositDeriver === undefined
+      ? undefined
+      : {
+          derive: (index: number, chainId: ChainId): string => {
+            if (isSolanaChainId(chainId)) {
+              if (solanaDepositDeriver === undefined) {
+                throw new ConfigurationError(`No Solana deposit seed configured for ${chainId}`, {
+                  chain: chainId,
+                });
+              }
+              return solanaDepositDeriver.derive(index);
+            }
+            if (evmDepositDeriver === undefined) {
+              throw new ConfigurationError(`No EVM deposit deriver configured for ${chainId}`, {
+                chain: chainId,
+              });
+            }
+            return evmDepositDeriver.derive(index, chainId);
+          },
+        };
 
   const merchants = new DrizzleMerchantRepository(handle.db);
   const merchantPolicies = new DrizzleMerchantAssetPolicySource(merchants);
@@ -806,8 +821,49 @@ export function createContainer({
   const settlementAddresses = new SettlementAddressResolver({ wallets: merchantWallets });
   const walletGuard = new WalletGuard({
     wallets: merchantWallets,
-    treasuryAddresses: config.treasuryAddress === undefined ? [] : [config.treasuryAddress],
+    treasuryAddresses: [
+      ...(config.treasuryAddress === undefined ? [] : [config.treasuryAddress]),
+      ...Object.values(config.contract?.solana?.feeRecipients ?? {}).filter(
+        (address): address is string => address !== undefined,
+      ),
+      ...(config.contract?.solana === undefined
+        ? []
+        : [solanaKeypairFromSecret(config.contract.solana.signerSecretKey).publicKey.toBase58()]),
+    ],
   });
+
+  const solanaRuntime =
+    config.contract?.solana === undefined || chain === undefined
+      ? undefined
+      : {
+          signer: new LocalSolanaOrderSigner(config.contract.solana.signerSecretKey),
+          deploymentDomains: config.contract.solana.deploymentDomains,
+          feeRecipients: config.contract.solana.feeRecipients,
+          connections: Object.fromEntries(
+            Object.entries(config.contract.solana.deploymentDomains).flatMap(([chainId]) => {
+              const id = chainId as ChainId;
+              const rpcUrl = chain.rpcUrls[id];
+              return rpcUrl === undefined ? [] : [[id, createSolanaConnection(rpcUrl)]];
+            }),
+          ),
+          routeSources: Object.fromEntries(
+            Object.entries(config.contract.solana.orcaPools).flatMap(([chainId, pools]) =>
+              pools === undefined || pools.length === 0
+                ? []
+                : [
+                    [
+                      chainId,
+                      new OrcaSolanaRouteSource({
+                        pools,
+                        slippageBps: config.quoteSlippageBps,
+                        addressLookupTables:
+                          config.contract?.solana?.orcaLookupTables[chainId as ChainId] ?? [],
+                      }),
+                    ],
+                  ],
+            ),
+          ),
+        };
 
   const contractPlanner =
     config.contract !== undefined
@@ -823,6 +879,14 @@ export function createContainer({
           // it, rather than finding out at their first payment that a settings
           // field nobody mentioned was load-bearing.
           settlementAddresses,
+          ...(solanaRuntime === undefined
+            ? {}
+            : {
+                solana: {
+                  signer: solanaRuntime.signer,
+                  deploymentDomains: solanaRuntime.deploymentDomains,
+                },
+              }),
           ...(config.escrowArbiter === undefined ? {} : { escrowArbiter: config.escrowArbiter }),
           clock,
         })
@@ -832,6 +896,7 @@ export function createContainer({
     config,
     ledger,
     depositAddresses,
+    solanaRuntime,
     uniswapPools: async () => (await market.uniswapPools()) as Config["uniswapPools"],
   });
   const treasuryExecutor = treasury?.executor;
@@ -852,7 +917,22 @@ export function createContainer({
     ...(depositDeriver === undefined ? {} : { depositDeriver }),
     ...(contractPlanner === undefined ? {} : { contractPlanner }),
     ...(treasuryExecutor === undefined ? {} : { treasuryExecutor }),
-    ...(config.treasuryAddress === undefined ? {} : { treasuryAddress: config.treasuryAddress }),
+    ...(treasury === undefined
+      ? {}
+      : {
+          treasuryExecutionChains: treasury.chains,
+        }),
+    treasuryAddresses: Object.fromEntries([
+      ...Object.keys(config.depositForwarders)
+        .filter(isEvmChainId)
+        .flatMap((chain) =>
+          config.treasuryAddress === undefined ? [] : [[chain, config.treasuryAddress]],
+        ),
+      ...Object.keys(solanaRuntime?.connections ?? {}).map((chain) => [
+        chain,
+        solanaRuntime?.signer.publicKey() ?? "",
+      ]),
+    ]),
   });
 
   const checkout =
@@ -862,9 +942,20 @@ export function createContainer({
           engine,
           intents,
           contract: config.contract,
+          stablecoins: registry,
           routeSources: async () =>
             createRouteSources(config, (await market.uniswapPools()) as Config["uniswapPools"]),
           clock,
+          ...(solanaRuntime === undefined
+            ? {}
+            : {
+                solana: {
+                  connections: solanaRuntime.connections,
+                  deploymentDomains: solanaRuntime.deploymentDomains,
+                  feeRecipients: solanaRuntime.feeRecipients,
+                  routeSources: solanaRuntime.routeSources,
+                },
+              }),
         });
 
   const watchers = new Map<ChainId, WalletWatcher>();
@@ -880,7 +971,8 @@ export function createContainer({
       logRange: chain.logRange,
     });
     const cursors = new DrizzleWatcherCursorRepository(handle.db);
-    chainHead = (id: ChainId) => client.head(id);
+    const chainClients = new Map<ChainId, ChainClient>();
+    for (const id of EVM_CHAINS) chainClients.set(id, client);
 
     // The watcher speaks to the engine through a sink rather than importing it:
     // `@mayarin/chain` must not depend on `@mayarin/clearing`.
@@ -890,7 +982,11 @@ export function createContainer({
       },
     };
 
-    for (const chainId of new Set(pairsOf(config.stablecoins).map((pair) => pair.chain))) {
+    for (const chainId of new Set(
+      pairsOf(config.stablecoins)
+        .map((pair) => pair.chain)
+        .filter(isEvmChainId),
+    )) {
       watchers.set(
         chainId,
         new WalletWatcher({
@@ -916,6 +1012,51 @@ export function createContainer({
         }),
       );
     }
+
+    for (const chainId of new Set(
+      pairsOf(config.stablecoins)
+        .map((pair) => pair.chain)
+        .filter(isSolanaChainId),
+    )) {
+      const connection = solanaRuntime?.connections[chainId];
+      if (connection === undefined) continue;
+      const solanaClient = new SolanaDepositClient({
+        connection,
+        tokens: tokensOf(config.stablecoins)[chainId] ?? {},
+        ...(config.chainNativeAssets[chainId] === undefined
+          ? {}
+          : { nativeAsset: config.chainNativeAssets[chainId] }),
+      });
+      chainClients.set(chainId, solanaClient);
+      watchers.set(
+        chainId,
+        new WalletWatcher({
+          client: solanaClient,
+          addresses: depositAddresses,
+          deposits,
+          cursors,
+          sink,
+          clock,
+          events,
+          policy: {
+            depth: chain.confirmations[chainId],
+            reorgWatchWindow: chain.reorgWatchWindow,
+          },
+          blockRange: chain.blockRange,
+          nativeBlockRange: chain.nativeBlockRange,
+          tokenBalanceCatchUp: false,
+          retentionSeconds: chain.retentionSeconds,
+          startBlocks: chain.startBlocks,
+          nativeAssets: config.chainNativeAssets,
+        }),
+      );
+    }
+    chainHead = async (id: ChainId) => {
+      const selected = chainClients.get(id);
+      if (selected === undefined)
+        throw new ConfigurationError(`No chain client for ${id}`, { chain: id });
+      return selected.head(id);
+    };
   }
 
   // The seam #8 drives: the log names an on-chain `intentId`, and resolving it
@@ -938,20 +1079,18 @@ export function createContainer({
       rpcUrls: chain.rpcUrls,
       tokens: tokensOf(config.stablecoins),
     });
-    const settlementSource = createSettlementSource({
-      client: indexerClient,
-      endpoints: config.subgraphEndpoints,
-      apiKey: config.subgraphApiKey,
-      routers: config.contract.paymentRouters,
-    });
-
     for (const [routerChain, router] of Object.entries(config.contract.paymentRouters)) {
       if (router === undefined) continue;
+      const id = routerChain as ChainId;
+      const solanaConnection = solanaRuntime?.connections[id];
+      const client =
+        isSolanaChainId(id) && solanaConnection !== undefined
+          ? new SolanaSettlementClient(solanaConnection)
+          : indexerClient;
       indexers.set(
-        routerChain as ChainId,
+        id,
         new SettlementIndexer({
-          client: indexerClient,
-          source: settlementSource,
+          client,
           settlements: settlementRepository,
           cursors: indexerCursors,
           sink: completionSink,
@@ -959,7 +1098,7 @@ export function createContainer({
           policy: {
             // The same finality line a deposit gets: a settlement below the
             // depth has told the engine nothing and can vanish freely.
-            depth: chain.confirmations[routerChain as ChainId],
+            depth: chain.confirmations[id],
             reorgWatchWindow: chain.reorgWatchWindow,
           },
           routers: { [routerChain]: router },
@@ -1064,8 +1203,12 @@ export function createContainer({
 
   // Built after the watchers, because a rail is only real when something is
   // scanning the chain it is on.
+  const evmContractCode =
+    Object.keys(config.chainRpcUrls).length === 0
+      ? undefined
+      : new EvmContractCodeReader({ rpcUrls: config.chainRpcUrls });
   const railCatalog = new DerivedRailCatalog({
-    receipts: chainReceipts(config, new Set(watchers.keys())),
+    receipts: chainReceipts(config, new Set<ChainId>([...watchers.keys(), ...indexers.keys()])),
     merchantPolicies,
     // `effective` is exactly the port's question — where is this merchant paid
     // on this chain, or nowhere — under the name the resolver gave it before
@@ -1081,19 +1224,26 @@ export function createContainer({
             destinationFor: (merchantId: string, railChain: ChainId, configured?: string) =>
               settlementAddresses.effective(merchantId, railChain, configured),
           },
+          settlementRequiredChains:
+            config.executionPath === "on-chain-contract"
+              ? new Set(Object.keys(config.contract?.paymentRouters ?? {}) as ChainId[])
+              : (treasury?.chains ?? new Set<ChainId>()),
         }),
     pricing: new QuotePricingSource({ market, rates, config }),
     defaultSettlementAsset: config.settlementAsset,
     // Absent with no RPC configured: a deployment settling off-chain cannot
     // strand funds at a contract address that does not exist on a chain.
-    ...(Object.keys(config.chainRpcUrls).length === 0
+    ...(evmContractCode === undefined
       ? {}
-      : { code: new EvmContractCodeReader({ rpcUrls: config.chainRpcUrls }) }),
+      : {
+          code: {
+            hasCode: (railChain: ChainId, address: string) =>
+              isEvmChainId(railChain)
+                ? evmContractCode.hasCode(railChain, address)
+                : Promise.resolve(false),
+          },
+        }),
   });
-
-  // One observer for the whole process, so the `402` and the MCP tool share a
-  // cache. Two would double a query budget that is 3,000 a day account-wide.
-  const railObservations = createRailObservations(config, clock);
 
   const payableQuotes = new DrizzlePayableQuoteRepository(handle.db);
 
@@ -1107,7 +1257,6 @@ export function createContainer({
     merchantPolicies,
     settlementAddresses,
     quote: config.quote === undefined ? undefined : resolveQuote,
-    railObservations,
     merchantRails: railCatalog,
     payableQuotes,
     uniswapPools: async () => (await market.uniswapPools()) as Config["uniswapPools"],
@@ -1127,6 +1276,7 @@ export function createContainer({
           clock,
           quoteTtlSeconds: config.x402QuoteTtlSeconds,
         });
+  const escrowTreasuryPort = treasury?.evmPort;
 
   return {
     config,
@@ -1142,13 +1292,13 @@ export function createContainer({
     paymentApp,
     escrow: new EscrowService(paymentApp, config.chainRpcUrls, disputes, clock, disputeNotices),
     payerStanding,
-    ...(treasury === undefined
+    ...(escrowTreasuryPort === undefined
       ? {}
       : {
           escrowKeeper: new EscrowKeeper({
             repository: clearingRepository,
             read: rpcEscrowStateReader(config.chainRpcUrls),
-            send: (chain, to, data) => treasury.port.call(chain, to, data),
+            send: (chain, to, data) => escrowTreasuryPort.call(chain, to, data),
             disputes,
             alert: disputeAlertSink(config.escrowAlertWebhookUrl),
             notifier: disputeNotices,
@@ -1166,7 +1316,6 @@ export function createContainer({
     merchantPolicies,
     merchants,
     rails: railCatalog,
-    ...(railObservations === undefined ? {} : { railObservations }),
     walletGuard,
     watchers,
     indexers,

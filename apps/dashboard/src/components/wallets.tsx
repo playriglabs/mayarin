@@ -102,12 +102,15 @@ import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { fromEditableDecimalString } from "@/lib/decimal-input";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
-import { cn } from "@/lib/utils";
 import {
+  discoverSolanaWallet,
   discoverWallets,
+  type InjectedSolanaWallet,
   type InjectedWallet,
   personalSign,
   requestAccount,
+  requestSolanaAccount,
+  solanaSign,
   walletErrorMessage,
 } from "@/lib/wallet";
 import { withQuery } from "@/lib/with-query";
@@ -335,9 +338,12 @@ function SettlementOverview({
   rails,
   managedAddress,
   provisionChains,
+  connectChains,
   hasVerifiedWallet,
   provisioning,
+  connectingChain,
   onSetUp,
+  onConnect,
   onWithdraw,
 }: {
   readonly chainBalances: readonly ChainBalanceDto[];
@@ -345,9 +351,12 @@ function SettlementOverview({
   /** Set only when every network with an address is paid into it. */
   readonly managedAddress: string | undefined;
   readonly provisionChains: readonly string[];
+  readonly connectChains: readonly string[];
   readonly hasVerifiedWallet: boolean;
   readonly provisioning: boolean;
+  readonly connectingChain: string | null;
   readonly onSetUp: (chain: string) => void;
+  readonly onConnect: (chain: string) => void;
   readonly onWithdraw: (row: ChainBalanceDto) => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -426,6 +435,20 @@ function SettlementOverview({
         >
           <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
           Set up
+        </Button>
+      );
+    }
+    if (row.address === null && connectChains.includes(row.chain)) {
+      const busy = connectingChain === row.chain;
+      return (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => onConnect(row.chain)}
+          disabled={connectingChain !== null}
+        >
+          <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+          {busy ? "Connecting…" : "Connect wallet"}
         </Button>
       );
     }
@@ -526,7 +549,7 @@ function SettlementOverview({
         </TableHeader>
         <TableBody>
           {ordered.map((row) => (
-            <TableRow key={row.chain} className={row.address === null ? "opacity-70" : undefined}>
+            <TableRow key={row.chain}>
               <TableCell>
                 <ChainLabel chain={row.chain} size={20} className="whitespace-nowrap" />
               </TableCell>
@@ -540,10 +563,7 @@ function SettlementOverview({
 
       <ul className="flex flex-col divide-y divide-border md:hidden">
         {ordered.map((row) => (
-          <li
-            key={row.chain}
-            className={cn("flex flex-col gap-3 p-4", row.address === null && "opacity-70")}
-          >
+          <li key={row.chain} className="flex flex-col gap-3 p-4">
             <div className="flex items-center justify-between gap-3">
               <ChainLabel chain={row.chain} size={20} className="whitespace-nowrap font-medium" />
               {actionOf(row)}
@@ -659,7 +679,10 @@ function Wallets() {
   const [withdrawFailure, setWithdrawFailure] = useState("");
   /** Every wallet this browser announced. Empty once discovery has finished with none. */
   const [injected, setInjected] = useState<readonly InjectedWallet[]>([]);
+  const [solanaWallet, setSolanaWallet] = useState<InjectedSolanaWallet | null>(null);
   const [signing, setSigning] = useState(false);
+  /** The row whose browser-wallet prompt is active; keeps loading local to that row. */
+  const [connectingChain, setConnectingChain] = useState<string | null>(null);
   /**
    * Which wallet to talk to, once the merchant has said.
    *
@@ -672,6 +695,7 @@ function Wallets() {
 
   useEffect(() => {
     let live = true;
+    setSolanaWallet(discoverSolanaWallet() ?? null);
     void discoverWallets().then((found) => {
       if (!live) return;
       setInjected(found);
@@ -692,6 +716,13 @@ function Wallets() {
       setConnectChain(selectedChain);
       if (chosen !== null) {
         void connectInjected(chosen, selectedChain);
+        return;
+      }
+      if (injected.length === 0) {
+        openConnect(selectedChain);
+        setFailure(
+          "No EVM wallet was detected. Install or unlock a browser wallet, or enter your address below.",
+        );
         return;
       }
       setPicking(action);
@@ -726,6 +757,10 @@ function Wallets() {
   const chain = wallets.data?.chain;
   /** Every chain this deployment can provision on, named by the API rather than assumed. */
   const provisionChains = wallets.data?.chains ?? [];
+  /** Every chain where a merchant-held wallet can be verified and receive settlement. */
+  const connectChains = wallets.data?.connectChains ?? [];
+  const connectingSolana = connectChain.startsWith("solana-");
+  const ceremonySolana = ceremony?.wallet.chain.startsWith("solana-") === true;
   /** The wallet table: one line per address, naming the networks it is on. */
   const groups = groupWallets(rows);
   /**
@@ -855,6 +890,47 @@ function Wallets() {
     }
   }
 
+  /** Connects and verifies a Phantom-compatible wallet in one signed ceremony. */
+  async function connectSolana(targetChain: string) {
+    if (targetChain === "") return;
+    if (solanaWallet === null) {
+      openConnect(targetChain);
+      setFailure(
+        "No Solana wallet was detected. Install or unlock Phantom, or enter your address below.",
+      );
+      return;
+    }
+    setFailure("");
+    setNotice(null);
+    setSigning(true);
+    setConnectingChain(targetChain);
+    try {
+      const account = await requestSolanaAccount(solanaWallet.provider);
+      const existing = rows.find((row) => row.chain === targetChain && row.address === account);
+      if (existing?.verified === true) {
+        setNotice({ message: "That Solana wallet is already verified." });
+        return;
+      }
+      const row =
+        existing ?? (await link.mutateAsync({ chain: targetChain, address: account })).wallet;
+      const issued = await challenge.mutateAsync(row.id);
+      const signed = await solanaSign(solanaWallet.provider, issued.message);
+      await verify.mutateAsync({
+        walletId: row.id,
+        challengeId: issued.challengeId,
+        signature: signed,
+      });
+      setConnecting(false);
+      setNotice({ message: "Solana wallet verified. Payments can now settle directly to it." });
+    } catch (error) {
+      const reason = error instanceof ApiError ? error.message : walletErrorMessage(error);
+      if (reason !== undefined) setFailure(reason);
+    } finally {
+      setSigning(false);
+      setConnectingChain(null);
+    }
+  }
+
   /**
    * Signs an outstanding challenge with the browser's wallet.
    *
@@ -883,6 +959,35 @@ function Wallets() {
       });
       setCeremony(null);
       setNotice({ message: "Wallet verified. It can be paid." });
+    } catch (error) {
+      const reason = error instanceof ApiError ? error.message : walletErrorMessage(error);
+      if (reason !== undefined) setFailure(reason);
+    } finally {
+      setSigning(false);
+    }
+  }
+
+  /** Completes a manually-started Solana proof with the injected wallet. */
+  async function signSolanaCeremony() {
+    const active = ceremony;
+    if (active === null || solanaWallet === null) return;
+    setFailure("");
+    setNotice(null);
+    setSigning(true);
+    try {
+      const account = await requestSolanaAccount(solanaWallet.provider);
+      if (account !== active.wallet.address) {
+        setFailure(`Switch ${solanaWallet.name} to ${active.wallet.address} and try again.`);
+        return;
+      }
+      const signed = await solanaSign(solanaWallet.provider, active.message);
+      await verify.mutateAsync({
+        walletId: active.wallet.id,
+        challengeId: active.challengeId,
+        signature: signed,
+      });
+      setCeremony(null);
+      setNotice({ message: "Solana wallet verified. Payments can now settle directly to it." });
     } catch (error) {
       const reason = error instanceof ApiError ? error.message : walletErrorMessage(error);
       if (reason !== undefined) setFailure(reason);
@@ -1101,9 +1206,16 @@ function Wallets() {
                   rails={rails.data}
                   managedAddress={paidIntoManaged ? managedAddress : undefined}
                   provisionChains={provisionChains}
+                  connectChains={connectChains}
                   hasVerifiedWallet={hasVerifiedWallet}
                   provisioning={provision.isPending}
+                  connectingChain={connectingChain}
                   onSetUp={(target) => void provisionOn(target)}
+                  onConnect={(target) =>
+                    target.startsWith("solana-")
+                      ? void connectSolana(target)
+                      : withWallet("connect", target)
+                  }
                   onWithdraw={openWithdraw}
                 />
               )}
@@ -1375,16 +1487,29 @@ function Wallets() {
       <Dialog open={connecting} onOpenChange={(next) => !next && setConnecting(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Connect an existing wallet</DialogTitle>
+            <DialogTitle>
+              {connectingSolana ? "Connect a Solana wallet" : "Connect an existing wallet"}
+            </DialogTitle>
             <DialogDescription>
-              Register an address you already control, then prove control of it in the next step.
-              You prove it once — it counts on every network.
+              {connectingSolana
+                ? "Connect Phantom to verify your Solana address, or enter an address to complete the proof manually."
+                : "Register an address you already control, then prove control of it in the next step. You prove it once — it counts on every EVM network."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
             {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
-            {injected.length > 0 && connectChain !== "" && (
+            {connectingSolana && solanaWallet !== null && connectChain !== "" && (
+              <Button
+                variant="secondary"
+                onClick={() => void connectSolana(connectChain)}
+                disabled={signing}
+              >
+                <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                {signing ? "Check Phantom…" : `Use ${solanaWallet.name}`}
+              </Button>
+            )}
+            {!connectingSolana && injected.length > 0 && connectChain !== "" && (
               <Button
                 variant="secondary"
                 onClick={() => withWallet("connect", connectChain)}
@@ -1395,16 +1520,23 @@ function Wallets() {
               </Button>
             )}
             <Field>
-              <FieldLabel htmlFor="wallet-address">Address</FieldLabel>
+              <FieldLabel htmlFor="wallet-address">
+                {connectingSolana ? "Solana address" : "Address"}
+              </FieldLabel>
               <Input
                 id="wallet-address"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="0x…"
+                placeholder={connectingSolana ? "Base58 address" : "0x…"}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="font-mono text-xs"
               />
               <FieldDescription>
-                An EVM address. The same key holds it on every network.
+                {connectingSolana
+                  ? "The devnet address that should receive your Solana settlement."
+                  : "An EVM address. The same key holds it on every EVM network."}
               </FieldDescription>
             </Field>
           </div>
@@ -1535,7 +1667,14 @@ function Wallets() {
           <div className="flex flex-col gap-3">
             {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
 
-            {injected.length > 0 && (
+            {ceremonySolana && solanaWallet !== null && (
+              <Button onClick={() => void signSolanaCeremony()} disabled={signing}>
+                <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                {signing ? "Check Phantom…" : `Sign with ${solanaWallet.name}`}
+              </Button>
+            )}
+
+            {!ceremonySolana && injected.length > 0 && (
               <Button onClick={() => withWallet("sign")} disabled={signing}>
                 <WalletIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
                 {signing ? "Check your wallet…" : `Sign with ${chosen?.name ?? "your wallet"}`}
@@ -1555,16 +1694,26 @@ function Wallets() {
 
             <Field>
               <FieldLabel htmlFor="wallet-signature">
-                {injected.length === 0 ? "Signature" : "Signature (or paste one)"}
+                {(ceremonySolana ? solanaWallet === null : injected.length === 0)
+                  ? "Signature"
+                  : "Signature (or paste one)"}
               </FieldLabel>
               <Textarea
                 id="wallet-signature"
                 value={signature}
                 onChange={(e) => setSignature(e.target.value)}
                 rows={3}
-                placeholder="0x…"
+                placeholder={ceremonySolana ? "Base64 signature" : "0x…"}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className="font-mono text-xs"
               />
+              {ceremonySolana && (
+                <FieldDescription>
+                  Solana signatures are 64-byte Ed25519 signatures encoded as base64.
+                </FieldDescription>
+              )}
             </Field>
           </div>
 

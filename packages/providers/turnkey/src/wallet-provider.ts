@@ -62,7 +62,7 @@
  * chain — including chains added to the deployment later.
  */
 
-import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
+import { type ChainId, evmChainIdOf } from "@mayarin/chain";
 import {
   type AssetCode,
   ConfigurationError,
@@ -725,7 +725,7 @@ export class TurnkeyWalletProvider implements WalletProvider {
   #chain(): Chain {
     const nativeAsset = this.#options.nativeAsset ?? "ETH";
     return defineChain({
-      id: Number(EVM_CHAIN_IDS[this.#options.chain]),
+      id: Number(evmChainIdOf(this.#options.chain)),
       name: this.#options.chain,
       nativeCurrency: { name: nativeAsset, symbol: nativeAsset, decimals: 18 },
       rpcUrls: { default: { http: [this.#options.rpcUrl] } },

@@ -12,7 +12,7 @@
  */
 
 import type { ChainId } from "@mayarin/chain";
-import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
+import { viemChainOf } from "@mayarin/provider-viem-chains";
 import { type AssetCode, type Money, money, ProviderError } from "@mayarin/shared";
 import type { WalletBalanceQuery, WalletBalanceReader } from "@mayarin/wallet";
 import { createPublicClient, getAddress, http, type PublicClient, parseAbi } from "viem";
@@ -82,7 +82,7 @@ export class EvmWalletBalanceReader implements WalletBalanceReader {
       throw new ProviderError(`No RPC URL configured for ${chain}`, { chain });
     }
 
-    const client = createPublicClient({ chain: VIEM_CHAINS[chain], transport: http(url) });
+    const client = createPublicClient({ chain: viemChainOf(chain), transport: http(url) });
     this.#clients.set(chain, client);
     return client;
   }

@@ -7,7 +7,7 @@
  * pass that the real adapter cannot.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, normaliseChainAddress } from "@mayarin/chain";
 import { type AssetCode, ConfigurationError, ConflictError, type Money } from "@mayarin/shared";
 import type {
   CreateMerchantKeyRequest,
@@ -124,7 +124,7 @@ export class InMemoryMerchantWalletRepository implements MerchantWalletRepositor
   }
 
   async findByAddress(chain: ChainId, address: string): Promise<MerchantWallet | null> {
-    const normalised = address.toLowerCase();
+    const normalised = normaliseChainAddress(chain, address);
     for (const wallet of this.#byId.values()) {
       if (wallet.chain === chain && wallet.address === normalised) return wallet;
     }

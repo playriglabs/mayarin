@@ -16,7 +16,7 @@
  * matching the other price seams.
  */
 
-import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
+import { type ChainId, evmChainIdOf } from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import type { SwapVenue } from "@mayarin/execution";
@@ -107,9 +107,9 @@ export class LifiSwapVenue implements SwapVenue {
     // LiFi prices but cannot route, so nothing falls back to it at execution —
     // which makes a cross-chain price here worse, not harmless: it would be the
     // rate a lock is signed against with no venue on this chain behind it.
-    if (chain !== undefined && EVM_CHAIN_IDS[chain] !== BigInt(pair.chainId)) {
+    if (chain !== undefined && evmChainIdOf(chain) !== BigInt(pair.chainId)) {
       throw new ConfigurationError(
-        `LiFi pair for ${rateKey(from, to)} is on chain id ${pair.chainId}, not ${chain} (${EVM_CHAIN_IDS[chain]})`,
+        `LiFi pair for ${rateKey(from, to)} is on chain id ${pair.chainId}, not ${chain} (${evmChainIdOf(chain)})`,
         { pair: rateKey(from, to), pairChainId: pair.chainId, chain },
       );
     }

@@ -14,7 +14,7 @@
  * price seams.
  */
 
-import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
+import { type ChainId, evmChainIdOf } from "@mayarin/chain";
 import type { PriceQuote } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
 import type { SwapVenue } from "@mayarin/execution";
@@ -85,9 +85,9 @@ export class ZeroExSwapVenue implements SwapVenue {
     // The same refusal `ZeroExRouteSource` makes, one step earlier: 0x serves
     // one configured chain, and a price from that chain does not describe a
     // swap that will execute on another.
-    if (chain !== undefined && EVM_CHAIN_IDS[chain] !== BigInt(this.#chainId)) {
+    if (chain !== undefined && evmChainIdOf(chain) !== BigInt(this.#chainId)) {
       throw new ConfigurationError(
-        `0x is configured for chain id ${this.#chainId}, not ${chain} (${EVM_CHAIN_IDS[chain]})`,
+        `0x is configured for chain id ${this.#chainId}, not ${chain} (${evmChainIdOf(chain)})`,
         { pair: rateKey(from, to), chain, configuredChainId: this.#chainId },
       );
     }
@@ -147,9 +147,9 @@ export class ZeroExSwapVenue implements SwapVenue {
     if (pair === undefined) {
       throw new ConfigurationError(`No 0x pair configured for ${from} -> ${to}`, { from, to });
     }
-    if (chain !== undefined && EVM_CHAIN_IDS[chain] !== BigInt(this.#chainId)) {
+    if (chain !== undefined && evmChainIdOf(chain) !== BigInt(this.#chainId)) {
       throw new ConfigurationError(
-        `0x is configured for chain id ${this.#chainId}, not ${chain} (${EVM_CHAIN_IDS[chain]})`,
+        `0x is configured for chain id ${this.#chainId}, not ${chain} (${evmChainIdOf(chain)})`,
         { pair: rateKey(from, to), chain, configuredChainId: this.#chainId },
       );
     }

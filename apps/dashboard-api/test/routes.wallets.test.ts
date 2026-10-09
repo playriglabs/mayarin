@@ -75,6 +75,16 @@ async function link(harness: Harness, auth: Auth) {
 }
 
 describe("linking", () => {
+  test("lists every settlement network where a merchant can connect a wallet", async () => {
+    const harness = await seed();
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+    const res = await harness.request("GET", "/v1/wallets", { cookies: auth.jar });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.connectChains).toEqual(["base-sepolia", "arc-testnet"]);
+  });
+
   test("a linked wallet starts unverified", async () => {
     const harness = await seed();
     const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);

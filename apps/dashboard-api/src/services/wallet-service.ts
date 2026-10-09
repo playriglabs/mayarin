@@ -21,7 +21,7 @@
  */
 
 import { type Merchant, type MerchantRepository, settlementAssetOn } from "@mayarin/auth";
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, isChainAddress, normaliseChainAddress } from "@mayarin/chain";
 import {
   type AssetCode,
   type Clock,
@@ -160,8 +160,6 @@ export interface WithdrawRequest {
 }
 
 const DEFAULT_CHALLENGE_TTL = 600;
-const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
-
 export class WalletService {
   readonly #wallets: MerchantWalletRepository;
   readonly #challenges: WalletChallengeRepository;
@@ -190,7 +188,7 @@ export class WalletService {
     this.#provisioner = options.provisioner;
     this.#keyProvider = options.keyProvider;
     this.#treasury = new Set(
-      (options.treasuryAddresses ?? []).map((address) => address.toLowerCase()),
+      (options.treasuryAddresses ?? []).flatMap((address) => [address, address.toLowerCase()]),
     );
     this.#merchants = options.merchants;
     this.#chains = options.chains;
@@ -300,7 +298,7 @@ export class WalletService {
       });
     }
 
-    const to = normaliseAddress(request.to);
+    const to = normaliseAddress(request.chain, request.to);
     const destinations = await this.#wallets.listByMerchant(scope.merchantId);
     const destination = destinations.find(
       (wallet) => wallet.address === to && isMerchantHeld(wallet) && isVerified(wallet),
@@ -374,7 +372,7 @@ export class WalletService {
    * claims, so this alone does not make the address payable.
    */
   async link(scope: Scope, chain: ChainId, address: string): Promise<MerchantWallet> {
-    return this.#record(scope, chain, normaliseAddress(address), "linked");
+    return this.#record(scope, chain, normaliseAddress(chain, address), "linked");
   }
 
   /**
@@ -407,7 +405,7 @@ export class WalletService {
       attestation,
     });
 
-    return this.#record(scope, chain, normaliseAddress(key.address), "passkey", key.ref);
+    return this.#record(scope, chain, normaliseAddress(chain, key.address), "passkey", key.ref);
   }
 
   /**
@@ -545,7 +543,7 @@ export class WalletService {
     provenance: "linked" | "passkey",
     keyRef?: string,
   ): Promise<MerchantWallet> {
-    if (this.#treasury.has(address)) {
+    if (this.#treasury.has(address) || this.#treasury.has(address.toLowerCase())) {
       // Refused here as well as at signing time, because the guard's refusal
       // would arrive at a merchant's first payment rather than at the moment
       // somebody typed the wrong address.
@@ -586,16 +584,17 @@ export class WalletService {
   }
 }
 
-function normaliseAddress(address: string): string {
+function normaliseAddress(chain: ChainId, address: string): string {
   const trimmed = address.trim();
-  if (!ADDRESS_PATTERN.test(trimmed)) {
-    throw new ValidationError("A wallet address must be a 20-byte hex address", {
+  if (!isChainAddress(chain, trimmed)) {
+    throw new ValidationError(`A wallet address is not valid on ${chain}`, {
       address: trimmed,
+      chain,
     });
   }
-  const lowered = trimmed.toLowerCase();
-  if (lowered === `0x${"0".repeat(40)}`) {
+  const normalised = normaliseChainAddress(chain, trimmed);
+  if (normalised === `0x${"0".repeat(40)}` || normalised === "11111111111111111111111111111111") {
     throw new ValidationError("The zero address cannot receive settlement", {});
   }
-  return lowered;
+  return normalised;
 }

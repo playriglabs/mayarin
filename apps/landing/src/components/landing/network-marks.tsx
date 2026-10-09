@@ -2,9 +2,9 @@ import { chainLogoUrl } from "@mayarin/chain";
 import clsx from "clsx";
 
 /**
- * The networks a payment can arrive on. Base, Arbitrum, Arc and Robinhood
- * resolve through `chainLogoUrl`, the same function the hosted checkout renders
- * from.
+ * The networks a payment can arrive on. Solana, Base, Arbitrum, Arc and
+ * Robinhood resolve through `chainLogoUrl`, the same function the hosted
+ * checkout renders from.
  *
  * Ethereum has no entry in `CHAIN_IDS`, so it carries a local mark — it is
  * named because the product says so, not because the chain registry does. The
@@ -13,6 +13,7 @@ import clsx from "clsx";
  */
 export const NETWORKS = [
   { name: "Ethereum", src: "/chains/ethereum.svg" },
+  { name: "Solana", src: chainLogoUrl("solana-devnet") },
   { name: "Arc", src: chainLogoUrl("arc-testnet") },
   { name: "Base", src: chainLogoUrl("base") },
   { name: "Arbitrum", src: chainLogoUrl("arbitrum") },

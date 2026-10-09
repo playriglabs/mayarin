@@ -48,7 +48,7 @@ export const paymentRailSchema = z
     /** Required by the on-chain-contract path: the signed order's `refundTo`. */
     payerAddress: z
       .string()
-      .regex(/^0x[0-9a-fA-F]{40}$/)
+      .regex(/^(?:0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/)
       .optional(),
   })
   // `exactOptionalPropertyTypes`: the rail's optional field must be absent,

@@ -175,6 +175,8 @@ export interface ClearingEngineOptions {
    * wiring of whichever process happens to advance it (#104).
    */
   readonly treasuryExecutor?: TreasuryExecutor;
+  /** Chains whose deposit custody/execution adapter is actually available. */
+  readonly treasuryExecutionChains?: ReadonlySet<ChainId>;
   /**
    * Receives swap output above `minOut` on the deposit path — the signed
    * order's `refundTo`.
@@ -186,7 +188,8 @@ export interface ClearingEngineOptions {
    * nothing more, so the excess is Mayarin's — symmetric with a shortfall,
    * which Mayarin absorbs. Both land in `FX_RESULT`.
    */
-  readonly treasuryAddress?: string;
+  /** Refund destination for executable deposits, scoped per chain family. */
+  readonly treasuryAddresses?: Readonly<Partial<Record<ChainId, string>>>;
   readonly clock: Clock;
   readonly events?: EventPublisher;
   /**
@@ -218,7 +221,8 @@ export class ClearingEngine {
   readonly #depositDeriver: DepositAddressDeriver | undefined;
   readonly #contractPlanner: ContractPaymentPlanner | undefined;
   readonly #treasuryExecutor: TreasuryExecutor | undefined;
-  readonly #treasuryAddress: string | undefined;
+  readonly #treasuryExecutionChains: ReadonlySet<ChainId> | undefined;
+  readonly #treasuryAddresses: Readonly<Partial<Record<ChainId, string>>>;
   readonly #contractExpiryGraceSeconds: number;
   readonly #renewedOrderTtlSeconds: number;
   readonly #clock: Clock;
@@ -236,7 +240,8 @@ export class ClearingEngine {
     this.#depositDeriver = options.depositDeriver;
     this.#contractPlanner = options.contractPlanner;
     this.#treasuryExecutor = options.treasuryExecutor;
-    this.#treasuryAddress = options.treasuryAddress;
+    this.#treasuryExecutionChains = options.treasuryExecutionChains;
+    this.#treasuryAddresses = options.treasuryAddresses ?? {};
     this.#contractExpiryGraceSeconds = options.contractExpiryGraceSeconds ?? 60;
     this.#renewedOrderTtlSeconds = options.renewedOrderTtlSeconds ?? 3_600;
     this.#clock = options.clock;
@@ -977,7 +982,7 @@ export class ClearingEngine {
    * Persisted lock data, not process-local authority, decides the later path.
    */
   async #plansExecutableDeposit(transaction: ClearingTransaction): Promise<boolean> {
-    if (this.#contractPlanner === undefined || this.#treasuryAddress === undefined) return false;
+    if (this.#contractPlanner === undefined) return false;
     // Asked as "is this the deposit path" rather than "is this not the contract
     // path". The second phrasing was correct with two paths and would have
     // planned a signed router order for an x402 payment, which has no deposit
@@ -985,7 +990,12 @@ export class ClearingEngine {
     if (!usesDepositAddress(transaction.executionPath)) return false;
 
     const intent = await this.#intents.getById(transaction.paymentIntentId);
-    return intent.payment !== undefined;
+    return (
+      intent.payment !== undefined &&
+      this.#treasuryAddresses[intent.payment.chain] !== undefined &&
+      (this.#treasuryExecutionChains === undefined ||
+        this.#treasuryExecutionChains.has(intent.payment.chain))
+    );
   }
 
   /**
@@ -1000,15 +1010,6 @@ export class ClearingEngine {
    */
   async #lockExecutableDeposit(transaction: ClearingTransaction): Promise<ClearingTransaction> {
     const planner = this.#contractPlanner;
-    const treasury = this.#treasuryAddress;
-
-    if (planner === undefined || treasury === undefined) {
-      throw new ConfigurationError(
-        `Payment ${transaction.paymentIntentId} has a treasury executor but no ${planner === undefined ? "contract planner" : "treasury address"} to sign an order with`,
-        { paymentIntentId: transaction.paymentIntentId },
-      );
-    }
-
     const intent = await this.#intents.getById(transaction.paymentIntentId);
     const rail = intent.payment;
     if (rail === undefined) {
@@ -1023,6 +1024,13 @@ export class ClearingEngine {
       throw new ConfigurationError(
         `Payment intent ${intent.id} requests an on-chain rail but this deployment has no chain layer`,
         { paymentIntentId: intent.id, chain: rail.chain, asset: rail.asset },
+      );
+    }
+    const treasury = this.#treasuryAddresses[rail.chain];
+    if (planner === undefined || treasury === undefined) {
+      throw new ConfigurationError(
+        `Payment ${transaction.paymentIntentId} has a treasury executor but no ${planner === undefined ? "contract planner" : `treasury address for ${rail.chain}`} to sign an order with`,
+        { paymentIntentId: transaction.paymentIntentId, chain: rail.chain },
       );
     }
 

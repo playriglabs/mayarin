@@ -17,13 +17,17 @@
  * - The expiry bounds how long a leaked signature stays useful.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, normaliseChainAddress } from "@mayarin/chain";
 import { type Clock, generateId, ValidationError } from "@mayarin/shared";
 
-/** Recovers the signer of a personal-message signature. Implemented outside core. */
+/** Verifies a chain-family-specific message signature. Implemented outside core. */
 export interface SignatureVerifier {
-  /** The address that produced `signature` over `message`, lowercased. */
-  recover(message: string, signature: string): Promise<string>;
+  verify(input: {
+    readonly message: string;
+    readonly signature: string;
+    readonly address: string;
+    readonly chain: ChainId;
+  }): Promise<boolean>;
 }
 
 export interface WalletChallenge {
@@ -78,7 +82,7 @@ export function createChallenge(input: CreateChallengeInput): WalletChallenge {
     id: generateId("wch", createdAt.getTime()),
     merchantId: input.merchantId,
     chain: input.chain,
-    address: input.address.toLowerCase(),
+    address: normaliseChainAddress(input.chain, input.address),
     // The id is a ULID and already unguessable; a separate nonce keeps the
     // signed text independent of how ids happen to be generated.
     nonce: generateId("wnc", createdAt.getTime()),
@@ -111,9 +115,14 @@ export async function assertChallengeSigned(
     });
   }
 
-  let recovered: string;
+  let verified: boolean;
   try {
-    recovered = (await verifier.recover(challengeMessage(challenge), signature)).toLowerCase();
+    verified = await verifier.verify({
+      message: challengeMessage(challenge),
+      signature,
+      address: challenge.address,
+      chain: challenge.chain,
+    });
   } catch {
     // A malformed signature is not a different outcome from a wrong one, and
     // saying which would help someone probing.
@@ -122,7 +131,7 @@ export async function assertChallengeSigned(
     });
   }
 
-  if (recovered !== challenge.address) {
+  if (!verified) {
     throw new ValidationError("The signature does not prove control of this address", {
       challengeId: challenge.id,
     });

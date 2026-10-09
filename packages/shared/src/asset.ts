@@ -150,6 +150,12 @@ const DEFINITIONS = {
     payerDecimals: 8,
     name: "Ether",
   },
+  SOL: {
+    kind: "crypto",
+    decimals: 9,
+    payerDecimals: 9,
+    name: "Solana",
+  },
   BTC: { kind: "crypto", decimals: 8, name: "Bitcoin" },
 } as const satisfies Record<string, Omit<AssetDefinition, "code">>;
 
@@ -171,6 +177,7 @@ export const ASSET_CODES = Object.keys(DEFINITIONS) as readonly AssetCode[];
 const ASSET_LOGOS: Readonly<Record<string, string>> = {
   BTC: "https://assets-cdn.trustwallet.com/blockchains/bitcoin/info/logo.png",
   ETH: "https://assets-cdn.trustwallet.com/blockchains/ethereum/info/logo.png",
+  SOL: "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
   EURC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
   PYUSD:
     "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x6c3ea9036406852006290770BEdFcAbA0e23A0e8/logo.png",

@@ -9,7 +9,29 @@ import type { ContractCallView } from "../contract-layer.ts";
 import type { ContractCallDto } from "./contract-call.ts";
 
 export function toContractCallDto(view: ContractCallView): ContractCallDto {
+  if (view.kind === "solana") {
+    return {
+      kind: "solana",
+      chain: view.chain,
+      paymentRouter: view.paymentRouter,
+      order: {
+        intentId: view.order.intentId,
+        settlementToken: view.order.settlementToken,
+        minOut: view.order.minOut.toString(),
+        fee: view.order.fee.toString(),
+        merchantSafe: view.order.merchantSafe,
+        refundTo: view.order.refundTo,
+        deadline: view.order.deadline.toString(),
+      },
+      signature: view.signature,
+      preparationTransactions: view.preparationTransactions,
+      transaction: view.transaction,
+      payerEstimate: serializeMoney(view.payerEstimate),
+      expiresAt: view.expiresAt.toISOString(),
+    };
+  }
   return {
+    kind: "evm",
     chain: view.chain,
     chainId: view.chainId.toString(),
     paymentRouter: view.paymentRouter,

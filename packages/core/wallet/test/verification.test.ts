@@ -29,9 +29,11 @@ function challenge(address = ADDRESS) {
   });
 }
 
-/** Recovers whatever it was told to, so the test controls the "signer". */
+/** Answers from the address it was told to, so the test controls the signer. */
 function verifierReturning(address: string): SignatureVerifier {
-  return { recover: async () => address };
+  return {
+    verify: async (input) => input.address.toLowerCase() === address.toLowerCase(),
+  };
 }
 
 describe("the challenge message", () => {
@@ -59,6 +61,19 @@ describe("the challenge message", () => {
   test("the address is normalised, so case cannot fork the message", () => {
     expect(challenge(ADDRESS.toUpperCase()).address).toBe(ADDRESS);
   });
+
+  test("a Solana address keeps its case", () => {
+    const address = "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7";
+    expect(
+      createChallenge({
+        merchantId: "mrc_1",
+        chain: "solana-devnet",
+        address,
+        ttlSeconds: 600,
+        now: new Date(NOW),
+      }).address,
+    ).toBe(address);
+  });
 });
 
 describe("assertChallengeSigned", () => {
@@ -85,7 +100,7 @@ describe("assertChallengeSigned", () => {
 
   test("a malformed signature is refused, and reads the same as a wrong one", async () => {
     const throwing: SignatureVerifier = {
-      recover: async () => {
+      verify: async () => {
         throw new Error("invalid signature length");
       },
     };
@@ -103,18 +118,18 @@ describe("assertChallengeSigned", () => {
 
   test("an expired challenge is refused before the signature is even read", async () => {
     const late = new FixedClock("2026-01-01T00:10:00.000Z");
-    let recovered = false;
+    let verified = false;
     const watching: SignatureVerifier = {
-      recover: async () => {
-        recovered = true;
-        return ADDRESS;
+      verify: async () => {
+        verified = true;
+        return true;
       },
     };
 
     await expect(
       assertChallengeSigned(challenge(), "0xsig", watching, late),
     ).rejects.toBeInstanceOf(ValidationError);
-    expect(recovered).toBe(false);
+    expect(verified).toBe(false);
   });
 
   test("expiry is inclusive at the boundary", () => {

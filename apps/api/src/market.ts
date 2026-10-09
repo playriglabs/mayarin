@@ -19,7 +19,7 @@
  *   no half-updated state to reason about.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, isChainAddress, isChainId } from "@mayarin/chain";
 import type { PriceQuote, PriceSource } from "@mayarin/clearing";
 import { TablePriceSource } from "@mayarin/clearing";
 import {
@@ -68,12 +68,30 @@ export function isMarketConfigKey(value: string): value is MarketConfigKey {
   return (MARKET_CONFIG_KEYS as readonly string[]).includes(value);
 }
 
-const addressSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
+const onChainIdentitySchema = z
+  .object({ chain: z.string(), address: z.string() })
+  .superRefine((identity, context) => {
+    if (!isChainId(identity.chain)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "unsupported chain",
+        path: ["chain"],
+      });
+      return;
+    }
+    if (!isChainAddress(identity.chain, identity.address)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `malformed address for ${identity.chain}`,
+        path: ["address"],
+      });
+    }
+  });
 
 const stablecoinsSchema = z.array(
   z.object({
     asset: z.string(),
-    onChain: z.array(z.object({ chain: z.string(), address: addressSchema })),
+    onChain: z.array(onChainIdentitySchema),
   }),
 );
 
@@ -363,7 +381,7 @@ export class RuntimeStablecoinRegistry implements StablecoinRegistry {
     return (await this.#market.registry()).isDepositAsset(asset, chain);
   }
 
-  async address(asset: AssetCode, chain: ChainId): Promise<`0x${string}` | undefined> {
+  async address(asset: AssetCode, chain: ChainId): Promise<string | undefined> {
     return (await this.#market.registry()).address(asset, chain);
   }
 }

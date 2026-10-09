@@ -7,7 +7,7 @@
  */
 
 import type { Merchant } from "@mayarin/auth";
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, isEvmChainId } from "@mayarin/chain";
 import { UnauthorizedError, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
@@ -67,10 +67,21 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
    * to point at the person who made it.
    */
   async function assertAddressExistsEverywhere(address: string): Promise<void> {
+    const isEvmAddress = /^0x[0-9a-fA-F]{40}$/.test(address);
+    const configuredChains = settlementChains(container.config);
+    if (!isEvmAddress) {
+      if (configuredChains.some(isEvmChainId)) {
+        throw new ValidationError(
+          "A Solana settlement public key cannot also receive on configured EVM chains; use a Solana-only deployment",
+          { settlementAddress: address },
+        );
+      }
+      return;
+    }
     const code = container.contractCode;
     if (code === undefined) return;
 
-    const chains = settlementChains(container.config);
+    const chains = configuredChains.filter(isEvmChainId);
     const withCode: ChainId[] = [];
     const withoutCode: ChainId[] = [];
     for (const chain of chains) {
@@ -105,7 +116,8 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
 
     const body = updateSettingsBodySchema.parse(await c.req.json());
     if (typeof body.settlementAddress === "string") {
-      await assertAddressExistsEverywhere(body.settlementAddress.trim().toLowerCase());
+      const trimmed = body.settlementAddress.trim();
+      await assertAddressExistsEverywhere(/^0x/.test(trimmed) ? trimmed.toLowerCase() : trimmed);
     }
 
     const { merchant, changes } = await container.settings.update(scope, session.user.id, {

@@ -32,6 +32,19 @@ export interface InjectedWallet {
   readonly provider: Eip1193Provider;
 }
 
+/** The small browser API shared by Phantom-compatible Solana wallets. */
+export interface SolanaWalletProvider {
+  readonly publicKey?: { toString(): string } | null;
+  connect(): Promise<{ readonly publicKey: { toString(): string } }>;
+  signMessage(message: Uint8Array, display?: "utf8"): Promise<{ readonly signature: Uint8Array }>;
+}
+
+export interface InjectedSolanaWallet {
+  readonly name: string;
+  readonly icon: string | undefined;
+  readonly provider: SolanaWalletProvider;
+}
+
 interface AnnounceProviderEvent extends Event {
   readonly detail?: {
     readonly info?: {
@@ -82,6 +95,42 @@ export function discoverWallets(timeoutMs = 150): Promise<readonly InjectedWalle
       resolve([...found.values()]);
     }, timeoutMs);
   });
+}
+
+/** Finds Phantom's Solana provider without mistaking its EVM provider for it. */
+export function discoverSolanaWallet(): InjectedSolanaWallet | undefined {
+  if (typeof window === "undefined") return undefined;
+  const browser = window as typeof window & {
+    readonly phantom?: { readonly solana?: SolanaWalletProvider };
+    readonly solana?: SolanaWalletProvider & { readonly isPhantom?: boolean };
+  };
+  const provider = browser.phantom?.solana ?? browser.solana;
+  if (provider === undefined || typeof provider.signMessage !== "function") return undefined;
+  return {
+    name:
+      browser.solana?.isPhantom === true || browser.phantom?.solana === provider
+        ? "Phantom"
+        : "Solana wallet",
+    icon: undefined,
+    provider,
+  };
+}
+
+/** Connects the merchant-selected Solana account and preserves base58 casing. */
+export async function requestSolanaAccount(provider: SolanaWalletProvider): Promise<string> {
+  const connected = await provider.connect();
+  const address = connected.publicKey?.toString();
+  if (address === undefined || address === "") throw new Error("The wallet returned no account");
+  return address;
+}
+
+/** Signs the server challenge and serialises Ed25519's 64 bytes as base64. */
+export async function solanaSign(provider: SolanaWalletProvider, message: string): Promise<string> {
+  const signed = await provider.signMessage(new TextEncoder().encode(message), "utf8");
+  if (!(signed.signature instanceof Uint8Array) || signed.signature.length !== 64) {
+    throw new Error("The wallet returned an invalid signature");
+  }
+  return btoa(String.fromCharCode(...signed.signature));
 }
 
 /**

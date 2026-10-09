@@ -5,19 +5,20 @@ import {
   chainLogoUrl,
   chainOfCaip2,
   EVM_CHAIN_IDS,
+  EVM_CHAINS,
   isChainId,
   isMainnetChain,
 } from "../src/types.ts";
 
 describe("chain facts", () => {
   test("every supported chain has an EIP-155 id", () => {
-    for (const chain of CHAIN_IDS) {
+    for (const chain of EVM_CHAINS) {
       expect(EVM_CHAIN_IDS[chain]).toBeGreaterThan(0n);
     }
   });
 
   test("no two chains share an EIP-155 id", () => {
-    const ids = CHAIN_IDS.map((chain) => EVM_CHAIN_IDS[chain]);
+    const ids = EVM_CHAINS.map((chain) => EVM_CHAIN_IDS[chain]);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
@@ -26,6 +27,8 @@ describe("chain facts", () => {
     expect(isChainId("arbitrum-sepolia")).toBe(true);
     expect(isChainId("robinhood-testnet")).toBe(true);
     expect(isChainId("arc-testnet")).toBe(true);
+    expect(isChainId("solana-devnet")).toBe(true);
+    expect(isChainId("solana-localnet")).toBe(true);
     expect(isChainId("ethereum")).toBe(false);
   });
 
@@ -51,6 +54,9 @@ describe("chain facts", () => {
     expect(chainLogoUrl("arc-testnet", "/arc.svg")).toBe("/arc.svg");
     expect(chainLogoUrl("robinhood-testnet")).toBe("/chains/robinhood.svg");
     expect(chainLogoUrl("robinhood-testnet", "/arc.svg", "/rh.svg")).toBe("/rh.svg");
+    expect(chainLogoUrl("solana-devnet")).toBe(
+      "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
+    );
   });
 });
 
@@ -69,6 +75,8 @@ describe("isMainnetChain", () => {
     expect(isMainnetChain("arbitrum-sepolia")).toBe(false);
     expect(isMainnetChain("robinhood-testnet")).toBe(false);
     expect(isMainnetChain("arc-testnet")).toBe(false);
+    expect(isMainnetChain("solana-devnet")).toBe(false);
+    expect(isMainnetChain("solana-localnet")).toBe(false);
   });
 });
 
@@ -77,6 +85,8 @@ describe("CAIP-2", () => {
     expect(caip2Of("ethereum-sepolia")).toBe("eip155:11155111");
     expect(caip2Of("base-sepolia")).toBe("eip155:84532");
     expect(caip2Of("arc-testnet")).toBe("eip155:5042002");
+    expect(caip2Of("solana-devnet")).toBe("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
+    expect(caip2Of("solana-localnet")).toBe("solana:localnet");
   });
 
   test("round-trips every supported chain", () => {

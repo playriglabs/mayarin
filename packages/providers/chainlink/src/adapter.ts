@@ -17,7 +17,7 @@
 import type { ChainId } from "@mayarin/chain";
 import type { OraclePrice, PriceOracle } from "@mayarin/clearing";
 import { rateKey } from "@mayarin/clearing";
-import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
+import { viemChainOf } from "@mayarin/provider-viem-chains";
 import { type AssetCode, assetDecimals, ConfigurationError, ProviderError } from "@mayarin/shared";
 import { createPublicClient, getAddress, http, type PublicClient, parseAbi } from "viem";
 import { assertUsableRound, scaleAnswer } from "./aggregator.ts";
@@ -114,7 +114,7 @@ export class ChainlinkPriceOracle implements PriceOracle {
       throw new ConfigurationError(`No RPC URL configured for ${chain}`, { chain });
     }
 
-    const client = createPublicClient({ chain: VIEM_CHAINS[chain], transport: http(url) });
+    const client = createPublicClient({ chain: viemChainOf(chain), transport: http(url) });
     this.#clients.set(chain, client);
     return client;
   }

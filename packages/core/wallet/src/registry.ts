@@ -19,7 +19,7 @@
  *    misconfiguration that pays a merchant twice and is invisible in the ledger.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, normaliseChainAddress } from "@mayarin/chain";
 import { ConfigurationError, ValidationError } from "@mayarin/shared";
 import type { SettlementDestination } from "./settlement-address.ts";
 import { isVerified, type MerchantWalletRepository } from "./types.ts";
@@ -39,7 +39,9 @@ export class WalletGuard {
 
   constructor(options: WalletGuardOptions) {
     this.#wallets = options.wallets;
-    this.#treasury = new Set(options.treasuryAddresses.map((address) => address.toLowerCase()));
+    this.#treasury = new Set(
+      options.treasuryAddresses.flatMap((address) => [address, address.toLowerCase()]),
+    );
   }
 
   /**
@@ -57,9 +59,9 @@ export class WalletGuard {
     chain: ChainId,
     destination: SettlementDestination,
   ): Promise<void> {
-    const normalised = destination.address.toLowerCase();
+    const normalised = normaliseChainAddress(chain, destination.address);
 
-    if (this.#treasury.has(normalised)) {
+    if (this.#treasury.has(normalised) || this.#treasury.has(normalised.toLowerCase())) {
       throw new ValidationError("A merchant cannot be paid into a treasury address", {
         merchantId,
         address: normalised,
@@ -71,7 +73,7 @@ export class WalletGuard {
     const wallet = await this.#wallets.findByAddress(chain, normalised);
     if (wallet === null) {
       throw new ValidationError(
-        "The managed settlement wallet is missing; provision and verify it before taking a contract-path payment",
+        "The verified settlement wallet is missing; connect or provision it before taking a contract-path payment",
         { merchantId, chain, address: normalised },
       );
     }
@@ -80,7 +82,7 @@ export class WalletGuard {
       // "that address belongs to someone else" confirms another merchant's
       // payout address to whoever guessed it.
       throw new ValidationError(
-        "The managed settlement wallet is missing; provision and verify it before taking a contract-path payment",
+        "The verified settlement wallet is missing; connect or provision it before taking a contract-path payment",
         { merchantId, chain, address: normalised },
       );
     }
@@ -94,7 +96,7 @@ export class WalletGuard {
 
   /** True when the address is one of the deployment's fee destinations. */
   isTreasury(address: string): boolean {
-    return this.#treasury.has(address.toLowerCase());
+    return this.#treasury.has(address) || this.#treasury.has(address.toLowerCase());
   }
 
   /**

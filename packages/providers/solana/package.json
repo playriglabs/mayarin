@@ -1,0 +1,37 @@
+{
+  "name": "@mayarin/provider-solana",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "configure:devnet": "bun --env-file=../../../.env run scripts/configure-devnet.ts",
+    "check:official-usdg": "bun --env-file=../../../.env run scripts/check-official-usdg.ts",
+    "create:orca:lookup-table": "bun --env-file=../../../.env run scripts/create-orca-lookup-table.ts",
+    "provision:surrogate-stables": "bun --env-file=../../../.env run scripts/provision-surrogate-stables.ts",
+    "e2e:surrogate:devnet": "bun --env-file=../../../.env run scripts/e2e-surrogate-stable-devnet.ts",
+    "e2e:orca:devnet": "bun --env-file=../../../.env run scripts/e2e-orca-devnet.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "0.29.0",
+    "@mayarin/chain": "workspace:*",
+    "@mayarin/clearing": "workspace:*",
+    "@mayarin/execution": "workspace:*",
+    "@mayarin/shared": "workspace:*",
+    "@mayarin/wallet": "workspace:*",
+    "@noble/curves": "1.9.1",
+    "@orca-so/common-sdk": "0.6.10",
+    "@orca-so/whirlpools-sdk": "0.13.15",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "bn.js": "5.2.2",
+    "decimal.js": "10.5.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "5.2.0",
+    "@types/bun": "^1.4.0"
+  }
+}

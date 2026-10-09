@@ -10,11 +10,10 @@
 import type { ChainId } from "@mayarin/chain";
 import type { AssetCode } from "@mayarin/shared";
 
-/** An ERC-20 identity of a stablecoin on one chain. */
+/** A token identity on one chain (ERC-20 address or Solana mint public key). */
 export interface StablecoinOnChain {
   readonly chain: ChainId;
-  /** Lowercase `0x`-prefixed contract address. */
-  readonly address: `0x${string}`;
+  readonly address: string;
 }
 
 /**
@@ -68,6 +67,6 @@ export interface StablecoinRegistry {
   isSettlementAsset(asset: AssetCode): Promise<boolean>;
   /** True if the asset is registered and deployed on the chain (a deposit asset). */
   isDepositAsset(asset: AssetCode, chain: ChainId): Promise<boolean>;
-  /** The contract address for an asset on a chain, or undefined if not deployed there. */
-  address(asset: AssetCode, chain: ChainId): Promise<`0x${string}` | undefined>;
+  /** The token address or mint for an asset on a chain, or undefined if absent. */
+  address(asset: AssetCode, chain: ChainId): Promise<string | undefined>;
 }

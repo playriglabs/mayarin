@@ -1,0 +1,36 @@
+{
+  "cluster": "solana-devnet",
+  "programId": "5raasGCxqaEvGsvQ1PvGxRB1JYnA7Y3L4LfjRCfkNJ4f",
+  "programData": "3uxSMnh25gzVPxm85AQNqdR6o7QvFm4jt1ELuEiJKK7q",
+  "upgradeAuthority": "7e2aostr3xSEcxhVtkZFx1oSHq1f9F2ePfXTFMjZ1r6P",
+  "deployedSlot": 508363017,
+  "deploySignature": "3Td61LhjQzQmyBx1nNygAzu7fq26rtPb5jQTwGTBsKrcxvupwdtTWFtZvj4eZwZAd4saPNvrarbPXPvqp37ynNSc",
+  "lastUpgradeSlot": 508430121,
+  "lastUpgradeSignature": "5Y6pMHryZ9VRwZJ6FJHP1tJXxTokaZpXiZbbo9AjAXwPWpw34wdVy14puQH7QZZSpRhaf5eVKT7XJVrKXUrTWQ2A",
+  "configurationSignature": "3upwxKqM39jTzKJThF7xoZ2Y4VdRTpEYMrq1V6N1CNbPVZLa9GFF99ZzkHbnJeHKapwF3ALhvrAaxtA2dVLxtPCm",
+  "inputAssets": {
+    "SOL": "So11111111111111111111111111111111111111112",
+    "USDC": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "USDG": "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7"
+  },
+  "settlementAssets": {
+    "USDC": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    "USDG": "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7"
+  },
+  "orcaDevnetFixture": {
+    "programId": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+    "pool": "J3J1hfwBCXgqp5vVPyfwkzUmcWRpsh3FdAvDiLEMzzYZ",
+    "inputMint": "Hy5ZLF26P3bjfVtrt4qDQCn6HGhS5izb5SNv7P9qmgcG",
+    "settlementMint": "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k",
+    "lookupTable": "ER6ChWqataQCj91wbqAWnY92rf33VyjdUQHxHyLtu6z4",
+    "lookupTableCreateSignature": "54eJN79tQXsD9aac5bkSBtV3d2neRxWun7SexaX3n4XXwgWz2XAn4DHqKTHfX1SDcSv2PKxCTsdPa2LhqSVRs3xt",
+    "lookupTableExtendSignatures": [
+      "57oykGyCgpgkCVP4eJM6bxuqoBnjo19K2Jje8N5cNvYztbz6MxmrCG4EWkB1fTPNigd8uepq6GpQjG6h9fCZ6uX",
+      "o13xBVGoeTn2TjTNraB5JUKkN4JdSrfkYsbtsKhgBSSD8TZe1eHikZWEcMj8DFKL67xjJAK3K3gVDrhC2t1BSFZ"
+    ],
+    "e2ePaymentSignature": "4aHJemPREHHP2brZMBQH37sy7YiAS8WY4sYDXq85bwT58KirhWkUUZnXi88orzynPiovHxqbWWHN76Z4CP7rVima",
+    "e2eInputAmount": "1000000",
+    "e2eMinimumSettlement": "900000",
+    "e2eReceived": "994265"
+  }
+}

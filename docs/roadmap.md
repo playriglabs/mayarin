@@ -566,25 +566,19 @@ Full documentation: [Agent Payments](./x402.md).
   so an agent holding any listed asset pays a merchant settled in another; the
   payer's change is a liability (`PAYER_SURPLUS`) or dust revenue, never absorbed
 - ☑ Browser-friendly merchant paywall, and the SDK gate + connect adapter
-- ☑ An MCP server at `POST /x402/mcp` selling rail intelligence per call —
-  discovery free, answers paid, and three refusals that never charge
 - ☐ Permit2 / EIP-2612 fallback for tokens without EIP-3009 — specified and
   probed for, not built
 - ☐ Gas sponsorship, so sub-cent resources stop inverting the economics (#9)
 
 Only the `exact` scheme is implemented, and only over EVM. x402 never touches
-`PaymentRouter`, so an agent payment emits no `PaymentCompleted` and adds nothing
-to the settlement subgraph.
+`PaymentRouter`, so an agent payment emits no `PaymentCompleted` event.
 
 ### Indexing
 
-- ☑ Settlements subgraph (`packages/subgraph`), deployed for Base Sepolia and Arc
-  testnet, indexing `PaymentCompleted`
-- ☑ `SettlementIndexer` reads it, clamped to how far it has indexed, and falls
-  back to reading the chain directly the moment a chain leaves
-  `SUBGRAPH_ENDPOINTS` — the subgraph is an index, never the record
-- ☑ Rail statistics and the rail choice derived from it, cached rather than
-  queried per call: Subgraph Studio allows 3,000 queries a day _account-wide_
+- ☑ `SettlementIndexer` reads `PaymentCompleted` directly from each configured
+  chain RPC, in bounded ranges with a persisted cursor
+- ☑ Rail selection follows merchant configuration order after capability and
+  pricing checks
 
 ### Payer Assets
 

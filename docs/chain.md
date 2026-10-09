@@ -360,14 +360,11 @@ Enabling the layer while `ASSET_RECEIPT_MODE=auto` is also a boot failure —
 auto confirmation alongside a live watcher would fund payments nobody paid.
 `WATCHER_INTERVAL_MS=0` disables the timer, leaving only the admin route.
 
-The settlement indexer runs on its own clock, `INDEXER_INTERVAL_MS` (60s by
-default), because it polls a hosted subgraph that bills per query rather than
-our own RPC — sharing the watcher's 15s spends a Subgraph Studio day before it
-is over. A failing pass doubles its delay up to `INDEXER_MAX_BACKOFF_MS`, and a
-429 that carries `Retry-After` wins when it asks for longer.
-`INDEXER_INTERVAL_MS=0` turns settlement indexing off and starts no loop at all. See
-`packages/subgraph/README.md` for the query arithmetic and why a continuous
-deployment belongs on a Graph Network endpoint.
+The settlement indexer reads `PaymentCompleted` logs directly from each chain
+RPC on its own clock, `INDEXER_INTERVAL_MS` (60s by default). It advances a
+persisted cursor in bounded ranges. A failing pass doubles its delay up to
+`INDEXER_MAX_BACKOFF_MS`, and a 429 carrying `Retry-After` wins when it asks for
+longer. `INDEXER_INTERVAL_MS=0` turns settlement indexing off.
 
 ---
 
@@ -605,6 +602,63 @@ timelock batch (schedule tx
 `0xd97a8d2c3ebfa089140fe5d2409db5a1be05aca3ff8a9a3fc609eeaa7b4d860c`). Circle
 publishes no EURC on Arbitrum Sepolia.
 
+### Solana devnet Orca
+
+SOL payments can settle to official devnet USDC through Orca Whirlpool
+`5GPCnpWwoDayCP5FVCJT1cS7dePufC5FrjPTVvPoUYnm` (wrapped SOL
+`So11111111111111111111111111111111111111112`, USDC
+`4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`). The quote layer uses the
+same configured pool as the transaction builder, so rail availability reflects
+an executable exact-output quote rather than a reference price. This devnet pool
+has thin liquidity: availability remains amount-dependent and a 1 SOL trade can
+fail even though smaller quotes succeed.
+
+The payment router already admits wrapped SOL as an input asset and Orca as a
+router. Address lookup table `ER6ChWqataQCj91wbqAWnY92rf33VyjdUQHxHyLtu6z4`
+contains the current SOL/USDC, devUSDG/USDC, devUSDT/USDC, and PYUSD/devUSDC
+route accounts. The stable-pool accounts were added in tx
+`5fKo8DovV3dDrhWTMghddoQNdNvgXsTXeJSsDE5f28yoH6MQkGfVvg9TuCzfDvH2b25CYScQPah2pSCKoWMX2Yym`.
+
+Official devnet USDG `4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7` cannot
+currently be paired permissionlessly with official devnet USDC on Orca. It is a
+Token-2022 mint with extensions that require an Orca TokenBadge, and Orca's SDK
+reports it as unsupported. Creating and seeding USDG/USDC therefore requires
+Orca's token-badge authority, or a different swap venue; it is not only a faucet
+or liquidity task. Raydium CLMM/CPMM and Meteora DAMM v2 apply equivalent
+admin allowlisting to the unsupported extensions carried by this mint, so they
+do not provide a permissionless escape hatch. The ready-to-send authority
+request is in [`docs/orca-usdg-token-badge-request.md`](./orca-usdg-token-badge-request.md).
+
+Devnet integration instead uses clearly identified, fixed-supply surrogates.
+They are not issuer tokens and must not be treated as such:
+
+| Asset label | Mint                                           | Orca splash pool                               |
+| ----------- | ---------------------------------------------- | ---------------------------------------------- |
+| `devUSDG`   | `H1hMJToegAs8mXt23eVuwKJb17fz4N5emZBCzAvmBF6R` | `LkKtkAzT4kjfwv6objWTRXo4pLpBUmdEJyJ9Uy2zHsM`  |
+| `devUSDT`   | `8PtqaCwyS3JT1JfJgkKsFnYRkftQLpRc2kvxebxMUuus` | `6L9dVPZZbvm4jGxPCgrKfiGsnJaQTS5562UEGcRVZyow` |
+
+Each mint has 1,000 units of fixed supply, six decimals, no freeze authority,
+and no remaining mint authority. Each pool was seeded at 1:1 with 0.25 units per
+side. Pool creation transactions were
+`yJkwPLSTLBcQq4yd8QuRz6nFmMSpkNe3tEenKC8qKHZfGkqmrpNJZinUvGz4m89vk1UJnXM3ZUzZzwqK1W2u7g5`
+(devUSDG) and
+`4FJjAbgFoAsDHrco3WM6K2hzEiULxCg4Qdig3tTxGxZk1N6zyveboteywmVMuTjQwhVQD3R87exvdVj87qU8kZBw`
+(devUSDT); liquidity was opened in
+`5XGS1o2STcmaYVdvUgMsiphsAKutrPQB3vTJfwrGPSfRbG1Zv8WbQ93BjKm6HyfaxDi7sAuVAZfZpyn7voLAWr64`
+and
+`5wbKsqrYusnNZM1UxsZF9jSZnofLZtboG2UL487EZoZJCuHSLt1A3NPmUXJwqhZCpvrGeRuqBfPzFaD3HH9RLVf8`.
+The PaymentRouter input allowlist was updated in tx
+`26fTx9YyszZcUHfbkgsARWrXzuhEjLnwbr7UBfKFTKt74AtjfS5jMSvgs2vFrhy6UXWy9burdRtXyjoFNgGcnXTF`.
+Liquidity is deliberately small, so exact-output quote failure remains the rail
+availability boundary.
+
+Both routes settled through the deployed PaymentRouter end to end on 2026-10-08:
+
+- 0.010000 devUSDG produced 0.009522 official devnet USDC (tx
+  `eio7PyxhGnvEx3QuGTupUbKQuFrY3Vv62xbGbYogCsbDS1BZW5S5xbeWxtYVAMrF5beuQaafyjy4qx5hqiEBnfS`).
+- 0.010000 devUSDT produced 0.009522 official devnet USDC (tx
+  `5zYPi8trhEqNYAutSY9JwrF7yNWrEVgDzfHnkcHjj7zN4C418NLKa5scUKEEPV5sr5XwZuMJz4EwPo6yH7amYaaz`).
+
 On-chain configuration as deployed (Base Sepolia):
 
 | Setting             | Value                                                               |
@@ -628,21 +682,6 @@ any redeploy rather than assuming the constructor did it.
 A redeploy changes the EIP-712 domain — `verifyingContract` is part of it — so
 every previously signed order becomes invalid, not merely aimed at the old
 address. Cheap on testnet, a migration on mainnet.
-
-### Settlement subgraphs
-
-One subgraph, deployed once per network to Subgraph Studio. These query URLs are
-what `SUBGRAPH_ENDPOINTS` names, and they index the throwaway router deployments
-above — they are throwaway alongside them. A deployment still on `v0.0.1` cannot
-serve `SubgraphSettlementSource`; see
-[`packages/subgraph/README.md`](../packages/subgraph/README.md).
-
-| Network        | Query URL (v0.0.2)                                                          |
-| -------------- | --------------------------------------------------------------------------- |
-| `base-sepolia` | `https://api.studio.thegraph.com/query/1758657/mayarin-base-sepolia/v0.0.2` |
-| `arc-testnet`  | `https://api.studio.thegraph.com/query/1758657/mayarin-arc-testnet/v0.0.2`  |
-
----
 
 ## Related
 

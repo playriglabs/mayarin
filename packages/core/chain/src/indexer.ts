@@ -42,7 +42,7 @@ import {
   isMayarinError,
   noopEventPublisher,
 } from "@mayarin/shared";
-import type { ChainClient, PaymentCompletionSink, SettlementSource } from "./client.ts";
+import type { PaymentCompletionSink, SettlementChainClient } from "./client.ts";
 import { settlementOrphanedEvent, settlementUnmatchedEvent } from "./events.ts";
 import {
   type ConfirmationPolicy,
@@ -58,16 +58,7 @@ import type {
 import type { ChainId, SettlementEvent } from "./types.ts";
 
 export interface SettlementIndexerOptions {
-  readonly client: ChainClient;
-  /**
-   * Where the logs are read from, when that is not the chain itself.
-   *
-   * Defaults to `client`. A source that indexes on its own behalf — a subgraph —
-   * is clamped to its own `indexedHead`, because the cursor advances over the
-   * range that was asked for and a lagging source would take settlements with
-   * it.
-   */
-  readonly source?: SettlementSource;
+  readonly client: SettlementChainClient;
   readonly settlements: SettlementEventRepository;
   readonly cursors: WatcherCursorRepository;
   readonly sink: PaymentCompletionSink;
@@ -94,18 +85,10 @@ export interface IndexerTickResult {
   readonly completed: number;
   /** Confirmed logs that matched no known payment — a reconciliation finding. */
   readonly unmatched: number;
-  /**
-   * How far the source had indexed, when it is one that can lag.
-   *
-   * Present so an operator watching a cursor that will not move can see which
-   * of the two is behind — the chain, or the thing reading it.
-   */
-  readonly sourceIndexedTo?: bigint;
 }
 
 export class SettlementIndexer {
-  readonly #client: ChainClient;
-  readonly #source: SettlementSource;
+  readonly #client: SettlementChainClient;
   readonly #settlements: SettlementEventRepository;
   readonly #cursors: WatcherCursorRepository;
   readonly #sink: PaymentCompletionSink;
@@ -119,7 +102,6 @@ export class SettlementIndexer {
 
   constructor(options: SettlementIndexerOptions) {
     this.#client = options.client;
-    this.#source = options.source ?? options.client;
     this.#settlements = options.settlements;
     this.#cursors = options.cursors;
     this.#sink = options.sink;
@@ -144,12 +126,7 @@ export class SettlementIndexer {
     const cursor = await this.#cursors.get(chain, router);
     const start = cursor ?? this.#startBlocks[chain] ?? 0n;
     const from = start + 1n;
-    // A source that indexes on its own behalf answers for the blocks it has
-    // reached and no further. Scanning past that would read "no logs" from a
-    // range it has not looked at, and the cursor would move over it.
-    const indexedTo = await this.#source.indexedHead?.(chain);
-    const reachable = indexedTo === undefined ? head.number : min(head.number, indexedTo);
-    const to = min(reachable, start + this.#blockRange);
+    const to = min(head.number, start + this.#blockRange);
     // A reorg replaces blocks without advancing the head, so there can be
     // nothing new to scan and still be everything to reclassify. Only the scan
     // is skipped — returning early would make the indexer blind to exactly the
@@ -173,7 +150,6 @@ export class SettlementIndexer {
       orphaned,
       completed,
       unmatched,
-      ...(indexedTo === undefined ? {} : { sourceIndexedTo: indexedTo }),
     };
   }
 
@@ -184,7 +160,7 @@ export class SettlementIndexer {
     toBlock: bigint,
     now: Date,
   ): Promise<number> {
-    const logs = await this.#source.settlements({ chain, router, fromBlock, toBlock });
+    const logs = await this.#client.settlements({ chain, router, fromBlock, toBlock });
     if (logs.length === 0) return 0;
 
     await this.#settlements.record(logs, now);
@@ -198,8 +174,10 @@ export class SettlementIndexer {
     now: Date,
   ): Promise<{ confirmed: number; orphaned: number }> {
     const probable = await this.#settlements.listProbable(chain, this.#probeLimit);
-    const inWatch = probable.filter((event) =>
-      isWithinReorgWatch(confirmationsOf(event.blockNumber, headNumber), this.#policy),
+    const inWatch = probable.filter(
+      (event) =>
+        event.status === "PENDING" ||
+        isWithinReorgWatch(confirmationsOf(event.blockNumber, headNumber), this.#policy),
     );
     if (inWatch.length === 0) return { confirmed: 0, orphaned: 0 };
 

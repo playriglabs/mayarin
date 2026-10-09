@@ -131,7 +131,9 @@ export function useVerifyWallet() {
   return useEffectMutation<WalletResponse, VerifyWalletRequest, ApiError>({
     mutation: (vars) => walletsApi.verify(vars),
     toast: { loading: "Verifying wallet…", success: "Wallet verified" },
-    invalidate: [WALLETS_KEY, SETTINGS_KEY],
+    // A verified merchant-held wallet can immediately become the settlement
+    // destination on its chain, so its balance and available rails change too.
+    invalidate: [WALLETS_KEY, WALLET_BALANCE_KEY, WALLET_RAILS_KEY, SETTINGS_KEY],
   });
 }
 

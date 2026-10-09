@@ -4,8 +4,10 @@
  * Two things can answer that, and they are not the same kind of answer:
  *
  * - **What the merchant set.** `merchants.settlement_address`, writable through
- *   the settings API since #95. An explicit choice, and it wins.
- * - **What they were given.** The managed wallet Mayarin provisioned for them.
+ *   the settings API since #95. An explicit choice wins on chains where its
+ *   address format is valid.
+ * - **What is verified.** The managed wallet Mayarin provisioned, or one
+ *   merchant-held wallet verified on that exact chain.
  *
  * Resolving to the second when the first is unset is the difference between a
  * merchant who is onboarded and a merchant holding a Safe they have to go and
@@ -30,13 +32,13 @@
  *
  * The source stays attached to the answer because the two paths have different
  * trust rules. A configured address is an authenticated, audited payout choice;
- * a managed fallback must still be a verified wallet belonging to the merchant.
+ * any wallet fallback must still be verified and belong to the merchant.
  * `WalletGuard` enforces that distinction immediately before signing.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, isChainAddress, isEvmChainId } from "@mayarin/chain";
 import { ConfigurationError } from "@mayarin/shared";
-import { isVerified, type MerchantWalletRepository } from "./types.ts";
+import { isMerchantHeld, isVerified, type MerchantWalletRepository } from "./types.ts";
 
 export interface SettlementAddressResolverOptions {
   readonly wallets: MerchantWalletRepository;
@@ -44,7 +46,8 @@ export interface SettlementAddressResolverOptions {
 
 export type SettlementDestination =
   | { readonly source: "configured"; readonly address: string }
-  | { readonly source: "managed"; readonly address: string };
+  | { readonly source: "managed"; readonly address: string }
+  | { readonly source: "verified-wallet"; readonly address: string };
 
 export class SettlementAddressResolver {
   readonly #wallets: MerchantWalletRepository;
@@ -57,9 +60,8 @@ export class SettlementAddressResolver {
    * The address to pay this merchant at on this chain.
    *
    * `configured` is what the merchant set, if anything. Absent falls back to
-   * their managed wallet on that chain; absent with no managed wallet is a
-   * refusal, because the alternative — a deployment-wide address — pays every
-   * merchant into the same wallet.
+   * their managed wallet on that chain, then to one verified merchant-held
+   * wallet. With no unambiguous fallback it refuses rather than guessing.
    */
   async resolve(
     merchantId: string,
@@ -70,7 +72,7 @@ export class SettlementAddressResolver {
     if (destination !== undefined) return destination;
 
     throw new ConfigurationError(
-      `Merchant ${merchantId} has no settlement address on ${chain} and no managed wallet to fall back to; set one or provision a wallet`,
+      `Merchant ${merchantId} has no unambiguous settlement wallet on ${chain}; connect one or choose an address explicitly`,
       { merchantId, chain },
     );
   }
@@ -96,13 +98,31 @@ export class SettlementAddressResolver {
     chain: ChainId,
     configured: string | undefined,
   ): Promise<SettlementDestination | undefined> {
-    if (configured !== undefined) {
-      return { source: "configured", address: configured.toLowerCase() };
+    // The settings model predates multi-family chains and holds one global
+    // address. It applies only where that address is valid: an EVM address must
+    // not eclipse the merchant's verified Solana destination (or vice versa).
+    if (configured !== undefined && isChainAddress(chain, configured)) {
+      return {
+        source: "configured",
+        address: isEvmChainId(chain) ? configured.toLowerCase() : configured,
+      };
     }
 
     const managed = await this.#wallets.findManaged(merchantId, chain);
-    return managed !== null && isVerified(managed)
-      ? { source: "managed", address: managed.address }
+    if (managed !== null && isVerified(managed)) {
+      return { source: "managed", address: managed.address };
+    }
+
+    // A verified external wallet on this exact chain is a safe fallback too.
+    // Unlike EVM, a Solana address is not shared with the merchant's EVM Safe,
+    // so connecting their wallet is the non-custodial setup path. More than one
+    // is intentionally ambiguous: an explicit settings choice must decide.
+    const verified = (await this.#wallets.listByMerchant(merchantId)).filter(
+      (wallet) => wallet.chain === chain && isMerchantHeld(wallet) && isVerified(wallet),
+    );
+    const [only] = verified;
+    return verified.length === 1 && only !== undefined
+      ? { source: "verified-wallet", address: only.address }
       : undefined;
   }
 }

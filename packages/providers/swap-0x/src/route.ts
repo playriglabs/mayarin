@@ -18,7 +18,7 @@
  * account spending and receiving.
  */
 
-import { EVM_CHAIN_IDS } from "@mayarin/chain";
+import { evmChainIdOf } from "@mayarin/chain";
 import { rateKey } from "@mayarin/clearing";
 import type { ExecutableRoute, RouteRequest, SwapRouteSource } from "@mayarin/execution";
 import { ConfigurationError, money, ProviderError } from "@mayarin/shared";
@@ -83,7 +83,7 @@ export class ZeroExRouteSource implements SwapRouteSource {
     }
     // 0x serves one configured chain. A route requested for another chain
     // cannot be filled there, so refuse and let the caller fall back.
-    const requestChainId = EVM_CHAIN_IDS[request.chain];
+    const requestChainId = evmChainIdOf(request.chain);
     if (requestChainId !== BigInt(this.#chainId)) {
       throw new ConfigurationError(
         `0x is configured for chain id ${this.#chainId}, not ${request.chain} (${requestChainId})`,

@@ -15,6 +15,8 @@ const EXPLORERS = {
   "arbitrum-sepolia": "https://sepolia.arbiscan.io/",
   "robinhood-testnet": "https://explorer.testnet.chain.robinhood.com/",
   "arc-testnet": "https://testnet.arcscan.app/",
+  "solana-devnet": "https://explorer.solana.com/",
+  "solana-localnet": "https://explorer.solana.com/",
 } as const satisfies Readonly<Record<ChainId, string>>;
 
 type ExplorerChain = keyof typeof EXPLORERS;
@@ -25,9 +27,16 @@ function isExplorerChain(chain: string): chain is ExplorerChain {
 
 const TX_HASH = /^0x[\da-f]{64}$/i;
 const ADDRESS = /^0x[\da-f]{40}$/i;
+const SOLANA_BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,88}$/;
 
 /** Returns no link for internal references, malformed hashes, or unsupported chains. */
 export function transactionExplorerUrl(chain: string, transactionHash: string): string | undefined {
+  if (chain === "solana-devnet" && SOLANA_BASE58.test(transactionHash)) {
+    return `${EXPLORERS[chain]}tx/${transactionHash}?cluster=devnet`;
+  }
+  if (chain === "solana-localnet" && SOLANA_BASE58.test(transactionHash)) {
+    return `${EXPLORERS[chain]}tx/${transactionHash}?cluster=custom&customUrl=http%3A%2F%2Flocalhost%3A8899`;
+  }
   if (!isExplorerChain(chain) || !TX_HASH.test(transactionHash)) return undefined;
   return `${EXPLORERS[chain]}tx/${transactionHash}`;
 }
@@ -37,6 +46,12 @@ export function transactionExplorerUrl(chain: string, transactionHash: string): 
  * land. Returns no link for malformed addresses or unsupported chains.
  */
 export function addressExplorerUrl(chain: string, address: string): string | undefined {
+  if (chain === "solana-devnet" && SOLANA_BASE58.test(address)) {
+    return `${EXPLORERS[chain]}address/${address}?cluster=devnet`;
+  }
+  if (chain === "solana-localnet" && SOLANA_BASE58.test(address)) {
+    return `${EXPLORERS[chain]}address/${address}?cluster=custom&customUrl=http%3A%2F%2Flocalhost%3A8899`;
+  }
   if (!isExplorerChain(chain) || !ADDRESS.test(address)) return undefined;
   return `${EXPLORERS[chain]}address/${address}`;
 }

@@ -137,6 +137,9 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
       // next one without anybody running a script for them, and the browser
       // must not invent a chain name of its own to ask for it.
       chains: container.config.walletProvisionChains,
+      // A merchant-held wallet can be connected on every settlement network,
+      // including Solana where the EVM Safe provisioning path does not apply.
+      connectChains: chainReceipts(container.config).map((receipt) => receipt.chain),
     });
   });
 

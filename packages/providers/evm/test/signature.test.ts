@@ -17,9 +17,14 @@ describe("ViemSignatureVerifier", () => {
     const message = "Mayarin wallet verification\n\nMerchant: mrc_1";
     const signature = await account.signMessage({ message });
 
-    expect(await new ViemSignatureVerifier().recover(message, signature)).toBe(
-      account.address.toLowerCase(),
-    );
+    expect(
+      await new ViemSignatureVerifier().verify({
+        message,
+        signature,
+        address: account.address,
+        chain: "base-sepolia",
+      }),
+    ).toBe(true);
   });
 
   test("a different message recovers a different address", async () => {
@@ -28,12 +33,25 @@ describe("ViemSignatureVerifier", () => {
 
     // Not an error — recovery always yields *some* address. That is exactly why
     // the caller compares it rather than trusting that recovery succeeded.
-    expect(await new ViemSignatureVerifier().recover("two", signature)).not.toBe(
-      account.address.toLowerCase(),
-    );
+    expect(
+      await new ViemSignatureVerifier().verify({
+        message: "two",
+        signature,
+        address: account.address,
+        chain: "base-sepolia",
+      }),
+    ).toBe(false);
   });
 
   test("a malformed signature throws rather than yielding an address", async () => {
-    await expect(new ViemSignatureVerifier().recover("one", "0xnope")).rejects.toThrow();
+    const account = privateKeyToAccount(KEY);
+    await expect(
+      new ViemSignatureVerifier().verify({
+        message: "one",
+        signature: "0xnope",
+        address: account.address,
+        chain: "base-sepolia",
+      }),
+    ).rejects.toThrow();
   });
 });

@@ -15,7 +15,7 @@
  * below it does.
  */
 
-import { type ChainId, EVM_CHAIN_IDS } from "@mayarin/chain";
+import { type ChainId, evmChainIdOf, isSolanaChainId } from "@mayarin/chain";
 import type {
   ClearingContract,
   ClearingEngine,
@@ -46,6 +46,21 @@ import {
   escrowArbiter,
   type RouterCall,
 } from "@mayarin/provider-evm";
+import {
+  type BuildCrossAssetSolanaPayment,
+  type BuildDirectSolanaPayment,
+  buildCrossAssetSolanaPayment,
+  buildDirectSolanaPayment,
+  deriveSolanaIntentId,
+  encodeSolanaOrderMessage,
+  intentIdFromHex,
+  intentIdToHex,
+  paymentRouterAddresses,
+  SOLANA_WRAPPED_NATIVE_MINT,
+  type SolanaOrder,
+  type SolanaOrderSigner,
+  type SolanaSwapRoute,
+} from "@mayarin/provider-solana";
 import { ZeroExRouteSource } from "@mayarin/provider-swap-0x";
 import { UniswapRouteSource } from "@mayarin/provider-swap-uniswap";
 import { UniswapV2RouteSource } from "@mayarin/provider-swap-uniswap-v2";
@@ -123,6 +138,10 @@ export interface ContractLayerOptions {
   /** Mayarin Resolution: the arbiter an escrow names when the merchant names none (#304). */
   readonly escrowArbiter?: string;
   readonly clock: Clock;
+  readonly solana?: {
+    readonly signer: SolanaOrderSigner;
+    readonly deploymentDomains: Readonly<Partial<Record<ChainId, Uint8Array>>>;
+  };
 }
 
 export class ApiContractPlanner implements ContractPaymentPlanner {
@@ -220,8 +239,95 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     }
 
     const now = clock.now();
+    const expiresAt = new Date(now.getTime() + quote.ttlSeconds * 1_000);
+    const orderDeadline =
+      request.orderExpiresAt === undefined
+        ? BigInt(expiresAt.getTime()) / 1_000n
+        : BigInt(request.orderExpiresAt.getTime()) / 1_000n;
+    if (isSolanaChainId(request.chain)) {
+      if (request.escrow !== undefined) {
+        throw new ValidationError(`Escrow is not available on ${request.chain}`, {
+          chain: request.chain,
+        });
+      }
+      const solana = this.#options.solana;
+      const deploymentDomain = solana?.deploymentDomains[request.chain];
+      if (solana === undefined || deploymentDomain === undefined) {
+        throw new ConfigurationError(`Solana order signing is not configured on ${request.chain}`, {
+          chain: request.chain,
+        });
+      }
+      const solanaOrder: SolanaOrder = {
+        intentId: deriveSolanaIntentId(request.clearingTransactionId),
+        settlementMint: settlementToken,
+        minOut: settlementAmount.amount,
+        fee: fee.amount,
+        merchant: merchantSafe,
+        refundTo: request.payerAddress,
+        deadline: orderDeadline,
+      };
+      const { config: configPda } = paymentRouterAddresses(router);
+      const signature = await solana.signer.sign(
+        encodeSolanaOrderMessage({
+          programId: router,
+          config: configPda.toBase58(),
+          deploymentDomain,
+          order: solanaOrder,
+        }),
+      );
+      const composed = "composed" in fiat ? fiat.composed : undefined;
+      const locked =
+        composed === undefined
+          ? undefined
+          : lockQuote(
+              composed,
+              {
+                settlementAmount,
+                fee,
+                slippageBps: quote.slippageBps,
+                ttlSeconds: quote.ttlSeconds,
+              },
+              now,
+            );
+      return {
+        settlementAmount,
+        fee,
+        rate:
+          locked === undefined
+            ? {
+                from: request.settlementAsset,
+                to: request.settlementAsset,
+                scaledRate: 10n ** BigInt(assetDecimals(request.settlementAsset)) * RATE_SCALE,
+                source: fiat.settlement.source,
+                lockedAt: now,
+                expiresAt,
+              }
+            : {
+                from: request.payerAsset,
+                to: request.settlementAsset,
+                scaledRate: locked.executableRate,
+                source: locked.executableSource,
+                lockedAt: now,
+                expiresAt: locked.deadline,
+              },
+        payerEstimate: locked?.payerEstimate.amount ?? settlementAmount,
+        expiresAt: locked?.deadline ?? expiresAt,
+        order: {
+          intentId: intentIdToHex(solanaOrder.intentId),
+          settlementToken,
+          minOut: solanaOrder.minOut,
+          fee: solanaOrder.fee,
+          merchantSafe: solanaOrder.merchant,
+          refundTo: solanaOrder.refundTo,
+          deadline: solanaOrder.deadline,
+          signature: Buffer.from(signature).toString("base64"),
+          signer: solana.signer.publicKey(),
+        },
+      };
+    }
+
     const domain: OrderDomain = {
-      chainId: EVM_CHAIN_IDS[request.chain],
+      chainId: evmChainIdOf(request.chain),
       verifyingContract: router as Hex,
     };
     const intentId = deriveIntentId(request.clearingTransactionId);
@@ -234,28 +340,22 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     );
     const context = {
       intentId,
-      settlementToken,
+      settlementToken: settlementToken as Hex,
       // An escrowed order settles into the escrow; the merchant is its payee.
       merchantSafe: (escrow === undefined
         ? merchantSafe
         : escrowAddress({ ...escrow, intentId })) as Hex,
       refundTo: request.payerAddress as Hex,
     };
-    const orderDeadline =
-      request.orderExpiresAt === undefined
-        ? undefined
-        : BigInt(request.orderExpiresAt.getTime()) / 1_000n;
-
     const composed = "composed" in fiat ? fiat.composed : undefined;
     if (composed === undefined) {
       // Same-asset: no swap leg, no lock to gross up. The payer pays exactly
       // the settlement amount and the contract takes its no-op path.
-      const expiresAt = new Date(now.getTime() + quote.ttlSeconds * 1_000);
       const order: Order = {
         ...context,
         minOut: settlementAmount.amount,
         fee: fee.amount,
-        deadline: orderDeadline ?? BigInt(expiresAt.getTime()) / 1_000n,
+        deadline: orderDeadline,
       };
       const signed = await signOrder(quote.signer, domain, order);
       return this.#contractLock({
@@ -290,7 +390,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     const assembled = assembleOrder(locked, context, now);
     const signed = await signOrder(quote.signer, domain, {
       ...assembled,
-      deadline: orderDeadline ?? assembled.deadline,
+      deadline: request.orderExpiresAt === undefined ? assembled.deadline : orderDeadline,
     });
 
     return this.#contractLock({
@@ -377,6 +477,39 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       });
     }
     const quote = await this.#options.quote();
+    if (isSolanaChainId(request.chain)) {
+      const solana = this.#options.solana;
+      const deploymentDomain = solana?.deploymentDomains[request.chain];
+      if (solana === undefined || deploymentDomain === undefined) {
+        throw new ConfigurationError(`Solana order signing is not configured on ${request.chain}`, {
+          chain: request.chain,
+        });
+      }
+      const order: SolanaOrder = {
+        intentId: intentIdFromHex(request.order.intentId),
+        settlementMint: request.order.settlementToken,
+        minOut: request.order.minOut,
+        fee: request.order.fee,
+        merchant: request.order.merchantSafe,
+        refundTo: request.order.refundTo,
+        deadline: BigInt(request.expiresAt.getTime()) / 1_000n,
+      };
+      const { config } = paymentRouterAddresses(router);
+      const signature = await solana.signer.sign(
+        encodeSolanaOrderMessage({
+          programId: router,
+          config: config.toBase58(),
+          deploymentDomain,
+          order,
+        }),
+      );
+      return {
+        ...request.order,
+        deadline: order.deadline,
+        signature: Buffer.from(signature).toString("base64"),
+        signer: solana.signer.publicKey(),
+      };
+    }
 
     const order: Order = {
       ...toQuoteOrder(request.order),
@@ -387,7 +520,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
     const signed = await signOrder(
       quote.signer,
       {
-        chainId: EVM_CHAIN_IDS[request.chain],
+        chainId: evmChainIdOf(request.chain),
         verifyingContract: router as Hex,
       },
       order,
@@ -434,7 +567,8 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
 }
 
 /** What the checkout UI needs to submit a contract-path payment. */
-export interface ContractCallView {
+export interface EvmContractCallView {
+  readonly kind: "evm";
   readonly chain: ChainId;
   readonly chainId: bigint;
   readonly paymentRouter: string;
@@ -448,13 +582,54 @@ export interface ContractCallView {
   readonly expiresAt: Date;
 }
 
+export interface SolanaContractCallView {
+  readonly kind: "solana";
+  readonly chain: ChainId;
+  readonly paymentRouter: string;
+  readonly order: ContractOrder;
+  readonly signature: string;
+  /** Base64 legacy (direct) or v0 (swap) transaction for the payer wallet. */
+  readonly transaction: string;
+  /** Submitted first when destination token accounts do not exist. */
+  readonly preparationTransactions: readonly string[];
+  readonly payerEstimate: Money;
+  readonly expiresAt: Date;
+}
+
+export type ContractCallView = EvmContractCallView | SolanaContractCallView;
+
+export interface SolanaRouteSource {
+  route(input: {
+    readonly chain: ChainId;
+    readonly connection: BuildDirectSolanaPayment["connection"];
+    readonly paymentRouter: string;
+    readonly payer: string;
+    readonly inputMint: string;
+    readonly settlementMint: string;
+    readonly inputAmount: bigint;
+    readonly minOut: bigint;
+  }): Promise<{
+    readonly route: SolanaSwapRoute;
+    readonly addressLookupTableAccounts: BuildCrossAssetSolanaPayment["addressLookupTableAccounts"];
+  }>;
+}
+
 export interface ContractCheckoutOptions {
   readonly engine: ClearingEngine;
   readonly intents: PaymentIntentService;
   readonly contract: ContractConfig;
+  readonly stablecoins: StablecoinRegistry;
   /** Resolved per call for the same reason the quote layer is (#95). */
   readonly routeSources: () => Promise<ReadonlyMap<string, SwapRouteSource>>;
   readonly clock: Clock;
+  readonly solana?: {
+    readonly connections: Readonly<
+      Partial<Record<ChainId, BuildDirectSolanaPayment["connection"]>>
+    >;
+    readonly deploymentDomains: Readonly<Partial<Record<ChainId, Uint8Array>>>;
+    readonly feeRecipients: Readonly<Partial<Record<ChainId, string>>>;
+    readonly routeSources?: Readonly<Partial<Record<ChainId, SolanaRouteSource>>>;
+  };
 }
 
 export class ContractCheckout {
@@ -516,6 +691,95 @@ export class ContractCheckout {
       });
     }
 
+    if (isSolanaChainId(rail.chain)) {
+      if (rail.payerAddress === undefined) {
+        throw new ValidationError("A Solana contract payment needs the payer public key", {
+          chain: rail.chain,
+        });
+      }
+      const payer = rail.payerAddress;
+      const runtime = this.#options.solana;
+      const connection = runtime?.connections[rail.chain];
+      const deploymentDomain = runtime?.deploymentDomains[rail.chain];
+      const feeRecipient = runtime?.feeRecipients[rail.chain];
+      if (
+        runtime === undefined ||
+        connection === undefined ||
+        deploymentDomain === undefined ||
+        feeRecipient === undefined
+      ) {
+        throw new ConfigurationError(
+          `Solana transaction building is not configured on ${rail.chain}`,
+          {
+            chain: rail.chain,
+          },
+        );
+      }
+      const order: SolanaOrder = {
+        intentId: intentIdFromHex(lock.order.intentId),
+        settlementMint: lock.order.settlementToken,
+        minOut: lock.order.minOut,
+        fee: lock.order.fee,
+        merchant: lock.order.merchantSafe,
+        refundTo: lock.order.refundTo,
+        deadline: lock.order.deadline,
+      };
+      const common = {
+        connection,
+        programId: paymentRouter,
+        payer,
+        feeRecipient,
+        deploymentDomain,
+        order,
+        inputAmount: lock.payerEstimate.amount,
+        signature: Uint8Array.from(Buffer.from(lock.order.signature, "base64")),
+        signerPublicKey: lock.order.signer,
+      } as const;
+      const built =
+        rail.asset === transaction.settlementAsset
+          ? await buildDirectSolanaPayment(common)
+          : await (async () => {
+              const inputMint =
+                rail.asset === "SOL"
+                  ? SOLANA_WRAPPED_NATIVE_MINT
+                  : await this.#options.stablecoins.address(rail.asset, rail.chain);
+              const routeSource = runtime.routeSources?.[rail.chain];
+              if (inputMint === undefined || routeSource === undefined) {
+                throw new ConfigurationError(
+                  `Cross-asset Solana checkout is not configured for ${rail.asset} on ${rail.chain}`,
+                  { chain: rail.chain, payerAsset: rail.asset },
+                );
+              }
+              const executable = await routeSource.route({
+                chain: rail.chain,
+                connection,
+                paymentRouter,
+                payer,
+                inputMint,
+                settlementMint: order.settlementMint,
+                inputAmount: lock.payerEstimate.amount,
+                minOut: order.minOut,
+              });
+              return buildCrossAssetSolanaPayment({
+                ...common,
+                inputMint,
+                route: executable.route,
+                addressLookupTableAccounts: executable.addressLookupTableAccounts,
+              });
+            })();
+      return {
+        kind: "solana",
+        chain: rail.chain,
+        paymentRouter,
+        order: lock.order,
+        signature: lock.order.signature,
+        preparationTransactions: built.preparationBase64,
+        transaction: built.base64,
+        payerEstimate: lock.payerEstimate,
+        expiresAt: lock.expiresAt,
+      };
+    }
+
     const order = toQuoteOrder(lock.order);
     const signature = lock.order.signature as Hex;
     const sameAsset = rail.asset === transaction.settlementAsset;
@@ -542,8 +806,9 @@ export class ContractCheckout {
         : null;
 
     return {
+      kind: "evm",
       chain: rail.chain,
-      chainId: EVM_CHAIN_IDS[rail.chain],
+      chainId: evmChainIdOf(rail.chain),
       paymentRouter,
       order,
       signature,

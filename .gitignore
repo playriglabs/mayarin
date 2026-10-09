@@ -40,6 +40,9 @@ node_modules/.cache/turbo
 packages/contracts/*/out/
 packages/contracts/*/cache/
 packages/contracts/*/broadcast/
+packages/contracts/solana-payment-router/target/
+.keys/
+packages/contracts/solana-payment-router/.anchor/
 __pycache__/
 
 SCALE_UP.md

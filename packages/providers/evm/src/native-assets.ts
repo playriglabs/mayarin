@@ -1,5 +1,5 @@
-import { CHAIN_IDS, type ChainId } from "@mayarin/chain";
-import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
+import { type ChainId, EVM_CHAINS } from "@mayarin/chain";
+import { viemChainOf } from "@mayarin/provider-viem-chains";
 import { type AssetCode, assetDecimals, ConfigurationError } from "@mayarin/shared";
 
 /** Native payment amounts must already use the domain asset's minor units.
@@ -8,10 +8,10 @@ import { type AssetCode, assetDecimals, ConfigurationError } from "@mayarin/shar
  * using a different scale, and could count the same holding twice.
  */
 export function validateNativeAssets(assets: Readonly<Partial<Record<ChainId, AssetCode>>>): void {
-  for (const chain of CHAIN_IDS) {
+  for (const chain of EVM_CHAINS) {
     const asset = assets[chain];
     if (asset === undefined) continue;
-    const native = VIEM_CHAINS[chain].nativeCurrency;
+    const native = viemChainOf(chain).nativeCurrency;
     if (native.symbol !== asset || native.decimals !== assetDecimals(asset)) {
       throw new ConfigurationError(
         `Native ${asset} on ${chain} does not match the domain asset; use its ERC-20 interface when available`,

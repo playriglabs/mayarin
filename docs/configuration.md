@@ -17,9 +17,11 @@ The rule is one question — **when does this value change?**
 
 ## Deployment identity — environment
 
-`PAYMENT_ROUTERS`, `DEPOSIT_FORWARDERS`, `DEPOSIT_FORWARDER_INIT_CODE_HASH`,
+`PAYMENT_ROUTERS`, `SOLANA_DEPOSIT_SEED`, `SOLANA_DEPLOYMENT_DOMAINS`, `SOLANA_FEE_RECIPIENTS`,
+`SOLANA_ORDER_SIGNER_SECRET_KEY`, `SOLANA_ORCA_POOLS`, `SOLANA_ORCA_LOOKUP_TABLES`,
+`DEPOSIT_FORWARDERS`, `DEPOSIT_FORWARDER_INIT_CODE_HASH`,
 `TREASURY_ADDRESS`, `OPERATOR_PRIVATE_KEY`, `DATABASE_URL`, `PUBLIC_BASE_URL`,
-`CHAIN_RPC_URLS`, `SUBGRAPH_ENDPOINTS`, `SUBGRAPH_API_KEY`, `X402_ENABLED`,
+`CHAIN_RPC_URLS`, `X402_ENABLED`,
 `X402_QUOTE_TTL_SECONDS`, and the `*_RATE_LIMIT_*` controls.
 
 These change only on a redeploy, and two of them argue actively **against** ever
@@ -29,6 +31,13 @@ being runtime-editable:
   issued. Changing it at runtime orphans addresses already handed to payers.
 - `TREASURY_ADDRESS` is where fees are paid. A mutable one is a redirect of
   funds behind a single API call.
+
+On Solana, `SOLANA_DEPOSIT_SEED` derives spend-capable per-payment owners. With
+treasury execution enabled, the worker reconstructs only the matched owner's
+key, funds it with enough SOL for the router transaction and consumed-intent
+rent, and submits the persisted signed order. `SOLANA_ORDER_SIGNER_SECRET_KEY`
+is the testnet fee source for that preparation transaction; it does not
+authorize movement from the deposit token account. Keep its public key funded.
 
 `X402_ENABLED` belongs here for a related reason: it decides whether a whole
 execution path exists in this deployment, and it depends on other boot values.

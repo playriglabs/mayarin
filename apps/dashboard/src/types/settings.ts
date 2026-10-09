@@ -114,6 +114,8 @@ export interface WalletListResponse {
    * all of them, deployed on each.
    */
   readonly chains: readonly string[];
+  /** Every chain where a merchant can connect and verify their own wallet. */
+  readonly connectChains: readonly string[];
 }
 
 export interface WalletResponse {

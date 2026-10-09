@@ -11,12 +11,14 @@ import {
   type ChainId,
   type Deposit,
   type DepositStatus,
-  EVM_CHAIN_IDS,
+  evmChainIdOf,
+  isEvmChainId,
   isOrphanedAfterConfirmed,
+  isSolanaChainId,
 } from "@mayarin/chain";
-import type { ClearingTransaction } from "@mayarin/clearing";
+import type { ClearingDeposit, ClearingTransaction } from "@mayarin/clearing";
 import { encodeAddressUri } from "@mayarin/qr-parser";
-import { type AssetCode, getAsset, zero } from "@mayarin/shared";
+import { type AssetCode, getAsset, toDecimalString, zero } from "@mayarin/shared";
 import { type MoneyDto, toMoneyDto } from "./money.ts";
 
 export function toDepositDto(
@@ -28,7 +30,7 @@ export function toDepositDto(
    * The ERC-20 contract the deposit asset lives at on this chain. Required for
    * a token deposit and absent for a native one — see `depositUri`.
    */
-  token?: `0x${string}`,
+  token?: string,
 ): DepositDto {
   const deposit = transaction.deposit;
   if (deposit === undefined) return null;
@@ -48,11 +50,7 @@ export function toDepositDto(
     chain: deposit.chain,
     asset: deposit.asset,
     amount: toMoneyDto(deposit.amount),
-    /**
-     * EIP-681 payment URI, for rendering as a QR. `null` when the asset has no
-     * on-chain identity to name — never a guess, because a wrong URI moves the
-     * payer's funds somewhere unrecoverable.
-     */
+    /** EIP-681 or Solana Pay transfer URI, for rendering as a wallet QR. */
     uri: depositUri(deposit, token),
     received: toMoneyDto(received),
     required: requiredConfirmations,
@@ -101,11 +99,18 @@ export type DepositDto = {
  * whose address is missing yields no URI at all, because the alternative is a
  * URI that silently sends the wrong asset.
  */
-function depositUri(
-  deposit: NonNullable<ClearingTransaction["deposit"]>,
-  token: `0x${string}` | undefined,
+export function depositUri(
+  deposit: Pick<ClearingDeposit, "address" | "amount" | "asset" | "chain">,
+  token: string | undefined,
 ): string | null {
-  const chainId = EVM_CHAIN_IDS[deposit.chain];
+  if (isSolanaChainId(deposit.chain)) {
+    if (deposit.asset !== "SOL" && token === undefined) return null;
+    const query = new URLSearchParams({ amount: toDecimalString(deposit.amount) });
+    if (deposit.asset !== "SOL") query.set("spl-token", token ?? "");
+    return `solana:${deposit.address}?${query.toString()}`;
+  }
+  if (!isEvmChainId(deposit.chain)) return null;
+  const chainId = evmChainIdOf(deposit.chain);
   const request = {
     recipient: deposit.address,
     chainId,
@@ -116,6 +121,6 @@ function depositUri(
   // chain at all, so it names nothing transferable here.
   if (deposit.asset === "ETH") return encodeAddressUri(request);
   if (getAsset(deposit.asset).kind !== "stablecoin") return null;
-  if (token === undefined) return null;
-  return encodeAddressUri({ ...request, token });
+  if (token === undefined || !/^0x[0-9a-fA-F]{40}$/.test(token)) return null;
+  return encodeAddressUri({ ...request, token: token as `0x${string}` });
 }

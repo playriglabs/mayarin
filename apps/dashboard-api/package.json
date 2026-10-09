@@ -27,6 +27,7 @@
     "@mayarin/payouts": "workspace:*",
     "@mayarin/provider-argon2": "workspace:*",
     "@mayarin/provider-evm": "workspace:*",
+    "@mayarin/provider-solana": "workspace:*",
     "@mayarin/provider-turnkey": "workspace:*",
     "@mayarin/shared": "workspace:*",
     "@mayarin/subscriptions": "workspace:*",

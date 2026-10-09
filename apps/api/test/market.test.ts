@@ -139,6 +139,19 @@ describe("rates", () => {
 });
 
 describe("a bad write reaches nothing", () => {
+  test("accepts a Solana mint in runtime stablecoin configuration", async () => {
+    const { market, store } = harness();
+    const mint = "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7";
+
+    await market.put("stablecoins", [
+      { asset: "USDG", onChain: [{ chain: "solana-devnet", address: mint }] },
+    ]);
+
+    expect((await store.get("stablecoins"))?.value).toEqual([
+      { asset: "USDG", onChain: [{ chain: "solana-devnet", address: mint }] },
+    ]);
+  });
+
   test("an unparseable value is refused rather than stored", async () => {
     const { market, store } = harness();
     await market.seedFromEnvironment();

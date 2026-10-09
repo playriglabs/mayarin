@@ -13,7 +13,7 @@
  * chain back to record what moved.
  */
 
-import { chainLabel, EVM_CHAIN_IDS, isChainId, shortHash } from "@mayarin/chain";
+import { chainLabel, evmChainIdOf, isChainId, shortHash } from "@mayarin/chain";
 import { PaperPlaneTiltIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { match } from "ts-pattern";
@@ -151,7 +151,7 @@ function Payouts() {
       if (transaction.from !== undefined && account !== transaction.from) {
         throw new Error(`Switch to the owner wallet ${shortHash(transaction.from)} to pay.`);
       }
-      await switchChain(wallet.provider, EVM_CHAIN_IDS[selected]);
+      await switchChain(wallet.provider, evmChainIdOf(selected));
 
       // A wallet batch spends through the batcher: approve each token whose
       // allowance falls short, and wait for it, before the payout is sent.

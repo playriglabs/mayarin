@@ -100,7 +100,9 @@ export function createHarness(options: HarnessOptions = {}) {
     depositAddresses,
     depositDeriver,
     ...(options.contractPlanner === undefined ? {} : { contractPlanner: options.contractPlanner }),
-    ...(options.treasuryAddress === undefined ? {} : { treasuryAddress: options.treasuryAddress }),
+    ...(options.treasuryAddress === undefined
+      ? {}
+      : { treasuryAddresses: { "base-sepolia": options.treasuryAddress } }),
     ...(options.treasuryPort === undefined
       ? {}
       : {

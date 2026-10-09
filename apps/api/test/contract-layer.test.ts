@@ -4,6 +4,7 @@ import { FixedPriceOracle } from "@mayarin/clearing/testing";
 import { priceSourceOf } from "@mayarin/execution";
 import { FixedSwapVenue } from "@mayarin/execution/testing";
 import { ESCROW_FACTORY_V2, escrowAddress } from "@mayarin/provider-evm";
+import { LocalSolanaOrderSigner } from "@mayarin/provider-solana";
 import { QuoteEngine } from "@mayarin/quote";
 import { FakeOrderSigner } from "@mayarin/quote/testing";
 import { ConfigurationError, FixedClock, money, ValidationError } from "@mayarin/shared";
@@ -22,6 +23,8 @@ const USDC_TOKEN = "0x00000000000000000000000000000000000001d1";
 
 /** 60,000,000.00 USDC per whole ETH. */
 const ETH_USDC_RATE = 6_000_000_000n;
+/** 13.79 USDC per whole SOL. */
+const SOL_USDC_RATE = 13_790_000n;
 
 // `null` means the merchant has no settlement address; `undefined` would be
 // swallowed by the default parameter and silently pass the address through.
@@ -32,16 +35,30 @@ function createPlanner(
   relayerGasFeeBasisPoints = 10,
   feeMinimum = "0",
   escrowArbiter?: string,
+  solana?: {
+    readonly router: string;
+    readonly mint: string;
+    readonly domain: Uint8Array;
+    readonly signer: LocalSolanaOrderSigner;
+  },
 ) {
   const clock = new FixedClock(NOW);
   const venue = new FixedSwapVenue("0x", [
     { from: "ETH", to: "USDC", scaledRate: ETH_USDC_RATE, source: "0x" },
+    { from: "SOL", to: "USDC", scaledRate: SOL_USDC_RATE, source: "orca" },
   ]);
   const oracle = new FixedPriceOracle([
     {
       from: "ETH",
       to: "USDC",
       scaledRate: ETH_USDC_RATE,
+      source: "pyth",
+      observedAt: NOW,
+    },
+    {
+      from: "SOL",
+      to: "USDC",
+      scaledRate: SOL_USDC_RATE,
       source: "pyth",
       observedAt: NOW,
     },
@@ -68,7 +85,13 @@ function createPlanner(
     ttlSeconds: 120,
   };
   const planner = new ApiContractPlanner({
-    contract: { paymentRouters: { base: ROUTER, "arbitrum-sepolia": ROUTER } },
+    contract: {
+      paymentRouters: {
+        base: ROUTER,
+        "arbitrum-sepolia": ROUTER,
+        ...(solana === undefined ? {} : { "solana-localnet": solana.router }),
+      },
+    },
     quote: async () => quote,
     fees: new BasisPointsFeePolicy(50, feeMinimum),
     relayerGasFees: new BasisPointsFeePolicy(relayerGasFeeBasisPoints),
@@ -78,6 +101,9 @@ function createPlanner(
         onChain: [
           { chain: "base", address: USDC_TOKEN },
           { chain: "arbitrum-sepolia", address: USDC_TOKEN },
+          ...(solana === undefined
+            ? []
+            : [{ chain: "solana-localnet" as const, address: solana.mint }]),
         ],
       },
     ]),
@@ -91,12 +117,20 @@ function createPlanner(
     ...(wallets === undefined ? {} : { wallets }),
     ...(settlementAddresses === undefined ? {} : { settlementAddresses }),
     ...(escrowArbiter === undefined ? {} : { escrowArbiter }),
+    ...(solana === undefined
+      ? {}
+      : {
+          solana: {
+            signer: solana.signer,
+            deploymentDomains: { "solana-localnet": solana.domain },
+          },
+        }),
     clock,
   });
   return { planner, venue, signer, clock };
 }
 
-function lockRequest(payerAsset: "ETH" | "USDC") {
+function lockRequest(payerAsset: "ETH" | "SOL" | "USDC") {
   return {
     clearingTransactionId: "clr_test_1",
     paymentIntentId: "pi_test_1",
@@ -200,6 +234,57 @@ describe("ApiContractPlanner", () => {
     expect(venue.calls).toHaveLength(0);
     expect(lock.payerEstimate).toEqual(money(5_000_000n, "USDC"));
     expect(lock.rate.source).toBe("peg");
+    expect(lock.order.minOut).toBe(5_000_000n);
+  });
+
+  test("signs a domain-separated same-mint Solana payment", async () => {
+    const router = "5raasGCxqaEvGsvQ1PvGxRB1JYnA7Y3L4LfjRCfkNJ4f";
+    const mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    const payer = "So11111111111111111111111111111111111111112";
+    const signer = new LocalSolanaOrderSigner(new Uint8Array(32).fill(9));
+    const { planner } = createPlanner(router, undefined, undefined, 10, "0", undefined, {
+      router,
+      mint,
+      domain: new Uint8Array(32).fill(3),
+      signer,
+    });
+
+    const lock = await planner.lock({
+      ...lockRequest("USDC"),
+      chain: "solana-localnet",
+      payerAddress: payer,
+    });
+
+    expect(lock.order.settlementToken).toBe(mint);
+    expect(lock.order.merchantSafe).toBe(router);
+    expect(lock.order.refundTo).toBe(payer);
+    expect(lock.order.intentId).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(Buffer.from(lock.order.signature, "base64")).toHaveLength(64);
+    expect(lock.order.signer).toBe(signer.publicKey());
+  });
+
+  test("locks a cross-asset Solana payment with the Orca payer estimate", async () => {
+    const router = "5raasGCxqaEvGsvQ1PvGxRB1JYnA7Y3L4LfjRCfkNJ4f";
+    const mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    const payer = "So11111111111111111111111111111111111111112";
+    const signer = new LocalSolanaOrderSigner(new Uint8Array(32).fill(9));
+    const { planner } = createPlanner(router, undefined, undefined, 10, "0", undefined, {
+      router,
+      mint,
+      domain: new Uint8Array(32).fill(3),
+      signer,
+    });
+
+    const lock = await planner.lock({
+      ...lockRequest("SOL"),
+      chain: "solana-localnet",
+      payerAddress: payer,
+    });
+
+    expect(lock.rate).toMatchObject({ from: "SOL", to: "USDC", source: "orca" });
+    expect(lock.payerEstimate.asset).toBe("SOL");
+    expect(lock.payerEstimate.amount).toBeGreaterThan(362_581_581n);
+    expect(lock.payerEstimate).not.toEqual(lock.settlementAmount);
     expect(lock.order.minOut).toBe(5_000_000n);
   });
 

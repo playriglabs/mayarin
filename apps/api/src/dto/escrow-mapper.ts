@@ -5,7 +5,7 @@
  * pure packages only.
  */
 
-import { EVM_CHAIN_IDS } from "@mayarin/chain";
+import { evmChainIdOf } from "@mayarin/chain";
 import type { DisputeMessage } from "@mayarin/db";
 import { escrowBondApproveCalldata } from "@mayarin/provider-evm";
 import { numericReference } from "@mayarin/shared";
@@ -26,7 +26,7 @@ export function toEscrowDto(view: EscrowView, payerStanding: Standing): EscrowDt
   return {
     chain: view.chain,
     /** For `wallet_switchEthereumChain` before sending a call. */
-    chainId: EVM_CHAIN_IDS[view.chain].toString(),
+    chainId: evmChainIdOf(view.chain).toString(),
     factory: view.factory,
     address: view.address,
     token: view.token,

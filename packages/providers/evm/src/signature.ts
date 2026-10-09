@@ -11,11 +11,11 @@ import type { SignatureVerifier } from "@mayarin/wallet";
 import { recoverMessageAddress } from "viem";
 
 export class ViemSignatureVerifier implements SignatureVerifier {
-  async recover(message: string, signature: string): Promise<string> {
+  async verify(input: Parameters<SignatureVerifier["verify"]>[0]): Promise<boolean> {
     const address = await recoverMessageAddress({
-      message,
-      signature: signature as `0x${string}`,
+      message: input.message,
+      signature: input.signature as `0x${string}`,
     });
-    return address.toLowerCase();
+    return address.toLowerCase() === input.address.toLowerCase();
   }
 }

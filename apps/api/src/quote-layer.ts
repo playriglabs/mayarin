@@ -19,6 +19,7 @@ import { CoinbasePriceOracle } from "@mayarin/provider-coinbase";
 import { AwsKmsOrderSigner, LocalOrderSigner } from "@mayarin/provider-evm";
 import { FxRatesPriceOracle } from "@mayarin/provider-fx";
 import { PythPriceOracle } from "@mayarin/provider-pyth";
+import { OrcaSolanaSwapVenue } from "@mayarin/provider-solana";
 import { ZeroExSwapVenue } from "@mayarin/provider-swap-0x";
 import { LifiSwapVenue } from "@mayarin/provider-swap-lifi";
 import { UniswapSwapVenue } from "@mayarin/provider-swap-uniswap";
@@ -113,6 +114,13 @@ function createVenue(name: string, config: Config): SwapVenue {
         pairs: config.lifiPairs as never,
         fromAddress: config.lifiFromAddress ?? "",
         ...(config.lifiApiKey === undefined ? {} : { apiKey: config.lifiApiKey }),
+      });
+    case "orca":
+      return new OrcaSolanaSwapVenue({
+        rpcUrls: config.chainRpcUrls,
+        pools: config.solanaOrcaPools,
+        assets: config.chainAssets,
+        nativeAssets: config.chainNativeAssets,
       });
     default:
       throw new ConfigurationError(`Unsupported quote venue "${name}"`, { venue: name });

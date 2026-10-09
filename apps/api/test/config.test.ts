@@ -264,6 +264,38 @@ describe("contract path configuration", () => {
     expect(config.contract?.paymentRouters.base).toBe("0x552008c0f6870c2f77e5cC1d2eb9bdff03e30Ea0");
   });
 
+  test("resolves a Solana router with its signer, domain, fee recipient, and mint", () => {
+    const program = "5raasGCxqaEvGsvQ1PvGxRB1JYnA7Y3L4LfjRCfkNJ4f";
+    const mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    const config = loadConfig({
+      ...BASE,
+      ...QUOTE,
+      CONTRACT_PATH_ENABLED: "true",
+      PAYMENT_ROUTERS: JSON.stringify({ "solana-localnet": program }),
+      CHAIN_ASSETS: JSON.stringify({ "solana-localnet": { USDC: mint } }),
+      CHAIN_RPC_URLS: '{"solana-localnet":"http://127.0.0.1:8899"}',
+      CHAIN_ENABLED: "true",
+      ASSET_RECEIPT_MODE: "manual",
+      SOLANA_ORDER_SIGNER_SECRET_KEY: Buffer.alloc(32, 7).toString("base64"),
+      SOLANA_DEPOSIT_SEED: Buffer.alloc(32, 8).toString("base64"),
+      SOLANA_DEPLOYMENT_DOMAINS: JSON.stringify({ "solana-localnet": "01".repeat(32) }),
+      SOLANA_FEE_RECIPIENTS: JSON.stringify({ "solana-localnet": program }),
+      SOLANA_ORCA_POOLS: JSON.stringify({
+        "solana-localnet": [{ address: program, tokenMintA: mint, tokenMintB: program }],
+      }),
+      SOLANA_ORCA_LOOKUP_TABLES: JSON.stringify({ "solana-localnet": [program] }),
+    });
+
+    expect(config.contract?.paymentRouters["solana-localnet"]).toBe(program);
+    expect(config.contract?.solana?.signerSecretKey).toHaveLength(32);
+    expect(config.contract?.solana?.deploymentDomains["solana-localnet"]).toEqual(
+      new Uint8Array(32).fill(1),
+    );
+    expect(config.contract?.solana?.orcaPools["solana-localnet"]?.[0]?.tokenMintA).toBe(mint);
+    expect(config.contract?.solana?.orcaLookupTables["solana-localnet"]).toEqual([program]);
+    expect(config.stablecoins[0]?.onChain[0]?.address).toBe(mint);
+  });
+
   test("requires the quote layer", () => {
     expect(() => loadConfig({ ...BASE, ...CONTRACT })).toThrow(/QUOTE_ENABLED/);
   });
@@ -571,6 +603,32 @@ describe("quote configuration", () => {
     ).toThrow(/unsupported venue "sushiswap"/);
   });
 
+  test("accepts Orca when at least one Whirlpool is configured", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...TURNKEY,
+      QUOTE_ENABLED: "true",
+      QUOTE_VENUES: '["orca"]',
+      PYTH_FEEDS,
+      SOLANA_ORCA_POOLS:
+        '{"solana-devnet":[{"address":"5GPCnpWwoDayCP5FVCJT1cS7dePufC5FrjPTVvPoUYnm","tokenMintA":"So11111111111111111111111111111111111111112","tokenMintB":"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"}]}',
+    });
+
+    expect(config.quote?.venues).toEqual(["orca"]);
+  });
+
+  test("refuses Orca with no configured Whirlpool", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...TURNKEY,
+        QUOTE_ENABLED: "true",
+        QUOTE_VENUES: '["orca"]',
+        PYTH_FEEDS,
+      }),
+    ).toThrow(/SOLANA_ORCA_POOLS/);
+  });
+
   test("refuses turnkey signing with no credentials", () => {
     expect(() =>
       loadConfig({
@@ -700,6 +758,27 @@ describe("treasury execution configuration", () => {
     expect(config.treasuryExecutionEnabled).toBe(true);
     expect(config.treasuryAddress).toBe("0x616e2B9Bc83D60790E70CbaAc6c8612AFc6A7896");
     expect(config.treasuryMaxAttempts).toBe(3);
+  });
+
+  test("does not require an EVM deposit-forwarder factory for a Solana router", () => {
+    const program = "5raasGCxqaEvGsvQ1PvGxRB1JYnA7Y3L4LfjRCfkNJ4f";
+    const config = loadConfig({
+      ...CONTRACT,
+      TREASURY_EXECUTION_ENABLED: "true",
+      PAYMENT_ROUTERS: JSON.stringify({ "solana-devnet": program }),
+      CHAIN_RPC_URLS: JSON.stringify({ "solana-devnet": "https://api.devnet.solana.com" }),
+      CHAIN_ASSETS: JSON.stringify({ "solana-devnet": { USDC: program } }),
+      SOLANA_DEPOSIT_SEED: Buffer.alloc(32, 9).toString("base64"),
+      SOLANA_ORDER_SIGNER_SECRET_KEY: Buffer.alloc(32, 7).toString("base64"),
+      SOLANA_DEPLOYMENT_DOMAINS: JSON.stringify({ "solana-devnet": "01".repeat(32) }),
+      SOLANA_FEE_RECIPIENTS: JSON.stringify({ "solana-devnet": program }),
+      DEPOSIT_FORWARDERS: undefined,
+      DEPOSIT_FORWARDER_INIT_CODE_HASH: undefined,
+      TREASURY_ADDRESS: undefined,
+      OPERATOR_PRIVATE_KEY: undefined,
+    });
+
+    expect(config.treasuryExecutionEnabled).toBe(true);
   });
 
   test("refuses relayed fees that consume the merchant payout", () => {

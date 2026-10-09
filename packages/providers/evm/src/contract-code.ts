@@ -21,7 +21,7 @@
  */
 
 import type { ChainId, ContractCodeSource } from "@mayarin/chain";
-import { VIEM_CHAINS } from "@mayarin/provider-viem-chains";
+import { viemChainOf } from "@mayarin/provider-viem-chains";
 import { ProviderError } from "@mayarin/shared";
 import { createPublicClient, getAddress, http, type PublicClient } from "viem";
 
@@ -67,7 +67,7 @@ export class EvmContractCodeReader implements ContractCodeSource {
     const cached = this.#clients.get(chain);
     if (cached !== undefined) return cached;
 
-    const client = createPublicClient({ chain: VIEM_CHAINS[chain], transport: http(url) });
+    const client = createPublicClient({ chain: viemChainOf(chain), transport: http(url) });
     this.#clients.set(chain, client);
     return client;
   }
