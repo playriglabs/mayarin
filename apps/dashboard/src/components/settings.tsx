@@ -549,7 +549,7 @@ function Settings() {
                           aria-label="Loading networks"
                           className="flex flex-col divide-y divide-border rounded-lg border border-border"
                         >
-                          {["first", "second", "third", "fourth"].map((row) => (
+                          {["first", "second", "third", "fourth", "fifth"].map((row) => (
                             <li key={row} className="flex items-center gap-3 p-3">
                               <Skeleton className="size-5 rounded-full" />
                               <Skeleton className="h-4 w-36" />
