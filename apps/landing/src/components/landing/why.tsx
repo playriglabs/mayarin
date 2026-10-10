@@ -1,0 +1,125 @@
+import type { ComponentChildren } from "preact";
+import { Reveal } from "../reveal.tsx";
+
+/**
+ * Why a merchant picks Mayarin: four properties of the system rather than
+ * features — who holds the money, how much of it you have to adopt, where
+ * payers can pay from, and whether every movement can be accounted for. Each claim is something the
+ * code guarantees today, not a roadmap item.
+ */
+export function Why() {
+  return (
+    <section id="why" class="mx-auto w-full max-w-300 px-5 py-20 md:px-10 md:py-28">
+      <Reveal>
+        <p class="inline-flex rounded-full border border-line px-3 py-1 text-xs text-slate-600">
+          Why Mayarin
+        </p>
+        <h2 class="mt-6 max-w-240 text-balance">
+          Built to be trusted with every payment. Merchants choose Mayarin for{" "}
+          <span class="text-forest">non-custodial, flexible, multi-chain and auditable</span>{" "}
+          stablecoin payments.
+        </h2>
+      </Reveal>
+
+      {/* Four claims of the same length, so the descriptions line up across
+          the row instead of starting at four different heights. */}
+      <div class="mt-12 grid gap-3 md:mt-16 md:grid-cols-2 lg:grid-cols-4">
+        <WhyCard
+          icon={<WalletIcon />}
+          title="Non-custodial"
+          body="Settlements land in a wallet you control. Mayarin never holds your customer's funds on the contract path."
+        />
+        <WhyCard
+          icon={<BlocksIcon />}
+          title="Flexible"
+          delay={90}
+          body="Hosted checkout, payment links and invoices, or the API and SDK. Use only the parts your product needs."
+        />
+        <WhyCard
+          icon={<NetworkIcon />}
+          title="Multi-chain"
+          delay={180}
+          body="Payers bring any supported asset on six EVM and Solana networks. You settle in the stablecoin you choose."
+        />
+        <WhyCard
+          icon={<LedgerIcon />}
+          title="Auditable"
+          delay={270}
+          body="Every payment moves through balanced double-entry postings. Nothing changes a balance without leaving a trail."
+        />
+      </div>
+    </section>
+  );
+}
+
+function WhyCard({
+  icon,
+  title,
+  body,
+  delay = 0,
+}: {
+  readonly icon: ComponentChildren;
+  readonly title: string;
+  readonly body: string;
+  readonly delay?: number;
+}) {
+  return (
+    <Reveal delay={delay} class="h-full">
+      <article class="flex h-full min-h-72 flex-col rounded-2xl border border-line bg-paper p-6 md:p-8">
+        <span class="text-forest [&>svg]:size-7">{icon}</span>
+        <h3 class="mt-4 text-[clamp(1.6rem,2.4vw,2rem)]">{title}</h3>
+        <p class="mt-auto pt-10 text-base leading-relaxed text-slate-600">{body}</p>
+      </article>
+    </Reveal>
+  );
+}
+
+const ICON = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  "stroke-width": "1.5",
+  "stroke-linecap": "round",
+  "stroke-linejoin": "round",
+} as const;
+
+function WalletIcon() {
+  return (
+    <svg {...ICON} aria-hidden="true">
+      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A1.5 1.5 0 0 1 19 6.5V8" />
+      <path d="M4 7.5v10A1.5 1.5 0 0 0 5.5 19h13a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 18.5 8h-12A2.5 2.5 0 0 1 4 5.5" />
+      <circle cx="16" cy="13.5" r="1" />
+    </svg>
+  );
+}
+
+function BlocksIcon() {
+  return (
+    <svg {...ICON} aria-hidden="true">
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <path d="M16.5 13.5v6M13.5 16.5h6" />
+    </svg>
+  );
+}
+
+function NetworkIcon() {
+  return (
+    <svg {...ICON} aria-hidden="true">
+      <circle cx="12" cy="5" r="2" />
+      <circle cx="5" cy="18" r="2" />
+      <circle cx="19" cy="18" r="2" />
+      <path d="M12 7v4M12 11l-5.5 5.2M12 11l5.5 5.2" />
+    </svg>
+  );
+}
+
+function LedgerIcon() {
+  return (
+    <svg {...ICON} aria-hidden="true">
+      <path d="M6 4h12v16H6z" />
+      <path d="M12 4v16M8.5 8.5h1.5M8.5 12h1.5M14 8.5h1.5M14 12h1.5M8.5 15.5h7" />
+    </svg>
+  );
+}

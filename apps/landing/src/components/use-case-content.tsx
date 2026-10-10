@@ -215,7 +215,7 @@ export const INDUSTRIES: readonly Industry[] = [
         kind: "counter",
         label: "In person",
         title: "QR at the counter",
-        body: "A static merchant QR or a code per payment, settled the same way as an online order.",
+        body: "A static merchant QR or a code per payment, with your business logo in the centre, settled the same way as an online order.",
       },
       {
         kind: "checkout",

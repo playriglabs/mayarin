@@ -187,24 +187,111 @@ function TokenLogo({
   );
 }
 
-/** One sender fanning out to several recipients, in one transaction. */
-function PayoutsVisual() {
-  const recipients = ["0x8f…a1", "0x3c…7e", "0xd2…40"];
+/**
+ * Land on a dotted half-globe: dots on a grid, kept where they fall inside the
+ * dome and inside one of a few rough continent blobs. Computed once, at module
+ * load, so a render only maps over the result.
+ */
+const GLOBE_DOTS = (() => {
+  const blobs = [
+    [62, 96, 30],
+    [104, 74, 26],
+    [150, 86, 32],
+    [196, 78, 24],
+    [232, 104, 26],
+    [130, 118, 20],
+  ] as const;
+  const dots: { x: number; y: number }[] = [];
+  for (let y = 46; y <= 136; y += 5) {
+    for (let x = 8; x <= 272; x += 5) {
+      const dome = ((x - 140) / 134) ** 2 + ((y - 140) / 96) ** 2 <= 1;
+      const land = blobs.some(([cx, cy, r]) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r);
+      if (dome && land) dots.push({ x, y });
+    }
+  }
+  return dots;
+})();
+
+/** Drawn rather than an emoji: Windows renders flag emoji as two letters. */
+function FlagJapan() {
   return (
-    <div class="flex w-full max-w-72 flex-col items-center text-xs">
-      <span class="inline-flex items-center gap-1.5 rounded-full border border-forest bg-v2-sage px-3 py-1.5 font-medium text-forest">
-        <TokenLogo asset="USDG" class="size-4" />1 transaction · USDG
-      </span>
-      <svg viewBox="0 0 240 40" class="h-10 w-full text-forest/50" fill="none" aria-hidden="true">
-        <path d="M120 0v12M120 12L40 40M120 12v28M120 12l80 28" stroke="currentColor" />
-      </svg>
-      <div class="grid w-full grid-cols-3 gap-2">
-        {recipients.map((address) => (
-          <span key={address} class="rounded-md border border-line bg-v2-mist px-2 py-2 font-mono">
-            {address}
-          </span>
+    <svg viewBox="0 0 30 20" class="h-5 w-7.5 rounded-[3px] shadow-sm" aria-hidden="true">
+      <rect width="30" height="20" fill="#ffffff" />
+      <circle cx="15" cy="10" r="6" fill="#bc002d" />
+    </svg>
+  );
+}
+
+function FlagSingapore() {
+  // Five stars ringed beside the crescent, small enough at 30×20 to read as dots.
+  const stars = [
+    [10.4, 2.7],
+    [12.1, 3.9],
+    [11.5, 5.9],
+    [9.3, 5.9],
+    [8.7, 3.9],
+  ] as const;
+  return (
+    <svg viewBox="0 0 30 20" class="h-5 w-7.5 rounded-[3px] shadow-sm" aria-hidden="true">
+      <rect width="30" height="10" fill="#ee2536" />
+      <rect y="10" width="30" height="10" fill="#ffffff" />
+      <circle cx="6.4" cy="5" r="3.3" fill="#ffffff" />
+      <circle cx="7.6" cy="5" r="3" fill="#ee2536" />
+      {stars.map(([cx, cy]) => (
+        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="0.6" fill="#ffffff" />
+      ))}
+    </svg>
+  );
+}
+
+/** The stablecoins a payout can go out in. */
+const PAYOUT_ASSETS = ["USDC", "USDG", "PYUSD"] as const;
+
+/** One stablecoin payout reaching recipients wherever they are. */
+function PayoutsVisual() {
+  return (
+    <div class="relative w-full max-w-80" aria-hidden="true">
+      <svg viewBox="0 0 280 140" class="block w-full" aria-hidden="true">
+        <path
+          d="M140 22 C 98 22 70 36 58 58"
+          fill="none"
+          stroke="currentColor"
+          stroke-dasharray="2 4"
+          class="text-slate-400"
+        />
+        <path
+          d="M140 22 C 182 22 210 36 222 58"
+          fill="none"
+          stroke="currentColor"
+          stroke-dasharray="2 4"
+          class="text-slate-400"
+        />
+        {GLOBE_DOTS.map((dot) => (
+          <circle
+            key={`${dot.x}-${dot.y}`}
+            cx={dot.x}
+            cy={dot.y}
+            r="1.3"
+            class="fill-forest"
+            // Fade toward the rim, so the dome reads as round rather than cut.
+            opacity={0.15 + 0.45 * (1 - Math.abs(dot.x - 140) / 140)}
+          />
         ))}
-      </div>
+      </svg>
+      <span class="absolute top-0 left-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-lg border border-line bg-paper px-2.5 py-1.5 text-xs font-medium text-ink shadow-sm">
+        <span class="flex -space-x-1.5">
+          {PAYOUT_ASSETS.map((asset) => (
+            <TokenLogo key={asset} asset={asset} class="size-4 ring-2 ring-paper" />
+          ))}
+        </span>
+        {PAYOUT_ASSETS.join(" · ")}
+      </span>
+      <span class="absolute top-[41%] left-[20.7%] -translate-x-1/2 -translate-y-1/2">
+        <FlagJapan />
+      </span>
+      <span class="absolute top-[41%] left-[79.3%] -translate-x-1/2 -translate-y-1/2">
+        <FlagSingapore />
+      </span>
     </div>
   );
 }

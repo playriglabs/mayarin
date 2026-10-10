@@ -6,7 +6,12 @@ const LINKS = [
   { label: "Use cases", href: "#use-cases" },
 ] as const;
 
+/**
+ * Both point at testnet for now. Sandbox stays on testnet for good; Log in
+ * moves to the mainnet dashboard when it goes live.
+ */
 const LOGIN_URL = "https://dashboard-testnet.mayarin.xyz/login";
+const SANDBOX_URL = "https://dashboard-testnet.mayarin.xyz/login";
 
 /** Every destination is a real docs page; nothing here is a placeholder. */
 const DEVELOPER_LINKS = [
@@ -250,6 +255,10 @@ export function Navigation() {
               </div>
             </div>
           </div>
+
+          <a href={SANDBOX_URL} class="transition-colors hover:text-forest">
+            Sandbox
+          </a>
         </nav>
 
         <div class="ml-auto hidden items-center gap-6 text-sm xl:flex mt-px">
@@ -373,6 +382,7 @@ export function Navigation() {
               </div>
             </div>
 
+            <a href={SANDBOX_URL}>Sandbox</a>
             <a href={LOGIN_URL}>Log in</a>
             {/* biome-ignore lint/a11y/useValidAnchor: This anchor navigates to the access form and also closes the mobile menu. */}
             <a href="#footer-early-access" onClick={() => setOpen(false)}>
