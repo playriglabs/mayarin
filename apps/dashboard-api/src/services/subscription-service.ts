@@ -239,6 +239,7 @@ export class SubscriptionService {
           outstanding: total,
           dueAt: invoice.dueAt?.toISOString() ?? null,
           url: `${this.#checkoutBaseUrl}/invoices/${invoice.id}/view`,
+          subscription: { plan: subscription.description, interval: subscription.interval },
         })
         .catch((error: unknown) => {
           // A deployment with no email configured still bills: the invoice is

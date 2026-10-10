@@ -9,7 +9,7 @@
  *   and the dead letter are the ones every payment event gets. The dispute id
  *   is the event id, so a repeat is recognisable.
  * - **Email** — through Resend, to the merchant's admin accounts, in the same
- *   layout as the invoice and verification emails (Geist, logo inline).
+ *   layout as the invoice and verification emails (PP Neue Montreal, logo inline).
  *
  * Neither throws: a failed notice is logged, and the dispute stands either way.
  */
@@ -164,7 +164,7 @@ export function renderDisputeHtml(
   const action =
     url === undefined
       ? `<p style="margin:0;color:#57534e;font-size:14px;line-height:1.6;font-family:${FONT_STACK}">Open <strong>Disputes</strong> in your Mayarin dashboard to answer.</p>`
-      : `<a href="${escapeHtml(url)}" style="display:inline-block;border-radius:8px;background:#18181b;color:#ffffff;padding:13px 20px;font-size:15px;font-weight:700;font-family:${FONT_STACK};text-decoration:none">Answer the dispute</a>
+      : `<a href="${escapeHtml(url)}" style="display:inline-block;border-radius:8px;background:#18181b;color:#ffffff;padding:13px 20px;font-size:15px;font-weight:500;font-family:${FONT_STACK};text-decoration:none">Answer the dispute</a>
             <p style="margin:28px 0 8px;color:#78716c;font-size:12px;line-height:1.5;font-family:${FONT_STACK}">If the button does not open:</p>
             <p style="margin:0;font-size:12px;line-height:1.5"><a href="${escapeHtml(url)}" style="color:#2563eb;font-family:${FONT_STACK}">Open dispute #${number}</a></p>`;
 
@@ -178,8 +178,8 @@ ${EMAIL_HEAD}
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:16px">
           <tr><td style="padding:32px;font-family:${FONT_STACK}">
             ${LOGO_IMG}
-            <p style="margin:0 0 8px;color:#b91c1c;font-size:14px;font-weight:700;text-transform:capitalize;font-family:${FONT_STACK}">Dispute opened</p>
-            <h1 style="margin:0 0 12px;font-size:28px;font-weight:700;line-height:1.25;font-family:${FONT_STACK}">Dispute #${number}</h1>
+            <p style="margin:0 0 8px;color:#b91c1c;font-size:14px;font-weight:500;text-transform:capitalize;font-family:${FONT_STACK}">Dispute opened</p>
+            <h1 style="margin:0 0 12px;font-size:28px;font-weight:500;line-height:1.25;font-family:${FONT_STACK}">Dispute #${number}</h1>
             <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6;font-family:${FONT_STACK}">A buyer disputed a payment held in escrow, so its automatic release to you is stopped. Answer with your evidence — tracking, proof of delivery — or refund the buyer. Mayarin Resolution reads both sides and decides.</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:12px;background:#fafaf9;border:1px solid #f0efee;border-radius:12px;font-family:${FONT_STACK}">
               ${row("Payment", payment, true)}

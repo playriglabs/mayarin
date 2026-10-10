@@ -87,7 +87,7 @@ describe("dispute notifier (#313)", () => {
     expect(sent[0]?.subject).toMatch(/^Dispute #\d{11} opened/);
     expect(sent[0]?.text).toContain(`https://dashboard.mayarin.xyz/disputes/${opened.id}`);
     expect(sent[0]?.html).toContain(`href="https://dashboard.mayarin.xyz/disputes/${opened.id}"`);
-    expect(sent[0]?.html).toContain("Geist");
+    expect(sent[0]?.html).toContain("PP Neue Montreal");
     expect(sent[0]?.html).toContain("cid:mayarin-logo");
   });
 

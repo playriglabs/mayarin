@@ -132,24 +132,31 @@ function paidAmount(transaction: ClearingTransaction): Money {
 export function renderPaidHtml(amount: string, reference: string, url: string | undefined): string {
   const value = escapeHtml(amount);
   const number = escapeHtml(reference);
+  const cell = `font-family:${FONT_STACK};font-size:14px;line-height:1.5`;
   const action =
     url === undefined
-      ? `<p style="margin:0;color:#57534e;font-size:14px;line-height:1.6;font-family:${FONT_STACK}">Open <strong>Payments</strong> in your Mayarin dashboard for the details.</p>`
-      : `<a href="${escapeHtml(url)}" style="display:inline-block;border-radius:8px;background:#18181b;color:#ffffff;padding:13px 20px;font-size:15px;font-weight:700;font-family:${FONT_STACK};text-decoration:none">View payment</a>`;
+      ? `<p style="margin:0;color:#57534e;font-size:14px;line-height:1.6;font-family:${FONT_STACK}">Open Payments in your Mayarin dashboard for the details.</p>`
+      : `<a href="${escapeHtml(url)}" style="display:inline-block;border-radius:999px;background:#0a0a0a;color:#ffffff;padding:12px 22px;font-size:14px;font-weight:500;font-family:${FONT_STACK};text-decoration:none">View payment</a>`;
 
+  // The amount is the news, so it is the headline; one sentence says what it
+  // means, and the reference sits in a quiet row for whoever reconciles it.
   return `<!doctype html>
 <html lang="en">
 ${EMAIL_HEAD}
-  <body style="margin:0;background:#f5f5f4;color:#1c1917;font-family:${FONT_STACK}">
-    <div style="display:none;max-height:0;overflow:hidden">Payment #${number} completed with no dispute.</div>
+  <body style="margin:0;background:#f5f5f4;color:#0a0a0a;font-family:${FONT_STACK}">
+    <div style="display:none;max-height:0;overflow:hidden">You got paid ${value}. Payment #${number} settled with no dispute.</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f5f4;padding:32px 16px;font-family:${FONT_STACK}">
       <tr><td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:16px">
-          <tr><td style="padding:32px;font-family:${FONT_STACK}">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border:1px solid #e7e5e4;border-radius:20px">
+          <tr><td style="padding:36px 32px 32px;font-family:${FONT_STACK}">
             ${LOGO_IMG}
-            <p style="margin:0 0 8px;color:#15803d;font-size:14px;font-weight:700;text-transform:capitalize;font-family:${FONT_STACK}">Payment received</p>
-            <h1 style="margin:0 0 12px;font-size:28px;font-weight:700;line-height:1.25;font-family:${FONT_STACK}">🎉 You got paid ${value}</h1>
-            <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6;font-family:${FONT_STACK}">Payment <strong>#${number}</strong> completed with no dispute. It has been settled to you.</p>
+            <p style="margin:0 0 6px;color:#78716c;font-size:14px;font-family:${FONT_STACK}">You got paid</p>
+            <h1 style="margin:0 0 12px;font-size:36px;font-weight:400;line-height:1.15;letter-spacing:-0.02em;font-family:${FONT_STACK}">${value}</h1>
+            <p style="margin:0 0 24px;color:#57534e;font-size:15px;line-height:1.6;font-family:${FONT_STACK}">The payment completed with no dispute and has been settled to you.</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 28px;border-top:1px solid #f0efee;border-bottom:1px solid #f0efee">
+              <tr><td style="padding:12px 0 6px;color:#78716c;${cell}">Reference</td><td align="right" style="padding:12px 0 6px;color:#0a0a0a;${cell}">#${number}</td></tr>
+              <tr><td style="padding:6px 0 12px;color:#78716c;${cell}">Status</td><td align="right" style="padding:6px 0 12px;color:#15803d;${cell}">Settled</td></tr>
+            </table>
             ${action}
           </td></tr>
         </table>
@@ -161,9 +168,10 @@ ${EMAIL_HEAD}
 }
 
 function renderPaidText(amount: string, reference: string, url: string | undefined): string {
-  return `🎉 You got paid ${amount}.
+  return `You got paid ${amount}.
 
-Payment #${reference} completed with no dispute. It has been settled to you.
+The payment completed with no dispute and has been settled to you.
+Reference: #${reference}
 
 ${url === undefined ? "Open Payments in your Mayarin dashboard for the details." : `View payment: ${url}`}
 `;

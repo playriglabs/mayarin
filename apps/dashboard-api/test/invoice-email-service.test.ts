@@ -3,6 +3,45 @@ import type { CreateEmailOptions, CreateEmailRequestOptions } from "resend";
 import { ResendInvoiceEmailSender } from "../src/services/invoice-email-service.ts";
 
 describe("ResendInvoiceEmailSender", () => {
+  test("a subscription cycle reads as a plan renewing, not a one-off invoice", async () => {
+    const payloads: CreateEmailOptions[] = [];
+    const sender = new ResendInvoiceEmailSender({
+      apiKey: "re_test",
+      from: "Mayarin <onboarding@resend.dev>",
+      resend: {
+        emails: {
+          send: async (payload) => {
+            payloads.push(payload);
+            return { data: { id: "eml_resend_2" }, error: null, headers: null };
+          },
+        },
+      },
+    });
+
+    await sender.sendInvoice({
+      invoiceId: "inv_2",
+      deliveryId: "cycle-1",
+      invoiceNumber: "INV/2026/0002",
+      merchantName: "Mayarin Infra",
+      merchantLogoUrl: undefined,
+      buyerName: "Rizky",
+      buyerEmail: "rizky@example.com",
+      total: "Rp 49.000",
+      outstanding: "Rp 49.000",
+      dueAt: "2026-10-14T00:00:00.000Z",
+      url: "https://pay.example.com/invoices/inv_2/view",
+      subscription: { plan: "Pro plan", interval: "week" },
+    });
+
+    expect(payloads[0]?.subject).toBe("Your Pro plan renewal from Mayarin Infra");
+    expect(payloads[0]?.html).toContain("your weekly Pro plan with Mayarin Infra is due");
+    expect(payloads[0]?.html).toContain("/ week");
+    expect(payloads[0]?.html).toContain("Pay renewal");
+    expect(payloads[0]?.html).not.toContain("Review and pay invoice");
+    expect(payloads[0]?.text).toContain("Pay renewal: https://pay.example.com/invoices/inv_2/view");
+    expect(payloads[0]?.tags).toEqual([{ name: "category", value: "subscription" }]);
+  });
+
   test("sends an escaped invoice email with a stable idempotency key", async () => {
     const calls: Array<{
       readonly payload: CreateEmailOptions;
@@ -66,7 +105,9 @@ describe("ResendInvoiceEmailSender", () => {
     expect(calls[0]?.payload.html).toContain("border-radius:12px");
     expect(calls[0]?.payload.html).toContain("border-radius:8px");
     // Named on every element, not only on `body`: Gmail does not inherit it.
-    expect(calls[0]?.payload.html?.match(/font-family:Geist,/g)?.length).toBeGreaterThanOrEqual(5);
+    expect(
+      calls[0]?.payload.html?.match(/font-family:'PP Neue Montreal',/g)?.length,
+    ).toBeGreaterThanOrEqual(5);
     // The URL is masked in the HTML and spelled out in the text part, which has
     // nowhere to hide a link.
     expect(calls[0]?.payload.html).toContain(">Pay with this link</a>");

@@ -22,29 +22,40 @@ import { EMAIL_ICON_PNG, LINKEDIN_ICON_PNG, X_ICON_PNG } from "./email-icons.ts"
 export const LOGO_URL = "https://mayarin.xyz/android-chrome-512x512.png";
 
 /**
+ * The dashboard's face, served by the marketing site so its URL outlives any
+ * API deploy. A variable font: one file covers every weight a template uses.
+ */
+const FONT_URL = "https://mayarin.xyz/fonts/PPNeueMontreal-VariableUpright.woff2";
+
+/**
  * The font every element in an email names inline.
  *
  * Inline on each element rather than once on `body`: Gmail and Outlook do not
  * inherit a body font into table cells, so a stack declared in one place
- * silently becomes Times New Roman in exactly the clients that matter. Geist
- * leads and the system stack follows, so a client that never fetched the web
- * font still renders in its own UI face rather than a serif default.
+ * silently becomes Times New Roman in exactly the clients that matter. PP Neue
+ * Montreal leads and the system stack follows, so a client that never fetched
+ * the web font still renders in its own UI face rather than a serif default.
  */
 export const FONT_STACK =
-  "Geist,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  "'PP Neue Montreal',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 /** The `<head>` every template opens with: charset, viewport, and the web font. */
 export const EMAIL_HEAD = `  <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <!-- Geist where the client will fetch a web font (Apple Mail, most desktop
-         clients). Gmail strips this link, which is why every element below also
-         carries the full stack inline and the layout never depends on the face
-         that actually loads. -->
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&display=swap"
-    />
+    <!-- PP Neue Montreal where the client will fetch a web font (Apple Mail,
+         iOS Mail, Outlook for Mac). Gmail and Outlook for Windows drop
+         @font-face, which is why every element below also carries the full
+         stack inline and the layout never depends on the face that loads. -->
+    <style>
+      @font-face {
+        font-family: 'PP Neue Montreal';
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url('${FONT_URL}') format('woff2');
+      }
+    </style>
   </head>`;
 
 /**
@@ -74,7 +85,6 @@ export function logoImg(alt: string): string {
 export const MAYARIN_EMAIL = "hello@mayarin.xyz";
 export const MAYARIN_X_URL = "https://x.com/mayarin_xyz";
 export const MAYARIN_LINKEDIN_URL = "https://linkedin.com/company/mayarin";
-const MAYARIN_SITE_URL = "https://mayarin.xyz";
 
 /**
  * Every attachment a Mayarin email carries: the logo, and the footer icons.
@@ -151,14 +161,14 @@ export const EMAIL_FOOTER = `<table role="presentation" width="100%" cellspacing
             Mayarin — Your business a world of ways to pay.
           </td></tr>
           <tr><td align="center" style="padding:4px 16px 0;color:#78716c;font-size:12px;line-height:1.6;font-family:${FONT_STACK}">
-            <a href="mailto:${MAYARIN_EMAIL}" style="color:#57534e;text-decoration:none">${MAYARIN_EMAIL}</a> · <a href="${MAYARIN_SITE_URL}" style="color:#57534e;text-decoration:none">mayarin.xyz</a>
+            <a href="mailto:${MAYARIN_EMAIL}" style="color:#57534e;text-decoration:none">${MAYARIN_EMAIL}</a>
           </td></tr>
         </table>`;
 
 /** The plain-text footer, for the `text` part. */
 export const EMAIL_FOOTER_TEXT = `--
 Mayarin — Your business a world of ways to pay.
-${MAYARIN_EMAIL} · ${MAYARIN_SITE_URL}
+${MAYARIN_EMAIL}
 X: ${MAYARIN_X_URL} · LinkedIn: ${MAYARIN_LINKEDIN_URL}
 `;
 

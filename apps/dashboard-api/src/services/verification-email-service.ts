@@ -108,10 +108,10 @@ ${EMAIL_HEAD}
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:16px">
           <tr><td style="padding:32px;font-family:${FONT_STACK}">
             ${LOGO_IMG}
-            <h1 style="margin:0 0 12px;font-size:28px;font-weight:700;line-height:1.25">Confirm your email</h1>
+            <h1 style="margin:0 0 12px;font-size:28px;font-weight:500;line-height:1.25">Confirm your email</h1>
             <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6">Enter this code to finish creating your Mayarin account. It expires in ${minutes} minutes.</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:28px;background:#fafaf9;border:1px solid #f0efee;border-radius:12px;font-family:${FONT_STACK}">
-              <tr><td align="center" style="padding:24px 16px;font-size:34px;font-weight:700;letter-spacing:.32em;line-height:1">${code}</td></tr>
+              <tr><td align="center" style="padding:24px 16px;font-size:34px;font-weight:500;letter-spacing:.32em;line-height:1">${code}</td></tr>
             </table>
             <p style="margin:0;color:#78716c;font-size:12px;line-height:1.5">If you did not ask for this, ignore this email — the account stays unusable without the code, and nobody can sign in to it.</p>
           </td></tr>
