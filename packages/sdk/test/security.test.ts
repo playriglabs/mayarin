@@ -60,7 +60,19 @@ describe("redirects", () => {
       return new Response("{}");
     }) as typeof globalThis.fetch;
     await createTransport({ baseUrl: "https://api.test", secretKey: "sk_1", fetch }).get("/x");
-    expect(redirect).toBe("error");
+    // "manual", not "error": Cloudflare Workers throw on "error" before sending.
+    expect(redirect).toBe("manual");
+  });
+
+  test("a redirect response is refused rather than followed", async () => {
+    const fetch = (async () =>
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://elsewhere.test" },
+      })) as unknown as typeof globalThis.fetch;
+    await expect(
+      createTransport({ baseUrl: "https://api.test", secretKey: "sk_1", fetch }).get("/x"),
+    ).rejects.toThrow("redirect");
   });
 });
 

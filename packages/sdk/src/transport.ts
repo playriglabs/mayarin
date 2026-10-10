@@ -79,8 +79,10 @@ export function createTransport(config: TransportConfig): Transport {
         method,
         headers,
         // The API never redirects. Following one would resend the bearer key
-        // to wherever the `Location` points.
-        redirect: "error",
+        // to wherever the `Location` points, so it is never followed — and
+        // refused below. "manual" rather than "error": Cloudflare Workers
+        // reject "error" outright, which failed every call before it left.
+        redirect: "manual",
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       });
@@ -94,6 +96,18 @@ export function createTransport(config: TransportConfig): Transport {
         {
           cause: error,
         },
+      );
+    }
+
+    // A browser reports a manual redirect as an opaque response with status 0;
+    // everywhere else it is a plain 3xx. Either way it is not the API.
+    if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
+      throw new MayarinApiError(
+        INVALID_RESPONSE,
+        "The API answered with a redirect, which is never followed",
+        response.status,
+        false,
+        {},
       );
     }
 
