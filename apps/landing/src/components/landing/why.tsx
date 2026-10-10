@@ -21,8 +21,8 @@ export function Why() {
         </h2>
       </Reveal>
 
-      {/* Four claims of the same length, so the descriptions line up across
-          the row instead of starting at four different heights. */}
+      {/* Four claims of about the same length; each description starts at the
+          same height under its title, so the row lines up across. */}
       <div class="mt-12 grid gap-3 md:mt-16 md:grid-cols-2 lg:grid-cols-4">
         <WhyCard
           icon={<WalletIcon />}
@@ -45,7 +45,7 @@ export function Why() {
           icon={<LedgerIcon />}
           title="Auditable"
           delay={270}
-          body="Every payment moves through balanced double-entry postings. Nothing changes a balance without leaving a trail."
+          body="Every payment moves through balanced, double-entry postings. No balance ever changes without a trail."
         />
       </div>
     </section>
@@ -65,10 +65,10 @@ function WhyCard({
 }) {
   return (
     <Reveal delay={delay} class="h-full">
-      <article class="flex h-full min-h-72 flex-col rounded-2xl border border-line bg-paper p-6 md:p-8">
+      <article class="flex h-full flex-col rounded-2xl border border-line bg-paper p-6 md:p-8">
         <span class="text-forest [&>svg]:size-7">{icon}</span>
         <h3 class="mt-4 text-[clamp(1.6rem,2.4vw,2rem)]">{title}</h3>
-        <p class="mt-auto pt-10 text-base leading-relaxed text-slate-600">{body}</p>
+        <p class="mt-16 text-base leading-relaxed text-slate-600">{body}</p>
       </article>
     </Reveal>
   );
