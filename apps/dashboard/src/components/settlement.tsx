@@ -20,7 +20,14 @@
  */
 
 import { chainLabel, isSolanaChainId } from "@mayarin/chain";
-import { BankIcon, CheckIcon, CopyIcon } from "@phosphor-icons/react";
+import {
+  AirplaneTiltIcon,
+  BankIcon,
+  CheckIcon,
+  CopyIcon,
+  MoneyIcon,
+  PercentIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { AssetAmount, AssetLogo } from "@/components/asset-logo";
@@ -109,16 +116,32 @@ function Well({
   action,
   children,
   footer,
+  ornament,
   className,
 }: {
   readonly label: string;
   readonly action?: React.ReactNode;
   readonly children: React.ReactNode;
   readonly footer?: React.ReactNode;
+  /** A large, faint icon cropped into the bottom-right corner. Decorative. */
+  readonly ornament?: React.ReactNode;
   readonly className?: string;
 }) {
   return (
-    <section className={cn("flex min-w-0 flex-col gap-4 rounded-2xl bg-muted p-6", className)}>
+    <section
+      className={cn(
+        "relative isolate flex min-w-0 flex-col gap-4 overflow-hidden rounded-2xl bg-muted p-6",
+        className,
+      )}
+    >
+      {ornament !== undefined && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-4 -bottom-6 -z-10 text-foreground/6"
+        >
+          {ornament}
+        </span>
+      )}
       <header className="flex min-h-7 items-center justify-between gap-4">
         <h2 className="text-lg font-medium text-muted-foreground">{label}</h2>
         {action}
@@ -309,7 +332,7 @@ function FamilyWell({ entry }: { readonly entry: FamilyDestinations }) {
         <ul className="flex flex-col gap-3">
           {entry.destinations.map((destination) => (
             <li key={destination.address} className="flex min-w-0 flex-col gap-1.5">
-              <span className="flex items-start gap-2">
+              <span className="flex items-center gap-2">
                 {/* Never truncated in the DOM: an address a merchant cannot copy
                     whole is worse than one they have to wrap. */}
                 <span className="min-w-0 font-mono text-base break-all text-foreground">
@@ -342,7 +365,6 @@ function Settlement() {
   const rows = settlements.data?.settlements ?? [];
   const summary = settlements.data?.summary;
   const totals = summary?.totals ?? [];
-  const unpriced = summary?.usd.unpriced ?? [];
   const failed = summary?.failedCount ?? 0;
 
   return (
@@ -360,19 +382,25 @@ function Settlement() {
           <div className="grid gap-4 md:grid-cols-3">
             <Well
               label="Settled"
-              footer={`Net across ${summary?.settledCount ?? 0} settlement${summary?.settledCount === 1 ? "" : "s"}${totals.length > 0 ? ` in ${totals.map((total) => total.asset).join(", ")}` : ""}.${unpriced.length > 0 ? ` ${unpriced.join(", ")} not counted: no USD rate.` : ""}`}
+              ornament={<MoneyIcon size={140} weight="thin" />}
+              footer={`Net across ${summary?.settledCount ?? 0} settlement`}
             >
               <span className={FIGURE}>
                 {totals.length === 0 ? "—" : (summary?.usd.netAmount.display ?? "—")}
               </span>
             </Well>
-            <Well label="Fees taken" footer="Split at settlement, not held by Mayarin.">
+            <Well
+              label="Fees taken"
+              footer="Split at settlement, not held by Mayarin."
+              ornament={<PercentIcon size={140} weight="thin" />}
+            >
               <span className={FIGURE}>
                 {totals.length === 0 ? "—" : (summary?.usd.fee.display ?? "—")}
               </span>
             </Well>
             <Well
               label="In flight"
+              ornament={<AirplaneTiltIcon size={140} weight="thin" />}
               footer={
                 failed === 0 ? (
                   "Priced and on the way. Nothing failed."
