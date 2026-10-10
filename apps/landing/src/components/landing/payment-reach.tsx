@@ -41,7 +41,7 @@ export function PaymentReach() {
         <span class="text-slate-600">Let them pay their way, while you get paid yours.</span>
       </h2>
 
-      <div class="relative isolate mt-10 overflow-hidden rounded-2xl bg-linear-to-br from-v2-mist via-v2-sage to-forest px-5 py-10 sm:px-10 md:mt-14 md:px-16 md:py-16">
+      <div class="relative isolate -mx-6 mt-10 overflow-hidden bg-linear-to-br from-v2-mist via-v2-sage to-forest px-5 py-10 sm:mx-0 sm:rounded-2xl sm:px-10 md:mt-14 md:px-16 md:py-16">
         <div
           aria-hidden="true"
           class="pointer-events-none absolute -right-20 -top-40 -z-10 size-150 rounded-full border-60 border-paper/15"
