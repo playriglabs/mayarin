@@ -12,9 +12,11 @@
 
 import { useState } from "react";
 import { match, P } from "ts-pattern";
+import { AuthCard } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { CodeInput } from "@/components/ui/code-input";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { ButtonLoader } from "@/components/ui/page-loader";
 import { useResendVerification, useVerifyEmail } from "@/hooks/auth";
 import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
 import { withQuery } from "@/lib/with-query";
@@ -112,99 +114,101 @@ function VerifyForm() {
   // way back.
   if (email === "") {
     return (
-      <div className="flex w-full max-w-md flex-col gap-4 p-6 max-md:bg-background">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-medium text-foreground">Confirm your email</h1>
-          <p className="text-sm text-muted-foreground">
-            This link is missing the address it belongs to. Start again and we will send a new code.
+      <AuthCard>
+        <div className="flex w-full flex-col gap-4">
+          <div className="flex flex-col gap-3">
+            <h1 className="text-2xl text-foreground">Confirm your email</h1>
+            <p className="text-base text-muted-foreground">
+              This link is missing the address it belongs to. Start again and we will send a new
+              code.
+            </p>
+          </div>
+          <a
+            href="/register"
+            className="login-submit inline-flex h-12 items-center justify-center rounded-full bg-primary px-6 text-base text-primary-foreground"
+          >
+            Create an account
+          </a>
+          <p className="text-center text-sm text-muted-foreground">
+            Already confirmed?{" "}
+            <a href="/login" className="underline underline-offset-2 hover:text-foreground">
+              Sign in
+            </a>
           </p>
         </div>
-        <a
-          href="/register"
-          className="login-submit inline-flex h-12 items-center justify-center rounded-lg bg-primary px-6 text-xl text-primary-foreground"
-        >
-          Create an account
-        </a>
-        <p className="text-center text-sm text-muted-foreground">
-          Already confirmed?{" "}
-          <a href="/login" className="underline underline-offset-2 hover:text-foreground">
-            Sign in
-          </a>
-        </p>
-      </div>
+      </AuthCard>
     );
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex w-full max-w-md flex-col gap-4 p-6 max-md:bg-background"
-    >
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-medium text-foreground">Confirm your email</h1>
-        <p className="text-sm text-muted-foreground">
-          We sent a {CODE_LENGTH}-digit code to{" "}
-          <span className="font-medium text-foreground">{email}</span>. It expires in{" "}
-          {CODE_TTL_MINUTES} minutes.
-        </p>
-      </div>
+    <AuthCard>
+      <form onSubmit={onSubmit} className="flex w-full flex-col gap-4">
+        <div className="flex flex-col gap-3">
+          <h1 className="text-2xl text-foreground">Confirm your email</h1>
+          <p className="text-base text-muted-foreground">
+            We sent a {CODE_LENGTH}-digit code to{" "}
+            <span className="font-medium text-foreground">{email}</span>. It expires in{" "}
+            {CODE_TTL_MINUTES} minutes.
+          </p>
+        </div>
 
-      <div className="mt-2 flex flex-col gap-3">
-        <Field>
-          <FieldLabel id="verify-code-label" htmlFor="verify-code" className="mb-1 text-sm">
-            Verification code
-          </FieldLabel>
-          <CodeInput
-            id="verify-code"
-            value={code}
-            onChange={setCode}
-            length={CODE_LENGTH}
-            disabled={submitting}
-            invalid={state.status === "error"}
-            labelledBy="verify-code-label"
-            {...(errorId === undefined ? {} : { describedBy: errorId })}
-            // A complete code needs no second action: the last digit submits.
-            onComplete={(next) => submit(next)}
-          />
-        </Field>
-      </div>
+        <div className="mt-2 flex flex-col gap-3">
+          <Field>
+            <FieldLabel id="verify-code-label" htmlFor="verify-code" className="mb-1 text-sm">
+              Verification code
+            </FieldLabel>
+            <CodeInput
+              id="verify-code"
+              value={code}
+              onChange={setCode}
+              length={CODE_LENGTH}
+              disabled={submitting}
+              invalid={state.status === "error"}
+              labelledBy="verify-code-label"
+              {...(errorId === undefined ? {} : { describedBy: errorId })}
+              // A complete code needs no second action: the last digit submits.
+              onComplete={(next) => submit(next)}
+            />
+          </Field>
+        </div>
 
-      <div aria-live="polite" className="empty:hidden">
-        {match(state)
-          .with(P.union({ status: "idle" }, { status: "submitting" }), () => null)
-          .with({ status: "sent" }, () => (
-            <p className="text-xs text-muted-foreground">
-              A new code is on its way. The previous one no longer works.
-            </p>
-          ))
-          .with({ status: "error" }, (s) => (
-            <p id="verify-error" role="alert" className="text-xs text-destructive">
-              {s.reason}
-            </p>
-          ))
-          .exhaustive()}
-      </div>
+        <div aria-live="polite" className="empty:hidden">
+          {match(state)
+            .with(P.union({ status: "idle" }, { status: "submitting" }), () => null)
+            .with({ status: "sent" }, () => (
+              <p className="text-xs text-muted-foreground">
+                A new code is on its way. The previous one no longer works.
+              </p>
+            ))
+            .with({ status: "error" }, (s) => (
+              <p id="verify-error" role="alert" className="text-xs text-destructive">
+                {s.reason}
+              </p>
+            ))
+            .exhaustive()}
+        </div>
 
-      <Button
-        type="submit"
-        disabled={submitting || code.length !== CODE_LENGTH}
-        className="login-submit h-12 w-full mt-2 px-6 text-xl"
-      >
-        {submitting ? "Processing.." : "Confirm email"}
-      </Button>
-
-      <p className="text-center text-sm text-muted-foreground">
-        Did not get it?{" "}
-        <button
-          type="button"
-          onClick={onResend}
-          disabled={submitting || resend.isPending}
-          className="underline underline-offset-2 cursor-pointer hover:text-foreground disabled:opacity-50"
+        <Button
+          type="submit"
+          disabled={submitting || code.length !== CODE_LENGTH}
+          className="login-submit h-12 w-full mt-2 rounded-full px-6 text-base"
         >
-          Send a new code
-        </button>
-      </p>
-    </form>
+          {submitting ? <ButtonLoader label="Processing" /> : "Confirm email"}
+        </Button>
+
+        <p className="text-center text-sm text-muted-foreground">
+          Did not get it?{" "}
+          <button
+            type="button"
+            onClick={onResend}
+            disabled={submitting || resend.isPending}
+            className="underline underline-offset-2 cursor-pointer hover:text-foreground disabled:opacity-50"
+          >
+            Send a new code
+          </button>
+        </p>
+      </form>
+    </AuthCard>
   );
 }
 

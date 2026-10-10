@@ -7,6 +7,10 @@
  * it wrong on a signup form is unrecoverable. Settings asks for it instead, and
  * the domain already treats it as optional.
  *
+ * Two steps on the client, one request to the API: the account (email and
+ * password) on the narrow card, then the business on the wide setup frame.
+ * Nothing is sent until the second step, so going back loses nothing.
+ *
  * On success the API says nothing about whether the address was already taken,
  * so this form cannot either — it always moves to the code step, which is also
  * the recovery path for somebody who abandoned a signup halfway.
@@ -15,6 +19,7 @@
 import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match, P } from "ts-pattern";
+import { AuthCard, AuthSetup } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -28,6 +33,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { ButtonLoader } from "@/components/ui/page-loader";
 import { useRegister } from "@/hooks/auth";
 import { COUNTRIES } from "@/lib/countries";
 import { ICON_NAV } from "@/lib/icons";
@@ -44,12 +50,15 @@ const COUNTRY_OPTIONS = [...COUNTRIES]
     label: `${String.fromCodePoint(...Array.from(country.code, (letter) => 0x1f1e6 + letter.charCodeAt(0) - 65))} ${country.name} (${country.code})`,
   }));
 
+type Step = "account" | "business";
+
 type FormState =
   | { readonly status: "idle" }
   | { readonly status: "submitting" }
   | { readonly status: "error"; readonly reason: string };
 
 function RegisterForm() {
+  const [step, setStep] = useState<Step>("account");
   const [state, setState] = useState<FormState>({ status: "idle" });
   const [merchantName, setMerchantName] = useState("");
   const [countryCode, setCountryCode] = useState("");
@@ -93,38 +102,159 @@ function RegisterForm() {
     );
   }
 
+  function onContinue(event: { preventDefault(): void }) {
+    event.preventDefault();
+    if (tooShort) return;
+    setStep("business");
+  }
+
+  if (step === "account") {
+    return (
+      <AuthCard>
+        <form onSubmit={onContinue} className="flex w-full flex-col gap-4">
+          <div className="flex flex-col gap-3">
+            <h1 className="text-2xl text-foreground">Create your testnet account</h1>
+            <p className="text-base text-muted-foreground">
+              This is a testing environment. Transactions use test assets and have no real-world
+              value.
+            </p>
+          </div>
+
+          <div className="mt-2 flex flex-col gap-3">
+            <Field>
+              <FieldLabel htmlFor="register-email" className="text-sm">
+                Email
+              </FieldLabel>
+              <Input
+                id="register-email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-12 px-4 text-base"
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="register-password" className="text-sm">
+                Password
+              </FieldLabel>
+              <InputGroup className="h-12">
+                <InputGroupInput
+                  id="register-password"
+                  type={revealed ? "text" : "password"}
+                  required
+                  minLength={MIN_PASSWORD_LENGTH}
+                  autoComplete="new-password"
+                  placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  aria-describedby={tooShort ? "register-password-hint" : undefined}
+                  className="first:pl-4 text-base"
+                />
+                <InputGroupButton
+                  onClick={() => setRevealed((previous) => !previous)}
+                  aria-label={revealed ? "Hide password" : "Show password"}
+                  aria-pressed={revealed}
+                  aria-controls="register-password"
+                  className="size-12 hover:bg-transparent"
+                >
+                  {revealed ? (
+                    <EyeSlashIcon size={ICON_NAV} aria-hidden="true" />
+                  ) : (
+                    <EyeIcon size={ICON_NAV} aria-hidden="true" />
+                  )}
+                </InputGroupButton>
+              </InputGroup>
+              {tooShort && (
+                <p id="register-password-hint" className="text-xs text-muted-foreground">
+                  {MIN_PASSWORD_LENGTH} characters or more. Length beats punctuation.
+                </p>
+              )}
+            </Field>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={tooShort}
+            className="login-submit h-12 w-full rounded-full px-6 text-base"
+          >
+            Continue
+          </Button>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <a href="/login" className="underline underline-offset-2 hover:text-foreground">
+              Sign in
+            </a>
+          </p>
+        </form>
+      </AuthCard>
+    );
+  }
+
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex w-full max-w-md flex-col gap-4 p-6 max-md:bg-background"
-    >
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-medium text-foreground">Create your merchant account</h1>
-        <p className="text-sm text-muted-foreground">
-          Price in your own currency, settle in a stablecoin.
-        </p>
-      </div>
-
-      <div className="mt-2 flex flex-col gap-3">
-        <Field>
-          <FieldLabel htmlFor="register-merchant">Business name</FieldLabel>
-          <Input
-            id="register-merchant"
-            required
-            maxLength={120}
-            autoComplete="organization"
-            placeholder="Your Company"
-            value={merchantName}
-            onChange={(e) => setMerchantName(e.target.value)}
+    <AuthSetup
+      aside={
+        <span>
+          Signing up as <span className="text-foreground">{email}</span>
+        </span>
+      }
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setStep("account")}
             disabled={submitting}
-            aria-describedby={errorId}
-            className="h-12 px-4"
-          />
-        </Field>
+            className="h-11 rounded-full px-5 text-base"
+          >
+            Back
+          </Button>
+          <Button
+            type="submit"
+            form="register-business"
+            disabled={submitting || countryCode === ""}
+            className="login-submit h-11 rounded-full px-5 text-base"
+          >
+            {submitting ? <ButtonLoader label="Processing" /> : "Create account"}
+          </Button>
+        </>
+      }
+    >
+      <form id="register-business" onSubmit={onSubmit} className="flex w-full flex-col gap-4">
+        <div className="flex flex-col gap-3">
+          <h1 className="text-2xl text-foreground">Tell us about your business</h1>
+          <p className="text-base text-muted-foreground">
+            Price in your own currency, settle in a stablecoin.
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="mt-4 flex flex-col gap-5">
           <Field>
-            <FieldLabel htmlFor="register-country">Country</FieldLabel>
+            <FieldLabel htmlFor="register-merchant" className="text-sm">
+              Business name
+            </FieldLabel>
+            <Input
+              id="register-merchant"
+              required
+              maxLength={120}
+              autoComplete="organization"
+              placeholder="Your Company"
+              value={merchantName}
+              onChange={(e) => setMerchantName(e.target.value)}
+              disabled={submitting}
+              aria-describedby={errorId}
+              className="h-12 px-4 text-base"
+            />
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor="register-country" className="text-sm">
+              Country
+            </FieldLabel>
             <Combobox
               items={COUNTRY_OPTIONS}
               name="countryCode"
@@ -137,13 +267,13 @@ function RegisterForm() {
                 required
                 placeholder="Search country or code"
                 aria-describedby={errorId}
-                className="h-12 pl-4"
+                className="h-12 pl-4 text-base"
               />
-              <ComboboxContent align="start" className="w-(--anchor-width)">
-                <ComboboxEmpty>No countries found.</ComboboxEmpty>
+              <ComboboxContent align="start" className="max-h-80 w-(--anchor-width)">
+                <ComboboxEmpty className="text-base">No countries found.</ComboboxEmpty>
                 <ComboboxList>
                   {(country: ComboboxOption) => (
-                    <ComboboxItem key={country.value} value={country}>
+                    <ComboboxItem key={country.value} value={country} className="py-2.5 text-base">
                       {country.label}
                     </ComboboxItem>
                   )}
@@ -151,8 +281,11 @@ function RegisterForm() {
               </ComboboxContent>
             </Combobox>
           </Field>
+
           <Field>
-            <FieldLabel htmlFor="register-city">City</FieldLabel>
+            <FieldLabel htmlFor="register-city" className="text-sm">
+              City
+            </FieldLabel>
             <Input
               id="register-city"
               name="city"
@@ -164,92 +297,23 @@ function RegisterForm() {
               onChange={(event) => setCity(event.target.value)}
               disabled={submitting}
               aria-describedby={errorId}
-              className="h-12 px-4"
+              className="h-12 px-4 text-base"
             />
           </Field>
         </div>
 
-        <Field>
-          <FieldLabel htmlFor="register-email">Email</FieldLabel>
-          <Input
-            id="register-email"
-            type="email"
-            required
-            autoComplete="email"
-            placeholder="you@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={submitting}
-            aria-describedby={errorId}
-            className="h-12 px-4"
-          />
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor="register-password">Password</FieldLabel>
-          <InputGroup className="h-12">
-            <InputGroupInput
-              id="register-password"
-              type={revealed ? "text" : "password"}
-              required
-              minLength={MIN_PASSWORD_LENGTH}
-              autoComplete="new-password"
-              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={submitting}
-              aria-describedby={errorId ?? (tooShort ? "register-password-hint" : undefined)}
-              className="first:pl-4"
-            />
-            <InputGroupButton
-              onClick={() => setRevealed((previous) => !previous)}
-              disabled={submitting}
-              aria-label={revealed ? "Hide password" : "Show password"}
-              aria-pressed={revealed}
-              aria-controls="register-password"
-              className="size-12"
-            >
-              {revealed ? (
-                <EyeSlashIcon size={ICON_NAV} aria-hidden="true" />
-              ) : (
-                <EyeIcon size={ICON_NAV} aria-hidden="true" />
-              )}
-            </InputGroupButton>
-          </InputGroup>
-          {tooShort && (
-            <p id="register-password-hint" className="text-xs text-muted-foreground">
-              {MIN_PASSWORD_LENGTH} characters or more. Length beats punctuation.
-            </p>
-          )}
-        </Field>
-      </div>
-
-      <div aria-live="polite" className="empty:hidden">
-        {match(state)
-          .with(P.union({ status: "idle" }, { status: "submitting" }), () => null)
-          .with({ status: "error" }, (s) => (
-            <p id="register-error" role="alert" className="text-xs text-destructive">
-              {s.reason}
-            </p>
-          ))
-          .exhaustive()}
-      </div>
-
-      <Button
-        type="submit"
-        disabled={submitting || tooShort || countryCode === ""}
-        className="login-submit h-12 w-full px-6 text-xl"
-      >
-        {submitting ? "Processing.." : "Create account"}
-      </Button>
-
-      <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
-        <a href="/login" className="underline underline-offset-2 hover:text-foreground">
-          Sign in
-        </a>
-      </p>
-    </form>
+        <div aria-live="polite" className="empty:hidden">
+          {match(state)
+            .with(P.union({ status: "idle" }, { status: "submitting" }), () => null)
+            .with({ status: "error" }, (s) => (
+              <p id="register-error" role="alert" className="text-xs text-destructive">
+                {s.reason}
+              </p>
+            ))
+            .exhaustive()}
+        </div>
+      </form>
+    </AuthSetup>
   );
 }
 

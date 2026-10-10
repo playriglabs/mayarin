@@ -82,6 +82,16 @@ export const dialogVariants: Variants = {
   exit: { opacity: 0, x: "-50%", y: "-50%", scale: 0.98, transition: exit },
 };
 
+/**
+ * Inline panels that open in place and push the content below them — the
+ * counter's rail list. Height animates to `auto`, so the parent must clip.
+ */
+export const collapseVariants: Variants = {
+  initial: { height: 0, opacity: 0 },
+  animate: { height: "auto", opacity: 1, transition: enter },
+  exit: { height: 0, opacity: 0, transition: exit },
+};
+
 /** Right-anchored drawers. The popup's top/right/bottom offsets do the layout. */
 export const drawerVariants: Variants = {
   initial: { opacity: 0, x: "100%" },

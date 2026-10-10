@@ -28,6 +28,7 @@ export function useSettlements(limit?: number, cursor?: string) {
   return useEffectQuery<SettlementListResponse, ApiError>({
     queryKey: ["settlements", "list", limit ?? null, cursor ?? null],
     query: () => settlementsApi.list(limit, cursor),
+    keepPrevious: true,
     // Polls only while something can still move, and stops once nothing can.
     refetchInterval: (data) => {
       const now = Date.now();

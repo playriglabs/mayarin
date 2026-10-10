@@ -23,15 +23,6 @@
   unicode-range: U+0030-0039;
 }
 
-.auth-tagline {
-  font-family: "Dashboard Numbers", "Inter Variable", sans-serif;
-}
-
-.auth-tagline em {
-  font-family: "Dashboard Numbers", "Instrument Serif", Georgia, serif;
-  font-weight: 400;
-}
-
 /**
  * `dark:` means the theme this app is in, not the one the operating system is
  * in.
@@ -261,6 +252,20 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --sidebar-accent: #171717;
   --sidebar-accent-foreground: #fafafa;
   --sidebar-marker: var(--chart-1);
+}
+
+/* Auth logo: one image per theme, swapped by the theme the app is in. */
+.auth-logo {
+  height: auto;
+}
+
+.auth-logo-dark,
+:root[data-theme="dark"] .auth-logo-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .auth-logo-dark {
+  display: block;
 }
 
 /* The login CTA keeps the shared default hover in light mode. Only an

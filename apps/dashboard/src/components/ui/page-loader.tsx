@@ -22,3 +22,18 @@ export function PageLoader({ label, className, size = 48 }: PageLoaderProps) {
     </div>
   );
 }
+
+/**
+ * The page loader's squircle, sized for the inside of a button. Takes the
+ * button's text colour, so it reads on a filled and a ghost button alike.
+ */
+export function ButtonLoader({ label }: { readonly label: string }) {
+  return (
+    <span role="status" className="inline-flex items-center justify-center">
+      <span className="sr-only">{label}</span>
+      <span aria-hidden="true" className="mayarin-square-loader inline-flex">
+        <Squircle size={20} stroke={2.5} color="currentColor" />
+      </span>
+    </span>
+  );
+}

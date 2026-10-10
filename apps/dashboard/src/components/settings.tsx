@@ -19,6 +19,7 @@
  */
 
 import { Tabs } from "@base-ui-components/react/tabs";
+import { isSolanaChainId } from "@mayarin/chain";
 import { BankIcon, MapPinIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
@@ -27,7 +28,7 @@ import { MerchantProfile } from "@/components/merchant-profile";
 import { NetworkSettings, settlementOptionsOf } from "@/components/settings-networks";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Combobox,
@@ -60,6 +61,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
   Table,
@@ -285,6 +287,70 @@ function ProtectionDialog({
   );
 }
 
+/**
+ * The settlement address, edited in a dialog so the settlement tab reads as
+ * where the money goes rather than as a form. Same contract as the protection
+ * dialog: cancelling leaves the draft untouched, applying only changes the
+ * draft — "Save settings" is still what stores it.
+ */
+function AddressDialog({
+  open,
+  initial,
+  onCancel,
+  onConfirm,
+}: {
+  readonly open: boolean;
+  readonly initial: string;
+  readonly onCancel: () => void;
+  readonly onConfirm: (address: string) => void;
+}) {
+  const [address, setAddress] = useState(initial);
+  // Each opening starts from the draft, not from whatever was typed and cancelled last time.
+  useEffect(() => {
+    if (open) setAddress(initial);
+  }, [open, initial]);
+
+  const invalid = !isValidSettlementAddress(address);
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Settlement address</DialogTitle>
+          <DialogDescription>
+            Leave it blank to be paid at your managed wallet. There is no shared default: one
+            address for every merchant would pay every merchant into the same wallet.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Field>
+          <FieldLabel htmlFor="settlement-address">EVM address</FieldLabel>
+          <Input
+            id="settlement-address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="0x…"
+            aria-invalid={invalid}
+            className="font-mono text-xs"
+          />
+          {invalid && (
+            <FieldError>
+              Enter a 20-byte hex address, e.g. 0x1234…abcd, or leave it blank.
+            </FieldError>
+          )}
+        </Field>
+
+        <DialogFooter>
+          <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+          <Button onClick={() => onConfirm(address.trim())} disabled={invalid}>
+            Apply
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Settings() {
   const settings = useSettings();
   const history = useSettingsHistory();
@@ -295,6 +361,7 @@ function Settings() {
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
   const [protectionDialog, setProtectionDialog] = useState(false);
+  const [addressDialog, setAddressDialog] = useState(false);
   // Client-side paging: the history endpoint returns the whole audit trail at
   // once, so a page is a slice. Clamped against the live count, so a save that
   // appends a row cannot leave the pager pointing past the last page.
@@ -312,6 +379,16 @@ function Settings() {
   const loaded = settings.data?.settings;
   /** What each network can receive, so the matrix lists nothing a chain has no address for. */
   const supportedChains = rails.data?.supported ?? [];
+  // Solana is paid at a verified wallet, not at the EVM address above, so its
+  // destination is read from the rails that already resolved it per chain.
+  const offersSolana = supportedChains.some((entry) => isSolanaChainId(entry.chain));
+  const solanaAddresses = [
+    ...new Set(
+      (rails.data?.rails ?? [])
+        .filter((rail) => isSolanaChainId(rail.chain) && rail.payTo !== null)
+        .map((rail) => rail.payTo),
+    ),
+  ];
   const settlementOptions = settlementOptionsOf(supportedChains, draft?.settlementAsset);
   // Blocks the save rather than only colouring the field: the API probes every
   // chain for contract code before it validates, so a malformed address came
@@ -464,9 +541,23 @@ function Settings() {
                         per-network one asked them to answer the same question
                         twice, so only the network cards remain. */}
                     {rails.isPending && (
-                      <p role="status" className="text-muted-foreground text-sm">
-                        Loading per-network asset options…
-                      </p>
+                      <Field>
+                        <FieldLabel>Networks</FieldLabel>
+                        {/* The shape of the network list, so nothing jumps when it lands. */}
+                        <ul
+                          role="status"
+                          aria-label="Loading networks"
+                          className="flex flex-col divide-y divide-border rounded-lg border border-border"
+                        >
+                          {["first", "second", "third", "fourth"].map((row) => (
+                            <li key={row} className="flex items-center gap-3 p-3">
+                              <Skeleton className="size-5 rounded-full" />
+                              <Skeleton className="h-4 w-36" />
+                              <Skeleton className="ml-auto h-4 w-44" />
+                            </li>
+                          ))}
+                        </ul>
+                      </Field>
                     )}
                     {rails.isError && (
                       <QueryError
@@ -493,45 +584,78 @@ function Settings() {
                       </Field>
                     )}
 
-                    <Field>
-                      <FieldLabel htmlFor="settlement-address">Settlement address</FieldLabel>
-                      <Input
-                        id="settlement-address"
-                        value={draft.settlementAddress}
-                        onChange={(e) => edit({ ...draft, settlementAddress: e.target.value })}
-                        placeholder="0x…"
-                        aria-invalid={addressInvalid}
-                        aria-describedby="settlement-address-hint"
-                        className="font-mono text-xs"
-                      />
-                      <FieldDescription id="settlement-address-hint">
-                        Leave it blank to be paid at your managed wallet. There is no shared
-                        default: one address for every merchant would pay every merchant into the
-                        same wallet.
-                      </FieldDescription>
-                      {addressInvalid && (
-                        <FieldError>
-                          Enter a 20-byte hex address, e.g. 0x1234…abcd, or leave it blank.
-                        </FieldError>
-                      )}
-                    </Field>
-
                     {/* Shown in full and never truncated in the DOM: an address a
                       merchant cannot copy whole is worse than one they scroll. */}
-                    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3 text-sm">
-                      <BankIcon
-                        size={ICON_CARD}
-                        aria-hidden="true"
-                        className="text-muted-foreground"
-                      />
-                      <span className="text-muted-foreground">Paid to</span>
-                      <span className="break-all font-mono text-xs">
-                        {loaded.effectiveSettlementAddress ?? "nowhere yet"}
-                      </span>
-                      <Badge variant={loaded.canSettleOnChain ? "success" : "warning"}>
-                        {loaded.canSettleOnChain ? "Can settle on chain" : "No address"}
-                      </Badge>
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <BankIcon
+                          size={ICON_CARD}
+                          aria-hidden="true"
+                          className="text-muted-foreground"
+                        />
+                        <span className="text-muted-foreground">EVM paid to</span>
+                        <span className="break-all font-mono text-xs">
+                          {loaded.effectiveSettlementAddress ?? "nowhere yet"}
+                        </span>
+                        <Badge variant={loaded.canSettleOnChain ? "success" : "warning"}>
+                          {loaded.canSettleOnChain ? "Can settle on chain" : "No address"}
+                        </Badge>
+                      </div>
+                      <Button size="sm" variant="secondary" onClick={() => setAddressDialog(true)}>
+                        Change address
+                      </Button>
                     </div>
+                    {offersSolana && !rails.isPending && (
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <BankIcon
+                            size={ICON_CARD}
+                            aria-hidden="true"
+                            className="text-muted-foreground"
+                          />
+                          <span className="text-muted-foreground">Solana paid to</span>
+                          <span className="break-all font-mono text-xs">
+                            {solanaAddresses.length === 0
+                              ? "nowhere yet"
+                              : solanaAddresses.join(", ")}
+                          </span>
+                          <Badge variant={solanaAddresses.length > 0 ? "success" : "warning"}>
+                            {solanaAddresses.length > 0 ? "Can settle on chain" : "No address"}
+                          </Badge>
+                        </div>
+                        <a
+                          href="/wallets"
+                          className={buttonVariants({ variant: "secondary", size: "sm" })}
+                        >
+                          {solanaAddresses.length > 0 ? "Manage" : "Set up"}
+                        </a>
+                      </div>
+                    )}
+                    {/* An applied but unsaved change would otherwise be
+                        invisible: "Paid to" shows what is stored. */}
+                    {draft.settlementAddress.trim() !== (loaded.settlementAddress ?? "") && (
+                      <p className="text-sm text-warning">
+                        After you save, paid to{" "}
+                        {draft.settlementAddress.trim() === "" ? (
+                          "your managed wallet"
+                        ) : (
+                          <span className="break-all font-mono text-xs">
+                            {draft.settlementAddress.trim()}
+                          </span>
+                        )}
+                        .
+                      </p>
+                    )}
+
+                    <AddressDialog
+                      open={addressDialog}
+                      initial={draft.settlementAddress}
+                      onCancel={() => setAddressDialog(false)}
+                      onConfirm={(address) => {
+                        edit({ ...draft, settlementAddress: address });
+                        setAddressDialog(false);
+                      }}
+                    />
                   </Card>
                 </Tabs.Panel>
 

@@ -100,6 +100,9 @@ function NetworkCell({ row }: { readonly row: SettlementDto }) {
   return <ChainLabel chain={network} size={18} className="text-sm" />;
 }
 
+const FIGURE =
+  "text-[36px] leading-[44px] font-medium tracking-[-0.02em] text-foreground tabular-nums";
+
 /** A borderless tinted surface: label and action on top, figure, then a muted footer. */
 function Well({
   label,
@@ -117,12 +120,12 @@ function Well({
   return (
     <section className={cn("flex min-w-0 flex-col gap-4 rounded-2xl bg-muted p-6", className)}>
       <header className="flex min-h-7 items-center justify-between gap-4">
-        <h2 className="text-base font-medium text-muted-foreground">{label}</h2>
+        <h2 className="text-lg font-medium text-muted-foreground">{label}</h2>
         {action}
       </header>
       <div className="min-w-0">{children}</div>
       {footer !== undefined && (
-        <div className="mt-auto text-base text-subtle-foreground">{footer}</div>
+        <div className="mt-auto text-lg text-subtle-foreground">{footer}</div>
       )}
     </section>
   );
@@ -136,9 +139,9 @@ function WellSkeleton({ count }: { readonly count: number }) {
     >
       {["first", "second", "third"].slice(0, count).map((cell) => (
         <div key={cell} className="flex flex-col gap-4 rounded-2xl bg-muted p-6">
-          <Skeleton className="h-4 w-24 bg-border" />
-          <Skeleton className="h-7 w-32 bg-border" />
-          <Skeleton className="h-4 w-40 bg-border" />
+          <Skeleton className="h-5 w-24 bg-border" />
+          <Skeleton className="h-10 w-36 bg-border" />
+          <Skeleton className="h-5 w-48 bg-border" />
         </div>
       ))}
     </div>
@@ -359,12 +362,12 @@ function Settlement() {
               label="Settled"
               footer={`Net across ${summary?.settledCount ?? 0} settlement${summary?.settledCount === 1 ? "" : "s"}${totals.length > 0 ? ` in ${totals.map((total) => total.asset).join(", ")}` : ""}.${unpriced.length > 0 ? ` ${unpriced.join(", ")} not counted: no USD rate.` : ""}`}
             >
-              <span className="text-[28px] leading-[34px] font-medium tracking-[-0.02em] text-foreground tabular-nums">
+              <span className={FIGURE}>
                 {totals.length === 0 ? "—" : (summary?.usd.netAmount.display ?? "—")}
               </span>
             </Well>
             <Well label="Fees taken" footer="Split at settlement, not held by Mayarin.">
-              <span className="text-[28px] leading-[34px] font-medium tracking-[-0.02em] text-foreground tabular-nums">
+              <span className={FIGURE}>
                 {totals.length === 0 ? "—" : (summary?.usd.fee.display ?? "—")}
               </span>
             </Well>
@@ -378,9 +381,7 @@ function Settlement() {
                 )
               }
             >
-              <span className="text-[28px] leading-[34px] font-medium tracking-[-0.02em] text-foreground tabular-nums">
-                {summary?.inFlightCount ?? 0}
-              </span>
+              <span className={FIGURE}>{summary?.inFlightCount ?? 0}</span>
             </Well>
           </div>
         ))}

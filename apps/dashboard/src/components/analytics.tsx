@@ -282,7 +282,7 @@ function MetricBox({
       className={className}
     >
       <div className="flex flex-col gap-3 px-6">
-        <span className="text-[34px] leading-[40px] font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[44px] xl:leading-[52px]">
+        <span className="text-[34px] leading-10 font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[44px] xl:leading-13">
           {point?.display ?? metric.total}
         </span>
         <span className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
@@ -436,7 +436,7 @@ function StatusBox({ settlements }: { readonly settlements: readonly SettlementD
   return (
     <Box title="Status overview" hint="Settlements in the range, by their current state.">
       <div className="flex flex-col gap-3 px-6">
-        <span className="text-[34px] leading-[40px] font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[44px] xl:leading-[52px]">
+        <span className="text-[34px] leading-10 font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[44px] xl:leading-13">
           {rate === undefined ? "—" : `${rate}%`}
         </span>
         <span className="text-sm text-muted-foreground">

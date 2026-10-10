@@ -41,6 +41,7 @@ import {
   ShareNetworkIcon,
   XIcon,
 } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLogo } from "@/components/asset-logo";
@@ -117,6 +118,7 @@ import { useMerchantRails, useSettings } from "@/hooks/settings";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { ICON_CARD, ICON_NAV } from "@/lib/icons";
+import { collapseVariants, drawerVariants } from "@/lib/motion";
 import { PAGE_SIZE } from "@/lib/pagination";
 import { currencyLabel, isValidAmount, PRICING_CURRENCIES } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
@@ -356,6 +358,7 @@ function RailSelector({
   selectedKeys,
   disabled,
   onToggle,
+  compact = false,
 }: {
   readonly idPrefix: string;
   readonly rails: readonly MerchantRailDto[];
@@ -363,6 +366,12 @@ function RailSelector({
   readonly selectedKeys: readonly string[];
   readonly disabled: boolean;
   readonly onToggle: (key: string) => void;
+  /**
+   * Caps the list at a few rows and scrolls it. For the create drawer, where
+   * the rails share the space with the rest of the form; editing is only
+   * rails, so it shows them all.
+   */
+  readonly compact?: boolean;
 }) {
   const exclusions = [
     ...new Map(
@@ -385,7 +394,7 @@ function RailSelector({
           .
         </Alert>
       ) : (
-        <div className="flex max-h-64 flex-col gap-4 overflow-y-auto pr-1">
+        <div className={cn("flex flex-col gap-4", compact && "max-h-64 overflow-y-auto pr-1")}>
           {rails.length > 0 && (
             <div className="flex flex-col gap-2">
               {rails.map((rail) => {
@@ -583,107 +592,123 @@ function RailChoice({
           as one choice among several. The input is visually hidden; the row it
           labels is what gets styled. Scrolls on its own so the actions below
           stay on screen however many networks there are. */}
-      <div
-        id="charge-rail-list"
-        hidden={!open}
-        role="radiogroup"
-        aria-labelledby="charge-rail-label"
-        aria-busy={pending}
-        className={cn(
-          "max-h-80 overflow-y-auto rounded-md border border-border transition-opacity",
-          // Re-pricing dims the figures rather than replacing them with a
-          // spinner: they are still the right order of magnitude, and a number
-          // a counter is reading aloud should not blink out from under them.
-          pending && "opacity-60",
-        )}
-      >
-        {networks.map((network) => (
-          <div key={network.chain} className="border-border border-b last:border-b-0">
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-border border-b bg-muted px-3 py-1.5">
-              <span className="flex items-center gap-2 font-medium text-foreground text-xs">
-                <ChainLogo chain={network.chain} size={14} className="size-3.5 rounded-full" />
-                {chainLabel(network.chain)}
-              </span>
-              {network.rails[0] !== undefined && (
-                <span className="text-subtle-foreground text-xs">
-                  Settles in {network.rails[0].settlementAsset}
-                </span>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            variants={collapseVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="overflow-hidden"
+          >
+            <div
+              id="charge-rail-list"
+              role="radiogroup"
+              aria-labelledby="charge-rail-label"
+              aria-busy={pending}
+              className={cn(
+                "max-h-80 overflow-y-auto rounded-md border border-border transition-opacity",
+                // Re-pricing dims the figures rather than replacing them with a
+                // spinner: they are still the right order of magnitude, and a number
+                // a counter is reading aloud should not blink out from under them.
+                pending && "opacity-60",
               )}
-            </div>
-            <div className="divide-y divide-border">
-              {network.rails.map((rail) => {
-                const key = `${rail.chain}:${rail.asset}`;
-                const line = lineFor(rail.chain, rail.asset);
-                // Undefined is "not priced yet", which is not the same as
-                // refused: an open link has no amount until the counter types one.
-                const refused = line !== undefined && (!line.available || line.amount === null);
-                const selected = value === key;
-                const swapped = rail.asset !== rail.settlementAsset;
-
-                return (
-                  <label
-                    key={key}
-                    className={cn(
-                      "grid grid-cols-[1fr_auto_0.875rem] items-center gap-x-3 px-3 py-2 transition-colors",
-                      "has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-inset",
-                      refused
-                        ? "cursor-not-allowed opacity-55"
-                        : "cursor-pointer hover:bg-accent/50",
-                      selected && !refused && "bg-accent",
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="charge-rail"
-                      value={key}
-                      checked={selected}
-                      disabled={refused}
-                      onChange={() => {
-                        onSelect(key);
-                        setOpen(false);
-                      }}
-                      className="sr-only"
-                    />
-
-                    <span className="flex min-w-0 items-center gap-2">
-                      <AssetLogo symbol={rail.asset} size={20} className="size-5 shrink-0" />
-                      <span className="text-sm">{rail.asset}</span>
-                      <span className="sr-only"> on {chainLabel(rail.chain)}</span>
-                      {swapped && !refused && (
-                        <span className="text-subtle-foreground text-xs">
-                          → {rail.settlementAsset}
-                        </span>
-                      )}
+            >
+              {networks.map((network) => (
+                <div key={network.chain} className="border-border border-b last:border-b-0">
+                  <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-border border-b bg-muted px-3 py-1.5">
+                    <span className="flex items-center gap-2 font-medium text-foreground text-xs">
+                      <ChainLogo
+                        chain={network.chain}
+                        size={14}
+                        className="size-3.5 rounded-full"
+                      />
+                      {chainLabel(network.chain)}
                     </span>
-
-                    {refused ? (
-                      // The reason, not "No rate": a missing oracle feed is an
-                      // operator's fix, and a blank refusal sends them looking
-                      // at the customer instead.
-                      <span className="max-w-56 text-right text-subtle-foreground text-xs">
-                        {line?.reason ?? "No rate"}
-                      </span>
-                    ) : (
-                      // Tabular figures so the decimal points stack down the column.
-                      <span className="text-right font-medium text-foreground text-sm tabular-nums">
-                        {line?.amount?.display ?? ""}
+                    {network.rails[0] !== undefined && (
+                      <span className="text-subtle-foreground text-xs">
+                        Settles in {network.rails[0].settlementAsset}
                       </span>
                     )}
+                  </div>
+                  <div className="divide-y divide-border">
+                    {network.rails.map((rail) => {
+                      const key = `${rail.chain}:${rail.asset}`;
+                      const line = lineFor(rail.chain, rail.asset);
+                      // Undefined is "not priced yet", which is not the same as
+                      // refused: an open link has no amount until the counter types one.
+                      const refused =
+                        line !== undefined && (!line.available || line.amount === null);
+                      const selected = value === key;
+                      const swapped = rail.asset !== rail.settlementAsset;
 
-                    {/* The selected row is already tinted; the check is what
-                        survives a colourblind reader and a dimmed re-price. It
-                        keeps its column when hidden so the amounts do not shift. */}
-                    <CheckIcon
-                      aria-hidden="true"
-                      className={cn("size-3.5", selected ? "text-primary" : "invisible")}
-                    />
-                  </label>
-                );
-              })}
+                      return (
+                        <label
+                          key={key}
+                          className={cn(
+                            "grid grid-cols-[1fr_auto_0.875rem] items-center gap-x-3 px-3 py-2 transition-colors",
+                            "has-focus-visible:ring-2 has-focus-visible:ring-ring has-focus-visible:ring-inset",
+                            refused
+                              ? "cursor-not-allowed opacity-55"
+                              : "cursor-pointer hover:bg-accent/50",
+                            selected && !refused && "bg-accent",
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="charge-rail"
+                            value={key}
+                            checked={selected}
+                            disabled={refused}
+                            onChange={() => {
+                              onSelect(key);
+                              setOpen(false);
+                            }}
+                            className="sr-only"
+                          />
+
+                          <span className="flex min-w-0 items-center gap-2">
+                            <AssetLogo symbol={rail.asset} size={20} className="size-5 shrink-0" />
+                            <span className="text-sm">{rail.asset}</span>
+                            <span className="sr-only"> on {chainLabel(rail.chain)}</span>
+                            {swapped && !refused && (
+                              <span className="text-subtle-foreground text-xs">
+                                → {rail.settlementAsset}
+                              </span>
+                            )}
+                          </span>
+
+                          {refused ? (
+                            // The reason, not "No rate": a missing oracle feed is an
+                            // operator's fix, and a blank refusal sends them looking
+                            // at the customer instead.
+                            <span className="max-w-56 text-right text-subtle-foreground text-xs">
+                              {line?.reason ?? "No rate"}
+                            </span>
+                          ) : (
+                            // Tabular figures so the decimal points stack down the column.
+                            <span className="text-right font-medium text-foreground text-sm tabular-nums">
+                              {line?.amount?.display ?? ""}
+                            </span>
+                          )}
+
+                          {/* The selected row is already tinted; the check is what
+                            survives a colourblind reader and a dimmed re-price. It
+                            keeps its column when hidden so the amounts do not shift. */}
+                          <CheckIcon
+                            aria-hidden="true"
+                            className={cn("size-3.5", selected ? "text-primary" : "invisible")}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <FieldDescription>
         The address they scan is specific to the network. Amounts are indicative until you start the
         payment.
@@ -1116,181 +1141,190 @@ function PaymentLinks() {
         )}
 
       <Dialog open={creating} onOpenChange={(next) => !next && setCreating(false)}>
-        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
-          <DialogHeader>
+        <DialogContent
+          className="top-0 right-0 bottom-0 left-auto h-svh w-full max-w-xl gap-0 overflow-hidden rounded-r-none rounded-l-lg border-y-0 border-r-0 p-0"
+          render={
+            <motion.div variants={drawerVariants} initial="initial" animate="animate" exit="exit" />
+          }
+        >
+          <DialogHeader className="shrink-0 border-b border-border px-6 py-5">
             <DialogTitle>New payment link</DialogTitle>
             <DialogDescription className="mt-px">
               Every buyer who opens this link gets their own payment, priced when they open it.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-3">
-            {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex flex-col gap-3">
+              {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
 
-            <Field>
-              <FieldLabel htmlFor="link-kind">Kind</FieldLabel>
-              <Select
-                items={KIND_OPTIONS}
-                value={draft.kind}
-                onValueChange={(next) => setDraft({ ...draft, kind: next as PaymentLinkKind })}
-              >
-                <SelectTrigger id="link-kind">
-                  <SelectValue placeholder="Select a kind" />
-                </SelectTrigger>
-                <SelectContent>
-                  {KIND_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FieldDescription>
-                An open link is what a printed counter QR is: one code, a different amount every
-                sale.
-              </FieldDescription>
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="link-title">Title</FieldLabel>
-              <Input
-                id="link-title"
-                value={draft.title}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                placeholder="Counter"
-              />
-            </Field>
-
-            {draft.kind !== "catalog" && (
-              <LinkCurrencyField
-                value={draft.currency}
-                onValueChange={(currency) => setDraft({ ...draft, currency })}
-              />
-            )}
-
-            {draft.kind === "fixed" && (
               <Field>
-                <FieldLabel htmlFor="link-amount">Amount</FieldLabel>
-                <CurrencyInput
-                  id="link-amount"
-                  asset={draft.currency}
-                  value={draft.amount}
-                  onValueChange={(amount) => setDraft({ ...draft, amount })}
-                  placeholder="50.000,00"
+                <FieldLabel htmlFor="link-kind">Kind</FieldLabel>
+                <Select
+                  items={KIND_OPTIONS}
+                  value={draft.kind}
+                  onValueChange={(next) => setDraft({ ...draft, kind: next as PaymentLinkKind })}
+                >
+                  <SelectTrigger id="link-kind">
+                    <SelectValue placeholder="Select a kind" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {KIND_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  An open link is what a printed counter QR is: one code, a different amount every
+                  sale.
+                </FieldDescription>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="link-title">Title</FieldLabel>
+                <Input
+                  id="link-title"
+                  value={draft.title}
+                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                  placeholder="Counter"
                 />
               </Field>
-            )}
 
-            {draft.kind === "catalog" && (
-              <>
-                <Field>
-                  <FieldLabel htmlFor="link-product">Product</FieldLabel>
-                  {products.isPending ? (
-                    <PageLoader label="Loading products" className="min-h-24" size={24} />
-                  ) : products.isError ? (
-                    <QueryError
-                      message={
-                        products.error instanceof ApiError
-                          ? products.error.message
-                          : "Failed to load products"
-                      }
-                      retry={() => void products.refetch()}
-                      retrying={products.isFetching}
-                    />
-                  ) : productOptions.length === 0 ? (
-                    <Empty className="gap-1 px-4 py-6">
-                      <EmptyMedia>
-                        <PackageIcon size={ICON_CARD} aria-hidden="true" />
-                      </EmptyMedia>
-                      <EmptyTitle>No active products.</EmptyTitle>
-                      <EmptyDescription>
-                        Add or activate a product before creating a catalog payment link.
-                      </EmptyDescription>
-                      <EmptyAction className="mt-3">
-                        <a href="/catalog" className={buttonVariants({ size: "sm" })}>
-                          <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
-                          Add a product
-                        </a>
-                      </EmptyAction>
-                    </Empty>
-                  ) : (
-                    <Select
-                      items={productOptions}
-                      value={draft.productId}
-                      onValueChange={(next) =>
-                        setDraft({
-                          ...draft,
-                          productId: next,
-                          currency: primaryCatalogCurrency(activeProducts, next) ?? draft.currency,
-                        })
-                      }
-                    >
-                      <SelectTrigger id="link-product">
-                        <SelectValue placeholder="Select a product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {productOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </Field>
-
+              {draft.kind !== "catalog" && (
                 <LinkCurrencyField
-                  value={catalogCurrency ?? ""}
-                  options={catalogCurrencyOptions}
-                  locked={catalogCurrencyOptions.length < 2}
-                  description={
-                    catalogCurrencyOptions.length < 2
-                      ? "Set by the selected product's catalog price."
-                      : "Choose which of this product's prices the link will use."
-                  }
+                  value={draft.currency}
                   onValueChange={(currency) => setDraft({ ...draft, currency })}
                 />
+              )}
 
-                {productOptions.length > 0 && (
+              {draft.kind === "fixed" && (
+                <Field>
+                  <FieldLabel htmlFor="link-amount">Amount</FieldLabel>
+                  <CurrencyInput
+                    id="link-amount"
+                    asset={draft.currency}
+                    value={draft.amount}
+                    onValueChange={(amount) => setDraft({ ...draft, amount })}
+                    placeholder="50.000,00"
+                  />
+                </Field>
+              )}
+
+              {draft.kind === "catalog" && (
+                <>
                   <Field>
-                    <FieldLabel htmlFor="link-quantity">Quantity</FieldLabel>
-                    <Input
-                      id="link-quantity"
-                      inputMode="numeric"
-                      placeholder="1"
-                      value={draft.quantity}
-                      onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
-                    />
+                    <FieldLabel htmlFor="link-product">Product</FieldLabel>
+                    {products.isPending ? (
+                      <PageLoader label="Loading products" className="min-h-24" size={24} />
+                    ) : products.isError ? (
+                      <QueryError
+                        message={
+                          products.error instanceof ApiError
+                            ? products.error.message
+                            : "Failed to load products"
+                        }
+                        retry={() => void products.refetch()}
+                        retrying={products.isFetching}
+                      />
+                    ) : productOptions.length === 0 ? (
+                      <Empty className="gap-1 px-4 py-6">
+                        <EmptyMedia>
+                          <PackageIcon size={ICON_CARD} aria-hidden="true" />
+                        </EmptyMedia>
+                        <EmptyTitle>No active products.</EmptyTitle>
+                        <EmptyDescription>
+                          Add or activate a product before creating a catalog payment link.
+                        </EmptyDescription>
+                        <EmptyAction className="mt-3">
+                          <a href="/catalog" className={buttonVariants({ size: "sm" })}>
+                            <PlusIcon size={ICON_NAV} weight="bold" aria-hidden="true" />
+                            Add a product
+                          </a>
+                        </EmptyAction>
+                      </Empty>
+                    ) : (
+                      <Select
+                        items={productOptions}
+                        value={draft.productId}
+                        onValueChange={(next) =>
+                          setDraft({
+                            ...draft,
+                            productId: next,
+                            currency:
+                              primaryCatalogCurrency(activeProducts, next) ?? draft.currency,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="link-product">
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {productOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </Field>
-                )}
-              </>
-            )}
 
-            <RailSelector
-              idPrefix="link-rail"
-              rails={payerRails}
-              unavailable={rails.data?.unavailable ?? []}
-              selectedKeys={selectedRailKeys}
-              disabled={create.isPending}
-              onToggle={toggleCreateRail}
-            />
+                  <LinkCurrencyField
+                    value={catalogCurrency ?? ""}
+                    options={catalogCurrencyOptions}
+                    locked={catalogCurrencyOptions.length < 2}
+                    description={
+                      catalogCurrencyOptions.length < 2
+                        ? "Set by the selected product's catalog price."
+                        : "Choose which of this product's prices the link will use."
+                    }
+                    onValueChange={(currency) => setDraft({ ...draft, currency })}
+                  />
 
-            <Field>
-              <FieldLabel htmlFor="link-reference">Your reference</FieldLabel>
-              <Input
-                id="link-reference"
-                value={draft.merchantReference}
-                onChange={(e) => setDraft({ ...draft, merchantReference: e.target.value })}
-                placeholder="order-1042"
-                className="font-mono text-xs"
+                  {productOptions.length > 0 && (
+                    <Field>
+                      <FieldLabel htmlFor="link-quantity">Quantity</FieldLabel>
+                      <Input
+                        id="link-quantity"
+                        inputMode="numeric"
+                        placeholder="1"
+                        value={draft.quantity}
+                        onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
+                      />
+                    </Field>
+                  )}
+                </>
+              )}
+
+              <RailSelector
+                idPrefix="link-rail"
+                compact
+                rails={payerRails}
+                unavailable={rails.data?.unavailable ?? []}
+                selectedKeys={selectedRailKeys}
+                disabled={create.isPending}
+                onToggle={toggleCreateRail}
               />
-              <FieldDescription>
-                Copied onto every payment this link takes, so you can find it in your own system.
-              </FieldDescription>
-            </Field>
+
+              <Field>
+                <FieldLabel htmlFor="link-reference">Your reference</FieldLabel>
+                <Input
+                  id="link-reference"
+                  value={draft.merchantReference}
+                  onChange={(e) => setDraft({ ...draft, merchantReference: e.target.value })}
+                  placeholder="order-1042"
+                  className="font-mono text-xs"
+                />
+                <FieldDescription>
+                  Copied onto every payment this link takes, so you can find it in your own system.
+                </FieldDescription>
+              </Field>
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-border bg-popover px-6 py-4">
             <DialogClose render={<Button variant="secondary">Cancel</Button>} />
             <Button onClick={submit} disabled={!canCreate || create.isPending}>
               Create link
@@ -1300,26 +1334,35 @@ function PaymentLinks() {
       </Dialog>
 
       <Dialog open={editing !== null} onOpenChange={(next) => !next && setEditing(null)}>
-        <DialogContent className="max-h-[calc(100vh-2rem)] max-w-xl overflow-y-auto p-5 sm:p-6">
-          <DialogHeader>
+        <DialogContent
+          className="top-0 right-0 bottom-0 left-auto h-svh w-full max-w-xl gap-0 overflow-hidden rounded-r-none rounded-l-lg border-y-0 border-r-0 p-0"
+          render={
+            <motion.div variants={drawerVariants} initial="initial" animate="animate" exit="exit" />
+          }
+        >
+          <DialogHeader className="shrink-0 border-b border-border px-6 py-5">
             <DialogTitle>Edit accepted rails</DialogTitle>
             <DialogDescription className="mt-px">
-              {editing?.title ?? "This payment link"} — changes apply to new checkouts only.
+              {editing?.title ?? "This payment link"}
             </DialogDescription>
           </DialogHeader>
 
-          {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex flex-col gap-3">
+              {failure !== "" && <Alert variant="destructive">{failure}</Alert>}
 
-          <RailSelector
-            idPrefix="edit-link-rail"
-            rails={payerRails}
-            unavailable={rails.data?.unavailable ?? []}
-            selectedKeys={editingRailKeys}
-            disabled={update.isPending}
-            onToggle={toggleEditRail}
-          />
+              <RailSelector
+                idPrefix="edit-link-rail"
+                rails={payerRails}
+                unavailable={rails.data?.unavailable ?? []}
+                selectedKeys={editingRailKeys}
+                disabled={update.isPending}
+                onToggle={toggleEditRail}
+              />
+            </div>
+          </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-border bg-popover px-6 py-4">
             <DialogClose render={<Button variant="secondary">Cancel</Button>} />
             <Button
               onClick={() => void submitEdit()}

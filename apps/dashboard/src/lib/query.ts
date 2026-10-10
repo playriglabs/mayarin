@@ -6,7 +6,13 @@
  * boundary in one place — components never call `Effect.runPromise` or `fetch`.
  */
 
-import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { Effect } from "effect";
 import { toast } from "sonner";
 import { runEffect } from "./run";
@@ -31,6 +37,13 @@ export interface EffectQueryOptions<T, E> {
    * the merchant nothing and the server everything.
    */
   readonly refetchInterval?: number | false | ((data: T | undefined) => number | false);
+  /**
+   * Keep showing the last data while a new key loads.
+   *
+   * For a paginated list: the next page is a new key, and without this the
+   * whole view drops back to its skeleton between pages.
+   */
+  readonly keepPrevious?: boolean;
 }
 
 /** `useQuery` over an `Effect`-returning fetcher. */
@@ -41,6 +54,7 @@ export function useEffectQuery<T, E>(options: EffectQueryOptions<T, E>) {
     queryKey: options.queryKey,
     queryFn: () => runEffect(options.query()),
     ...(options.enabled === undefined ? {} : { enabled: options.enabled }),
+    ...(options.keepPrevious === true ? { placeholderData: keepPreviousData } : {}),
     // Adapted rather than passed through: React Query hands the callback its
     // whole `Query` object, and a hook caller has no business knowing that
     // shape when the only thing they decide from is the data.

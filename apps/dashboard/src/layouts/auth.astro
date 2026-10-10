@@ -1,7 +1,5 @@
 ---
 import "../styles/global.css";
-import AuthGridField from "../components/auth-grid-field.tsx";
-import ThemeToggle from "../components/theme-toggle.tsx";
 import SocialMeta from "../components/social-meta.astro";
 // Auth layout: sign in, register, confirm an email. A logged-in user has no
 // business on any of them.
@@ -51,76 +49,8 @@ const { title = "Sign in" } = Astro.props;
     </script>
   </head>
   <body class="min-h-full bg-background">
-    <main class="relative flex min-h-svh flex-col lg:grid lg:grid-cols-2">
-      <AuthGridField client:load />
-      <div
-        aria-hidden="true"
-        class="pointer-events-none absolute inset-0 z-1 bg-[linear-gradient(90deg,var(--background)_0%,transparent_8%,transparent_92%,var(--background)_100%),linear-gradient(180deg,var(--background)_0%,transparent_7%,transparent_17%,var(--background)_36%)] lg:bg-[linear-gradient(90deg,var(--background)_0%,transparent_20%,transparent_46%,var(--background)_64%),linear-gradient(180deg,var(--background)_0%,transparent_16%,transparent_84%,var(--background)_100%)]"
-      ></div>
-      <header
-        class="sticky top-0 z-3 flex h-16 items-center justify-between bg-background/75 px-5 backdrop-blur-md sm:px-10 lg:pointer-events-none lg:absolute lg:inset-x-0 lg:top-0 lg:h-auto lg:items-start lg:bg-transparent lg:px-8 lg:pt-8 lg:backdrop-blur-none"
-      >
-        <a
-          href="https://mayarin.xyz"
-          aria-label="Mayarin home"
-          class="pointer-events-auto inline-flex w-fit lg:pl-6"
-        >
-          <img
-            src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
-            alt=""
-            aria-hidden="true"
-            width="52"
-            height="52"
-            class="auth-logo auth-logo-light size-10 lg:size-12"
-          />
-          <img
-            src="https://mayarin.xyz/brand-kit/mayarin-logo-white.svg"
-            alt=""
-            aria-hidden="true"
-            width="52"
-            height="52"
-            class="auth-logo auth-logo-dark size-10 lg:size-12"
-          />
-          <span class="-ml-0.5 self-center font-sans text-2xl font-medium leading-none tracking-[-0.06em] lg:text-[1.75rem]">
-            mayarin
-          </span>
-        </a>
-        <div class="pointer-events-auto">
-          <ThemeToggle client:load />
-        </div>
-      </header>
-
-      <section
-        aria-label="Mayarin"
-        class="auth-brand-panel pointer-events-none relative z-2 flex px-5 pt-8 pb-4 sm:px-10 lg:min-h-svh lg:items-end lg:p-14"
-      >
-        <p class="auth-tagline max-w-[17ch] text-[clamp(1.75rem,5.5vw,2.5rem)] leading-[0.98] tracking-[-0.035em] lg:text-[clamp(2rem,4vw,3.5rem)]">
-          Payments infrastructure <br />for the <em class="italic">borderless economy</em>.
-        </p>
-      </section>
-
-      <section class="relative z-2 flex flex-1 items-center justify-center px-5 py-8 sm:px-10 lg:min-h-svh lg:px-16 lg:pt-16 lg:pb-16">
-        <slot />
-      </section>
+    <main class="relative flex min-h-svh items-center justify-center">
+      <slot />
     </main>
-
   </body>
 </html>
-
-<style>
-  .auth-logo-dark {
-    display: none;
-  }
-
-  .auth-logo {
-    height: auto;
-  }
-
-  :global(:root[data-theme="dark"]) .auth-logo-light {
-    display: none;
-  }
-
-  :global(:root[data-theme="dark"]) .auth-logo-dark {
-    display: block;
-  }
-</style>

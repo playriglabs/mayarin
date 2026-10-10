@@ -14,11 +14,14 @@
 
 import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { match, P } from "ts-pattern";
+import { AuthCard } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { ButtonLoader } from "@/components/ui/page-loader";
 import { useLogin } from "@/hooks/auth";
 import { ICON_NAV } from "@/lib/icons";
 import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
@@ -49,6 +52,16 @@ function LoginForm() {
     state.status === "error" || state.status === "unverified" || blocked
       ? "login-error"
       : undefined;
+
+  // The code step lands here with `?verified=1`. Said once, then dropped from
+  // the URL so a reload does not congratulate them again.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("verified") !== "1") return;
+    toast.success("Email confirmed. Sign in to continue.");
+    url.searchParams.delete("verified");
+    window.history.replaceState(null, "", url);
+  }, []);
 
   useEffect(() => {
     if (state.status !== "blocked") return;
@@ -96,114 +109,125 @@ function LoginForm() {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="flex w-full max-w-md flex-col gap-4 p-6 max-md:bg-background"
-    >
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-medium text-foreground">Sign in to your dashboard</h1>
-        <p className="text-sm text-muted-foreground">Manage payments, customers and settlement.</p>
-      </div>
+    <AuthCard>
+      <form onSubmit={onSubmit} className="flex w-full flex-col gap-4">
+        <div className="flex flex-col gap-3">
+          <h1 className="text-2xl text-foreground">Sign in to your dashboard</h1>
+          <p className="text-base text-muted-foreground">
+            Manage payments, customers and settlement.
+          </p>
+        </div>
 
-      <div className="flex flex-col gap-3 mt-2">
-        <Field>
-          <FieldLabel htmlFor="login-email">Email</FieldLabel>
-          <Input
-            id="login-email"
-            type="email"
-            placeholder="you@company.com"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={submitting}
-            aria-describedby={errorId}
-            className="h-12 px-4"
-          />
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor="login-password">Password</FieldLabel>
-          <InputGroup className="h-12">
-            <InputGroupInput
-              id="login-password"
-              // Swapping `type` is what actually reveals the value. The field
-              // keeps its `autoComplete` either way, so a password manager
-              // still recognises it while revealed.
-              type={revealed ? "text" : "password"}
-              placeholder="Enter your password"
+        <div className="flex flex-col gap-3 mt-2">
+          <Field>
+            <FieldLabel htmlFor="login-email" className="text-sm">
+              Email
+            </FieldLabel>
+            <Input
+              id="login-email"
+              type="email"
+              placeholder="you@company.com"
               required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               disabled={submitting}
               aria-describedby={errorId}
-              className="first:pl-4"
+              className="h-12 px-4 text-base"
             />
-            <InputGroupButton
-              onClick={() => setRevealed((previous) => !previous)}
-              disabled={submitting}
-              // The label states the ACTION the press performs; `aria-pressed`
-              // carries the current state. Together a screen reader announces
-              // both what pressing does and whether it is already on.
-              aria-label={revealed ? "Hide password" : "Show password"}
-              aria-pressed={revealed}
-              aria-controls="login-password"
-              className="size-12"
-            >
-              {revealed ? (
-                <EyeSlashIcon size={ICON_NAV} aria-hidden="true" />
-              ) : (
-                <EyeIcon size={ICON_NAV} aria-hidden="true" />
-              )}
-            </InputGroupButton>
-          </InputGroup>
-        </Field>
-      </div>
+          </Field>
 
-      <div aria-live="polite" className="empty:hidden">
-        {match(state)
-          .with(P.union({ status: "idle" }, { status: "submitting" }), () => null)
-          .with({ status: "error" }, (s) => (
-            <p id="login-error" role="alert" className="text-xs text-destructive">
-              {s.reason}
-            </p>
-          ))
-          .with({ status: "unverified" }, (s) => (
-            <div id="login-error" role="alert" className="text-xs text-destructive">
-              <p>{s.reason}</p>
-              <a
-                href={`/verify?email=${encodeURIComponent(email)}`}
-                className="underline underline-offset-2"
+          <Field>
+            <FieldLabel htmlFor="login-password" className="text-sm">
+              Password
+            </FieldLabel>
+            <InputGroup className="h-12">
+              <InputGroupInput
+                id="login-password"
+                // Swapping `type` is what actually reveals the value. The field
+                // keeps its `autoComplete` either way, so a password manager
+                // still recognises it while revealed.
+                type={revealed ? "text" : "password"}
+                placeholder="Enter your password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={submitting}
+                aria-describedby={errorId}
+                className="first:pl-4 text-base"
+              />
+              <InputGroupButton
+                onClick={() => setRevealed((previous) => !previous)}
+                disabled={submitting}
+                // The label states the ACTION the press performs; `aria-pressed`
+                // carries the current state. Together a screen reader announces
+                // both what pressing does and whether it is already on.
+                aria-label={revealed ? "Hide password" : "Show password"}
+                aria-pressed={revealed}
+                aria-controls="login-password"
+                className="size-12 hover:bg-transparent"
               >
-                Enter your code
-              </a>
-            </div>
-          ))
-          .with({ status: "blocked" }, (s) => (
-            <div id="login-error" role="alert" className="text-xs text-destructive">
-              <p>{s.reason}</p>
-              <p>Try again in {remainingLabel}.</p>
-            </div>
-          ))
-          .exhaustive()}
-      </div>
+                {revealed ? (
+                  <EyeSlashIcon size={ICON_NAV} aria-hidden="true" />
+                ) : (
+                  <EyeIcon size={ICON_NAV} aria-hidden="true" />
+                )}
+              </InputGroupButton>
+            </InputGroup>
+          </Field>
+        </div>
 
-      <Button
-        type="submit"
-        disabled={submitting || blocked}
-        className="login-submit h-12 w-full px-6 text-xl"
-      >
-        {submitting ? "Processing.." : blocked ? `Try again in ${remainingLabel}` : "Continue"}
-      </Button>
+        <div aria-live="polite" className="empty:hidden">
+          {match(state)
+            .with(P.union({ status: "idle" }, { status: "submitting" }), () => null)
+            .with({ status: "error" }, (s) => (
+              <p id="login-error" role="alert" className="text-xs text-destructive">
+                {s.reason}
+              </p>
+            ))
+            .with({ status: "unverified" }, (s) => (
+              <div id="login-error" role="alert" className="text-xs text-destructive">
+                <p>{s.reason}</p>
+                <a
+                  href={`/verify?email=${encodeURIComponent(email)}`}
+                  className="underline underline-offset-2"
+                >
+                  Enter your code
+                </a>
+              </div>
+            ))
+            .with({ status: "blocked" }, (s) => (
+              <div id="login-error" role="alert" className="text-xs text-destructive">
+                <p>{s.reason}</p>
+                <p>Try again in {remainingLabel}.</p>
+              </div>
+            ))
+            .exhaustive()}
+        </div>
 
-      <p className="text-center text-sm text-muted-foreground">
-        New to Mayarin?{" "}
-        <a href="/register" className="underline underline-offset-2 hover:text-foreground">
-          Create an account
-        </a>
-      </p>
-    </form>
+        <Button
+          type="submit"
+          disabled={submitting || blocked}
+          className="login-submit h-12 w-full rounded-full px-6 text-base"
+        >
+          {submitting ? (
+            <ButtonLoader label="Processing" />
+          ) : blocked ? (
+            `Try again in ${remainingLabel}`
+          ) : (
+            "Continue"
+          )}
+        </Button>
+
+        <p className="text-center text-sm text-muted-foreground">
+          New to Mayarin?{" "}
+          <a href="/register" className="underline underline-offset-2 hover:text-foreground">
+            Create an account
+          </a>
+        </p>
+      </form>
+    </AuthCard>
   );
 }
 
