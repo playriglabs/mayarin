@@ -1,5 +1,6 @@
-import { ChainLabel } from "../../shared/chain-logo.tsx";
+import { chainLabel } from "@mayarin/chain";
 import { walletAmount } from "../../shared/money.ts";
+import { footnote, stateText, stateTitle, stateView } from "../../shared/ui.ts";
 import { ProcessingArt } from "./illustrations.tsx";
 import type { Deposit } from "./types.ts";
 
@@ -20,19 +21,18 @@ export function ConfirmingCard({
   const received = walletAmount(deposit.received.formatted);
 
   return (
-    <div className="state-view" role="status">
-      <ProcessingArt />
-      <h2>Payment processing</h2>
-      <p>
-        We received your {deposit.amount.asset} on <ChainLabel chain={deposit.chain} size={18} />{" "}
-        and are confirming it. This usually takes under a minute.
+    <div className={stateView} role="status">
+      <ProcessingArt asset={deposit.amount.asset} />
+      <h2 className={stateTitle}>Payment processing</h2>
+      {/* One sentence: what arrived and where, then how long. The amount is
+          the payer's proof it landed, so it leads. */}
+      <p className={stateText}>
+        {deposit.received.amount === "0"
+          ? `Your ${deposit.amount.asset} on ${chainLabel(deposit.chain)} arrived.`
+          : `${received} ${deposit.received.asset} received on ${chainLabel(deposit.chain)}.`}{" "}
+        Confirming it now, usually under a minute.
       </p>
-      {deposit.received.amount !== "0" && (
-        <p className="received-note">
-          {received} {deposit.received.asset} received
-        </p>
-      )}
-      <p className="reference">
+      <p className={`${footnote} mt-6`}>
         Reference ID <code>{intentId}</code>
       </p>
     </div>

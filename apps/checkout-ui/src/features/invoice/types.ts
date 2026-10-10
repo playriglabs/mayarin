@@ -54,4 +54,8 @@ export interface InvoiceBootstrap {
   /** What has been paid, and on what. Oldest first. Empty until the first payment completes. */
   readonly payments: readonly InvoicePaymentRecord[];
   readonly checkoutUrl: string;
+  /** Set when this invoice is one cycle of a subscription (#296). */
+  readonly subscription: { readonly interval: SubscriptionInterval } | null;
 }
+
+export type SubscriptionInterval = "week" | "month" | "year";

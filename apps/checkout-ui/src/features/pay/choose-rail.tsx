@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { BuyerProtection, protectionApplies, railBody } from "../../shared/buyer-protection.tsx";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import {
+  errorText,
+  estimateRow,
+  noteText,
+  panelIntro,
+  panelTitle,
+  primaryButton,
+  unavailableBox,
+} from "../../shared/ui.ts";
 import { canContinueWithQuote, useQuoteEstimate } from "../link/use-quote-estimate.ts";
 import type { PayBootstrap, RailChoice } from "./types.ts";
 
@@ -70,10 +79,9 @@ export function ChooseRail({
   }
 
   return (
-    <div className="payment-form">
-      <p className="section-kicker">Secure checkout</p>
-      <h2>Choose how to pay</h2>
-      <p className="panel-intro">
+    <>
+      <h2 className={panelTitle}>Choose how to pay</h2>
+      <p className={panelIntro}>
         {rail === undefined
           ? `Pay ${bootstrap.merchant.name}.`
           : rails.length === 1
@@ -82,7 +90,7 @@ export function ChooseRail({
       </p>
 
       {rail === undefined ? (
-        <div className="unavailable">
+        <div className={unavailableBox}>
           <h3>This merchant has no payment method available</h3>
           <p>Contact the merchant to complete this order.</p>
         </div>
@@ -90,25 +98,17 @@ export function ChooseRail({
         <>
           <RailPicker rails={rails} selected={rail} onSelect={setRail} />
 
-          <div
-            className="payment-estimate"
-            aria-busy={estimate.status === "loading"}
-            aria-live="polite"
-          >
+          <div className={estimateRow} aria-busy={estimate.status === "loading"} aria-live="polite">
             <span>Estimated total in {rail.asset}</span>
             <strong>{estimate.display}</strong>
           </div>
 
           {estimate.status === "unavailable" && (
-            <p className="quote-error" role="alert">
+            <p className={errorText} role="alert">
               {estimate.message}
             </p>
           )}
 
-          <p className="checkout-note">
-            The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
-            <strong>{railSummary(rail)}</strong> to the address shown there.
-          </p>
           <BuyerProtection
             protection={protection}
             rail={rail}
@@ -117,7 +117,7 @@ export function ChooseRail({
           />
           <button
             type="button"
-            className="primary"
+            className={primaryButton}
             disabled={busy || !quoteReady || needsWallet}
             onClick={() => void pay()}
           >
@@ -130,12 +130,17 @@ export function ChooseRail({
                   : `Continue with ${rail.asset}`}
           </button>
           {error !== "" && (
-            <p className="error" role="alert">
+            <p className={errorText} role="alert">
               {error}
             </p>
           )}
+          <p className={`${noteText} text-center`}>
+            The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
+            <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address
+            shown there.
+          </p>
         </>
       )}
-    </div>
+    </>
   );
 }

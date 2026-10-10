@@ -12,7 +12,7 @@
 export function PaidMark({ size = 14 }: { readonly size?: number }) {
   return (
     <svg
-      className="paid-mark"
+      data-paid-mark=""
       width={size}
       height={size}
       viewBox="0 0 16 16"

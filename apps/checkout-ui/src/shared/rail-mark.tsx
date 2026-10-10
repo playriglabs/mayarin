@@ -22,10 +22,16 @@ export function RailMark({
   readonly size?: number;
 }) {
   return (
-    <span className="rail-mark" style={{ width: size, height: size }}>
-      <AssetLogo symbol={asset} size={size} />
-      <span className="rail-mark-chain" style={{ width: size * 0.45, height: size * 0.45 }}>
-        <ChainLogo chain={chain} size={Math.round(size * 0.45)} />
+    <span
+      className="relative inline-grid shrink-0 place-items-center leading-none"
+      style={{ width: size, height: size }}
+    >
+      <AssetLogo symbol={asset} size={size} className="size-full" />
+      <span
+        className="absolute right-0 bottom-0 inline-grid translate-x-[18%] translate-y-[18%] place-items-center overflow-hidden rounded-full bg-panel ring-2 ring-panel"
+        style={{ width: size * 0.45, height: size * 0.45 }}
+      >
+        <ChainLogo chain={chain} size={Math.round(size * 0.45)} className="size-full" />
       </span>
       <span className="sr-only">{`${asset} on ${chainLabel(chain)}`}</span>
     </span>

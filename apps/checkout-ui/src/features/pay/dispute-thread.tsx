@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { shortAddress } from "../../shared/buyer-protection.tsx";
+import { errorText, secondaryButton } from "../../shared/ui.ts";
 import { connectWallet, signMessage } from "../../shared/wallet.ts";
 import type { DisputeMessage } from "./types.ts";
 
@@ -83,47 +84,64 @@ export function DisputeThread({
   }
 
   return (
-    <div className="dispute-thread">
-      <p className="dispute-reference">
-        Dispute <strong>#{reference}</strong>. The merchant sees this thread and can answer here or
-        refund you directly; quote the number if you contact support.
+    <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+      <p className="m-0 text-xs text-muted">
+        Dispute <strong className="font-medium text-ink">#{reference}</strong>. The merchant sees
+        this thread and can answer here or refund you directly; quote the number if you contact
+        support.
       </p>
       {messages.length > 0 && (
-        <ol ref={list}>
+        // A fixed height that scrolls, so a long thread never pushes the page down.
+        <ol
+          ref={list}
+          className="m-0 flex max-h-56 list-none flex-col gap-2 overflow-y-auto overscroll-contain p-0"
+        >
           {messages.map((message) => (
-            <li key={message.id} className={`dispute-message dispute-message-${message.author}`}>
-              <span className="dispute-author">{AUTHOR_LABELS[message.author]}</span>
-              <p>{message.body}</p>
+            <li
+              key={message.id}
+              className={`rounded-xl border border-line px-3 py-2 ${
+                message.author === "payer" ? "bg-field" : "bg-panel"
+              }`}
+            >
+              <span className="text-xs text-muted">{AUTHOR_LABELS[message.author]}</span>
+              <p className="mt-1 mb-0 text-sm whitespace-pre-wrap text-ink">{message.body}</p>
             </li>
           ))}
         </ol>
       )}
       {open && (
         <form
+          className="flex flex-col gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             void send();
           }}
         >
-          <label className="dispute-label" htmlFor="dispute-draft">
+          <label className="text-sm text-ink" htmlFor="dispute-draft">
             {asked ? "Add to your case" : "Tell the arbiter what went wrong"}
           </label>
           <textarea
             id="dispute-draft"
+            className="block w-full resize-none rounded-xl border border-transparent bg-field px-3 py-2 text-sm text-ink outline-0 focus:border-muted"
             value={draft}
             maxLength={2000}
             rows={3}
             placeholder="What you ordered, what arrived, and any links or tracking."
             onChange={(event) => setDraft(event.target.value)}
           />
-          <div className="dispute-actions">
-            <button type="submit" className="secondary" disabled={busy || draft.trim() === ""}>
+          {/* "Sign and send" and "Release payment" share one row. */}
+          <div className="grid grid-cols-2 gap-2.5 [&>*:only-child]:col-span-2">
+            <button
+              type="submit"
+              className={secondaryButton}
+              disabled={busy || draft.trim() === ""}
+            >
               {busy ? "Signing…" : "Sign and send"}
             </button>
             {release}
           </div>
           {error !== "" && (
-            <p className="error" role="alert">
+            <p className={errorText} role="alert">
               {error}
             </p>
           )}

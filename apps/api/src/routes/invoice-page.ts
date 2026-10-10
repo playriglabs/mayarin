@@ -14,6 +14,7 @@
  */
 
 import type { InvoiceView } from "@mayarin/invoicing";
+import { SUBSCRIPTION_METADATA_KEY, type SubscriptionInterval } from "@mayarin/subscriptions";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toInvoicePaymentDto } from "../dto/invoice.ts";
@@ -35,6 +36,13 @@ export function invoicePageRoutes(container: Container): Hono {
     // (#260), so it cannot offer an order the link page would not either.
     const report = await container.rails.describe(view.invoice.merchantId);
     const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
+    // A subscription's cycle is an ordinary invoice; the page only needs to
+    // know the period, so checkout can price it "/ mo" the way a plan reads.
+    const subscriptionId = view.invoice.metadata[SUBSCRIPTION_METADATA_KEY];
+    const interval =
+      subscriptionId === undefined
+        ? null
+        : (await container.subscriptions.find(view.invoice.merchantId, subscriptionId)).interval;
     return c.html(
       await renderShell(
         distDir,
@@ -44,6 +52,7 @@ export function invoicePageRoutes(container: Container): Hono {
           await payerRails(report.rails),
           await protectionOffer(container, view.invoice.merchantId, undefined),
           await merchantLogoUrl(container, view.invoice.merchantId),
+          interval,
         ),
       ),
     );
@@ -64,6 +73,7 @@ function invoiceBootstrap(
   rails: readonly RailDto[],
   protection: ProtectionOffer | null,
   logoUrl: string | null,
+  interval: SubscriptionInterval | null,
 ) {
   const { invoice, status, paid, outstanding, payments } = view;
   return {
@@ -103,5 +113,7 @@ function invoiceBootstrap(
      */
     payments: payments.map(toInvoicePaymentDto),
     checkoutUrl,
+    /** Set when this invoice is one cycle of a subscription (#296). */
+    subscription: interval === null ? null : { interval },
   };
 }

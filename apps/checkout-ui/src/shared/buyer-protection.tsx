@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Protection, Rail } from "./types.ts";
+import { chevron, errorText } from "./ui.ts";
 import { connectWallet } from "./wallet.ts";
 
 /**
@@ -50,18 +51,15 @@ export function BuyerProtection({
   // One line up front — what protection is, and the one action. The terms stay
   // on the page, one click away, so the card does not outweigh the pay button.
   return (
-    <div className="escrow-note">
-      <div className="escrow-row">
-        <svg viewBox="0 0 24 24" aria-hidden="true" className="escrow-icon">
-          <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6L12 3Z" />
-          {payerAddress !== null && <path d="m8.5 12 2.5 2.5 4.5-5" />}
-        </svg>
-        <div className="escrow-copy">
-          <p>
-            <strong>Buyer protection</strong>
+    <div className="mt-6 rounded-2xl border border-line bg-field/50 p-4">
+      <div className="flex items-center gap-3">
+        <ShieldIcon checked={payerAddress !== null} />
+        <div className="min-w-0 flex-1 text-xs leading-relaxed text-muted">
+          <p className="m-0">
+            <span className="text-sm text-ink">Buyer protection</span>
             {!protection.required && payerAddress === null && " · optional"}
           </p>
-          <p>
+          <p className="m-0">
             {payerAddress === null ? (
               `Held ${holdDuration(protection.holdSeconds)} until you confirm delivery`
             ) : (
@@ -72,20 +70,31 @@ export function BuyerProtection({
           </p>
         </div>
         {payerAddress === null ? (
-          <button type="button" className="escrow-action" onClick={() => void connect()}>
+          <button
+            type="button"
+            className="shrink-0 rounded-full border border-line bg-panel px-3.5 py-1.5 text-xs text-ink transition-colors hover:bg-field"
+            onClick={() => void connect()}
+          >
             Connect wallet
           </button>
         ) : (
           !protection.required && (
-            <button type="button" className="link-button" onClick={() => onPayerAddress(null)}>
+            <button
+              type="button"
+              className="ml-1 border-0 bg-transparent p-0 text-xs text-muted underline"
+              onClick={() => onPayerAddress(null)}
+            >
               Remove
             </button>
           )
         )}
       </div>
-      <details className="escrow-terms">
-        <summary>How it works</summary>
-        <p>
+      <details className="group mt-3 border-t border-line pt-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+          How it works
+          <span className={`${chevron} size-1.5 border-current group-open:-rotate-135`} />
+        </summary>
+        <p className="mt-2 mb-0 text-xs leading-relaxed text-muted">
           Your payment is held for {holdDuration(protection.holdSeconds)} until you confirm
           delivery, then released to the merchant. Disputes are decided by {protection.arbiterLabel}
           ; if undecided, you're refunded.{" "}
@@ -97,18 +106,46 @@ export function BuyerProtection({
         </p>
       </details>
       {ineligible && (
-        <p className={protection.required ? "error" : "escrow-ineligible"} role="alert">
+        <p
+          className={
+            protection.required ? "mt-2 mb-0 text-sm text-danger" : "mt-2 mb-0 text-xs text-warning"
+          }
+          role="alert"
+        >
           {protection.required
             ? "This payment requires buyer protection, which this wallet can no longer use."
             : "Buyer protection isn't available for this wallet. You can still pay — the merchant is paid directly."}
         </p>
       )}
       {error !== "" && (
-        <p className="error" role="alert">
+        <p className={errorText} role="alert">
           {error}
         </p>
       )}
     </div>
+  );
+}
+
+/** The shield, ticked once a wallet is attached. Also heads the escrow card. */
+export function ShieldIcon({
+  checked,
+  className = "size-5 stroke-ink",
+}: {
+  readonly checked: boolean;
+  readonly className?: string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={`shrink-0 fill-none ${className}`}
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6L12 3Z" />
+      {checked && <path d="m8.5 12 2.5 2.5 4.5-5" />}
+    </svg>
   );
 }
 

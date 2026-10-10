@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { shortAddress } from "../../shared/buyer-protection.tsx";
+import { ShieldIcon, shortAddress } from "../../shared/buyer-protection.tsx";
+import { errorText, primaryButton, secondaryButton } from "../../shared/ui.ts";
 import { connectWallet, sendCall } from "../../shared/wallet.ts";
 import { DisputeThread } from "./dispute-thread.tsx";
 import type { EscrowPayload } from "./types.ts";
@@ -69,7 +70,12 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
   const threadOpen =
     escrow.dispute !== null && escrow.dispute.status === "open" && escrow.outcome === "held";
   const releaseButton = (
-    <button type="button" className="primary" disabled={busy} onClick={() => void act("release")}>
+    <button
+      type="button"
+      className={`${primaryButton} mt-0 min-h-10`}
+      disabled={busy}
+      onClick={() => void act("release")}
+    >
       Release payment
     </button>
   );
@@ -86,17 +92,23 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
             : "Held";
 
   return (
-    <div className="escrow-card" role="status">
-      <div className="escrow-card-head">
-        <svg viewBox="0 0 24 24" aria-hidden="true" className="escrow-icon">
-          <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6L12 3Z" />
-          <path d="m8.5 12 2.5 2.5 4.5-5" />
-        </svg>
-        <p className="section-kicker">Buyer protection</p>
-        <span className={`escrow-status escrow-status-${status.toLowerCase()}`}>{status}</span>
+    <div
+      className="mt-6 w-full rounded-2xl border border-line bg-field/50 p-5 text-left"
+      role="status"
+    >
+      <div className="flex items-center gap-2">
+        <ShieldIcon checked className="size-4 stroke-brand" />
+        <p className="m-0 flex-1 text-xs tracking-[0.12em] text-brand uppercase">
+          Buyer protection
+        </p>
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${STATUS_TONE[status]}`}
+        >
+          {status}
+        </span>
       </div>
 
-      <p className="escrow-when">
+      <p className="mt-4 mb-0 text-base text-ink">
         {escrow.outcome === "released"
           ? "The payment went to the merchant."
           : escrow.outcome === "split"
@@ -108,7 +120,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
                 : `Releases to the merchant on ${when(escrow.terms.releaseAfter)}`}
       </p>
       {escrow.outcome === "held" && (
-        <p className="escrow-hint">
+        <p className="mt-1.5 mb-0 text-sm text-muted">
           {escrow.disputed
             ? escrow.terms.arbiter === ZERO_ADDRESS
               ? "The automatic release is stopped. The merchant can refund you."
@@ -134,12 +146,12 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       )}
 
       {escrow.outcome === "held" && !threadOpen && (
-        <div className="escrow-actions">
+        <div className="mt-5 grid grid-cols-2 gap-2.5 [&>*:only-child]:col-span-2">
           {releaseButton}
           {holdOpen && !escrow.disputed && (
             <button
               type="button"
-              className="secondary"
+              className={secondaryButton}
               disabled={busy}
               onClick={() => void act("dispute")}
             >
@@ -149,13 +161,22 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
         </div>
       )}
       {error !== "" && (
-        <p className="error" role="alert">
+        <p className={errorText} role="alert">
           {error}
         </p>
       )}
     </div>
   );
 }
+
+/** Held is waiting (amber), disputed needs attention (red), released is done. */
+const STATUS_TONE: Record<string, string> = {
+  Held: "bg-warning/12 text-warning",
+  Disputed: "bg-danger/12 text-danger",
+  Released: "bg-brand/12 text-brand",
+  Split: "bg-brand/12 text-brand",
+  Refunded: "bg-line text-muted",
+};
 
 /** "Oct 3, 4:36 PM" — a date the payer reads at a glance. */
 function when(iso: string): string {

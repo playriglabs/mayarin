@@ -91,6 +91,11 @@ export class SubscriptionApiService {
     return this.#subscriptions.listByMerchant(merchantId);
   }
 
+  /** The subscription alone, without listing its cycles. */
+  async find(merchantId: string, id: string): Promise<Subscription> {
+    return this.#own(merchantId, id);
+  }
+
   async get(merchantId: string, id: string): Promise<SubscriptionWithCycles> {
     const subscription = await this.#own(merchantId, id);
     const invoices = await this.#invoices.listInvoices({ merchantId, limit: 500 });

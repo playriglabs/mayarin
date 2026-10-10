@@ -95,6 +95,7 @@ const invoiceBootstrap: InvoiceBootstrap = {
   ],
   payments: [],
   checkoutUrl: "http://localhost:3000/v1/invoices/inv_1/checkout",
+  subscription: null,
 };
 
 describe("link page", () => {
@@ -357,8 +358,7 @@ describe("status timeline", () => {
 
   test("the live page draws it in both places, one per screen width", () => {
     const html = renderToStaticMarkup(<PayPage bootstrap={payBootstrap} />);
-    expect(html).toContain("timeline-wide");
-    expect(html).toContain("timeline-narrow");
+    expect(html.match(/aria-label="Payment progress"/g)).toHaveLength(2);
     expect(html).toContain('aria-current="step"');
   });
 });
@@ -432,11 +432,39 @@ describe("outcome", () => {
 });
 
 describe("invoice page", () => {
+  test("a subscription cycle is priced as a plan, per period", () => {
+    const html = renderToStaticMarkup(
+      <InvoicePage
+        bootstrap={{
+          ...invoiceBootstrap,
+          lines: [
+            {
+              name: "Growth plan",
+              quantity: 1,
+              unitPrice: idr("Rp 99.000,00"),
+              lineTotal: idr("Rp 99.000,00"),
+            },
+          ],
+          total: idr("Rp 99.000,00"),
+          outstanding: idr("Rp 99.000,00"),
+          subscription: { interval: "month" },
+        }}
+      />,
+    );
+    expect(html).toContain("Growth plan");
+    expect(html).toContain("/ mo");
+    expect(html).toContain("Monthly");
+    expect(html).toContain("INV-0001");
+    expect(html).toContain("Pay Rp 99.000,00");
+  });
+
   test("renders the document: parties, lines, and the derived figures", () => {
     const html = renderToStaticMarkup(<InvoicePage bootstrap={invoiceBootstrap} />);
     expect(html).toContain("Invoice INV-0001");
     expect(html).toContain("Budi");
-    expect(html).toContain("Tax ID 12.345");
+    // Label and value are separate cells on the payable page.
+    expect(html).toContain("Tax ID");
+    expect(html).toContain("12.345");
     expect(html).toContain("Kopi arabika 1kg");
     expect(html).toContain("Amount due");
     expect(html).toContain("Rp 125.000,00");
@@ -446,7 +474,7 @@ describe("invoice page", () => {
     // One payment panel (#296 UX): an estimate in the chosen asset, and no
     // strip repeating the buyer's email and the picker beside the document.
     // Owed: the document and the payment side by side, like a payment link.
-    expect(html).toContain("checkout-shell invoice-shell");
+    expect(html).toContain('aria-label="Invoice"');
     expect(html).toContain("Pay this invoice");
     expect(html).toContain("Estimated total in");
     expect(html).not.toContain("Recipient");

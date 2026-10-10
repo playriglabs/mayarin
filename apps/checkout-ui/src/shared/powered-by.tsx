@@ -1,7 +1,12 @@
-/** The attribution link. On the invoice it is the last thing on the page. */
-export function PoweredBy({ className = "powered-by" }: { readonly className?: string }) {
+/** The attribution link, the last thing on every buyer page. */
+export function PoweredBy({ className = "" }: { readonly className?: string }) {
   return (
-    <a className={className} href="https://mayarin.xyz" target="_blank" rel="noreferrer">
+    <a
+      className={`mx-auto block w-fit text-sm text-subtle no-underline transition-colors hover:text-muted [&>strong]:font-medium ${className}`}
+      href="https://mayarin.xyz"
+      target="_blank"
+      rel="noreferrer"
+    >
       Powered by <strong>mayarin.xyz</strong>
     </a>
   );

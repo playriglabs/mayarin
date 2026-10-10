@@ -1,10 +1,20 @@
+import { footnote, stateText, stateTitle, stateView } from "../../shared/ui.ts";
 import { EscrowCard } from "./escrow-card.tsx";
 import { ExpiredArt, FailedArt, SuccessArt } from "./illustrations.tsx";
 
 /** A page with folded corner and text lines — the invoice. */
+const DOCUMENT_ICON = "block size-4 shrink-0 fill-none stroke-current";
+
 function InvoiceIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={DOCUMENT_ICON}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
       <path d="M14 3v5h5M9 13h6M9 17h6" />
     </svg>
@@ -14,7 +24,14 @@ function InvoiceIcon() {
 /** A torn-edge slip with a tick — the receipt, proof it was paid. */
 function ReceiptIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={DOCUMENT_ICON}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5-2 1.5-2.5-1.5L5 21z" />
       <path d="m9 11 2 2 4-4" />
     </svg>
@@ -59,19 +76,22 @@ export function Outcome({
       ? "The time to pay ran out before a payment arrived. Start a new payment to try again."
       : "Start a new payment to try again.";
 
+  const documentLink =
+    "inline-flex items-center justify-center gap-2 rounded-full border border-line px-3 py-2.5 text-sm text-ink no-underline transition-colors hover:bg-field";
+
   return (
-    <div className="state-view" role="status">
+    <div className={stateView} role="status">
       {paid ? <SuccessArt /> : expired ? <ExpiredArt /> : <FailedArt />}
-      <h2>{heading}</h2>
-      <p>{note}</p>
+      <h2 className={stateTitle}>{heading}</h2>
+      <p className={stateText}>{note}</p>
       {paid && escrowed && <EscrowCard statusUrl={statusUrl} />}
       {paid && (
-        <div className="documents">
-          <a href={`${statusUrl}/invoice.pdf`} download>
+        <div className="mt-6 grid w-full max-w-sm grid-cols-2 gap-2.5">
+          <a href={`${statusUrl}/invoice.pdf`} download className={documentLink}>
             <InvoiceIcon />
             Download invoice
           </a>
-          <a href={`${statusUrl}/receipt.pdf`} download>
+          <a href={`${statusUrl}/receipt.pdf`} download className={documentLink}>
             <ReceiptIcon />
             Download receipt
           </a>
@@ -80,12 +100,12 @@ export function Outcome({
       {!paid && (
         // A payer who already sent funds needs someone to talk to, and the
         // reference is what either side will ask for first.
-        <p className="support-note">
+        <p className="mt-5 mb-0 max-w-sm rounded-2xl border border-line bg-field/50 px-4 py-3 text-xs leading-relaxed text-muted">
           Already sent funds? We recommend contacting {merchantName} or your wallet or exchange
           provider&apos;s customer service, and sharing the Reference ID below.
         </p>
       )}
-      <p className="reference">
+      <p className={`${footnote} mt-6`}>
         Reference ID <code>{intentId}</code>
       </p>
     </div>

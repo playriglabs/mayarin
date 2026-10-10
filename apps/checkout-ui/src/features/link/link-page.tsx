@@ -1,8 +1,19 @@
 import { useState } from "react";
 import { BuyerProtection } from "../../shared/buyer-protection.tsx";
+import { CheckoutShell } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import { currencySymbol, sanitizeAmount } from "../../shared/currency.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import {
+  errorText,
+  estimateRow,
+  fieldLabel,
+  noteText,
+  panelIntro,
+  panelTitle,
+  primaryButton,
+  unavailableBox,
+} from "../../shared/ui.ts";
 import { checkoutBody } from "./checkout-body.ts";
 import type { LinkBootstrap } from "./types.ts";
 import { canContinueWithQuote, useQuoteEstimate } from "./use-quote-estimate.ts";
@@ -91,110 +102,108 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   }
 
   return (
-    <main className="checkout-shell">
-      <CheckoutSummary
-        merchant={bootstrap.merchant}
-        title={bootstrap.title}
-        totalDisplay={total?.display ?? `${displayCurrency} ${amount || "0"}`}
-        lines={lines}
-      />
-      <section className="checkout-panel" aria-label="Payment details">
-        <div className="payment-form">
-          <p className="section-kicker">Secure checkout</p>
-          <h2>Choose how to pay</h2>
-          <p className="panel-intro">
-            {rail === undefined
-              ? `Pay ${bootstrap.merchant.name}.`
-              : rails.length === 1
-                ? `Pay ${bootstrap.merchant.name} with ${railSummary(rail)}.`
-                : `Select an asset and network to pay ${bootstrap.merchant.name}.`}
-          </p>
+    <CheckoutShell
+      label="Payment details"
+      summary={
+        <CheckoutSummary
+          merchant={bootstrap.merchant}
+          title={bootstrap.title}
+          totalDisplay={total?.display ?? `${displayCurrency} ${amount || "0"}`}
+          lines={lines}
+        />
+      }
+    >
+      <h2 className={panelTitle}>Choose how to pay</h2>
+      <p className={panelIntro}>
+        {rail === undefined
+          ? `Pay ${bootstrap.merchant.name}.`
+          : rails.length === 1
+            ? `Pay ${bootstrap.merchant.name} with ${railSummary(rail)}.`
+            : `Select an asset and network to pay ${bootstrap.merchant.name}.`}
+      </p>
 
-          {total === null && (
-            <div className="form-block">
-              <label className="label" htmlFor="amount">
-                Amount
-              </label>
-              <div className="field">
-                <span>{displayCurrency}</span>
-                <input
-                  id="amount"
-                  inputMode="decimal"
-                  placeholder="0"
-                  autoComplete="off"
-                  // biome-ignore lint/a11y/noAutofocus: typing the amount is the page's only task
-                  autoFocus
-                  value={amount}
-                  onChange={(event) => setAmount(sanitizeAmount(event.target.value, currency))}
-                />
-              </div>
-            </div>
-          )}
-
-          {payableNow ? (
-            <>
-              <RailPicker rails={rails} selected={rail} onSelect={setRail} />
-
-              <div
-                className="payment-estimate"
-                aria-busy={estimate.status === "loading"}
-                aria-live="polite"
-              >
-                <span>Estimated total in {rail.asset}</span>
-                <strong>{estimate.display}</strong>
-              </div>
-
-              {estimate.status === "unavailable" && (
-                <p className="quote-error" role="alert">
-                  {estimate.message}
-                </p>
-              )}
-
-              <BuyerProtection
-                protection={bootstrap.protection}
-                rail={rail}
-                payerAddress={payerAddress}
-                onPayerAddress={setPayerAddress}
-              />
-
-              <p className="checkout-note">
-                The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
-                <strong>{railSummary(rail)}</strong> to the address shown there.
-              </p>
-              <button
-                type="button"
-                className="primary"
-                disabled={busy || !quoteReady}
-                onClick={() => void pay()}
-              >
-                {busy
-                  ? "Preparing payment…"
-                  : estimate.status === "unavailable"
-                    ? "Payment unavailable"
-                    : estimate.status === "idle"
-                      ? "Enter an amount to continue"
-                      : estimate.status === "loading"
-                        ? "Calculating price…"
-                        : `Continue with ${rail.asset}`}
-              </button>
-              {error !== "" && (
-                <p className="error" role="alert">
-                  {error}
-                </p>
-              )}
-            </>
-          ) : (
-            <div className="unavailable">
-              <h3>
-                {payable
-                  ? "This merchant has no payment method available"
-                  : "This payment link is no longer available"}
-              </h3>
-              <p>{unpayableReason ?? "Contact the merchant for a new payment link."}</p>
-            </div>
-          )}
+      {total === null && (
+        <div className="mt-6">
+          <label className={fieldLabel} htmlFor="amount">
+            Amount
+          </label>
+          {/* The symbol matches the figure beside it, so "€ 5" reads as one amount. */}
+          <div className="flex min-h-14 items-stretch rounded-xl border border-transparent bg-field focus-within:border-muted">
+            <span className="flex items-center pl-4 text-xl text-muted">{displayCurrency}</span>
+            <input
+              id="amount"
+              className="min-w-0 flex-1 border-0 bg-transparent px-3 text-xl text-ink tabular-nums outline-0"
+              inputMode="decimal"
+              placeholder="0"
+              autoComplete="off"
+              // biome-ignore lint/a11y/noAutofocus: typing the amount is the page's only task
+              autoFocus
+              value={amount}
+              onChange={(event) => setAmount(sanitizeAmount(event.target.value, currency))}
+            />
+          </div>
         </div>
-      </section>
-    </main>
+      )}
+
+      {payableNow ? (
+        <>
+          <RailPicker rails={rails} selected={rail} onSelect={setRail} />
+
+          <div className={estimateRow} aria-busy={estimate.status === "loading"} aria-live="polite">
+            <span>Estimated total in {rail.asset}</span>
+            <strong>{estimate.display}</strong>
+          </div>
+
+          {estimate.status === "unavailable" && (
+            <p className={errorText} role="alert">
+              {estimate.message}
+            </p>
+          )}
+
+          <BuyerProtection
+            protection={bootstrap.protection}
+            rail={rail}
+            payerAddress={payerAddress}
+            onPayerAddress={setPayerAddress}
+          />
+
+          <button
+            type="button"
+            className={primaryButton}
+            disabled={busy || !quoteReady}
+            onClick={() => void pay()}
+          >
+            {busy
+              ? "Preparing payment…"
+              : estimate.status === "unavailable"
+                ? "Payment unavailable"
+                : estimate.status === "idle"
+                  ? "Enter an amount to continue"
+                  : estimate.status === "loading"
+                    ? "Calculating price…"
+                    : `Continue with ${rail.asset}`}
+          </button>
+          {error !== "" && (
+            <p className={errorText} role="alert">
+              {error}
+            </p>
+          )}
+          <p className={`${noteText} text-center`}>
+            The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
+            <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address
+            shown there.
+          </p>
+        </>
+      ) : (
+        <div className={unavailableBox}>
+          <h3>
+            {payable
+              ? "This merchant has no payment method available"
+              : "This payment link is no longer available"}
+          </h3>
+          <p>{unpayableReason ?? "Contact the merchant for a new payment link."}</p>
+        </div>
+      )}
+    </CheckoutShell>
   );
 }

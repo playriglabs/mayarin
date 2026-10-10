@@ -1,23 +1,55 @@
 import type { MerchantRef } from "./types.ts";
 
-const BRAND_KIT_LOGO_URL = "https://mayarin.xyz/brand-kit/mayarin-white.png";
+const MAYARIN_LOGO_DARK = "https://mayarin.xyz/brand-kit/mayarin-white.png";
+const MAYARIN_LOGO_LIGHT = "https://mayarin.xyz/brand-kit/mayarin-logo-black.svg";
 
 /**
- * The mark at the top of a buyer page: the merchant's own logo when they
+ * Who is being paid, at the top of the order: the merchant's logo when they
  * uploaded one — the buyer is paying them, not us — and the Mayarin mark
- * otherwise. "Powered by" at the bottom keeps the attribution either way.
+ * otherwise. "Powered by" at the bottom keeps the
+ * attribution either way.
  */
-export function Brand({ merchant }: { readonly merchant: MerchantRef }) {
-  if (merchant.logoUrl !== null) {
-    return (
-      <span className="brand brand-merchant">
-        <img src={merchant.logoUrl} alt={merchant.name} width="40" height="40" />
-      </span>
-    );
-  }
+export function Brand({
+  merchant,
+  label,
+}: {
+  readonly merchant: MerchantRef;
+  /** Beside the mark. The invoice leaves it out: its "From" names the merchant. */
+  readonly label?: string;
+}) {
   return (
-    <a className="brand" href="https://mayarin.xyz" aria-label="Mayarin home">
-      <img src={BRAND_KIT_LOGO_URL} alt="Mayarin" width="40" height="40" />
-    </a>
+    <div className="flex items-center gap-2">
+      {merchant.logoUrl !== null ? (
+        <img
+          src={merchant.logoUrl}
+          alt={merchant.name}
+          width="32"
+          height="32"
+          className="size-8 rounded-full border border-line object-cover"
+        />
+      ) : (
+        <a
+          href="https://mayarin.xyz"
+          aria-label="Mayarin home"
+          className="grid size-8 place-items-center rounded-full border border-line"
+        >
+          <img
+            src={MAYARIN_LOGO_LIGHT}
+            alt=""
+            width="18"
+            height="18"
+            className="size-4.5 dark:hidden"
+          />
+          <img
+            src={MAYARIN_LOGO_DARK}
+            alt="Mayarin"
+            width="18"
+            height="18"
+            className="hidden size-4.5 object-contain dark:block"
+          />
+        </a>
+      )}
+      {label !== undefined && <span className="text-base text-ink">{label}</span>}
+    </div>
   );
 }

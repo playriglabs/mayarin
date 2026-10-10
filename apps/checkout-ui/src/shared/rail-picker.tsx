@@ -2,6 +2,7 @@ import { chainLabel } from "@mayarin/chain";
 import { useEffect, useId, useRef, useState } from "react";
 import { RailMark } from "./rail-mark.tsx";
 import type { Rail } from "./types.ts";
+import { chevron, fieldLabel } from "./ui.ts";
 
 /**
  * A rail is one valid asset + network pair, so it is selected as one thing.
@@ -53,44 +54,63 @@ export function RailPicker({
 
   if (rails.length <= 1 || current === undefined) return null;
 
-  const block = className === "" ? "form-block" : `form-block ${className}`;
-
   return (
-    <div className={block}>
-      <span className="label" id={`${listId}-label`}>
+    <div className={`mt-6 ${className}`}>
+      <span className={fieldLabel} id={`${listId}-label`}>
         Pay with
       </span>
-      <div ref={anchorRef} className="rail-picker-anchor">
+      {/* The list floats over the form rather than pushing it down. */}
+      <div ref={anchorRef} className="relative">
         <button
           ref={triggerRef}
           type="button"
-          className="rail-picker-trigger"
+          className={`flex min-h-14 w-full items-center gap-2.5 rounded-xl border bg-field px-4 py-2 text-left text-ink transition-colors duration-200 ${
+            open ? "border-muted" : "border-transparent hover:border-line"
+          }`}
           aria-expanded={open}
           aria-controls={listId}
           onClick={() => setOpen((value) => !value)}
         >
-          <RailMark asset={current.asset} chain={current.chain} size={30} />
-          <span className="rail-picker-copy">
-            <strong>{current.asset}</strong>
-            <span>{chainLabel(current.chain)}</span>
+          <RailMark asset={current.asset} chain={current.chain} size={24} />
+          <RailCopy rail={current} />
+          {/* A rotated square's corner sits below its box's centre; nudged so
+              the chevron lines up with the word beside it. */}
+          <span className="flex items-center gap-2 text-xs leading-none text-muted">
+            Change
+            <span
+              className={`${chevron} size-1.5 ${open ? "translate-y-0.5 -rotate-135" : "-translate-y-0.5"}`}
+              aria-hidden="true"
+            />
           </span>
-          <span className="rail-picker-change">Change</span>
-          <span className="rail-picker-chevron" aria-hidden="true" />
         </button>
 
+        {/* Closed, the list is also zero-height and clipped: a transparent
+            absolute box still counts toward the page's scrollable area. */}
         <div
           id={listId}
-          className={`rail-options-popover${open ? " open" : ""}`}
+          className={`absolute inset-x-0 top-full z-30 mt-2 origin-top transition-[opacity,translate,scale] duration-200 ease-out motion-reduce:transition-none ${
+            open
+              ? "visible translate-y-0 scale-100 opacity-100"
+              : "pointer-events-none invisible max-h-0 -translate-y-1 scale-[0.98] overflow-hidden opacity-0"
+          }`}
           aria-hidden={!open}
           inert={!open}
         >
-          <div className="rail-options" role="radiogroup" aria-labelledby={`${listId}-label`}>
+          <div
+            className="max-h-80 overflow-y-auto overscroll-contain rounded-xl border border-line bg-panel p-1 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.45)]"
+            role="radiogroup"
+            aria-labelledby={`${listId}-label`}
+          >
             {rails.map((rail) => {
               const checked = rail.asset === current.asset && rail.chain === current.chain;
               return (
-                <label className="rail-option" key={`${rail.chain}:${rail.asset}`}>
+                <label
+                  className="flex min-h-12 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-ink transition-colors duration-150 hover:bg-field has-checked:bg-field has-focus-visible:outline-2 has-focus-visible:outline-brand"
+                  key={`${rail.chain}:${rail.asset}`}
+                >
                   <input
                     type="radio"
+                    className="sr-only"
                     name={listId}
                     checked={checked}
                     onChange={() => {
@@ -99,12 +119,14 @@ export function RailPicker({
                       triggerRef.current?.focus();
                     }}
                   />
-                  <RailMark asset={rail.asset} chain={rail.chain} size={28} />
-                  <span className="rail-picker-copy">
-                    <strong>{rail.asset}</strong>
-                    <span>{chainLabel(rail.chain)}</span>
-                  </span>
-                  <span className="rail-option-check" aria-hidden="true" />
+                  <RailMark asset={rail.asset} chain={rail.chain} size={22} />
+                  <RailCopy rail={rail} />
+                  <span
+                    className={`size-3.5 shrink-0 rounded-full border ${
+                      checked ? "border-4 border-ink" : "border-line"
+                    }`}
+                    aria-hidden="true"
+                  />
                 </label>
               );
             })}
@@ -112,6 +134,15 @@ export function RailPicker({
         </div>
       </div>
     </div>
+  );
+}
+
+function RailCopy({ rail }: { readonly rail: Rail }) {
+  return (
+    <span className="grid min-w-0 flex-1 leading-tight">
+      <span className="text-[13px] text-ink">{rail.asset}</span>
+      <span className="text-[11px] text-muted">{chainLabel(rail.chain)}</span>
+    </span>
   );
 }
 

@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { match, P } from "ts-pattern";
+import { CheckoutShell } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
+import { footnote, panelTitle } from "../../shared/ui.ts";
 import { ChooseRail } from "./choose-rail.tsx";
 import { ConfirmingCard } from "./confirming-card.tsx";
 import { DepositCard } from "./deposit-card.tsx";
@@ -23,17 +25,19 @@ import { usePaymentStatus } from "./use-payment-status.ts";
 export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   if (bootstrap.choice !== null) {
     return (
-      <main className="checkout-shell">
-        <CheckoutSummary
-          merchant={bootstrap.merchant}
-          title={bootstrap.title}
-          totalDisplay={bootstrap.amount.display}
-          lines={bootstrap.lines}
-        />
-        <section className="checkout-panel" aria-label="Payment details">
-          <ChooseRail bootstrap={bootstrap} choice={bootstrap.choice} />
-        </section>
-      </main>
+      <CheckoutShell
+        label="Payment details"
+        summary={
+          <CheckoutSummary
+            merchant={bootstrap.merchant}
+            title={bootstrap.title}
+            totalDisplay={bootstrap.amount.display}
+            lines={bootstrap.lines}
+          />
+        }
+      >
+        <ChooseRail bootstrap={bootstrap} choice={bootstrap.choice} />
+      </CheckoutShell>
     );
   }
   return <LivePayment bootstrap={bootstrap} />;
@@ -62,73 +66,80 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const waiting = !terminal && stage === "waiting";
 
   return (
-    <main className="checkout-shell">
-      <CheckoutSummary
-        merchant={bootstrap.merchant}
-        title={bootstrap.title}
-        totalDisplay={bootstrap.amount.display}
-        lines={bootstrap.lines}
-      >
-        <StatusTimeline status={status} stage={stage} className="timeline-wide" />
-      </CheckoutSummary>
-      <section className="checkout-panel" aria-label="Payment instructions">
-        <div className="payment-form pay-detail">
-          <StatusTimeline status={status} stage={stage} className="timeline-narrow" />
+    <CheckoutShell
+      label="Payment instructions"
+      summary={
+        <CheckoutSummary
+          merchant={bootstrap.merchant}
+          title={bootstrap.title}
+          totalDisplay={bootstrap.amount.display}
+          lines={bootstrap.lines}
+        >
+          <StatusTimeline status={status} stage={stage} className="mt-10 hidden lg:grid" />
+        </CheckoutSummary>
+      }
+    >
+      <StatusTimeline status={status} stage={stage} className="mb-8 lg:hidden" />
 
-          {waiting && (
-            <div className="pay-heading">
-              <div>
-                <p className="section-kicker">Secure payment</p>
-                <h2>Complete your payment</h2>
-              </div>
-              <div className={clsx("timer", { low: remaining.low })}>
-                <span>Time left</span>
-                <strong>{remaining.text}</strong>
-              </div>
-            </div>
-          )}
-
-          {match({ terminal, deposit, stage })
-            .with({ terminal: true }, () => (
-              <Outcome
-                status={status}
-                intentId={intentId}
-                statusUrl={bootstrap.statusUrl}
-                merchantName={bootstrap.merchant.name}
-                escrowed={bootstrap.escrowed}
-              />
-            ))
-            .with({ deposit: P.nullish }, () => (
-              <div className="preparing" role="status">
-                <span className="spinner" aria-hidden="true" />
-                <div>
-                  <h3>Preparing your payment address…</h3>
-                  <p>Your price is being locked. Keep this page open.</p>
-                </div>
-              </div>
-            ))
-            .with({ deposit: P.nonNullable, stage: "confirming" }, ({ deposit }) => (
-              <ConfirmingCard deposit={deposit} intentId={intentId} />
-            ))
-            .with({ deposit: P.nonNullable, stage: "waiting" }, ({ deposit }) => (
-              <DepositCard
-                deposit={deposit}
-                localPrice={bootstrap.amount.display}
-                intentId={intentId}
-                copied={copied}
-                onCopy={copy}
-              />
-            ))
-            .exhaustive()}
-
-          {!terminal && <p className="connection-mode">This page updates automatically.</p>}
-          {waiting && deposit === undefined && (
-            <p className="reference">
-              Reference ID <code>{intentId}</code>
-            </p>
-          )}
+      {waiting && (
+        <div className="flex items-center justify-between gap-4">
+          <h2 className={panelTitle}>Complete your payment</h2>
+          <span
+            className={clsx(
+              "inline-flex shrink-0 items-baseline gap-1.5 rounded-full border px-3 py-1 text-xs",
+              remaining.low ? "border-danger/40 text-danger" : "border-line text-muted",
+            )}
+          >
+            Time left
+            <strong className="text-sm font-medium text-ink tabular-nums">{remaining.text}</strong>
+          </span>
         </div>
-      </section>
-    </main>
+      )}
+
+      {match({ terminal, deposit, stage })
+        .with({ terminal: true }, () => (
+          <Outcome
+            status={status}
+            intentId={intentId}
+            statusUrl={bootstrap.statusUrl}
+            merchantName={bootstrap.merchant.name}
+            escrowed={bootstrap.escrowed}
+          />
+        ))
+        .with({ deposit: P.nullish }, () => (
+          <div className="mt-8 flex items-center gap-3.5 py-6" role="status">
+            <span
+              className="size-5.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-ink motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+            <div>
+              <h3 className="m-0 text-sm font-medium">Preparing your payment address…</h3>
+              <p className="mt-1 mb-0 text-xs text-muted">
+                Your price is being locked. Keep this page open.
+              </p>
+            </div>
+          </div>
+        ))
+        .with({ deposit: P.nonNullable, stage: "confirming" }, ({ deposit }) => (
+          <ConfirmingCard deposit={deposit} intentId={intentId} />
+        ))
+        .with({ deposit: P.nonNullable, stage: "waiting" }, ({ deposit }) => (
+          <DepositCard
+            deposit={deposit}
+            localPrice={bootstrap.amount.display}
+            intentId={intentId}
+            copied={copied}
+            onCopy={copy}
+          />
+        ))
+        .exhaustive()}
+
+      {!terminal && <p className={footnote}>This page updates automatically.</p>}
+      {waiting && deposit === undefined && (
+        <p className={footnote}>
+          Reference ID <code>{intentId}</code>
+        </p>
+      )}
+    </CheckoutShell>
   );
 }
