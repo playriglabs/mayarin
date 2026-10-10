@@ -1,6 +1,6 @@
 import { footnote, stateText, stateTitle, stateView } from "../../shared/ui.ts";
 import { EscrowCard } from "./escrow-card.tsx";
-import { ExpiredArt, FailedArt, SuccessArt } from "./illustrations.tsx";
+import { SuccessArt } from "./illustrations.tsx";
 
 /** A page with folded corner and text lines — the invoice. */
 const DOCUMENT_ICON = "block size-4 shrink-0 fill-none stroke-current";
@@ -79,35 +79,84 @@ export function Outcome({
   const documentLink =
     "inline-flex items-center justify-center gap-2 rounded-full border border-line px-3 py-2.5 text-sm text-ink no-underline transition-colors hover:bg-field";
 
-  return (
-    <div className={stateView} role="status">
-      {paid ? <SuccessArt /> : expired ? <ExpiredArt /> : <FailedArt />}
-      <h2 className={stateTitle}>{heading}</h2>
-      <p className={stateText}>{note}</p>
-      {paid && escrowed && <EscrowCard statusUrl={statusUrl} />}
-      {paid && (
-        <div className="mt-6 grid w-full max-w-sm grid-cols-2 gap-2.5">
-          <a href={`${statusUrl}/invoice.pdf`} download className={documentLink}>
-            <InvoiceIcon />
-            Download invoice
-          </a>
-          <a href={`${statusUrl}/receipt.pdf`} download className={documentLink}>
-            <ReceiptIcon />
-            Download receipt
-          </a>
-        </div>
-      )}
-      {!paid && (
-        // A payer who already sent funds needs someone to talk to, and the
-        // reference is what either side will ask for first.
-        <p className="mt-5 mb-0 max-w-sm rounded-2xl border border-line bg-field/50 px-4 py-3 text-xs leading-relaxed text-muted">
+  // A payment that did not go through gets a small mark beside its title, not
+  // a picture: there is nothing to celebrate, and the next step is the note.
+  if (!paid) {
+    return (
+      <div className="flex flex-col" role="status">
+        <h2 className="m-0 flex items-center gap-2 text-xl font-medium text-ink">
+          {expired ? <ClockIcon /> : <CrossIcon />}
+          {heading}
+        </h2>
+        <p className="mt-2 mb-0 text-sm text-muted">{note}</p>
+        {/* A payer who already sent funds needs someone to talk to, and the
+            reference is what either side will ask for first. */}
+        <p className="mt-5 mb-0 rounded-2xl border border-line bg-field/50 px-4 py-3 text-xs leading-relaxed text-muted">
           Already sent funds? We recommend contacting {merchantName} or your wallet or exchange
           provider&apos;s customer service, and sharing the Reference ID below.
         </p>
-      )}
+        <p className="mt-4 mb-0 text-xs text-subtle">
+          Reference ID <code>{intentId}</code>
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={stateView} role="status">
+      <SuccessArt />
+      <h2 className={stateTitle}>{heading}</h2>
+      <p className={stateText}>{note}</p>
+      {escrowed && <EscrowCard statusUrl={statusUrl} />}
+      <div className="mt-6 grid w-full max-w-sm grid-cols-2 gap-2.5">
+        <a href={`${statusUrl}/invoice.pdf`} download className={documentLink}>
+          <InvoiceIcon />
+          Download invoice
+        </a>
+        <a href={`${statusUrl}/receipt.pdf`} download className={documentLink}>
+          <ReceiptIcon />
+          Download receipt
+        </a>
+      </div>
       <p className={`${footnote} mt-6`}>
         Reference ID <code>{intentId}</code>
       </p>
     </div>
+  );
+}
+
+const STATUS_ICON = "size-5 shrink-0 fill-none stroke-danger";
+
+/** Expired: a clock whose time ran out. */
+function ClockIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={STATUS_ICON}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+/** Failed: a cross in a circle. */
+function CrossIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={STATUS_ICON}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m9 9 6 6M15 9l-6 6" />
+    </svg>
   );
 }

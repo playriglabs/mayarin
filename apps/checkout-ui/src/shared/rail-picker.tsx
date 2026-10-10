@@ -78,7 +78,7 @@ export function RailPicker({
           <span className="flex items-center gap-2 text-xs leading-none text-muted">
             Change
             <span
-              className={`${chevron} size-1.5 ${open ? "translate-y-0.5 -rotate-135" : "-translate-y-0.5"}`}
+              className={`${chevron} size-1.5 ${open ? "translate-y-0.5 -rotate-135" : "-translate-y-1"}`}
               aria-hidden="true"
             />
           </span>

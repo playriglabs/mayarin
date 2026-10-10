@@ -77,37 +77,3 @@ export function SuccessArt() {
     </svg>
   );
 }
-
-/** Failed: a cross in the danger colour, no celebration. */
-export function FailedArt() {
-  return (
-    <svg className={ART} viewBox="0 0 200 200" aria-hidden="true">
-      <circle cx="100" cy="100" r="72" className="fill-danger/10" />
-      <circle cx="100" cy="100" r="50" className="fill-danger" />
-      <path
-        d="M84 84 l32 32 M116 84 l-32 32"
-        strokeWidth="9"
-        strokeLinecap="round"
-        className="fill-none stroke-panel"
-      />
-    </svg>
-  );
-}
-
-/** Expired: a clock whose time ran out. */
-export function ExpiredArt() {
-  return (
-    <svg className={ART} viewBox="0 0 200 200" aria-hidden="true">
-      <circle cx="100" cy="100" r="72" className="fill-danger/10" />
-      <circle cx="100" cy="100" r="50" strokeWidth="6" className="fill-none stroke-danger" />
-      <path
-        d="M100 72 V100 L118 112"
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="fill-none stroke-danger"
-      />
-      <circle cx="100" cy="100" r="4" className="fill-danger" />
-    </svg>
-  );
-}
