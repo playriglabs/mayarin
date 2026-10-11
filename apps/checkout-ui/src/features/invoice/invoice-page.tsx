@@ -290,7 +290,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
 
       <button
         type="button"
-        className={primaryButton}
+        className={`${primaryButton} mt-6`}
         disabled={busy || rail === undefined || !quoteReady}
         onClick={() => void pay()}
       >

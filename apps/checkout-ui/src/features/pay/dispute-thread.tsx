@@ -19,6 +19,7 @@ const AUTHOR_LABELS: Readonly<Record<DisputeMessage["author"], string>> = {
 export function DisputeThread({
   statusUrl,
   payer,
+  note,
   messages,
   open,
   onPosted,
@@ -27,6 +28,8 @@ export function DisputeThread({
 }: {
   readonly statusUrl: string;
   readonly payer: string;
+  /** Where the hold stands, from the escrow card; heads the thread. */
+  readonly note: string | undefined;
   readonly messages: readonly DisputeMessage[];
   readonly open: boolean;
   readonly onPosted: () => void;
@@ -84,11 +87,10 @@ export function DisputeThread({
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
-      <p className="m-0 text-xs text-muted">
-        Dispute <strong className="font-medium text-ink">#{reference}</strong>. The merchant sees
-        this thread and can answer here or refund you directly; quote the number if you contact
-        support.
+    <div className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
+      <p className="m-0 text-xs leading-relaxed text-muted">
+        {note !== undefined && `${note} `}Quote dispute{" "}
+        <strong className="font-medium text-ink">#{reference}</strong> if you contact support.
       </p>
       {messages.length > 0 && (
         // A fixed height that scrolls, so a long thread never pushes the page down.
@@ -99,9 +101,7 @@ export function DisputeThread({
           {messages.map((message) => (
             <li
               key={message.id}
-              className={`rounded-xl border border-line px-3 py-2 ${
-                message.author === "payer" ? "bg-field" : "bg-panel"
-              }`}
+              className={`rounded-xl px-3 py-2 ${message.author === "payer" ? "bg-field" : "bg-panel"}`}
             >
               <span className="text-xs text-muted">{AUTHOR_LABELS[message.author]}</span>
               <p className="mt-1 mb-0 text-sm whitespace-pre-wrap text-ink">{message.body}</p>
@@ -111,22 +111,23 @@ export function DisputeThread({
       )}
       {open && (
         <form
-          className="flex flex-col gap-2"
+          className="flex flex-col gap-2.5"
           onSubmit={(event) => {
             event.preventDefault();
             void send();
           }}
         >
-          <label className="text-sm text-ink" htmlFor="dispute-draft">
-            {asked ? "Add to your case" : "Tell the arbiter what went wrong"}
-          </label>
           <textarea
-            id="dispute-draft"
+            aria-label={asked ? "Add to your case" : "Tell the arbiter what went wrong"}
             className="block w-full resize-none rounded-xl border border-transparent bg-field px-3 py-2 text-sm text-ink outline-0 focus:border-muted"
             value={draft}
             maxLength={2000}
             rows={3}
-            placeholder="What you ordered, what arrived, and any links or tracking."
+            placeholder={
+              asked
+                ? "Add to your case"
+                : "Tell the arbiter what went wrong: what you ordered, what arrived, any tracking."
+            }
             onChange={(event) => setDraft(event.target.value)}
           />
           {/* "Sign and send" and "Release payment" share one row. */}

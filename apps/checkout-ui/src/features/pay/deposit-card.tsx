@@ -228,7 +228,7 @@ function Fold({
         onClick={onToggle}
       >
         <span>{label}</span>
-        <span className={`${chevron} ${open ? "-rotate-135" : ""}`} aria-hidden="true" />
+        <span className={`${chevron} ${open ? "-rotate-135" : "rotate-45"}`} aria-hidden="true" />
       </button>
       <div
         id={id}

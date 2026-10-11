@@ -92,7 +92,7 @@ export function BuyerProtection({
       <details className="group mt-3 border-t border-line pt-3">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
           How it works
-          <span className={`${chevron} size-1.5 border-current group-open:-rotate-135`} />
+          <span className={`${chevron} size-1.5 border-current rotate-45 group-open:-rotate-135`} />
         </summary>
         <p className="mt-2 mb-0 text-xs leading-relaxed text-muted">
           Your payment is held for {holdDuration(protection.holdSeconds)} until you confirm

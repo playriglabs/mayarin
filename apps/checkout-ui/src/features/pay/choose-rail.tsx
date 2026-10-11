@@ -117,7 +117,7 @@ export function ChooseRail({
           />
           <button
             type="button"
-            className={primaryButton}
+            className={`${primaryButton} mt-6`}
             disabled={busy || !quoteReady || needsWallet}
             onClick={() => void pay()}
           >

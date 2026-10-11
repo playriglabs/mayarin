@@ -72,7 +72,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
   const releaseButton = (
     <button
       type="button"
-      className={`${primaryButton} mt-0 min-h-10`}
+      className={primaryButton}
       disabled={busy}
       onClick={() => void act("release")}
     >
@@ -91,45 +91,54 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
             ? "Disputed"
             : "Held";
 
+  const headline =
+    escrow.outcome === "released"
+      ? "Paid to the merchant"
+      : escrow.outcome === "split"
+        ? "Split by the arbiter"
+        : escrow.outcome === "refunded"
+          ? "Refunded to your wallet"
+          : escrow.disputed
+            ? `Refunded to you if undecided by ${when(escrow.terms.resolveBy)}`
+            : `Releases to the merchant on ${when(escrow.terms.releaseAfter)}`;
+
+  const note =
+    escrow.outcome !== "held"
+      ? undefined
+      : escrow.disputed
+        ? escrow.terms.arbiter === ZERO_ADDRESS
+          ? "The automatic release is stopped. The merchant can refund you."
+          : "The automatic release is stopped. The arbiter decides, or the merchant refunds you."
+        : holdOpen
+          ? escrow.calls.approveBond === null
+            ? "Got what you paid for? Release it now. Something wrong? Open a dispute first."
+            : "Got what you paid for? Release it now. Something wrong? Open a dispute first. It takes a bond, returned if your claim holds."
+          : "The hold has ended. It releases to the merchant shortly.";
+
+  // Laid out like the buyer-protection card the payer saw before paying: the
+  // shield, one line of what it is, one of where the money is. What to do next
+  // sits under a hairline, the way "How it works" does there.
   return (
     <div
-      className="mt-6 w-full rounded-2xl border border-line bg-field/50 p-5 text-left"
+      className="mt-6 w-full rounded-2xl border border-line bg-field/50 p-4 text-left"
       role="status"
     >
-      <div className="flex items-center gap-2">
-        <ShieldIcon checked className="size-4 stroke-brand" />
-        <p className="m-0 flex-1 text-xs tracking-[0.12em] text-brand uppercase">
-          Buyer protection
-        </p>
-        <span
-          className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${STATUS_TONE[status]}`}
-        >
+      <div className="flex items-center gap-3">
+        <ShieldIcon checked />
+        <div className="min-w-0 flex-1 text-xs leading-relaxed text-muted">
+          <p className="m-0 text-sm text-ink">Buyer protection</p>
+          <p className="m-0">{headline}</p>
+        </div>
+        <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted">
+          <span className={`size-1.5 rounded-full ${STATUS_DOT[status]}`} aria-hidden="true" />
           {status}
         </span>
       </div>
 
-      <p className="mt-4 mb-0 text-base text-ink">
-        {escrow.outcome === "released"
-          ? "The payment went to the merchant."
-          : escrow.outcome === "split"
-            ? "The arbiter split the payment between you and the merchant."
-            : escrow.outcome === "refunded"
-              ? "The payment went back to your wallet."
-              : escrow.disputed
-                ? `Refunded to you if undecided by ${when(escrow.terms.resolveBy)}`
-                : `Releases to the merchant on ${when(escrow.terms.releaseAfter)}`}
-      </p>
-      {escrow.outcome === "held" && (
-        <p className="mt-1.5 mb-0 text-sm text-muted">
-          {escrow.disputed
-            ? escrow.terms.arbiter === ZERO_ADDRESS
-              ? "The automatic release is stopped. The merchant can refund you."
-              : "The automatic release is stopped. The arbiter decides, or the merchant refunds you."
-            : holdOpen
-              ? escrow.calls.approveBond === null
-                ? "Got what you paid for? Release it now. Something wrong? Open a dispute first."
-                : "Got what you paid for? Release it now. Something wrong? Open a dispute first — it takes the bond, returned if your claim holds."
-              : "The hold has ended. It releases to the merchant shortly."}
+      {/* With a dispute, the note heads the thread instead: one block, one hairline. */}
+      {note !== undefined && escrow.dispute === null && (
+        <p className="mt-3 mb-0 border-t border-line pt-3 text-xs leading-relaxed text-muted">
+          {note}
         </p>
       )}
 
@@ -137,6 +146,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
         <DisputeThread
           statusUrl={statusUrl}
           payer={escrow.terms.payer}
+          note={note}
           messages={escrow.dispute.messages}
           open={threadOpen}
           onPosted={() => void load()}
@@ -146,7 +156,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
       )}
 
       {escrow.outcome === "held" && !threadOpen && (
-        <div className="mt-5 grid grid-cols-2 gap-2.5 [&>*:only-child]:col-span-2">
+        <div className="mt-4 grid grid-cols-2 gap-2.5 [&>*:only-child]:col-span-2">
           {releaseButton}
           {holdOpen && !escrow.disputed && (
             <button
@@ -160,6 +170,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
           )}
         </div>
       )}
+
       {error !== "" && (
         <p className={errorText} role="alert">
           {error}
@@ -170,12 +181,12 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
 }
 
 /** Held is waiting (amber), disputed needs attention (red), released is done. */
-const STATUS_TONE: Record<string, string> = {
-  Held: "bg-warning/12 text-warning",
-  Disputed: "bg-danger/12 text-danger",
-  Released: "bg-brand/12 text-brand",
-  Split: "bg-brand/12 text-brand",
-  Refunded: "bg-line text-muted",
+const STATUS_DOT: Record<string, string> = {
+  Held: "bg-warning",
+  Disputed: "bg-danger",
+  Released: "bg-brand",
+  Split: "bg-brand",
+  Refunded: "bg-subtle",
 };
 
 /** "Oct 3, 4:36 PM" — a date the payer reads at a glance. */

@@ -169,7 +169,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
 
           <button
             type="button"
-            className={primaryButton}
+            className={`${primaryButton} mt-6`}
             disabled={busy || !quoteReady}
             onClick={() => void pay()}
           >

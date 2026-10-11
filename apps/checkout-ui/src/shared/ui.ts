@@ -3,9 +3,14 @@
  * a pay button on the link page cannot drift from the one on the invoice.
  */
 
-/** The page's one action: a full-width pill, ink on the panel. */
+/**
+ * The page's one action: a full-width pill, ink on the panel.
+ *
+ * No margin: the caller places it. Appending `mt-0` to override a margin here
+ * does nothing, because Tailwind emits `.mt-0` before `.mt-6`.
+ */
 export const primaryButton =
-  "mt-6 flex min-h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-medium text-panel transition-opacity enabled:hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40";
+  "flex min-h-11 w-full items-center justify-center rounded-full bg-ink px-5 text-sm font-medium text-panel transition-opacity enabled:hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40";
 
 /** A second action beside or under the first. */
 export const secondaryButton =
@@ -29,9 +34,15 @@ export const noteText = "mt-5 mb-0 text-xs leading-relaxed text-muted";
 /** Quiet centred line: the reference, the "updates automatically". */
 export const footnote = "mt-4 mb-0 text-center text-xs text-subtle";
 
-/** A CSS chevron — the link page renders no SVG at all. */
+/**
+ * A CSS chevron — the link page renders no SVG at all.
+ *
+ * No rotation here: the caller adds `rotate-45` (closed) or `-rotate-135`
+ * (open). Both set `rotate`, and Tailwind emits `.rotate-45` after
+ * `.-rotate-135`, so a base `rotate-45` silently wins over the open state.
+ */
 export const chevron =
-  "size-2 shrink-0 rotate-45 border-r border-b border-muted transition-transform duration-200";
+  "size-2 shrink-0 border-r border-b border-muted transition-transform duration-200";
 
 /** Drawn over the left-hand ground or the panel. */
 export const card = "rounded-2xl border border-line bg-field/50 p-4";
