@@ -57,8 +57,8 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
         to: escrow.factory,
         data: escrow.calls[action],
       });
-      // The transaction is sent, not mined; read again shortly after.
-      setTimeout(() => void load(), 6_000);
+      // Mined: the API reads the chain, so the card now shows the change.
+      await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The wallet refused the transaction");
     } finally {

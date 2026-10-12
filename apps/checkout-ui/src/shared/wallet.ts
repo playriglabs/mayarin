@@ -27,7 +27,15 @@ export async function connectWallet(): Promise<string> {
   return account;
 }
 
-/** Switches to `chainId` and sends one call; resolves with the transaction hash. */
+/**
+ * Switches to `chainId`, sends one call, and resolves once it is mined.
+ *
+ * The chain is read again after the switch: Phantom can accept
+ * `wallet_switchEthereumChain` without moving, and the factory sits at the same
+ * address on every chain, so the call would land, or revert, on another one.
+ * Waiting for the receipt is what lets the caller read the escrow afterwards
+ * and see the change, and lets a bond approval land before the dispute.
+ */
 export async function sendCall(call: {
   readonly chainId: string;
   readonly from: string;
@@ -41,11 +49,35 @@ export async function sendCall(call: {
   const current = (await wallet.request({ method: "eth_chainId" })) as string;
   if (BigInt(current) !== BigInt(chainId)) {
     await wallet.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
+    const switched = (await wallet.request({ method: "eth_chainId" })) as string;
+    if (BigInt(switched) !== BigInt(chainId)) {
+      throw new Error(
+        `Your wallet is on another network. Switch it to chain ${BigInt(chainId)} and try again.`,
+      );
+    }
   }
-  return (await wallet.request({
+  const hash = (await wallet.request({
     method: "eth_sendTransaction",
-    params: [{ from: call.from, to: call.to, data: call.data }],
+    params: [{ from: call.from, to: call.to, data: call.data, chainId }],
   })) as string;
+  await waitForReceipt(wallet, hash);
+  return hash;
+}
+
+/** Polls the wallet's node until `hash` is mined; throws if it reverted. */
+async function waitForReceipt(wallet: Eip1193, hash: string): Promise<void> {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const receipt = (await wallet.request({
+      method: "eth_getTransactionReceipt",
+      params: [hash],
+    })) as { status: string } | null;
+    if (receipt !== null) {
+      if (BigInt(receipt.status) !== 1n) throw new Error("The transaction reverted on chain.");
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3_000));
+  }
+  throw new Error("The transaction is still pending. Refresh this page in a minute.");
 }
 
 /** Signs `message` with `from` (`personal_sign`); resolves with the signature. */
