@@ -9,7 +9,7 @@ bun add @mayarin/sdk@next
 # or: npm install @mayarin/sdk@next
 ```
 
-## Create a payable IDR link
+## Create a payable SGD link
 
 ```ts
 import { createMayarin } from "@mayarin/sdk";
@@ -26,11 +26,11 @@ const link = await mayarin.commerce.paymentLinks.create({
   kind: "fixed",
   merchant: {
     id: "merchant_123",
-    name: "Toko Melati",
-    city: "Jakarta",
-    countryCode: "ID",
+    name: "Kopi Kaya",
+    city: "Singapore",
+    countryCode: "SG",
   },
-  amount: { amount: "50000.00", asset: "IDR" },
+  amount: { amount: "12.50", asset: "SGD" },
 });
 
 console.log(link.url);
