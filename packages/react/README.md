@@ -31,8 +31,8 @@ the browser sends, so for a sale check the paid amount against your order in the
 <PayButton
   publishableKey="pk_..."
   baseUrl="https://api-testnet.mayarin.xyz"
-  amount="150000.00"
-  currency="IDR"
+  amount="10.00"
+  currency="SGD"
   merchantReference="donation_42"
   successUrl="https://shop.example/thanks"
 />
