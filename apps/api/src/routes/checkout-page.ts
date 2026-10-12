@@ -219,7 +219,12 @@ export function checkoutPageRoutes(container: Container): Hono {
           logoUrl: await merchantLogoUrl(container, intent.merchant.id),
         },
         title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
-        lines: await intentLines(container, intent.metadata[CART_METADATA_KEY]),
+        // A counter QR's only line is its own title at the amount typed, which
+        // the heading above already says.
+        lines:
+          paymentLink?.kind === "open"
+            ? null
+            : await intentLines(container, intent.metadata[CART_METADATA_KEY]),
         expiresAt: intent.expiresAt.toISOString(),
         statusUrl: `${origin}/v1/payments/${intent.id}`,
         streaming: container.stream !== undefined,

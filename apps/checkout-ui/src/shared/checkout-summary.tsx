@@ -118,22 +118,25 @@ export function CheckoutSummary({
         </div>
       )}
 
-      <dl className="mt-8 mb-0 flex flex-col gap-2.5 border-t border-line pt-5 text-sm">
-        {rows.map((row, index) => {
-          const last = index === rows.length - 1;
-          return (
-            <div className="flex justify-between gap-4" key={row.label}>
-              <dt className={last ? "text-ink" : "text-muted"}>{row.label}</dt>
-              <dd className={`m-0 tabular-nums ${last ? "text-ink" : "text-muted"}`}>
-                {row.value}
-                {last && priceSuffix !== undefined && (
-                  <span className="ml-1 text-xs text-muted">{priceSuffix}</span>
-                )}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
+      {/* With no lines and no breakdown, a lone Total repeats the figure above. */}
+      {(shown.length > 0 || breakdown !== undefined) && (
+        <dl className="mt-8 mb-0 flex flex-col gap-2.5 border-t border-line pt-5 text-sm">
+          {rows.map((row, index) => {
+            const last = index === rows.length - 1;
+            return (
+              <div className="flex justify-between gap-4" key={row.label}>
+                <dt className={last ? "text-ink" : "text-muted"}>{row.label}</dt>
+                <dd className={`m-0 tabular-nums ${last ? "text-ink" : "text-muted"}`}>
+                  {row.value}
+                  {last && priceSuffix !== undefined && (
+                    <span className="ml-1 text-xs text-muted">{priceSuffix}</span>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
 
       {children}
     </SummaryColumn>
