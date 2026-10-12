@@ -8,6 +8,28 @@
   "prerelease-type": "next",
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
+  "changelog-sections": [
+    {
+      "type": "feat",
+      "section": "Features"
+    },
+    {
+      "type": "fix",
+      "section": "Bug Fixes"
+    },
+    {
+      "type": "perf",
+      "section": "Performance Improvements"
+    },
+    {
+      "type": "revert",
+      "section": "Reverts"
+    },
+    {
+      "type": "docs",
+      "section": "Documentation"
+    }
+  ],
   "packages": {
     "packages/sdk": {
       "component": "sdk",
@@ -16,8 +38,7 @@
     },
     "packages/react": {
       "component": "react",
-      "package-name": "@mayarin/react",
-      "release-as": "0.1.0-next.1"
+      "package-name": "@mayarin/react"
     }
   }
 }
