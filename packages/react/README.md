@@ -22,7 +22,7 @@ import { PayButton } from "@mayarin/react";
 </PayButton>;
 ```
 
-The backend behind `/api/pay` — any handler that takes a `Request`, e.g. a Next.js route:
+The backend behind `/api/pay` — e.g. a Next.js route handler:
 
 ```ts
 import { createMayarin } from "@mayarin/sdk";
