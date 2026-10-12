@@ -26,7 +26,7 @@ const link = await mayarin.commerce.paymentLinks.create({
   kind: "fixed",
   merchant: {
     id: "merchant_123",
-    name: "Kopi Kaya",
+    name: "Example Store",
     city: "Singapore",
     countryCode: "SG",
   },

@@ -22,6 +22,38 @@ import { PayButton } from "@mayarin/react";
 </PayButton>;
 ```
 
+The backend behind `/api/pay` — any handler that takes a `Request`, e.g. a Next.js route:
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const secretKey = process.env.MAYARIN_SECRET_KEY;
+if (secretKey === undefined) throw new Error("MAYARIN_SECRET_KEY is required");
+
+const mayarin = createMayarin({
+  baseUrl: "https://api-testnet.mayarin.xyz",
+  secretKey,
+});
+
+export async function POST(): Promise<Response> {
+  const { url } = await mayarin.commerce.carts.checkout({
+    currency: "SGD",
+    lines: [
+      {
+        name: "Order #123",
+        unitPrice: { amount: "25.00", asset: "SGD" },
+        quantity: 1,
+      },
+    ],
+    merchantReference: "order_123",
+    metadata: { checkoutSuccessBaseUrl: "https://shop.example/thanks" },
+  });
+  return Response.json({ url });
+}
+```
+
+`checkout` may resolve to the URL string or to any object with a `url` field.
+
 ## Browser mode — donations, tips, pay-what-you-want
 
 No backend: the browser mints the checkout with a publishable key (`pk_...`). The amount is whatever
