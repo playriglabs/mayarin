@@ -16,7 +16,8 @@
     },
     "packages/react": {
       "component": "react",
-      "package-name": "@mayarin/react"
+      "package-name": "@mayarin/react",
+      "release-as": "0.1.0-next.1"
     }
   }
 }
