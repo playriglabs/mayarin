@@ -248,7 +248,7 @@ describe("WalletWatcher", () => {
   test("the same log seen twice produces one deposit", async () => {
     const address = await harness.awaitingPayment();
     harness.chain.transfer({ asset: ASSET, to: address, amount: REQUIRED.amount });
-    harness.chain.mine(1);
+    harness.chain.mine(2); // the head block itself is left for the next tick
 
     await harness.watcher.tick(CHAIN, ASSET);
     await harness.cursors.set(CHAIN, ASSET, 0n); // simulate a crash before the cursor was written
@@ -273,11 +273,11 @@ describe("WalletWatcher", () => {
     expect(harness.funded).toEqual([]);
   });
 
-  test("the cursor advances even when nothing is being watched", async () => {
+  test("the cursor advances even when nothing is being watched, stopping one short of the head", async () => {
     harness.chain.mine(4);
     await harness.watcher.tick(CHAIN, ASSET);
 
-    expect(await harness.cursors.get(CHAIN, ASSET)).toBe(4n);
+    expect(await harness.cursors.get(CHAIN, ASSET)).toBe(3n);
   });
 
   test("a scan is capped at the configured block range", async () => {

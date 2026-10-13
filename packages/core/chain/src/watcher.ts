@@ -147,7 +147,10 @@ export class WalletWatcher {
     const from = start + 1n;
     const isNative = this.#nativeAssets[chain] === asset;
     const range = isNative ? this.#nativeBlockRange : this.#blockRange;
-    const to = min(head.number, start + range);
+    // One block short of the head: a load-balanced RPC can answer `head` from
+    // one node and the scan from another that has not seen that block yet,
+    // which rejects the range as invalid params. The block is scanned next tick.
+    const to = min(head.number - 1n, start + range);
     // A reorg replaces blocks without advancing the head, so there can be
     // nothing new to scan and still be everything to reclassify. Only the scan
     // is skipped here — returning early would make the watcher blind to exactly
