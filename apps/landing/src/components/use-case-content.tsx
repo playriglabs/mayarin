@@ -3,7 +3,14 @@
  * `use-cases.tsx`, so an industry picks the movements that fit it rather than
  * drawing its own illustration.
  */
-export type SolutionKind = "checkout" | "payouts" | "invoice" | "recurring" | "api" | "counter";
+export type SolutionKind =
+  | "checkout"
+  | "payouts"
+  | "invoice"
+  | "recurring"
+  | "api"
+  | "counter"
+  | "fiat";
 
 export interface Solution {
   readonly kind: SolutionKind;
@@ -14,17 +21,19 @@ export interface Solution {
 }
 
 /**
- * One industry, two solutions: how it gets paid, and how it pays out or what
- * it runs alongside. Only what Mayarin ships today — collection on any
- * supported asset, invoices, subscriptions, x402 and batch stablecoin payouts.
+ * One industry, three solutions: how it gets paid, how it pays out or what it
+ * runs alongside, and how a payer without crypto still pays it. Only what
+ * Mayarin ships today — collection on any supported asset, invoices,
+ * subscriptions, x402, batch stablecoin payouts and local fiat rails.
  */
 export interface Industry {
   readonly id: string;
   readonly name: string;
-  readonly solutions: readonly [Solution, Solution];
+  readonly solutions: readonly [Solution, Solution, Solution];
 }
 
 const PAYOUTS_LABEL = "Payouts";
+const FIAT_LABEL = "Fiat rails";
 
 export const INDUSTRIES: readonly Industry[] = [
   {
@@ -34,14 +43,20 @@ export const INDUSTRIES: readonly Industry[] = [
       {
         kind: "checkout",
         label: "Checkout",
-        title: "Checkout in local methods or crypto",
-        body: "Price in your local currency. Shoppers pay with a bank transfer, an e-wallet or the crypto they hold, you settle in a stablecoin.",
+        title: "Checkout in any supported asset",
+        body: "Price in your local currency. Shoppers pay in the crypto they hold, you settle in a stablecoin.",
       },
       {
         kind: "payouts",
         label: PAYOUTS_LABEL,
         title: "Pay sellers and affiliates",
         body: "Send stablecoins to up to 100 sellers, affiliates and partners in one transaction.",
+      },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Shoppers pay with local methods",
+        body: "Shoppers pay in their own currency by bank transfer, e-wallet or QR. You still settle in a stablecoin.",
       },
     ],
   },
@@ -61,6 +76,12 @@ export const INDUSTRIES: readonly Industry[] = [
         title: "Settle with travel partners",
         body: "Pay agents, hotels and suppliers in stablecoins, wherever they are.",
       },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Travellers pay in their own currency",
+        body: "Guests pay by local bank transfer or e-wallet at the locked rate. You receive a stablecoin.",
+      },
     ],
   },
   {
@@ -78,6 +99,12 @@ export const INDUSTRIES: readonly Industry[] = [
         label: PAYOUTS_LABEL,
         title: "Pay players and creators",
         body: "Reward players, creators and marketplace sellers in one batch.",
+      },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Top up with an e-wallet",
+        body: "Players without crypto top up with a local e-wallet or QR payment. You settle in a stablecoin.",
       },
     ],
   },
@@ -97,6 +124,12 @@ export const INDUSTRIES: readonly Industry[] = [
         title: "Bill retainers every month",
         body: "Set a retainer once. Each cycle becomes an invoice the client pays in any supported asset.",
       },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Clients pay from their bank",
+        body: "Clients pay an invoice by bank transfer, with no crypto wallet needed. You settle in a stablecoin.",
+      },
     ],
   },
   {
@@ -114,6 +147,12 @@ export const INDUSTRIES: readonly Industry[] = [
         label: PAYOUTS_LABEL,
         title: "Pay your subcontractors",
         body: "Pay designers, developers and contractors across borders in stablecoins, all in one transaction.",
+      },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Clients pay without a wallet",
+        body: "Clients settle your invoice by bank transfer or e-wallet in their own currency. You receive a stablecoin.",
       },
     ],
   },
@@ -133,6 +172,12 @@ export const INDUSTRIES: readonly Industry[] = [
         title: "Process withdrawals in batches",
         body: "Send stablecoin withdrawals to up to 100 users in one transaction.",
       },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Fund with a bank transfer",
+        body: "Users fund their account in local currency by bank transfer or e-wallet. You receive stablecoins.",
+      },
     ],
   },
   {
@@ -150,6 +195,12 @@ export const INDUSTRIES: readonly Industry[] = [
         label: PAYOUTS_LABEL,
         title: "Split earnings with your team",
         body: "Pay editors, collaborators and affiliates in stablecoins, all in one transaction.",
+      },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Fans pay with local methods",
+        body: "Fans without crypto tip by bank transfer, e-wallet or QR from the same link. You settle in a stablecoin.",
       },
     ],
   },
@@ -169,6 +220,12 @@ export const INDUSTRIES: readonly Industry[] = [
         title: "Invoices and receipts",
         body: "Every payment comes with a numbered invoice and a receipt your finance team can file.",
       },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Customers pay without crypto",
+        body: "Customers pay each invoice by bank transfer or e-wallet. You settle in a stablecoin.",
+      },
     ],
   },
   {
@@ -186,6 +243,12 @@ export const INDUSTRIES: readonly Industry[] = [
         label: PAYOUTS_LABEL,
         title: "Distribute funds to users",
         body: "Send stablecoins to many user wallets in one transaction.",
+      },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Fund payments from local rails",
+        body: "Users pay from a bank transfer or e-wallet, and you settle in a stablecoin. No crypto wallet in the flow.",
       },
     ],
   },
@@ -205,6 +268,12 @@ export const INDUSTRIES: readonly Industry[] = [
         title: "One signature to pay",
         body: "An agent signs one authorization for an exact amount. It never registers, holds gas or sees an address.",
       },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Credits and plans in local methods",
+        body: "Customers buy credits or plans by bank transfer or e-wallet. You settle in a stablecoin.",
+      },
     ],
   },
   {
@@ -223,6 +292,12 @@ export const INDUSTRIES: readonly Industry[] = [
         title: "Add crypto to your shop",
         body: "Plug into your existing store. Signed webhooks confirm each order, so you never trust a redirect.",
       },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Local methods at the counter",
+        body: "Customers pay a counter QR from an e-wallet or banking app, no crypto wallet needed. You settle in a stablecoin.",
+      },
     ],
   },
   {
@@ -240,6 +315,12 @@ export const INDUSTRIES: readonly Industry[] = [
         label: PAYOUTS_LABEL,
         title: "Pay suppliers globally",
         body: "Pay suppliers and distributors across borders in one transaction.",
+      },
+      {
+        kind: "fiat",
+        label: FIAT_LABEL,
+        title: "Buyers pay by bank transfer",
+        body: "Buyers abroad pay in their own currency by bank transfer. You receive a stablecoin.",
       },
     ],
   },

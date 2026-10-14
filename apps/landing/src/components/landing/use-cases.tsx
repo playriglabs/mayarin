@@ -3,9 +3,10 @@ import clsx from "clsx";
 import { useRef, useState } from "preact/hooks";
 import { Reveal } from "../reveal.tsx";
 import { INDUSTRIES, type Solution, type SolutionKind } from "../use-case-content.tsx";
+import { PaymentMethodIcon } from "./payment-method-icon.tsx";
 
 /**
- * Industries as tabs, each showing its two solutions side by side. A WAI-ARIA
+ * Industries as tabs, each showing its three solutions side by side. A WAI-ARIA
  * tablist: one tab stop, arrow keys move between industries, Home and End jump
  * to the ends.
  */
@@ -88,19 +89,34 @@ export function UseCases() {
         id="use-case-panel"
         role="tabpanel"
         aria-labelledby={`use-case-tab-${industry.id}`}
-        class="mx-auto mt-10 grid max-w-240 gap-4 md:mt-12 md:grid-cols-2 md:gap-5"
+        class="mx-auto mt-10 grid max-w-300 gap-4 md:mt-12 md:grid-cols-2 md:gap-5 lg:grid-cols-3"
       >
-        {industry.solutions.map((solution) => (
-          <SolutionCard key={`${industry.id}-${solution.label}`} solution={solution} />
+        {industry.solutions.map((solution, index) => (
+          <SolutionCard
+            key={`${industry.id}-${solution.label}`}
+            solution={solution}
+            class={index === 2 ? "md:col-span-2 lg:col-span-1" : ""}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function SolutionCard({ solution }: { readonly solution: Solution }) {
+function SolutionCard({
+  solution,
+  class: className = "",
+}: {
+  readonly solution: Solution;
+  readonly class?: string;
+}) {
   return (
-    <article class="flex flex-col rounded-2xl border border-line bg-paper p-6 text-center md:p-8">
+    <article
+      class={clsx(
+        "flex flex-col rounded-2xl border border-line bg-paper p-6 text-center md:p-8",
+        className,
+      )}
+    >
       <p class="text-sm text-slate-600">{solution.label}</p>
       <h3 class="mx-auto mt-2 max-w-[18ch] text-[1.5rem] md:text-[1.75rem]">{solution.title}</h3>
       <div
@@ -130,6 +146,8 @@ function SolutionVisual({ kind }: { readonly kind: SolutionKind }) {
       return <ApiVisual />;
     case "counter":
       return <CounterVisual />;
+    case "fiat":
+      return <FiatVisual />;
   }
 }
 
@@ -163,6 +181,39 @@ function CheckoutVisual() {
           <TokenLogo asset={option.asset} class="ml-auto size-5" />
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Local methods a payer chooses from, all arriving as one stablecoin. */
+function FiatVisual() {
+  const methods = [
+    { name: "Bank transfer", kind: "bank" },
+    { name: "E-wallet", kind: "wallet" },
+    { name: "QR payment", kind: "qr" },
+  ] as const;
+  return (
+    <div class="flex w-full max-w-64 flex-col items-center gap-2 text-sm">
+      {methods.map((method, index) => (
+        <div
+          key={method.name}
+          class={clsx(
+            "flex w-full items-center gap-3 rounded-lg border bg-paper px-4 py-2.5 shadow-sm",
+            index === 0 ? "border-forest" : "border-line",
+          )}
+        >
+          <PaymentMethodIcon kind={method.kind} class="size-4 shrink-0 text-forest" />
+          {method.name}
+        </div>
+      ))}
+      <span class="h-4 border-l border-dashed border-forest/40" />
+      <div class="flex w-full items-center justify-center gap-2 rounded-lg bg-forest px-4 py-2.5 text-paper shadow-md">
+        <span class="flex -space-x-1.5">
+          <TokenLogo asset="USDC" class="size-5 ring-2 ring-forest" />
+          <TokenLogo asset="USDT" class="size-5 ring-2 ring-forest" />
+        </span>
+        Settled in stablecoin
+      </div>
     </div>
   );
 }
