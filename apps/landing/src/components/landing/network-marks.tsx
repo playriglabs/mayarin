@@ -2,14 +2,15 @@ import { chainLogoUrl } from "@mayarin/chain";
 import clsx from "clsx";
 
 /**
- * The networks a payment can arrive on. Solana, Base, Arbitrum, Arc and
- * Robinhood resolve through `chainLogoUrl`, the same function the hosted
+ * The networks a payment can arrive on. Solana, Base, Arbitrum and Arc
+ * resolve through `chainLogoUrl`, the same function the hosted
  * checkout renders from.
  *
- * Ethereum has no entry in `CHAIN_IDS`, so it carries a local mark — it is
- * named because the product says so, not because the chain registry does. The
- * mark is local rather than Trust Wallet's because theirs is a dark diamond on
- * a white disc, which vanishes into a light section.
+ * Ethereum and Polygon have no entry in `CHAIN_IDS`, so they carry local marks —
+ * they are named because the product says so, not because the chain registry
+ * does. Ethereum's is local rather than Trust Wallet's because theirs is a dark
+ * diamond on a white disc, which vanishes into a light section; Polygon's is the
+ * official mark as a plain vector path, white on its purple disc like the rest.
  */
 export const NETWORKS = [
   { name: "Ethereum", src: "/chains/ethereum.svg" },
@@ -17,7 +18,7 @@ export const NETWORKS = [
   { name: "Arc", src: chainLogoUrl("arc-testnet") },
   { name: "Base", src: chainLogoUrl("base") },
   { name: "Arbitrum", src: chainLogoUrl("arbitrum") },
-  { name: "Robinhood Chain", src: chainLogoUrl("robinhood-testnet") },
+  { name: "Polygon", src: "/chains/polygon.svg" },
 ] as const;
 
 export interface Mark {

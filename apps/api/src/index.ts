@@ -96,6 +96,32 @@ if (webhooks !== undefined && config.webhookIntervalMs > 0) {
   console.log(`[webhooks] dispatching every ${config.webhookIntervalMs}ms`);
 }
 
+// Sandbox demos only: finishes local-currency payments that no real transfer
+// will ever fund. Absent unless TRANSFI_SANDBOX_AUTO_SETTLE is on, and boot
+// refuses that against anything but TransFi's sandbox.
+const fiatSettler = container.fiatSettler;
+if (fiatSettler !== undefined) {
+  let settling = false;
+  setInterval(() => {
+    if (settling) return;
+    settling = true;
+    void fiatSettler
+      .tick()
+      .then((recorded) => {
+        if (recorded.length > 0) {
+          console.log(`[fiat-settler] recorded ${recorded.length} sandbox payment(s)`);
+        }
+      })
+      .catch((error) => {
+        console.error("[fiat-settler] tick failed", error);
+      })
+      .finally(() => {
+        settling = false;
+      });
+  }, 3_000);
+  console.log("[fiat-settler] SANDBOX auto-settling local-currency payments every 3000ms");
+}
+
 // "You got paid" emails, read off the clearing log on their own cursor. Same
 // guard as the dispatcher: a slow pass is skipped, never overlapped.
 const paidNotices = container.paidNotices;

@@ -48,6 +48,7 @@
         "@mayarin/provider-swap-lifi": "workspace:*",
         "@mayarin/provider-swap-uniswap": "workspace:*",
         "@mayarin/provider-swap-uniswap-v2": "workspace:*",
+        "@mayarin/provider-transfi": "workspace:*",
         "@mayarin/provider-turnkey": "workspace:*",
         "@mayarin/provider-x402-local": "workspace:*",
         "@mayarin/qr-parser": "workspace:*",
@@ -672,6 +673,14 @@
         "viem": "^2.21.0",
       },
     },
+    "packages/providers/transfi": {
+      "name": "@mayarin/provider-transfi",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/shared": "workspace:*",
+        "zod": "^3.24.1",
+      },
+    },
     "packages/providers/turnkey": {
       "name": "@mayarin/provider-turnkey",
       "version": "0.1.0",
@@ -705,7 +714,7 @@
     },
     "packages/react": {
       "name": "@mayarin/react",
-      "version": "0.1.0-next.0",
+      "version": "0.1.0-next.1",
       "dependencies": {
         "@mayarin/sdk": "workspace:*",
       },
@@ -722,7 +731,7 @@
     },
     "packages/sdk": {
       "name": "@mayarin/sdk",
-      "version": "0.1.0-next.0",
+      "version": "0.1.0-next.1",
       "dependencies": {
         "@mayarin/chain": "workspace:*",
         "@mayarin/qr-parser": "workspace:*",
@@ -1517,6 +1526,8 @@
     "@mayarin/provider-swap-uniswap": ["@mayarin/provider-swap-uniswap@workspace:packages/providers/swap-uniswap"],
 
     "@mayarin/provider-swap-uniswap-v2": ["@mayarin/provider-swap-uniswap-v2@workspace:packages/providers/swap-uniswap-v2"],
+
+    "@mayarin/provider-transfi": ["@mayarin/provider-transfi@workspace:packages/providers/transfi"],
 
     "@mayarin/provider-turnkey": ["@mayarin/provider-turnkey@workspace:packages/providers/turnkey"],
 

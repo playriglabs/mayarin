@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { BuyerProtection, protectionApplies, railBody } from "../../shared/buyer-protection.tsx";
+import { rememberLocalCurrencyIntent } from "../../shared/local-currency-intent.ts";
+import {
+  LocalCurrencyPanel,
+  type PaymentMethod,
+  PaymentMethodTabs,
+  useLocalCurrencyRail,
+} from "../../shared/local-currency-option.tsx";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import type { Rail } from "../../shared/types.ts";
 import {
   errorText,
   estimateRow,
@@ -43,8 +51,11 @@ export function ChooseRail({
   const estimate = useQuoteEstimate(bootstrap.amount.formatted, bootstrap.amount.asset, rail);
   const quoteReady = canContinueWithQuote(estimate);
 
-  async function pay() {
-    if (rail === undefined || !quoteReady || busy || needsWallet) return;
+  const localRail = useLocalCurrencyRail(rails, protection, { paymentId: bootstrap.intentId });
+  const [method, setMethod] = useState<PaymentMethod>("crypto");
+
+  async function confirm(target: Rail, localCurrency: boolean) {
+    if (busy) return;
     setBusy(true);
     setError("");
 
@@ -55,7 +66,7 @@ export function ChooseRail({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          payment: railBody(rail, protection, payerAddress),
+          payment: railBody(target, protection, localCurrency ? null : payerAddress),
           executionPath: "deposit-match",
         }),
       });
@@ -71,11 +82,17 @@ export function ChooseRail({
         return;
       }
 
+      if (localCurrency) rememberLocalCurrencyIntent(bootstrap.intentId);
       location.reload();
     } catch {
       setError("Network error. Please try again.");
       setBusy(false);
     }
+  }
+
+  function pay() {
+    if (rail === undefined || !quoteReady || needsWallet) return;
+    void confirm(rail, false);
   }
 
   return (
@@ -96,49 +113,68 @@ export function ChooseRail({
         </div>
       ) : (
         <>
-          <RailPicker rails={rails} selected={rail} onSelect={setRail} />
-
-          <div className={estimateRow} aria-busy={estimate.status === "loading"} aria-live="polite">
-            <span>Estimated total in {rail.asset}</span>
-            <strong>{estimate.display}</strong>
-          </div>
-
-          {estimate.status === "unavailable" && (
-            <p className={errorText} role="alert">
-              {estimate.message}
-            </p>
+          {localRail !== undefined && (
+            <PaymentMethodTabs value={method} onChange={setMethod} disabled={busy} />
           )}
+          {method === "local" && localRail !== undefined ? (
+            <LocalCurrencyPanel
+              busy={busy}
+              error={error}
+              lockMinutes={lockMinutes}
+              rail={localRail}
+              onContinue={() => void confirm(localRail, true)}
+            />
+          ) : (
+            <>
+              <RailPicker rails={rails} selected={rail} onSelect={setRail} />
 
-          <BuyerProtection
-            protection={protection}
-            rail={rail}
-            payerAddress={payerAddress}
-            onPayerAddress={setPayerAddress}
-          />
-          <button
-            type="button"
-            className={`${primaryButton} mt-6`}
-            disabled={busy || !quoteReady || needsWallet}
-            onClick={() => void pay()}
-          >
-            {busy
-              ? "Preparing payment…"
-              : estimate.status === "unavailable"
-                ? "Payment unavailable"
-                : estimate.status === "loading"
-                  ? "Calculating price…"
-                  : `Continue with ${rail.asset}`}
-          </button>
-          {error !== "" && (
-            <p className={errorText} role="alert">
-              {error}
-            </p>
+              <div
+                className={estimateRow}
+                aria-busy={estimate.status === "loading"}
+                aria-live="polite"
+              >
+                <span>Estimated total in {rail.asset}</span>
+                <strong>{estimate.display}</strong>
+              </div>
+
+              {estimate.status === "unavailable" && (
+                <p className={errorText} role="alert">
+                  {estimate.message}
+                </p>
+              )}
+
+              <BuyerProtection
+                protection={protection}
+                rail={rail}
+                payerAddress={payerAddress}
+                onPayerAddress={setPayerAddress}
+              />
+              <button
+                type="button"
+                className={`${primaryButton} mt-6`}
+                disabled={busy || !quoteReady || needsWallet}
+                onClick={pay}
+              >
+                {busy
+                  ? "Preparing payment…"
+                  : estimate.status === "unavailable"
+                    ? "Payment unavailable"
+                    : estimate.status === "loading"
+                      ? "Calculating price…"
+                      : `Continue with ${rail.asset}`}
+              </button>
+              {error !== "" && (
+                <p className={errorText} role="alert">
+                  {error}
+                </p>
+              )}
+              <p className={`${noteText} text-center`}>
+                The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
+                <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address
+                shown there.
+              </p>
+            </>
           )}
-          <p className={`${noteText} text-center`}>
-            The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
-            <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address
-            shown there.
-          </p>
         </>
       )}
     </>

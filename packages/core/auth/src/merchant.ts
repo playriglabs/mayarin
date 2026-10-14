@@ -11,7 +11,7 @@
  * core (`packages/db`).
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, isChainId } from "@mayarin/chain";
 import { type AssetCode, getAsset, ValidationError } from "@mayarin/shared";
 import type { User } from "./types.ts";
 
@@ -24,6 +24,15 @@ export type SettlementAssetByChain = Readonly<Partial<Record<ChainId, AssetCode>
 export interface Merchant {
   readonly id: string;
   readonly name: string;
+  /**
+   * The chain a payment funded in a local currency is delivered to.
+   *
+   * A payer who pays a rupiah QR does not choose a network, and should not be
+   * asked: the stablecoin TransFi delivers lands on one chain, and that is the
+   * merchant's decision. Absent means "the deployment's rule" — the merchant's
+   * own settlement asset first, then the cheapest chain the provider supports.
+   */
+  readonly localCurrencyChain?: ChainId;
   /**
    * The single asset this merchant is paid in. A merchant prices in their local
    * currency and never handles anything else — whatever the payer sends is
@@ -172,6 +181,7 @@ export const MERCHANT_SETTING_FIELDS = [
   "city",
   "countryCode",
   "logoUrl",
+  "localCurrencyChain",
 ] as const;
 
 export type MerchantSettingField = (typeof MERCHANT_SETTING_FIELDS)[number];
@@ -209,6 +219,8 @@ export interface MerchantSettingsPatch {
   readonly countryCode?: string | null;
   /** `null` removes the logo; absent leaves it alone. */
   readonly logoUrl?: string | null;
+  /** `null` goes back to the deployment's rule; absent leaves it alone. */
+  readonly localCurrencyChain?: ChainId | null;
 }
 
 /**
@@ -258,6 +270,12 @@ export function updateMerchantSettings(
   const city = patchOptional(patch.city, merchant.city, normaliseCity);
   const countryCode = patchOptional(patch.countryCode, merchant.countryCode, normaliseCountryCode);
   const logoUrl = patchOptional(patch.logoUrl, merchant.logoUrl, (value) => value);
+  const localCurrencyChain =
+    patch.localCurrencyChain === undefined
+      ? merchant.localCurrencyChain
+      : patch.localCurrencyChain === null
+        ? undefined
+        : assertChain(patch.localCurrencyChain);
 
   // Destructured away rather than spread over: `...merchant` would carry the
   // existing values through, so clearing one would silently leave it in place.
@@ -267,6 +285,7 @@ export function updateMerchantSettings(
     city: _city,
     countryCode: _country,
     logoUrl: _logo,
+    localCurrencyChain: _localChain,
     ...rest
   } = merchant;
 
@@ -281,9 +300,17 @@ export function updateMerchantSettings(
     ...(city === undefined ? {} : { city }),
     ...(countryCode === undefined ? {} : { countryCode }),
     ...(logoUrl === undefined ? {} : { logoUrl }),
+    ...(localCurrencyChain === undefined ? {} : { localCurrencyChain }),
     updatedAt: new Date(now),
     version: merchant.version + 1,
   };
+}
+
+function assertChain(value: string): ChainId {
+  if (!isChainId(value)) {
+    throw new ValidationError(`"${value}" is not a chain this platform knows`, { chain: value });
+  }
+  return value;
 }
 
 /** Absent leaves the current value, `null` clears it, a value is normalised. */
@@ -348,7 +375,13 @@ export function diffMerchantSettings(
     });
   }
 
-  for (const field of ["settlementAddress", "city", "countryCode", "logoUrl"] as const) {
+  for (const field of [
+    "settlementAddress",
+    "city",
+    "countryCode",
+    "logoUrl",
+    "localCurrencyChain",
+  ] as const) {
     if (before[field] === after[field]) continue;
     changes.push({
       field,

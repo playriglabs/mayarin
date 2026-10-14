@@ -56,6 +56,7 @@ import {
   DrizzleMerchantRepository,
   DrizzleMerchantSettingChangeRepository,
   DrizzleMerchantWalletRepository,
+  DrizzlePaymentFundingRepository,
   DrizzlePaymentIntentRepository,
   DrizzlePaymentLinkRepository,
   DrizzlePayoutBatchRepository,
@@ -69,6 +70,7 @@ import {
   DrizzleWebhookDeliveryRepository,
   DrizzleWebhookEndpointRepository,
   DrizzleX402ResourceRepository,
+  type PaymentFundingRepository,
 } from "@mayarin/db";
 import { type InvoiceRepository, InvoiceService } from "@mayarin/invoicing";
 import type { LedgerRepository } from "@mayarin/ledger";
@@ -165,6 +167,8 @@ export interface Container {
   readonly sessions: SessionService;
   readonly users: UserService;
   readonly payments: PaymentReadService;
+  /** How each payment was funded when its payer's own wallet did not. Read-only. */
+  readonly paymentFundings: Pick<PaymentFundingRepository, "listByPayment" | "latestByPayments">;
   readonly compliance: ComplianceService;
   /** Merchant settlement configuration (#95), scoped to the caller's merchant. */
   readonly settings: MerchantSettingsService;
@@ -251,6 +255,7 @@ export interface CreateContainerOptions {
   readonly merchantAccountRepository?: MerchantAccountRepository;
   readonly sessionRepository?: SessionRepository;
   readonly paymentIntents?: PaymentIntentRepository;
+  readonly paymentFundings?: Pick<PaymentFundingRepository, "listByPayment" | "latestByPayments">;
   readonly clearing?: ClearingReadRepository;
   readonly hasher?: PasswordHasher;
   // The compliance stack. `complianceClearing` is separate from `clearing`
@@ -636,6 +641,9 @@ export function createContainer(options: CreateContainerOptions): Container {
     sessions: sessionService,
     users: userService,
     payments,
+    paymentFundings:
+      options.paymentFundings ??
+      new DrizzlePaymentFundingRepository(handle?.db ?? throwIfNoHandle()),
     compliance,
     settings,
     logos: options.logoStorage ?? logoStorageFor(config),

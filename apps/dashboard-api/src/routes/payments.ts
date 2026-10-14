@@ -57,7 +57,29 @@ export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars 
       ...(query.to === undefined ? {} : { to: query.to }),
       ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
     });
-    return c.json({ payments: page.items.map(toPaymentIntentDto), nextCursor: page.nextCursor });
+    // One query for the page, not one per row: a payment funded in a local
+    // currency is shown by that rail, not by the chain it settles on.
+    const fundings = await container.paymentFundings.latestByPayments(
+      page.items.map((intent) => intent.id),
+    );
+    return c.json({
+      payments: page.items.map((intent) => {
+        const funding = fundings.get(intent.id);
+        return {
+          ...toPaymentIntentDto(intent),
+          funding:
+            funding === undefined
+              ? null
+              : {
+                  kind: funding.kind,
+                  paymentName: funding.paymentName,
+                  paymentLogoUrl: funding.paymentLogoUrl,
+                  fiatCurrency: funding.fiatCurrency,
+                },
+        };
+      }),
+      nextCursor: page.nextCursor,
+    });
   });
 
   /**
@@ -144,6 +166,42 @@ export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars 
         deposit?.uri == null
           ? null
           : `${container.config.checkoutBaseUrl}/checkout/qr?value=${encodeURIComponent(deposit.uri)}`,
+    });
+  });
+
+  /**
+   * How the payment was funded, when it was not by the payer's own wallet.
+   *
+   * `null` for an ordinary crypto payment. A payment paid in a local currency
+   * carries the provider's order — the method, what the payer was asked to pay,
+   * and where TransFi has it — so the merchant is shown "paid with QRIS" rather
+   * than a crypto address nobody paid to.
+   *
+   * Scoped through the same read service as the detail.
+   */
+  app.get("/:id/funding", async (c) => {
+    const scope = c.get("scope");
+    if (scope === undefined) throw new UnauthorizedError("Authentication required");
+    const { intent } = await container.payments.get(scope, c.req.param("id"));
+    const [latest] = await container.paymentFundings.listByPayment(intent.id);
+
+    return c.json({
+      funding:
+        latest === undefined
+          ? null
+          : {
+              kind: latest.kind,
+              provider: latest.provider,
+              orderId: latest.orderId,
+              paymentCode: latest.paymentCode,
+              paymentName: latest.paymentName,
+              paymentLogoUrl: latest.paymentLogoUrl,
+              fiatCurrency: latest.fiatCurrency,
+              fiatAmount: latest.fiatAmount,
+              status: latest.status,
+              settledAt: latest.settledAt?.toISOString() ?? null,
+              createdAt: latest.createdAt.toISOString(),
+            },
     });
   });
 

@@ -1,11 +1,11 @@
-import { RailMark } from "./rail-mark.tsx";
+import { PaymentMethodIcon } from "./payment-method-icon.tsx";
 import { Check } from "./ui.tsx";
 
-const RAILS = [
-  { asset: "EURC", chain: "base", label: "Base" },
-  { asset: "USDG", chain: "arbitrum", label: "Arbitrum" },
-  { asset: "ETH", chain: "base", label: "Base" },
-  { asset: "PYUSD", chain: "ethereum", label: "Ethereum" },
+const LOCAL_METHODS = [
+  { name: "Bank transfer", kind: "bank" },
+  { name: "E-wallet", kind: "wallet" },
+  { name: "QR payment", kind: "qr" },
+  { name: "Online banking", kind: "online" },
 ] as const;
 
 const BENEFITS = [
@@ -17,7 +17,7 @@ const BENEFITS = [
   {
     title: "More ways to fund a payment.",
     description:
-      "Let customers choose from supported assets and networks at checkout. One payment link brings those options together.",
+      "Let customers pay with local methods like bank transfer and e-wallets, or with supported crypto assets and networks. One payment link brings those options together.",
   },
   {
     title: "Stablecoin settlement, in your wallet.",
@@ -52,28 +52,25 @@ export function PaymentReach() {
               <span class="text-sm font-semibold">Mayarin checkout</span>
             </div>
             <p class="mt-7 text-xs text-slate-600">Order total</p>
-            <p class="mt-2 font-heading text-3xl font-medium tracking-tight">50 $S</p>
-            <div class="mt-5 flex items-center justify-between rounded-lg border border-line px-4 py-3 text-sm">
-              <span class="text-slate-600">Pricing currency</span>
-              <span class="font-medium">SGD</span>
+            <p class="mt-2 font-heading text-3xl font-medium tracking-tight">S$ 50.00</p>
+            <div class="mt-5 grid grid-cols-2 gap-2 rounded-lg bg-v2-mist p-1 text-center text-xs font-medium">
+              <span class="rounded-md py-2 text-slate-600">Crypto</span>
+              <span class="rounded-md bg-paper py-2 shadow-sm">Local currency</span>
             </div>
             <p class="mb-3 mt-6 text-xs text-slate-600">Choose how to pay</p>
             <div class="grid grid-cols-2 gap-3">
-              {RAILS.map((rail, index) => (
+              {LOCAL_METHODS.map((method, index) => (
                 <div
-                  key={`${rail.asset}-${rail.chain}`}
-                  class={`flex items-center gap-3 rounded-lg border p-3 ${index === 0 ? "border-forest bg-v2-mist" : "border-line"}`}
+                  key={method.name}
+                  class={`flex items-center gap-2.5 rounded-lg border px-3 py-4 ${index === 0 ? "border-forest bg-v2-mist" : "border-line"}`}
                 >
-                  <RailMark asset={rail.asset} chain={rail.chain} size={28} />
-                  <div>
-                    <p class="text-xs font-semibold">{rail.asset}</p>
-                    <p class="mt-px text-[11px] text-slate-600">{rail.label}</p>
-                  </div>
+                  <PaymentMethodIcon kind={method.kind} class="size-5 shrink-0 text-forest" />
+                  <p class="text-xs font-semibold">{method.name}</p>
                 </div>
               ))}
             </div>
             <div class="mt-6 rounded-lg bg-forest px-4 py-3 text-center text-sm font-medium text-paper">
-              Pay with EURC
+              Pay with bank transfer
             </div>
           </div>
 
@@ -87,7 +84,7 @@ export function PaymentReach() {
             </p>
             <dl class="mt-6 space-y-4 text-sm">
               {[
-                ["Customer paid", "EURC on Base"],
+                ["Customer paid", "Bank transfer"],
                 ["You receive", "USDC"],
                 ["Destination", "Your wallet"],
                 ["Payment status", "Settled"],

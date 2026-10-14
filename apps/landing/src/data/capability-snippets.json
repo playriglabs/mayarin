@@ -4,7 +4,7 @@
     "tab": "Accept",
     "filename": "accept-payment.ts",
     "lang": "typescript",
-    "code": "import { createMayarin } from \"@mayarin/sdk\";\n\nconst secretKey = process.env.MAYARIN_SECRET_KEY;\nif (!secretKey) throw new Error(\"MAYARIN_SECRET_KEY is required\");\n\nconst mayarin = createMayarin({\n  baseUrl: \"https://api.mayarin.xyz\",\n  secretKey,\n});\n\n// Priced in the currency the business already uses. Amounts are\n// human-readable decimal strings — never a float.\nconst link = await mayarin.commerce.paymentLinks.create({\n  kind: \"fixed\",\n  merchant: {\n    id: \"M-1\",\n    name: \"Studio Supply\",\n    city: \"Jakarta\",\n    countryCode: \"ID\",\n  },\n  amount: { amount: \"1500000.00\", asset: \"IDR\" },\n  title: \"Brand design package\",\n  merchantReference: \"inv-2026-014\",\n});\n\n// Share it. Nothing about a chain has been decided yet.\nconsole.log(link.url);\n"
+    "code": "import { createMayarin } from \"@mayarin/sdk\";\n\nconst secretKey = process.env.MAYARIN_SECRET_KEY;\nif (!secretKey) throw new Error(\"MAYARIN_SECRET_KEY is required\");\n\nconst mayarin = createMayarin({\n  baseUrl: \"https://api.mayarin.xyz\",\n  secretKey,\n});\n\n// Priced in the currency the business already uses. Amounts are\n// human-readable decimal strings — never a float.\nconst link = await mayarin.commerce.paymentLinks.create({\n  kind: \"fixed\",\n  merchant: {\n    id: \"M-1\",\n    name: \"Studio Supply\",\n    city: \"Singapore\",\n    countryCode: \"SG\",\n  },\n  amount: { amount: \"75.00\", asset: \"SGD\" },\n  title: \"Brand design package\",\n  merchantReference: \"inv-2026-014\",\n});\n\n// Share it. Nothing about a chain has been decided yet.\nconsole.log(link.url);\n"
   },
   {
     "id": "route",

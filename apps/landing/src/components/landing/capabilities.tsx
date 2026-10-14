@@ -12,8 +12,9 @@ const CAPABILITIES = [
   {
     id: "accept",
     title: "Accept money",
-    description: "Take a payment at your own prices, in the currency your business already uses.",
-    chips: ["Hosted checkout", "Payment links", "Invoices", "Products & carts"],
+    description:
+      "Take a payment at your own prices, in the currency your business already uses, paid in local methods or crypto.",
+    chips: ["Hosted checkout", "Payment links", "Invoices", "Local payment rails"],
   },
   {
     id: "route",

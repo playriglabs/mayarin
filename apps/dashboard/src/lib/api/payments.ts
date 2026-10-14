@@ -13,6 +13,7 @@ import type {
   DisputeMessageDto,
   EscrowRefundResponse,
   EscrowResponse,
+  FundingResponse,
   PaymentDetailResponse,
   PaymentListFilter,
   PaymentListResponse,
@@ -33,6 +34,10 @@ export const paymentsApi = {
   /** GET `/payments/:id/deposit` — what the payer must send, for the QR. */
   deposit: (id: string): Effect.Effect<DepositResponse, ApiError> =>
     request<DepositResponse>(`/payments/${encodeURIComponent(id)}/deposit`),
+
+  /** GET `/payments/:id/funding` — a local-currency order behind the payment, if any. */
+  funding: (id: string): Effect.Effect<FundingResponse, ApiError> =>
+    request<FundingResponse>(`/payments/${encodeURIComponent(id)}/funding`),
 
   /**
    * POST `/payments/:id/retry` — reopen a payment that failed after the payer's

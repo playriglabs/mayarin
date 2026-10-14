@@ -138,7 +138,7 @@ function CheckoutVisual() {
   const options = [
     { asset: "ETH", selected: false },
     { asset: "EURC", selected: false },
-    { asset: "USDG", selected: true },
+    { asset: "USDC", selected: true },
   ];
   return (
     <div class="relative w-full max-w-64 text-left text-sm">
@@ -245,7 +245,7 @@ function FlagSingapore() {
 }
 
 /** The stablecoins a payout can go out in. */
-const PAYOUT_ASSETS = ["USDC", "USDG", "PYUSD"] as const;
+const PAYOUT_ASSETS = ["USDC", "USDT", "PYUSD"] as const;
 
 /** One stablecoin payout reaching recipients wherever they are. */
 function PayoutsVisual() {
@@ -353,7 +353,7 @@ function ApiVisual() {
   return (
     <pre class="w-full max-w-64 overflow-hidden rounded-lg bg-code-panel p-4 text-left font-mono text-[11px] leading-relaxed text-white/70">
       <span class="text-accent">HTTP/1.1 402</span> Payment Required{"\n"}
-      amount: <span class="text-white">0.01 USDG</span>
+      amount: <span class="text-white">0.01 USDC</span>
       {"\n"}
       {"\n"}
       <span class="text-accent">HTTP/1.1 200</span> OK

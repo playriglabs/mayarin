@@ -19,6 +19,7 @@ import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
   DepositResponse,
   EscrowResponse,
+  FundingResponse,
   PaymentDetailResponse,
   PaymentIntentStatus,
   PaymentListFilter,
@@ -99,6 +100,22 @@ export function useDeposit(id: string | undefined, active = true) {
       if (deposit === null) return false;
       return BigInt(deposit.received.amount) < BigInt(deposit.amount.amount) ? POLL_MS : false;
     },
+  });
+}
+
+/**
+ * GET `/payments/:id/funding` — the local-currency order behind a payment.
+ *
+ * Polled while the payment is live, because the order's status moves on
+ * TransFi's side (opened, paid, delivered) while the payment itself is still
+ * waiting on the chain. Read once for a terminal payment.
+ */
+export function useFunding(id: string | undefined, active = true) {
+  return useEffectQuery<FundingResponse, ApiError>({
+    queryKey: ["payments", "funding", id ?? null],
+    query: () => paymentsApi.funding(id ?? ""),
+    enabled: id !== undefined,
+    refetchInterval: () => (active ? POLL_MS : false),
   });
 }
 

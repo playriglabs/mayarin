@@ -822,3 +822,49 @@ describe("treasury execution configuration", () => {
     ).toThrow(/quote layer/);
   });
 });
+
+describe("TransFi sandbox auto-settle", () => {
+  const transfi = {
+    TRANSFI_MID: "MID",
+    TRANSFI_USERNAME: "user",
+    TRANSFI_PASSWORD: "pass",
+  } as const;
+
+  test("is off unless asked for", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...transfi,
+      TRANSFI_BASE_URL: "https://api.transfi.com",
+    });
+
+    expect(config.transfiSandboxAutoSettle).toBe(false);
+  });
+
+  test("runs against the sandbox", () => {
+    const config = loadConfig({
+      ...BASE,
+      ...transfi,
+      TRANSFI_BASE_URL: "https://sandbox-api.transfi.com",
+      TRANSFI_SANDBOX_AUTO_SETTLE: "true",
+    });
+
+    expect(config.transfiSandboxAutoSettle).toBe(true);
+  });
+
+  test("refuses production — it is a claim that value arrived, made without evidence", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        ...transfi,
+        TRANSFI_BASE_URL: "https://api.transfi.com",
+        TRANSFI_SANDBOX_AUTO_SETTLE: "true",
+      }),
+    ).toThrow(/only allowed with TRANSFI_BASE_URL pointing at TransFi's sandbox/);
+  });
+
+  test("refuses to be on with TransFi not configured at all", () => {
+    expect(() => loadConfig({ ...BASE, TRANSFI_SANDBOX_AUTO_SETTLE: "true" })).toThrow(
+      /only allowed with/,
+    );
+  });
+});

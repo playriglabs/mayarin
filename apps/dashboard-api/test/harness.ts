@@ -505,6 +505,14 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     users: userService,
     logos,
     payments,
+    paymentFundings: {
+      async listByPayment() {
+        return [];
+      },
+      async latestByPayments() {
+        return new Map();
+      },
+    },
     compliance,
     settings,
     catalog,
