@@ -1010,6 +1010,7 @@ export function createContainer({
       tokens: tokensOf(config.stablecoins),
       nativeAssets: config.chainNativeAssets,
       logRange: chain.logRange,
+      logRanges: chain.logRanges,
     });
     const cursors = new DrizzleWatcherCursorRepository(handle.db);
     const chainClients = new Map<ChainId, ChainClient>();
@@ -1047,6 +1048,7 @@ export function createContainer({
           tokenBalanceCatchUp: chain.tokenBalanceCatchUp,
           retentionSeconds: chain.retentionSeconds,
           startBlocks: chain.startBlocks,
+          maxStartBacklogBlocks: chain.maxStartBacklogBlocks,
           // Which asset on this chain is the chain's own. Native balance
           // reconciliation is always on; token catch-up is an explicit option.
           nativeAssets: config.chainNativeAssets,
