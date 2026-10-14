@@ -1,3 +1,4 @@
+import { assetLogoUrl } from "@mayarin/shared";
 import { PaymentMethodIcon } from "./payment-method-icon.tsx";
 import { Check } from "./ui.tsx";
 
@@ -52,7 +53,7 @@ export function PaymentReach() {
               <span class="text-sm font-semibold">Mayarin checkout</span>
             </div>
             <p class="mt-7 text-xs text-slate-600">Order total</p>
-            <p class="mt-2 font-heading text-3xl font-medium tracking-tight">S$ 50.00</p>
+            <p class="mt-2 font-heading text-3xl font-medium tracking-tight">RM 50.00</p>
             <div class="mt-5 grid grid-cols-2 gap-2 rounded-lg bg-v2-mist p-1 text-center text-xs font-medium">
               <span class="rounded-md py-2 text-slate-600">Crypto</span>
               <span class="rounded-md bg-paper py-2 shadow-sm">Local currency</span>
@@ -94,7 +95,20 @@ export function PaymentReach() {
                   class="flex justify-between gap-4 border-b border-line pb-4 last:border-0 last:pb-0"
                 >
                   <dt class="text-slate-600">{label}</dt>
-                  <dd class="font-medium">{value}</dd>
+                  <dd class="flex items-center gap-2 font-medium">
+                    {value === "USDC" && (
+                      <img
+                        src={assetLogoUrl("USDC")}
+                        alt=""
+                        width={20}
+                        height={20}
+                        loading="lazy"
+                        decoding="async"
+                        class="size-5 shrink-0 rounded-full"
+                      />
+                    )}
+                    {value}
+                  </dd>
                 </div>
               ))}
             </dl>
