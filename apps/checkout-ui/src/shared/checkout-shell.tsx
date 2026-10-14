@@ -38,13 +38,9 @@ export function CheckoutShell({
         {summary}
         <section
           aria-label={label}
-          className="flex justify-center bg-panel px-5 py-10 sm:px-8 lg:justify-start lg:px-14 lg:py-16 xl:px-24 print:hidden"
+          className="flex justify-center bg-panel px-5 py-10 sm:px-8 lg:justify-start lg:px-14 lg:py-12 xl:px-24 print:hidden"
         >
-          <div className="flex w-full max-w-md flex-col">
-            {children}
-            <div className="min-h-12 flex-1" />
-            <PoweredBy />
-          </div>
+          <div className="flex w-full max-w-md flex-col">{children}</div>
         </section>
       </main>
     </div>
@@ -62,9 +58,15 @@ export function SummaryColumn({
   return (
     <aside
       aria-label={label}
-      className="flex justify-center border-b border-line bg-page px-5 py-8 sm:px-8 lg:justify-end lg:border-b-0 lg:px-14 lg:py-16 xl:px-24 print:block print:border-0 print:bg-white print:p-0"
+      className="flex justify-center border-b border-line bg-page px-5 py-8 sm:px-8 lg:justify-end lg:border-b-0 lg:px-14 lg:py-12 xl:px-24 print:block print:border-0 print:bg-white print:p-0"
     >
-      <div className="w-full max-w-md print:max-w-none">{children}</div>
+      <div className="w-full max-w-md print:max-w-none">
+        {/* First thing in the column, above the merchant, on the same left edge. */}
+        <div className="mb-8 print:hidden">
+          <PoweredBy align="start" />
+        </div>
+        {children}
+      </div>
     </aside>
   );
 }

@@ -43,8 +43,21 @@ export function CheckoutSummary({
   /** Page-specific content under the order, e.g. the payment's progress. */
   readonly children?: ReactNode;
 }) {
-  const shown = lines?.slice(0, VISIBLE_LINES) ?? [];
-  const hidden = (lines?.length ?? 0) - shown.length;
+  // A checkout that is not a product — a payment link for an amount, a counter
+  // payment — still arrives with one synthesised line: the title, once, at the
+  // total. Under the heading and the big figure that says everything twice, so
+  // it is dropped, and the Total row with it. A real product has an image or a
+  // description, or more than one line, and is shown.
+  const restatesHeading =
+    lines?.length === 1 &&
+    lines[0]?.quantity === 1 &&
+    lines[0]?.name === title &&
+    lines[0]?.imageUrl === null &&
+    lines[0]?.description === null &&
+    lines[0]?.lineTotal.display === totalDisplay;
+  const visible = restatesHeading ? null : lines;
+  const shown = visible?.slice(0, VISIBLE_LINES) ?? [];
+  const hidden = (visible?.length ?? 0) - shown.length;
   const rows = breakdown ?? [{ label: "Total", value: totalDisplay }];
 
   return (
