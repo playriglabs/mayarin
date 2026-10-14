@@ -45,7 +45,7 @@ export function Why() {
           height under its title, so the row lines up across. */}
       <div
         ref={row}
-        class="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        class="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth scrollbar-none [&::-webkit-scrollbar]:hidden"
       >
         <WhyCard
           icon={<WalletIcon />}
