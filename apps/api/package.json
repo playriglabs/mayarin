@@ -33,6 +33,7 @@
     "@mayarin/provider-pyth": "workspace:*",
     "@mayarin/provider-solana": "workspace:*",
     "@mayarin/provider-stablecoin": "workspace:*",
+    "@mayarin/provider-transfi": "workspace:*",
     "@mayarin/provider-swap-0x": "workspace:*",
     "@mayarin/provider-swap-lifi": "workspace:*",
     "@mayarin/provider-swap-uniswap": "workspace:*",
