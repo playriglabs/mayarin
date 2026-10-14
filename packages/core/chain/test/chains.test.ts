@@ -26,6 +26,7 @@ describe("chain facts", () => {
     expect(isChainId("ethereum-sepolia")).toBe(true);
     expect(isChainId("arbitrum-sepolia")).toBe(true);
     expect(isChainId("arc-testnet")).toBe(true);
+    expect(isChainId("polygon-amoy")).toBe(true);
     expect(isChainId("solana-devnet")).toBe(true);
     expect(isChainId("solana-localnet")).toBe(true);
     expect(isChainId("ethereum")).toBe(false);
@@ -51,6 +52,9 @@ describe("chain facts", () => {
     // A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet.
     expect(chainLogoUrl("arbitrum-sepolia")).toBe(chainLogoUrl("arbitrum"));
     expect(chainLogoUrl("arc-testnet", "/arc.svg")).toBe("/arc.svg");
+    expect(chainLogoUrl("polygon-amoy")).toBe(
+      "https://assets-cdn.trustwallet.com/blockchains/polygon/info/logo.png",
+    );
     expect(chainLogoUrl("solana-devnet")).toBe(
       "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
     );
@@ -81,6 +85,7 @@ describe("CAIP-2", () => {
     expect(caip2Of("ethereum-sepolia")).toBe("eip155:11155111");
     expect(caip2Of("base-sepolia")).toBe("eip155:84532");
     expect(caip2Of("arc-testnet")).toBe("eip155:5042002");
+    expect(caip2Of("polygon-amoy")).toBe("eip155:80002");
     expect(caip2Of("solana-devnet")).toBe("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
     expect(caip2Of("solana-localnet")).toBe("solana:localnet");
   });

@@ -13,7 +13,15 @@
 
 import { type ChainId, type EvmChainId, isEvmChainId } from "@mayarin/chain";
 import type { Chain } from "viem";
-import { arbitrum, arbitrumSepolia, arcTestnet, base, baseSepolia, sepolia } from "viem/chains";
+import {
+  arbitrum,
+  arbitrumSepolia,
+  arcTestnet,
+  base,
+  baseSepolia,
+  polygonAmoy,
+  sepolia,
+} from "viem/chains";
 
 // Typed as the generic `Chain` rather than a union of the concrete chains so
 // clients built from this map share one type: the op-stack chains specialise
@@ -27,6 +35,7 @@ export const VIEM_CHAINS: Readonly<Record<EvmChainId, Chain>> = {
   arbitrum,
   "arbitrum-sepolia": arbitrumSepolia,
   "arc-testnet": arcTestnet,
+  "polygon-amoy": polygonAmoy,
 };
 
 export function viemChainOf(chain: ChainId): Chain {

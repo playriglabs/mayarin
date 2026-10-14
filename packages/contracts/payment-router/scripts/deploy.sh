@@ -32,7 +32,7 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet> [--dry] [--factory-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy> [--dry] [--factory-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
@@ -74,6 +74,13 @@ case "$CHAIN" in
     # ArcScan is Blockscout, which verifies without an API key.
     VERIFIER=blockscout
     VERIFIER_URL="https://testnet.arcscan.app/api/"
+    ;;
+  polygon-amoy)
+    CHAIN_ID=80002
+    RPC_VAR=POLYGON_AMOY_RPC_URL
+    EXPLORER="https://amoy.polygonscan.com/address"
+    # Verified through ETHERSCAN_API_KEY, like the other Etherscan-family chains.
+    VERIFIER=etherscan
     ;;
   *)
     echo "unknown chain \"$CHAIN\" — add it to the table in $0"; exit 1 ;;
