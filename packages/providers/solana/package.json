@@ -27,7 +27,7 @@
     "@orca-so/whirlpools-sdk": "0.16.0",
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
-    "bn.js": "5.2.2",
+    "bn.js": "5.2.5",
     "decimal.js": "10.5.0"
   },
   "devDependencies": {
