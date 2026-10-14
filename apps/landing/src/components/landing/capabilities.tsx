@@ -20,7 +20,7 @@ const CAPABILITIES = [
     id: "route",
     title: "Route money",
     description: "The payer brings any supported asset. You never have to pick the pair.",
-    chips: ["Cross-asset quotes", "Oracle guard", "Uniswap venues", "Deposit addresses"],
+    chips: ["Cross-asset quotes", "Oracle guard", "Deposit addresses"],
   },
   {
     id: "settle",
