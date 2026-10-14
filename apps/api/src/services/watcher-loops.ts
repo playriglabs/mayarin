@@ -68,8 +68,9 @@ function nameOf(pair: WatchedPair): string {
 /**
  * Starts one completion-driven loop per `(chain, asset)` pair.
  *
- * Every pair runs immediately. A lagging pair schedules another pass after the
- * shorter catch-up delay; a synchronized pair sleeps for the normal interval.
+ * Every pair runs immediately. A pair more than one pass behind schedules
+ * another after the shorter catch-up delay; any other pair sleeps for the
+ * normal interval.
  * Scheduling only after `tick()` settles makes overlap impossible even when an
  * RPC pass takes longer than either delay.
  */
@@ -104,7 +105,10 @@ export function startWatcherLoops(options: WatcherLoopOptions): () => void {
         }
         lagging = materiallyBehind;
 
-        schedule(lag > 0n ? options.catchUpIntervalMs : options.intervalMs, run);
+        // Only a gap wider than one pass is worth hurrying. The watcher stops a
+        // block short of the head on purpose, so a lag of one is the steady
+        // state, and treating it as behind polled every pair once a second.
+        schedule(materiallyBehind ? options.catchUpIntervalMs : options.intervalMs, run);
       } catch (error) {
         logger.error(`[watcher] ${nameOf(pair)} tick failed: ${reasonOf(error)}`);
         schedule(options.intervalMs, run);

@@ -88,6 +88,25 @@ describe("watcher loops", () => {
     expect(timers.scheduled).toHaveLength(0);
   });
 
+  test("a pair one block behind the head keeps the normal interval", async () => {
+    const timers = fakeTimers();
+    const watcher = { tick: async () => result("USDC", 99n, 100n) };
+
+    const stop = startWatcherLoops({
+      pairs: [{ chain: CHAIN, asset: "USDC" }],
+      watchers: new Map([[CHAIN, watcher]]),
+      intervalMs: 60_000,
+      catchUpIntervalMs: 250,
+      rangeOf: () => 100,
+      timers: timers.port,
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    await flush();
+    expect(timers.scheduled.map((entry) => entry.delayMs)).toEqual([60_000]);
+    stop();
+  });
+
   test("starts every asset independently", async () => {
     const pairs: readonly WatchedPair[] = [
       { chain: CHAIN, asset: "USDC" },
