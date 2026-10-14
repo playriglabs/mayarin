@@ -15,6 +15,7 @@ import { useDeferredValue, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
+import { PaymentMethodMark } from "@/components/payment-method-mark";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { CursorPagination } from "@/components/ui/cursor-pagination";
@@ -285,7 +286,14 @@ function PaymentsExplorer() {
                       </TableCell>
                       <TableCell className="text-right">{p.amount.display}</TableCell>
                       <TableCell>
-                        {p.payment === null ? (
+                        {p.funding !== null ? (
+                          // Paid with a rupiah QR, not sent from a wallet: name the rail the
+                          // payer used rather than the chain the stablecoin lands on.
+                          <PaymentMethodMark
+                            name={p.funding.paymentName}
+                            logoUrl={p.funding.paymentLogoUrl}
+                          />
+                        ) : p.payment === null ? (
                           <span className="text-subtle-foreground text-xs">—</span>
                         ) : (
                           <ChainLabel chain={p.payment.chain} size={18} />

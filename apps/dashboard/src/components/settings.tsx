@@ -19,11 +19,13 @@
  */
 
 import { Tabs } from "@base-ui-components/react/tabs";
-import { isSolanaChainId } from "@mayarin/chain";
+import { chainLabel, isSolanaChainId } from "@mayarin/chain";
 import { BankIcon, MapPinIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
+import { ChainLabel } from "@/components/chain-logo";
+import { InfoHint } from "@/components/info-hint";
 import { MerchantProfile } from "@/components/merchant-profile";
 import { NetworkSettings, settlementOptionsOf } from "@/components/settings-networks";
 import { Alert } from "@/components/ui/alert";
@@ -58,6 +60,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  type SelectOption,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -118,6 +121,8 @@ interface Draft {
   readonly protectionBond: string;
   readonly city: string;
   readonly countryCode: string;
+  /** The chain a local-currency payment is delivered to; `""` is the deployment's rule. */
+  readonly localCurrencyChain: string;
 }
 
 const SETTINGS_TABS = ["settlement", "general", "history"] as const;
@@ -137,10 +142,14 @@ function draftOf(settings: SettingsDto): Draft {
     protectionBond: String((settings.buyerProtection?.bondBps ?? 0) / 100),
     city: settings.city ?? "",
     countryCode: settings.countryCode ?? "",
+    localCurrencyChain: settings.localCurrencyChain ?? "",
   };
 }
 
 const DAY = 86_400;
+
+/** The select's stand-in for "no chain chosen": the deployment's rule applies. */
+const AUTOMATIC = "automatic";
 
 /** Whole days between 1 and 90 — the bounds the API enforces. */
 function isValidHoldDays(value: string): boolean {
@@ -390,6 +399,16 @@ function Settings() {
     ),
   ];
   const settlementOptions = settlementOptionsOf(supportedChains, draft?.settlementAsset);
+  // The merchant's own networks, plus the rule. A chain the provider cannot
+  // deliver to is listed but greyed out and says so, rather than being offered as
+  // if it would work; the server also falls back past it, should one be saved.
+  const providerChains = rails.data?.localCurrencyChains ?? null;
+  const unsupportedForLocal = (chain: string) =>
+    providerChains !== null && !providerChains.includes(chain);
+  const localCurrencyOptions: readonly SelectOption[] = [
+    { value: AUTOMATIC, label: "Automatic" },
+    ...supportedChains.map((entry) => ({ value: entry.chain, label: chainLabel(entry.chain) })),
+  ];
   // Blocks the save rather than only colouring the field: the API probes every
   // chain for contract code before it validates, so a malformed address came
   // back as a provider fault instead of as the typo it is.
@@ -424,6 +443,7 @@ function Settings() {
           : null,
         city: orNull(draft.city),
         countryCode: orNull(draft.countryCode),
+        localCurrencyChain: orNull(draft.localCurrencyChain),
       });
       setNotice("Settings saved.");
     } catch (error) {
@@ -506,32 +526,110 @@ function Settings() {
 
                 <Tabs.Panel value="settlement" className="pt-6 focus-visible:outline-none">
                   <Card className="flex flex-col gap-4 p-4">
-                    <Field>
-                      <FieldLabel htmlFor="settlement-asset">Default settlement asset</FieldLabel>
-                      <Select
-                        items={settlementOptions}
-                        value={draft.settlementAsset}
-                        onValueChange={(next) => edit({ ...draft, settlementAsset: next })}
-                      >
-                        <SelectTrigger id="settlement-asset">
-                          <SelectValue
-                            placeholder="Select an asset"
-                            renderValue={(option) => <AssetLabel symbol={option.value} size={18} />}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {settlementOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <AssetLabel symbol={option.value} size={18} />
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldDescription>
-                        What you are paid in on every network without its own choice below. Whatever
-                        a payer sends is converted to it before it reaches you.
-                      </FieldDescription>
-                    </Field>
+                    {/* Two answers to "where does my money land", side by side. */}
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:[&>*]:min-w-0 sm:[&>*]:flex-1">
+                      <Field>
+                        <FieldLabel htmlFor="settlement-asset">Default settlement asset</FieldLabel>
+                        <Select
+                          items={settlementOptions}
+                          value={draft.settlementAsset}
+                          onValueChange={(next) => edit({ ...draft, settlementAsset: next })}
+                        >
+                          <SelectTrigger id="settlement-asset">
+                            <SelectValue
+                              placeholder="Select an asset"
+                              renderValue={(option) => (
+                                <AssetLabel symbol={option.value} size={18} />
+                              )}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {settlementOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <AssetLabel symbol={option.value} size={18} />
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>
+                          What you are paid in on every network without its own choice below.
+                          Whatever a payer sends is converted to it before it reaches you.
+                        </FieldDescription>
+                      </Field>
+                      {!rails.isPending &&
+                        !rails.isError &&
+                        supportedChains.length > 0 &&
+                        providerChains !== null && (
+                          <Field>
+                            <div className="flex items-center gap-1.5">
+                              <FieldLabel htmlFor="local-currency-chain">
+                                Local fiat currency payments are delivered to
+                              </FieldLabel>
+                              <InfoHint text="Automatic picks the network that needs no conversion into your settlement asset, then the cheapest one the provider supports. A network the provider cannot deliver to falls back to Automatic." />
+                            </div>
+                            <Select
+                              items={localCurrencyOptions}
+                              value={
+                                draft.localCurrencyChain === ""
+                                  ? AUTOMATIC
+                                  : draft.localCurrencyChain
+                              }
+                              onValueChange={(next) =>
+                                edit({
+                                  ...draft,
+                                  localCurrencyChain: next === AUTOMATIC ? "" : next,
+                                })
+                              }
+                            >
+                              <SelectTrigger id="local-currency-chain">
+                                <SelectValue
+                                  placeholder="Automatic"
+                                  renderValue={(option) =>
+                                    option.value === AUTOMATIC ? (
+                                      <span>Automatic</span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-2">
+                                        <ChainLabel chain={option.value} size={18} />
+                                        {unsupportedForLocal(option.value) && (
+                                          <span className="text-xs text-warning">
+                                            Not supported right now
+                                          </span>
+                                        )}
+                                      </span>
+                                    )
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {localCurrencyOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                    disabled={
+                                      option.value !== AUTOMATIC &&
+                                      unsupportedForLocal(option.value)
+                                    }
+                                  >
+                                    {option.value === AUTOMATIC ? (
+                                      <span>Automatic</span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-2">
+                                        <ChainLabel chain={option.value} size={18} />
+                                        {unsupportedForLocal(option.value) && (
+                                          <span className="text-xs">Not supported right now</span>
+                                        )}
+                                      </span>
+                                    )}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FieldDescription>
+                              The network GCash, QRIS and bank-transfer payments land on.
+                            </FieldDescription>
+                          </Field>
+                        )}
+                    </div>
 
                     {/* Per network and nowhere else. One merchant-wide list
                         stopped describing anything the moment there were two

@@ -23,6 +23,8 @@ import { ChainLabel } from "@/components/chain-logo";
 import { DepositQr } from "@/components/deposit-qr";
 import { DetailRow } from "@/components/detail-row";
 import { EscrowPanel } from "@/components/escrow-panel";
+import { FundingCard } from "@/components/funding-card";
+import { PaymentMethodMark } from "@/components/payment-method-mark";
 import PaymentTimeline from "@/components/payment-timeline";
 import { TransactionLink } from "@/components/transaction-link";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +33,7 @@ import { Card } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/page-loader";
 import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
-import { useDeposit, usePayment, useRetrySettlement } from "@/hooks/payments";
+import { useDeposit, useFunding, usePayment, useRetrySettlement } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, labelOf, stepIndex, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
@@ -158,7 +160,11 @@ function PaymentDetail({ id }: { id: string }) {
   const status = payment.data?.paymentIntent.status;
   // A terminal intent has nothing left for a payer to send, so the deposit view
   // is hidden (below) and its poll is switched off — see `useDeposit`.
-  const deposit = useDeposit(id, status === undefined || !TERMINAL_STATUSES.includes(status));
+  const live = status === undefined || !TERMINAL_STATUSES.includes(status);
+  const deposit = useDeposit(id, live);
+  // A payer who paid in their own currency has no wallet to scan from: the code
+  // below is replaced by what they actually did.
+  const funding = useFunding(id, live).data?.funding ?? null;
   // Called unconditionally: the button it drives is rendered only on a FAILED
   // payment, and a hook behind that render would be a conditional one.
   const retry = useRetrySettlement(id);
@@ -286,9 +292,13 @@ function PaymentDetail({ id }: { id: string }) {
                   it disappears on its own once the payment is terminal. */}
               {!TERMINAL_STATUSES.includes(intent.status) && (
                 <section className="flex flex-col gap-3">
-                  <SectionHeader title="Payment code" />
+                  <SectionHeader title={funding === null ? "Payment code" : "Funding"} />
                   <Card>
-                    <DepositQr paymentIntentId={intent.id} />
+                    {funding === null ? (
+                      <DepositQr paymentIntentId={intent.id} />
+                    ) : (
+                      <FundingCard funding={funding} />
+                    )}
                   </Card>
                 </section>
               )}
@@ -306,8 +316,22 @@ function PaymentDetail({ id }: { id: string }) {
                         <AssetLabel symbol={intent.settlementAsset} size={18} />
                       </DetailRow>
                       <DetailRow label="Provider">{intent.provider}</DetailRow>
+                      {funding !== null && intent.payment !== null && (
+                        <DetailRow label="Delivered as">
+                          <span className="inline-flex items-center gap-1.5">
+                            <AssetLabel symbol={intent.payment.asset} size={18} />
+                            <span>on</span>
+                            <ChainLabel chain={intent.payment.chain} size={18} />
+                          </span>
+                        </DetailRow>
+                      )}
                       <DetailRow label="Payer rail">
-                        {intent.payment === null ? (
+                        {funding !== null ? (
+                          <PaymentMethodMark
+                            name={funding.paymentName}
+                            logoUrl={funding.paymentLogoUrl}
+                          />
+                        ) : intent.payment === null ? (
                           <span className="text-subtle-foreground">Not selected</span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5">

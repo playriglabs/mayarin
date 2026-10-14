@@ -37,6 +37,7 @@ import { ButtonLoader } from "@/components/ui/page-loader";
 import { useRegister } from "@/hooks/auth";
 import { COUNTRIES } from "@/lib/countries";
 import { ICON_NAV } from "@/lib/icons";
+import { localRailsFor } from "@/lib/local-rails";
 import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
 import { withQuery } from "@/lib/with-query";
 
@@ -70,6 +71,8 @@ function RegisterForm() {
   const submitting = register.isPending || state.status === "submitting";
   const tooShort = password.length > 0 && password.length < MIN_PASSWORD_LENGTH;
   const errorId = state.status === "error" ? "register-error" : undefined;
+  const rails = localRailsFor(countryCode);
+  const countryName = COUNTRIES.find((country) => country.code === countryCode)?.name;
 
   function onSubmit(event: { preventDefault(): void }) {
     event.preventDefault();
@@ -113,6 +116,7 @@ function RegisterForm() {
       <AuthCard>
         <form onSubmit={onContinue} className="flex w-full flex-col gap-4">
           <div className="flex flex-col gap-3">
+            <p className="text-xs text-muted-foreground">Step 1 of 2</p>
             <h1 className="text-2xl text-foreground">Create your testnet account</h1>
             <p className="text-base text-muted-foreground">
               This is a testing environment. Transactions use test assets and have no real-world
@@ -226,6 +230,7 @@ function RegisterForm() {
     >
       <form id="register-business" onSubmit={onSubmit} className="flex w-full flex-col gap-4">
         <div className="flex flex-col gap-3">
+          <p className="text-xs text-muted-foreground">Step 2 of 2</p>
           <h1 className="text-2xl text-foreground">Tell us about your business</h1>
           <p className="text-base text-muted-foreground">
             Price in your own currency, settle in a stablecoin.
@@ -281,6 +286,16 @@ function RegisterForm() {
               </ComboboxContent>
             </Combobox>
           </Field>
+
+          {rails.length > 0 && (
+            <p
+              role="status"
+              className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground"
+            >
+              Payers in {countryName} can also pay in local currency with {rails.join(", ")}. You
+              still receive a stablecoin.
+            </p>
+          )}
 
           <Field>
             <FieldLabel htmlFor="register-city" className="text-sm">
