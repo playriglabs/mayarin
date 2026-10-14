@@ -417,6 +417,8 @@ export const merchants = pgTable(
     countryCode: text("country_code"),
     /** Public URL of the company logo in object storage (R2). Null: none uploaded. */
     logoUrl: text("logo_url"),
+    /** The chain a local-currency payment is delivered to (0045). Null: the deployment's rule. */
+    localCurrencyChain: text("local_currency_chain"),
     /**
      * The merchant's place in sign-up order — #1, #2, … Assigned by Postgres on
      * insert and never written by the application.
@@ -1235,6 +1237,42 @@ export const x402PayableQuotes = pgTable(
   ],
 );
 
+/**
+ * How a payment was funded when the payer's own wallet did not (0043).
+ *
+ * One row per provider order. The payment stays a deposit-match payment — the
+ * stablecoin still arrives at its deposit address — and this is the record that
+ * a rupiah or peso payment stood behind it.
+ */
+export const paymentFundings = pgTable(
+  "payment_fundings",
+  {
+    /** The provider's order id. */
+    orderId: text("order_id").primaryKey(),
+    paymentIntentId: text("payment_intent_id").notNull(),
+    merchantId: text("merchant_id").notNull(),
+    /** `local-currency`, CHECK-constrained, no postgres enum. */
+    kind: text("kind").notNull(),
+    provider: text("provider").notNull(),
+    paymentCode: text("payment_code").notNull(),
+    paymentName: text("payment_name").notNull(),
+    /** The provider's mark for the method, as given when the order opened. Null before it was kept. */
+    paymentLogoUrl: text("payment_logo_url"),
+    fiatCurrency: text("fiat_currency").notNull(),
+    /** What the payer was asked to pay, as a decimal string. A record, not a figure to compute with. */
+    fiatAmount: text("fiat_amount").notNull(),
+    /** The provider's own status, last seen. */
+    status: text("status").notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true, mode: "date" }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("payment_fundings_intent_idx").on(table.paymentIntentId, table.createdAt),
+    index("payment_fundings_open_idx").on(table.settledAt, table.createdAt),
+  ],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -1268,6 +1306,7 @@ export const schema = {
   webhookCursors,
   x402Resources,
   x402PayableQuotes,
+  paymentFundings,
   escrowDisputes,
   escrowDisputeMessages,
 };
