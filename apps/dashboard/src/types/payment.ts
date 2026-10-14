@@ -59,8 +59,21 @@ export interface PaymentIntentDto {
   readonly completedAt: string | null;
 }
 
+/** What a list row needs of how a payment was funded in a local currency. */
+export interface FundingSummaryDto {
+  readonly kind: "local-currency";
+  readonly paymentName: string;
+  readonly paymentLogoUrl: string | null;
+  readonly fiatCurrency: string;
+}
+
+/** A listed payment: the intent, and the local rail behind it when it had one. */
+export interface PaymentListItemDto extends PaymentIntentDto {
+  readonly funding: FundingSummaryDto | null;
+}
+
 export interface PaymentListResponse {
-  readonly payments: readonly PaymentIntentDto[];
+  readonly payments: readonly PaymentListItemDto[];
   readonly nextCursor: string | null;
 }
 
@@ -217,4 +230,27 @@ export interface DepositResponse {
   readonly deposit: DepositDto | null;
   /** Where to fetch the rendered code. `null` when there is no URI to encode. */
   readonly qrUrl: string | null;
+}
+
+/** How a payment was funded when the payer's own wallet did not. */
+export interface FundingDto {
+  readonly kind: "local-currency";
+  readonly provider: string;
+  readonly orderId: string;
+  readonly paymentCode: string;
+  readonly paymentName: string;
+  /** The provider's mark for the method; `null` when none was kept. */
+  readonly paymentLogoUrl: string | null;
+  readonly fiatCurrency: string;
+  /** What the payer was asked to pay, as a decimal string. */
+  readonly fiatAmount: string;
+  /** The provider's own status, last seen. */
+  readonly status: string;
+  readonly settledAt: string | null;
+  readonly createdAt: string;
+}
+
+export interface FundingResponse {
+  /** `null` for an ordinary crypto payment. */
+  readonly funding: FundingDto | null;
 }

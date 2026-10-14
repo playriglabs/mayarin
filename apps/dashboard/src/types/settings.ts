@@ -39,6 +39,8 @@ export interface SettingsDto {
   readonly effectiveSettlementAddress: string | null;
   readonly city: string | null;
   readonly countryCode: string | null;
+  /** Where a local-currency payment is delivered. `null` is the deployment's rule. */
+  readonly localCurrencyChain: string | null;
   /** False when neither a chosen nor a provisioned address exists. */
   readonly canSettleOnChain: boolean;
   /** False until the profile carries both city and country. */
@@ -81,6 +83,8 @@ export interface UpdateSettingsRequest {
   } | null;
   readonly city?: string | null;
   readonly countryCode?: string | null;
+  /** `null` goes back to the deployment's rule; an absent field leaves it alone. */
+  readonly localCurrencyChain?: string | null;
 }
 
 export interface UpdateSettingsResponse {
@@ -184,6 +188,11 @@ export interface MerchantRailsResponse {
   readonly settlementAsset: string;
   /** The matrix the settings screen is drawn from: assets per chain, not unioned. */
   readonly supported: readonly SupportedChainDto[];
+  /**
+   * The networks a local-currency payment can be delivered to. `null` when the
+   * deployment offers no local-currency payments, which hides the setting.
+   */
+  readonly localCurrencyChains: readonly string[] | null;
   readonly rails: readonly MerchantRailDto[];
   readonly unavailable: readonly RailExclusionDto[];
 }
