@@ -5,6 +5,7 @@ import { Globe } from "../globe.tsx";
 import { Reveal } from "../reveal.tsx";
 import { CURRENCY_MARKETS, type CurrencyRegion } from "./currency-markets.ts";
 import { MarkStack, NETWORKS } from "./network-marks.tsx";
+import { PaymentMethodIcon, type PaymentMethodKind } from "./payment-method-icon.tsx";
 
 /**
  * Regional markers keep the globe legible as currency coverage grows. They
@@ -22,9 +23,17 @@ const REGION_MARKERS = {
   "Latin America": { id: "latin-america", label: "LATAM", location: [-15.8, -55] },
 } as const satisfies Readonly<Record<CurrencyRegion, City>>;
 
+const PAID_WITH: readonly { readonly name: string; readonly kind: PaymentMethodKind }[] = [
+  { name: "Bank transfer", kind: "bank" },
+  { name: "E-wallets", kind: "wallet" },
+  { name: "QR payments", kind: "qr" },
+  { name: "Online banking", kind: "online" },
+  { name: "Crypto", kind: "crypto" },
+];
+
 const PRICED_IN_REGIONS: readonly City[] = Object.values(REGION_MARKERS);
 
-const FEATURED_CURRENCY_CODES: readonly AssetCode[] = ["IDR", "SGD", "MYR", "THB", "USD"];
+const FEATURED_CURRENCY_CODES: readonly AssetCode[] = ["SGD", "MYR", "THB", "PHP", "USD"];
 
 const FEATURED_CURRENCIES = CURRENCY_MARKETS.filter(({ code }) =>
   FEATURED_CURRENCY_CODES.includes(code),
@@ -35,7 +44,7 @@ const FEATURED_CURRENCIES = CURRENCY_MARKETS.filter(({ code }) =>
 
 /** The stablecoins a merchant can choose to settle in; which one is offered depends on the chain. */
 const SETTLEMENT_MARKS = (
-  ["USDC", "USDT", "USDG", "EURC", "PYUSD"] as const satisfies readonly AssetCode[]
+  ["USDC", "USDT", "EURC", "PYUSD"] as const satisfies readonly AssetCode[]
 ).map((code) => ({ name: `${code} · ${getAsset(code).name}`, src: assetLogoUrl(code) }));
 
 const OTHER_CURRENCY_COUNT = CURRENCY_MARKETS.length - FEATURED_CURRENCIES.length;
@@ -81,7 +90,20 @@ export function Reach() {
         />
 
         <Reveal class="md:col-span-2 lg:col-span-1">
-          <p class="text-sm text-slate-600">Settled in</p>
+          <p class="text-sm text-slate-600">Paid with</p>
+          <ul class="mt-4 flex flex-wrap gap-2 text-xs">
+            {PAID_WITH.map((method) => (
+              <li
+                key={method.name}
+                class="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5"
+              >
+                <PaymentMethodIcon kind={method.kind} class="size-3.5 text-forest" />
+                {method.name}
+              </li>
+            ))}
+          </ul>
+
+          <p class="mt-9 text-sm text-slate-600">Settled in</p>
           <div class="mt-7 flex flex-wrap items-center gap-x-2.5 gap-y-3">
             <MarkStack marks={SETTLEMENT_MARKS} label="Settlement stablecoins" ring="ring-paper" />
             <span class="text-xs text-slate-600">on</span>
