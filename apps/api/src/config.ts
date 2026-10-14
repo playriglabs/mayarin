@@ -348,6 +348,26 @@ const configSchema = z.object({
   zeroExApiKey: z.string().min(1).optional(),
   zeroExChainId: z.coerce.number().int().positive().optional(),
   zeroExPairs: jsonObject<Record<string, unknown>>("ZERO_EX_PAIRS", "{}"),
+  /** TransFi fiat on-ramp: `https://sandbox-api.transfi.com` or `https://api.transfi.com`. */
+  transfiBaseUrl: z.string().url().optional(),
+  /** Merchant id, sent as the `mid` header on every request. */
+  transfiMid: z.string().min(1).optional(),
+  /** Basic-auth username; the password is the merchant key from Settings → Integration. */
+  transfiUsername: z.string().min(1).optional(),
+  transfiPassword: z.string().min(1).optional(),
+  /** Verifies `X-Transfi-Hmac-Hash` on webhooks. */
+  transfiWebhookSecret: z.string().min(1).optional(),
+  /**
+   * Demo and test deployments only: complete a local-currency payment without a
+   * real transfer, by marking the TransFi sandbox order paid and recording the
+   * receipt when TransFi reports it delivered. Boot refuses it against anything
+   * but the sandbox, for the reason `ASSET_RECEIPT_MODE=auto` refuses the chain
+   * layer: it is a statement that value arrived, made without evidence of it.
+   */
+  transfiSandboxAutoSettle: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   uniswapQuoters: jsonObject<Partial<Record<ChainId, string>>>("UNISWAP_QUOTERS", "{}"),
   uniswapPools: jsonObject<Record<string, unknown>>("UNISWAP_POOLS", "{}"),
   /** `UniswapV2Router02` address per chain, for the V2 venue and route source. */
@@ -1013,6 +1033,22 @@ function withoutEmpty(env: Record<string, string | undefined>): Record<string, s
 }
 
 /**
+ * The sandbox auto-settle is a statement that value arrived, made without
+ * evidence — so it exists only where no value can. Anything that is not
+ * TransFi's sandbox host fails boot rather than quietly settling real payments.
+ */
+function assertTransfiSandboxSettle(data: RawConfig): void {
+  if (!data.transfiSandboxAutoSettle) return;
+  const base = data.transfiBaseUrl;
+  if (base === undefined || !new URL(base).hostname.includes("sandbox")) {
+    throw new ConfigurationError(
+      "TRANSFI_SANDBOX_AUTO_SETTLE is only allowed with TRANSFI_BASE_URL pointing at TransFi's sandbox",
+      { transfiBaseUrl: base ?? null },
+    );
+  }
+}
+
+/**
  * Treasury execution's own requirements.
  *
  * Checked outside `resolveContract` because that function returns early when
@@ -1148,6 +1184,12 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     zeroExApiKey: env.ZERO_EX_API_KEY,
     zeroExChainId: env.ZERO_EX_CHAIN_ID,
     zeroExPairs: env.ZERO_EX_PAIRS,
+    transfiBaseUrl: env.TRANSFI_BASE_URL,
+    transfiMid: env.TRANSFI_MID,
+    transfiUsername: env.TRANSFI_USERNAME,
+    transfiPassword: env.TRANSFI_PASSWORD,
+    transfiWebhookSecret: env.TRANSFI_WEBHOOK_SECRET,
+    transfiSandboxAutoSettle: env.TRANSFI_SANDBOX_AUTO_SETTLE,
     uniswapQuoters: env.UNISWAP_QUOTERS,
     uniswapPools: env.UNISWAP_POOLS,
     uniswapV2Routers: env.UNISWAP_V2_ROUTERS,
@@ -1208,6 +1250,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
   const quote = resolveQuote(result.data);
   const contract = resolveContract(result.data, quote, stablecoins);
   assertTreasuryExecution(result.data, quote);
+  assertTransfiSandboxSettle(result.data);
 
   if (result.data.executionPath === "on-chain-contract" && contract === undefined) {
     throw new ConfigurationError(
