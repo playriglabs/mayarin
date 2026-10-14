@@ -253,6 +253,7 @@ with it.
 | `arbitrum-sepolia` | 421614     | `https://sepolia.arbiscan.io`  |
 | `arc-testnet`      | 5042002    | `https://testnet.arcscan.app`  |
 | `polygon-amoy`     | 80002      | `https://amoy.polygonscan.com` |
+| `bsc-testnet`      | 97         | `https://testnet.bscscan.com`  |
 
 Every id above was read off the network with `cast chain-id`, not copied from a
 documentation page. Arc mainnet is missing on purpose: it does not launch until
@@ -277,6 +278,30 @@ to the wrong network while every check against the domain table still passed.
 
 The [Arc audit](./arc.md) records native-decimal regression coverage and the
 payer-submitted contract-path evidence.
+
+### BNB Smart Chain, the first chain whose stablecoins are not 6 decimals
+
+USDT and USDC on BNB Smart Chain carry 18 decimals. The domain keeps counting
+every stablecoin in 6 (`assetDecimals`), so the ledger, the quote and the signed
+order's `minOut`/`fee` are unchanged and `engine.ts` still compares them with the
+settlement amount. `packages/core/chain/src/token-units.ts` is the only place
+that crosses to what the token contract says, at five boundaries:
+
+| Boundary                                     | Direction                            |
+| -------------------------------------------- | ------------------------------------ |
+| `EvmChainClient.transfers` / `balances`      | contract → domain (`fromChainUnits`) |
+| `EvmChainClient.settlements`                 | contract → domain                    |
+| `EvmWalletBalanceReader`                     | contract → domain                    |
+| order signing and the order in the call DTO  | domain → contract (`toChainUnits`)   |
+| `EvmTreasuryExecutionPort` permit and output | both                                 |
+
+Anything finer than one domain minor unit is dropped on the way in, as it is for
+Arc's native view. The payer's own wallet must size a Permit2 amount in token
+units: `payerEstimate` is a `Money` in the asset's 6-decimal units.
+
+Not carried over, on purpose: x402 (`services/x402.ts`), the cross-asset settler
+and escrow take amounts straight from `Money`. Configure no facilitator, swap
+venue or escrow factory for `bsc-testnet`.
 
 ### Arc, the first chain whose native asset is not ETH
 

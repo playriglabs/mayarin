@@ -459,3 +459,68 @@ describe("Arc USDC transfers", () => {
     }
   });
 });
+
+describe("EVM transfers on a chain whose stablecoins carry 18 decimals", () => {
+  const BSC_USDT = "0x0000000000000000000000000000000000000b57";
+  const DEPOSIT = "0x0000000000000000000000000000000000000d01";
+  const PAYER = "0x0000000000000000000000000000000000000a11";
+
+  test("reports a deposit in the asset's own minor units", async () => {
+    const topics = encodeEventTopics({
+      abi: [
+        {
+          type: "event",
+          name: "Transfer",
+          inputs: [
+            { type: "address", name: "from", indexed: true },
+            { type: "address", name: "to", indexed: true },
+            { type: "uint256", name: "value" },
+          ],
+        },
+      ],
+      eventName: "Transfer",
+      args: { from: PAYER, to: DEPOSIT },
+    });
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const body = (await request.json()) as { id: number; method: string };
+        const result =
+          body.method === "eth_getLogs"
+            ? [
+                {
+                  address: BSC_USDT,
+                  topics,
+                  // 1.5 tokens at 18 decimals.
+                  data: encodeAbiParameters([{ type: "uint256" }], [15n * 10n ** 17n]),
+                  blockNumber: "0xb",
+                  blockHash: `0x${"bb".repeat(32)}`,
+                  transactionHash: `0x${"cc".repeat(32)}`,
+                  transactionIndex: "0x0",
+                  logIndex: "0x0",
+                  removed: false,
+                },
+              ]
+            : null;
+        return Response.json({ jsonrpc: "2.0", id: body.id, result });
+      },
+    });
+
+    try {
+      const client = new EvmChainClient({
+        rpcUrls: { "bsc-testnet": `http://localhost:${server.port}` },
+        tokens: { "bsc-testnet": { USDT: BSC_USDT } },
+      });
+      const logs = await client.transfers({
+        chain: "bsc-testnet",
+        asset: "USDT",
+        fromBlock: 10n,
+        toBlock: 12n,
+        addresses: [DEPOSIT],
+      });
+      expect(logs.map((log) => log.amount)).toEqual([1_500_000n]);
+    } finally {
+      server.stop(true);
+    }
+  });
+});

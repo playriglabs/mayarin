@@ -17,7 +17,7 @@
  *    engine re-signs it (same terms, fresh window) before this port is called.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, fromChainUnits, toChainUnits } from "@mayarin/chain";
 import type {
   ExecuteRequest,
   ExecutionResult,
@@ -317,8 +317,8 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     const order = {
       intentId: request.order.intentId as Hex,
       settlementToken: getAddress(request.order.settlementToken),
-      minOut: request.order.minOut,
-      fee: request.order.fee,
+      minOut: toChainUnits(request.chain, settlementAsset, request.order.minOut),
+      fee: toChainUnits(request.chain, settlementAsset, request.order.fee),
       merchantSafe: getAddress(request.order.merchantSafe),
       refundTo: getAddress(request.order.refundTo),
       deadline: request.order.deadline,
@@ -332,7 +332,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       : await this.#options.routes.route({
           payerAsset: request.inputAmount.asset,
           settlementAsset,
-          exactOut: money(order.minOut, settlementAsset),
+          exactOut: money(request.order.minOut, settlementAsset),
           maxIn: request.inputAmount,
           recipient: paymentRouter,
           chain: request.chain,
@@ -347,7 +347,11 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
             // Native always differs from an ERC-20 settlement asset, so the
             // route is mandatory and `route` is defined here.
             route: requireRoute(route),
-            value: request.inputAmount.amount,
+            value: toChainUnits(
+              request.chain,
+              request.inputAmount.asset,
+              request.inputAmount.amount,
+            ),
           })
         : buildPayERC20Call({
             paymentRouter,
@@ -357,7 +361,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
               request.chain,
               inputToken,
               paymentRouter,
-              request.inputAmount.amount,
+              toChainUnits(request.chain, request.inputAmount.asset, request.inputAmount.amount),
             )),
             ...(route === undefined ? {} : { route }),
           });
@@ -534,7 +538,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
 
     return {
       txHash: hash,
-      output: this.#outputFrom(receipt.logs, measure.paymentRouter, measure.settlementAsset),
+      output: this.#outputFrom(chain, receipt.logs, measure.paymentRouter, measure.settlementAsset),
       ...(gasCost === undefined ? {} : { gasCost }),
     };
   }
@@ -590,6 +594,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
    * the FX result.
    */
   #outputFrom(
+    chain: ChainId,
     logs: readonly { address: string; topics: readonly string[]; data: string }[],
     paymentRouter: Address,
     settlementAsset: AssetCode,
@@ -610,7 +615,10 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
           fee: bigint;
           refundAmount: bigint;
         };
-        return money(args.settledAmount + args.fee + args.refundAmount, settlementAsset);
+        return money(
+          fromChainUnits(chain, settlementAsset, args.settledAmount + args.fee + args.refundAmount),
+          settlementAsset,
+        );
       } catch {
         // Not one of ours: the router's transaction also carries the DEX's logs.
       }

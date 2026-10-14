@@ -89,6 +89,7 @@ function createPlanner(
       paymentRouters: {
         base: ROUTER,
         "arbitrum-sepolia": ROUTER,
+        "bsc-testnet": ROUTER,
         ...(solana === undefined ? {} : { "solana-localnet": solana.router }),
       },
     },
@@ -101,6 +102,7 @@ function createPlanner(
         onChain: [
           { chain: "base", address: USDC_TOKEN },
           { chain: "arbitrum-sepolia", address: USDC_TOKEN },
+          { chain: "bsc-testnet", address: USDC_TOKEN },
           ...(solana === undefined
             ? []
             : [{ chain: "solana-localnet" as const, address: solana.mint }]),
@@ -171,6 +173,19 @@ describe("ApiContractPlanner", () => {
     expect(signer.calls[0]?.domain.chainId).toBe(8_453n);
     expect(signer.calls[0]?.domain.verifyingContract).toBe(ROUTER);
     expect(signer.calls[0]?.message.intentId).toBe(lock.order.intentId as `0x${string}`);
+  });
+
+  test("signs an 18-decimal chain's order in token units and keeps the lock in asset units", async () => {
+    const { planner, signer } = createPlanner();
+
+    const lock = await planner.lock({ ...lockRequest("USDC"), chain: "bsc-testnet" });
+
+    // What the clearing engine compares against the settlement amount.
+    expect(lock.order.minOut).toBe(5_000_000n);
+    expect(lock.order.fee).toBe(25_000n);
+    // What the contract checks and the signature covers.
+    expect(signer.calls[0]?.message.minOut).toBe(5_000_000n * 10n ** 12n);
+    expect(signer.calls[0]?.message.fee).toBe(25_000n * 10n ** 12n);
   });
 
   test("adds gas reimbursement only to a relayer-submitted signed fee", async () => {

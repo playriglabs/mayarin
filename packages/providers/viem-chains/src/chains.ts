@@ -19,6 +19,7 @@ import {
   arcTestnet,
   base,
   baseSepolia,
+  bscTestnet,
   polygonAmoy,
   sepolia,
 } from "viem/chains";
@@ -36,6 +37,7 @@ export const VIEM_CHAINS: Readonly<Record<EvmChainId, Chain>> = {
   "arbitrum-sepolia": arbitrumSepolia,
   "arc-testnet": arcTestnet,
   "polygon-amoy": polygonAmoy,
+  "bsc-testnet": bscTestnet,
 };
 
 export function viemChainOf(chain: ChainId): Chain {

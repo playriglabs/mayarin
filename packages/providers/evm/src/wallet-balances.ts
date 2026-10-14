@@ -11,7 +11,7 @@
  * is `WalletProvider.propose`, which is a different port for that reason.
  */
 
-import type { ChainId } from "@mayarin/chain";
+import { type ChainId, fromChainUnits } from "@mayarin/chain";
 import { viemChainOf } from "@mayarin/provider-viem-chains";
 import { type AssetCode, type Money, money, ProviderError } from "@mayarin/shared";
 import type { WalletBalanceQuery, WalletBalanceReader } from "@mayarin/wallet";
@@ -57,13 +57,17 @@ export class EvmWalletBalanceReader implements WalletBalanceReader {
 
       balances.push(
         money(
-          await this.#read(
-            client.readContract({
-              address: getAddress(token),
-              abi: ERC20_ABI,
-              functionName: "balanceOf",
-              args: [address],
-            }),
+          fromChainUnits(
+            query.chain,
+            asset,
+            await this.#read(
+              client.readContract({
+                address: getAddress(token),
+                abi: ERC20_ABI,
+                functionName: "balanceOf",
+                args: [address],
+              }),
+            ),
           ),
           asset,
         ),
