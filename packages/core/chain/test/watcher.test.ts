@@ -280,6 +280,48 @@ describe("WalletWatcher", () => {
     expect(await harness.cursors.get(CHAIN, ASSET)).toBe(3n);
   });
 
+  test("a pair with no cursor starts near the head, not at the configured start block", async () => {
+    harness.chain.mine(30);
+
+    const bounded = new WalletWatcher({
+      client: harness.chain,
+      addresses: harness.addresses,
+      deposits: harness.deposits,
+      cursors: harness.cursors,
+      clock: new FixedClock(NOW),
+      sink: { fund: async () => {} },
+      policy: { depth: 6, reorgWatchWindow: 2 },
+      blockRange: 2000,
+      retentionSeconds: 86_400,
+      startBlocks: { [CHAIN]: 0n },
+      maxStartBacklogBlocks: 10,
+    });
+
+    const result = await bounded.tick(CHAIN, ASSET);
+    expect(result.scannedFrom).toBe(21n);
+  });
+
+  test("an existing cursor is resumed even when it is far behind the head", async () => {
+    harness.chain.mine(30);
+    await harness.cursors.set(CHAIN, ASSET, 2n);
+
+    const bounded = new WalletWatcher({
+      client: harness.chain,
+      addresses: harness.addresses,
+      deposits: harness.deposits,
+      cursors: harness.cursors,
+      clock: new FixedClock(NOW),
+      sink: { fund: async () => {} },
+      policy: { depth: 6, reorgWatchWindow: 2 },
+      blockRange: 2000,
+      retentionSeconds: 86_400,
+      maxStartBacklogBlocks: 10,
+    });
+
+    const result = await bounded.tick(CHAIN, ASSET);
+    expect(result.scannedFrom).toBe(3n);
+  });
+
   test("a scan is capped at the configured block range", async () => {
     await harness.awaitingPayment();
     harness.chain.mine(5);

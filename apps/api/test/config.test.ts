@@ -105,6 +105,8 @@ describe("chain configuration", () => {
     expect(config.chain?.confirmations["base-sepolia"]).toBe(6);
     expect(config.chain?.catchUpIntervalMs).toBe(1_000);
     expect(config.chain?.tokenBalanceCatchUp).toBe(false);
+    expect(config.chain?.logRanges).toEqual({});
+    expect(config.chain?.maxStartBacklogBlocks).toBe(50_000);
     // The watcher pairs now come from the stablecoin registry, not the chain block.
     expect(config.stablecoins).toEqual([
       {
@@ -165,6 +167,22 @@ describe("chain configuration", () => {
         CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
       }),
     ).toThrow(/DEPOSIT_XPUB/);
+  });
+
+  test("reads a per-chain log range and the first-scan backlog", () => {
+    const config = loadConfig({
+      ...BASE,
+      CHAIN_ENABLED: "true",
+      ASSET_RECEIPT_MODE: "manual",
+      CHAIN_RPC_URLS: '{"base-sepolia":"https://sepolia.base.org"}',
+      CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0x036CbD53842c5426634e7929541eC2318f3dCF7e"}}',
+      CHAIN_LOG_RANGES: '{"base-sepolia":500}',
+      WATCHER_MAX_START_BACKLOG_BLOCKS: "1000",
+      DEPOSIT_XPUB: XPUB,
+    });
+
+    expect(config.chain?.logRanges).toEqual({ "base-sepolia": 500 });
+    expect(config.chain?.maxStartBacklogBlocks).toBe(1_000);
   });
 
   test("refuses a configured asset with no RPC URL for its chain", () => {

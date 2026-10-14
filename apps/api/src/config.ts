@@ -30,6 +30,7 @@ type RpcUrlMap = Partial<Record<ChainId, string>>;
 type TokenMap = Partial<Record<ChainId, Partial<Record<AssetCode, string>>>>;
 type ConfirmationMap = Partial<Record<ChainId, number>>;
 type StartBlockMap = Partial<Record<ChainId, string>>;
+type LogRangeMap = Partial<Record<ChainId, number>>;
 
 /** Parses a JSON env var into a plain object, failing the boot rather than the first request. */
 function jsonObject<T>(name: string, fallback: string) {
@@ -174,6 +175,10 @@ const configSchema = z.object({
    * decision about RPC budget instead of a number one endpoint dictates.
    */
   chainLogRange: z.coerce.number().int().positive().default(10),
+  /** `CHAIN_LOG_RANGE` overridden per chain, for an endpoint that allows more. */
+  chainLogRanges: jsonObject<LogRangeMap>("CHAIN_LOG_RANGES", "{}"),
+  /** How far behind the head a pair with no cursor may start scanning. */
+  watcherMaxStartBacklogBlocks: z.coerce.number().int().positive().default(50_000),
   watcherRetentionSeconds: z.coerce.number().int().positive().default(86_400),
   watcherReorgWatchWindow: z.coerce.number().int().positive().default(2),
   adminToken: z.string().min(16).optional(),
@@ -500,6 +505,8 @@ export interface ChainConfig {
   readonly tokenBalanceCatchUp: boolean;
   /** Blocks per `eth_getLogs` call. The provider's cap, not the watcher's. */
   readonly logRange: number;
+  readonly logRanges: Readonly<LogRangeMap>;
+  readonly maxStartBacklogBlocks: number;
   readonly retentionSeconds: number;
   readonly reorgWatchWindow: number;
 }
@@ -1007,6 +1014,8 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
     nativeBlockRange: data.watcherNativeBlockRange,
     tokenBalanceCatchUp: data.watcherTokenBalanceCatchUp,
     logRange: data.chainLogRange,
+    logRanges: data.chainLogRanges,
+    maxStartBacklogBlocks: data.watcherMaxStartBacklogBlocks,
     retentionSeconds: data.watcherRetentionSeconds,
     reorgWatchWindow: data.watcherReorgWatchWindow,
   };
@@ -1142,6 +1151,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     watcherNativeBlockRange: env.WATCHER_NATIVE_BLOCK_RANGE,
     watcherTokenBalanceCatchUp: env.WATCHER_TOKEN_BALANCE_CATCH_UP,
     chainLogRange: env.CHAIN_LOG_RANGE,
+    chainLogRanges: env.CHAIN_LOG_RANGES,
+    watcherMaxStartBacklogBlocks: env.WATCHER_MAX_START_BACKLOG_BLOCKS,
     watcherRetentionSeconds: env.WATCHER_RETENTION_SECONDS,
     watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,
     adminToken: env.ADMIN_TOKEN,

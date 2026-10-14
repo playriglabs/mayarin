@@ -86,6 +86,13 @@ export interface EvmChainClientOptions {
    */
   readonly logRange?: number;
   /**
+   * `logRange` overridden per chain. A provider's cap belongs to the endpoint,
+   * not the deployment: Alchemy's free tier answers ten blocks while a public
+   * Arbitrum RPC answers thousands, and one number for both means paying for
+   * the narrow one on the wide one.
+   */
+  readonly logRanges?: Readonly<Partial<Record<ChainId, number>>>;
+  /**
    * How many times viem retries one RPC call before giving up.
    *
    * One, not viem's three. A provider answering 429 is not a blip to ride out:
@@ -104,6 +111,7 @@ export class EvmChainClient implements ChainClient {
   readonly #tokens: EvmChainClientOptions["tokens"];
   readonly #nativeAssets: NonNullable<EvmChainClientOptions["nativeAssets"]>;
   readonly #logRange: bigint;
+  readonly #logRanges: Readonly<Partial<Record<ChainId, number>>>;
   readonly #retryCount: number;
   readonly #timeoutMs: number;
   readonly #clients = new Map<ChainId, PublicClient>();
@@ -116,8 +124,14 @@ export class EvmChainClient implements ChainClient {
     // Ten is the tightest cap seen in the wild (Alchemy free tier), so it is
     // the default a deployment gets without being asked.
     this.#logRange = BigInt(Math.max(1, options.logRange ?? 10));
+    this.#logRanges = options.logRanges ?? {};
     this.#retryCount = options.retryCount ?? 1;
     this.#timeoutMs = options.timeoutMs ?? 10_000;
+  }
+
+  #logRangeOf(chain: ChainId): bigint {
+    const override = this.#logRanges[chain];
+    return override === undefined ? this.#logRange : BigInt(Math.max(1, override));
   }
 
   async head(chain: ChainId): Promise<BlockRef> {
@@ -162,7 +176,11 @@ export class EvmChainClient implements ChainClient {
     // of narrow ones return the same logs; only the second is a request every
     // tier accepts.
     const logs = [];
-    for (const [fromBlock, toBlock] of windows(query.fromBlock, query.toBlock, this.#logRange)) {
+    for (const [fromBlock, toBlock] of windows(
+      query.fromBlock,
+      query.toBlock,
+      this.#logRangeOf(query.chain),
+    )) {
       logs.push(
         ...(await this.#rpc(
           query.chain,
@@ -210,7 +228,11 @@ export class EvmChainClient implements ChainClient {
     // cannot perform is a merchant whose settled payment stays open.
     const client = this.#clientFor(query.chain);
     const logs = [];
-    for (const [fromBlock, toBlock] of windows(query.fromBlock, query.toBlock, this.#logRange)) {
+    for (const [fromBlock, toBlock] of windows(
+      query.fromBlock,
+      query.toBlock,
+      this.#logRangeOf(query.chain),
+    )) {
       logs.push(
         ...(await this.#rpc(
           query.chain,

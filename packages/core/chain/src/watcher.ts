@@ -78,6 +78,16 @@ export interface WalletWatcherOptions {
   readonly nativeAssets?: Readonly<Partial<Record<ChainId, AssetCode>>>;
   /** Local/operator opt-in: close ERC-20 downtime gaps with a settled balance read. */
   readonly tokenBalanceCatchUp?: boolean;
+  /**
+   * How far behind the head a pair with no cursor may start (default 50,000).
+   *
+   * A first pass has nothing to resume from, and a configured start block of
+   * zero would walk the chain from genesis, one `eth_getLogs` window at a time.
+   * Only a deposit inside the retention window can still fund a payment, so
+   * nothing older than this is worth reading. It applies to a missing cursor
+   * only: a worker that was down resumes exactly where it stopped.
+   */
+  readonly maxStartBacklogBlocks?: number;
 }
 
 export interface TickResult {
@@ -116,6 +126,7 @@ export class WalletWatcher {
   readonly #retentionSeconds: number;
   readonly #events: EventPublisher;
   readonly #startBlocks: Readonly<Partial<Record<ChainId, bigint>>>;
+  readonly #maxStartBacklog: bigint;
   readonly #probeLimit: number;
   readonly #nativeAssets: Readonly<Partial<Record<ChainId, AssetCode>>>;
   readonly #tokenBalanceCatchUp: boolean;
@@ -133,6 +144,7 @@ export class WalletWatcher {
     this.#retentionSeconds = options.retentionSeconds;
     this.#events = options.events ?? noopEventPublisher;
     this.#startBlocks = options.startBlocks ?? {};
+    this.#maxStartBacklog = BigInt(options.maxStartBacklogBlocks ?? 50_000);
     this.#probeLimit = options.probeLimit ?? 500;
     this.#nativeAssets = options.nativeAssets ?? {};
     this.#tokenBalanceCatchUp = options.tokenBalanceCatchUp ?? false;
@@ -143,7 +155,8 @@ export class WalletWatcher {
     const head = await this.#client.head(chain);
 
     const cursor = await this.#cursors.get(chain, asset);
-    const start = cursor ?? this.#startBlocks[chain] ?? 0n;
+    const start =
+      cursor ?? max(this.#startBlocks[chain] ?? 0n, head.number - this.#maxStartBacklog);
     const from = start + 1n;
     const isNative = this.#nativeAssets[chain] === asset;
     const range = isNative ? this.#nativeBlockRange : this.#blockRange;

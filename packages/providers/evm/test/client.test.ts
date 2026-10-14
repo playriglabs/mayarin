@@ -163,6 +163,51 @@ describe("EVM settlement source", () => {
       server.stop(true);
     }
   });
+
+  test("a per-chain log range replaces the default window for that chain only", async () => {
+    const requested: { fromBlock: string; toBlock: string }[] = [];
+    const server = Bun.serve({
+      port: 0,
+      fetch: async (request) => {
+        const body = (await request.json()) as {
+          id: number;
+          method: string;
+          params: [{ fromBlock: string; toBlock: string }];
+        };
+        if (body.method === "eth_getLogs") requested.push(body.params[0]);
+        return Response.json({ jsonrpc: "2.0", id: body.id, result: [] });
+      },
+    });
+
+    try {
+      const url = `http://localhost:${server.port}`;
+      const client = new EvmChainClient({
+        rpcUrls: { "base-sepolia": url, "arbitrum-sepolia": url },
+        tokens: {},
+        logRange: 2,
+        logRanges: { "arbitrum-sepolia": 100 },
+      });
+
+      await client.settlements({
+        chain: "arbitrum-sepolia",
+        router: ROUTER,
+        fromBlock: 10n,
+        toBlock: 13n,
+      });
+      expect(requested).toHaveLength(1);
+
+      requested.length = 0;
+      await client.settlements({
+        chain: "base-sepolia",
+        router: ROUTER,
+        fromBlock: 10n,
+        toBlock: 13n,
+      });
+      expect(requested).toHaveLength(2);
+    } finally {
+      server.stop(true);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
