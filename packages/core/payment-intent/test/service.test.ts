@@ -402,12 +402,12 @@ describe("isSameAsset", () => {
   test("reads the chain's own settlement asset where one is set", () => {
     const policy: MerchantAssetPolicy = {
       settlementAsset: "USDC",
-      settlementAssetByChain: { "robinhood-testnet": "USDG" },
+      settlementAssetByChain: { "arbitrum-sepolia": "USDG" },
       acceptedAssets: [],
     };
 
-    expect(isSameAsset(policy, "USDG", "robinhood-testnet")).toBe(true);
-    expect(isSameAsset(policy, "USDC", "robinhood-testnet")).toBe(false);
+    expect(isSameAsset(policy, "USDG", "arbitrum-sepolia")).toBe(true);
+    expect(isSameAsset(policy, "USDC", "arbitrum-sepolia")).toBe(false);
     expect(isSameAsset(policy, "USDC", "base-sepolia")).toBe(true);
   });
 });
@@ -416,11 +416,11 @@ describe("acceptedPayerAssets", () => {
   test("always accepts a chain's own settlement asset on that chain", () => {
     const policy: MerchantAssetPolicy = {
       settlementAsset: "USDC",
-      settlementAssetByChain: { "robinhood-testnet": "USDG" },
+      settlementAssetByChain: { "arbitrum-sepolia": "USDG" },
       acceptedAssets: ["USDC", "ETH"],
     };
 
-    expect(acceptedPayerAssets(policy, "robinhood-testnet")).toEqual(["USDG", "USDC", "ETH"]);
+    expect(acceptedPayerAssets(policy, "arbitrum-sepolia")).toEqual(["USDG", "USDC", "ETH"]);
     expect(acceptedPayerAssets(policy, "base-sepolia")).toEqual(["USDC", "ETH"]);
   });
 });

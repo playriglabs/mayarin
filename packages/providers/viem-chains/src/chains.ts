@@ -12,28 +12,8 @@
  */
 
 import { type ChainId, type EvmChainId, isEvmChainId } from "@mayarin/chain";
-import { type Chain, defineChain } from "viem";
+import type { Chain } from "viem";
 import { arbitrum, arbitrumSepolia, arcTestnet, base, baseSepolia, sepolia } from "viem/chains";
-
-/**
- * Robinhood Chain testnet — an Arbitrum Orbit L2 with ETH as its gas token.
- * Defined here because viem ships no definition for it.
- */
-export const robinhoodTestnet = defineChain({
-  id: 46_630,
-  name: "Robinhood Chain Testnet",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: {
-    default: { http: ["https://rpc.testnet.chain.robinhood.com/rpc"] },
-  },
-  blockExplorers: {
-    default: {
-      name: "Robinhood Chain Explorer",
-      url: "https://explorer.testnet.chain.robinhood.com",
-    },
-  },
-  testnet: true,
-});
 
 // Typed as the generic `Chain` rather than a union of the concrete chains so
 // clients built from this map share one type: the op-stack chains specialise
@@ -46,7 +26,6 @@ export const VIEM_CHAINS: Readonly<Record<EvmChainId, Chain>> = {
   "base-sepolia": baseSepolia,
   arbitrum,
   "arbitrum-sepolia": arbitrumSepolia,
-  "robinhood-testnet": robinhoodTestnet,
   "arc-testnet": arcTestnet,
 };
 

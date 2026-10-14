@@ -32,7 +32,7 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|robinhood-testnet|arc-testnet> [--dry] [--factory-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet> [--dry] [--factory-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
@@ -66,13 +66,6 @@ case "$CHAIN" in
     RPC_VAR=ARBITRUM_SEPOLIA_RPC_URL
     EXPLORER="https://sepolia.arbiscan.io/address"
     VERIFIER=etherscan
-    ;;
-  robinhood-testnet)
-    CHAIN_ID=46630
-    RPC_VAR=ROBINHOOD_TESTNET_RPC_URL
-    EXPLORER="https://explorer.testnet.chain.robinhood.com/address"
-    VERIFIER=blockscout
-    VERIFIER_URL="https://explorer.testnet.chain.robinhood.com/api/"
     ;;
   arc-testnet)
     CHAIN_ID=5042002

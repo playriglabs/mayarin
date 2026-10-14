@@ -11,7 +11,7 @@ import {
 const SUPPORTED = [
   { chain: "base-sepolia", assets: ["USDC", "EURC", "ETH"], settlementAssets: ["USDC", "EURC"] },
   { chain: "arc-testnet", assets: ["USDC", "EURC"], settlementAssets: ["USDC", "EURC"] },
-  { chain: "robinhood-testnet", assets: ["USDG", "USDC"], settlementAssets: ["USDG", "USDC"] },
+  { chain: "arbitrum-sepolia", assets: ["USDG", "USDC"], settlementAssets: ["USDG", "USDC"] },
 ];
 
 const DRAFT: NetworkDraft = {
@@ -48,10 +48,10 @@ describe("applyToAll", () => {
     // Arc carries EURC but not ETH, so it takes EURC only, and settles in it.
     expect(acceptedOn(next, "arc-testnet", ["USDC", "EURC"])).toEqual(["EURC"]);
     expect(settlementOn(next, "arc-testnet")).toBe("EURC");
-    // Robinhood carries neither, so it keeps what it had rather than nothing,
+    // Arbitrum carries neither, so it keeps what it had rather than nothing,
     // and cannot settle in EURC.
-    expect(next.acceptedAssetsByChain["robinhood-testnet"]).toBeUndefined();
-    expect(settlementOn(next, "robinhood-testnet")).toBe("USDC");
+    expect(next.acceptedAssetsByChain["arbitrum-sepolia"]).toBeUndefined();
+    expect(settlementOn(next, "arbitrum-sepolia")).toBe("USDC");
   });
 
   test("a network left matching its default stores no override", () => {
@@ -59,36 +59,36 @@ describe("applyToAll", () => {
 
     // Arc carries exactly what Base accepts that it can: that is its default.
     expect(next.acceptedAssetsByChain["arc-testnet"]).toBeUndefined();
-    // Robinhood can take USDC but not EURC or ETH, and loses USDG by copying.
-    expect(next.acceptedAssetsByChain["robinhood-testnet"]).toEqual(["USDC"]);
+    // Arbitrum can take USDC but not EURC or ETH, and loses USDG by copying.
+    expect(next.acceptedAssetsByChain["arbitrum-sepolia"]).toEqual(["USDC"]);
     expect(next.settlementAssetByChain).toEqual({});
   });
 });
 
 describe("toggledAccepted", () => {
-  const robinhood = SUPPORTED[2] as (typeof SUPPORTED)[number];
+  const arbitrum = SUPPORTED[2] as (typeof SUPPORTED)[number];
 
   test("unticks an inherited asset on a network that settles in another one", () => {
-    // Merchant-wide USDC only; Robinhood settles in USDG, which is shown ticked
+    // Merchant-wide USDC only; Arbitrum settles in USDG, which is shown ticked
     // because a network always accepts what it settles in.
     const draft: NetworkDraft = {
       ...DRAFT,
       acceptedAssets: ["USDC"],
-      settlementAssetByChain: { "robinhood-testnet": "USDG" },
+      settlementAssetByChain: { "arbitrum-sepolia": "USDG" },
     };
-    const next = toggledAccepted(draft, robinhood, "USDC", false);
+    const next = toggledAccepted(draft, arbitrum, "USDC", false);
     expect(next).toEqual(["USDG"]);
 
-    const saved: NetworkDraft = { ...draft, acceptedAssetsByChain: { "robinhood-testnet": next } };
-    expect(acceptedOn(saved, "robinhood-testnet", robinhood.assets)).toEqual(["USDG"]);
+    const saved: NetworkDraft = { ...draft, acceptedAssetsByChain: { "arbitrum-sepolia": next } };
+    expect(acceptedOn(saved, "arbitrum-sepolia", arbitrum.assets)).toEqual(["USDG"]);
   });
 
   test("ticks an asset back on", () => {
     const draft: NetworkDraft = {
       ...DRAFT,
-      settlementAssetByChain: { "robinhood-testnet": "USDG" },
-      acceptedAssetsByChain: { "robinhood-testnet": ["USDG"] },
+      settlementAssetByChain: { "arbitrum-sepolia": "USDG" },
+      acceptedAssetsByChain: { "arbitrum-sepolia": ["USDG"] },
     };
-    expect(toggledAccepted(draft, robinhood, "USDC", true)).toEqual(["USDG", "USDC"]);
+    expect(toggledAccepted(draft, arbitrum, "USDC", true)).toEqual(["USDG", "USDC"]);
   });
 });

@@ -558,7 +558,7 @@ describe("chooseLocalCurrencyRail", () => {
 
   test("offers nothing when no rail can be delivered to", () => {
     expect(
-      chooseLocalCurrencyRail([rail("arc-testnet"), rail("robinhood-testnet")], { sandbox: true }),
+      chooseLocalCurrencyRail([rail("arc-testnet"), rail("solana-devnet")], { sandbox: true }),
     ).toBeUndefined();
   });
 

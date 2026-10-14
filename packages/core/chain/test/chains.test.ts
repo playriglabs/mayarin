@@ -25,7 +25,6 @@ describe("chain facts", () => {
   test("recognises the chains it supports", () => {
     expect(isChainId("ethereum-sepolia")).toBe(true);
     expect(isChainId("arbitrum-sepolia")).toBe(true);
-    expect(isChainId("robinhood-testnet")).toBe(true);
     expect(isChainId("arc-testnet")).toBe(true);
     expect(isChainId("solana-devnet")).toBe(true);
     expect(isChainId("solana-localnet")).toBe(true);
@@ -52,8 +51,6 @@ describe("chain facts", () => {
     // A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet.
     expect(chainLogoUrl("arbitrum-sepolia")).toBe(chainLogoUrl("arbitrum"));
     expect(chainLogoUrl("arc-testnet", "/arc.svg")).toBe("/arc.svg");
-    expect(chainLogoUrl("robinhood-testnet")).toBe("/chains/robinhood.svg");
-    expect(chainLogoUrl("robinhood-testnet", "/arc.svg", "/rh.svg")).toBe("/rh.svg");
     expect(chainLogoUrl("solana-devnet")).toBe(
       "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
     );
@@ -73,7 +70,6 @@ describe("isMainnetChain", () => {
     expect(isMainnetChain("ethereum-sepolia")).toBe(false);
     expect(isMainnetChain("base-sepolia")).toBe(false);
     expect(isMainnetChain("arbitrum-sepolia")).toBe(false);
-    expect(isMainnetChain("robinhood-testnet")).toBe(false);
     expect(isMainnetChain("arc-testnet")).toBe(false);
     expect(isMainnetChain("solana-devnet")).toBe(false);
     expect(isMainnetChain("solana-localnet")).toBe(false);

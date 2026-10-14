@@ -15,7 +15,6 @@ export const EVM_CHAINS = [
   "base-sepolia",
   "arbitrum",
   "arbitrum-sepolia",
-  "robinhood-testnet",
   "arc-testnet",
 ] as const;
 
@@ -65,7 +64,6 @@ export const EVM_CHAIN_IDS: Readonly<Record<EvmChainId, bigint>> = {
   "base-sepolia": 84_532n,
   arbitrum: 42_161n,
   "arbitrum-sepolia": 421_614n,
-  "robinhood-testnet": 46_630n,
   // Read off each chain with `cast chain-id` rather than taken from a docs page.
   // Arc mainnet is absent on purpose: it does not launch until 16 Sep 2026, so
   // no endpoint can confirm its id and a chain fact nobody can check is worse
@@ -93,7 +91,6 @@ export const CHAIN_LABELS: Readonly<Record<ChainId, string>> = {
   "base-sepolia": "Base Sepolia",
   arbitrum: "Arbitrum One",
   "arbitrum-sepolia": "Arbitrum Sepolia",
-  "robinhood-testnet": "Robinhood Testnet",
   "arc-testnet": "Arc Testnet",
   "solana-devnet": "Solana Devnet",
   "solana-localnet": "Solana Localnet",
@@ -123,18 +120,11 @@ const MAINNET_OF: Readonly<Record<string, string>> = {
 /**
  * The network mark shown beside a chain name.
  *
- * Arc and Robinhood are local because neither is in Trust Wallet's registry.
- * Robinhood's own mark is a black feather on transparency, invisible on a dark
- * surface, so the local file sets it on the brand's lime disc. The arguments
- * let each frontend hand Vite or Astro the public URL it actually serves.
+ * Arc is local because it is not in Trust Wallet's registry. The argument lets
+ * each frontend hand Vite or Astro the public URL it actually serves.
  */
-export function chainLogoUrl(
-  chain: string,
-  arcLogo = "/chains/arc.svg",
-  robinhoodLogo = "/chains/robinhood.svg",
-): string | undefined {
+export function chainLogoUrl(chain: string, arcLogo = "/chains/arc.svg"): string | undefined {
   if (chain === "arc-testnet") return arcLogo;
-  if (chain === "robinhood-testnet") return robinhoodLogo;
   return TRUST_WALLET_CHAIN_LOGOS[MAINNET_OF[chain] ?? chain];
 }
 

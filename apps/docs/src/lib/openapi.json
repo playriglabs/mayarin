@@ -1994,7 +1994,6 @@
                           "base-sepolia",
                           "arbitrum",
                           "arbitrum-sepolia",
-                          "robinhood-testnet",
                           "arc-testnet",
                           "solana-devnet",
                           "solana-localnet"
@@ -3375,7 +3374,6 @@
                           "base-sepolia",
                           "arbitrum",
                           "arbitrum-sepolia",
-                          "robinhood-testnet",
                           "arc-testnet",
                           "solana-devnet",
                           "solana-localnet"
@@ -3865,7 +3863,6 @@
                             "base-sepolia",
                             "arbitrum",
                             "arbitrum-sepolia",
-                            "robinhood-testnet",
                             "arc-testnet",
                             "solana-devnet",
                             "solana-localnet"
@@ -4272,7 +4269,6 @@
                           "base-sepolia",
                           "arbitrum",
                           "arbitrum-sepolia",
-                          "robinhood-testnet",
                           "arc-testnet",
                           "solana-devnet",
                           "solana-localnet"
@@ -5235,7 +5231,6 @@
                           "base-sepolia",
                           "arbitrum",
                           "arbitrum-sepolia",
-                          "robinhood-testnet",
                           "arc-testnet",
                           "solana-devnet",
                           "solana-localnet"
@@ -5951,7 +5946,6 @@
                             "base-sepolia",
                             "arbitrum",
                             "arbitrum-sepolia",
-                            "robinhood-testnet",
                             "arc-testnet",
                             "solana-devnet",
                             "solana-localnet"

@@ -1,7 +1,7 @@
 -- Settlement asset, overridden per chain.
 --
 -- `settlement_asset` is one asset for every chain, which breaks where a chain
--- has no venue into it: Robinhood and Arbitrum carry USDG with no USDG/USDC pool,
+-- has no venue into it: Arbitrum carries USDG with no USDG/USDC pool,
 -- so a USDC merchant could never be offered USDG there. A chain present here
 -- settles in its own asset; a chain absent keeps `settlement_asset`.
 --

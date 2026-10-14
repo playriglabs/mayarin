@@ -72,7 +72,7 @@ export class AssetCapabilities {
    * described.
    *
    * Reported rather than thrown: a settlement stablecoin with no EIP-712
-   * domain (Robinhood's USDC and USDG, Arbitrum's USDG) is still a valid asset
+   * domain (Arbitrum's USDG) is still a valid asset
    * for the contract and deposit paths — it is only not an x402 token. A
    * request already drops such a token, so refusing to start over one took the
    * whole API down for a rail nobody could have used.
