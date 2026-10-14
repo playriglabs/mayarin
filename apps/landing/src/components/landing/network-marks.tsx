@@ -15,10 +15,10 @@ import clsx from "clsx";
 export const NETWORKS = [
   { name: "Ethereum", src: "/chains/ethereum.svg" },
   { name: "Solana", src: chainLogoUrl("solana-devnet") },
-  { name: "Arc", src: chainLogoUrl("arc-testnet") },
   { name: "Base", src: chainLogoUrl("base") },
   { name: "Arbitrum", src: chainLogoUrl("arbitrum") },
   { name: "Polygon", src: "/chains/polygon.svg" },
+  { name: "Arc", src: chainLogoUrl("arc-testnet") },
 ] as const;
 
 export interface Mark {
