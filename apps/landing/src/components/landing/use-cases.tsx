@@ -89,7 +89,10 @@ export function UseCases() {
         id="use-case-panel"
         role="tabpanel"
         aria-labelledby={`use-case-tab-${industry.id}`}
-        class="mx-auto mt-10 grid max-w-300 gap-4 md:mt-12 md:grid-cols-2 md:gap-5 lg:grid-cols-3"
+        class={clsx(
+          "mx-auto mt-10 grid gap-4 md:mt-12 md:grid-cols-2 md:gap-5",
+          industry.solutions.length > 2 ? "max-w-300 lg:grid-cols-3" : "max-w-240",
+        )}
       >
         {industry.solutions.map((solution, index) => (
           <SolutionCard

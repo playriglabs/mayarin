@@ -21,15 +21,16 @@ export interface Solution {
 }
 
 /**
- * One industry, three solutions: how it gets paid, how it pays out or what it
- * runs alongside, and how a payer without crypto still pays it. Only what
+ * One industry, two or three solutions: how it gets paid, how it pays out or
+ * what it runs alongside, and how a payer without crypto still pays it (left
+ * out where a person is not the payer, as for AI agents). Only what
  * Mayarin ships today — collection on any supported asset, invoices,
  * subscriptions, x402, batch stablecoin payouts and local fiat rails.
  */
 export interface Industry {
   readonly id: string;
   readonly name: string;
-  readonly solutions: readonly [Solution, Solution, Solution];
+  readonly solutions: readonly Solution[];
 }
 
 const PAYOUTS_LABEL = "Payouts";
@@ -267,12 +268,6 @@ export const INDUSTRIES: readonly Industry[] = [
         label: "Agent payments",
         title: "One signature to pay",
         body: "An agent signs one authorization for an exact amount. It never registers, holds gas or sees an address.",
-      },
-      {
-        kind: "fiat",
-        label: FIAT_LABEL,
-        title: "Credits and plans in local methods",
-        body: "Customers buy credits or plans by bank transfer or e-wallet. You settle in a stablecoin.",
       },
     ],
   },
