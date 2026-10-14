@@ -75,7 +75,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
             { asset: "ETH", chain: "base", selected: true },
             { asset: "PYUSD", chain: "ethereum", selected: false },
             { asset: "USDC", chain: "arbitrum", selected: false },
-            { asset: "USDG", chain: "robinhood-testnet", selected: false },
+            { asset: "USDT", chain: "solana-devnet", selected: false },
           ].map((rail) => (
             <div
               key={`${rail.asset}-${rail.chain}`}
@@ -107,7 +107,7 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="text-[11px] text-slate-600">Studio Supply · inv-2026-014</p>
-              <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDG</strong>
+              <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDC</strong>
             </div>
             <span class="rounded-full bg-v2-sage px-3 py-1 text-[11px] text-forest">Settled</span>
           </div>
@@ -137,10 +137,10 @@ export function CapabilityVisual({ kind }: { readonly kind: CapabilityKind }) {
     <Frame>
       <div class="min-h-72 w-full max-w-70 rounded-xl border border-line bg-paper p-5 text-center shadow-[0_12px_40px_#142b1610]">
         <span class="mx-auto flex size-9 items-center justify-center">
-          <RailMark asset="USDG" chain="arbitrum" size={36} />
+          <RailMark asset="USDC" chain="arbitrum" size={36} />
         </span>
         <p class="mt-3 text-[10px] text-slate-600">Settled to your wallet on Arbitrum</p>
-        <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDG</strong>
+        <strong class="mt-2 block text-2xl font-medium tracking-tight">1,500.00 USDC</strong>
         <div class="my-5 h-px bg-line" />
         <div class="space-y-2 text-left text-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&_span]:text-slate-600">
           <div>

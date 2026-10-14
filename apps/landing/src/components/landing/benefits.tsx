@@ -33,7 +33,7 @@ export function Benefits() {
       <div class="mt-12 grid gap-5 md:mt-16 lg:grid-cols-[1.5fr_1fr]">
         <BenefitCard
           title="Reach more payers"
-          body="Accept any supported asset on any supported chain. Customers who hold crypto pay the way they already do, and the order still lands in your currency."
+          body="Accept local methods like bank transfer and e-wallets, or any supported asset on any supported chain. Customers pay the way they already do, and the order still lands in your currency."
           raised
         >
           <GrowthVisual />
@@ -303,7 +303,7 @@ function SettlementVisual() {
         class="absolute bottom-0 left-12 w-56 -rotate-1 rounded-lg border border-line bg-paper px-4 py-3 shadow-sm"
       >
         <div class="flex justify-between text-xs text-slate-600">
-          <span class="text-ink">On-chain · USDG</span>
+          <span class="text-ink">On-chain · USDC</span>
           <span>Confirmed</span>
         </div>
         <p class="mt-2 flex items-center justify-between text-lg font-medium text-ink">

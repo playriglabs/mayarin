@@ -34,7 +34,7 @@ const DEVELOPER_CARDS = [
     eyebrow: "Webhooks",
     title: "Know the moment money lands",
     description:
-      "Every state change posts a signed webhook to your server — verify the signature, then fetch the payment before you fulfil. The same event log keeps every step, so any payment can be replayed or audited later.",
+      "Every state change posts a signed webhook to your server, verify the signature, then fetch the payment before you fulfil. The same event log keeps every step, so any payment can be replayed or audited later.",
     cta: "Read the webhooks guide",
     href: `${DOCS_URL}/guides/webhooks`,
     snippet: SNIPPETS.get("webhook"),

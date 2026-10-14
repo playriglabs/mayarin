@@ -20,8 +20,8 @@ export function Hero() {
           <Reveal delay={120}>
             <p class="mx-auto mt-7 max-w-165 text-base leading-relaxed text-slate-600 md:text-[17px]">
               Payments infrastructure for the borderless economy.
-              <br class="hidden md:block" /> One integration, local-currency pricing, stablecoin
-              settlement, payouts in minutes.
+              <br class="hidden md:block" /> One integration: local-currency pricing, customers who
+              pay with bank transfer, e-wallets or crypto, and stablecoin settlement.
             </p>
           </Reveal>
           <Reveal delay={240} class="mt-8 flex flex-wrap items-center justify-center gap-3">

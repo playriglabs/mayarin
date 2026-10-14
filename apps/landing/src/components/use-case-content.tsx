@@ -34,8 +34,8 @@ export const INDUSTRIES: readonly Industry[] = [
       {
         kind: "checkout",
         label: "Checkout",
-        title: "Checkout in any supported asset",
-        body: "Price in your local currency. Shoppers pay in the crypto they hold, you settle in a stablecoin.",
+        title: "Checkout in local methods or crypto",
+        body: "Price in your local currency. Shoppers pay with a bank transfer, an e-wallet or the crypto they hold, you settle in a stablecoin.",
       },
       {
         kind: "payouts",
