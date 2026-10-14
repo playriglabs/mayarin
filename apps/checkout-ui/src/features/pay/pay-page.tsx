@@ -1,11 +1,18 @@
+import { chainLabel } from "@mayarin/chain";
 import clsx from "clsx";
+import { useState } from "react";
 import { match, P } from "ts-pattern";
 import { CheckoutShell } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
+import {
+  forgetLocalCurrencyIntent,
+  isLocalCurrencyIntent,
+} from "../../shared/local-currency-intent.ts";
 import { footnote, panelTitle } from "../../shared/ui.ts";
 import { ChooseRail } from "./choose-rail.tsx";
 import { ConfirmingCard } from "./confirming-card.tsx";
 import { DepositCard } from "./deposit-card.tsx";
+import { LocalCurrencyCard } from "./local-currency-card.tsx";
 import { Outcome } from "./outcome.tsx";
 import { StatusTimeline } from "./status-timeline.tsx";
 import { paymentStage } from "./status-wording.ts";
@@ -58,6 +65,9 @@ export function PayPage({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
  */
 function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
   const { intentId, expiresAt } = bootstrap;
+  // Chosen on the page before: the payer said they would pay in local currency,
+  // so that form leads and the crypto instructions wait below it.
+  const [localFirst, setLocalFirst] = useState(() => isLocalCurrencyIntent(intentId));
 
   const { status, clearingState, deposit, terminal } = usePaymentStatus(bootstrap);
   const remaining = useCountdown(expiresAt, !terminal);
@@ -123,18 +133,44 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
         .with({ deposit: P.nonNullable, stage: "confirming" }, ({ deposit }) => (
           <ConfirmingCard deposit={deposit} intentId={intentId} />
         ))
-        .with({ deposit: P.nonNullable, stage: "waiting" }, ({ deposit }) => (
-          <DepositCard
-            deposit={deposit}
-            localPrice={bootstrap.amount.display}
-            intentId={intentId}
-            copied={copied}
-            onCopy={copy}
-          />
-        ))
+        .with({ deposit: P.nonNullable, stage: "waiting" }, ({ deposit }) =>
+          localFirst ? (
+            // Local currency was the choice, so nothing about crypto is shown:
+            // no address, no QR, no network. The one way back is a plain link.
+            <>
+              <LocalCurrencyCard
+                intentId={intentId}
+                priceCurrency={bootstrap.amount.asset}
+                delivery={`${deposit.amount.asset} on ${chainLabel(deposit.chain)}`}
+                leading
+              />
+              <button
+                type="button"
+                className="mt-3 block w-full border-0 bg-transparent p-0 text-center text-xs text-muted underline underline-offset-2 transition-colors hover:text-ink"
+                onClick={() => {
+                  forgetLocalCurrencyIntent(intentId);
+                  setLocalFirst(false);
+                }}
+              >
+                Pay with crypto instead
+              </button>
+            </>
+          ) : (
+            <>
+              <DepositCard
+                deposit={deposit}
+                localPrice={bootstrap.amount.display}
+                intentId={intentId}
+                copied={copied}
+                onCopy={copy}
+              />
+              <LocalCurrencyCard intentId={intentId} priceCurrency={bootstrap.amount.asset} />
+            </>
+          ),
+        )
         .exhaustive()}
 
-      {!terminal && <p className={footnote}>This page updates automatically.</p>}
+      {!terminal && !localFirst && <p className={footnote}>This page updates automatically.</p>}
       {waiting && deposit === undefined && (
         <p className={footnote}>
           Reference ID <code>{intentId}</code>

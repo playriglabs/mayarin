@@ -3,7 +3,15 @@ import { BuyerProtection } from "../../shared/buyer-protection.tsx";
 import { CheckoutShell } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import { currencySymbol, sanitizeAmount } from "../../shared/currency.ts";
+import { rememberLocalCurrencyIntent } from "../../shared/local-currency-intent.ts";
+import {
+  LocalCurrencyPanel,
+  type PaymentMethod,
+  PaymentMethodTabs,
+  useLocalCurrencyRail,
+} from "../../shared/local-currency-option.tsx";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
+import type { Rail } from "../../shared/types.ts";
 import {
   errorText,
   estimateRow,
@@ -52,9 +60,14 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
   // offering a button whose only outcome is a refusal.
   const payableNow = payable && rail !== undefined;
   const quoteReady = canContinueWithQuote(estimate);
+  const localRail = useLocalCurrencyRail(rails, bootstrap.protection, {
+    linkId: bootstrap.linkId,
+  });
+  const [method, setMethod] = useState<PaymentMethod>("crypto");
 
-  async function pay() {
-    if (!payableNow || !quoteReady || busy) return;
+  /** Mints and confirms the intent on `target`, then opens its payment page. */
+  async function start(target: Rail, localCurrency: boolean) {
+    if (!payable || busy) return;
     if (total === null && Number(amount) <= 0) {
       setError("Enter an amount first.");
       return;
@@ -66,7 +79,9 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       const response = await fetch(`/v1/payment-links/${bootstrap.linkId}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(checkoutBody(bootstrap, amount, rail, payerAddress)),
+        body: JSON.stringify(
+          checkoutBody(bootstrap, amount, target, localCurrency ? null : payerAddress),
+        ),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -94,11 +109,17 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
         return;
       }
 
+      if (localCurrency) rememberLocalCurrencyIntent(intentId);
       location.href = `/checkout/pay/${intentId}`;
     } catch {
       setError("Network error. Please try again.");
       setBusy(false);
     }
+  }
+
+  function pay() {
+    if (rail === undefined || !quoteReady) return;
+    void start(rail, false);
   }
 
   return (
@@ -147,52 +168,71 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
 
       {payableNow ? (
         <>
-          <RailPicker rails={rails} selected={rail} onSelect={setRail} />
-
-          <div className={estimateRow} aria-busy={estimate.status === "loading"} aria-live="polite">
-            <span>Estimated total in {rail.asset}</span>
-            <strong>{estimate.display}</strong>
-          </div>
-
-          {estimate.status === "unavailable" && (
-            <p className={errorText} role="alert">
-              {estimate.message}
-            </p>
+          {localRail !== undefined && (
+            <PaymentMethodTabs value={method} onChange={setMethod} disabled={busy} />
           )}
+          {method === "local" && localRail !== undefined ? (
+            <LocalCurrencyPanel
+              busy={busy}
+              error={error}
+              lockMinutes={lockMinutes}
+              rail={localRail}
+              onContinue={() => void start(localRail, true)}
+            />
+          ) : (
+            <>
+              <RailPicker rails={rails} selected={rail} onSelect={setRail} />
 
-          <BuyerProtection
-            protection={bootstrap.protection}
-            rail={rail}
-            payerAddress={payerAddress}
-            onPayerAddress={setPayerAddress}
-          />
+              <div
+                className={estimateRow}
+                aria-busy={estimate.status === "loading"}
+                aria-live="polite"
+              >
+                <span>Estimated total in {rail.asset}</span>
+                <strong>{estimate.display}</strong>
+              </div>
 
-          <button
-            type="button"
-            className={`${primaryButton} mt-6`}
-            disabled={busy || !quoteReady}
-            onClick={() => void pay()}
-          >
-            {busy
-              ? "Preparing payment…"
-              : estimate.status === "unavailable"
-                ? "Payment unavailable"
-                : estimate.status === "idle"
-                  ? "Enter an amount to continue"
-                  : estimate.status === "loading"
-                    ? "Calculating price…"
-                    : `Continue with ${rail.asset}`}
-          </button>
-          {error !== "" && (
-            <p className={errorText} role="alert">
-              {error}
-            </p>
+              {estimate.status === "unavailable" && (
+                <p className={errorText} role="alert">
+                  {estimate.message}
+                </p>
+              )}
+
+              <BuyerProtection
+                protection={bootstrap.protection}
+                rail={rail}
+                payerAddress={payerAddress}
+                onPayerAddress={setPayerAddress}
+              />
+
+              <button
+                type="button"
+                className={`${primaryButton} mt-6`}
+                disabled={busy || !quoteReady}
+                onClick={pay}
+              >
+                {busy
+                  ? "Preparing payment…"
+                  : estimate.status === "unavailable"
+                    ? "Payment unavailable"
+                    : estimate.status === "idle"
+                      ? "Enter an amount to continue"
+                      : estimate.status === "loading"
+                        ? "Calculating price…"
+                        : `Continue with ${rail.asset}`}
+              </button>
+              {error !== "" && (
+                <p className={errorText} role="alert">
+                  {error}
+                </p>
+              )}
+              <p className={`${noteText} text-center`}>
+                The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
+                <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address
+                shown there.
+              </p>
+            </>
           )}
-          <p className={`${noteText} text-center`}>
-            The exact price is locked for {lockMinutes} minutes on the next step. Only send{" "}
-            <strong className="font-medium text-ink">{railSummary(rail)}</strong> to the address
-            shown there.
-          </p>
         </>
       ) : (
         <div className={unavailableBox}>
