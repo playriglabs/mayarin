@@ -21,3 +21,4 @@ export * from "./repositories/wallet.ts";
 export * from "./repositories/x402.ts";
 export * from "./repositories/x402-payable-quotes.ts";
 export * from "./schema.ts";
+export * from "./worker-lease.ts";

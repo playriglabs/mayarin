@@ -219,6 +219,18 @@ export class InMemoryClearingRepository implements ClearingRepository {
  */
 export class InMemoryRefundRepository implements RefundRepository {
   readonly #byId = new Map<string, Refund>();
+  readonly #tails = new Map<string, Promise<unknown>>();
+
+  async serialize<T>(clearingTransactionId: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.#tails.get(clearingTransactionId) ?? Promise.resolve();
+    const next = previous.then(fn, fn);
+    this.#tails.set(
+      clearingTransactionId,
+      next.catch(() => undefined),
+    );
+    return next;
+  }
+
   readonly #byIdempotencyKey = new Map<string, string>();
 
   async insert(refund: Refund): Promise<void> {

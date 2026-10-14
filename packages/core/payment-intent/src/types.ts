@@ -153,6 +153,13 @@ export interface PaymentIntent {
   readonly id: string;
   readonly status: PaymentIntentStatus;
   readonly merchant: MerchantSnapshot;
+  /**
+   * The Mayarin tenant that owns this payment (SEC-01). Separate from
+   * `merchant`, which for a scanned QR is an EMVCo identity no API key can
+   * match. Authorization decisions read this, never `merchant.id`. Absent on a
+   * payment that predates the column; absent fails closed.
+   */
+  readonly ownerMerchantId?: string;
   /** What the merchant is owed, denominated in the currency they quoted. */
   readonly amount: Money;
   /** Asset Mayarin clears and settles this payment in. */
