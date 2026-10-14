@@ -6,16 +6,18 @@
  * lets it be tested without a network.
  */
 
-import type {
-  AssetBalance,
-  BalanceQuery,
-  BlockRef,
-  ChainClient,
-  ChainId,
-  SettlementLog,
-  SettlementQuery,
-  TransferLog,
-  TransferQuery,
+import {
+  type AssetBalance,
+  type BalanceQuery,
+  type BlockRef,
+  type ChainClient,
+  type ChainId,
+  fromChainUnits,
+  fromSettlementUnits,
+  type SettlementLog,
+  type SettlementQuery,
+  type TransferLog,
+  type TransferQuery,
 } from "@mayarin/chain";
 import { paymentRouterAbi } from "@mayarin/contracts";
 import { viemChainOf } from "@mayarin/provider-viem-chains";
@@ -212,7 +214,7 @@ export class EvmChainClient implements ChainClient {
           blockHash: log.blockHash,
           from: (log.args.from ?? "").toLowerCase(),
           to: log.args.to.toLowerCase(),
-          amount: log.args.value / source.scale,
+          amount: fromChainUnits(query.chain, query.asset, log.args.value / source.scale),
         },
       ];
     });
@@ -275,9 +277,9 @@ export class EvmChainClient implements ChainClient {
           blockHash: log.blockHash,
           intentId: intentId.toLowerCase(),
           merchantSafe: merchantSafe.toLowerCase(),
-          settledAmount,
-          fee,
-          refundAmount,
+          settledAmount: fromSettlementUnits(query.chain, settledAmount),
+          fee: fromSettlementUnits(query.chain, fee),
+          refundAmount: fromSettlementUnits(query.chain, refundAmount),
         },
       ];
     });
@@ -379,7 +381,7 @@ export class EvmChainClient implements ChainClient {
       );
       balances.push({
         address: address.toLowerCase(),
-        amount,
+        amount: native ? amount : fromChainUnits(query.chain, query.asset, amount),
         blockNumber: block.number,
         blockHash: block.hash,
       });

@@ -27,6 +27,7 @@ describe("chain facts", () => {
     expect(isChainId("arbitrum-sepolia")).toBe(true);
     expect(isChainId("arc-testnet")).toBe(true);
     expect(isChainId("polygon-amoy")).toBe(true);
+    expect(isChainId("bsc-testnet")).toBe(true);
     expect(isChainId("solana-devnet")).toBe(true);
     expect(isChainId("solana-localnet")).toBe(true);
     expect(isChainId("ethereum")).toBe(false);
@@ -86,6 +87,7 @@ describe("CAIP-2", () => {
     expect(caip2Of("base-sepolia")).toBe("eip155:84532");
     expect(caip2Of("arc-testnet")).toBe("eip155:5042002");
     expect(caip2Of("polygon-amoy")).toBe("eip155:80002");
+    expect(caip2Of("bsc-testnet")).toBe("eip155:97");
     expect(caip2Of("solana-devnet")).toBe("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
     expect(caip2Of("solana-localnet")).toBe("solana:localnet");
   });

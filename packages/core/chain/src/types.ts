@@ -17,6 +17,7 @@ export const EVM_CHAINS = [
   "arbitrum-sepolia",
   "arc-testnet",
   "polygon-amoy",
+  "bsc-testnet",
 ] as const;
 
 /** Solana clusters Mayarin runs on. */
@@ -71,6 +72,7 @@ export const EVM_CHAIN_IDS: Readonly<Record<EvmChainId, bigint>> = {
   // than a missing one. Add it when the network answers.
   "arc-testnet": 5_042_002n,
   "polygon-amoy": 80_002n,
+  "bsc-testnet": 97n,
 };
 
 /** Returns the EIP-155 id, refusing a non-EVM chain at the adapter boundary. */
@@ -95,6 +97,7 @@ export const CHAIN_LABELS: Readonly<Record<ChainId, string>> = {
   "arbitrum-sepolia": "Arbitrum Sepolia",
   "arc-testnet": "Arc Testnet",
   "polygon-amoy": "Polygon Amoy",
+  "bsc-testnet": "BNB Smart Chain Testnet",
   "solana-devnet": "Solana Devnet",
   "solana-localnet": "Solana Localnet",
 };
@@ -110,6 +113,7 @@ const TRUST_WALLET_CHAIN_LOGOS: Readonly<Record<string, string>> = {
   arbitrum: "https://assets-cdn.trustwallet.com/blockchains/arbitrum/info/logo.png",
   solana: "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
   polygon: "https://assets-cdn.trustwallet.com/blockchains/polygon/info/logo.png",
+  bnb: "https://assets-cdn.trustwallet.com/blockchains/smartchain/info/logo.png",
 };
 
 /** A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet. */
@@ -118,6 +122,7 @@ const MAINNET_OF: Readonly<Record<string, string>> = {
   "base-sepolia": "base",
   "arbitrum-sepolia": "arbitrum",
   "polygon-amoy": "polygon",
+  "bsc-testnet": "bnb",
   "solana-devnet": "solana",
   "solana-localnet": "solana",
 };

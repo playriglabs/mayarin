@@ -15,7 +15,7 @@
  * below it does.
  */
 
-import { type ChainId, evmChainIdOf, isSolanaChainId } from "@mayarin/chain";
+import { type ChainId, evmChainIdOf, isSolanaChainId, toSettlementUnits } from "@mayarin/chain";
 import type {
   ClearingContract,
   ClearingEngine,
@@ -357,7 +357,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         fee: fee.amount,
         deadline: orderDeadline,
       };
-      const signed = await signOrder(quote.signer, domain, order);
+      const signed = await signChainOrder(quote.signer, domain, request.chain, order);
       return this.#contractLock({
         settlementAmount,
         fee,
@@ -388,7 +388,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       now,
     );
     const assembled = assembleOrder(locked, context, now);
-    const signed = await signOrder(quote.signer, domain, {
+    const signed = await signChainOrder(quote.signer, domain, request.chain, {
       ...assembled,
       deadline: request.orderExpiresAt === undefined ? assembled.deadline : orderDeadline,
     });
@@ -517,12 +517,13 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       // `orderDeadline`.
       deadline: BigInt(request.expiresAt.getTime()) / 1_000n,
     };
-    const signed = await signOrder(
+    const signed = await signChainOrder(
       quote.signer,
       {
         chainId: evmChainIdOf(request.chain),
         verifyingContract: router as Hex,
       },
+      request.chain,
       order,
     );
 
@@ -780,7 +781,7 @@ export class ContractCheckout {
       };
     }
 
-    const order = toQuoteOrder(lock.order);
+    const order = toChainOrder(rail.chain, toQuoteOrder(lock.order));
     const signature = lock.order.signature as Hex;
     const sameAsset = rail.asset === transaction.settlementAsset;
     const route = sameAsset
@@ -855,6 +856,30 @@ export class ContractCheckout {
     if (lastError !== undefined) throw lastError;
     throw new ConfigurationError(`No route-capable venue is configured for ${chain}`, { chain });
   }
+}
+
+/**
+ * An order as the token contract counts it. The domain keeps `minOut` and `fee`
+ * in the asset's own minor units (the clearing engine compares them with the
+ * settlement amount); the contract and the signature see the token's.
+ */
+function toChainOrder(chain: ChainId, order: Order): Order {
+  return {
+    ...order,
+    minOut: toSettlementUnits(chain, order.minOut),
+    fee: toSettlementUnits(chain, order.fee),
+  };
+}
+
+/** Signs the order in token units and hands back the one in domain units. */
+async function signChainOrder(
+  signer: Parameters<typeof signOrder>[0],
+  domain: OrderDomain,
+  chain: ChainId,
+  order: Order,
+): Promise<Awaited<ReturnType<typeof signOrder>>> {
+  const signed = await signOrder(signer, domain, toChainOrder(chain, order));
+  return { order, signature: signed.signature };
 }
 
 function toQuoteOrder(order: ContractOrder): Order {
