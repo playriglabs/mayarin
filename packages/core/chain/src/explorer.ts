@@ -14,6 +14,7 @@ const EXPLORERS = {
   arbitrum: "https://arbiscan.io/",
   "arbitrum-sepolia": "https://sepolia.arbiscan.io/",
   "arc-testnet": "https://testnet.arcscan.app/",
+  "polygon-amoy": "https://amoy.polygonscan.com/",
   "solana-devnet": "https://explorer.solana.com/",
   "solana-localnet": "https://explorer.solana.com/",
 } as const satisfies Readonly<Record<ChainId, string>>;

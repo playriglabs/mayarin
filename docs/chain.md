@@ -252,6 +252,7 @@ with it.
 | `arbitrum`         | 42161      | `https://arbiscan.io`          |
 | `arbitrum-sepolia` | 421614     | `https://sepolia.arbiscan.io`  |
 | `arc-testnet`      | 5042002    | `https://testnet.arcscan.app`  |
+| `polygon-amoy`     | 80002      | `https://amoy.polygonscan.com` |
 
 Every id above was read off the network with `cast chain-id`, not copied from a
 documentation page. Arc mainnet is missing on purpose: it does not launch until
