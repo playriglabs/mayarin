@@ -13,7 +13,6 @@ const EXPLORERS = {
   "base-sepolia": "https://sepolia.basescan.org/",
   arbitrum: "https://arbiscan.io/",
   "arbitrum-sepolia": "https://sepolia.arbiscan.io/",
-  "robinhood-testnet": "https://explorer.testnet.chain.robinhood.com/",
   "arc-testnet": "https://testnet.arcscan.app/",
   "solana-devnet": "https://explorer.solana.com/",
   "solana-localnet": "https://explorer.solana.com/",

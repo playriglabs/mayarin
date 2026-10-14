@@ -1,1 +1,1 @@
-export { robinhoodTestnet, VIEM_CHAINS, viemChainOf } from "./chains.ts";
+export { VIEM_CHAINS, viemChainOf } from "./chains.ts";

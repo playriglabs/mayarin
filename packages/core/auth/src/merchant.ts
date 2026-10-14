@@ -43,7 +43,7 @@ export interface Merchant {
    * The settlement asset overridden per chain.
    *
    * `settlementAsset` is the default every chain settles in. A chain present
-   * here settles in its own asset instead — Robinhood has USDG and no venue
+   * here settles in its own asset instead — Arbitrum has USDG and no venue
    * from USDG to USDC, so a USDC merchant is paid there in USDG or not at all.
    *
    * Optional, and absent is the same answer as empty: every chain settles in

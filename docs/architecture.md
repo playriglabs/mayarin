@@ -402,7 +402,6 @@ an RPC URL, assets, and (for the contract path) a deployed `PaymentRouter`. See
 - `ethereum-sepolia`
 - `arbitrum`, `arbitrum-sepolia`
 - `arc-testnet` — Circle's chain; the first whose native asset is not ETH
-- `robinhood-testnet` — an Orbit chain
 - Solana, TRON _(future, non-EVM — a different signing and address model)_
 
 Cross-chain payment (payer on chain A, merchant settled on chain B) needs a

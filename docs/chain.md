@@ -244,15 +244,14 @@ RPC URLs, token addresses, confirmation depths, router addresses, quoters — so
 widening the union is what makes the compiler enumerate the sites that must grow
 with it.
 
-| `ChainId`           | EIP-155 id | Explorer                                       |
-| ------------------- | ---------- | ---------------------------------------------- |
-| `ethereum-sepolia`  | 11155111   | `https://sepolia.etherscan.io`                 |
-| `base`              | 8453       | `https://basescan.org`                         |
-| `base-sepolia`      | 84532      | `https://sepolia.basescan.org`                 |
-| `arbitrum`          | 42161      | `https://arbiscan.io`                          |
-| `arbitrum-sepolia`  | 421614     | `https://sepolia.arbiscan.io`                  |
-| `robinhood-testnet` | 46630      | `https://explorer.testnet.chain.robinhood.com` |
-| `arc-testnet`       | 5042002    | `https://testnet.arcscan.app`                  |
+| `ChainId`          | EIP-155 id | Explorer                       |
+| ------------------ | ---------- | ------------------------------ |
+| `ethereum-sepolia` | 11155111   | `https://sepolia.etherscan.io` |
+| `base`             | 8453       | `https://basescan.org`         |
+| `base-sepolia`     | 84532      | `https://sepolia.basescan.org` |
+| `arbitrum`         | 42161      | `https://arbiscan.io`          |
+| `arbitrum-sepolia` | 421614     | `https://sepolia.arbiscan.io`  |
+| `arc-testnet`      | 5042002    | `https://testnet.arcscan.app`  |
 
 Every id above was read off the network with `cast chain-id`, not copied from a
 documentation page. Arc mainnet is missing on purpose: it does not launch until
@@ -268,16 +267,12 @@ name. The guard that reads it refuses an in-process quote-signing key on a chain
 carrying real value, and a guard written as `chain === "base"` would have called
 Arbitrum One a testnet the day it was added.
 
-### Robinhood Chain and the Orbit chains
-
-Robinhood Chain is an Arbitrum Orbit L2 with ETH as its gas token. viem ships no
-definition for it, so `@mayarin/provider-viem-chains` defines it — that package
-exists to hold one copy of the `ChainId → viem Chain` map, so a price adapter can
-import a chain fact without pulling a signer's dependency tree behind it, and so
-a chain cannot be defined two slightly different ways in two adapters. The test
-beside it asserts each viem `id` equals the `EVM_CHAIN_IDS` entry: viem
-broadcasts with its own id, so a typo there would send a transaction to the wrong
-network while every check against the domain table still passed.
+`@mayarin/provider-viem-chains` holds one copy of the `ChainId → viem Chain` map,
+so a price adapter can import a chain fact without pulling a signer's dependency
+tree behind it, and a chain cannot be defined two slightly different ways in two
+adapters. The test beside it asserts each viem `id` equals the `EVM_CHAIN_IDS`
+entry: viem broadcasts with its own id, so a typo there would send a transaction
+to the wrong network while every check against the domain table still passed.
 
 The [Arc audit](./arc.md) records native-decimal regression coverage and the
 payer-submitted contract-path evidence.
@@ -553,47 +548,13 @@ zero-delay timelock (execute tx
 contract was redeployed. A payer on Arbitrum Sepolia can therefore bring ETH
 (native, swapped through the WETH/USDC pool), USDC or USDG.
 
-Robinhood Chain testnet (chain id 46630), deployed 2026-09-29 in block 126244410
-and verified on the Robinhood Blockscout explorer. **Throwaway v0**, as above.
+A merchant chooses its settlement asset per chain
+(`merchants.settlement_asset_by_chain`, migration 0034): the merchant-wide
+`settlement_asset` is the default, and a chain may override it — a chain with no
+USDC venue can settle USDG while every other chain settles USDC.
 
-| Contract                  | Address                                      |
-| ------------------------- | -------------------------------------------- |
-| `PaymentRouter`           | `0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9` |
-| `TimelockController`      | `0x0c006FC14063e3F78271312B975231e4BD6e8B00` |
-| `DepositForwarderFactory` | `0x4b96E74B963efa7Ab7D7497854Fc87220Bd092C4` |
-
-USDG `0x7E955252E15c84f5768B83c41a71F9eba181802F` was the first asset, whitelisted
-for input and settlement, with no DEX router: a USDG payment settles USDG, and
-nothing on this chain swaps. The USDG addresses on both chains come from Paxos's
-testnet list and were read back on chain (`symbol`, `decimals`, `name`) before
-use. The configure step's timelock execute reverted on the first run because the
-matching schedule was never recorded; scheduling and executing again with `cast`
-succeeded (execute tx
-`0x77dee4b3a7c51fcea885b3ad4905f1c22ef2a6c7ad103c0f90b3b2fadb29d9bc`).
-
-USDC (`USD Coin`, 6 decimals) `0xAc80194dc1aE8eF52df73e7e1864fB3C62290fe0` was
-added afterwards as both an input and a settlement asset, read back on chain
-first, through one timelock batch (schedule tx
-`0xe9dcf26845aadda1815dc52897996b5769124b39f50ce638f7585aba9a527dab`, execute tx
-`0x31a1e669437778667d3a4b57f825dc437907cd70ebc68027d1718661a108f546`). Still no
-DEX router: USDC settles USDC and USDG settles USDG, so a merchant is offered
-only the Robinhood asset it settles in.
-
-A merchant chooses that asset per chain (`merchants.settlement_asset_by_chain`,
-migration 0034): the merchant-wide `settlement_asset` is the default, and a chain
-may override it — Robinhood → USDG while every other chain settles USDC. The
-first USDG payments settled end to end from `PaymentRouter` into the merchant's
-managed wallet on 2026-09-30: 0.994 USDG (tx
-`0xd04b4e09aecc0033b28374d5c44df585cb647a8292885ce627e78d45ada10fc7`) and
-12.668166 USDG (tx
-`0x77de6a320ddf85a409d1af4d26499f8b87af3c12424e4cf830c99c7e0b9ba1d5`).
-
-No venue converts between USDC and USDG on either Robinhood or Arbitrum Sepolia,
-so a payer on those chains pays in the asset the merchant settles in there. A log
-scan of Robinhood (public RPC; Alchemy's free tier caps `eth_getLogs` at 10
-blocks) found Uniswap v2/v3/v4 USDG pools against tokenized equities and WETH but
-none against USDC; the one USDC→WETH→USDG path prices WETH at ~49,700 USDC with
-~66 USDG of depth, and routing is single-hop anyway.
+No venue converts between USDC and USDG on Arbitrum Sepolia, so a payer there
+pays in the asset the merchant settles in.
 
 PYUSD (`0x637A1259C6afd7E3AdF63993cA7E58BB438aB1B1`, 6 decimals, read back on
 chain) was added on Arbitrum Sepolia as input and settlement asset in one

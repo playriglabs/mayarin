@@ -286,8 +286,8 @@ describe("predictAddress", () => {
     // CREATE2 differently — has no matching code. A prediction there is an
     // address nothing can ever be deployed to.
     await expect(
-      provider({ chain: "robinhood-testnet", safeCode: "0x" }).predictAddress(
-        request({ chain: "robinhood-testnet" }),
+      provider({ chain: "arbitrum-sepolia", safeCode: "0x" }).predictAddress(
+        request({ chain: "arbitrum-sepolia" }),
       ),
     ).rejects.toBeInstanceOf(ConfigurationError);
   });

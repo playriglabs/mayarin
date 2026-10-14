@@ -32,7 +32,7 @@ describe("circleChainOf", () => {
   });
 
   it("refuses a chain the CLI has not been checked for", () => {
-    expect(() => circleChainOf("robinhood-testnet")).toThrow(/circle blockchain list/);
+    expect(() => circleChainOf("arbitrum-sepolia")).toThrow(/circle blockchain list/);
   });
 });
 

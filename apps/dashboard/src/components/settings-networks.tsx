@@ -261,7 +261,7 @@ function isCustomized(draft: NetworkDraft, chain: string): boolean {
  *
  * Starts from the list the dialog shows, settlement asset included. Starting
  * from `acceptedOn` alone broke when the inherited list lacks the settlement
- * asset — USDC-only merchant-wide, USDG on Robinhood: unticking USDC left an
+ * asset — USDC-only merchant-wide, USDG on Arbitrum: unticking USDC left an
  * empty row, an empty row means "inherit", and USDC came straight back.
  */
 export function toggledAccepted(

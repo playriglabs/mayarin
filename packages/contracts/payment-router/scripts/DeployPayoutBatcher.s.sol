@@ -14,7 +14,7 @@ import {PayoutBatcher} from "../src/PayoutBatcher.sol";
 ///      Run:
 ///      ```
 ///      forge script scripts/DeployPayoutBatcher.s.sol:DeployPayoutBatcher \
-///        --rpc-url $ROBINHOOD_TESTNET_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY
+///        --rpc-url $ARBITRUM_SEPOLIA_RPC_URL --broadcast --private-key $DEPLOYER_PRIVATE_KEY
 ///      ```
 contract DeployPayoutBatcher is Script {
     bytes32 internal constant SALT = keccak256("mayarin.payout-batcher.v1");

@@ -27,13 +27,13 @@ What the merchant is paid in.
 | Asset | Decimals | Note                                                                  |
 | ----- | -------- | --------------------------------------------------------------------- |
 | USDC  | 6        | The default                                                           |
-| USDG  | 6        | Global Dollar. The settlement asset on Robinhood Chain                |
+| USDG  | 6        | Global Dollar. Settlement and payer asset on Arbitrum Sepolia         |
 | EURC  | 6        | Euro-denominated — the one stablecoin here that is not a dollar in another representation |
 | PYUSD | 6        | PayPal USD                                                            |
 
 ### Settlement per chain
 
-A merchant sets one settlement asset as the default and can override it per chain — for example USDC everywhere, but USDG on Robinhood Chain. A payment is priced into the settlement asset of the chain it is paid on, and every rail reports it: `GET /v1/payment-links/:id/rails` returns a `settlementAsset` on each rail, so a checkout can say what the merchant receives before the payer picks.
+A merchant sets one settlement asset as the default and can override it per chain — for example USDC everywhere, but USDG on Arbitrum. A payment is priced into the settlement asset of the chain it is paid on, and every rail reports it: `GET /v1/payment-links/:id/rails` returns a `settlementAsset` on each rail, so a checkout can say what the merchant receives before the payer picks.
 
 A chain's own settlement asset is always accepted there, whatever else the merchant has turned off.
 
@@ -60,7 +60,6 @@ A merchant chooses which of these to accept. `GET /v1/payment-links/:id` and the
 | `arbitrum-sepolia`  | Testnet                                                                | USDC, USDG, PYUSD                     |
 | `arbitrum`          | Mainnet, unprovisioned                                                 |                                       |
 | `arc-testnet`       | Circle's chain — USDC-native, the first whose native asset is not ETH  | USDC, EURC                            |
-| `robinhood-testnet` | Robinhood Chain, an Arbitrum Orbit chain                               | USDG, USDC                            |
 
 Mayarin currently runs on **testnet**. Its Base Sepolia execution contracts are deployed and verified; the mainnet environment stays deliberately unprovisioned until the documented security and deployment gates are satisfied.
 

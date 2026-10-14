@@ -134,7 +134,7 @@ Current boundaries: `exact` scheme only, EVM only, and the broadcaster pays gas.
 
 Testnet only. Mainnet is deliberately unprovisioned.
 
-**Arbitrum Sepolia and Robinhood Chain Testnet** (an Arbitrum Orbit L2) share one set of addresses:
+**Arbitrum Sepolia**:
 
 | Contract                  | Address                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -170,8 +170,8 @@ Other chains:
 
 ### Arbitrum
 
-Arbitrum Sepolia and Robinhood Chain Testnet run the full contract set above. Settlement is chosen
-per chain: USDC on Arbitrum, USDG on Robinhood Chain, PYUSD where the merchant settles in it.
+Arbitrum Sepolia runs the full contract set above. Settlement is chosen per chain: USDC or USDG on
+Arbitrum, PYUSD where the merchant settles in it.
 
 ### Arc (Circle)
 

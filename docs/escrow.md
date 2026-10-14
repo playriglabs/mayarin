@@ -66,7 +66,7 @@ releaseAfter, resolveBy)`, `salt = keccak256(abi.encode(terms))`, address =
 - **Whole balance.** A move transfers everything the vault holds.
 - Deterministic deployer (`scripts/DeployEscrowFactory.s.sol`): one address on
   every chain, `0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45` — deployed on Arbitrum
-  Sepolia, Robinhood testnet, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_CHAINS` in
+  Sepolia, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_CHAINS` in
   `packages/providers/evm/src/escrow.ts` lists where it is deployed.
 
 ## No router change
@@ -238,7 +238,7 @@ payee with the payment.
 - **Address.** Same deterministic deployer, salt `mayarin.escrow-factory.v2`:
   `0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18` on every chain
   (`scripts/DeployEscrowFactoryV2.s.sol`), deployed 2 Oct 2026 on Arbitrum
-  Sepolia, Robinhood testnet, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_V2_CHAINS` in
+  Sepolia, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_V2_CHAINS` in
   `packages/providers/evm/src/escrow.ts` lists where it is deployed; a new
   escrow there is made under v2 (bond zero when the merchant sets none), and
   under v1 elsewhere.

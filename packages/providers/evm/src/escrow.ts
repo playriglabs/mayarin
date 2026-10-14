@@ -49,7 +49,6 @@ export const ESCROW_ARBITRATION_SECONDS = 7 * 24 * 60 * 60;
 /** Chains `EscrowFactory` is deployed on. An escrowed payment anywhere else is refused. */
 export const ESCROW_CHAINS: readonly ChainId[] = [
   "arbitrum-sepolia",
-  "robinhood-testnet",
   "base-sepolia",
   "ethereum-sepolia",
   "arc-testnet",
@@ -62,7 +61,6 @@ export const ESCROW_CHAINS: readonly ChainId[] = [
  */
 export const ESCROW_V2_CHAINS: readonly ChainId[] = [
   "arbitrum-sepolia",
-  "robinhood-testnet",
   "base-sepolia",
   "ethereum-sepolia",
   "arc-testnet",

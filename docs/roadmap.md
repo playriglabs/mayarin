@@ -611,7 +611,6 @@ Only the `exact` scheme is implemented, and only over EVM. x402 never touches
 - ☑ Arbitrum and Arbitrum Sepolia
 - ☑ Arc testnet (Circle) — the first chain whose native asset is not ETH, with
   USDC-native settlement and a merchant Safe per chain
-- ☑ Robinhood testnet (an Orbit chain)
 - ☑ Chain-aware, exact-output quoting and the multichain counter (#244)
 - ☑ Checkout ranks the payer's rail list by observed rail liveness (#260)
 - ☑ Per-link rail restrictions (#282)
