@@ -210,6 +210,22 @@ export class PaymentApiClient {
     });
   }
 
+  /**
+   * The chains a local-currency payment can be delivered to, or `null` when the
+   * deployment has no such option (or the payment API cannot say). Never throws:
+   * a settings page must not fail to load because an optional provider is down.
+   */
+  async localCurrencyChains(): Promise<readonly string[] | null> {
+    try {
+      const response = await this.#get<{ networks: readonly { chain: string }[] }>(
+        "/fiat-onramp/networks",
+      );
+      return [...new Set(response.networks.map((network) => network.chain))];
+    } catch {
+      return null;
+    }
+  }
+
   /** What the payer must send, or `null` before a price is locked. */
   async deposit(paymentIntentId: string): Promise<DepositView | null> {
     const payment = await this.#get<{ deposit?: DepositView | null }>(

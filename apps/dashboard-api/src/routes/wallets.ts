@@ -207,6 +207,9 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
           (asset) => getAsset(asset).kind === "stablecoin",
         ),
       })),
+      // The networks a local-currency payment can be delivered to; `null` when
+      // the deployment has no such option, so the setting is not shown at all.
+      localCurrencyChains: await container.paymentApi.localCurrencyChains(),
       rails: report.rails.map((rail) => ({
         chain: rail.chain,
         asset: rail.asset,

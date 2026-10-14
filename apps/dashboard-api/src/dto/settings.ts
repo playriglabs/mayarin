@@ -82,6 +82,11 @@ export const updateSettingsBodySchema = z
      */
     city: z.string().nullable().optional(),
     countryCode: z.string().nullable().optional(),
+    /**
+     * The chain a payment funded in a local currency is delivered to. `null`
+     * goes back to the deployment's rule, an absent field leaves it alone.
+     */
+    localCurrencyChain: z.enum(CHAIN_IDS).nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
@@ -134,6 +139,8 @@ export function toSettingsDto(
     buyerProtection: merchant.buyerProtection ?? null,
     city: merchant.city ?? null,
     countryCode: merchant.countryCode ?? null,
+    /** Where a local-currency payment is delivered. `null` is the deployment's rule. */
+    localCurrencyChain: merchant.localCurrencyChain ?? null,
     /**
      * Whether this merchant can mint a payment link yet. A link freezes a
      * merchant snapshot, and the snapshot needs both profile fields — so the

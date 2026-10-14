@@ -147,6 +147,9 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
           }),
       ...(body.city === undefined ? {} : { city: body.city }),
       ...(body.countryCode === undefined ? {} : { countryCode: body.countryCode }),
+      ...(body.localCurrencyChain === undefined
+        ? {}
+        : { localCurrencyChain: body.localCurrencyChain }),
     });
 
     return c.json({
