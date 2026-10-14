@@ -14,6 +14,7 @@ import { errorHandler } from "./errors.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { cartRoutes, catalogRoutes } from "./routes/catalog.ts";
 import { checkoutPageRoutes } from "./routes/checkout-page.ts";
+import { fiatOnrampRoutes } from "./routes/fiat-onramp.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { invoicePageRoutes } from "./routes/invoice-page.ts";
 import { invoiceRoutes } from "./routes/invoices.ts";
@@ -87,6 +88,8 @@ export function createApp(container: Container): Hono {
   v1.route("/payments", paymentRoutes(container));
   // Whether a wallet may take buyer protection (#314), for the hosted checkout.
   v1.route("/payers", payerRoutes(container));
+  // Local-currency funding of a deposit address (TransFi).
+  v1.route("/fiat-onramp", fiatOnrampRoutes(container));
   // Indicative pricing, for a counter showing a payer what each accepted asset
   // would take. Locks nothing and records nothing (#15).
   v1.route("/quotes", quoteRoutes(container));

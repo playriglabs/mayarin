@@ -29,6 +29,7 @@ import {
   TablePriceSource,
 } from "@mayarin/clearing";
 import { InMemoryClearingRepository, InMemoryRefundRepository } from "@mayarin/clearing/testing";
+import type { PaymentFunding } from "@mayarin/db";
 import { InvoiceService } from "@mayarin/invoicing";
 import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
 import { LedgerService } from "@mayarin/ledger";
@@ -224,8 +225,41 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   const customers = new InMemoryCustomerRepository();
 
   const paymentApp = new PaymentAppService({ intents, engine, ledger });
+  const fundings: PaymentFunding[] = [];
   const container: Container = {
     config,
+    paymentFundings: {
+      async record(funding, now) {
+        if (fundings.some((entry) => entry.orderId === funding.orderId)) return;
+        fundings.push({ ...funding, settledAt: null, createdAt: funding.createdAt ?? now });
+      },
+      async listByPayment(paymentIntentId) {
+        return fundings.filter((entry) => entry.paymentIntentId === paymentIntentId);
+      },
+      async latestByPayments(paymentIntentIds) {
+        const latest = new Map<string, PaymentFunding>();
+        for (const entry of fundings) {
+          if (paymentIntentIds.includes(entry.paymentIntentId))
+            latest.set(entry.paymentIntentId, entry);
+        }
+        return latest;
+      },
+      async listOpen(since, limit) {
+        return fundings
+          .filter((entry) => entry.settledAt === null && entry.createdAt >= since)
+          .slice(0, limit);
+      },
+      async update(orderId, change) {
+        const index = fundings.findIndex((entry) => entry.orderId === orderId);
+        const current = fundings[index];
+        if (current === undefined) return;
+        fundings[index] = {
+          ...current,
+          status: change.status,
+          settledAt: change.settledAt ?? null,
+        };
+      },
+    },
     verifyApiKey: createApiKeyVerifier({ keys: apiKeys, clock }),
     intents,
     merchantPolicies,

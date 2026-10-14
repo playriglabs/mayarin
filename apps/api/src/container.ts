@@ -45,6 +45,7 @@ import {
   DrizzleMerchantRepository,
   DrizzleMerchantWalletRepository,
   DrizzlePayableQuoteRepository,
+  DrizzlePaymentFundingRepository,
   DrizzlePaymentIntentRepository,
   DrizzlePaymentLinkRepository,
   DrizzleProductRepository,
@@ -59,6 +60,7 @@ import {
   DrizzleWebhookOutbox,
   DrizzleX402ResourceRepository,
   listenPaymentChanged,
+  type PaymentFundingRepository,
 } from "@mayarin/db";
 import { FallbackRouteSource } from "@mayarin/execution";
 import { InvoiceService } from "@mayarin/invoicing";
@@ -97,6 +99,7 @@ import {
   solanaKeypairFromSecret,
 } from "@mayarin/provider-solana";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
+import { createTransfiClient, type TransfiClient } from "@mayarin/provider-transfi";
 import {
   EvmAssetCapabilityProbe,
   EvmX402Reader,
@@ -139,6 +142,7 @@ import { disputeNotifier } from "./services/dispute-notifier.ts";
 import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
+import { FiatSettler } from "./services/fiat-settler.ts";
 import { PaidNotifier } from "./services/paid-notifier.ts";
 import { PayerStanding } from "./services/payer-standing.ts";
 import { PaymentAppService } from "./services/payment.ts";
@@ -241,6 +245,12 @@ export interface Container {
   readonly escrow: EscrowService;
   /** Whether a payer wallet may still take buyer protection (#314). */
   readonly payerStanding: PayerStanding;
+  /** Local-currency funding of a deposit address; present only with the TRANSFI_* env set. */
+  readonly transfi?: TransfiClient;
+  /** How each payment was funded when its payer's own wallet did not. */
+  readonly paymentFundings: PaymentFundingRepository;
+  /** Sandbox demos only: finishes a local-currency payment. Absent unless switched on. */
+  readonly fiatSettler?: FiatSettler;
   /**
    * Closes escrows whose hold or arbitration window has ended (#304). Present
    * only with treasury execution, whose operator key sends the calls.
@@ -647,6 +657,35 @@ export function watchedPairs(config: Config): readonly { chain: ChainId; asset: 
   return pairs;
 }
 
+/**
+ * TransFi is all or nothing: a half-set `TRANSFI_*` would otherwise disable the
+ * local-currency option silently, and the payer would never learn why it is gone.
+ */
+function transfiClientOf(config: Config): TransfiClient | undefined {
+  const { transfiBaseUrl, transfiMid, transfiUsername, transfiPassword } = config;
+  const set = [transfiBaseUrl, transfiMid, transfiUsername, transfiPassword].filter(
+    (value) => value !== undefined,
+  );
+  if (set.length === 0) return undefined;
+  if (
+    transfiBaseUrl === undefined ||
+    transfiMid === undefined ||
+    transfiUsername === undefined ||
+    transfiPassword === undefined
+  ) {
+    throw new ConfigurationError(
+      "TRANSFI_BASE_URL, TRANSFI_MID, TRANSFI_USERNAME and TRANSFI_PASSWORD must be set together",
+      {},
+    );
+  }
+  return createTransfiClient({
+    baseUrl: transfiBaseUrl,
+    mid: transfiMid,
+    username: transfiUsername,
+    password: transfiPassword,
+  });
+}
+
 export function createContainer({
   config,
   clock = systemClock,
@@ -723,6 +762,8 @@ export function createContainer({
 
   const disputes = new DrizzleEscrowDisputeRepository(handle.db);
   const payerStanding = new PayerStanding(disputes, () => market.disputeStanding());
+  const transfi = transfiClientOf(config);
+  const paymentFundings = new DrizzlePaymentFundingRepository(handle.db);
 
   const intentRepository = new DrizzlePaymentIntentRepository(handle.db);
   const intents = new PaymentIntentService({
@@ -1292,6 +1333,19 @@ export function createContainer({
     paymentApp,
     escrow: new EscrowService(paymentApp, config.chainRpcUrls, disputes, clock, disputeNotices),
     payerStanding,
+    ...(transfi === undefined ? {} : { transfi }),
+    paymentFundings,
+    ...(transfi === undefined || !config.transfiSandboxAutoSettle
+      ? {}
+      : {
+          fiatSettler: new FiatSettler({
+            fundings: paymentFundings,
+            transfi,
+            payments: paymentApp,
+            engine,
+            clock,
+          }),
+        }),
     ...(escrowTreasuryPort === undefined
       ? {}
       : {
