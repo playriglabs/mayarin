@@ -135,8 +135,12 @@ async function remoteKeys(service: string): Promise<readonly string[]> {
     stdout: "pipe",
     stderr: "pipe",
   });
-  const [output, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
-  if (exitCode !== 0) throw new Error(`Could not list variables for ${service}`);
+  const [output, error, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (exitCode !== 0) throw new Error(`Could not list variables for ${service}: ${error.trim()}`);
   return Object.keys(JSON.parse(output) as Record<string, string>).filter(
     (key) => !key.startsWith("RAILWAY_"),
   );
