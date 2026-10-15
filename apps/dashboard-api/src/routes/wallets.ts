@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
+import { requireMfa } from "../middleware/require-mfa.ts";
 import type { AuthVars } from "../middleware/types.ts";
 import { chainReceipts } from "../rails.ts";
 import { usdRates } from "../usd.ts";
@@ -242,7 +243,7 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
    * `to` must be one of their own verified wallets — the service enforces it,
    * and the schema deliberately does not soften it to "any address" here.
    */
-  app.post("/withdraw", csrfMiddleware(), async (c) => {
+  app.post("/withdraw", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const body = withdrawBodySchema.parse(await c.req.json());
     const result = await container.wallets.withdraw(scopeOf(c), {
       chain: body.chain,
@@ -253,7 +254,7 @@ export function walletRoutes(container: Container): Hono<{ Variables: AuthVars }
     return c.json({ txHash: result.transactionHash });
   });
 
-  app.post("/", csrfMiddleware(), async (c) => {
+  app.post("/", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const body = linkBodySchema.parse(await c.req.json());
     const wallet = await container.wallets.link(scopeOf(c), body.chain, body.address);
     return c.json({ wallet: toWalletDto(wallet) }, 201);

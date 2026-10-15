@@ -176,10 +176,14 @@
         "@mayarin/x402": "workspace:*",
         "effect": "^3.0.0",
         "hono": "^4.6.16",
+        "qrcode": "^1.5.4",
         "resend": "^6.22.0",
         "ts-pattern": "^5.0.0",
         "viem": "^2.21.0",
         "zod": "^3.24.1",
+      },
+      "devDependencies": {
+        "@types/qrcode": "^1.5.6",
       },
     },
     "apps/demo": {

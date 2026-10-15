@@ -743,3 +743,13 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * While a step-up code is being asked for (SEC-16), the dialog that triggered it
+ * steps aside: two stacked modals read as one confusing form. It is hidden, not
+ * closed, so cancelling the code puts the person back exactly where they were
+ * and a verified action finishes through the dialog's own handlers.
+ */
+body[data-mfa-step-up] [data-slot="dialog-content"]:not([data-mfa-step-up-dialog]) {
+  visibility: hidden;
+}

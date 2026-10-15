@@ -16,6 +16,7 @@ import {
   toEndpointDto,
 } from "../dto/webhook.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
+import { requireMfa } from "../middleware/require-mfa.ts";
 import type { AuthVars } from "../middleware/types.ts";
 
 export function webhookRoutes(container: Container): Hono<{ Variables: AuthVars }> {
@@ -35,7 +36,7 @@ export function webhookRoutes(container: Container): Hono<{ Variables: AuthVars 
   });
 
   // The secret is returned exactly once, here. The listing never shows it again.
-  app.post("/endpoints", csrfMiddleware(), async (c) => {
+  app.post("/endpoints", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const body = createEndpointBodySchema.parse(await c.req.json());
     const endpoint = await container.webhooks.createEndpoint(scopeOf(c), body.url);
     return c.json(
@@ -44,7 +45,7 @@ export function webhookRoutes(container: Container): Hono<{ Variables: AuthVars 
     );
   });
 
-  app.post("/endpoints/:id/rotate", csrfMiddleware(), async (c) => {
+  app.post("/endpoints/:id/rotate", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const endpoint = await container.webhooks.rotateSecret(scopeOf(c), c.req.param("id"));
     return c.json({
       endpoint: toEndpointDto(endpoint, container.clock.now()),
@@ -52,7 +53,7 @@ export function webhookRoutes(container: Container): Hono<{ Variables: AuthVars 
     });
   });
 
-  app.post("/endpoints/:id/deactivate", csrfMiddleware(), async (c) => {
+  app.post("/endpoints/:id/deactivate", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const endpoint = await container.webhooks.deactivateEndpoint(scopeOf(c), c.req.param("id"));
     return c.json({ endpoint: toEndpointDto(endpoint, container.clock.now()) });
   });

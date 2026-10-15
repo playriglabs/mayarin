@@ -26,12 +26,11 @@ describe("AuthService login timing", () => {
     const service = new AuthService({
       users,
       hasher,
-      sessions: undefined as never,
     });
 
-    await Effect.runPromiseExit(service.login("known@example.com", "wrong"));
+    await Effect.runPromiseExit(service.authenticate("known@example.com", "wrong"));
     const afterWrongPassword = hasher.verifies;
-    await Effect.runPromiseExit(service.login("nobody@example.com", "wrong"));
+    await Effect.runPromiseExit(service.authenticate("nobody@example.com", "wrong"));
 
     expect(afterWrongPassword).toBe(1);
     expect(hasher.verifies - afterWrongPassword).toBe(1);

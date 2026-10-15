@@ -41,6 +41,8 @@ export interface UserDto {
   readonly email: string;
   readonly merchantId: string;
   readonly permissions: readonly Permission[];
+  /** Whether the account has a proven authenticator-app second factor. */
+  readonly mfaEnabled: boolean;
 }
 
 export function toUserDto(user: User): UserDto {
@@ -49,8 +51,18 @@ export function toUserDto(user: User): UserDto {
     email: user.email,
     merchantId: user.merchantId,
     permissions: [...user.permissions],
+    mfaEnabled: user.mfa?.enabledAt !== undefined,
   };
 }
+
+/** An authenticator code (six digits) or a recovery code (`XXXX-XXXX`). */
+export const mfaCodeBodySchema = z.object({
+  code: z.string().trim().min(6).max(16),
+});
+
+export const mfaLoginBodySchema = mfaCodeBodySchema.extend({
+  challenge: z.string().min(1).max(512),
+});
 
 export const loginBodySchema = z.object({
   email: z.string().email(),

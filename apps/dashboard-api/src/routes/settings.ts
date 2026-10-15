@@ -18,6 +18,7 @@ import {
   updateSettingsBodySchema,
 } from "../dto/settings.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
+import { requireMfa } from "../middleware/require-mfa.ts";
 import type { AuthVars } from "../middleware/types.ts";
 import { settlementChains } from "../rails.ts";
 import { MAX_LOGO_BYTES } from "../services/logo-storage.ts";
@@ -107,7 +108,7 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
 
   // CSRF-guarded like every other state-changing route: this one decides where
   // the merchant's money is paid, so a forged cross-site form must not reach it.
-  app.patch("/", csrfMiddleware(), async (c) => {
+  app.patch("/", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const scope = c.get("scope");
     const session = c.get("session");
     if (scope === undefined || session === undefined) {

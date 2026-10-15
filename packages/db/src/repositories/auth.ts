@@ -18,6 +18,7 @@ import type {
   MerchantSettingChange,
   MerchantSettingChangeRepository,
   MerchantSettingField,
+  MfaState,
   Permission,
   Session,
   SessionRepository,
@@ -92,6 +93,19 @@ export class DrizzleUserRepository implements UserRepository {
     await this.#db
       .update(users)
       .set({ emailVerifiedAt: verifiedAt, updatedAt: verifiedAt })
+      .where(eq(users.id, id));
+  }
+
+  async saveMfa(id: string, mfa: MfaState | null, now: Date): Promise<void> {
+    await this.#db
+      .update(users)
+      .set({
+        mfaSecret: mfa?.secret ?? null,
+        mfaEnabledAt: mfa?.enabledAt ?? null,
+        mfaLastStep: mfa?.lastStep ?? null,
+        mfaRecoveryHashes: [...(mfa?.recoveryHashes ?? [])],
+        updatedAt: now,
+      })
       .where(eq(users.id, id));
   }
 }
@@ -324,6 +338,16 @@ function toUser(row: UserRow): User {
     merchantId: row.merchantId,
     permissions: row.permissions as Permission[],
     ...present("emailVerifiedAt", row.emailVerifiedAt),
+    ...(row.mfaSecret === null
+      ? {}
+      : {
+          mfa: {
+            secret: row.mfaSecret,
+            ...present("enabledAt", row.mfaEnabledAt),
+            ...(row.mfaLastStep === null ? {} : { lastStep: row.mfaLastStep }),
+            recoveryHashes: row.mfaRecoveryHashes,
+          },
+        }),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -349,6 +373,10 @@ function toUserRow(user: User): typeof users.$inferInsert {
     merchantId: user.merchantId,
     permissions: [...user.permissions],
     emailVerifiedAt: user.emailVerifiedAt ?? null,
+    mfaSecret: user.mfa?.secret ?? null,
+    mfaEnabledAt: user.mfa?.enabledAt ?? null,
+    mfaLastStep: user.mfa?.lastStep ?? null,
+    mfaRecoveryHashes: [...(user.mfa?.recoveryHashes ?? [])],
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

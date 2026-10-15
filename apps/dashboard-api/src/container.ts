@@ -134,6 +134,7 @@ import {
 import { type LogoStorage, logoStorageFor } from "./services/logo-storage.ts";
 import { MerchantCatalogService } from "./services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "./services/merchant-settings-service.ts";
+import { MfaService } from "./services/mfa-service.ts";
 import { NotificationService, type NotificationStore } from "./services/notification-service.ts";
 import { OrderReadService } from "./services/order-read-service.ts";
 import { PaymentApiClient } from "./services/payment-api-client.ts";
@@ -165,6 +166,7 @@ export interface Container {
   readonly config: Config;
   readonly auth: AuthService;
   readonly sessions: SessionService;
+  readonly mfa: MfaService;
   readonly users: UserService;
   readonly payments: PaymentReadService;
   /** How each payment was funded when its payer's own wallet did not. Read-only. */
@@ -345,7 +347,8 @@ export function createContainer(options: CreateContainerOptions): Container {
     clock,
     ttlSeconds: config.sessionTtlSeconds,
   });
-  const authService = new AuthService({ users, hasher, sessions: sessionService });
+  const authService = new AuthService({ users, hasher });
+  const mfa = new MfaService({ users, clock, encryptionKey: config.mfaEncryptionKey });
   const userService = new UserService({ users, accounts, hasher, clock });
 
   const verificationRepository =
@@ -641,6 +644,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     config,
     auth: authService,
     sessions: sessionService,
+    mfa,
     users: userService,
     payments,
     paymentFundings:

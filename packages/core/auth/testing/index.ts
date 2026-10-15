@@ -19,6 +19,7 @@ import type {
   MerchantRepository,
   MerchantSettingChange,
   MerchantSettingChangeRepository,
+  MfaState,
   Session,
   SessionRepository,
   User,
@@ -60,6 +61,16 @@ export class InMemoryUserRepository implements UserRepository {
     const user = this.#byId.get(id);
     if (user === undefined) return;
     this.#byId.set(id, { ...user, updatedAt });
+  }
+
+  async saveMfa(id: string, mfa: MfaState | null, now: Date): Promise<void> {
+    const user = this.#byId.get(id);
+    if (user === undefined) return;
+    const { mfa: _previous, ...rest } = user;
+    this.#byId.set(
+      id,
+      mfa === null ? { ...rest, updatedAt: now } : { ...rest, mfa, updatedAt: now },
+    );
   }
 
   async markEmailVerified(id: string, verifiedAt: Date): Promise<void> {

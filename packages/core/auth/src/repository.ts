@@ -12,7 +12,7 @@ import type {
   MerchantSettingChange,
   MerchantSettingChangeRepository,
 } from "./merchant.ts";
-import type { EmailVerification, Session, User } from "./types.ts";
+import type { EmailVerification, MfaState, Session, User } from "./types.ts";
 
 export interface UserRepository {
   findById(id: string): Promise<User | null>;
@@ -22,6 +22,8 @@ export interface UserRepository {
   touchUpdatedAt(id: string, updatedAt: Date): Promise<void>;
   /** Records that this account proved control of its email. Idempotent. */
   markEmailVerified(id: string, verifiedAt: Date): Promise<void>;
+  /** Replaces the account's TOTP state; `null` removes the second factor. */
+  saveMfa(id: string, mfa: MfaState | null, now: Date): Promise<void>;
 }
 
 export interface EmailVerificationRepository {

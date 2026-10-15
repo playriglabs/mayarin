@@ -13,7 +13,10 @@
  */
 
 import { Data, Effect } from "effect";
+import { announceMfaSetupRequired, requestMfaCode } from "@/lib/mfa-step-up";
 import { dashboardErrorMessage } from "./error-message";
+
+const MFA_HEADER = "x-mfa-code";
 
 /** Typed failure for any non-2xx response, network error, or parse error. */
 export class ApiError extends Data.TaggedError("ApiError")<{
@@ -96,6 +99,26 @@ export function request<A>(path: string, opts: RequestOptions = {}): Effect.Effe
       const message = extractMessage(data, res.status);
       const retryAfterSeconds = extractRetryAfterSeconds(data, res.headers.get("retry-after"));
       const reason = extractReason(data);
+
+      // Funds-moving routes ask for a fresh authenticator code (SEC-16). Ask the
+      // person, then send the same request again with it; a wrong code asks
+      // again until they get it right or cancel.
+      if (
+        (reason === "mfa_code_required" || reason === "mfa_code_invalid") &&
+        MUTATING.has(method.toUpperCase())
+      ) {
+        const code = yield* Effect.promise(() => requestMfaCode(reason === "mfa_code_invalid"));
+        if (code !== null) {
+          return yield* request<A>(path, {
+            ...opts,
+            headers: { ...opts.headers, [MFA_HEADER]: code },
+          });
+        }
+      }
+      if (reason === "mfa_setup_required") {
+        yield* Effect.promise(() => announceMfaSetupRequired());
+      }
+
       return yield* new ApiError({
         status: res.status,
         message,

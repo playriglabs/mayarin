@@ -137,9 +137,10 @@ describe("bearer auth", () => {
     expect(res.status).toBe(403);
   });
 
-  test("CSRF is skipped for a bearer mutating request with the right permission", async () => {
+  test("a bearer key cannot mint another key, whatever it holds (SEC-16)", async () => {
     const { harness, auth } = await seed();
-    // Mint a key that itself holds api-keys:manage, so it may create keys.
+    // The key holds api-keys:manage itself; that is still not enough, because
+    // minting a credential asks a person for a code and a key has none.
     const created = await harness.request("POST", "/v1/api-keys", {
       body: { name: "Manager", permissions: ["api-keys:manage"] },
       cookies: auth.jar,
@@ -147,13 +148,12 @@ describe("bearer auth", () => {
     });
     const secret = created.body?.secret;
 
-    // No CSRF token, no cookie — only the bearer header.
     const res = await bearer(harness, "POST", "/v1/api-keys", secret, {
       name: "Child",
       permissions: ["payments:read"],
     });
-    expect(res.status).toBe(201);
-    expect(res.body?.apiKey.name).toBe("Child");
+
+    expect(res.status).toBe(403);
   });
 
   test("a deactivated key is 401, indistinguishable from an absent token", async () => {

@@ -15,6 +15,7 @@ import {
 } from "@tanstack/react-query";
 import type { Effect } from "effect";
 import { toast } from "sonner";
+import { onStepUp } from "./mfa-step-up";
 import { runEffect } from "./run";
 
 export const queryClient = new QueryClient({
@@ -86,6 +87,62 @@ export interface EffectMutationOptions<T, V, E> {
   readonly invalidate?: readonly (readonly unknown[])[];
 }
 
+/** How long a request may run before it is worth a "working…" toast. */
+const PROGRESS_DELAY_MS = 250;
+
+/**
+ * Progress for a mutation, kept off screen while a step-up code is being asked
+ * for (SEC-16): "Submitting withdrawal…" over a dialog that is still waiting
+ * for the person says something that has not happened yet. The toast appears
+ * once the request is really under way, and returns after the code is entered.
+ */
+function showProgress(
+  feedback: { readonly loading: string; readonly success: string },
+  settled: Promise<unknown>,
+): void {
+  const id = `mutation-${Math.random().toString(36).slice(2)}`;
+  const show = () => toast.loading(feedback.loading, { id });
+  let timer: ReturnType<typeof setTimeout> | undefined = setTimeout(show, PROGRESS_DELAY_MS);
+  const stop = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+  };
+
+  const unsubscribe = onStepUp((event) => {
+    if (event === "asking") {
+      stop();
+      toast.dismiss(id);
+    } else if (event === "answered") {
+      show();
+    }
+  });
+
+  settled
+    .then(
+      () => toast.success(feedback.success, { id }),
+      (error: unknown) => {
+        // Declining the code is a choice, not a failure worth a toast.
+        const declined =
+          typeof error === "object" &&
+          error !== null &&
+          "reason" in error &&
+          error.reason === "mfa_code_required";
+        if (declined) {
+          toast.dismiss(id);
+          return;
+        }
+        toast.error(
+          error instanceof Error ? error.message : "Something went wrong. Please try again.",
+          { id },
+        );
+      },
+    )
+    .finally(() => {
+      stop();
+      unsubscribe();
+    });
+}
+
 /** `useMutation` over an `Effect`-returning mutation. */
 export function useEffectMutation<T, V, E>(options: EffectMutationOptions<T, V, E>) {
   const client = useQueryClient();
@@ -103,14 +160,8 @@ export function useEffectMutation<T, V, E>(options: EffectMutationOptions<T, V, 
 
       if (feedback === undefined) return promise;
 
-      return toast
-        .promise(promise, {
-          loading: feedback.loading,
-          success: feedback.success,
-          error: (error: unknown) =>
-            error instanceof Error ? error.message : "Something went wrong. Please try again.",
-        })
-        .unwrap();
+      showProgress(feedback, promise);
+      return promise;
     },
   });
 }

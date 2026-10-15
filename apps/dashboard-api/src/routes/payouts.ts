@@ -15,6 +15,7 @@ import { z } from "zod";
 import type { Container } from "../container.ts";
 import { toMoneyDto } from "../dto/money.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
+import { requireMfa } from "../middleware/require-mfa.ts";
 import type { AuthVars } from "../middleware/types.ts";
 
 /** A payout file is small by construction: 100 rows of an address, an amount and a note. */
@@ -83,7 +84,7 @@ export function payoutRoutes(container: Container): Hono<{ Variables: AuthVars }
   });
 
   /** Parses the file and returns the transaction to sign, or every row error. */
-  app.post("/prepare", csrfMiddleware(), async (c) => {
+  app.post("/prepare", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const body = requestSchema.parse(await c.req.json());
     const prepared = await container.payouts.prepare(scopeOf(c), body);
     return c.json({

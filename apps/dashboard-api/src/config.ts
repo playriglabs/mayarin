@@ -35,6 +35,13 @@ const configSchema = z.object({
     .positive()
     .default(60 * 60 * 24 * 7),
   /**
+   * Key that encrypts authenticator secrets at rest and signs the short-lived
+   * sign-in challenge (SEC-16). At least 32 characters; losing it locks every
+   * enrolled account out of its second factor, so it is backed up like a
+   * signing key and rotated deliberately.
+   */
+  mfaEncryptionKey: z.string().min(32),
+  /**
    * Sets the `Secure` flag on the session/CSRF cookies. True in production; set
    * `COOKIE_SECURE=false` for local dev over plain HTTP.
    */
@@ -255,6 +262,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     port: env.DASHBOARD_API_PORT ?? env.PORT,
     databaseUrl: env.DATABASE_URL,
     sessionTtlSeconds: env.SESSION_TTL_SECONDS,
+    mfaEncryptionKey: env.MFA_ENCRYPTION_KEY,
     cookieSecure: env.COOKIE_SECURE,
     rateLimitRequests: env.DASHBOARD_RATE_LIMIT_REQUESTS,
     rateLimitWindowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
