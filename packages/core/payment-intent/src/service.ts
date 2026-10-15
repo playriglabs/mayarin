@@ -67,6 +67,8 @@ export interface CreatePaymentIntentCommand {
   readonly metadata?: Readonly<Record<string, string>>;
   /** The merchant's own order/invoice id. Opaque to Mayarin, indexed for lookup. */
   readonly merchantReference?: string;
+  /** The authenticated tenant, when it is not `merchant.id` (a scanned QR). */
+  readonly ownerMerchantId?: string;
   readonly idempotencyKey?: string;
   readonly ttlSeconds?: number;
 }
@@ -209,6 +211,9 @@ export class PaymentIntentService {
 
     const intent = createPaymentIntent({
       merchant: command.merchant,
+      // A route that authenticated a tenant names it; every other minting path
+      // already took `merchant.id` from a tenant it checked.
+      ownerMerchantId: command.ownerMerchantId ?? command.merchant.id,
       amount: command.amount,
       settlementAsset,
       provider,

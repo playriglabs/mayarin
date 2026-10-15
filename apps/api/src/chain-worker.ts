@@ -1,6 +1,7 @@
 /** Railway entry point for continuous chain ingestion. */
 
 import { CHAIN_IDS } from "@mayarin/chain";
+import { acquireWorkerLease } from "@mayarin/db";
 import { ConfigurationError } from "@mayarin/shared";
 import { loadConfig } from "./config.ts";
 import { createContainer, watchedPairs } from "./container.ts";
@@ -16,6 +17,12 @@ if (chain === undefined || chain.intervalMs <= 0) {
     {},
   );
 }
+
+// One worker at a time, enforced by the database. A second instance waits here
+// until the first is gone instead of racing it on nonces and cursors.
+const lease = await acquireWorkerLease(config.databaseUrl, {
+  onWaiting: () => console.log("[chain-worker] another worker holds the lease; waiting"),
+});
 
 const container = createContainer({ config });
 
@@ -69,6 +76,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   stopIndexerLoops();
   stopEscrowKeeper();
   await container.close();
+  await lease.release();
   process.exit(0);
 };
 

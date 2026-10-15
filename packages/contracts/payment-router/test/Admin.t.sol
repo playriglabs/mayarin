@@ -218,8 +218,25 @@ contract AdminTest is Test, SigHelpers {
         vm.expectRevert(_unauthorized(nobody, GUARDIAN_ROLE));
         router.pause();
         vm.prank(nobody);
-        vm.expectRevert(_unauthorized(nobody, GUARDIAN_ROLE));
+        vm.expectRevert(_unauthorized(nobody, CONFIG_ROLE));
         router.unpause();
+    }
+
+    /// @dev SEC-07: the guardian can pause but not undo it.
+    function test_guardian_cannot_unpause() public {
+        vm.prank(guardian);
+        router.pause();
+        vm.prank(guardian);
+        vm.expectRevert(_unauthorized(guardian, CONFIG_ROLE));
+        router.unpause();
+        assertTrue(router.paused(), "still paused");
+    }
+
+    function test_unpause_goes_through_the_timelock() public {
+        vm.prank(guardian);
+        router.pause();
+        _executeCall(abi.encodeCall(router.unpause, ()));
+        assertFalse(router.paused());
     }
 
     function test_timelock_is_config_role_not_guardian() public {
@@ -276,8 +293,7 @@ contract AdminTest is Test, SigHelpers {
         vm.prank(guardian);
         router.pause(); // pause does not move funds
         assertEq(usdc.balanceOf(address(router)), dust, "pause moved nothing");
-        vm.prank(guardian);
-        router.unpause();
+        _executeCall(abi.encodeCall(router.unpause, ()));
         // No public function on `router` extracts `dust`; the balance persists.
         assertEq(usdc.balanceOf(address(router)), dust, "dust still there, unsweepable");
     }
@@ -309,9 +325,8 @@ contract AdminTest is Test, SigHelpers {
         router.payEth{value: 1 ether}(o2, sig2, address(dex), _ethData(120e6));
         assertFalse(router.consumed(id2), "paused pay did not consume");
 
-        // Guardian unpauses; pays resume.
-        vm.prank(guardian);
-        router.unpause();
+        // The timelock unpauses after its delay; pays resume.
+        _executeCall(abi.encodeCall(router.unpause, ()));
         assertFalse(router.paused());
         vm.prank(customer);
         router.payEth{value: 1 ether}(o2, sig2, address(dex), _ethData(120e6));

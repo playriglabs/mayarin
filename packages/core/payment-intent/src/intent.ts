@@ -39,6 +39,7 @@ export const TERMINAL_STATUSES: readonly PaymentIntentStatus[] = ["COMPLETED", "
 
 export interface CreatePaymentIntentInput {
   readonly merchant: MerchantSnapshot;
+  readonly ownerMerchantId?: string;
   readonly amount: Money;
   readonly settlementAsset: AssetCode;
   readonly provider: string;
@@ -82,6 +83,7 @@ export function createPaymentIntent(input: CreatePaymentIntentInput): PaymentInt
     id: generateId("pi", createdAt.getTime()),
     status: "CREATED",
     merchant: input.merchant,
+    ...(input.ownerMerchantId === undefined ? {} : { ownerMerchantId: input.ownerMerchantId }),
     amount: input.amount,
     settlementAsset: input.settlementAsset,
     provider: input.provider,

@@ -60,7 +60,9 @@ payment rolls back — funds never move twice (`test_reentrancy_*`).
 The open questions in RFC #4 are resolved as follows (locked before
 implementation):
 
-1. **Pause policy** — instant `GUARDIAN_ROLE` `pause()`/`unpause()`; config
+1. **Pause policy** — instant `GUARDIAN_ROLE` `pause()`; `unpause()` is
+   `CONFIG_ROLE`, so it goes through the timelock and a compromised guardian
+   cannot undo containment (SEC-07); config
    changes (router whitelist, input-asset whitelist, `feeRecipient`, `signer`)
    go through the OZ `TimelockController`. Pause can't move funds (zero resting
    balance), so timelocking it would kill the only emergency brake; the timelock

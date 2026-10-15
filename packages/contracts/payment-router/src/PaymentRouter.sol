@@ -38,7 +38,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 ///      - **Bounded admin** — config changes (router/input-asset whitelist, fee
 ///        recipient, signer) are `onlyRole(CONFIG_ROLE)`, held by an external
 ///        OZ `TimelockController`. A `GUARDIAN_ROLE` can pause instantly (pause
-///        never moves funds, so it needs no delay). There is no code path — admin
+///        never moves funds, so it needs no delay) but cannot unpause: that is
+///        `CONFIG_ROLE`, so a compromised guardian cannot undo containment. There is no code path — admin
 ///        or otherwise — by which funds can be redirected.
 contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
@@ -51,7 +52,7 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     // Roles
     // ---------------------------------------------------------------------
 
-    /// @dev Instant pause/unpause. Cannot move funds; cannot change config.
+    /// @dev Instant pause. Cannot unpause, move funds, or change config.
     bytes32 internal constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
     /// @dev Config surface (router/input-asset whitelist, feeRecipient, signer).
     ///      Held by the external TimelockController, so every config change is
@@ -480,16 +481,17 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     }
 
     // ---------------------------------------------------------------------
-    // Guardian — instant pause. Unpause is also instant: pause never traps
-    // value (zero resting balance), so a rogue guardian can only DoS (recoverable
-    // via the multisig rotating the guardian through the timelock).
+    // Guardian — instant pause; unpause is delayed. The guardian is the hot
+    // role, so it may stop the router but not restart it: a compromised guardian
+    // cannot defeat containment. Pause never traps value (zero resting balance),
+    // and unpause goes through the timelock, after investigation.
     // ---------------------------------------------------------------------
 
     function pause() external onlyRole(GUARDIAN_ROLE) {
         _pause();
     }
 
-    function unpause() external onlyRole(GUARDIAN_ROLE) {
+    function unpause() external onlyRole(CONFIG_ROLE) {
         _unpause();
     }
 }

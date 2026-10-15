@@ -285,6 +285,10 @@ export class DrizzleWatcherCursorRepository implements WatcherCursorRepository {
     return row === undefined ? null : BigInt(row.lastBlock);
   }
 
+  /**
+   * Forward only (SEC-04). A second worker, or a stale one finishing late, must
+   * not drag progress backwards and make the scan re-read a range as new.
+   */
   async set(chain: ChainId, stream: string, block: bigint): Promise<void> {
     await this.#db
       .insert(watcherCursors)
@@ -296,7 +300,10 @@ export class DrizzleWatcherCursorRepository implements WatcherCursorRepository {
       })
       .onConflictDoUpdate({
         target: [watcherCursors.chain, watcherCursors.asset],
-        set: { lastBlock: block.toString(), updatedAt: new Date() },
+        set: {
+          lastBlock: sql`greatest(${watcherCursors.lastBlock}, ${block.toString()}::numeric)`,
+          updatedAt: new Date(),
+        },
       });
   }
 }

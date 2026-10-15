@@ -39,6 +39,65 @@ describe("POST /payments/:id/refunds", () => {
     expect(BigInt(body.refund.amount.amount)).toBeGreaterThan(0n);
   });
 
+  test("another tenant's key can neither refund nor read a payment's refunds (SEC-01)", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    const foreign = harness.mintApiKey("mrc_2", "mak_other_merchant");
+
+    const refund = await harness.request("POST", `/v1/payments/${id}/refunds`, {
+      auth: foreign,
+      body: {},
+    });
+    const list = await harness.request("GET", `/v1/payments/${id}/refunds`, { auth: foreign });
+
+    // Indistinguishable from a payment that does not exist.
+    expect(refund.status).toBe(404);
+    expect(list.status).toBe(404);
+
+    // And nothing was reserved against the owner's balance.
+    const own = await harness.request("GET", `/v1/payments/${id}/refunds`);
+    expect(own.body.summary.state).not.toBe("PARTIAL");
+    expect(own.body.refunds).toEqual([]);
+  });
+
+  test("the same idempotency key from two tenants never returns the other's refund", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    const foreign = harness.mintApiKey("mrc_2", "mak_other_merchant");
+
+    const first = await harness.request("POST", `/v1/payments/${id}/refunds`, {
+      headers: { "Idempotency-Key": "same" },
+      body: { amount: { amount: "0.010000", asset: "USDC" } },
+    });
+    const second = await harness.request("POST", `/v1/payments/${id}/refunds`, {
+      auth: foreign,
+      headers: { "Idempotency-Key": "same" },
+      body: {},
+    });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(404);
+  });
+
+  test("concurrent refunds with distinct keys cannot exceed the balance (SEC-02)", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    const summary = await harness.request("GET", `/v1/payments/${id}/refunds`);
+    const refundable = BigInt(summary.body.summary.refundable.amount);
+
+    // Each is the whole balance; at most one may be accepted.
+    const results = await Promise.all(
+      ["a", "b", "c", "d"].map((key) =>
+        harness.request("POST", `/v1/payments/${id}/refunds`, {
+          headers: { "Idempotency-Key": key },
+          body: { amount: { amount: toDecimalString(money(refundable, "USDC")), asset: "USDC" } },
+        }),
+      ),
+    );
+
+    expect(results.filter((result) => result.status === 201)).toHaveLength(1);
+  });
+
   test("a partial refund leaves the rest refundable", async () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);

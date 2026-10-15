@@ -49,6 +49,13 @@ async function documentSources(container: Container, id: string): Promise<Docume
   };
 }
 
+/** A payment that is not the caller's answers exactly like one that is absent. */
+function assertOwner(owner: string | undefined, merchantId: string, id: string): void {
+  if (owner !== merchantId) {
+    throw new NotFoundError(`Payment ${id} not found`, { id });
+  }
+}
+
 async function pdfResponse(c: Context, doc: PaymentDocument): Promise<Response> {
   const logo = doc.seller.logoUrl === undefined ? undefined : await fetchLogo(doc.seller.logoUrl);
   const bytes = await renderDocumentPdf(doc, logo);
@@ -105,10 +112,10 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * refund it made rather than issuing a second one. An omitted amount refunds
    * everything still refundable.
    *
-   * Any valid key may refund for now: an intent minted from a QR carries an
-   * EMVCo merchant identity, not a Mayarin tenant id, so a tenant match here
-   * would refuse every scanned-QR payment. Who may sign a refund is exactly
-   * what #12 (on hold) decides — the check lands with it.
+   * Only the tenant that owns the payment may refund it (SEC-01). A foreign
+   * payment answers 404, like a foreign invoice: the id was not the caller's to
+   * know. The idempotency key is scoped to the tenant, so two tenants reusing a
+   * key never see each other's refund.
    */
   app.post("/:id/refunds", requireApiKey(container.verifyApiKey), async (c) => {
     const raw = await c.req.json().catch(() => ({}));
@@ -117,7 +124,9 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
 
     // The caller holds whichever id they were handed, so resolve through the
     // same view the status route uses rather than assuming a clearing id.
-    const { transaction } = await container.paymentApp.getPayment(c.req.param("id"));
+    const { intent, transaction } = await container.paymentApp.getPayment(c.req.param("id"));
+    const { merchantId } = c.get("scope");
+    assertOwner(intent.ownerMerchantId, merchantId, c.req.param("id"));
     if (transaction === null) {
       throw new NotFoundError("This payment has no clearing transaction to refund", {});
     }
@@ -126,14 +135,17 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       clearingTransactionId: transaction.id,
       ...(body.amount === undefined ? {} : { amount: body.amount }),
       ...(body.reason === undefined ? {} : { reason: body.reason }),
-      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      ...(idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: `${merchantId}:${idempotencyKey}` }),
     });
 
     return c.json({ refund: toRefundDto(refund) }, 201);
   });
 
-  app.get("/:id/refunds", async (c) => {
-    const { transaction } = await container.paymentApp.getPayment(c.req.param("id"));
+  app.get("/:id/refunds", requireApiKey(container.verifyApiKey), async (c) => {
+    const { intent, transaction } = await container.paymentApp.getPayment(c.req.param("id"));
+    assertOwner(intent.ownerMerchantId, c.get("scope").merchantId, c.req.param("id"));
     if (transaction === null) {
       throw new NotFoundError("This payment has no clearing transaction to refund", {});
     }

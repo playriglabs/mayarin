@@ -8,9 +8,9 @@
  */
 
 import type { Refund, RefundRepository, RefundState } from "@mayarin/clearing";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
-import { present, toMoney } from "../mapping.ts";
+import { present, runInTransaction, toMoney } from "../mapping.ts";
 import { refunds } from "../schema.ts";
 
 type Row = typeof refunds.$inferSelect;
@@ -20,6 +20,18 @@ export class DrizzleRefundRepository implements RefundRepository {
 
   constructor(db: Executor) {
     this.#db = db;
+  }
+
+  /**
+   * A transaction-scoped advisory lock keyed by the payment. `fn` runs on the
+   * pool while the lock connection stays open, so the check and the insert it
+   * guards commit before the next caller's check can start.
+   */
+  async serialize<T>(clearingTransactionId: string, fn: () => Promise<T>): Promise<T> {
+    return runInTransaction(this.#db, async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${clearingTransactionId}))`);
+      return fn();
+    });
   }
 
   async insert(refund: Refund): Promise<void> {

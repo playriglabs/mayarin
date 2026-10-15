@@ -45,6 +45,11 @@ export interface RefundRepository {
   findById(id: string): Promise<Refund | null>;
   findByIdempotencyKey(key: string): Promise<Refund | null>;
   listByClearingTransactionId(clearingTransactionId: string): Promise<readonly Refund[]>;
+  /**
+   * Runs `fn` while holding a lock on one payment's refunds, so two callers
+   * cannot both read the same remaining balance and both insert (SEC-02).
+   */
+  serialize<T>(clearingTransactionId: string, fn: () => Promise<T>): Promise<T>;
 }
 
 export const REFUND_EVENT = {
@@ -126,25 +131,30 @@ export class RefundService {
     }
 
     const net = requireNet(transaction);
-    const summary = summariseRefunds(
-      net,
-      await this.#refunds.listByClearingTransactionId(transaction.id),
-    );
 
-    const amount = command.amount ?? summary.remaining;
-    assertRefundable(summary, amount);
+    // Read the balance and reserve against it as one step. The rail call stays
+    // outside the lock: the pending row already consumes the balance.
+    const refund = await this.#refunds.serialize(transaction.id, async () => {
+      const summary = summariseRefunds(
+        net,
+        await this.#refunds.listByClearingTransactionId(transaction.id),
+      );
 
-    const refund = createRefund({
-      clearingTransactionId: transaction.id,
-      paymentIntentId: transaction.paymentIntentId,
-      merchantId: transaction.merchant.id,
-      amount,
-      ...(command.reason === undefined ? {} : { reason: command.reason }),
-      ...(command.idempotencyKey === undefined ? {} : { idempotencyKey: command.idempotencyKey }),
-      now: this.#clock.now(),
+      const amount = command.amount ?? summary.remaining;
+      assertRefundable(summary, amount);
+
+      const reserved = createRefund({
+        clearingTransactionId: transaction.id,
+        paymentIntentId: transaction.paymentIntentId,
+        merchantId: transaction.merchant.id,
+        amount,
+        ...(command.reason === undefined ? {} : { reason: command.reason }),
+        ...(command.idempotencyKey === undefined ? {} : { idempotencyKey: command.idempotencyKey }),
+        now: this.#clock.now(),
+      });
+      await this.#refunds.insert(reserved);
+      return reserved;
     });
-
-    await this.#refunds.insert(refund);
     await this.#publish(REFUND_EVENT.created, refund);
 
     return this.#execute(transaction, refund);

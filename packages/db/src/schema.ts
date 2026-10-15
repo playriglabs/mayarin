@@ -38,6 +38,8 @@ export const paymentIntents = pgTable(
     status: text("status").notNull(),
 
     merchantId: text("merchant_id").notNull(),
+    /** The owning tenant (SEC-01); `merchant_id` is an EMVCo identity for a QR. */
+    ownerMerchantId: text("owner_merchant_id"),
     merchantName: text("merchant_name").notNull(),
     merchantCity: text("merchant_city").notNull(),
     merchantCountryCode: text("merchant_country_code").notNull(),
