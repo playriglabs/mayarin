@@ -1,9 +1,47 @@
-/** Headers forwarded by the Cloudflare dashboard's same-origin API proxy. */
+/**
+ * Headers the Cloudflare dashboard's same-origin API proxy passes through (SEC-03).
+ *
+ * Both directions are an allowlist: a header the API does not read is a header
+ * an attacker can use to spoof (`x-forwarded-*`) or leak (`cf-*`, platform
+ * internals), so nothing travels unless it is named here.
+ */
+const REQUEST_HEADERS = [
+  "accept",
+  "accept-language",
+  "authorization",
+  "content-type",
+  "cookie",
+  "idempotency-key",
+  "user-agent",
+  "x-csrf-token",
+];
+
+const RESPONSE_HEADERS = [
+  "cache-control",
+  "content-disposition",
+  "content-type",
+  "etag",
+  "location",
+  "retry-after",
+  "set-cookie",
+];
+
+function pick(source: Headers, names: readonly string[]): Headers {
+  const headers = new Headers();
+  for (const name of names) {
+    // `set-cookie` can repeat; `getSetCookie` is the only lossless read.
+    if (name === "set-cookie") {
+      for (const value of source.getSetCookie()) headers.append(name, value);
+      continue;
+    }
+    const value = source.get(name);
+    if (value !== null) headers.set(name, value);
+  }
+  return headers;
+}
+
 export function apiProxyHeaders(incoming: Headers): Headers {
-  const headers = new Headers(incoming);
-  headers.delete("host");
-  headers.delete("content-length");
-  headers.delete("x-real-ip");
+  const headers = pick(incoming, REQUEST_HEADERS);
 
   // The next hop is another hostname in this Cloudflare zone. Cloudflare
   // derives that hop's `CF-Connecting-IP` from `x-real-ip`, so stamp the
@@ -13,4 +51,8 @@ export function apiProxyHeaders(incoming: Headers): Headers {
   if (clientIp !== undefined && clientIp !== "") headers.set("x-real-ip", clientIp);
 
   return headers;
+}
+
+export function apiProxyResponseHeaders(upstream: Headers): Headers {
+  return pick(upstream, RESPONSE_HEADERS);
 }
