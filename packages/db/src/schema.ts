@@ -851,6 +851,11 @@ export const webhookEndpoints = pgTable(
     secret: text("secret").notNull(),
     /** Kept through a rotation so deliveries stay verifiable mid-switch. */
     previousSecret: text("previous_secret"),
+    /** After this the previous secret signs nothing (SEC-12). */
+    previousSecretExpiresAt: timestamp("previous_secret_expires_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),

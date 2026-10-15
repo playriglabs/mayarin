@@ -281,7 +281,10 @@ describe("deliver", () => {
   });
 
   test("signs with the previous secret too, so a mid-rotation receiver verifies", async () => {
-    const target = await endpoint({ previousSecret: "whsec_old" });
+    const target = await endpoint({
+      previousSecret: "whsec_old",
+      previousSecretExpiresAt: new Date(clock.now().getTime() + 60_000),
+    });
     outbox.add(event());
 
     await dispatcher.tick();
@@ -303,5 +306,43 @@ describe("deliver", () => {
         now: clock.now(),
       }),
     ).toBe(true);
+  });
+
+  test("stops signing with the previous secret once its grace period has ended (SEC-12)", async () => {
+    const target = await endpoint({
+      previousSecret: "whsec_old",
+      previousSecretExpiresAt: new Date(clock.now().getTime() - 1),
+    });
+    outbox.add(event());
+
+    await dispatcher.tick();
+
+    const [request] = transport.requests;
+    const verifies = (secret: string) =>
+      verifyWebhook({
+        header: request?.headers[WEBHOOK_SIGNATURE_HEADER] ?? "",
+        body: request?.body ?? "",
+        secrets: [secret],
+        now: clock.now(),
+      });
+    expect(verifies(target.secret)).toBe(true);
+    expect(verifies("whsec_old")).toBe(false);
+  });
+
+  test("a previous secret with no expiry is not honoured", async () => {
+    await endpoint({ previousSecret: "whsec_old" });
+    outbox.add(event());
+
+    await dispatcher.tick();
+
+    const [request] = transport.requests;
+    expect(
+      verifyWebhook({
+        header: request?.headers[WEBHOOK_SIGNATURE_HEADER] ?? "",
+        body: request?.body ?? "",
+        secrets: ["whsec_old"],
+        now: clock.now(),
+      }),
+    ).toBe(false);
   });
 });

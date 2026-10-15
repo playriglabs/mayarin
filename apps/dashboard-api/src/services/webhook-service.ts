@@ -23,7 +23,12 @@ import type {
   WebhookEndpoint,
   WebhookEndpointRepository,
 } from "@mayarin/notifications";
-import { assertWebhookUrl, isPrivateAddress, replayed } from "@mayarin/notifications";
+import {
+  assertWebhookUrl,
+  isPrivateAddress,
+  replayed,
+  WEBHOOK_SECRET_GRACE_MS,
+} from "@mayarin/notifications";
 import {
   type Clock,
   ConflictError,
@@ -136,6 +141,7 @@ export class WebhookService {
       ...endpoint,
       secret: newSecret(),
       previousSecret: endpoint.secret,
+      previousSecretExpiresAt: new Date(this.#clock.now().getTime() + WEBHOOK_SECRET_GRACE_MS),
       updatedAt: this.#clock.now(),
     };
     await this.#endpoints.update(rotated);

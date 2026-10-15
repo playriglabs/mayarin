@@ -351,6 +351,13 @@
       "when": 1790863200000,
       "tag": "0049_session_tokens_hashed",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790866800000,
+      "tag": "0050_webhook_previous_secret_expiry",
+      "breakpoints": true
     }
   ]
 }

@@ -59,13 +59,27 @@ export interface WebhookEndpoint {
   readonly url: string;
   readonly secret: string;
   /**
-   * The secret before the last rotation. Deliveries are signed with both, so a
-   * receiver still holding the old secret keeps verifying until it catches up.
+   * The secret before the last rotation. Deliveries are signed with both until
+   * `previousSecretExpiresAt`, so a receiver still holding the old secret keeps
+   * verifying while it catches up, and a stale one stops being honoured.
    */
   readonly previousSecret?: string;
+  readonly previousSecretExpiresAt?: Date;
   readonly active: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+/** How long a rotated-out secret keeps signing deliveries (SEC-12). */
+export const WEBHOOK_SECRET_GRACE_MS = 24 * 60 * 60 * 1_000;
+
+/** The previous secret if its grace period has not ended; otherwise none. */
+export function activePreviousSecret(endpoint: WebhookEndpoint, now: Date): string | undefined {
+  if (endpoint.previousSecret === undefined) return undefined;
+  if (endpoint.previousSecretExpiresAt === undefined) return undefined;
+  return now.getTime() < endpoint.previousSecretExpiresAt.getTime()
+    ? endpoint.previousSecret
+    : undefined;
 }
 
 export const WEBHOOK_DELIVERY_STATUSES = ["PENDING", "DELIVERED", "DEAD"] as const;

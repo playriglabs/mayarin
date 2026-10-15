@@ -5,7 +5,11 @@
  * and a field that cannot be sent cannot be forged.
  */
 
-import type { WebhookDelivery, WebhookEndpoint } from "@mayarin/notifications";
+import {
+  activePreviousSecret,
+  type WebhookDelivery,
+  type WebhookEndpoint,
+} from "@mayarin/notifications";
 import { z } from "zod";
 
 export const createEndpointBodySchema = z
@@ -25,13 +29,13 @@ export const listQuerySchema = z.object({
 });
 
 /** The listing shape. Secrets never appear here — only creation and rotation show one. */
-export function toEndpointDto(endpoint: WebhookEndpoint) {
+export function toEndpointDto(endpoint: WebhookEndpoint, now: Date) {
   return {
     id: endpoint.id,
     url: endpoint.url,
     active: endpoint.active,
     /** True while a rotated-out secret is still accepted, so a merchant can see the overlap. */
-    rotatedSecretActive: endpoint.previousSecret !== undefined,
+    rotatedSecretActive: activePreviousSecret(endpoint, now) !== undefined,
     createdAt: endpoint.createdAt.toISOString(),
     updatedAt: endpoint.updatedAt.toISOString(),
   };

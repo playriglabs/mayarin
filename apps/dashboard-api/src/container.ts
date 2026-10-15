@@ -205,6 +205,8 @@ export interface Container {
   readonly disputes: DisputeService;
   /** Webhook endpoints and delivery inspection (#13), scoped the same way. */
   readonly webhooks: WebhookService;
+  /** The clock the services run on, for read models that depend on the time. */
+  readonly clock: Clock;
   /** Merchant wallets and proof of control (#11). */
   readonly wallets: WalletService;
   /** Batch payouts (#295): prepares calldata, records what the chain confirms. */
@@ -660,6 +662,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     paymentApi,
     disputes,
     webhooks,
+    clock,
     wallets,
     payouts,
     subscriptions,
