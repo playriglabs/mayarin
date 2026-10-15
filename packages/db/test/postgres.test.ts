@@ -38,6 +38,7 @@ import { ConcurrencyError, FixedClock, generateId, money, RATE_SCALE } from "@ma
 import type { X402Resource } from "@mayarin/x402";
 import { sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
+import { FLOOR_TTL_MS, PostgresNonceSequencer } from "../src/nonce-sequencer.ts";
 import { listenPaymentChanged, notifyPaymentChanged } from "../src/notify.ts";
 import {
   DrizzleMerchantRepository,
@@ -122,7 +123,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -882,6 +883,73 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       await cursors.set("evt_01");
       await cursors.set("evt_02");
       expect(await cursors.get()).toBe("evt_02");
+    });
+  });
+
+  describe("nonce sequencer", () => {
+    // Its own clock: advancing the suite's shared one would age everything after.
+    const nonceClock = new FixedClock("2026-01-01T00:00:00.000Z");
+    test("concurrent submitters on separate connections get distinct nonces", async () => {
+      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock);
+      const used: number[] = [];
+      // A node that has not seen the last broadcast always answers 7.
+      const run = () =>
+        sequencer.broadcast(
+          "base-sepolia:0xabc",
+          async () => 7,
+          async (nonce) => {
+            used.push(nonce);
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            return nonce;
+          },
+        );
+
+      await Promise.all([run(), run(), run(), run()]);
+
+      expect([...used].sort()).toEqual([7, 8, 9, 10]);
+    });
+
+    test("a failed send is not counted, and the floor is dropped", async () => {
+      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock);
+      await sequencer.broadcast(
+        "k",
+        async () => 3,
+        async (nonce) => nonce,
+      );
+      await expect(
+        sequencer.broadcast(
+          "k",
+          async () => 4,
+          () => Promise.reject(new Error("boom")),
+        ),
+      ).rejects.toThrow("boom");
+
+      expect(
+        await sequencer.broadcast(
+          "k",
+          async () => 4,
+          async (nonce) => nonce,
+        ),
+      ).toBe(4);
+    });
+
+    test("a stale floor is ignored so a dropped broadcast cannot leave a gap", async () => {
+      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock);
+      await sequencer.broadcast(
+        "k",
+        async () => 3,
+        async (nonce) => nonce,
+      );
+
+      nonceClock.advance(FLOOR_TTL_MS + 1);
+
+      expect(
+        await sequencer.broadcast(
+          "k",
+          async () => 3,
+          async (nonce) => nonce,
+        ),
+      ).toBe(3);
     });
   });
 

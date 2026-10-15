@@ -23,15 +23,19 @@
  *   so summing every `Transfer` in a receipt counts the same money twice. This
  *   is the same fact that made every Arc settlement ambiguous in #255.
  *
- * The operator's key is now signed against from three places in two processes,
- * and each serialises only its own submissions. A nonce collision fails the
- * broadcast rather than moving anything, so it costs a payment rather than
- * money — but a shared submitter is the real answer and does not exist yet.
+ * The operator's key is signed against from three places in two processes; all
+ * of them take their nonce from one shared `NonceSequencer`.
  */
 
 import type { ChainId } from "@mayarin/chain";
 import type { SwapRouteSource } from "@mayarin/execution";
-import { ConfigurationError, type Money, money, ProviderError } from "@mayarin/shared";
+import {
+  ConfigurationError,
+  type Money,
+  money,
+  type NonceSequencer,
+  ProviderError,
+} from "@mayarin/shared";
 import type {
   CrossAssetSettler,
   CrossAssetSwap,
@@ -59,6 +63,8 @@ const erc20Abi = parseAbi([
 ]);
 
 export interface EvmCrossAssetSettlerOptions {
+  /** Shared by every submitter of the operator key; see `NonceSequencer`. */
+  readonly nonces: NonceSequencer;
   readonly clients: Readonly<Partial<Record<ChainId, ChainClients>>>;
   /** The key the authorization paid, and therefore the one holding the payer's asset. */
   readonly account: Account;
@@ -71,8 +77,6 @@ export interface EvmCrossAssetSettlerOptions {
 
 export class EvmCrossAssetSettler implements CrossAssetSettler {
   readonly #options: EvmCrossAssetSettlerOptions;
-  /** One in-flight submission per chain; see `EvmTreasuryExecutionPort` for why. */
-  readonly #submissions = new Map<ChainId, Promise<unknown>>();
 
   constructor(options: EvmCrossAssetSettlerOptions) {
     this.#options = options;
@@ -282,37 +286,19 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
     const { account } = this.#options;
     const { publicClient, walletClient } = this.#clientsFor(chain);
 
-    const queued = this.#submissions.get(chain) ?? Promise.resolve();
-    const result = queued.then(send, send);
-    this.#submissions.set(
-      chain,
-      result.then(
-        () => undefined,
-        () => undefined,
-      ),
-    );
-    return result;
-
-    async function send(): Promise<Hex> {
-      try {
-        return await walletClient.sendTransaction({
-          account,
-          to,
-          data,
-          value: 0n,
-          nonce: await publicClient.getTransactionCount({
-            address: account.address,
-            blockTag: "pending",
-          }),
-          chain: null,
-        });
-      } catch (error) {
-        throw new ProviderError(
-          `Broadcasting the ${operation} failed: ${shortReason(error)}`,
-          { chain },
-          { cause: error, retryable: true },
-        );
-      }
+    try {
+      return await this.#options.nonces.broadcast(
+        `${chain}:${account.address.toLowerCase()}`,
+        () => publicClient.getTransactionCount({ address: account.address, blockTag: "pending" }),
+        (nonce) =>
+          walletClient.sendTransaction({ account, to, data, value: 0n, nonce, chain: null }),
+      );
+    } catch (error) {
+      throw new ProviderError(
+        `Broadcasting the ${operation} failed: ${shortReason(error)}`,
+        { chain },
+        { cause: error, retryable: true },
+      );
     }
   }
 

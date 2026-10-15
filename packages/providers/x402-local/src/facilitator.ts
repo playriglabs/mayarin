@@ -23,7 +23,7 @@
 
 import type { ChainId } from "@mayarin/chain";
 import { caip2Of } from "@mayarin/chain";
-import type { Clock } from "@mayarin/shared";
+import type { Clock, NonceSequencer } from "@mayarin/shared";
 import { ProviderError } from "@mayarin/shared";
 import type {
   PaymentPayload,
@@ -45,6 +45,11 @@ export interface LocalX402FacilitatorOptions {
   /** The key that pays gas. It cannot redirect or resize a payment. */
   readonly account: Account;
   readonly clock: Clock;
+  /**
+   * Shared with every other submitter of the key: a nonce belongs to the key,
+   * not to a payment, and an x402 rail broadcasts once per API call.
+   */
+  readonly nonces: NonceSequencer;
   /** Blocks to wait before reporting a settlement. Default 1. */
   readonly confirmations?: number;
 }
@@ -68,24 +73,7 @@ export class LocalX402Facilitator implements X402Facilitator {
   readonly #account: Account;
   readonly #clock: Clock;
   readonly #confirmations: number;
-
-  /**
-   * Serialises broadcasts from the operator account.
-   *
-   * The same constraint `EvmTreasuryExecutionPort` documents, and worse here.
-   * A nonce belongs to the key, not to a payment: two settlements racing both
-   * read the pending nonce, both get `N`, and the second is rejected
-   * `replacement transaction underpriced` — not because anything is wrong with
-   * it, but because it bid the same gas for a slot already taken. The treasury
-   * executor meets this once per payment; an x402 rail meets it once per API
-   * call, which is the volume the whole design is for.
-   *
-   * A promise chain is enough, and the critical section is the broadcast alone:
-   * once a transaction is in the mempool the next `pending` read counts it, so
-   * holding the lock through the receipt would serialise confirmations for
-   * nothing.
-   */
-  #broadcasts: Promise<unknown> = Promise.resolve();
+  readonly #nonces: NonceSequencer;
 
   constructor(options: LocalX402FacilitatorOptions) {
     this.#chain = options.chain;
@@ -97,6 +85,7 @@ export class LocalX402Facilitator implements X402Facilitator {
     this.#account = options.account;
     this.#clock = options.clock;
     this.#confirmations = options.confirmations ?? 1;
+    this.#nonces = options.nonces;
   }
 
   supports(requirements: PaymentRequirements): boolean {
@@ -186,20 +175,24 @@ export class LocalX402Facilitator implements X402Facilitator {
   }
 
   async #broadcast(payment: PaymentPayload, requirements: PaymentRequirements): Promise<Hex> {
-    const send = async (): Promise<Hex> =>
+    const account = this.#account;
+    const send = (nonce: number): Promise<Hex> =>
       this.#walletClient.writeContract({
         chain: null,
-        account: this.#account,
+        account,
         address: requirements.asset as Address,
         abi: eip3009Abi,
         functionName: "transferWithAuthorization",
         args: this.#reader.callArgsFor(payment),
+        nonce,
       });
 
-    const queued = this.#broadcasts.then(send, send);
-    // The chain continues whether or not this broadcast succeeded, so the next
-    // caller must not inherit this one's rejection.
-    this.#broadcasts = queued.catch(() => undefined);
+    const queued = this.#nonces.broadcast(
+      `${this.#chain}:${account.address.toLowerCase()}`,
+      () =>
+        this.#publicClient.getTransactionCount({ address: account.address, blockTag: "pending" }),
+      send,
+    );
     try {
       return await queued;
     } catch (error) {

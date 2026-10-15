@@ -1275,6 +1275,17 @@ export const paymentFundings = pgTable(
   ],
 );
 
+/**
+ * The next nonce a signing key may use on a chain (SEC-04). One row per
+ * `${chain}:${address}`; read and written under an advisory lock by
+ * `PostgresNonceSequencer`.
+ */
+export const operatorNonces = pgTable("operator_nonces", {
+  key: text("key").primaryKey(),
+  nextNonce: integer("next_nonce").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+});
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -1311,4 +1322,5 @@ export const schema = {
   paymentFundings,
   escrowDisputes,
   escrowDisputeMessages,
+  operatorNonces,
 };

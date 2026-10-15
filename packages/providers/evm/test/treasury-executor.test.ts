@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ExecuteRequest, SweepRequest } from "@mayarin/clearing";
 import { paymentRouterAbi } from "@mayarin/contracts";
 import type { ExecutableRoute, RouteRequest, SwapRouteSource } from "@mayarin/execution";
-import { ConfigurationError, money, ProviderError } from "@mayarin/shared";
+import { ConfigurationError, InMemoryNonceSequencer, money, ProviderError } from "@mayarin/shared";
 import { encodeErrorResult, encodeEventTopics, encodeFunctionData, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { depositSalt } from "../src/forwarder-deriver.ts";
@@ -166,6 +166,7 @@ function harness(
   };
 
   const port = new EvmTreasuryExecutionPort({
+    nonces: new InMemoryNonceSequencer(),
     clients: {
       "base-sepolia": { publicClient: publicClient as any, walletClient: walletClient as any },
     },
