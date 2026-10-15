@@ -87,7 +87,7 @@ const PRIMARY: readonly NavItem[] = [
  * every shift.
  */
 const DEVELOPERS: readonly NavItem[] = [
-  { href: "/api-keys", label: "API keys", icon: KeyIcon, permission: "settings:manage" },
+  { href: "/api-keys", label: "API keys", icon: KeyIcon, permission: "api-keys:manage" },
   { href: "/webhooks", label: "Webhooks", icon: WebhooksLogoIcon, permission: "settings:manage" },
   { href: "/event-logs", label: "Event logs", icon: LightningIcon, permission: "payments:read" },
   {
@@ -107,12 +107,12 @@ const DEVELOPERS: readonly NavItem[] = [
  * every hour the same weight as one they open on setup day.
  */
 const CONFIGURATION: readonly NavItem[] = [
-  { href: "/wallets", label: "Wallets", icon: WalletIcon, permission: "settings:manage" },
+  { href: "/wallets", label: "Wallets", icon: WalletIcon, permission: "wallets:withdraw" },
   {
     href: "/payouts",
     label: "Payouts",
     icon: PaperPlaneTiltIcon,
-    permission: "settings:manage",
+    permission: "wallets:withdraw",
     flag: "New",
   },
   { href: "/settings", label: "Settings", icon: GearSixIcon, permission: "settings:manage" },

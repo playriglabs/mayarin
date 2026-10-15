@@ -213,7 +213,7 @@ describe("scoping", () => {
       merchantName: "Other",
       settlementAsset: "USDC",
       acceptedAssets: [],
-      permissions: ["settings:manage"],
+      permissions: ["wallets:withdraw"],
     });
     expect(other.user.merchantId).not.toBe(harness.merchantId);
 
@@ -414,7 +414,7 @@ describe("managed provisioning", () => {
       merchantName: "Other",
       settlementAsset: "USDC",
       acceptedAssets: [],
-      permissions: ["settings:manage"],
+      permissions: ["wallets:withdraw"],
     });
     const theirs = await loginAs(harness, "other@mayarin.local", "other-password-12345");
     const res = await post(harness, theirs, "/v1/wallets/managed", { chain: "base-sepolia" });

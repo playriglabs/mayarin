@@ -139,9 +139,9 @@ describe("bearer auth", () => {
 
   test("CSRF is skipped for a bearer mutating request with the right permission", async () => {
     const { harness, auth } = await seed();
-    // Mint a key that itself holds settings:manage, so it may create keys.
+    // Mint a key that itself holds api-keys:manage, so it may create keys.
     const created = await harness.request("POST", "/v1/api-keys", {
-      body: { name: "Manager", permissions: ["settings:manage"] },
+      body: { name: "Manager", permissions: ["api-keys:manage"] },
       cookies: auth.jar,
       headers: { "x-csrf-token": auth.csrf },
     });
