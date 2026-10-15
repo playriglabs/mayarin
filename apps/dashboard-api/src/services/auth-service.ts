@@ -35,11 +35,20 @@ export class AuthService {
   readonly #users: UserRepository;
   readonly #hasher: PasswordHasher;
   readonly #sessions: SessionService;
+  /**
+   * Verified against for an unknown email, so that answer costs the same
+   * argon2 run as a wrong password. Without it the two differ by tens of
+   * milliseconds and the response time is an enumeration oracle.
+   */
+  readonly #decoy: Promise<string>;
 
   constructor(options: AuthServiceOptions) {
     this.#users = options.users;
     this.#hasher = options.hasher;
     this.#sessions = options.sessions;
+    this.#decoy = options.hasher.hash(crypto.randomUUID());
+    // Rejected only if the hasher is broken; login reports that when it needs it.
+    this.#decoy.catch(() => undefined);
   }
 
   /**
@@ -51,12 +60,16 @@ export class AuthService {
     const users = this.#users;
     const hasher = this.#hasher;
     const sessions = this.#sessions;
+    const decoy = this.#decoy;
     const tryRun = <T>(run: () => Promise<T>): Effect.Effect<T, Error> =>
       Effect.tryPromise({ try: run, catch: (error) => error as Error });
 
     return Effect.gen(function* () {
       const user = yield* tryRun(() => users.findByEmail(email));
-      if (user === null) return yield* Effect.fail(INVALID_CREDENTIALS);
+      if (user === null) {
+        yield* tryRun(async () => hasher.verify(password, await decoy));
+        return yield* Effect.fail(INVALID_CREDENTIALS);
+      }
 
       const ok = yield* tryRun(() => hasher.verify(password, user.passwordHash));
       if (!ok) return yield* Effect.fail(INVALID_CREDENTIALS);
