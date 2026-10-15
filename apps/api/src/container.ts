@@ -13,6 +13,7 @@ import {
   type ChainClient,
   type ChainId,
   EVM_CHAINS,
+  isChainId,
   isEvmChainId,
   isSolanaChainId,
   type PaymentCompletionSink,
@@ -311,6 +312,25 @@ export interface CreateContainerOptions {
  * answer to a request for a resource this deployment cannot settle is that it
  * does not serve one.
  */
+/** The routers the cross-asset settler may approve and call, per chain (SEC-17). */
+function allowedSwapRouters(config: Config): Partial<Record<ChainId, readonly string[]>> {
+  const allowed: Partial<Record<ChainId, string[]>> = {};
+  const add = (chain: string, address: string): void => {
+    if (!isChainId(chain)) return;
+    allowed[chain] = [...(allowed[chain] ?? []), address];
+  };
+  for (const [chain, address] of Object.entries(config.uniswapSwapRouters)) {
+    if (address !== undefined) add(chain, address);
+  }
+  for (const [chain, address] of Object.entries(config.uniswapV2Routers)) {
+    if (address !== undefined) add(chain, address);
+  }
+  for (const [chain, addresses] of Object.entries(config.swapRouterAllowlist)) {
+    for (const address of addresses ?? []) add(chain, address);
+  }
+  return allowed;
+}
+
 function createX402(deps: {
   config: Config;
   handle: DatabaseHandle;
@@ -368,6 +388,7 @@ function createX402(deps: {
       ? undefined
       : new EvmCrossAssetSettler({
           nonces,
+          allowedRouters: allowedSwapRouters(config),
           clients: Object.fromEntries(
             Object.entries(rpcUrls).flatMap(([chainId, rpcUrl]) => {
               if (rpcUrl === undefined || !isEvmChainId(chainId)) return [];
