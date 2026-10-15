@@ -29,24 +29,32 @@ export function webhookRoutes(container: Container): Hono<{ Variables: AuthVars 
 
   app.get("/endpoints", async (c) => {
     const endpoints = await container.webhooks.listEndpoints(scopeOf(c));
-    return c.json({ endpoints: endpoints.map(toEndpointDto) });
+    return c.json({
+      endpoints: endpoints.map((endpoint) => toEndpointDto(endpoint, container.clock.now())),
+    });
   });
 
   // The secret is returned exactly once, here. The listing never shows it again.
   app.post("/endpoints", csrfMiddleware(), async (c) => {
     const body = createEndpointBodySchema.parse(await c.req.json());
     const endpoint = await container.webhooks.createEndpoint(scopeOf(c), body.url);
-    return c.json({ endpoint: toEndpointDto(endpoint), secret: endpoint.secret }, 201);
+    return c.json(
+      { endpoint: toEndpointDto(endpoint, container.clock.now()), secret: endpoint.secret },
+      201,
+    );
   });
 
   app.post("/endpoints/:id/rotate", csrfMiddleware(), async (c) => {
     const endpoint = await container.webhooks.rotateSecret(scopeOf(c), c.req.param("id"));
-    return c.json({ endpoint: toEndpointDto(endpoint), secret: endpoint.secret });
+    return c.json({
+      endpoint: toEndpointDto(endpoint, container.clock.now()),
+      secret: endpoint.secret,
+    });
   });
 
   app.post("/endpoints/:id/deactivate", csrfMiddleware(), async (c) => {
     const endpoint = await container.webhooks.deactivateEndpoint(scopeOf(c), c.req.param("id"));
-    return c.json({ endpoint: toEndpointDto(endpoint) });
+    return c.json({ endpoint: toEndpointDto(endpoint, container.clock.now()) });
   });
 
   /** The inspection surface: a webhook a merchant cannot see is one they will not trust. */

@@ -528,6 +528,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     paymentApi,
     disputes,
     webhooks,
+    clock,
     wallets,
     payouts,
     subscriptions,

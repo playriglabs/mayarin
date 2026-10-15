@@ -8,9 +8,11 @@
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import {
+  activePreviousSecret,
   assertWebhookUrl,
   isPrivateAddress,
   replayed,
+  WEBHOOK_SECRET_GRACE_MS,
   type WebhookDelivery,
   type WebhookDeliveryRepository,
   type WebhookEndpoint,
@@ -180,7 +182,9 @@ export function adminRoutes(container: Container, token: string): Hono {
       throw new ValidationError("merchantId is required");
     }
     return c.json({
-      endpoints: (await endpoints.listByMerchant(merchantId)).map(toEndpointDto),
+      endpoints: (await endpoints.listByMerchant(merchantId)).map((endpoint) =>
+        toEndpointDto(endpoint),
+      ),
     });
   });
 
@@ -192,6 +196,7 @@ export function adminRoutes(container: Container, token: string): Hono {
       ...endpoint,
       secret: newSecret(),
       previousSecret: endpoint.secret,
+      previousSecretExpiresAt: new Date(Date.now() + WEBHOOK_SECRET_GRACE_MS),
       updatedAt: new Date(),
     };
     await endpoints.update(rotated);
@@ -347,7 +352,7 @@ function toEndpointDto(endpoint: WebhookEndpoint): Record<string, unknown> {
     merchantId: endpoint.merchantId,
     url: endpoint.url,
     active: endpoint.active,
-    rotatedSecretActive: endpoint.previousSecret !== undefined,
+    rotatedSecretActive: activePreviousSecret(endpoint, new Date()) !== undefined,
     createdAt: endpoint.createdAt.toISOString(),
     updatedAt: endpoint.updatedAt.toISOString(),
   };

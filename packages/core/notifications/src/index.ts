@@ -24,11 +24,13 @@ export {
 } from "./signature.ts";
 export type { WebhookRequest, WebhookResponse, WebhookTransport } from "./transport.ts";
 export {
+  activePreviousSecret,
   type NotifiableEvent,
   toNotifiableEvent,
   toWebhookEventType,
   WEBHOOK_DELIVERY_STATUSES,
   WEBHOOK_EVENT_TYPES,
+  WEBHOOK_SECRET_GRACE_MS,
   type WebhookDelivery,
   type WebhookDeliveryStatus,
   type WebhookEndpoint,

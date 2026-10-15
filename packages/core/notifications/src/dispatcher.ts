@@ -27,7 +27,12 @@ import {
   WEBHOOK_TIMESTAMP_HEADER,
 } from "./signature.ts";
 import type { WebhookTransport } from "./transport.ts";
-import type { NotifiableEvent, WebhookDelivery, WebhookEndpoint } from "./types.ts";
+import {
+  activePreviousSecret,
+  type NotifiableEvent,
+  type WebhookDelivery,
+  type WebhookEndpoint,
+} from "./types.ts";
 
 /** Seconds until each retry. One initial attempt plus one per entry, then DEAD. */
 export const DEFAULT_BACKOFF_SECONDS = [60, 300, 1_800, 7_200, 43_200] as const;
@@ -153,10 +158,8 @@ export class WebhookDispatcher {
     endpoint: WebhookEndpoint,
   ): Promise<"delivered" | "retried" | "dead"> {
     const now = this.#clock.now();
-    const secrets =
-      endpoint.previousSecret === undefined
-        ? [endpoint.secret]
-        : [endpoint.secret, endpoint.previousSecret];
+    const previous = activePreviousSecret(endpoint, now);
+    const secrets = previous === undefined ? [endpoint.secret] : [endpoint.secret, previous];
 
     const request = {
       url: endpoint.url,

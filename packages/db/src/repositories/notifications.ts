@@ -279,6 +279,7 @@ function toEndpointRow(endpoint: WebhookEndpoint): EndpointRow {
     url: endpoint.url,
     secret: endpoint.secret,
     previousSecret: endpoint.previousSecret ?? null,
+    previousSecretExpiresAt: endpoint.previousSecretExpiresAt ?? null,
     active: endpoint.active,
     createdAt: endpoint.createdAt,
     updatedAt: endpoint.updatedAt,
@@ -292,6 +293,9 @@ function toEndpoint(row: EndpointRow): WebhookEndpoint {
     url: row.url,
     secret: row.secret,
     ...(row.previousSecret === null ? {} : { previousSecret: row.previousSecret }),
+    ...(row.previousSecretExpiresAt === null
+      ? {}
+      : { previousSecretExpiresAt: row.previousSecretExpiresAt }),
     active: row.active,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
