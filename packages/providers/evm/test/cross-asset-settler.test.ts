@@ -16,6 +16,7 @@ import {
   type Address,
   decodeFunctionData,
   encodeEventTopics,
+  encodeFunctionData,
   getAddress,
   type Hex,
   pad,
@@ -66,6 +67,7 @@ function settler(
     readonly status?: "success" | "reverted";
     readonly allowance?: bigint;
     readonly expectedIn?: bigint;
+    readonly allowedRouters?: readonly string[];
   } = {},
 ) {
   const sent: { to: string; data: string }[] = [];
@@ -99,6 +101,7 @@ function settler(
 
   const instance = new EvmCrossAssetSettler({
     nonces: new InMemoryNonceSequencer(),
+    allowedRouters: { "base-sepolia": options.allowedRouters ?? [ROUTER] },
     clients: {
       "base-sepolia": { publicClient: publicClient as any, walletClient: walletClient as any },
     },
@@ -226,6 +229,39 @@ describe("sending a cross-asset swap", () => {
     expect(sent[0]?.to).toBe(EURC);
     expect(sent[1]?.to).toBe(ROUTER);
     expect(sent[1]?.data).toBe("0xdeadbeef");
+  });
+
+  test("refuses a router that is not on the allowlist, before approving or sending", async () => {
+    const { settler: instance, sent } = settler({
+      allowance: 0n,
+      allowedRouters: [getAddress("0x1111111111111111111111111111111111111111")],
+    });
+
+    await expect(instance.send(REQUEST)).rejects.toThrow(/not on the base-sepolia allowlist/);
+    expect(sent).toHaveLength(0);
+  });
+
+  test("matches the allowlist regardless of address case", async () => {
+    const { settler: instance, sent } = settler({
+      allowedRouters: [ROUTER.toLowerCase()],
+    });
+
+    await instance.send(REQUEST);
+
+    expect(sent).toHaveLength(1);
+  });
+
+  test("approves exactly what the swap may spend, not an unlimited allowance", async () => {
+    const { settler: instance, sent } = settler({ allowance: 0n });
+
+    await instance.send(REQUEST);
+
+    const approve = encodeFunctionData({
+      abi: parseAbi(["function approve(address spender, uint256 amount) returns (bool)"]),
+      functionName: "approve",
+      args: [ROUTER, REQUEST.held.amount],
+    });
+    expect(sent[0]?.data).toBe(approve);
   });
 
   test("sends only the swap when the router is already approved", async () => {

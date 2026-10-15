@@ -484,6 +484,15 @@ const configSchema = z.object({
    */
   /** `SwapRouter02` address per chain, for the Uniswap route source. */
   uniswapSwapRouters: jsonObject<Partial<Record<ChainId, string>>>("UNISWAP_SWAP_ROUTERS", "{}"),
+  /**
+   * Extra routers the cross-asset settler may call, per chain (SEC-17): the 0x
+   * and LiFi route sources return their router per quote, so it has to be
+   * reviewed and named here. The Uniswap routers above are allowed already.
+   */
+  swapRouterAllowlist: jsonObject<Partial<Record<ChainId, string[]>>>(
+    "SWAP_ROUTER_ALLOWLIST",
+    "{}",
+  ),
   nodeEnv: z.string().default("development"),
 });
 
@@ -1234,6 +1243,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     operatorPrivateKey: env.OPERATOR_PRIVATE_KEY,
     treasuryMaxAttempts: env.TREASURY_MAX_ATTEMPTS,
     uniswapSwapRouters: env.UNISWAP_SWAP_ROUTERS,
+    swapRouterAllowlist: env.SWAP_ROUTER_ALLOWLIST,
     nodeEnv: env.NODE_ENV,
   });
 

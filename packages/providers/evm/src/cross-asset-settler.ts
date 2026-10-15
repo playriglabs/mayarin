@@ -63,6 +63,15 @@ const erc20Abi = parseAbi([
 ]);
 
 export interface EvmCrossAssetSettlerOptions {
+  /**
+   * The only routers this settler will approve and call, per chain (SEC-17).
+   *
+   * The route source is a third-party API and the operator key holds the
+   * payer's asset while it swaps, so the address that API returns is not
+   * trusted: a route naming any other router is refused before anything is
+   * approved or sent. A chain with no entry refuses every route.
+   */
+  readonly allowedRouters: Readonly<Partial<Record<ChainId, readonly string[]>>>;
   /** Shared by every submitter of the operator key; see `NonceSequencer`. */
   readonly nonces: NonceSequencer;
   readonly clients: Readonly<Partial<Record<ChainId, ChainClients>>>;
@@ -109,7 +118,8 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
         encodeFunctionData({
           abi: erc20Abi,
           functionName: "approve",
-          args: [router, 2n ** 256n - 1n],
+          // Exactly what this swap may consume, not a standing allowance.
+          args: [router, request.held.amount],
         }),
       );
       await publicClient.waitForTransactionReceipt({
@@ -229,7 +239,7 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
    * the one that bounded the payment is not the one that should execute it.
    */
   async #route(request: CrossAssetSwapRequest) {
-    return this.#options.routes.route({
+    const route = await this.#options.routes.route({
       payerAsset: request.held.asset,
       settlementAsset: request.exactOut.asset,
       exactOut: request.exactOut,
@@ -237,6 +247,20 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
       recipient: request.recipient,
       chain: request.chain,
     });
+    this.#assertAllowed(request.chain, route.router);
+    return route;
+  }
+
+  #assertAllowed(chain: ChainId, router: string): void {
+    const allowed = (this.#options.allowedRouters[chain] ?? []).map((address) =>
+      address.toLowerCase(),
+    );
+    if (!allowed.includes(router.toLowerCase())) {
+      throw new ConfigurationError(
+        `The route names a router that is not on the ${chain} allowlist`,
+        { chain, router },
+      );
+    }
   }
 
   /**
