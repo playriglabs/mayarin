@@ -26,7 +26,7 @@ import {
   createBodySchema,
   toPaymentIntentDto,
 } from "../dto/payment-intent.ts";
-import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
+import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
 import { assertRailOffered } from "../rails.ts";
 
 export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
@@ -38,6 +38,12 @@ export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   app.post("/", requireApiKey(container.verifyApiKey), async (c) => {
     const body = createBodySchema.parse(await c.req.json());
     const idempotencyKey = c.req.header("Idempotency-Key");
+    // A merchant named in the body decides whose settlement configuration the
+    // payment uses, so it must be the caller. A QR's merchant is display data
+    // from an EMVCo identity, not a tenant, and is not matched (SEC-10).
+    if (body.qr === undefined && body.merchant !== undefined) {
+      assertMerchant(c.get("scope"), body.merchant.id);
+    }
 
     const command: CreatePaymentIntentCommand = {
       ...resolveMerchantAndAmount(body),
@@ -61,7 +67,9 @@ export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
         ? {}
         : { merchantReference: body.merchantReference }),
       ...(body.ttlSeconds === undefined ? {} : { ttlSeconds: body.ttlSeconds }),
-      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      ...(idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: `${c.get("scope").merchantId}:${idempotencyKey}` }),
     };
 
     // The rail is the caller's choice now that it is no longer read from
