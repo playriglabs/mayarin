@@ -11,9 +11,15 @@
  * audited after expiry without a special read path.
  */
 
-import { randomBytes } from "node:crypto";
-import type { Session, SessionRepository, User, UserRepository } from "@mayarin/auth";
-import { type Clock, generateId, UnauthorizedError } from "@mayarin/shared";
+import {
+  csrfTokenOf,
+  newSessionId,
+  type Session,
+  type SessionRepository,
+  type User,
+  type UserRepository,
+} from "@mayarin/auth";
+import { type Clock, UnauthorizedError } from "@mayarin/shared";
 import { Effect } from "effect";
 
 export interface SessionServiceOptions {
@@ -44,10 +50,11 @@ export class SessionService {
   /** Issues a new session for `userId`. */
   create(userId: string): Effect.Effect<Session, Error> {
     const now = this.#clock.now();
+    const id = newSessionId();
     const session: Session = {
-      id: generateId("ses", now.getTime()),
+      id,
       userId,
-      csrfToken: randomBytes(32).toString("base64url"),
+      csrfToken: csrfTokenOf(id),
       expiresAt: new Date(now.getTime() + this.#ttlSeconds * 1000),
       createdAt: now,
     };

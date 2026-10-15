@@ -25,6 +25,7 @@ import type {
   User,
   UserRepository,
 } from "@mayarin/auth";
+import { csrfTokenOf, sessionKey } from "@mayarin/auth";
 import { type ChainId, isChainId } from "@mayarin/chain";
 import type { MerchantAssetPolicy, MerchantAssetPolicySource } from "@mayarin/payment-intent";
 import {
@@ -291,12 +292,19 @@ export class DrizzleSessionRepository implements SessionRepository {
   }
 
   async findById(id: string): Promise<Session | null> {
-    const [row] = await this.#db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
-    return row === undefined ? null : toSession(row);
+    const [row] = await this.#db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, sessionKey(id)))
+      .limit(1);
+    return row === undefined ? null : toSession(row, id);
   }
 
   async revoke(id: string, revokedAt: Date): Promise<void> {
-    await this.#db.update(sessions).set({ revokedAt }).where(eq(sessions.id, id));
+    await this.#db
+      .update(sessions)
+      .set({ revokedAt })
+      .where(eq(sessions.id, sessionKey(id)));
   }
 
   async deleteExpired(now: Date): Promise<number> {
@@ -467,11 +475,12 @@ function toMerchantRow(merchant: Merchant): typeof merchants.$inferInsert {
   };
 }
 
-function toSession(row: SessionRow): Session {
+/** The row holds the key, not the id; the id is the one the caller presented. */
+function toSession(row: SessionRow, id: string): Session {
   return {
-    id: row.id,
+    id,
     userId: row.userId,
-    csrfToken: row.csrfToken,
+    csrfToken: csrfTokenOf(id),
     expiresAt: row.expiresAt,
     ...present("revokedAt", row.revokedAt),
     createdAt: row.createdAt,
@@ -480,9 +489,8 @@ function toSession(row: SessionRow): Session {
 
 function toSessionRow(session: Session): typeof sessions.$inferInsert {
   return {
-    id: session.id,
+    id: sessionKey(session.id),
     userId: session.userId,
-    csrfToken: session.csrfToken,
     expiresAt: session.expiresAt,
     revokedAt: session.revokedAt ?? null,
     createdAt: session.createdAt,

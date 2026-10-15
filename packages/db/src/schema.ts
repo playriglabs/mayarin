@@ -499,6 +499,10 @@ export const emailVerifications = pgTable(
  * double-submit token mirrored in the `mayarin_csrf` cookie. `revokedAt` marks a
  * logged-out session; `expiresAt` is the hard expiry the session service checks.
  */
+/**
+ * `id` is `sessionKey(sessionId)` (SHA-256), never the cookie value itself, and
+ * there is no CSRF column: the token is derived from the id (SEC-15).
+ */
 export const sessions = pgTable(
   "sessions",
   {
@@ -506,7 +510,6 @@ export const sessions = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id),
-    csrfToken: text("csrf_token").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
     createdAt: createdAt(),
