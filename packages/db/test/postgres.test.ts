@@ -906,7 +906,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
 
       await Promise.all([run(), run(), run(), run()]);
 
-      expect([...used].sort()).toEqual([7, 8, 9, 10]);
+      expect([...used].sort((a, b) => a - b)).toEqual([7, 8, 9, 10]);
     });
 
     test("a failed send is not counted, and the floor is dropped", async () => {
