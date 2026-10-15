@@ -124,7 +124,9 @@ export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       lines,
       ...intentOptions,
       ...(metadata === undefined ? {} : { metadata }),
-      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      ...(idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: `${scope.merchantId}:${idempotencyKey}` }),
     });
 
     // The storefront minting from its own server is not same-origin with the

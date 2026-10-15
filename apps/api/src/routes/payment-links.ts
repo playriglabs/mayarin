@@ -45,7 +45,9 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(body.expiresAt === undefined ? {} : { expiresAt: body.expiresAt }),
       ...(body.listed === undefined ? {} : { listed: body.listed }),
       ...(body.rails === undefined ? {} : { rails: body.rails }),
-      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      ...(idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: `${body.merchant.id}:${idempotencyKey}` }),
     });
 
     // The restriction is validated as a warning, not a refusal (#259): a
@@ -151,7 +153,9 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...intentOptions,
       ...(metadata === undefined ? {} : { metadata }),
       ...(amount === undefined ? {} : { amount }),
-      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      ...(idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: `${c.req.param("id")}:${idempotencyKey}` }),
     });
 
     return c.json({ paymentIntent: toPaymentIntentDto(intent) }, 201);

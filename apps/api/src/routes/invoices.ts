@@ -59,7 +59,9 @@ export function invoiceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       lines: body.lines,
       ...(body.notes === undefined ? {} : { notes: body.notes }),
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
-      ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      ...(idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: `${body.merchantId}:${idempotencyKey}` }),
     });
 
     return c.json({ invoice: toInvoiceDto(invoice, baseUrl) }, 201);

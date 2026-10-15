@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
-import { API_KEY_SECRET, createApiHarness, qrisPayload } from "./harness.ts";
+import { API_KEY_SECRET, createApiHarness, qrisPayload, TEST_MERCHANT_ID } from "./harness.ts";
 
 describe("the /v1 boundary (#138)", () => {
   test("an unversioned API path answers 404", async () => {
@@ -52,7 +52,12 @@ describe("POST /payment-intents", () => {
     const harness = createApiHarness();
     const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: {
-        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        merchant: {
+          id: TEST_MERCHANT_ID,
+          name: "Kopi Kenangan",
+          city: "Bandung",
+          countryCode: "ID",
+        },
         amount: { amount: "25000.00", asset: "IDR" },
       },
     });
@@ -75,6 +80,49 @@ describe("POST /payment-intents", () => {
     const second = await harness.request("POST", "/v1/payment-intents", payload);
 
     expect(second.body.paymentIntent.id).toBe(first.body.paymentIntent.id);
+  });
+
+  test("the same idempotency key from two tenants is two intents (SEC-10)", async () => {
+    const harness = createApiHarness();
+    const foreign = harness.mintApiKey("mrc_2", "mak_other_merchant");
+    const headers = { "Idempotency-Key": "order-shared" };
+
+    const first = await harness.request("POST", "/v1/payment-intents", {
+      body: { qr: qrisPayload() },
+      headers,
+    });
+    // A different amount: were the key global, this would be a 409 revealing
+    // that another tenant used it; and with the same body, a replay of theirs.
+    const second = await harness.request("POST", "/v1/payment-intents", {
+      auth: foreign,
+      body: { qr: qrisPayload("60000.00") },
+      headers,
+    });
+    const replay = await harness.request("POST", "/v1/payment-intents", {
+      auth: foreign,
+      body: { qr: qrisPayload("60000.00") },
+      headers,
+    });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(second.body.paymentIntent.id).not.toBe(first.body.paymentIntent.id);
+    expect(replay.body.paymentIntent.id).toBe(second.body.paymentIntent.id);
+  });
+
+  test("a manual payment cannot name another tenant as its merchant (SEC-10)", async () => {
+    const harness = createApiHarness();
+    const foreign = harness.mintApiKey("mrc_2", "mak_other_merchant");
+
+    const { status } = await harness.request("POST", "/v1/payment-intents", {
+      auth: foreign,
+      body: {
+        merchant: { id: "mrc_1", name: "Someone else", city: "Jakarta", countryCode: "ID" },
+        amount: { amount: "50000.00", asset: "IDR" },
+      },
+    });
+
+    expect(status).toBe(403);
   });
 
   test("rejects an idempotency key reused with different parameters", async () => {
@@ -174,7 +222,12 @@ describe("POST /payment-intents/:id/confirm", () => {
     const harness = createApiHarness();
     const created = await harness.request("POST", "/v1/payment-intents", {
       body: {
-        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        merchant: {
+          id: TEST_MERCHANT_ID,
+          name: "Kopi Kenangan",
+          city: "Bandung",
+          countryCode: "ID",
+        },
         amount: { amount: "50000.00", asset: "IDR" },
         settlementAsset: "USDC",
         provider: "stablecoin",
@@ -349,7 +402,7 @@ describe("payment rail", () => {
       },
       body: JSON.stringify({
         merchant: {
-          id: "M1",
+          id: TEST_MERCHANT_ID,
           name: "Warung",
           city: "Jakarta",
           countryCode: "ID",
@@ -372,7 +425,7 @@ describe("payment rail", () => {
       },
       body: JSON.stringify({
         merchant: {
-          id: "M1",
+          id: TEST_MERCHANT_ID,
           name: "Warung",
           city: "Jakarta",
           countryCode: "ID",
@@ -417,7 +470,12 @@ describe("execution path selection", () => {
     const harness = createApiHarness();
     const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: {
-        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        merchant: {
+          id: TEST_MERCHANT_ID,
+          name: "Kopi Kenangan",
+          city: "Bandung",
+          countryCode: "ID",
+        },
         amount: { amount: "25000.00", asset: "IDR" },
         payment: { asset: "USDC", chain: "base-sepolia" },
       },
@@ -434,7 +492,12 @@ describe("execution path selection", () => {
     const harness = createApiHarness();
     const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: {
-        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        merchant: {
+          id: TEST_MERCHANT_ID,
+          name: "Kopi Kenangan",
+          city: "Bandung",
+          countryCode: "ID",
+        },
         amount: { amount: "25000.00", asset: "IDR" },
         payment: {
           asset: "USDC",
@@ -453,7 +516,12 @@ describe("execution path selection", () => {
     const harness = createApiHarness();
     const { status } = await harness.request("POST", "/v1/payment-intents", {
       body: {
-        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        merchant: {
+          id: TEST_MERCHANT_ID,
+          name: "Kopi Kenangan",
+          city: "Bandung",
+          countryCode: "ID",
+        },
         amount: { amount: "25000.00", asset: "IDR" },
         payment: { asset: "USDC", chain: "base-sepolia" },
         executionPath: "teleport",
@@ -467,7 +535,12 @@ describe("execution path selection", () => {
     const harness = createApiHarness();
     const { status, body } = await harness.request("POST", "/v1/payment-intents", {
       body: {
-        merchant: { id: "M-1", name: "Kopi Kenangan", city: "Bandung", countryCode: "ID" },
+        merchant: {
+          id: TEST_MERCHANT_ID,
+          name: "Kopi Kenangan",
+          city: "Bandung",
+          countryCode: "ID",
+        },
         amount: { amount: "25000.00", asset: "IDR" },
         executionPath: "deposit-match",
       },
