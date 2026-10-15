@@ -61,6 +61,7 @@ import {
   DrizzleX402ResourceRepository,
   listenPaymentChanged,
   type PaymentFundingRepository,
+  PostgresNonceSequencer,
 } from "@mayarin/db";
 import { FallbackRouteSource } from "@mayarin/execution";
 import { InvoiceService } from "@mayarin/invoicing";
@@ -112,6 +113,7 @@ import {
   ConfigurationError,
   type EventPublisher,
   InMemoryEventBus,
+  type NonceSequencer,
   NotFoundError,
   systemClock,
 } from "@mayarin/shared";
@@ -327,6 +329,8 @@ function createX402(deps: {
   payableQuotes: DrizzlePayableQuoteRepository;
   /** The runtime pool set (#95), read per swap so execution matches pricing. */
   uniswapPools: () => Promise<Config["uniswapPools"]>;
+  /** One counter for every submitter of the operator key, across processes. */
+  nonces: NonceSequencer;
   clock: Clock;
 }): X402Service | undefined {
   const {
@@ -342,6 +346,7 @@ function createX402(deps: {
     merchantRails,
     payableQuotes,
     uniswapPools,
+    nonces,
     clock,
   } = deps;
 
@@ -362,6 +367,7 @@ function createX402(deps: {
     routeSources.length === 0
       ? undefined
       : new EvmCrossAssetSettler({
+          nonces,
           clients: Object.fromEntries(
             Object.entries(rpcUrls).flatMap(([chainId, rpcUrl]) => {
               if (rpcUrl === undefined || !isEvmChainId(chainId)) return [];
@@ -397,6 +403,7 @@ function createX402(deps: {
     facilitators.push(
       new LocalX402Facilitator({
         chain,
+        nonces,
         reader,
         publicClient,
         walletClient: createWalletClient({ account, transport }),
@@ -527,6 +534,7 @@ function createTreasuryExecutor(deps: {
     | undefined;
   /** The runtime pool set (#95), read per swap so execution matches pricing. */
   uniswapPools: () => Promise<Config["uniswapPools"]>;
+  nonces: NonceSequencer;
 }):
   | {
       executor: TreasuryExecutor;
@@ -534,7 +542,7 @@ function createTreasuryExecutor(deps: {
       chains: Set<ChainId>;
     }
   | undefined {
-  const { config, ledger, depositAddresses, solanaRuntime, uniswapPools } = deps;
+  const { config, ledger, depositAddresses, solanaRuntime, uniswapPools, nonces } = deps;
 
   if (!config.treasuryExecutionEnabled) return undefined;
   if (depositAddresses === undefined) return undefined;
@@ -582,6 +590,7 @@ function createTreasuryExecutor(deps: {
     account === undefined
       ? undefined
       : new EvmTreasuryExecutionPort({
+          nonces,
           clients,
           account,
           lookup,
@@ -933,8 +942,11 @@ export function createContainer({
         })
       : undefined;
 
+  const nonces = new PostgresNonceSequencer(handle.db, clock);
+
   const treasury = createTreasuryExecutor({
     config,
+    nonces,
     ledger,
     depositAddresses,
     solanaRuntime,
@@ -1292,6 +1304,7 @@ export function createContainer({
 
   const x402 = createX402({
     config,
+    nonces,
     handle,
     rates,
     intents,

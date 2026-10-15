@@ -26,7 +26,13 @@ import type {
 } from "@mayarin/clearing";
 import { paymentRouterAbi } from "@mayarin/contracts";
 import type { SwapRouteSource } from "@mayarin/execution";
-import { type AssetCode, ConfigurationError, money, ProviderError } from "@mayarin/shared";
+import {
+  type AssetCode,
+  ConfigurationError,
+  money,
+  type NonceSequencer,
+  ProviderError,
+} from "@mayarin/shared";
 import {
   type Account,
   type Address,
@@ -140,6 +146,8 @@ export interface ChainClients {
 }
 
 export interface EvmTreasuryExecutionPortOptions {
+  /** Shared by every submitter of the operator key; see `NonceSequencer`. */
+  readonly nonces: NonceSequencer;
   /**
    * Clients per chain, because a deployment settles on more than one.
    *
@@ -168,40 +176,13 @@ export interface EvmTreasuryExecutionPortOptions {
 
 export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
   readonly #options: EvmTreasuryExecutionPortOptions;
-  /**
-   * Serialises submissions from the operator account.
-   *
-   * One key signs every sweep and every router call, and a nonce is a property
-   * of that key rather than of a payment. Two payments settling at the same
-   * moment both read the pending nonce, both get `N`, and the second is
-   * rejected `replacement transaction underpriced` — not because anything is
-   * wrong with it, but because it bid the same gas for a slot already taken.
-   * The payer's asset is sitting at a deposit address by then, so the cost of
-   * losing that race is a stuck payment rather than a retryable blip.
-   *
-   * A promise chain is enough. The critical section is the nonce read plus the
-   * broadcast, not the wait for confirmations: once a transaction is in the
-   * mempool the next `pending` read already counts it, so holding the lock
-   * through a receipt would serialise confirmations for no benefit.
-   */
-  readonly #submissions = new Map<ChainId, Promise<unknown>>();
-
-  /**
-   * The next nonce this port will hand out, once it has handed out one.
-   *
-   * In memory on purpose: it is a repair for propagation lag within a process,
-   * not a source of truth. A restart re-reads the chain, which is correct — by
-   * then everything in flight has either landed or been dropped.
-   */
-  readonly #nextNonce = new Map<ChainId, number>();
-
   constructor(options: EvmTreasuryExecutionPortOptions) {
     validateNativeAssets(options.nativeAssets ?? {});
     this.#options = options;
   }
 
   /**
-   * Broadcasts under the lock, and reports what went wrong in one line.
+   * Reports what went wrong in one line.
    *
    * viem's send errors carry the whole request — calldata, arguments, docs URL,
    * version — and this one is stored as a payment's failure reason and shown to
@@ -211,43 +192,16 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
    * broadcast, a provider throttling. The executor bounds how many attempts are
    * worth making; none of these are terminal on their own.
    */
-  async #send(chain: ChainId, work: () => Promise<Hex>): Promise<Hex> {
+  async #send(work: () => Promise<Hex>): Promise<Hex> {
     try {
-      return await this.#serialize(chain, work);
+      return await work();
     } catch (error) {
-      // A dropped nonce would stall every later submission, so the counter is
-      // rebuilt from the chain on the next attempt rather than trusted.
-      this.#nextNonce.delete(chain);
       throw new ProviderError(
         `Submitting the transaction failed: ${shortReason(error)}`,
         {},
         { cause: error, retryable: true },
       );
     }
-  }
-
-  /**
-   * Runs `work` after every submission queued **for that chain**, failures
-   * included.
-   *
-   * Per chain because a nonce belongs to a key on one chain: serialising Arc
-   * behind Base would make two independent counters wait on each other for
-   * nothing, and sharing one counter between them would hand out a nonce from
-   * the wrong chain entirely.
-   */
-  #serialize<T>(chain: ChainId, work: () => Promise<T>): Promise<T> {
-    const queued = this.#submissions.get(chain) ?? Promise.resolve();
-    const result = queued.then(work, work);
-    // The queue must not inherit a rejection, or one failed submission would
-    // reject every later one without ever running it.
-    this.#submissions.set(
-      chain,
-      result.then(
-        () => undefined,
-        () => undefined,
-      ),
-    );
-    return result;
   }
 
   #clientsFor(chain: ChainId): ChainClients {
@@ -471,36 +425,17 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     const { account } = this.#options;
     const { publicClient, walletClient } = this.#clientsFor(chain);
 
-    // Nonce read and broadcast happen together under the lock. Left to viem the
-    // nonce is fetched per call and cached across back-to-back sends, which is
-    // exactly the collision this exists to prevent.
-    //
-    // The lock alone is not enough. `pending` is answered by whichever node the
-    // load balancer picked, and a node that has not yet seen the transaction
-    // sent a second ago answers with the nonce that transaction already used —
-    // so the next submission reuses it and the provider replies "already
-    // known". Remembering what was handed out closes that window: the node's
-    // answer can only ever move the counter forward.
-    const hash = await this.#send(chain, async () => {
-      const observed = await publicClient.getTransactionCount({
-        address: account.address,
-        blockTag: "pending",
-      });
-      const remembered = this.#nextNonce.get(chain);
-      const nonce = remembered === undefined ? observed : Math.max(observed, remembered);
-      const sent = await walletClient.sendTransaction({
-        account,
-        to,
-        data,
-        value,
-        nonce,
-        chain: null,
-      });
-      // Advanced only on a successful broadcast: a rejected send consumed
-      // nothing, and skipping a nonce would stall every later submission.
-      this.#nextNonce.set(chain, nonce + 1);
-      return sent;
-    });
+    // Nonce read and broadcast happen together under the sequencer's lock, which
+    // is shared with every other submitter of this key. Left to viem the nonce is
+    // fetched per call and cached across back-to-back sends, which is exactly
+    // the collision this exists to prevent.
+    const hash = await this.#send(() =>
+      this.#options.nonces.broadcast(
+        `${chain}:${account.address.toLowerCase()}`,
+        () => publicClient.getTransactionCount({ address: account.address, blockTag: "pending" }),
+        (nonce) => walletClient.sendTransaction({ account, to, data, value, nonce, chain: null }),
+      ),
+    );
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
       confirmations: this.#options.confirmations?.[chain] ?? 2,

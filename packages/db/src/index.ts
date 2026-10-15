@@ -1,4 +1,5 @@
 export * from "./client.ts";
+export * from "./nonce-sequencer.ts";
 export * from "./notify.ts";
 export * from "./repositories/audit.ts";
 export * from "./repositories/auth.ts";

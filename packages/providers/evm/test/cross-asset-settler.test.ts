@@ -10,7 +10,7 @@
 
 import { describe, expect, test } from "bun:test";
 import type { RouteRequest } from "@mayarin/execution";
-import { money } from "@mayarin/shared";
+import { InMemoryNonceSequencer, money } from "@mayarin/shared";
 import type { CrossAssetSwapRequest, PayerSurplusRefundRequest } from "@mayarin/x402";
 import {
   type Address,
@@ -98,6 +98,7 @@ function settler(
   const routed: RouteRequest[] = [];
 
   const instance = new EvmCrossAssetSettler({
+    nonces: new InMemoryNonceSequencer(),
     clients: {
       "base-sepolia": { publicClient: publicClient as any, walletClient: walletClient as any },
     },

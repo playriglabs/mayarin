@@ -10,7 +10,7 @@
 
 import { caip2Of, EVM_CHAIN_IDS } from "@mayarin/chain";
 import type { Clock } from "@mayarin/shared";
-import { FixedClock } from "@mayarin/shared";
+import { FixedClock, InMemoryNonceSequencer } from "@mayarin/shared";
 import type { Authorization, PaymentPayload, PaymentRequirements } from "@mayarin/x402";
 import { TRANSFER_WITH_AUTHORIZATION_TYPES, X402_VERSION } from "@mayarin/x402";
 import {
@@ -186,6 +186,10 @@ export function publicClientFor(state: ChainState): PublicClient {
       if (functionName === "authorizationState") return state.authorizationUsed;
       throw new Error(`unexpected read ${functionName}`);
     },
+    // A node that has not yet seen the last broadcast: always the chain's start.
+    async getTransactionCount() {
+      return 0;
+    },
     async simulateContract() {
       if (state.simulationFails) throw new Error("execution reverted");
       return { request: {} };
@@ -229,6 +233,7 @@ export function facilitatorFor(
     walletClient: walletClientFor(state),
     account: OPERATOR,
     clock,
+    nonces: new InMemoryNonceSequencer(),
   });
   return { facilitator, reader };
 }
