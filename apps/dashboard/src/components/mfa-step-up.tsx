@@ -28,6 +28,18 @@ export function MfaStepUpHost() {
 
   useEffect(() => registerStepUpHost(setPrompt), []);
 
+  // Tells the stylesheet to hide whatever dialog asked, for as long as we ask.
+  useEffect(() => {
+    if (prompt === null) {
+      delete document.body.dataset.mfaStepUp;
+      return;
+    }
+    document.body.dataset.mfaStepUp = "";
+    return () => {
+      delete document.body.dataset.mfaStepUp;
+    };
+  }, [prompt]);
+
   function finishCode(value: string | null) {
     if (prompt?.kind === "code") prompt.resolve(value);
     setPrompt(null);
@@ -43,7 +55,7 @@ export function MfaStepUpHost() {
   return (
     <>
       <Dialog open={prompt?.kind === "code"} onOpenChange={(open) => !open && finishCode(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" data-mfa-step-up-dialog="">
           <form
             className="flex flex-col gap-4"
             onSubmit={(event) => {
@@ -107,7 +119,7 @@ export function MfaStepUpHost() {
       </Dialog>
 
       <Dialog open={prompt?.kind === "setup"} onOpenChange={(open) => !open && finishSetup()}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" data-mfa-step-up-dialog="">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheckIcon aria-hidden="true" /> Set up two-factor authentication
