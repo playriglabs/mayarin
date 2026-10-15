@@ -29,10 +29,16 @@ function setup(options: {
   readonly order?: OrderState;
   readonly funding?: PaymentFunding;
   readonly deposit?: { chain: string; asset: string; amount: string } | null;
+  readonly fund?: boolean;
 }) {
   const clock = new FixedClock(START);
   const rows = [options.funding ?? funding()];
-  const calls = { simulated: [] as string[], received: [] as string[], updates: [] as string[] };
+  const calls = {
+    simulated: [] as string[],
+    received: [] as string[],
+    updates: [] as string[],
+    funded: [] as string[],
+  };
   let order: OrderState = options.order ?? {
     status: "fund_processing",
     destinationCurrency: "USDC",
@@ -87,6 +93,7 @@ function setup(options: {
                   deposit: {
                     chain: deposit.chain,
                     asset: deposit.asset,
+                    address: "0xdeposit",
                     amount: fromDecimalString(deposit.amount, "USDC"),
                   },
                 },
@@ -98,6 +105,13 @@ function setup(options: {
         calls.received.push(id);
       },
     },
+    ...(options.fund === true
+      ? {
+          async fund(deposit: { readonly address: string }) {
+            calls.funded.push(deposit.address);
+          },
+        }
+      : {}),
     clock,
   });
 
@@ -184,6 +198,31 @@ describe("FiatSettler", () => {
     await settler.tick();
 
     expect(calls.received).toEqual([]);
+  });
+
+  test("puts the delivered amount on the deposit address before recording the receipt", async () => {
+    const { settler, clock, calls } = setup({
+      fund: true,
+      order: { status: "asset_settled", destinationCurrency: "USDC", destinationAmount: 5.66 },
+    });
+
+    clock.advance(9_000);
+    await settler.tick();
+
+    expect(calls.funded).toEqual(["0xdeposit"]);
+    expect(calls.received).toEqual(["clr_1"]);
+  });
+
+  test("a payment is not funded when the order does not match it", async () => {
+    const { settler, clock, calls } = setup({
+      fund: true,
+      order: { status: "asset_settled", destinationCurrency: "USDC", destinationAmount: 1 },
+    });
+
+    clock.advance(9_000);
+    await settler.tick();
+
+    expect(calls.funded).toEqual([]);
   });
 
   test("a settled order is not looked at again", async () => {

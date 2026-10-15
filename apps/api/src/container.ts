@@ -127,7 +127,7 @@ import type {
   X402Facilitator,
 } from "@mayarin/x402";
 import { AssetCapabilities, facilitatorRegistry } from "@mayarin/x402";
-import { createPublicClient, createWalletClient, http } from "viem";
+import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
 import {
@@ -1379,6 +1379,28 @@ export function createContainer({
             transfi,
             payments: paymentApp,
             engine,
+            fund:
+              escrowTreasuryPort === undefined
+                ? undefined
+                : async (deposit) => {
+                    const chain = deposit.chain as ChainId;
+                    const token = config.chainAssets[chain]?.[deposit.asset as AssetCode];
+                    if (token === undefined) {
+                      throw new ConfigurationError(
+                        `No ${deposit.asset} token address for ${deposit.chain}; cannot fund the deposit address`,
+                        { chain: deposit.chain, asset: deposit.asset },
+                      );
+                    }
+                    await escrowTreasuryPort.call(
+                      chain,
+                      token,
+                      encodeFunctionData({
+                        abi: parseAbi(["function transfer(address to, uint256 amount)"]),
+                        functionName: "transfer",
+                        args: [deposit.address as `0x${string}`, deposit.amount.amount],
+                      }),
+                    );
+                  },
             clock,
           }),
         }),

@@ -207,6 +207,21 @@ export function fiatOnrampRoutes(container: Container): Hono {
     return c.json({ currency, methods });
   });
 
+  // What the payer was last told to pay, so a page that reloads — the hosted
+  // TransFi page returns here — can say it is waiting instead of starting over.
+  app.get("/:paymentId/funding", async (c) => {
+    const [latest] = await container.paymentFundings.listByPayment(c.req.param("paymentId"));
+    if (latest === undefined || latest.settledAt !== null) return c.json({ funding: null });
+    return c.json({
+      funding: {
+        methodName: latest.paymentName,
+        methodLogoUrl: latest.paymentLogoUrl,
+        fiatCurrency: latest.fiatCurrency,
+        fiatAmount: Number(latest.fiatAmount),
+      },
+    });
+  });
+
   app.post("/:paymentId/order", async (c) => {
     const transfi = client();
     const paymentId = c.req.param("paymentId");

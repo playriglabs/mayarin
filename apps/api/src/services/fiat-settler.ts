@@ -9,7 +9,12 @@
  *
  * 1. a short while after the order opens, mark the order paid on the sandbox;
  * 2. when TransFi itself reports the order delivered, and what it delivered is
- *    this payment's token and amount, record the asset as received.
+ *    this payment's token and amount, put that amount on the deposit address
+ *    (`fund`) and record the asset as received.
+ *
+ * Step 2 has to move real testnet value: the sandbox delivers nothing, and the
+ * settlement sweep pulls from the deposit address, so recording a receipt for an
+ * empty address ends in `TRANSFER_FROM_FAILED` and a failed payment.
  *
  * The order id comes from our own records, written when we opened the order —
  * never from a request — and the delivered token and amount are checked against
@@ -21,7 +26,7 @@
 
 import type { PaymentFundingRepository } from "@mayarin/db";
 import { type TransfiClient, transfiTokenCode } from "@mayarin/provider-transfi";
-import { type Clock, toDecimalString } from "@mayarin/shared";
+import { type Clock, type Money, toDecimalString } from "@mayarin/shared";
 
 /** Long enough for the QR to be seen on screen before it is "paid". */
 const PAY_AFTER_MS = 8_000;
@@ -42,13 +47,26 @@ export interface FiatSettlerOptions {
           | {
               readonly chain: string;
               readonly asset: string;
-              readonly amount: Parameters<typeof toDecimalString>[0];
+              readonly address: string;
+              readonly amount: Money;
             }
           | undefined;
       } | null;
     }>;
   };
   readonly engine: { recordAssetReceived(id: string): Promise<unknown> };
+  /**
+   * Puts what TransFi's sandbox only pretended to deliver on the deposit address.
+   * Absent where no operator key is wired; the receipt is then recorded bare.
+   */
+  readonly fund?:
+    | ((deposit: {
+        readonly chain: string;
+        readonly asset: string;
+        readonly address: string;
+        readonly amount: Money;
+      }) => Promise<void>)
+    | undefined;
   readonly clock: Clock;
 }
 
@@ -63,6 +81,8 @@ export class FiatSettler {
   readonly #options: FiatSettlerOptions;
   /** Orders already marked paid by this process — once is enough, and asking again is noise. */
   readonly #simulated = new Set<string>();
+  /** Payments whose deposit address this process already funded — once is enough. */
+  readonly #funded = new Set<string>();
 
   constructor(options: FiatSettlerOptions) {
     this.#options = options;
@@ -112,7 +132,7 @@ export class FiatSettler {
     paymentIntentId: string,
     order: { readonly destinationCurrency: string; readonly destinationAmount: number },
   ): Promise<boolean> {
-    const { payments, engine } = this.#options;
+    const { payments, engine, fund } = this.#options;
     const { transaction } = await payments.getPayment(paymentIntentId);
     const deposit = transaction?.deposit;
     if (transaction === null || deposit === undefined) return false;
@@ -125,6 +145,11 @@ export class FiatSettler {
       order.destinationAmount >= required &&
       order.destinationAmount <= required * MAX_OVERPAYMENT;
     if (!matches) return false;
+
+    if (fund !== undefined && !this.#funded.has(transaction.id)) {
+      await fund(deposit);
+      this.#funded.add(transaction.id);
+    }
 
     await engine.recordAssetReceived(transaction.id);
     return true;
