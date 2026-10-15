@@ -463,6 +463,39 @@ describe("admin routes", () => {
     const none = await harness.app.request("/v1/admin/watcher/tick", { method: "POST" });
     expect(none.status).toBe(401);
   });
+
+  test("records every admin call, allowed or denied, without storing the token", async () => {
+    const token = "a-very-long-admin-token-secret";
+    const harness = createApiHarness({ adminToken: token });
+
+    await harness.app.request("/v1/admin/watcher/tick", {
+      method: "POST",
+      headers: { authorization: "Bearer wrong-token" },
+    });
+    await harness.app.request("/v1/admin/webhooks/endpoints", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    await harness.app.request("/v1/admin/webhooks/endpoints");
+
+    const events = harness.adminAuditEvents;
+    expect(events.map((event) => [event.method, event.path, event.outcome])).toEqual([
+      ["POST", "/v1/admin/watcher/tick", "denied"],
+      ["GET", "/v1/admin/webhooks/endpoints", "allowed"],
+      ["GET", "/v1/admin/webhooks/endpoints", "denied"],
+    ]);
+    expect(events[2]?.tokenFingerprint).toBeNull();
+    expect(events[1]?.tokenFingerprint).toHaveLength(12);
+    expect(JSON.stringify(events)).not.toContain(token);
+  });
+
+  test("a token that is only a prefix of the real one is refused", async () => {
+    const harness = createApiHarness({ adminToken: "a-very-long-admin-token-secret" });
+    const response = await harness.app.request("/v1/admin/watcher/tick", {
+      method: "POST",
+      headers: { authorization: "Bearer a-very-long-admin-token" },
+    });
+    expect(response.status).toBe(401);
+  });
 });
 
 describe("execution path selection", () => {

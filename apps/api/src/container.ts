@@ -30,8 +30,10 @@ import {
   TreasuryExecutor,
 } from "@mayarin/clearing";
 import {
+  type AdminAuditRepository,
   createDatabase,
   type DatabaseHandle,
+  DrizzleAdminAuditRepository,
   DrizzleApiKeyRepository,
   DrizzleClearingRepository,
   DrizzleCustomerRepository,
@@ -252,6 +254,10 @@ export interface Container {
   readonly transfi?: TransfiClient;
   /** How each payment was funded when its payer's own wallet did not. */
   readonly paymentFundings: PaymentFundingRepository;
+  /** The deployment's clock, for edge code that stamps a record. */
+  readonly clock: Clock;
+  /** Append-only record of every admin-surface call (SEC-14). */
+  readonly adminAudit: AdminAuditRepository;
   /** Sandbox demos only: finishes a local-currency payment. Absent unless switched on. */
   readonly fiatSettler?: FiatSettler;
   /**
@@ -1371,6 +1377,8 @@ export function createContainer({
     payerStanding,
     ...(transfi === undefined ? {} : { transfi }),
     paymentFundings,
+    clock,
+    adminAudit: new DrizzleAdminAuditRepository(handle.db),
     ...(transfi === undefined || !config.transfiSandboxAutoSettle
       ? {}
       : {

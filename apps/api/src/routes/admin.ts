@@ -37,7 +37,15 @@ import { requireX402 } from "./x402.ts";
 export function adminRoutes(container: Container, token: string): Hono {
   const app = new Hono();
 
-  app.use("*", adminTokenMiddleware(token));
+  app.use(
+    "*",
+    adminTokenMiddleware({
+      token,
+      audit: container.adminAudit,
+      clock: container.clock,
+      clientIpSource: container.config.rateLimitClientIpSource,
+    }),
+  );
 
   /** Forces one watcher pass over every configured pair. */
   app.post("/watcher/tick", async (c) => {

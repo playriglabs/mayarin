@@ -379,6 +379,13 @@
       "when": 1790877600000,
       "tag": "0053_payment_links_drop_robinhood_rail",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1790881200000,
+      "tag": "0054_admin_audit_events",
+      "breakpoints": true
     }
   ]
 }
