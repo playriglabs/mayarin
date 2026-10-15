@@ -29,7 +29,7 @@ import {
   TablePriceSource,
 } from "@mayarin/clearing";
 import { InMemoryClearingRepository, InMemoryRefundRepository } from "@mayarin/clearing/testing";
-import type { PaymentFunding } from "@mayarin/db";
+import type { AdminAuditEvent, PaymentFunding } from "@mayarin/db";
 import { InvoiceService } from "@mayarin/invoicing";
 import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
 import { LedgerService } from "@mayarin/ledger";
@@ -226,8 +226,15 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
 
   const paymentApp = new PaymentAppService({ intents, engine, ledger });
   const fundings: PaymentFunding[] = [];
+  const adminAuditEvents: AdminAuditEvent[] = [];
   const container: Container = {
     config,
+    clock,
+    adminAudit: {
+      async record(event) {
+        adminAuditEvents.push(event);
+      },
+    },
     paymentFundings: {
       async record(funding, now) {
         if (fundings.some((entry) => entry.orderId === funding.orderId)) return;
@@ -381,6 +388,8 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     mintApiKey,
     /** The key store behind `verifyApiKey`, for tests that deactivate a key. */
     apiKeys,
+    /** Every admin-surface call so far, in order (SEC-14). */
+    adminAuditEvents,
   };
 }
 

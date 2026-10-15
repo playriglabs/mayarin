@@ -139,7 +139,8 @@ function consume(
   };
 }
 
-function clientId(c: Context, source: ClientIpSource): string {
+/** Who the request came from, by the deployment's trusted header or the socket. */
+export function clientId(c: Context, source: ClientIpSource): string {
   const fromProxy = proxyClientId(c, source);
   if (fromProxy !== undefined) return fromProxy;
 

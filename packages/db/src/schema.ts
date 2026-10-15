@@ -1292,6 +1292,30 @@ export const paymentFundings = pgTable(
 );
 
 /**
+ * Every call to the operator-token admin surface (SEC-14), allowed or denied.
+ *
+ * Append-only: nothing in the codebase updates or deletes a row. It is written
+ * before the handler runs, so an action with no record does not happen. The
+ * token itself is never stored, only a short fingerprint of it, enough to tell
+ * which credential was used across a rotation.
+ */
+export const adminAuditEvents = pgTable(
+  "admin_audit_events",
+  {
+    id: text("id").primaryKey(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull(),
+    method: text("method").notNull(),
+    path: text("path").notNull(),
+    /** `allowed` or `denied`, CHECK-constrained, no postgres enum. */
+    outcome: text("outcome").notNull(),
+    sourceIp: text("source_ip"),
+    /** First 12 hex of the sha-256 of the presented token; null when none was sent. */
+    tokenFingerprint: text("token_fingerprint"),
+  },
+  (table) => [index("admin_audit_events_time_idx").on(table.occurredAt)],
+);
+
+/**
  * The next nonce a signing key may use on a chain (SEC-04). One row per
  * `${chain}:${address}`; read and written under an advisory lock by
  * `PostgresNonceSequencer`.
