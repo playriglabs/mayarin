@@ -20,6 +20,22 @@ export type StepUpPrompt =
 
 let listener: ((prompt: StepUpPrompt) => void) | undefined;
 
+/** What a progress toast needs to know: the person is being asked, then has answered. */
+export type StepUpEvent = "asking" | "answered" | "cancelled";
+const watchers = new Set<(event: StepUpEvent) => void>();
+
+/** Observes the question being asked and answered. Returns the unsubscribe function. */
+export function onStepUp(watcher: (event: StepUpEvent) => void): () => void {
+  watchers.add(watcher);
+  return () => {
+    watchers.delete(watcher);
+  };
+}
+
+function emit(event: StepUpEvent): void {
+  for (const watcher of watchers) watcher(event);
+}
+
 /** Registers the dialog host. Returns the unregister function. */
 export function registerStepUpHost(next: (prompt: StepUpPrompt) => void): () => void {
   listener = next;
@@ -32,7 +48,17 @@ export function registerStepUpHost(next: (prompt: StepUpPrompt) => void): () => 
 export function requestMfaCode(invalid = false): Promise<string | null> {
   const host = listener;
   if (host === undefined) return Promise.resolve(null);
-  return new Promise((resolve) => host({ kind: "code", invalid, resolve }));
+  emit("asking");
+  return new Promise((resolve) =>
+    host({
+      kind: "code",
+      invalid,
+      resolve: (code) => {
+        emit(code === null ? "cancelled" : "answered");
+        resolve(code);
+      },
+    }),
+  );
 }
 
 /** Tells the person the account has no second factor yet and where to set one up. */

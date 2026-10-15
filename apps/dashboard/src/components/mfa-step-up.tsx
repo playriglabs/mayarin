@@ -64,8 +64,8 @@ export function MfaStepUpHost() {
             }}
           >
             <DialogHeader>
-              <DialogTitle>Confirm with your authenticator</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-[17px]">Confirm with your authenticator</DialogTitle>
+              <DialogDescription className="mt-1">
                 Enter the 6-digit code from your authenticator app, or one of your recovery codes.
               </DialogDescription>
             </DialogHeader>
