@@ -1,46 +1,58 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { FetchWebhookTransport } from "../src/services/webhook-transport.ts";
+import { describe, expect, test } from "bun:test";
+import { ValidationError } from "@mayarin/shared";
+import { PinnedWebhookTransport } from "../src/services/webhook-transport.ts";
 
-/**
- * The RFC's stalled-receiver criterion: a merchant endpoint that hangs must
- * become a failed attempt on the dispatcher's schedule, never a hang in the
- * delivery loop. Delivery already runs outside the payment path and outside
- * any database transaction; the timeout is what bounds the loop itself.
- */
-describe("FetchWebhookTransport", () => {
-  const stalled = Bun.serve({
-    port: 0,
-    fetch: () => new Promise<Response>(() => {}),
+function transportResolving(addresses: readonly string[]) {
+  const resolved: string[] = [];
+  const transport = new PinnedWebhookTransport({
+    timeoutMs: 500,
+    resolve: async (hostname) => {
+      resolved.push(hostname);
+      return addresses;
+    },
   });
-  const redirecting = Bun.serve({
-    port: 0,
-    fetch: () => Response.redirect("https://elsewhere.example/hook", 302),
-  });
+  return { transport, resolved };
+}
 
-  afterAll(() => {
-    stalled.stop(true);
-    redirecting.stop(true);
-  });
+const send = (transport: PinnedWebhookTransport, url: string) =>
+  transport.post({ url, body: "{}", headers: {} });
 
-  test("a stalled receiver becomes a failed attempt, not a hang", async () => {
-    const transport = new FetchWebhookTransport({ timeoutMs: 150 });
-    const started = Date.now();
-
-    await expect(
-      transport.post({ url: `http://127.0.0.1:${stalled.port}/hook`, body: "{}", headers: {} }),
-    ).rejects.toThrow();
-    expect(Date.now() - started).toBeLessThan(2_000);
+describe("PinnedWebhookTransport", () => {
+  test("a name that now resolves to a private address is refused (DNS rebinding)", async () => {
+    for (const address of ["127.0.0.1", "169.254.169.254", "10.0.0.5", "::1", "fd00::1"]) {
+      const { transport } = transportResolving([address]);
+      await expect(send(transport, "https://merchant.example/hook")).rejects.toThrow(
+        "public address",
+      );
+    }
   });
 
-  test("a redirect is refused rather than followed", async () => {
-    const transport = new FetchWebhookTransport({ timeoutMs: 1_000 });
+  test("one private answer among public ones refuses the delivery", async () => {
+    const { transport } = transportResolving(["8.8.8.8", "10.0.0.5"]);
+    await expect(send(transport, "https://merchant.example/hook")).rejects.toThrow(
+      "public address",
+    );
+  });
 
-    await expect(
-      transport.post({
-        url: `http://127.0.0.1:${redirecting.port}/hook`,
-        body: "{}",
-        headers: {},
-      }),
-    ).rejects.toThrow();
+  test("a host that resolves to nothing is refused", async () => {
+    const { transport } = transportResolving([]);
+    await expect(send(transport, "https://merchant.example/hook")).rejects.toThrow(
+      "public address",
+    );
+  });
+
+  test("the registration policy applies at delivery too", async () => {
+    const { transport, resolved } = transportResolving(["8.8.8.8"]);
+    for (const url of [
+      "http://merchant.example/hook",
+      "https://merchant.example:8443/hook",
+      "https://user:pass@merchant.example/hook",
+      "https://127.0.0.1/hook",
+      "https://localhost/hook",
+    ]) {
+      await expect(send(transport, url)).rejects.toThrow(ValidationError);
+    }
+    // Refused before any name was resolved.
+    expect(resolved).toEqual([]);
   });
 });
