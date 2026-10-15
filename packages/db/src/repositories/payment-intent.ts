@@ -9,7 +9,7 @@ import type {
   PaymentSource,
 } from "@mayarin/payment-intent";
 import type { QrScheme } from "@mayarin/qr-parser";
-import { ConcurrencyError, ValidationError } from "@mayarin/shared";
+import { ConcurrencyError } from "@mayarin/shared";
 import { and, asc, desc, eq, gt, gte, ilike, lt, or } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, toAsset, toMoney } from "../mapping.ts";
@@ -211,11 +211,10 @@ function toSource(row: Row): PaymentSource {
 
 function toPaymentRail(row: Row): PaymentRail | undefined {
   if (row.paymentAsset === null || row.paymentChain === null) return undefined;
-  if (!isChainId(row.paymentChain)) {
-    throw new ValidationError(`Stored chain "${row.paymentChain}" is not supported`, {
-      chain: row.paymentChain,
-    });
-  }
+  // A payment made on a chain that has since been removed is history, and it
+  // must stay listable: it reads as one with no rail rather than failing every
+  // list and analytics query that happens to include it.
+  if (!isChainId(row.paymentChain)) return undefined;
   return {
     asset: toAsset(row.paymentAsset),
     chain: row.paymentChain,

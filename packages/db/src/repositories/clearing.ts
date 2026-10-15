@@ -12,7 +12,7 @@ import {
   TERMINAL_CLEARING_STATES,
 } from "@mayarin/clearing";
 import type { ExecutionPath } from "@mayarin/payment-intent";
-import { type AssetCode, ConcurrencyError, ValidationError } from "@mayarin/shared";
+import { type AssetCode, ConcurrencyError } from "@mayarin/shared";
 import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import {
@@ -367,11 +367,9 @@ function toDeposit(row: Row): ClearingDeposit | undefined {
     return undefined;
   }
 
-  if (!isChainId(depositChain)) {
-    throw new ValidationError(`Stored chain "${depositChain}" is not supported`, {
-      chain: depositChain,
-    });
-  }
+  // History on a removed chain reads as a payment with no deposit quote; see
+  // `toPaymentRail`.
+  if (!isChainId(depositChain)) return undefined;
 
   return {
     asset: toAsset(depositAsset),
