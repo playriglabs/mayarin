@@ -7,7 +7,7 @@
  * point that maps the domain error taxonomy onto HTTP.
  */
 
-import { rateLimit } from "@mayarin/http";
+import { apiSecurityHeaders, rateLimit } from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "./container.ts";
@@ -51,6 +51,7 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   app.route("/", healthRoutes());
 
   const v1 = new Hono<{ Variables: AuthVars }>();
+  v1.use("*", apiSecurityHeaders());
 
   // Registration and the two code endpoints share the login limiter's budget:
   // each is an unauthenticated write that sends mail or guesses a credential,
