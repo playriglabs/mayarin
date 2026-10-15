@@ -58,7 +58,7 @@
     "prepare": "test ! -d .git || lefthook install",
     "push:fast": "LEFTHOOK_EXCLUDE=test git push",
     "railway:env": "bun run scripts/sync-railway-env.ts",
-    "railway:migrate": "bun run scripts/migrate-railway.ts",
+    "railway:deploy": "bun run scripts/deploy-railway.ts",
     "setup": "bun run scripts/setup.ts",
     "start:railway": "bash scripts/start-railway.sh",
     "prune-orphan-merchants": "bun run scripts/prune-orphan-merchants.ts",
