@@ -60,6 +60,23 @@ describe("POST /payments/:id/refunds", () => {
     expect(own.body.refunds).toEqual([]);
   });
 
+  test("a key without refunds:manage cannot issue a refund (SEC-16)", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    const readOnly = harness.mintApiKey("mrc_1", "mak_cashier_key", ["catalog:manage"]);
+
+    const refund = await harness.request("POST", `/v1/payments/${id}/refunds`, {
+      auth: readOnly,
+      body: {},
+    });
+
+    expect(refund.status).toBe(403);
+    expect(refund.body.error.message).toContain("refunds:manage");
+    // Reading is not issuing.
+    const list = await harness.request("GET", `/v1/payments/${id}/refunds`, { auth: readOnly });
+    expect(list.status).toBe(200);
+  });
+
   test("the same idempotency key from two tenants never returns the other's refund", async () => {
     const harness = createApiHarness();
     const id = await settledPayment(harness);

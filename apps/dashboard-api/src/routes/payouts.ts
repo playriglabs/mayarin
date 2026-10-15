@@ -1,7 +1,7 @@
 /**
  * Batch payout routes (#295).
  *
- * Behind `require-auth` + `settings:manage`, same as wallets: this moves the
+ * Behind `require-auth` + `wallets:withdraw`, same as wallets: this moves the
  * merchant's money. Mayarin never signs here — `prepare` returns calldata for
  * the merchant's own wallet (the Safe owner, or any wallet paying from its own
  * balance), and `POST /` records only what the chain confirms.

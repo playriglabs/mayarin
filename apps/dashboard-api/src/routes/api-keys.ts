@@ -1,7 +1,7 @@
 /**
  * API key routes — merchant bearer tokens.
  *
- * Mounted behind `require-auth` + `requirePermission("settings:manage")`. A key
+ * Mounted behind `require-auth` + `requirePermission("api-keys:manage")`. A key
  * decides what a third-party integration can reach within this merchant, which
  * is the same perimeter as settlement settings, so the same permission gates it.
  * Mutating routes carry `csrfMiddleware`, which passes a bearer request through

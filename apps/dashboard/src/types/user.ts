@@ -12,6 +12,9 @@ export type Permission =
   | "admin:access"
   | "settings:manage"
   | "catalog:manage"
+  | "refunds:manage"
+  | "api-keys:manage"
+  | "wallets:withdraw"
   | "disputes:arbitrate";
 
 /**
@@ -24,6 +27,9 @@ export const PERMISSION_LIST = [
   "admin:access",
   "settings:manage",
   "catalog:manage",
+  "refunds:manage",
+  "api-keys:manage",
+  "wallets:withdraw",
 ] as const;
 
 /**
@@ -42,6 +48,9 @@ export const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
   "admin:access": "Admin dashboard",
   "settings:manage": "Change settlement settings",
   "catalog:manage": "Manage products and payment links",
+  "refunds:manage": "Issue refunds",
+  "api-keys:manage": "Manage API keys",
+  "wallets:withdraw": "Provision wallets and send payouts",
   "disputes:arbitrate": "Arbitrate escrow disputes",
 } as const;
 

@@ -17,6 +17,9 @@ export type Permission =
   | "admin:access"
   | "settings:manage"
   | "catalog:manage"
+  | "refunds:manage"
+  | "api-keys:manage"
+  | "wallets:withdraw"
   | "disputes:arbitrate";
 
 export const PERMISSION_LIST: readonly Permission[] = [
@@ -25,6 +28,9 @@ export const PERMISSION_LIST: readonly Permission[] = [
   "admin:access",
   "settings:manage",
   "catalog:manage",
+  "refunds:manage",
+  "api-keys:manage",
+  "wallets:withdraw",
   "disputes:arbitrate",
 ];
 
@@ -55,6 +61,17 @@ export const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
   // no reason to be able to redirect the payout, which is why this is not
   // folded into `settings:manage`.
   "catalog:manage": "Manage products and payment links",
+  // Money back to a payer (SEC-01, SEC-16). Held apart from `settings:manage`
+  // and from `catalog:manage`: a cashier who mints links must not be able to
+  // issue refunds, and an integration that reads payments must not either.
+  "refunds:manage": "Issue refunds",
+  // Credentials are authority: an account that can mint a key can act as the
+  // merchant without the account.
+  "api-keys:manage": "Manage API keys",
+  // Moves value out of the merchant's wallets, so it is not folded into
+  // settings: configuring a settlement address and sending funds are different
+  // acts with different people behind them.
+  "wallets:withdraw": "Provision wallets and send payouts",
   // Mayarin Resolution's console: every open dispute, across merchants.
   "disputes:arbitrate": "Arbitrate escrow disputes",
 } as const;
@@ -70,4 +87,7 @@ export const MERCHANT_ADMIN_PERMISSIONS: readonly Permission[] = [
   "admin:access",
   "settings:manage",
   "catalog:manage",
+  "refunds:manage",
+  "api-keys:manage",
+  "wallets:withdraw",
 ];

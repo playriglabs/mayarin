@@ -191,8 +191,8 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   v1.use("/disputes/*", requireAuth(), requirePermission("disputes:arbitrate"));
   v1.route("/disputes", disputeRoutes(container));
 
-  v1.use("/api-keys", requireAuth(), requirePermission("settings:manage"));
-  v1.use("/api-keys/*", requireAuth(), requirePermission("settings:manage"));
+  v1.use("/api-keys", requireAuth(), requirePermission("api-keys:manage"));
+  v1.use("/api-keys/*", requireAuth(), requirePermission("api-keys:manage"));
   v1.route("/api-keys", apiKeyRoutes(container));
 
   // Webhook endpoints and delivery inspection (#13). Same permission as
@@ -203,14 +203,14 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
 
   // Merchant wallets (#11). Same permission as settlement settings: this is
   // what decides where the merchant's money can be paid at all.
-  v1.use("/wallets/*", requireAuth(), requirePermission("settings:manage"));
-  v1.use("/wallets", requireAuth(), requirePermission("settings:manage"));
+  v1.use("/wallets/*", requireAuth(), requirePermission("wallets:withdraw"));
+  v1.use("/wallets", requireAuth(), requirePermission("wallets:withdraw"));
   v1.route("/wallets", walletRoutes(container));
 
   // Batch payouts (#295). Same permission as wallets: it moves the merchant's
   // money — though only their own wallet can sign it, never this API.
-  v1.use("/payouts/*", requireAuth(), requirePermission("settings:manage"));
-  v1.use("/payouts", requireAuth(), requirePermission("settings:manage"));
+  v1.use("/payouts/*", requireAuth(), requirePermission("wallets:withdraw"));
+  v1.use("/payouts", requireAuth(), requirePermission("wallets:withdraw"));
   v1.route("/payouts", payoutRoutes(container));
 
   // Admin surface within the caller's merchant: managing users, etc.

@@ -61,10 +61,10 @@ const PERMISSION_PREFIXES: ReadonlyArray<readonly [string, Permission]> = [
   ["/catalog", "catalog:manage"],
   ["/customers", "catalog:manage"],
   ["/subscriptions", "catalog:manage"],
-  ["/wallets", "settings:manage"],
-  ["/payouts", "settings:manage"],
+  ["/wallets", "wallets:withdraw"],
+  ["/payouts", "wallets:withdraw"],
   ["/webhooks", "settings:manage"],
-  ["/api-keys", "settings:manage"],
+  ["/api-keys", "api-keys:manage"],
   ["/settings", "settings:manage"],
 ];
 

@@ -117,7 +117,7 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * know. The idempotency key is scoped to the tenant, so two tenants reusing a
    * key never see each other's refund.
    */
-  app.post("/:id/refunds", requireApiKey(container.verifyApiKey), async (c) => {
+  app.post("/:id/refunds", requireApiKey(container.verifyApiKey, "refunds:manage"), async (c) => {
     const raw = await c.req.json().catch(() => ({}));
     const body = refundBodySchema.parse(raw);
     const idempotencyKey = c.req.header("Idempotency-Key");

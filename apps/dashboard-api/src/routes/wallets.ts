@@ -1,7 +1,7 @@
 /**
  * Merchant wallet routes (#11).
  *
- * Behind `require-auth` + `settings:manage`, same as settlement settings: this
+ * Behind `require-auth` + `wallets:withdraw`, same as settlement settings: this
  * decides where a merchant's money can be paid.
  */
 
