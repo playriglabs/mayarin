@@ -150,7 +150,7 @@ import { PayerStanding } from "./services/payer-standing.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
 import { SubscriptionApiService } from "./services/subscriptions.ts";
-import { FetchWebhookTransport } from "./services/webhook-transport.ts";
+import { PinnedWebhookTransport } from "./services/webhook-transport.ts";
 import { X402Service } from "./services/x402.ts";
 import { X402PayableService } from "./services/x402-payables.ts";
 
@@ -1209,7 +1209,7 @@ export function createContainer({
       cursor: new DrizzleWebhookCursorRepository(handle.db),
       endpoints: webhookEndpoints,
       deliveries: webhookDeliveries,
-      transport: new FetchWebhookTransport(),
+      transport: new PinnedWebhookTransport(),
       clock,
     });
   }
