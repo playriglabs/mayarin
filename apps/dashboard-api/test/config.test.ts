@@ -11,7 +11,10 @@ import { describe, expect, test } from "bun:test";
 import { ConfigurationError } from "@mayarin/shared";
 import { loadConfig } from "../src/config.ts";
 
-const MINIMAL = { DATABASE_URL: "postgres://mayarin:mayarin@localhost:5433/mayarin" };
+const MINIMAL = {
+  DATABASE_URL: "postgres://mayarin:mayarin@localhost:5433/mayarin",
+  MFA_ENCRYPTION_KEY: "test-only-mfa-encryption-key-0123456789",
+};
 
 describe("loadConfig", () => {
   test("the dedicated dashboard port wins over the shared payment API port", () => {

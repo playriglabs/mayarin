@@ -6,9 +6,13 @@
 import { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
 import type {
-  AuthResponse,
   LoginRequest,
+  LoginResponse,
   LogoutResponse,
+  MfaCodeRequest,
+  MfaLoginRequest,
+  MfaSetupResponse,
+  MfaVerifyResponse,
   OkResponse,
   RegisterRequest,
   ResendVerificationRequest,
@@ -28,8 +32,24 @@ export const authApi = {
     ),
 
   /** POST `/auth/login`. */
-  login: (body: LoginRequest): Effect.Effect<AuthResponse, ApiError> =>
-    request<AuthResponse>("/auth/login", { method: "POST", body }),
+  login: (body: LoginRequest): Effect.Effect<LoginResponse, ApiError> =>
+    request<LoginResponse>("/auth/login", { method: "POST", body }),
+
+  /** POST `/auth/login/mfa` — the code step, redeeming the challenge. */
+  loginMfa: (body: MfaLoginRequest): Effect.Effect<{ user: UserDto }, ApiError> =>
+    request<{ user: UserDto }>("/auth/login/mfa", { method: "POST", body }),
+
+  /** POST `/auth/mfa/setup` — a fresh secret and QR to scan. */
+  mfaSetup: (): Effect.Effect<MfaSetupResponse, ApiError> =>
+    request<MfaSetupResponse>("/auth/mfa/setup", { method: "POST", body: {} }),
+
+  /** POST `/auth/mfa/verify` — confirms the app is reading the secret. */
+  mfaVerify: (body: MfaCodeRequest): Effect.Effect<MfaVerifyResponse, ApiError> =>
+    request<MfaVerifyResponse>("/auth/mfa/verify", { method: "POST", body }),
+
+  /** POST `/auth/mfa/disable`. */
+  mfaDisable: (body: MfaCodeRequest): Effect.Effect<{ enabled: false }, ApiError> =>
+    request<{ enabled: false }>("/auth/mfa/disable", { method: "POST", body }),
 
   /** POST `/auth/register` — creates the merchant and sends a code. */
   register: (body: RegisterRequest): Effect.Effect<OkResponse, ApiError> =>

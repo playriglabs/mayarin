@@ -27,8 +27,24 @@ export interface User {
    * access already vouched for the address.
    */
   readonly emailVerifiedAt?: Date;
+  /** Authenticator-app second factor (SEC-15, SEC-16). Absent until setup starts. */
+  readonly mfa?: MfaState;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+}
+
+/**
+ * An account's TOTP state. `enabledAt` is what makes it a second factor: a
+ * secret without it is a setup the account has not yet proved it can read.
+ */
+export interface MfaState {
+  /** The base32 secret, encrypted by the application before it reaches storage. */
+  readonly secret: string;
+  readonly enabledAt?: Date;
+  /** The last time step accepted, so one code cannot be used twice. */
+  readonly lastStep?: number;
+  /** SHA-256 of each unused recovery code. */
+  readonly recoveryHashes: readonly string[];
 }
 
 /**

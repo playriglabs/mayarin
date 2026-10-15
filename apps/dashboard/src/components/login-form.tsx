@@ -22,10 +22,11 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { ButtonLoader } from "@/components/ui/page-loader";
-import { useLogin } from "@/hooks/auth";
+import { useLogin, useLoginMfa } from "@/hooks/auth";
 import { ICON_NAV } from "@/lib/icons";
 import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
 import { withQuery } from "@/lib/with-query";
+import { isMfaChallenge } from "@/types/auth";
 
 type FormState =
   | { readonly status: "idle" }
@@ -42,7 +43,11 @@ function LoginForm() {
   const [revealed, setRevealed] = useState(false);
   const [currentMs, setCurrentMs] = useState(0);
   const login = useLogin();
-  const submitting = login.isPending || state.status === "submitting";
+  const loginMfa = useLoginMfa();
+  /** Set once the password is accepted and a code is owed; no session exists yet. */
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const submitting = login.isPending || loginMfa.isPending || state.status === "submitting";
   const blocked = state.status === "blocked";
   const remainingSeconds = blocked
     ? Math.max(0, Math.ceil((state.untilMs - currentMs) / 1_000))
@@ -76,6 +81,29 @@ function LoginForm() {
     return () => window.clearInterval(interval);
   }, [state]);
 
+  function onSubmitCode(event: { preventDefault(): void }) {
+    event.preventDefault();
+    if (challenge === null || code.trim() === "") return;
+    setState({ status: "submitting" });
+    loginMfa.mutate(
+      { challenge, code: code.trim() },
+      {
+        onSuccess: () => {
+          window.location.href = "/";
+        },
+        onError: (error) => {
+          const failure = loginFailureOf(error);
+          // An expired challenge cannot be retried: back to the password.
+          if (failure.type === "error" && /expired|not valid/i.test(failure.reason)) {
+            setState({ status: "error", reason: failure.reason });
+            return;
+          }
+          setState({ status: "error", reason: failure.reason });
+        },
+      },
+    );
+  }
+
   function onSubmit(event: { preventDefault(): void }) {
     event.preventDefault();
     if (blocked) return;
@@ -83,7 +111,12 @@ function LoginForm() {
     login.mutate(
       { email, password },
       {
-        onSuccess: () => {
+        onSuccess: (response) => {
+          if (isMfaChallenge(response)) {
+            setChallenge(response.challenge);
+            setState({ status: "idle" });
+            return;
+          }
           window.location.href = "/";
         },
         onError: (error) => {
@@ -105,6 +138,62 @@ function LoginForm() {
             .exhaustive();
         },
       },
+    );
+  }
+
+  if (challenge !== null) {
+    return (
+      <AuthCard>
+        <form onSubmit={onSubmitCode} className="flex w-full flex-col gap-4">
+          <div className="flex flex-col gap-3">
+            <h1 className="text-2xl text-foreground">Two-factor authentication</h1>
+            <p className="text-base text-muted-foreground">
+              Enter the 6-digit code from your authenticator app, or a recovery code.
+            </p>
+          </div>
+          <Field>
+            <FieldLabel htmlFor="login-mfa-code" className="text-sm">
+              Authentication code
+            </FieldLabel>
+            <Input
+              id="login-mfa-code"
+              autoFocus
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              disabled={submitting}
+              aria-describedby={state.status === "error" ? "login-error" : undefined}
+              className="h-12 px-4 text-center text-lg tracking-widest"
+            />
+          </Field>
+          {state.status === "error" ? (
+            <p id="login-error" role="alert" className="text-xs text-destructive">
+              {state.reason}
+            </p>
+          ) : null}
+          <Button
+            type="submit"
+            disabled={submitting || code.trim() === ""}
+            className="login-submit h-12 w-full rounded-full px-6 text-base"
+          >
+            {submitting ? <ButtonLoader label="Processing" /> : "Verify and sign in"}
+          </Button>
+          <button
+            type="button"
+            className="text-center text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            onClick={() => {
+              setChallenge(null);
+              setCode("");
+              setState({ status: "idle" });
+            }}
+          >
+            Use a different account
+          </button>
+        </form>
+      </AuthCard>
     );
   }
 

@@ -59,6 +59,8 @@ export interface UserDto {
   readonly email: string;
   readonly merchantId: string;
   readonly permissions: readonly Permission[];
+  /** Whether the account has a proven authenticator-app second factor. */
+  readonly mfaEnabled: boolean;
 }
 
 /** `/auth/me` response: `user` is `null` when unauthenticated. */

@@ -108,46 +108,40 @@ describe("SessionService", () => {
   });
 });
 
-describe("AuthService.login", () => {
-  test("issues a session for valid credentials", async () => {
+describe("AuthService.authenticate", () => {
+  test("returns the account for valid credentials", async () => {
     const clock = new FixedClock("2026-01-01T00:00:00.000Z");
     const users = new InMemoryUserRepository();
-    const sessions = new InMemorySessionRepository();
     const user = makeUser(clock);
     await users.insert(user);
 
-    const sessionService = new SessionService({ sessions, users, clock, ttlSeconds: 3600 });
-    const auth = new AuthService({ users, hasher: new PlainHasher(), sessions: sessionService });
+    const auth = new AuthService({ users, hasher: new PlainHasher() });
 
-    const result = await Effect.runPromise(auth.login(user.email, "correct-horse-battery-staple"));
-    expect(result.user.id).toBe(user.id);
-    expect(result.session.userId).toBe(user.id);
+    const result = await Effect.runPromise(
+      auth.authenticate(user.email, "correct-horse-battery-staple"),
+    );
+    expect(result.id).toBe(user.id);
   });
 
   test("rejects a wrong password with the constant credentials message", async () => {
     const clock = new FixedClock("2026-01-01T00:00:00.000Z");
     const users = new InMemoryUserRepository();
-    const sessions = new InMemorySessionRepository();
     await users.insert(makeUser(clock));
 
-    const sessionService = new SessionService({ sessions, users, clock, ttlSeconds: 3600 });
-    const auth = new AuthService({ users, hasher: new PlainHasher(), sessions: sessionService });
+    const auth = new AuthService({ users, hasher: new PlainHasher() });
 
     await expect(
-      Effect.runPromise(auth.login("admin@mayarin.local", "wrong-password")),
+      Effect.runPromise(auth.authenticate("admin@mayarin.local", "wrong-password")),
     ).rejects.toThrow("Invalid email or password");
   });
 
   test("rejects an unknown email with the same message as a wrong password", async () => {
-    const clock = new FixedClock("2026-01-01T00:00:00.000Z");
     const users = new InMemoryUserRepository();
-    const sessions = new InMemorySessionRepository();
 
-    const sessionService = new SessionService({ sessions, users, clock, ttlSeconds: 3600 });
-    const auth = new AuthService({ users, hasher: new PlainHasher(), sessions: sessionService });
+    const auth = new AuthService({ users, hasher: new PlainHasher() });
 
-    await expect(Effect.runPromise(auth.login("nobody@mayarin.local", "anything"))).rejects.toThrow(
-      "Invalid email or password",
-    );
+    await expect(
+      Effect.runPromise(auth.authenticate("nobody@mayarin.local", "anything")),
+    ).rejects.toThrow("Invalid email or password");
   });
 });

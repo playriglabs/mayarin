@@ -365,6 +365,13 @@
       "when": 1790870400000,
       "tag": "0051_split_custody_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1790874000000,
+      "tag": "0052_user_mfa",
+      "breakpoints": true
     }
   ]
 }

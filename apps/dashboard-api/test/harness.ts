@@ -11,7 +11,12 @@
  * payment intents against the right tenant.
  */
 
-import { MERCHANT_ADMIN_PERMISSIONS, type PasswordHasher } from "@mayarin/auth";
+import {
+  MERCHANT_ADMIN_PERMISSIONS,
+  type PasswordHasher,
+  totpCode,
+  totpStepAt,
+} from "@mayarin/auth";
 import {
   InMemoryApiKeyRepository,
   InMemoryEmailVerificationRepository,
@@ -79,6 +84,7 @@ import type {
 import { assertLogo, type LogoStorage } from "../src/services/logo-storage.ts";
 import { MerchantCatalogService } from "../src/services/merchant-catalog-service.ts";
 import { MerchantSettingsService } from "../src/services/merchant-settings-service.ts";
+import { MfaService } from "../src/services/mfa-service.ts";
 import { NotificationService } from "../src/services/notification-service.ts";
 import { OrderReadService } from "../src/services/order-read-service.ts";
 import { PaymentApiClient } from "../src/services/payment-api-client.ts";
@@ -143,6 +149,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   const config: Config = loadConfig({
     DASHBOARD_API_PORT: "3001",
     DATABASE_URL: "memory://",
+    MFA_ENCRYPTION_KEY: "test-only-mfa-encryption-key-0123456789",
     SESSION_TTL_SECONDS: "3600",
     COOKIE_SECURE:
       options.cookieSecure === undefined ? "false" : options.cookieSecure ? "true" : "false",
@@ -187,7 +194,12 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     clock,
     ttlSeconds: config.sessionTtlSeconds,
   });
-  const authService = new AuthService({ users, hasher, sessions: sessionService });
+  const authService = new AuthService({ users, hasher });
+  // Its own clock, offset from the suite's, so stepping past a used code does not
+  // move the timestamps other assertions read.
+  let mfaOffsetMs = 0;
+  const mfaClock = { now: () => new Date(clock.now().getTime() + mfaOffsetMs) };
+  const mfa = new MfaService({ users, clock: mfaClock, encryptionKey: config.mfaEncryptionKey });
   const userService = new UserService({ users, accounts, hasher, clock });
   const payments = new PaymentReadService({
     intents,
@@ -502,6 +514,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     config,
     auth: authService,
     sessions: sessionService,
+    mfa,
     users: userService,
     logos,
     payments,
@@ -564,6 +577,32 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   });
   const merchantId = seed.user.merchantId;
 
+  /**
+   * The routes that move funds ask for a fresh authenticator code (SEC-16). A
+   * test that is about wallets, not about the second factor, should not have to
+   * perform enrolment, so the harness enrols the session's account on first
+   * use and attaches a code. Pass an `x-mfa-code` header, even an empty one, to
+   * say otherwise.
+   */
+  const MFA_GATED = [/^\/v1\/wallets$/, /^\/v1\/wallets\/withdraw$/, /^\/v1\/payouts\/prepare$/];
+  const mfaSecrets = new Map<string, string>();
+  async function mfaCodeForSession(sessionId: string): Promise<string | undefined> {
+    const session = await sessions.findById(sessionId);
+    if (session === null) return undefined;
+    let user = await users.findById(session.userId);
+    if (user === null) return undefined;
+    let secret = mfaSecrets.get(user.id);
+    if (secret === undefined) {
+      secret = (await mfa.beginSetup(user)).secret;
+      user = (await users.findById(user.id)) ?? user;
+      await mfa.confirmSetup(user, totpCode(secret, totpStepAt(mfaClock.now())));
+      mfaSecrets.set(user.id, secret);
+    }
+    // One code is good once, so each request is a step later.
+    mfaOffsetMs += 30_000;
+    return totpCode(secret, totpStepAt(mfaClock.now()));
+  }
+
   async function request(
     method: string,
     path: string,
@@ -579,10 +618,21 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
         : Object.entries(init.cookies)
             .map(([k, v]) => `${k}=${v}`)
             .join("; ");
+    const sessionId = cookieHeader
+      ?.split("; ")
+      .find((part) => part.startsWith("mayarin_session="))
+      ?.slice("mayarin_session=".length);
+    const wantsMfa =
+      method === "POST" &&
+      sessionId !== undefined &&
+      MFA_GATED.some((pattern) => pattern.test(path)) &&
+      !(init.headers !== undefined && "x-mfa-code" in init.headers);
+    const mfaCode = wantsMfa ? await mfaCodeForSession(sessionId) : undefined;
     const response = await app.request(path, {
       method,
       headers: {
         "content-type": "application/json",
+        ...(mfaCode === undefined ? {} : { "x-mfa-code": mfaCode }),
         ...init.headers,
         ...(cookieHeader === undefined ? {} : { cookie: cookieHeader }),
       },

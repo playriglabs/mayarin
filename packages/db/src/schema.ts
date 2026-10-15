@@ -461,6 +461,14 @@ export const users = pgTable(
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true, mode: "date" }),
     /** The reader's "seen up to" mark for notifications; later ones are unread. */
     notificationsReadAt: timestamp("notifications_read_at", { withTimezone: true, mode: "date" }),
+    /** TOTP secret, encrypted by the application (SEC-16). Set at setup, before it is proven. */
+    mfaSecret: text("mfa_secret"),
+    /** Null while setup is pending: a secret not yet proved is not a second factor. */
+    mfaEnabledAt: timestamp("mfa_enabled_at", { withTimezone: true, mode: "date" }),
+    /** Last accepted time step, so a code works once. */
+    mfaLastStep: integer("mfa_last_step"),
+    /** SHA-256 of each unused recovery code. */
+    mfaRecoveryHashes: text("mfa_recovery_hashes").array().notNull().default(sql`'{}'::text[]`),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
   },

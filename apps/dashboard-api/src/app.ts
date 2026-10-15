@@ -58,6 +58,9 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   // and the general limit is far too generous for any of them.
   for (const path of [
     "/auth/login",
+    "/auth/login/mfa",
+    "/auth/mfa/verify",
+    "/auth/mfa/disable",
     "/auth/register",
     "/auth/verify-email",
     "/auth/resend-verification",

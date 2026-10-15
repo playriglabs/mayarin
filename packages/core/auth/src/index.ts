@@ -4,4 +4,5 @@ export * from "./password.ts";
 export * from "./permission.ts";
 export * from "./repository.ts";
 export * from "./session-token.ts";
+export * from "./totp.ts";
 export * from "./types.ts";

@@ -14,7 +14,9 @@
  * second mapping layer in the route.
  */
 
-import { Hono } from "hono";
+import { ForbiddenError, UnauthorizedError } from "@mayarin/shared";
+import { Effect } from "effect";
+import { type Context, Hono } from "hono";
 import { setCookie } from "hono/cookie";
 import type { Container } from "../container.ts";
 import {
@@ -22,6 +24,8 @@ import {
   clearCookieOptions,
   csrfCookieOptions,
   loginBodySchema,
+  mfaCodeBodySchema,
+  mfaLoginBodySchema,
   registerBodySchema,
   resendVerificationBodySchema,
   SESSION_COOKIE,
@@ -34,18 +38,72 @@ import { csrfMiddleware } from "../middleware/csrf.ts";
 import { requireAuth } from "../middleware/require-auth.ts";
 import type { AuthVars } from "../middleware/types.ts";
 
+/** The verified session behind a route that is only meaningful for a person. */
+function requireSession(c: { get: (key: "session") => AuthVars["session"] }) {
+  const verified = c.get("session");
+  if (verified === undefined) {
+    throw new ForbiddenError("This needs a signed-in session, not an API key", {});
+  }
+  return verified;
+}
+
 export function authRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
   const { config, auth, sessions } = container;
   const secure = config.cookieSecure;
   const ttl = config.sessionTtlSeconds;
 
-  app.post("/login", async (c) => {
-    const { email, password } = loginBodySchema.parse(await c.req.json());
-    const { user, session } = await runEffect(auth.login(email, password));
+  const signIn = async (c: Context, userId: string) => {
+    const { session } = await runEffect(
+      sessions.create(userId).pipe(Effect.map((created) => ({ session: created }))),
+    );
     setCookie(c, SESSION_COOKIE, session.id, sessionCookieOptions(ttl, secure));
     setCookie(c, CSRF_COOKIE, session.csrfToken, csrfCookieOptions(ttl, secure));
+  };
+
+  /**
+   * Password step. An account with a second factor gets a challenge instead of
+   * a session: nothing is set, and the code step below finishes the sign-in.
+   */
+  app.post("/login", async (c) => {
+    const { email, password } = loginBodySchema.parse(await c.req.json());
+    const user = await runEffect(auth.authenticate(email, password));
+    if (container.mfa.isEnabled(user)) {
+      return c.json({ mfaRequired: true, challenge: container.mfa.issueChallenge(user.id) });
+    }
+    await signIn(c, user.id);
     return c.json({ user: toUserDto(user) });
+  });
+
+  app.post("/login/mfa", async (c) => {
+    const { challenge, code } = mfaLoginBodySchema.parse(await c.req.json());
+    const userId = container.mfa.redeemChallenge(challenge);
+    const user = await container.mfa.findUser(userId);
+    if (user === null) throw new UnauthorizedError("Invalid verification code");
+    await container.mfa.verifyCode(user, code);
+    await signIn(c, user.id);
+    return c.json({ user: toUserDto(user) });
+  });
+
+  /** Starts enrolment: the secret and QR to scan. Nothing is enforced until it is confirmed. */
+  app.post("/mfa/setup", requireAuth(), csrfMiddleware(), async (c) => {
+    const verified = requireSession(c);
+    return c.json(await container.mfa.beginSetup(verified.user));
+  });
+
+  /** Confirms enrolment with a code from the app; the recovery codes are shown once. */
+  app.post("/mfa/verify", requireAuth(), csrfMiddleware(), async (c) => {
+    const verified = requireSession(c);
+    const { code } = mfaCodeBodySchema.parse(await c.req.json());
+    const recoveryCodes = await container.mfa.confirmSetup(verified.user, code);
+    return c.json({ enabled: true, recoveryCodes });
+  });
+
+  app.post("/mfa/disable", requireAuth(), csrfMiddleware(), async (c) => {
+    const verified = requireSession(c);
+    const { code } = mfaCodeBodySchema.parse(await c.req.json());
+    await container.mfa.disable(verified.user, code);
+    return c.json({ enabled: false });
   });
 
   /**

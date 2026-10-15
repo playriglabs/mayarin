@@ -11,9 +11,13 @@ import { authApi } from "@/lib/api/auth";
 import type { ApiError } from "@/lib/api/client";
 import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
-  AuthResponse,
   LoginRequest,
+  LoginResponse,
   LogoutResponse,
+  MfaCodeRequest,
+  MfaLoginRequest,
+  MfaSetupResponse,
+  MfaVerifyResponse,
   OkResponse,
   RegisterRequest,
   ResendVerificationRequest,
@@ -23,8 +27,35 @@ import type { UserDto } from "@/types/user";
 
 /** POST `/auth/login`. `login.mutate({ email, password })`. */
 export function useLogin() {
-  return useEffectMutation<AuthResponse, LoginRequest, ApiError>({
+  return useEffectMutation<LoginResponse, LoginRequest, ApiError>({
     mutation: (body) => authApi.login(body),
+  });
+}
+
+/** POST `/auth/login/mfa`. Finishes a sign-in that answered with a challenge. */
+export function useLoginMfa() {
+  return useEffectMutation<{ user: UserDto }, MfaLoginRequest, ApiError>({
+    mutation: (body) => authApi.loginMfa(body),
+  });
+}
+
+export function useMfaSetup() {
+  return useEffectMutation<MfaSetupResponse, void, ApiError>({
+    mutation: () => authApi.mfaSetup(),
+  });
+}
+
+export function useMfaVerify() {
+  return useEffectMutation<MfaVerifyResponse, MfaCodeRequest, ApiError>({
+    mutation: (body) => authApi.mfaVerify(body),
+    invalidate: [["auth", "me"]],
+  });
+}
+
+export function useMfaDisable() {
+  return useEffectMutation<{ enabled: false }, MfaCodeRequest, ApiError>({
+    mutation: (body) => authApi.mfaDisable(body),
+    invalidate: [["auth", "me"]],
   });
 }
 
