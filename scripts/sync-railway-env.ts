@@ -147,11 +147,12 @@ async function remoteKeys(service: string): Promise<readonly string[]> {
 }
 
 async function deleteVariable(service: string, key: string): Promise<void> {
-  const child = Bun.spawn(
-    ["railway", "variable", "delete", key, "--service", service, "--skip-deploys"],
-    { stdout: "pipe", stderr: "pipe" },
-  );
-  if ((await child.exited) !== 0) throw new Error(`Could not delete ${key} for ${service}`);
+  const child = Bun.spawn(["railway", "variable", "delete", key, "--service", service], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [error, exitCode] = await Promise.all([new Response(child.stderr).text(), child.exited]);
+  if (exitCode !== 0) throw new Error(`Could not delete ${key} for ${service}: ${error.trim()}`);
 }
 
 function reportStale(service: string, stale: readonly string[]): void {
