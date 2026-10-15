@@ -189,7 +189,10 @@ for (const policy of selectedPolicies) {
       .filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ""),
   );
   const variables = { ...policy.overrides, ...local };
-  const stale = (await remoteKeys(policy.name)).filter((key) => !(key in variables)).sort();
+  // Stale means the config no longer reads it. A key the config reads but the local
+  // `.env` leaves unset is live on Railway and must not be reported, let alone pruned.
+  const known = new Set([...configuredKeys(source), ...Object.keys(policy.overrides)]);
+  const stale = (await remoteKeys(policy.name)).filter((key) => !known.has(key)).sort();
 
   if (dryRun) {
     console.log(`\n${policy.name}: ${Object.keys(variables).length} key(s) would be set`);
