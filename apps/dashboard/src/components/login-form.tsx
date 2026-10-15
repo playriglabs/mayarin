@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { match, P } from "ts-pattern";
 import { AuthCard } from "@/components/auth-shell";
 import { Button } from "@/components/ui/button";
+import { CodeInput } from "@/components/ui/code-input";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
@@ -27,6 +28,8 @@ import { ICON_NAV } from "@/lib/icons";
 import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
 import { withQuery } from "@/lib/with-query";
 import { isMfaChallenge } from "@/types/auth";
+
+const MFA_CODE_LENGTH = 6;
 
 type FormState =
   | { readonly status: "idle" }
@@ -47,6 +50,8 @@ function LoginForm() {
   /** Set once the password is accepted and a code is owed; no session exists yet. */
   const [challenge, setChallenge] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  /** A recovery code is eight characters, so it does not fit six digit boxes. */
+  const [useRecovery, setUseRecovery] = useState(false);
   const submitting = login.isPending || loginMfa.isPending || state.status === "submitting";
   const blocked = state.status === "blocked";
   const remainingSeconds = blocked
@@ -81,23 +86,25 @@ function LoginForm() {
     return () => window.clearInterval(interval);
   }, [state]);
 
-  function onSubmitCode(event: { preventDefault(): void }) {
-    event.preventDefault();
-    if (challenge === null || code.trim() === "") return;
+  /**
+   * Takes the code rather than reading state: `onComplete` fires inside the
+   * same event as the last keystroke, where `code` still holds five digits.
+   */
+  function submitCode(submitted: string) {
+    const value = submitted.trim();
+    if (challenge === null || submitting) return;
+    if (!useRecovery && value.length !== MFA_CODE_LENGTH) return;
+    if (value === "") return;
     setState({ status: "submitting" });
     loginMfa.mutate(
-      { challenge, code: code.trim() },
+      { challenge, code: value },
       {
         onSuccess: () => {
           window.location.href = "/";
         },
         onError: (error) => {
           const failure = loginFailureOf(error);
-          // An expired challenge cannot be retried: back to the password.
-          if (failure.type === "error" && /expired|not valid/i.test(failure.reason)) {
-            setState({ status: "error", reason: failure.reason });
-            return;
-          }
+          setCode("");
           setState({ status: "error", reason: failure.reason });
         },
       },
@@ -142,56 +149,103 @@ function LoginForm() {
   }
 
   if (challenge !== null) {
+    const codeError = state.status === "error";
     return (
       <AuthCard>
-        <form onSubmit={onSubmitCode} className="flex w-full flex-col gap-4">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitCode(code);
+          }}
+          className="flex w-full flex-col gap-4"
+        >
           <div className="flex flex-col gap-3">
             <h1 className="text-2xl text-foreground">Two-factor authentication</h1>
             <p className="text-base text-muted-foreground">
-              Enter the 6-digit code from your authenticator app, or a recovery code.
+              {useRecovery
+                ? "Enter one of your recovery codes. Each works once."
+                : `Enter the ${MFA_CODE_LENGTH}-digit code from your authenticator app for ${email}.`}
             </p>
           </div>
-          <Field>
-            <FieldLabel htmlFor="login-mfa-code" className="text-sm">
-              Authentication code
-            </FieldLabel>
-            <Input
-              id="login-mfa-code"
-              autoFocus
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              disabled={submitting}
-              aria-describedby={state.status === "error" ? "login-error" : undefined}
-              className="h-12 px-4 text-center text-lg tracking-widest"
-            />
-          </Field>
-          {state.status === "error" ? (
-            <p id="login-error" role="alert" className="text-xs text-destructive">
-              {state.reason}
-            </p>
-          ) : null}
+
+          <div className="mt-2 flex flex-col gap-3">
+            <Field>
+              <FieldLabel id="login-mfa-label" htmlFor="login-mfa-code" className="mb-1 text-sm">
+                {useRecovery ? "Recovery code" : "Authentication code"}
+              </FieldLabel>
+              {useRecovery ? (
+                <Input
+                  id="login-mfa-code"
+                  autoFocus
+                  placeholder="XXXX-XXXX"
+                  autoComplete="off"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  disabled={submitting}
+                  aria-invalid={codeError}
+                  aria-describedby={codeError ? "login-error" : undefined}
+                  className="h-12 px-4 text-center text-lg tracking-widest"
+                />
+              ) : (
+                <CodeInput
+                  id="login-mfa-code"
+                  value={code}
+                  onChange={setCode}
+                  length={MFA_CODE_LENGTH}
+                  disabled={submitting}
+                  invalid={codeError}
+                  labelledBy="login-mfa-label"
+                  {...(codeError ? { describedBy: "login-error" } : {})}
+                  // A complete code needs no second action: the last digit submits.
+                  onComplete={(next) => submitCode(next)}
+                />
+              )}
+            </Field>
+          </div>
+
+          <div aria-live="polite" className="empty:hidden">
+            {codeError ? (
+              <p id="login-error" role="alert" className="text-xs text-destructive">
+                {state.reason}
+              </p>
+            ) : null}
+          </div>
+
           <Button
             type="submit"
-            disabled={submitting || code.trim() === ""}
-            className="login-submit h-12 w-full rounded-full px-6 text-base"
+            disabled={
+              submitting || (useRecovery ? code.trim() === "" : code.length !== MFA_CODE_LENGTH)
+            }
+            className="login-submit mt-2 h-12 w-full rounded-full px-6 text-base"
           >
             {submitting ? <ButtonLoader label="Processing" /> : "Verify and sign in"}
           </Button>
-          <button
-            type="button"
-            className="text-center text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-            onClick={() => {
-              setChallenge(null);
-              setCode("");
-              setState({ status: "idle" });
-            }}
-          >
-            Use a different account
-          </button>
+
+          <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+            <button
+              type="button"
+              className="cursor-pointer underline underline-offset-2 hover:text-foreground"
+              onClick={() => {
+                setUseRecovery((previous) => !previous);
+                setCode("");
+                setState({ status: "idle" });
+              }}
+            >
+              {useRecovery ? "Use your authenticator app" : "Use a recovery code instead"}
+            </button>
+            <button
+              type="button"
+              className="cursor-pointer underline underline-offset-2 hover:text-foreground"
+              onClick={() => {
+                setChallenge(null);
+                setCode("");
+                setUseRecovery(false);
+                setState({ status: "idle" });
+              }}
+            >
+              Use a different account
+            </button>
+          </div>
         </form>
       </AuthCard>
     );

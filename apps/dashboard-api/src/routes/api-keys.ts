@@ -14,6 +14,7 @@ import { z } from "zod";
 import type { Container } from "../container.ts";
 import { createApiKeyBodySchema, toApiKeyDto } from "../dto/api-keys.ts";
 import { csrfMiddleware } from "../middleware/csrf.ts";
+import { requireMfa } from "../middleware/require-mfa.ts";
 import type { AuthVars } from "../middleware/types.ts";
 
 const listQuerySchema = z.object({
@@ -45,7 +46,7 @@ export function apiKeyRoutes(container: Container): Hono<{ Variables: AuthVars }
     return c.json({ apiKeys: keys.map(toApiKeyDto) });
   });
 
-  app.post("/", csrfMiddleware(), async (c) => {
+  app.post("/", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const scope = scopeOf(c);
     const body = createApiKeyBodySchema.parse(await c.req.json());
     const { key, secret } = await container.apiKeys.create(scope, {
@@ -56,7 +57,7 @@ export function apiKeyRoutes(container: Container): Hono<{ Variables: AuthVars }
     return c.json({ apiKey: toApiKeyDto(key), secret }, 201);
   });
 
-  app.delete("/:id", csrfMiddleware(), async (c) => {
+  app.delete("/:id", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
     const key = await container.apiKeys.deactivate(scopeOf(c), c.req.param("id"));
     return c.json({ apiKey: toApiKeyDto(key) });
   });

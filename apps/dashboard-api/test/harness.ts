@@ -584,7 +584,16 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
    * use and attaches a code. Pass an `x-mfa-code` header, even an empty one, to
    * say otherwise.
    */
-  const MFA_GATED = [/^\/v1\/wallets$/, /^\/v1\/wallets\/withdraw$/, /^\/v1\/payouts\/prepare$/];
+  const MFA_GATED = [
+    /^\/v1\/wallets$/,
+    /^\/v1\/wallets\/withdraw$/,
+    /^\/v1\/payouts\/prepare$/,
+    /^\/v1\/api-keys$/,
+    /^\/v1\/api-keys\/[^/]+$/,
+    /^\/v1\/webhooks\/endpoints$/,
+    /^\/v1\/webhooks\/endpoints\/[^/]+\/(rotate|deactivate)$/,
+    /^\/v1\/settings$/,
+  ];
   const mfaSecrets = new Map<string, string>();
   async function mfaCodeForSession(sessionId: string): Promise<string | undefined> {
     const session = await sessions.findById(sessionId);
@@ -623,7 +632,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
       .find((part) => part.startsWith("mayarin_session="))
       ?.slice("mayarin_session=".length);
     const wantsMfa =
-      method === "POST" &&
+      ["POST", "DELETE", "PATCH"].includes(method) &&
       sessionId !== undefined &&
       MFA_GATED.some((pattern) => pattern.test(path)) &&
       !(init.headers !== undefined && "x-mfa-code" in init.headers);

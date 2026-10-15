@@ -13,8 +13,8 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { CodeInput } from "@/components/ui/code-input";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
 import { useMe, useMfaDisable, useMfaSetup, useMfaVerify } from "@/hooks/auth";
 import { ApiError } from "@/lib/api/client";
@@ -61,20 +61,30 @@ function Enrolling({
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  function submit(event: { preventDefault(): void }) {
-    event.preventDefault();
+  /** Takes the code: `onComplete` fires inside the keystroke, before state updates. */
+  function submit(submitted: string) {
+    if (verify.isPending || submitted.length !== 6) return;
     setError(null);
     verify.mutate(
-      { code: code.trim() },
+      { code: submitted },
       {
         onSuccess: (result) => onDone(result.recoveryCodes),
-        onError: (failure) => setError(reasonOf(failure)),
+        onError: (failure) => {
+          setCode("");
+          setError(reasonOf(failure));
+        },
       },
     );
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-5">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit(code);
+      }}
+      className="flex flex-col gap-5"
+    >
       <ol className="flex flex-col gap-5 text-sm">
         <li className="flex flex-col gap-3">
           <span className="font-medium text-foreground">
@@ -101,21 +111,20 @@ function Enrolling({
           <span className="font-medium text-foreground">
             2. Enter the 6-digit code it shows to confirm
           </span>
-          <Field className="max-w-60">
-            <FieldLabel htmlFor="mfa-setup-code" className="sr-only">
+          <Field>
+            <FieldLabel id="mfa-setup-label" htmlFor="mfa-setup-code" className="sr-only">
               Authentication code
             </FieldLabel>
-            <Input
+            <CodeInput
               id="mfa-setup-code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-              required
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={setCode}
+              length={6}
               disabled={verify.isPending}
-              aria-describedby={error === null ? undefined : "mfa-setup-error"}
-              className="h-12 text-center text-lg tracking-widest"
+              invalid={error !== null}
+              labelledBy="mfa-setup-label"
+              {...(error === null ? {} : { describedBy: "mfa-setup-error" })}
+              onComplete={submit}
             />
           </Field>
           {error === null ? null : (
@@ -126,7 +135,7 @@ function Enrolling({
         </li>
       </ol>
       <div className="flex gap-2">
-        <Button type="submit" disabled={verify.isPending || code.trim() === ""}>
+        <Button type="submit" disabled={verify.isPending || code.length !== 6}>
           {verify.isPending ? "Verifying…" : "Verify and enable"}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel} disabled={verify.isPending}>
@@ -208,20 +217,18 @@ function Disable({ onDone }: { readonly onDone: () => void }) {
         );
       }}
     >
-      <Field className="max-w-60">
-        <FieldLabel htmlFor="mfa-disable-code" className="text-sm">
+      <Field>
+        <FieldLabel id="mfa-disable-label" htmlFor="mfa-disable-code" className="mb-1 text-sm">
           Enter a code to turn it off
         </FieldLabel>
-        <Input
+        <CodeInput
           id="mfa-disable-code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          placeholder="123456"
-          required
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={setCode}
+          length={6}
           disabled={disable.isPending}
-          className="h-12 text-center text-lg tracking-widest"
+          invalid={error !== null}
+          labelledBy="mfa-disable-label"
         />
       </Field>
       {error === null ? null : (
@@ -230,7 +237,11 @@ function Disable({ onDone }: { readonly onDone: () => void }) {
         </p>
       )}
       <div className="flex gap-2">
-        <Button type="submit" variant="destructive" disabled={disable.isPending || code === ""}>
+        <Button
+          type="submit"
+          variant="destructive"
+          disabled={disable.isPending || code.length !== 6}
+        >
           Turn off two-factor
         </Button>
         <Button type="button" variant="secondary" onClick={() => setOpen(false)}>

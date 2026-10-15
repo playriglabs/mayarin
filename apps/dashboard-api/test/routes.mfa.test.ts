@@ -204,6 +204,33 @@ describe("step-up on routes that move funds", () => {
     expect(wrong.status).toBe(401);
   });
 
+  test("credential and settlement changes ask for a code too", async () => {
+    const harness = await seeded();
+    const { auth } = await enrol(harness);
+    const headers = { "x-csrf-token": auth.csrf, "x-mfa-code": "" };
+    const attempts = [
+      harness.request("POST", "/v1/api-keys", {
+        body: { name: "k", permissions: ["payments:read"] },
+        cookies: auth.jar,
+        headers,
+      }),
+      harness.request("POST", "/v1/webhooks/endpoints", {
+        body: { url: "https://merchant.example/hook" },
+        cookies: auth.jar,
+        headers,
+      }),
+      harness.request("PATCH", "/v1/settings", {
+        body: { city: "Bandung" },
+        cookies: auth.jar,
+        headers,
+      }),
+    ];
+
+    for (const res of await Promise.all(attempts)) {
+      expect(res.status).toBe(403);
+    }
+  });
+
   test("disabling needs a valid code", async () => {
     const harness = await seeded();
     const { auth, secret } = await enrol(harness);
