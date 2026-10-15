@@ -73,7 +73,7 @@ export function Dropdown({
           ref={triggerRef}
           type="button"
           disabled={disabled}
-          className={`flex min-h-14 w-full items-center gap-2.5 rounded-xl border bg-field px-4 py-2 text-left text-ink transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+          className={`flex min-h-16 w-full items-center gap-3 rounded-xl border bg-field px-4 py-2.5 text-left text-ink transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
             open ? "border-muted" : "border-transparent enabled:hover:border-line"
           }`}
           aria-expanded={open}
@@ -81,7 +81,7 @@ export function Dropdown({
           onClick={() => setOpen((previous) => !previous)}
         >
           {current === undefined ? (
-            <span className="min-w-0 flex-1 text-[13px] text-muted">{placeholder}</span>
+            <span className="min-w-0 flex-1 text-[15px] text-muted">{placeholder}</span>
           ) : (
             <>
               {current.mark?.(24)}
@@ -120,7 +120,7 @@ export function Dropdown({
               const checked = option.value === value;
               return (
                 <label
-                  className="flex min-h-12 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-ink transition-colors duration-150 hover:bg-field has-checked:bg-field has-focus-visible:outline-2 has-focus-visible:outline-brand"
+                  className="flex min-h-14 w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-left text-ink transition-colors duration-150 hover:bg-field has-checked:bg-field has-focus-visible:outline-2 has-focus-visible:outline-brand"
                   key={option.value}
                 >
                   <input
@@ -155,9 +155,9 @@ export function Dropdown({
 function OptionCopy({ option }: { readonly option: DropdownOption }) {
   return (
     <span className="grid min-w-0 flex-1 leading-tight">
-      <span className="text-[13px] text-ink">{option.title}</span>
+      <span className="text-[15px] text-ink">{option.title}</span>
       {option.subtitle !== undefined && (
-        <span className="text-[11px] text-muted">{option.subtitle}</span>
+        <span className="text-xs text-muted">{option.subtitle}</span>
       )}
     </span>
   );

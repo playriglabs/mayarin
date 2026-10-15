@@ -1,15 +1,8 @@
 import { type ChangeEvent, useEffect, useId, useState } from "react";
 import { Dropdown } from "../../shared/dropdown.tsx";
-import {
-  chevron,
-  errorText,
-  fieldLabel,
-  noteText,
-  panelIntro,
-  primaryButton,
-} from "../../shared/ui.ts";
+import { errorText, fieldLabel, noteText, panelIntro, primaryButton } from "../../shared/ui.ts";
 import { parseBirthDate } from "./birth-date.ts";
-import { availableMarkets, type Market, pickMarket } from "./markets.ts";
+import { availableMarkets, flagEmoji, type Market, pickMarket } from "./markets.ts";
 
 /**
  * Pay in a local rail instead of sending crypto: GCash, QRIS, FPX, bank
@@ -39,7 +32,8 @@ interface Method {
 type Instructions =
   | { readonly kind: "qr"; readonly value: string }
   | { readonly kind: "va"; readonly code: string; readonly bank: string | null }
-  | { readonly kind: "redirect"; readonly url: string };
+  | { readonly kind: "redirect"; readonly url: string }
+  | { readonly kind: "waiting" };
 
 interface Created {
   /** The method the payer chose, with its mark — shown on the instruction it produced. */
@@ -82,7 +76,7 @@ const inputClass =
 
 function formatFiat(amount: number, currency: string): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+    return new Intl.NumberFormat("id-ID", { style: "currency", currency }).format(amount);
   } catch {
     return `${amount} ${currency}`;
   }
@@ -93,6 +87,7 @@ export function LocalCurrencyCard({
   priceCurrency,
   delivery,
   leading = false,
+  onChoose,
 }: {
   readonly intentId: string;
   /** Where the payment is delivered, e.g. "USDC on Base"; shown under the intro. */
@@ -101,6 +96,8 @@ export function LocalCurrencyCard({
   readonly priceCurrency: string;
   /** The payer chose local currency on the page before: show the form, not a fold. */
   readonly leading?: boolean;
+  /** Without `leading`: what the button does — the page switches to local currency. */
+  readonly onChoose?: () => void;
 }) {
   const [availability, setAvailability] = useState<Availability>("unknown");
   const [open, setOpen] = useState(leading);
@@ -148,6 +145,36 @@ export function LocalCurrencyCard({
     };
   }, []);
 
+  // A payer who already opened an order and came back — the hosted TransFi page
+  // returns here — is waiting on it, not choosing a method again.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/v1/fiat-onramp/${intentId}/funding`)
+      .then(async (response) => {
+        if (cancelled || !response.ok) return;
+        const body = (await response.json()) as {
+          funding: {
+            methodName: string;
+            methodLogoUrl: string | null;
+            fiatCurrency: string;
+            fiatAmount: number;
+          } | null;
+        };
+        if (body.funding === null) return;
+        setOpen(true);
+        setCreated({
+          method: { name: body.funding.methodName, logoUrl: body.funding.methodLogoUrl },
+          instructions: { kind: "waiting" },
+          fiatAmount: body.funding.fiatAmount,
+          fiatCurrency: body.funding.fiatCurrency,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [intentId]);
+
   const marketCurrency = picked?.currency;
   useEffect(() => {
     if (!open || marketCurrency === undefined) return;
@@ -182,6 +209,19 @@ export function LocalCurrencyCard({
     return () => clearTimeout(timer);
   }, [copied]);
 
+  // The payer chose local currency, so the panel is the whole page: a blank
+  // right-hand side while the markets load reads as broken.
+  if (leading && availability === "unknown") {
+    return (
+      <div className="mt-8 flex items-center gap-3.5 py-6" role="status">
+        <span
+          className="size-5.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-ink motion-reduce:animate-none"
+          aria-hidden="true"
+        />
+        <p className="m-0 text-sm text-muted">Loading payment methods…</p>
+      </div>
+    );
+  }
   if (availability !== "enabled" || picked === undefined) return null;
   const market: Market = picked;
 
@@ -353,12 +393,17 @@ export function LocalCurrencyCard({
                           value: entry.currency,
                           title: entry.label.replace(/ \(.*\)$/, ""),
                           subtitle: entry.currency,
+                          mark: () => <span aria-hidden="true">{flagEmoji(entry.country)}</span>,
                         }))}
                       />
                     ) : (
                       <p className="m-0 flex items-baseline justify-between gap-4 text-sm text-muted">
                         <span>
-                          Paying in <strong className="font-medium text-ink">{market.label}</strong>
+                          Paying in{" "}
+                          <strong className="font-medium text-ink">
+                            <span aria-hidden="true">{flagEmoji(market.country)}</span>{" "}
+                            {market.label}
+                          </strong>
                         </span>
                         <button
                           type="button"
@@ -422,10 +467,13 @@ export function LocalCurrencyCard({
             </>
           ) : (
             <>
-              <p className="m-0 flex items-baseline justify-between gap-4 text-sm text-muted">
-                <span>
-                  <strong className="font-medium text-ink">{selected?.name}</strong> ·{" "}
-                  {market.currency}
+              <p className="m-0 flex items-center justify-between gap-4 text-sm text-muted">
+                <span className="inline-flex items-center gap-2.5">
+                  <MethodLogo url={selected?.logoUrl ?? null} size={28} />
+                  <span>
+                    <strong className="font-medium text-ink">{selected?.name}</strong> ·{" "}
+                    {market.currency}
+                  </span>
                 </span>
                 <button
                   type="button"
@@ -509,8 +557,8 @@ export function LocalCurrencyCard({
                 </p>
               )}
               <p className="mt-3 mb-0 text-center text-[11px] leading-snug text-muted">
-                TransFi, our payment partner, verifies your identity and takes the payment. Mayarin
-                passes these details on and keeps none of them.
+                Our payment partner verifies your identity and takes the payment. Mayarin passes
+                these details on and keeps none of them.
               </p>
             </>
           )}
@@ -533,23 +581,17 @@ export function LocalCurrencyCard({
     );
   }
 
+  // Beside the crypto instructions the option is a plain link, the mirror of
+  // "Pay with crypto instead": the form does not fit under a deposit card, so
+  // choosing it opens the page that leads with local currency.
   return (
-    <section className="mt-6 border-y border-line" aria-label="Pay in local currency">
-      <button
-        type="button"
-        className="flex min-h-12 w-full items-center justify-between gap-4 border-0 bg-transparent px-0 py-2.5 text-left text-sm text-ink transition-colors hover:text-muted"
-        aria-expanded={open}
-        aria-controls={panelId}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span>
-          Pay in local currency
-          <span className="block text-xs text-muted">GCash, QRIS, FPX and bank transfer</span>
-        </span>
-        <span className={`${chevron} ${open ? "-rotate-135" : "rotate-45"}`} aria-hidden="true" />
-      </button>
-      {body}
-    </section>
+    <button
+      type="button"
+      className="mt-4 block w-full border-0 bg-transparent p-0 text-center text-xs text-muted underline underline-offset-2 transition-colors hover:text-ink"
+      onClick={onChoose}
+    >
+      Pay in local currency instead
+    </button>
   );
 }
 
@@ -585,6 +627,15 @@ function Instruction({
           <p className="mt-4 mb-0 text-xs text-muted">
             Open your e-wallet or banking app and scan this code.
           </p>
+        </>
+      )}
+      {instructions.kind === "waiting" && (
+        <>
+          <h3 className="m-0 text-base font-medium text-ink">Waiting for your payment</h3>
+          <span className="mt-2 inline-flex items-center gap-2 text-sm text-muted">
+            <MethodLogo url={method.logoUrl} size={22} />
+            {method.name}
+          </span>
         </>
       )}
       {instructions.kind === "va" && (

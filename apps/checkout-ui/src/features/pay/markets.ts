@@ -163,6 +163,16 @@ const LANGUAGE_COUNTRY: Readonly<Record<string, string>> = {
 };
 
 /** The markets whose currency the provider can take, in the order above. */
+/**
+ * The flag of an ISO 3166 alpha-2 country, from its two letters: each maps to a
+ * regional-indicator symbol, and a pair of them renders as the flag.
+ */
+export function flagEmoji(country: string): string {
+  return [...country.toUpperCase()]
+    .map((letter) => String.fromCodePoint(0x1f1e6 + letter.charCodeAt(0) - 65))
+    .join("");
+}
+
 export function availableMarkets(currencies: readonly string[]): readonly Market[] {
   return MARKETS.filter((market) => currencies.includes(market.currency));
 }

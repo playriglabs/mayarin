@@ -7,9 +7,10 @@ import {
   quoteEstimateFrom,
 } from "../features/link/use-quote-estimate.ts";
 import { remainingAt } from "../features/pay/countdown.ts";
+import { flagEmoji } from "../features/pay/markets.ts";
 import { usableDeposit } from "../features/pay/payment-status.ts";
 import { isTerminal, paymentStage, statusWording } from "../features/pay/status-wording.ts";
-import { currencySymbol, sanitizeAmount } from "../shared/currency.ts";
+import { currencySymbol, groupAmount, sanitizeAmount, ungroupAmount } from "../shared/currency.ts";
 import { walletAmount } from "../shared/money.ts";
 
 describe("wallet amount", () => {
@@ -221,5 +222,28 @@ describe("typed amount", () => {
   test("stops at the currency's own decimals", () => {
     expect(sanitizeAmount("10.999", "EUR")).toBe("10.99");
     expect(sanitizeAmount("1500.5", "JPY")).toBe("1500");
+  });
+});
+
+describe("grouped amount input", () => {
+  test("groups thousands with the locale's mark and keeps a half-typed decimal", () => {
+    expect(groupAmount("10000", "id-ID")).toBe("10.000");
+    expect(groupAmount("1234567.5", "id-ID")).toBe("1.234.567,5");
+    expect(groupAmount("10000", "en-US")).toBe("10,000");
+    expect(groupAmount("1000.", "en-US")).toBe("1,000.");
+    expect(groupAmount("", "en-US")).toBe("");
+  });
+
+  test("reads the grouped field back to the machine form", () => {
+    expect(ungroupAmount("10.000", "IDR", "id-ID")).toBe("10000");
+    expect(ungroupAmount("1.234,5", "IDR", "id-ID")).toBe("1234.5");
+    expect(ungroupAmount("10,000.25", "EUR", "en-US")).toBe("10000.25");
+  });
+});
+
+describe("flagEmoji", () => {
+  test("turns a country code into its flag", () => {
+    expect(flagEmoji("ID")).toBe("🇮🇩");
+    expect(flagEmoji("ph")).toBe("🇵🇭");
   });
 });

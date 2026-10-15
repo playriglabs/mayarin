@@ -2,7 +2,7 @@ import { useState } from "react";
 import { BuyerProtection } from "../../shared/buyer-protection.tsx";
 import { CheckoutShell } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
-import { currencySymbol, sanitizeAmount } from "../../shared/currency.ts";
+import { currencySymbol, groupAmount, ungroupAmount } from "../../shared/currency.ts";
 import { rememberLocalCurrencyIntent } from "../../shared/local-currency-intent.ts";
 import {
   LocalCurrencyPanel,
@@ -129,7 +129,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
         <CheckoutSummary
           merchant={bootstrap.merchant}
           title={bootstrap.title}
-          totalDisplay={total?.display ?? `${displayCurrency} ${amount || "0"}`}
+          totalDisplay={total?.display ?? `${displayCurrency} ${groupAmount(amount) || "0"}`}
           lines={lines}
         />
       }
@@ -159,8 +159,8 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
               autoComplete="off"
               // biome-ignore lint/a11y/noAutofocus: typing the amount is the page's only task
               autoFocus
-              value={amount}
-              onChange={(event) => setAmount(sanitizeAmount(event.target.value, currency))}
+              value={groupAmount(amount)}
+              onChange={(event) => setAmount(ungroupAmount(event.target.value, currency))}
             />
           </div>
         </div>

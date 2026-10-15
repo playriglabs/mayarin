@@ -7,6 +7,7 @@ import { CheckoutSummary } from "../../shared/checkout-summary.tsx";
 import {
   forgetLocalCurrencyIntent,
   isLocalCurrencyIntent,
+  rememberLocalCurrencyIntent,
 } from "../../shared/local-currency-intent.ts";
 import { footnote, panelTitle } from "../../shared/ui.ts";
 import { ChooseRail } from "./choose-rail.tsx";
@@ -164,7 +165,14 @@ function LivePayment({ bootstrap }: { readonly bootstrap: PayBootstrap }) {
                 copied={copied}
                 onCopy={copy}
               />
-              <LocalCurrencyCard intentId={intentId} priceCurrency={bootstrap.amount.asset} />
+              <LocalCurrencyCard
+                intentId={intentId}
+                priceCurrency={bootstrap.amount.asset}
+                onChoose={() => {
+                  rememberLocalCurrencyIntent(intentId);
+                  setLocalFirst(true);
+                }}
+              />
             </>
           ),
         )

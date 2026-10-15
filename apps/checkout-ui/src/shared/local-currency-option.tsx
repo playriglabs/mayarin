@@ -187,8 +187,8 @@ export function LocalCurrencyPanel({
   return (
     <div className="mt-6">
       <p className="m-0 text-sm text-muted">
-        Pay in your own currency with an e-wallet, QRIS or bank transfer. TransFi takes the payment
-        and delivers it to the merchant for you — there is no wallet to connect.
+        Pay in your own currency with an e-wallet, QRIS or bank transfer. We take the payment and
+        deliver it to the merchant for you — there is no wallet to connect.
       </p>
       <p className="mt-4 mb-0 text-xs text-muted">
         Delivered to the merchant as{" "}
