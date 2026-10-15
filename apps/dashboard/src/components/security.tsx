@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
 import { useMe, useMfaDisable, useMfaSetup, useMfaVerify } from "@/hooks/auth";
 import { ApiError } from "@/lib/api/client";
-import { withQuery } from "@/lib/with-query";
 import type { MfaSetupResponse } from "@/types/auth";
 
 function reasonOf(error: unknown): string {
@@ -247,7 +246,8 @@ type View =
   | { readonly kind: "enrolling"; readonly setup: MfaSetupResponse }
   | { readonly kind: "recovery"; readonly codes: readonly string[] };
 
-function Security() {
+/** Rendered inside Settings, which already supplies the query client. */
+export function SecuritySection() {
   const me = useMe();
   const setup = useMfaSetup();
   const [view, setView] = useState<View>({ kind: "overview" });
@@ -256,7 +256,7 @@ function Security() {
   const enabled = me.data?.mfaEnabled === true;
 
   return (
-    <Card className="max-w-2xl gap-5 p-6">
+    <Card id="security" className="gap-5 p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           {enabled ? (
@@ -265,7 +265,7 @@ function Security() {
             <ShieldWarningIcon size={28} className="text-warning" aria-hidden="true" />
           )}
           <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-medium text-foreground">Two-factor authentication</h2>
+            <h3 className="font-medium text-foreground text-sm">Two-factor authentication</h3>
             <p className="text-sm text-muted-foreground">
               A code from an authenticator app such as Google Authenticator, asked at sign-in and
               before you withdraw funds, change a wallet or send a payout.
@@ -309,5 +309,3 @@ function Security() {
     </Card>
   );
 }
-
-export default withQuery(Security);

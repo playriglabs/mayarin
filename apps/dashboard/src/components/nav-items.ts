@@ -22,7 +22,6 @@ import {
   ReceiptIcon,
   RepeatIcon,
   ScalesIcon,
-  ShieldCheckIcon,
   ShoppingCartIcon,
   SquaresFourIcon,
   UsersThreeIcon,
@@ -117,8 +116,6 @@ const CONFIGURATION: readonly NavItem[] = [
     flag: "New",
   },
   { href: "/settings", label: "Settings", icon: GearSixIcon, permission: "settings:manage" },
-  // No permission: every account can, and should, secure its own sign-in.
-  { href: "/security", label: "Security", icon: ShieldCheckIcon },
 ];
 
 const ADMIN: NavItem = {

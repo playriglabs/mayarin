@@ -37,7 +37,6 @@ const PROTECTED_PREFIXES = [
   "/event-logs",
   "/notifications",
   "/settings",
-  "/security",
   "/admin",
 ];
 const PROTECTED_EXACT = new Set(["/"]);

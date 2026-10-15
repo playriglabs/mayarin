@@ -97,7 +97,10 @@ export function MfaStepUpHost() {
             <Button type="button" variant="secondary" onClick={finishSetup}>
               Not now
             </Button>
-            <Button type="button" onClick={() => window.location.assign("/security")}>
+            <Button
+              type="button"
+              onClick={() => window.location.assign("/settings?tab=general#security")}
+            >
               Set up now
             </Button>
           </DialogFooter>

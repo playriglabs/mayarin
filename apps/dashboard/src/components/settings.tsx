@@ -27,6 +27,7 @@ import { AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
 import { InfoHint } from "@/components/info-hint";
 import { MerchantProfile } from "@/components/merchant-profile";
+import { SecuritySection } from "@/components/security";
 import { NetworkSettings, settlementOptionsOf } from "@/components/settings-networks";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -762,6 +763,8 @@ function Settings() {
                   className="flex flex-col gap-6 pt-6 focus-visible:outline-none"
                 >
                   <MerchantProfile settings={loaded} />
+
+                  <SecuritySection />
 
                   <Card className="flex flex-col gap-5 p-5">
                     <div className="flex flex-col gap-1">
