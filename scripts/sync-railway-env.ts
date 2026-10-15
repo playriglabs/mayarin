@@ -4,6 +4,7 @@
  *   bun run scripts/sync-railway-env.ts                  every service
  *   bun run scripts/sync-railway-env.ts core-api         one service
  *   bun run scripts/sync-railway-env.ts --dry-run        show, change nothing
+ *   bun run scripts/sync-railway-env.ts --prune          also delete variables the service no longer takes
  *
  * This overwrites the deployed environment with whatever is in the local `.env`,
  * one key at a time, and there is no undo. `--dry-run` exists because the
@@ -128,7 +129,39 @@ async function setVariable(service: string, key: string, value: string): Promise
   }
 }
 
+/** Names only: Railway's JSON listing carries values, which never leave this function. */
+async function remoteKeys(service: string): Promise<readonly string[]> {
+  const child = Bun.spawn(["railway", "variable", "list", "--service", service, "--json"], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [output, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+  if (exitCode !== 0) throw new Error(`Could not list variables for ${service}`);
+  return Object.keys(JSON.parse(output) as Record<string, string>).filter(
+    (key) => !key.startsWith("RAILWAY_"),
+  );
+}
+
+async function deleteVariable(service: string, key: string): Promise<void> {
+  const child = Bun.spawn(
+    ["railway", "variable", "delete", key, "--service", service, "--skip-deploys"],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  if ((await child.exited) !== 0) throw new Error(`Could not delete ${key} for ${service}`);
+}
+
+function reportStale(service: string, stale: readonly string[]): void {
+  if (stale.length === 0) return;
+  console.log(`${service}: ${stale.length} variable(s) the service no longer takes`);
+  for (const key of stale) {
+    const flag = /KEY|SECRET|TOKEN|PASSWORD|XPUB|SEED/.test(key) ? "  SENSITIVE" : "";
+    console.log(`  ${key}${flag}`);
+  }
+  if (!prune) console.log("  rerun with --prune to delete them");
+}
+
 const args = process.argv.slice(2);
+const prune = args.includes("--prune");
 const dryRun = args.includes("--dry-run");
 const requestedService = args.find((arg) => !arg.startsWith("--"));
 const selectedPolicies =
@@ -152,6 +185,7 @@ for (const policy of selectedPolicies) {
       .filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ""),
   );
   const variables = { ...policy.overrides, ...local };
+  const stale = (await remoteKeys(policy.name)).filter((key) => !(key in variables)).sort();
 
   if (dryRun) {
     console.log(`\n${policy.name}: ${Object.keys(variables).length} key(s) would be set`);
@@ -159,6 +193,7 @@ for (const policy of selectedPolicies) {
       const source = key in policy.overrides ? "override" : "local";
       console.log(`  ${key.padEnd(34)} ${source.padEnd(8)} ${preview(key, value)}`);
     }
+    reportStale(policy.name, stale);
     continue;
   }
 
@@ -167,6 +202,11 @@ for (const policy of selectedPolicies) {
   );
 
   console.log(`[railway:env] ${policy.name}: synchronized ${Object.keys(variables).length} keys`);
+  reportStale(policy.name, stale);
+  if (prune) {
+    await inBatches(stale, 8, (key) => deleteVariable(policy.name, key));
+    console.log(`[railway:env] ${policy.name}: deleted ${stale.length} stale key(s)`);
+  }
 }
 
 // A module, so top-level `await` is allowed.
