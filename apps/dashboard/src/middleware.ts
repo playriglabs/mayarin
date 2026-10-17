@@ -68,6 +68,20 @@ const PERMISSION_PREFIXES: ReadonlyArray<readonly [string, Permission]> = [
   ["/settings", "settings:manage"],
 ];
 
+/**
+ * Headers a `<meta>` CSP cannot carry (SEC-08). Script and style sources are
+ * the CSP in `astro.config.mjs`; framing, HSTS, sniffing and referrers have to
+ * be real response headers.
+ */
+const SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = [
+  ["content-security-policy", "frame-ancestors 'none'"],
+  ["strict-transport-security", "max-age=31536000; includeSubDomains"],
+  ["x-content-type-options", "nosniff"],
+  ["x-frame-options", "DENY"],
+  ["referrer-policy", "strict-origin-when-cross-origin"],
+  ["permissions-policy", "camera=(), microphone=(), geolocation=(), payment=()"],
+];
+
 export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.user = undefined;
 
@@ -108,5 +122,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     if (missing !== undefined) return context.redirect("/");
   }
 
-  return next();
+  const response = await next();
+  for (const [name, value] of SECURITY_HEADERS) response.headers.set(name, value);
+  return response;
 });

@@ -12,6 +12,26 @@ const localDev = process.env.MAYARIN_DASHBOARD_LOCAL_DEV === "true";
 export default defineConfig({
   output: "server",
   devToolbar: { enabled: false },
+  // Scripts are limited to the hashes Astro computes for its own bundles and
+  // inline scripts, so an injected `<script>` does not run (SEC-08, SEC-19).
+  // Styles keep 'unsafe-inline': the React islands' libraries inject <style>
+  // tags at runtime and a hash cannot cover those. Images allow https: because a
+  // merchant's logo is a URL they chose, and data: for EIP-6963 wallet icons.
+  // The browser only ever talks to this origin: /api/* is proxied.
+  security: {
+    csp: {
+      directives: [
+        "default-src 'self'",
+        "img-src 'self' data: https:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ],
+      styleDirective: { resources: ["'self'", "'unsafe-inline'"] },
+    },
+  },
   // The Cloudflare Vite runner currently crashes during Astro development with
   // `Missing field moduleType` (workers-sdk#15129). Local development uses the
   // Vite API proxy below and no Worker bindings, so keep the production adapter

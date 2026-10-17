@@ -8,9 +8,10 @@
  * spinner. The API stays the only origin; the bundle ships inside its image.
  */
 
+import { createHash } from "node:crypto";
 import { join, normalize } from "node:path";
 import { ConfigurationError, NotFoundError } from "@mayarin/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { Container } from "../container.ts";
 
 /** What the shell's `<head>` carries in place of this exact comment. */
@@ -49,11 +50,38 @@ export function requestOrigin(
  * string, `<` is the same character, but the HTML parser never sees a tag.
  */
 export function bootstrapScript(bootstrap: object): string {
+  return `<script>${bootstrapSource(bootstrap)}</script>`;
+}
+
+function bootstrapSource(bootstrap: object): string {
   const json = JSON.stringify(bootstrap)
     .replace(/</g, "\\u003c")
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
-  return `<script>window.__BOOTSTRAP__ = ${json}</script>`;
+  return `window.__BOOTSTRAP__ = ${json}`;
+}
+
+/**
+ * The page's content security policy (SEC-19).
+ *
+ * The only inline script is the bootstrap, so it is allowed by its own hash and
+ * every other script must come from this origin: an injected `<script>` does
+ * not run. Styles keep `'unsafe-inline'` because React sets style attributes.
+ * Images allow `https:` for merchant logos and `data:` for the QR. There is no
+ * `frame-ancestors`: the hosted page is what the embed puts in an iframe.
+ */
+export function shellCsp(bootstrap: object): string {
+  const hash = createHash("sha256").update(bootstrapSource(bootstrap)).digest("base64");
+  return [
+    "default-src 'none'",
+    `script-src 'self' 'sha256-${hash}'`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "base-uri 'none'",
+    "form-action 'self'",
+  ].join("; ");
 }
 
 /**
@@ -63,7 +91,10 @@ export function bootstrapScript(bootstrap: object): string {
  * (with new hashed asset names) during development, and one small file read is
  * nothing next to the database work every page here already does.
  */
-export async function renderShell(distDir: string, bootstrap: object): Promise<string> {
+export async function renderShell(
+  distDir: string,
+  bootstrap: object,
+): Promise<{ html: string; headers: Record<string, string> }> {
   const shell = Bun.file(join(distDir, "index.html"));
   if (!(await shell.exists())) {
     throw new ConfigurationError(
@@ -78,7 +109,24 @@ export async function renderShell(distDir: string, bootstrap: object): Promise<s
       { distDir },
     );
   }
-  return html.replace(PLACEHOLDER, bootstrapScript(bootstrap));
+  return {
+    html: html.replace(PLACEHOLDER, () => bootstrapScript(bootstrap)),
+    headers: {
+      "content-security-policy": shellCsp(bootstrap),
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "no-referrer",
+    },
+  };
+}
+
+/** A page: the shell with its bootstrap injected, under its own CSP. */
+export async function shellResponse(
+  c: Context,
+  distDir: string,
+  bootstrap: object,
+): Promise<Response> {
+  const page = await renderShell(distDir, bootstrap);
+  return c.html(page.html, 200, page.headers);
 }
 
 /**

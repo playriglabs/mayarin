@@ -34,7 +34,7 @@ import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
 import { merchantLogoUrl } from "../merchant-logo.ts";
 import { linkRails, payerRails } from "../rails.ts";
-import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
+import { requestOrigin, shellResponse } from "../services/checkout-shell.ts";
 import { fetchLogo } from "../services/document-pdf.ts";
 import { type ProtectionOffer, protectionOffer } from "../services/protection.ts";
 
@@ -208,38 +208,36 @@ export function checkoutPageRoutes(container: Container): Hono {
             lockMinutes: Math.max(1, Math.round(container.config.paymentIntentTtlSeconds / 60)),
           };
 
-    return c.html(
-      await renderShell(distDir, {
-        page: "pay",
-        intentId: intent.id,
-        amount: toMoneyDto(intent.amount),
-        merchant: {
-          name: intent.merchant.name,
-          city: intent.merchant.city,
-          logoUrl: await merchantLogoUrl(container, intent.merchant.id),
-        },
-        title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
-        // A counter QR's only line is its own title at the amount typed, which
-        // the heading above already says.
-        lines:
-          paymentLink?.kind === "open"
-            ? null
-            : await intentLines(container, intent.metadata[CART_METADATA_KEY]),
-        expiresAt: intent.expiresAt.toISOString(),
-        statusUrl: `${origin}/v1/payments/${intent.id}`,
-        streaming: container.stream !== undefined,
-        successUrl: successUrl ?? null,
-        pollMs: POLL_MS,
-        choice,
-        // Offered only while the rail is being chosen; the paid page reads the
-        // escrow itself.
-        protection:
-          choice === null
-            ? null
-            : await protectionOffer(container, intent.merchant.id, intent.escrow),
-        escrowed: intent.escrow !== undefined,
-      }),
-    );
+    return shellResponse(c, distDir, {
+      page: "pay",
+      intentId: intent.id,
+      amount: toMoneyDto(intent.amount),
+      merchant: {
+        name: intent.merchant.name,
+        city: intent.merchant.city,
+        logoUrl: await merchantLogoUrl(container, intent.merchant.id),
+      },
+      title: paymentLink?.title ?? intent.merchantReference ?? intent.merchant.name,
+      // A counter QR's only line is its own title at the amount typed, which
+      // the heading above already says.
+      lines:
+        paymentLink?.kind === "open"
+          ? null
+          : await intentLines(container, intent.metadata[CART_METADATA_KEY]),
+      expiresAt: intent.expiresAt.toISOString(),
+      statusUrl: `${origin}/v1/payments/${intent.id}`,
+      streaming: container.stream !== undefined,
+      successUrl: successUrl ?? null,
+      pollMs: POLL_MS,
+      choice,
+      // Offered only while the rail is being chosen; the paid page reads the
+      // escrow itself.
+      protection:
+        choice === null
+          ? null
+          : await protectionOffer(container, intent.merchant.id, intent.escrow),
+      escrowed: intent.escrow !== undefined,
+    });
   });
 
   /**
@@ -273,26 +271,25 @@ export function checkoutPageRoutes(container: Container): Hono {
     const report = await container.rails.describe(link.merchant.id);
     const offered = linkRails(report, link);
 
-    return c.html(
-      await renderShell(
-        distDir,
-        await linkBootstrap({
-          link,
-          payable,
-          preview,
-          rails: await payerRails(offered),
-          unpayableReason:
-            offeredByLink && !priceable
-              ? "This catalog price is no longer available. Contact the merchant for an updated payment link."
-              : payable && offered.length === 0 && link.rails !== undefined
-                ? `This link only accepts ${link.rails.map((rail) => `${rail.asset} on ${chainLabel(rail.chain)}`).join(", ")}, which the merchant cannot be paid on right now.`
-                : null,
-          ttlSeconds: container.config.paymentIntentTtlSeconds,
-          products: container.catalog,
-          protection: await protectionOffer(container, link.merchant.id, undefined),
-          logoUrl: await merchantLogoUrl(container, link.merchant.id),
-        }),
-      ),
+    return shellResponse(
+      c,
+      distDir,
+      await linkBootstrap({
+        link,
+        payable,
+        preview,
+        rails: await payerRails(offered),
+        unpayableReason:
+          offeredByLink && !priceable
+            ? "This catalog price is no longer available. Contact the merchant for an updated payment link."
+            : payable && offered.length === 0 && link.rails !== undefined
+              ? `This link only accepts ${link.rails.map((rail) => `${rail.asset} on ${chainLabel(rail.chain)}`).join(", ")}, which the merchant cannot be paid on right now.`
+              : null,
+        ttlSeconds: container.config.paymentIntentTtlSeconds,
+        products: container.catalog,
+        protection: await protectionOffer(container, link.merchant.id, undefined),
+        logoUrl: await merchantLogoUrl(container, link.merchant.id),
+      }),
     );
   });
 

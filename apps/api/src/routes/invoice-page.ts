@@ -22,7 +22,7 @@ import { toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
 import { merchantLogoUrl } from "../merchant-logo.ts";
 import { payerRails } from "../rails.ts";
-import { renderShell, requestOrigin } from "../services/checkout-shell.ts";
+import { requestOrigin, shellResponse } from "../services/checkout-shell.ts";
 import { type ProtectionOffer, protectionOffer } from "../services/protection.ts";
 
 export function invoicePageRoutes(container: Container): Hono {
@@ -43,17 +43,16 @@ export function invoicePageRoutes(container: Container): Hono {
       subscriptionId === undefined
         ? null
         : (await container.subscriptions.find(view.invoice.merchantId, subscriptionId)).interval;
-    return c.html(
-      await renderShell(
-        distDir,
-        invoiceBootstrap(
-          view,
-          `${origin}/v1/invoices/${view.invoice.id}/checkout`,
-          await payerRails(report.rails),
-          await protectionOffer(container, view.invoice.merchantId, undefined),
-          await merchantLogoUrl(container, view.invoice.merchantId),
-          interval,
-        ),
+    return shellResponse(
+      c,
+      distDir,
+      invoiceBootstrap(
+        view,
+        `${origin}/v1/invoices/${view.invoice.id}/checkout`,
+        await payerRails(report.rails),
+        await protectionOffer(container, view.invoice.merchantId, undefined),
+        await merchantLogoUrl(container, view.invoice.merchantId),
+        interval,
       ),
     );
   });
