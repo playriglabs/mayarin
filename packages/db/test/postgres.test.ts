@@ -27,6 +27,9 @@ import {
   ClearingEngine,
   type ClearingTransaction,
   createClearingTransaction,
+  createRefund,
+  markRefundFailed,
+  type Refund,
   StaticRateProvider,
 } from "@mayarin/clearing";
 import { LedgerService } from "@mayarin/ledger";
@@ -61,6 +64,7 @@ import {
   DrizzleWebhookOutbox,
 } from "../src/repositories/notifications.ts";
 import { DrizzlePaymentIntentRepository } from "../src/repositories/payment-intent.ts";
+import { DrizzleRefundRepository } from "../src/repositories/refund.ts";
 import {
   DrizzleMerchantWalletRepository,
   DrizzleWalletWithdrawalRepository,
@@ -365,6 +369,34 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     expect(transaction.fee).toEqual(money(25_000n, "USDC"));
     expect(transaction.netAmount).toEqual(money(4_975_000n, "USDC"));
     expect((await intents.getById(intent.id)).status).toBe("COMPLETED");
+  });
+
+  test("the database refuses refunds past the settled amount, even without the service's lock (SEC-02)", async () => {
+    const transaction = await engine.start(await confirmedIntent());
+    const refunds = new DrizzleRefundRepository(handle.db);
+    const refund = (amount: bigint) =>
+      createRefund({
+        clearingTransactionId: transaction.id,
+        paymentIntentId: transaction.paymentIntentId,
+        merchantId: transaction.merchant.id,
+        amount: money(amount, "USDC"),
+        now: clock.now(),
+      });
+
+    // Net is 4,975,000. Two concurrent inserts of 3,000,000 each cannot both land.
+    const outcomes = await Promise.allSettled([
+      refunds.insert(refund(3_000_000n)),
+      refunds.insert(refund(3_000_000n)),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toHaveLength(1);
+
+    // A failed refund has not used the balance, so the remainder is still refundable.
+    const stored = await refunds.listByClearingTransactionId(transaction.id);
+    expect(stored).toHaveLength(1);
+    await refunds.update(markRefundFailed(stored[0] as Refund, "rail said no", clock.now()));
+    await refunds.insert(refund(4_975_000n));
+    await expect(refunds.insert(refund(1n))).rejects.toThrow();
   });
 
   test("persists the locked rate and the full event history", async () => {

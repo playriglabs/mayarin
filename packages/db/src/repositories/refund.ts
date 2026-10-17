@@ -8,7 +8,7 @@
  */
 
 import type { Refund, RefundRepository, RefundState } from "@mayarin/clearing";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, lt, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction, toMoney } from "../mapping.ts";
 import { refunds } from "../schema.ts";
@@ -54,6 +54,15 @@ export class DrizzleRefundRepository implements RefundRepository {
       .where(eq(refunds.idempotencyKey, key))
       .limit(1);
     return row === undefined ? null : toDomain(row);
+  }
+
+  async listPendingBefore(before: Date): Promise<readonly Refund[]> {
+    const rows = await this.#db
+      .select()
+      .from(refunds)
+      .where(and(eq(refunds.state, "PENDING"), lt(refunds.updatedAt, before)))
+      .orderBy(asc(refunds.createdAt));
+    return rows.map(toDomain);
   }
 
   /** Oldest first: the sum that bounds a new refund reads in the order it accrued. */

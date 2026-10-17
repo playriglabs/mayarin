@@ -384,6 +384,7 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     /** Fires a change as Postgres would, once `stream.start()` has run. */
     notifyPayment: (paymentIntentId: string) => notify?.(paymentIntentId),
     refundRepository,
+    clearingRepository,
     /** Mints an extra key, for tests about other merchants or lesser permissions. */
     mintApiKey,
     /** The key store behind `verifyApiKey`, for tests that deactivate a key. */

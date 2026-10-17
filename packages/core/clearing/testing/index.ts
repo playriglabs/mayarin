@@ -256,6 +256,12 @@ export class InMemoryRefundRepository implements RefundRepository {
     return this.#byId.get(id) ?? null;
   }
 
+  async listPendingBefore(before: Date): Promise<readonly Refund[]> {
+    return [...this.#byId.values()].filter(
+      (refund) => refund.state === "PENDING" && refund.updatedAt < before,
+    );
+  }
+
   async findByIdempotencyKey(key: string): Promise<Refund | null> {
     const id = this.#byIdempotencyKey.get(key);
     return id === undefined ? null : (this.#byId.get(id) ?? null);
