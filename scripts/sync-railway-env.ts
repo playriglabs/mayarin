@@ -5,6 +5,7 @@
  *   bun run scripts/sync-railway-env.ts core-api         one service
  *   bun run scripts/sync-railway-env.ts --dry-run        show, change nothing
  *   bun run scripts/sync-railway-env.ts --prune          also delete variables the service no longer takes
+ *   bun run scripts/sync-railway-env.ts --keep-database-url  leave DATABASE_URL alone (per-service roles, SEC-05)
  *
  * This overwrites the deployed environment with whatever is in the local `.env`,
  * one key at a time, and there is no undo. `--dry-run` exists because the
@@ -224,6 +225,7 @@ function reportStale(service: string, stale: readonly string[]): void {
 const failed: string[] = [];
 const args = process.argv.slice(2);
 const prune = args.includes("--prune");
+const keepDatabaseUrl = args.includes("--keep-database-url");
 const dryRun = args.includes("--dry-run");
 const requestedService = args.find((arg) => !arg.startsWith("--"));
 const selectedPolicies =
@@ -253,7 +255,10 @@ for (const policy of selectedPolicies) {
       .map((key) => [key, process.env[key]])
       .filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ""),
   );
-  const variables = { ...policy.overrides, ...local };
+  const variables: Record<string, string> = { ...policy.overrides, ...local };
+  // Once a service connects as its own database role, the shared reference
+  // would overwrite that role's connection string with the owner's.
+  if (keepDatabaseUrl) delete variables.DATABASE_URL;
   // Stale means the config no longer reads it. A key the config reads but the local
   // `.env` leaves unset is live on Railway and must not be reported, let alone pruned.
   const known = new Set([...configuredKeys(source), ...Object.keys(policy.overrides)]);
