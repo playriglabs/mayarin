@@ -12,12 +12,19 @@
  * feature the deployment has switched on is a silent regression, not an error.
  */
 
+import {
+  type SecretPolicy,
+  unexpectedRemoteSecrets,
+  unreviewedKeys,
+} from "./railway-env-policy.ts";
+
 const DERIVED_KEYS = new Set(["DATABASE_URL", "PUBLIC_BASE_URL"]);
 
 interface ServicePolicy {
   readonly name: "core-api" | "dashboard-api" | "chain-worker";
   readonly configPath: string;
-  readonly excludedKeys?: ReadonlySet<string>;
+  /** Reviewed credentials (SEC-05): see railway-env-policy.ts. */
+  readonly secrets: SecretPolicy;
   readonly overrides: Readonly<Record<string, string>>;
 }
 
@@ -42,6 +49,26 @@ const policies: readonly ServicePolicy[] = [
      */
     name: "core-api",
     configPath: "apps/api/src/config.ts",
+    secrets: {
+      allowed: new Set([
+        "ADMIN_TOKEN",
+        "DEPOSIT_XPUB",
+        "LIFI_API_KEY",
+        "MOCK_WEBHOOK_SECRET",
+        "OPERATOR_PRIVATE_KEY",
+        "PYTH_API_KEY",
+        "QUOTE_SIGNER_PRIVATE_KEY",
+        "RESEND_API_KEY",
+        "SOLANA_DEPOSIT_SEED",
+        "SOLANA_ORDER_SIGNER_SECRET_KEY",
+        "TRANSFI_PASSWORD",
+        "TRANSFI_WEBHOOK_SECRET",
+        "TURNKEY_API_PRIVATE_KEY",
+        "ZERO_EX_API_KEY",
+      ]),
+      // Inbound-webhook and admin credentials only authenticate HTTP requests.
+      withheld: new Set<string>(),
+    },
     overrides: {
       DASHBOARD_URL: "https://dashboard-testnet.mayarin.xyz",
       DATABASE_URL: "$" + "{{Postgres.DATABASE_URL}}",
@@ -55,6 +82,18 @@ const policies: readonly ServicePolicy[] = [
   {
     name: "dashboard-api",
     configPath: "apps/dashboard-api/src/config.ts",
+    secrets: {
+      allowed: new Set([
+        "MFA_ENCRYPTION_KEY",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "RESEND_API_KEY",
+        "TURNKEY_API_PRIVATE_KEY",
+        "WALLET_DEPLOYER_PRIVATE_KEY",
+      ]),
+      // Inbound-webhook and admin credentials only authenticate HTTP requests.
+      withheld: new Set<string>(),
+    },
     overrides: {
       COOKIE_SECURE: "true",
       DASHBOARD_API_PORT: "3001",
@@ -68,6 +107,23 @@ const policies: readonly ServicePolicy[] = [
   {
     name: "chain-worker",
     configPath: "apps/api/src/config.ts",
+    secrets: {
+      allowed: new Set([
+        "DEPOSIT_XPUB",
+        "LIFI_API_KEY",
+        "OPERATOR_PRIVATE_KEY",
+        "PYTH_API_KEY",
+        "QUOTE_SIGNER_PRIVATE_KEY",
+        "RESEND_API_KEY",
+        "SOLANA_DEPOSIT_SEED",
+        "SOLANA_ORDER_SIGNER_SECRET_KEY",
+        "TRANSFI_PASSWORD",
+        "TURNKEY_API_PRIVATE_KEY",
+        "ZERO_EX_API_KEY",
+      ]),
+      // Inbound-webhook and admin credentials only authenticate HTTP requests.
+      withheld: new Set(["ADMIN_TOKEN", "MOCK_WEBHOOK_SECRET", "TRANSFI_WEBHOOK_SECRET"]),
+    },
     overrides: {
       DASHBOARD_URL: "https://dashboard-testnet.mayarin.xyz",
       DATABASE_URL: "$" + "{{Postgres.DATABASE_URL}}",
@@ -165,6 +221,7 @@ function reportStale(service: string, stale: readonly string[]): void {
   if (!prune) console.log("  rerun with --prune to delete them");
 }
 
+const failed: string[] = [];
 const args = process.argv.slice(2);
 const prune = args.includes("--prune");
 const dryRun = args.includes("--dry-run");
@@ -180,11 +237,18 @@ if (selectedPolicies.length === 0) {
 
 for (const policy of selectedPolicies) {
   const source = await Bun.file(policy.configPath).text();
+  const unreviewed = unreviewedKeys(configuredKeys(source), policy.secrets);
+  if (unreviewed.length > 0) {
+    throw new Error(
+      `${policy.name}: config reads credential(s) with no reviewed decision: ${unreviewed.join(", ")}. ` +
+        "Add each to `secrets.allowed` or `secrets.withheld` in scripts/sync-railway-env.ts.",
+    );
+  }
   const local = Object.fromEntries(
     configuredKeys(source)
       .filter(
         (key) =>
-          !DERIVED_KEYS.has(key) && !policy.excludedKeys?.has(key) && !(key in policy.overrides),
+          !DERIVED_KEYS.has(key) && !policy.secrets.withheld.has(key) && !(key in policy.overrides),
       )
       .map((key) => [key, process.env[key]])
       .filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== ""),
@@ -193,7 +257,12 @@ for (const policy of selectedPolicies) {
   // Stale means the config no longer reads it. A key the config reads but the local
   // `.env` leaves unset is live on Railway and must not be reported, let alone pruned.
   const known = new Set([...configuredKeys(source), ...Object.keys(policy.overrides)]);
-  const stale = (await remoteKeys(policy.name)).filter((key) => !known.has(key)).sort();
+  const remote = await remoteKeys(policy.name);
+  const forbidden = unexpectedRemoteSecrets(remote, policy.secrets);
+  // A credential the policy does not allow is removed with the stale ones, and
+  // fails the run when it is left in place.
+  const stale = [...new Set([...remote.filter((key) => !known.has(key)), ...forbidden])].sort();
+  if (!prune) for (const key of forbidden) failed.push(`  ${policy.name}: ${key}`);
 
   if (dryRun) {
     console.log(`\n${policy.name}: ${Object.keys(variables).length} key(s) would be set`);
@@ -217,5 +286,9 @@ for (const policy of selectedPolicies) {
   }
 }
 
-// A module, so top-level `await` is allowed.
-export {};
+if (failed.length > 0) {
+  console.error(
+    `[railway:env] credentials on a service that its policy does not allow:\n${failed.join("\n")}`,
+  );
+  process.exit(1);
+}
