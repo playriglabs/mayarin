@@ -393,6 +393,13 @@
       "when": 1792221789844,
       "tag": "0055_refund_balance_invariant",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1792223319837,
+      "tag": "0056_append_only_tables",
+      "breakpoints": true
     }
   ]
 }

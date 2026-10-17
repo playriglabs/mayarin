@@ -399,6 +399,31 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     await expect(refunds.insert(refund(1n))).rejects.toThrow();
   });
 
+  test("the ledger and the clearing history cannot be rewritten (SEC-14, SEC-22)", async () => {
+    const transaction = await engine.start(await confirmedIntent());
+    expect(transaction.state).toBe("SUCCESS");
+
+    for (const statement of [
+      sql`update ledger_entries set amount = amount + 1`,
+      sql`delete from ledger_entries`,
+      sql`update ledger_transactions set description = 'x'`,
+      sql`delete from clearing_events`,
+      sql`update clearing_events set to_state = 'FAILED'`,
+    ]) {
+      await expect(
+        (async () => {
+          await handle.db.execute(statement);
+        })(),
+      ).rejects.toThrow();
+    }
+
+    // Reading and appending are untouched; the payment above wrote through both.
+    const rows = (await handle.db.execute(
+      sql`select count(*)::int as count from ledger_entries`,
+    )) as unknown as { count: number }[];
+    expect(rows[0]?.count).toBeGreaterThan(0);
+  });
+
   test("persists the locked rate and the full event history", async () => {
     const transaction = await engine.start(await confirmedIntent());
 
