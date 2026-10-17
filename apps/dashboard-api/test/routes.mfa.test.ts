@@ -50,6 +50,39 @@ async function enrol(harness: Harness) {
   return { auth, secret, setup, confirmed };
 }
 
+describe("other sessions", () => {
+  /** `/me` answers 200 either way; a signed-out caller just has no user. */
+  async function signedIn(harness: Harness, auth: { jar: Record<string, string> }) {
+    const me = await harness.request("GET", "/v1/auth/me", { cookies: auth.jar });
+    return me.body?.user !== null;
+  }
+
+  test("enabling the second factor signs out every other device, and the current one stays", async () => {
+    const harness = await seeded();
+    const stolen = await signIn(harness);
+    const current = await signIn(harness);
+    const setup = await post(harness, current, "/v1/auth/mfa/setup", {});
+    const secret = setup.body?.secret as string;
+
+    await post(harness, current, "/v1/auth/mfa/verify", { code: totpCode(secret, STEP) });
+
+    expect(await signedIn(harness, stolen)).toBe(false);
+    expect(await signedIn(harness, current)).toBe(true);
+  });
+
+  test("a session can sign out every other one on request", async () => {
+    const harness = await seeded();
+    const other = await signIn(harness);
+    const current = await signIn(harness);
+
+    const res = await post(harness, current, "/v1/auth/sessions/revoke-others", {});
+
+    expect(res.status).toBe(200);
+    expect(await signedIn(harness, other)).toBe(false);
+    expect(await signedIn(harness, current)).toBe(true);
+  });
+});
+
 describe("enrolment", () => {
   test("setup hands out a scannable secret and enforces nothing until it is confirmed", async () => {
     const harness = await seeded();

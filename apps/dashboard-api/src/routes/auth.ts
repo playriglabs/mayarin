@@ -96,13 +96,22 @@ export function authRoutes(container: Container): Hono<{ Variables: AuthVars }> 
     const verified = requireSession(c);
     const { code } = mfaCodeBodySchema.parse(await c.req.json());
     const recoveryCodes = await container.mfa.confirmSetup(verified.user, code);
+    await container.sessions.revokeOthers(verified.user.id, verified.session.id);
     return c.json({ enabled: true, recoveryCodes });
+  });
+
+  /** Signs out every other device. */
+  app.post("/sessions/revoke-others", requireAuth(), csrfMiddleware(), async (c) => {
+    const verified = requireSession(c);
+    await container.sessions.revokeOthers(verified.user.id, verified.session.id);
+    return c.json({ revoked: true });
   });
 
   app.post("/mfa/disable", requireAuth(), csrfMiddleware(), async (c) => {
     const verified = requireSession(c);
     const { code } = mfaCodeBodySchema.parse(await c.req.json());
     await container.mfa.disable(verified.user, code);
+    await container.sessions.revokeOthers(verified.user.id, verified.session.id);
     return c.json({ enabled: false });
   });
 

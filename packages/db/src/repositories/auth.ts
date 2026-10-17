@@ -36,7 +36,7 @@ import {
   isAssetCode,
   ValidationError,
 } from "@mayarin/shared";
-import { and, desc, eq, gt, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, ne } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import { present, runInTransaction } from "../mapping.ts";
 import {
@@ -319,6 +319,19 @@ export class DrizzleSessionRepository implements SessionRepository {
       .update(sessions)
       .set({ revokedAt })
       .where(eq(sessions.id, sessionKey(id)));
+  }
+
+  async revokeOthers(userId: string, keepId: string, revokedAt: Date): Promise<void> {
+    await this.#db
+      .update(sessions)
+      .set({ revokedAt })
+      .where(
+        and(
+          eq(sessions.userId, userId),
+          ne(sessions.id, sessionKey(keepId)),
+          isNull(sessions.revokedAt),
+        ),
+      );
   }
 
   async deleteExpired(now: Date): Promise<number> {

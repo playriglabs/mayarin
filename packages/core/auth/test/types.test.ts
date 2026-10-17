@@ -83,6 +83,7 @@ describe("auth domain types", () => {
         return null;
       },
       async revoke() {},
+      async revokeOthers() {},
       async deleteExpired() {
         return 0;
       },

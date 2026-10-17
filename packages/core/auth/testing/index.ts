@@ -214,6 +214,14 @@ export class InMemorySessionRepository implements SessionRepository {
     this.#byId.set(id, { ...session, revokedAt });
   }
 
+  async revokeOthers(userId: string, keepId: string, revokedAt: Date): Promise<void> {
+    for (const [id, session] of this.#byId) {
+      if (session.userId === userId && id !== keepId && session.revokedAt === undefined) {
+        this.#byId.set(id, { ...session, revokedAt });
+      }
+    }
+  }
+
   async deleteExpired(now: Date): Promise<number> {
     const expired: string[] = [];
     for (const [id, session] of this.#byId) {
