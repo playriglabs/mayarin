@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { bootstrapScript, requestOrigin } from "../src/services/checkout-shell.ts";
+import { createHash } from "node:crypto";
+import { bootstrapScript, requestOrigin, shellCsp } from "../src/services/checkout-shell.ts";
 import { createApiHarness } from "./harness.ts";
 
 describe("bootstrap script", () => {
@@ -16,6 +17,20 @@ describe("bootstrap script", () => {
     // The escape is lossless: the parsed value is the original string.
     const json = script.replace("<script>window.__BOOTSTRAP__ = ", "").replace("</script>", "");
     expect(JSON.parse(json).name).toBe("</script><script>alert(1)</script>");
+  });
+});
+
+describe("shell CSP", () => {
+  test("allows exactly the bootstrap script by hash, and no other inline script", () => {
+    const bootstrap = { name: "</script><script>alert(1)</script>" };
+    const source = bootstrapScript(bootstrap)
+      .replace("<script>", "")
+      .replace(/<\/script>$/, "");
+    const hash = createHash("sha256").update(source).digest("base64");
+    const csp = shellCsp(bootstrap);
+    expect(csp).toContain(`script-src 'self' 'sha256-${hash}'`);
+    expect(csp).not.toMatch(/script-src[^;]*unsafe/);
+    expect(csp).toContain("default-src 'none'");
   });
 });
 
