@@ -49,6 +49,10 @@ const configSchema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((value) => value === "true"),
+  /** Hours a newly verified wallet must wait before it can receive a withdrawal (SEC-16). */
+  withdrawCoolingOffHours: z.coerce.number().int().nonnegative().default(24),
+  /** Most one merchant may withdraw per rolling 24 hours, in whole units of the asset (SEC-16). */
+  withdrawDailyLimit: z.coerce.bigint().positive().default(10_000n),
   /** Per-client request budget for the versioned dashboard API. */
   rateLimitRequests: z.coerce.number().int().positive().default(120),
   /** Seconds required to refill a fully exhausted request budget. */
@@ -263,6 +267,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     databaseUrl: env.DATABASE_URL,
     sessionTtlSeconds: env.SESSION_TTL_SECONDS,
     mfaEncryptionKey: env.MFA_ENCRYPTION_KEY,
+    withdrawCoolingOffHours: env.WITHDRAW_COOLING_OFF_HOURS,
+    withdrawDailyLimit: env.WITHDRAW_DAILY_LIMIT,
     cookieSecure: env.COOKIE_SECURE,
     rateLimitRequests: env.DASHBOARD_RATE_LIMIT_REQUESTS,
     rateLimitWindowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,

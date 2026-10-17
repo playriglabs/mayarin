@@ -543,6 +543,8 @@ export function createContainer(options: CreateContainerOptions): Container {
     merchants,
     chains,
     provisionChains: config.walletProvisionChains,
+    withdrawCoolingOffSeconds: config.withdrawCoolingOffHours * 3_600,
+    withdrawDailyLimit: config.withdrawDailyLimit,
     settlementAddresses,
     ...(balanceReader === undefined ? {} : { balances: balanceReader }),
     ...(walletProvider === undefined ? {} : { walletProvider }),
