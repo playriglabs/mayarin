@@ -19,6 +19,7 @@
 #   ./scripts/deploy.sh arbitrum-sepolia             # all three steps
 #   ./scripts/deploy.sh arc-testnet --dry            # simulate, broadcast nothing
 #   ./scripts/deploy.sh arc-testnet --factory-only   # router already deployed
+#   ./scripts/deploy.sh arc-testnet --router-only    # new router, keep the forwarder factory
 #
 # The per-chain values that are not addresses live in the table below; the
 # addresses (MULTISIG, GUARDIAN, FEE_RECIPIENT, SIGNER, SETTLEMENT_TOKENS,
@@ -32,10 +33,11 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet> [--dry] [--factory-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet> [--dry] [--factory-only|--router-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
+ROUTER_ONLY=false
 for flag in "${@:2}"; do
   case "$flag" in
     --dry) DRY_RUN=true ;;
@@ -43,9 +45,16 @@ for flag in "${@:2}"; do
     # factory — re-running the whole script would deploy a second router and
     # orphan the one the API is configured against.
     --factory-only) FACTORY_ONLY=true ;;
+    # A new router (a contract change, a key rotation) does not touch deposit
+    # addresses. Redeploying the factory would orphan every address a payer
+    # has already been shown, so it is left alone.
+    --router-only) ROUTER_ONLY=true ;;
     *) echo "unknown flag \"$flag\""; exit 1 ;;
   esac
 done
+
+[[ "$FACTORY_ONLY" == false || "$ROUTER_ONLY" == false ]] || {
+  echo "--factory-only and --router-only exclude each other"; exit 1; }
 
 # macOS ships bash 3.2 — no associative arrays. One case, four facts.
 case "$CHAIN" in
@@ -115,8 +124,10 @@ done
 
 # The forwarder factory needs a sweep destination. It defaults to the operator's
 # own address, so one of the two has to be set.
-[[ -n "${DESTINATION:-}" || -n "${OPERATOR_PRIVATE_KEY:-}" ]] || {
-  echo "missing DESTINATION or OPERATOR_PRIVATE_KEY in $ENV_FILE"; exit 1; }
+if [[ "$ROUTER_ONLY" == false ]]; then
+  [[ -n "${DESTINATION:-}" || -n "${OPERATOR_PRIVATE_KEY:-}" ]] || {
+    echo "missing DESTINATION or OPERATOR_PRIVATE_KEY in $ENV_FILE"; exit 1; }
+fi
 
 # The addresses the constructor and the configure step whitelist are derived
 # from CHAIN_ASSETS, which is where this deployment already names its tokens per
@@ -234,6 +245,11 @@ forge build
 forge test
 
 BROADCAST_FLAGS=(--rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY")
+# Extra forge flags for one run, e.g. FORGE_EXTRA_FLAGS="--gas-estimate-multiplier 300".
+# Ethereum Sepolia under-estimates the timelock deploy and the transaction fails
+# on chain; the fix is a larger estimate, not a code change.
+# shellcheck disable=SC2206
+BROADCAST_FLAGS+=(${FORGE_EXTRA_FLAGS:-})
 if [[ "$DRY_RUN" == false ]]; then
   BROADCAST_FLAGS+=(--broadcast)
   if [[ "$VERIFIER" == "blockscout" ]]; then
@@ -265,12 +281,14 @@ fi
 # DEPOSIT_FORWARDER_INIT_CODE_HASH holds exactly one. The check after the
 # broadcast is what catches it, because the symptom otherwise is a payer sending
 # to an address nothing can sweep.
-echo
-echo "==> DeployDepositForwarderFactory"
-export DESTINATION="${DESTINATION:-$(cast wallet address --private-key "$OPERATOR_PRIVATE_KEY")}"
-echo "destination: $DESTINATION"
-forge script scripts/DeployDepositForwarderFactory.s.sol:DeployDepositForwarderFactory \
-  "${BROADCAST_FLAGS[@]}"
+if [[ "$ROUTER_ONLY" == false ]]; then
+  echo
+  echo "==> DeployDepositForwarderFactory"
+  export DESTINATION="${DESTINATION:-$(cast wallet address --private-key "$OPERATOR_PRIVATE_KEY")}"
+  echo "destination: $DESTINATION"
+  forge script scripts/DeployDepositForwarderFactory.s.sol:DeployDepositForwarderFactory \
+    "${BROADCAST_FLAGS[@]}"
+fi
 
 if [[ "$DRY_RUN" == true ]]; then
   echo
@@ -294,25 +312,29 @@ DEPLOY_BLOCK="$(jq -r 'first(.receipts[].blockNumber)' "$RUN_LATEST" | xargs pri
 [[ "$PAYMENT_ROUTER" != "null" && -n "$PAYMENT_ROUTER" ]] || {
   echo "could not read PaymentRouter address from $RUN_LATEST"; exit 1; }
 
-FORWARDER_RUN="broadcast/DeployDepositForwarderFactory.s.sol/$CHAIN_ID/run-latest.json"
-FORWARDER_FACTORY="$(jq -r \
-  'first(.transactions[] | select(.contractName == "DepositForwarderFactory") | .contractAddress)' \
-  "$FORWARDER_RUN")"
-[[ "$FORWARDER_FACTORY" != "null" && -n "$FORWARDER_FACTORY" ]] || {
-  echo "could not read DepositForwarderFactory address from $FORWARDER_RUN"; exit 1; }
+FORWARDER_FACTORY=""
+FORWARDER_HASH=""
+if [[ "$ROUTER_ONLY" == false ]]; then
+  FORWARDER_RUN="broadcast/DeployDepositForwarderFactory.s.sol/$CHAIN_ID/run-latest.json"
+  FORWARDER_FACTORY="$(jq -r \
+    'first(.transactions[] | select(.contractName == "DepositForwarderFactory") | .contractAddress)' \
+    "$FORWARDER_RUN")"
+  [[ "$FORWARDER_FACTORY" != "null" && -n "$FORWARDER_FACTORY" ]] || {
+    echo "could not read DepositForwarderFactory address from $FORWARDER_RUN"; exit 1; }
 
-# One hash serves every chain, so a chain that produced a different one would
-# make the API derive deposit addresses this factory cannot sweep.
-FORWARDER_HASH="$(cast call "$FORWARDER_FACTORY" 'INIT_CODE_HASH()(bytes32)' --rpc-url "$RPC_URL")"
-EXPECTED_HASH="${DEPOSIT_FORWARDER_INIT_CODE_HASH:-}"
-if [[ -n "$EXPECTED_HASH" && "$(lower "$FORWARDER_HASH")" != "$(lower "$EXPECTED_HASH")" ]]; then
-  echo
-  echo "INIT_CODE_HASH on $CHAIN is $FORWARDER_HASH"
-  echo "but DEPOSIT_FORWARDER_INIT_CODE_HASH is $EXPECTED_HASH."
-  echo "One hash serves every chain. Deposit addresses derived for $CHAIN would"
-  echo "point at forwarders this factory cannot deploy, and funds sent to them"
-  echo "would be unsweepable. Check DESTINATION matches the other chains."
-  exit 1
+  # One hash serves every chain, so a chain that produced a different one would
+  # make the API derive deposit addresses this factory cannot sweep.
+  FORWARDER_HASH="$(cast call "$FORWARDER_FACTORY" 'INIT_CODE_HASH()(bytes32)' --rpc-url "$RPC_URL")"
+  EXPECTED_HASH="${DEPOSIT_FORWARDER_INIT_CODE_HASH:-}"
+  if [[ -n "$EXPECTED_HASH" && "$(lower "$FORWARDER_HASH")" != "$(lower "$EXPECTED_HASH")" ]]; then
+    echo
+    echo "INIT_CODE_HASH on $CHAIN is $FORWARDER_HASH"
+    echo "but DEPOSIT_FORWARDER_INIT_CODE_HASH is $EXPECTED_HASH."
+    echo "One hash serves every chain. Deposit addresses derived for $CHAIN would"
+    echo "point at forwarders this factory cannot deploy, and funds sent to them"
+    echo "would be unsweepable. Check DESTINATION matches the other chains."
+    exit 1
+  fi
 fi
 
 if [[ "$FACTORY_ONLY" == true ]]; then
@@ -352,6 +374,13 @@ forge script scripts/ConfigurePaymentRouter.s.sol:ConfigurePaymentRouter \
 
 # --- Output -------------------------------------------------------------------
 
+FORWARDER_ENV=""
+FORWARDER_HASH_ENV=""
+if [[ "$ROUTER_ONLY" == false ]]; then
+  FORWARDER_ENV="  DEPOSIT_FORWARDERS={\"$CHAIN\":\"$FORWARDER_FACTORY\"}"
+  FORWARDER_HASH_ENV="  DEPOSIT_FORWARDER_INIT_CODE_HASH=$FORWARDER_HASH"
+fi
+
 cat <<EOF
 
 Deployed. Merge these into $ENV_FILE — the maps are per chain, so add a key
@@ -359,13 +388,13 @@ rather than replacing the object:
 
   PAYMENT_ROUTERS={"$CHAIN":"$PAYMENT_ROUTER"}
   CHAIN_START_BLOCKS={"$CHAIN":"$DEPLOY_BLOCK"}
-  DEPOSIT_FORWARDERS={"$CHAIN":"$FORWARDER_FACTORY"}
+$FORWARDER_ENV
   CONTRACT_PATH_ENABLED=true
   CHAIN_ENABLED=true
   QUOTE_ENABLED=true
 
   TIMELOCK=$TIMELOCK
-  DEPOSIT_FORWARDER_INIT_CODE_HASH=$FORWARDER_HASH
+$FORWARDER_HASH_ENV
 
 $EXPLORER/$PAYMENT_ROUTER
 EOF
