@@ -21,9 +21,24 @@ export interface WorkerLease {
   release(): Promise<void>;
 }
 
+export interface WorkerLeaseOptions {
+  readonly pollMs?: number;
+  readonly onWaiting?: () => void;
+  /**
+   * Called once if the lock is no longer held. The lock lives on one connection;
+   * a network blip or a failover can drop it without this process noticing, and
+   * a second worker would then take it while this one keeps submitting. The
+   * caller must stop working — exiting and letting the platform restart is the
+   * safe answer.
+   */
+  readonly onLost?: () => void;
+  /** How often the lock is checked. */
+  readonly checkMs?: number;
+}
+
 export async function acquireWorkerLease(
   databaseUrl: string,
-  options: { readonly pollMs?: number; readonly onWaiting?: () => void } = {},
+  options: WorkerLeaseOptions = {},
 ): Promise<WorkerLease> {
   const sql = postgres(databaseUrl, { max: 1, idle_timeout: 0, max_lifetime: null });
   const pollMs = options.pollMs ?? 5_000;
@@ -36,5 +51,50 @@ export async function acquireWorkerLease(
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
 
-  return { release: () => sql.end() };
+  const checkMs = options.checkMs ?? 10_000;
+  let held = true;
+  const watchdog = setInterval(() => {
+    void stillHeld(sql, checkMs * 3).then((ok) => {
+      if (ok || !held) return;
+      held = false;
+      clearInterval(watchdog);
+      options.onLost?.();
+    });
+  }, checkMs);
+
+  return {
+    release: async () => {
+      held = false;
+      clearInterval(watchdog);
+      // Bounded: after a dropped connection the driver can sit in reconnect backoff.
+      await sql.end({ timeout: 2 });
+    },
+  };
+}
+
+/**
+ * True while this connection still owns the lock. A failed query counts as lost,
+ * and so does one that does not answer in `timeoutMs`: a dropped connection makes
+ * the driver reconnect with a backoff, and a check stuck behind it is not evidence
+ * that the lock is still held.
+ */
+async function stillHeld(sql: postgres.Sql, timeoutMs: number): Promise<boolean> {
+  const timeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs));
+  return Promise.race([query(sql), timeout]);
+}
+
+async function query(sql: postgres.Sql): Promise<boolean> {
+  try {
+    const [row] = await sql<{ held: boolean }[]>`
+      select exists (
+        select 1 from pg_locks
+        where locktype = 'advisory'
+          and pid = pg_backend_pid()
+          and objid = ${CHAIN_WORKER_LOCK}
+          and granted
+      ) as held`;
+    return row?.held === true;
+  } catch {
+    return false;
+  }
 }

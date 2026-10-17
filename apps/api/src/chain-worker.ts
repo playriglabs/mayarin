@@ -22,6 +22,11 @@ if (chain === undefined || chain.intervalMs <= 0) {
 // until the first is gone instead of racing it on nonces and cursors.
 const lease = await acquireWorkerLease(config.databaseUrl, {
   onWaiting: () => console.log("[chain-worker] another worker holds the lease; waiting"),
+  // Without the lease a second worker may be running; stop and let the platform restart.
+  onLost: () => {
+    console.error("[chain-worker] lost the worker lease; exiting");
+    process.exit(1);
+  },
 });
 
 const container = createContainer({ config });
