@@ -730,6 +730,60 @@ describe("withdrawing", () => {
     expect(new Set(ids).size).toBe(3);
   });
 
+  test("holds a destination verified inside the cooling-off period, then releases it", async () => {
+    const harness = await createDashboardHarness({
+      adminEmail: ADMIN_EMAIL,
+      adminPassword: ADMIN_PASSWORD,
+      withdrawCoolingOffSeconds: 1_800,
+    });
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { destination } = await withdrawable(harness, auth);
+    const body = { chain: "base-sepolia", asset: "USDC", amount: "1000000", to: destination };
+
+    const held = await post(harness, auth, "/v1/wallets/withdraw", body);
+    expect(held.status).toBe(400);
+    expect(harness.walletProvider.proposals).toHaveLength(0);
+
+    harness.clock.advance(1_800_000);
+    const released = await post(harness, auth, "/v1/wallets/withdraw", body);
+    expect(released.status).toBe(200);
+  });
+
+  test("refuses a withdrawal that takes the rolling 24 hours past the daily limit", async () => {
+    const harness = await createDashboardHarness({
+      adminEmail: ADMIN_EMAIL,
+      adminPassword: ADMIN_PASSWORD,
+      withdrawDailyLimit: 5n,
+    });
+    const auth = await loginAs(harness, ADMIN_EMAIL, ADMIN_PASSWORD);
+    const { destination } = await withdrawable(harness, auth);
+    const withdraw = (amount: string) =>
+      post(harness, auth, "/v1/wallets/withdraw", {
+        chain: "base-sepolia",
+        asset: "USDC",
+        amount,
+        to: destination,
+      });
+
+    // 4 USDC left the wallet over a day ago: outside the window, so not counted.
+    const longAgo = new Date(harness.clock.now().getTime() - 24 * 3_600_000 - 1);
+    await harness.walletWithdrawals.insert({
+      id: "wdr_old",
+      merchantId: harness.merchantId,
+      chain: "base-sepolia",
+      walletAddress: "0x1111111111111111111111111111111111111111",
+      destinationAddress: destination,
+      amount: { amount: 4_000_000n, asset: "USDC" },
+      transactionHash: `0x${"ab".repeat(32)}`,
+      completedAt: longAgo,
+    });
+
+    expect((await withdraw("3000000")).status).toBe(200);
+    // 3 + 3 > 5 whole USDC.
+    expect((await withdraw("3000000")).status).toBe(400);
+    expect((await withdraw("2000000")).status).toBe(200);
+  });
+
   test("refuses a destination the merchant never proved they control", async () => {
     // A dashboard session is a bearer credential; an arbitrary destination
     // turns a stolen one into a transfer. Proving control is the step an

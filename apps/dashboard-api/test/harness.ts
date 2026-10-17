@@ -130,6 +130,9 @@ export interface DashboardHarnessOptions {
    * access — the settings guard is then skipped, as it is in production.
    */
   readonly contractsOn?: readonly ChainId[];
+  /** Withdrawal controls (SEC-16); absent means none, as in the service default. */
+  readonly withdrawCoolingOffSeconds?: number;
+  readonly withdrawDailyLimit?: bigint;
   readonly rateLimitRequests?: number;
   readonly rateLimitBlockSeconds?: number;
   readonly loginRateLimitRequests?: number;
@@ -265,6 +268,12 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     // be reported per chain rather than for whichever one came first (#244).
     chains: ["base-sepolia", "arc-testnet"],
     provisionChains: ["base-sepolia", "arc-testnet"],
+    ...(options.withdrawCoolingOffSeconds === undefined
+      ? {}
+      : { withdrawCoolingOffSeconds: options.withdrawCoolingOffSeconds }),
+    ...(options.withdrawDailyLimit === undefined
+      ? {}
+      : { withdrawDailyLimit: options.withdrawDailyLimit }),
     settlementAddresses: settlementAddressResolver,
     balances: walletBalances,
     walletProvider,

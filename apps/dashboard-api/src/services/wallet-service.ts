@@ -28,6 +28,7 @@ import {
   ConfigurationError,
   ConflictError,
   generateId,
+  getAsset,
   type Money,
   money,
   NotFoundError,
@@ -51,6 +52,7 @@ import {
   type WalletChallengeRepository,
   type WalletProvider,
   type WalletWithdrawal,
+  type WalletWithdrawalCursor,
   type WalletWithdrawalRepository,
 } from "@mayarin/wallet";
 import type { Scope } from "../dto/auth.ts";
@@ -119,6 +121,17 @@ export interface WalletServiceOptions {
   readonly walletProvider?: WalletProvider;
   /** Append-only record of successful managed-wallet withdrawals. */
   readonly withdrawals: WalletWithdrawalRepository;
+  /**
+   * How long a destination must have been verified before a withdrawal may go
+   * to it (SEC-16). A stolen session can link and verify an address of its own;
+   * the wait is the window in which the owner notices. Absent means no wait.
+   */
+  readonly withdrawCoolingOffSeconds?: number;
+  /**
+   * The most one merchant may withdraw in any rolling 24 hours, in whole units
+   * of the asset being withdrawn (SEC-16). Absent means no cap.
+   */
+  readonly withdrawDailyLimit?: bigint;
   /** The chain's own currency per chain, reported alongside the settlement asset. */
   readonly nativeAssets?: Readonly<Partial<Record<ChainId, AssetCode>>>;
   /**
@@ -176,6 +189,8 @@ export class WalletService {
   readonly #settlementAddresses: SettlementAddressResolver;
   readonly #walletProvider: WalletProvider | undefined;
   readonly #withdrawals: WalletWithdrawalRepository;
+  readonly #withdrawCoolingOffSeconds: number | undefined;
+  readonly #withdrawDailyLimit: bigint | undefined;
   readonly #nativeAssets: Readonly<Partial<Record<ChainId, AssetCode>>>;
   readonly #stablecoins: Readonly<Partial<Record<ChainId, readonly AssetCode[]>>>;
 
@@ -197,6 +212,8 @@ export class WalletService {
     this.#settlementAddresses = options.settlementAddresses;
     this.#walletProvider = options.walletProvider;
     this.#withdrawals = options.withdrawals;
+    this.#withdrawCoolingOffSeconds = options.withdrawCoolingOffSeconds;
+    this.#withdrawDailyLimit = options.withdrawDailyLimit;
     this.#nativeAssets = options.nativeAssets ?? {};
     this.#stablecoins = options.stablecoins ?? {};
   }
@@ -310,7 +327,20 @@ export class WalletService {
       );
     }
 
+    const now = this.#clock.now();
+    const coolingOff = this.#withdrawCoolingOffSeconds;
+    if (coolingOff !== undefined && destination.verifiedAt !== undefined) {
+      const readyAt = destination.verifiedAt.getTime() + coolingOff * 1_000;
+      if (now.getTime() < readyAt) {
+        throw new ValidationError(
+          "This wallet was verified recently; withdrawals to a new destination are held for a cooling-off period",
+          { to, readyAt: new Date(readyAt).toISOString() },
+        );
+      }
+    }
+
     const amount = money(request.amount, request.asset);
+    await this.#assertWithinDailyLimit(scope, amount, now);
     const { txHash } = await provider.propose(managed, {
       kind: "withdraw",
       amount,
@@ -330,6 +360,30 @@ export class WalletService {
     };
     await this.#withdrawals.insert(withdrawal);
     return withdrawal;
+  }
+
+  /** Refuses a withdrawal that would take the last 24 hours past the cap (SEC-16). */
+  async #assertWithinDailyLimit(scope: Scope, amount: Money, now: Date): Promise<void> {
+    if (this.#withdrawDailyLimit === undefined) return;
+    const limit = this.#withdrawDailyLimit * 10n ** BigInt(getAsset(amount.asset).decimals);
+    const since = now.getTime() - 24 * 60 * 60 * 1_000;
+
+    let total = amount.amount;
+    let cursor: WalletWithdrawalCursor | undefined;
+    while (total <= limit) {
+      const rows = await this.#withdrawals.listRecent(scope.merchantId, 200, cursor);
+      for (const row of rows) {
+        if (row.completedAt.getTime() >= since && row.amount.asset === amount.asset) {
+          total += row.amount.amount;
+        }
+      }
+      const last = rows.at(-1);
+      if (last === undefined || rows.length < 200 || last.completedAt.getTime() < since) break;
+      cursor = { id: last.id, completedAt: last.completedAt };
+    }
+    if (total > limit) {
+      throw new ValidationError("This withdrawal would exceed the 24-hour withdrawal limit", {});
+    }
   }
 
   /**
