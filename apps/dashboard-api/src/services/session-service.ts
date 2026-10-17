@@ -94,6 +94,15 @@ export class SessionService {
     });
   }
 
+  /**
+   * Signs out every other device of `userId`, keeping `keepId`. Run after a
+   * security change (second factor on or off), so a session an attacker already
+   * holds does not outlive the change.
+   */
+  revokeOthers(userId: string, keepId: string): Promise<void> {
+    return this.#sessions.revokeOthers(userId, keepId, this.#clock.now());
+  }
+
   /** Marks a session revoked at the current time. Unknown id → `UnauthorizedError`. */
   revoke(sessionId: string): Effect.Effect<void, UnauthorizedError | Error> {
     const sessions = this.#sessions;
