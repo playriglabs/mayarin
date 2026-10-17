@@ -245,6 +245,11 @@ forge build
 forge test
 
 BROADCAST_FLAGS=(--rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY")
+# Extra forge flags for one run, e.g. FORGE_EXTRA_FLAGS="--gas-estimate-multiplier 300".
+# Ethereum Sepolia under-estimates the timelock deploy and the transaction fails
+# on chain; the fix is a larger estimate, not a code change.
+# shellcheck disable=SC2206
+BROADCAST_FLAGS+=(${FORGE_EXTRA_FLAGS:-})
 if [[ "$DRY_RUN" == false ]]; then
   BROADCAST_FLAGS+=(--broadcast)
   if [[ "$VERIFIER" == "blockscout" ]]; then
