@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { createRefund } from "@mayarin/clearing";
 import { money, toDecimalString } from "@mayarin/shared";
 import { createApiHarness, qrisPayload } from "./harness.ts";
 
@@ -234,5 +235,33 @@ describe("GET /payments/:id/refunds", () => {
     // ledger and the audit trail are built on.
     const payment = await harness.request("GET", `/v1/payments/${id}`);
     expect(payment.body.paymentIntent.status).toBe("COMPLETED");
+  });
+});
+
+describe("RefundService.resumePending (SEC-02)", () => {
+  test("finishes a refund a crash left pending, once, and leaves a fresh one alone", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    const transaction = await harness.clearingRepository.findByPaymentIntentId(id);
+    if (transaction === null || transaction.netAmount === undefined) throw new Error("not settled");
+
+    // The row a crash between "reserve" and "call the rail" leaves behind.
+    const pending = createRefund({
+      clearingTransactionId: transaction.id,
+      paymentIntentId: transaction.paymentIntentId,
+      merchantId: transaction.merchant.id,
+      amount: money(1_000n, transaction.netAmount.asset),
+      now: new Date(harness.clock.now().getTime() - 10 * 60_000),
+    });
+    await harness.refundRepository.insert(pending);
+
+    // Too recent to be a crash: another process may be running it.
+    expect(await harness.container.refunds.resumePending(20 * 60_000)).toHaveLength(0);
+
+    const resumed = await harness.container.refunds.resumePending(5 * 60_000);
+    expect(resumed.map((refund) => [refund.id, refund.state])).toEqual([[pending.id, "SUCCEEDED"]]);
+
+    // Done: nothing left to resume.
+    expect(await harness.container.refunds.resumePending(5 * 60_000)).toHaveLength(0);
   });
 });

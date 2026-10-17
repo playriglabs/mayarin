@@ -45,6 +45,8 @@ export interface RefundRepository {
   findById(id: string): Promise<Refund | null>;
   findByIdempotencyKey(key: string): Promise<Refund | null>;
   listByClearingTransactionId(clearingTransactionId: string): Promise<readonly Refund[]>;
+  /** Refunds still `PENDING` that were last touched before `before`. */
+  listPendingBefore(before: Date): Promise<readonly Refund[]>;
   /**
    * Runs `fn` while holding a lock on one payment's refunds, so two callers
    * cannot both read the same remaining balance and both insert (SEC-02).
@@ -158,6 +160,25 @@ export class RefundService {
     await this.#publish(REFUND_EVENT.created, refund);
 
     return this.#execute(transaction, refund);
+  }
+
+  /**
+   * Finishes refunds a crash left `PENDING` (SEC-02).
+   *
+   * A pending refund already consumes the refundable balance, so it cannot just
+   * be forgotten; it has to end as succeeded or failed. Running it again is
+   * safe: the rail call is keyed by the refund's own id and the ledger posting
+   * is idempotent on it. `olderThanMs` keeps this away from a refund another
+   * process is executing right now.
+   */
+  async resumePending(olderThanMs = 5 * 60_000): Promise<readonly Refund[]> {
+    const cutoff = new Date(this.#clock.now().getTime() - olderThanMs);
+    const resumed: Refund[] = [];
+    for (const refund of await this.#refunds.listPendingBefore(cutoff)) {
+      const transaction = await this.#transaction(refund.clearingTransactionId);
+      resumed.push(await this.#execute(transaction, refund));
+    }
+    return resumed;
   }
 
   async #execute(transaction: ClearingTransaction, refund: Refund): Promise<Refund> {

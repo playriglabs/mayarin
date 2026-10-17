@@ -38,6 +38,11 @@ if (recovered.length > 0) {
   console.log(`[chain-worker] resumed ${recovered.length} clearing transaction(s)`);
 }
 
+const finishedRefunds = await container.refunds.resumePending();
+if (finishedRefunds.length > 0) {
+  console.log(`[chain-worker] finished ${finishedRefunds.length} pending refund(s)`);
+}
+
 const pairs = watchedPairs(config);
 if (pairs.length === 0 && container.indexers.size === 0) {
   await container.close();
