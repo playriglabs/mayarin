@@ -159,3 +159,46 @@ describe("rateLimit", () => {
     ).toBe(429);
   });
 });
+
+describe("rateLimit bucketKey (SEC-08)", () => {
+  function keyed() {
+    const app = new Hono();
+    app.use(
+      "*",
+      rateLimit({
+        limit: 2,
+        windowMs: 60_000,
+        clientIpSource: "x-forwarded-for",
+        bucketKey: (c) => c.req.header("authorization"),
+        now: () => 0,
+      }),
+    );
+    app.get("/", (c) => c.json({ ok: true }));
+    return (ip: string, authorization?: string) =>
+      app.request("/", {
+        headers: {
+          "x-forwarded-for": ip,
+          ...(authorization === undefined ? {} : { authorization }),
+        },
+      });
+  }
+
+  test("one credential shares a bucket across addresses", async () => {
+    const request = keyed();
+    expect((await request("203.0.113.1", "key-a")).status).toBe(200);
+    expect((await request("203.0.113.2", "key-a")).status).toBe(200);
+    expect((await request("203.0.113.3", "key-a")).status).toBe(429);
+  });
+
+  test("another credential has its own bucket", async () => {
+    const request = keyed();
+    await request("203.0.113.1", "key-a");
+    await request("203.0.113.1", "key-a");
+    expect((await request("203.0.113.1", "key-b")).status).toBe(200);
+  });
+
+  test("a request with no credential is not counted here", async () => {
+    const request = keyed();
+    for (let i = 0; i < 5; i += 1) expect((await request("203.0.113.1")).status).toBe(200);
+  });
+});
