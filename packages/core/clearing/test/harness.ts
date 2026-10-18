@@ -19,7 +19,13 @@ import {
 import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing";
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry, type SettlementMode } from "@mayarin/settlement";
-import { type DomainEvent, FixedClock, InMemoryEventBus, money } from "@mayarin/shared";
+import {
+  type AssetCode,
+  type DomainEvent,
+  FixedClock,
+  InMemoryEventBus,
+  money,
+} from "@mayarin/shared";
 import type { ContractPaymentPlanner } from "../src/contract-path.ts";
 import { ClearingEngine } from "../src/engine.ts";
 import { BasisPointsFeePolicy } from "../src/fees.ts";
@@ -33,6 +39,7 @@ export interface HarnessOptions {
   readonly behaviour?: MockBehaviour;
   readonly feeBasisPoints?: number;
   readonly autoConfirmAssetReceipt?: boolean;
+  readonly maxPaymentSettlement?: Partial<Record<AssetCode, bigint>>;
   readonly webhookSecret?: string;
   /** Settlement mode for the mock adapter. Defaults to `"external"`. */
   readonly mode?: SettlementMode;
@@ -123,6 +130,9 @@ export function createHarness(options: HarnessOptions = {}) {
     clock,
     events,
     autoConfirmAssetReceipt: options.autoConfirmAssetReceipt ?? true,
+    ...(options.maxPaymentSettlement === undefined
+      ? {}
+      : { maxPaymentSettlement: options.maxPaymentSettlement }),
   });
 
   /** Creates and confirms an intent for 50,000.00 IDR, ready to clear. */

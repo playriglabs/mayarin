@@ -388,3 +388,27 @@ describe("clearing engine — expiry sweep", () => {
     expect(reloaded.state).toBe("SETTLING");
   });
 });
+
+describe("per-payment limit", () => {
+  test("a payment above the cap fails at the lock, before any address exists", async () => {
+    // The 50,000.00 IDR payment prices at 5 USDC (5,000,000 minor units).
+    const harness = createHarness({ maxPaymentSettlement: { USDC: 4_999_999n } });
+    const transaction = await harness.engine.start(await harness.confirmedIntent());
+
+    expect(transaction.state).toBe("FAILED");
+    expect(transaction.failure?.reason).toContain("limit");
+    expect(transaction.deposit).toBeUndefined();
+  });
+
+  test("a payment at the cap clears", async () => {
+    const harness = createHarness({ maxPaymentSettlement: { USDC: 5_000_000n } });
+    const transaction = await harness.engine.start(await harness.confirmedIntent());
+    expect(transaction.state).toBe("SUCCESS");
+  });
+
+  test("an asset with no cap is unbounded", async () => {
+    const harness = createHarness({ maxPaymentSettlement: { USDT: 1n } });
+    const transaction = await harness.engine.start(await harness.confirmedIntent());
+    expect(transaction.state).toBe("SUCCESS");
+  });
+});

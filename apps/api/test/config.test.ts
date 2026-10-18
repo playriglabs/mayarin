@@ -271,6 +271,8 @@ describe("contract path configuration", () => {
     // The settlement asset must be deployed on a router chain, or no order
     // could ever name it.
     CHAIN_ASSETS: '{"base":{"USDC":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
+    // `base` is a mainnet, and a mainnet will not boot without a payment cap.
+    MAX_PAYMENT_SETTLEMENT: '{"USDC":"500"}',
   } as const;
 
   test("is absent unless enabled", () => {
@@ -897,5 +899,34 @@ describe("TransFi sandbox auto-settle", () => {
         DEPOSIT_XPUB: "xpub-test",
       }),
     ).toThrow(/not in the reviewed mainnet token list/i);
+  });
+
+  describe("per-payment limit", () => {
+    const mainnet = {
+      ...BASE,
+      CHAIN_ENABLED: "true",
+      ASSET_RECEIPT_MODE: "manual",
+      CHAIN_RPC_URLS: '{"base":"https://mainnet.base.org"}',
+      CHAIN_ASSETS: '{"base":{"USDC":"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"}}',
+      DEPOSIT_XPUB: "xpub-test",
+    };
+
+    test("a mainnet chain without MAX_PAYMENT_SETTLEMENT will not boot", () => {
+      expect(() => loadConfig(mainnet)).toThrow(/MAX_PAYMENT_SETTLEMENT is required/);
+    });
+
+    test("a mainnet chain with one boots, and the cap is read", () => {
+      const config = loadConfig({ ...mainnet, MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}' });
+      expect(config.maxPaymentSettlement).toEqual({ USDC: "250" });
+    });
+
+    test("an unknown asset or a non-positive amount is refused", () => {
+      expect(() => loadConfig({ ...BASE, MAX_PAYMENT_SETTLEMENT: '{"NOPE":"5"}' })).toThrow(
+        /unknown asset/,
+      );
+      expect(() => loadConfig({ ...BASE, MAX_PAYMENT_SETTLEMENT: '{"USDC":"0"}' })).toThrow(
+        /positive decimal/,
+      );
+    });
   });
 });
