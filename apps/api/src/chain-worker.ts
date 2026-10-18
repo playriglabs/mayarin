@@ -48,6 +48,27 @@ if (finishedRefunds.length > 0) {
   console.log(`[chain-worker] finished ${finishedRefunds.length} pending refund(s)`);
 }
 
+// A refund can crash between "rail confirmed" and "ledger posted" while the
+// worker keeps running; finishing it only at start would leave it pending until
+// the next restart. Same call, on a timer, with no overlap (SEC-02).
+const REFUND_RECOVERY_INTERVAL_MS = 5 * 60_000;
+let recoveringRefunds = false;
+const refundRecoveryTimer = setInterval(() => {
+  if (recoveringRefunds) return;
+  recoveringRefunds = true;
+  void container.refunds
+    .resumePending()
+    .then((finished) => {
+      if (finished.length > 0) {
+        console.log(`[chain-worker] finished ${finished.length} pending refund(s)`);
+      }
+    })
+    .catch((error: unknown) => console.error("[chain-worker] refund recovery failed", error))
+    .finally(() => {
+      recoveringRefunds = false;
+    });
+}, REFUND_RECOVERY_INTERVAL_MS);
+
 const pairs = watchedPairs(config);
 if (pairs.length === 0 && container.indexers.size === 0) {
   await container.close();
@@ -85,6 +106,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   stopWatcherLoops();
   stopIndexerLoops();
   stopEscrowKeeper();
+  clearInterval(refundRecoveryTimer);
   await container.close();
   await lease.release();
   process.exit(0);
