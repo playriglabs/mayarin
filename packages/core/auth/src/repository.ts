@@ -45,6 +45,8 @@ export interface SessionRepository {
   insert(session: Session): Promise<Session>;
   findById(id: string): Promise<Session | null>;
   revoke(id: string, revokedAt: Date): Promise<void>;
+  /** Records that the session served a request at `seenAt`. */
+  touch(id: string, seenAt: Date): Promise<void>;
   /**
    * Revokes every live session of `userId` except `keepId` — what a security
    * change does, so a session an attacker already holds does not survive it.

@@ -321,6 +321,13 @@ export class DrizzleSessionRepository implements SessionRepository {
       .where(eq(sessions.id, sessionKey(id)));
   }
 
+  async touch(id: string, seenAt: Date): Promise<void> {
+    await this.#db
+      .update(sessions)
+      .set({ lastSeenAt: seenAt })
+      .where(eq(sessions.id, sessionKey(id)));
+  }
+
   async revokeOthers(userId: string, keepId: string, revokedAt: Date): Promise<void> {
     await this.#db
       .update(sessions)
@@ -525,6 +532,7 @@ function toSession(row: SessionRow, id: string): Session {
     expiresAt: row.expiresAt,
     ...present("revokedAt", row.revokedAt),
     createdAt: row.createdAt,
+    lastSeenAt: row.lastSeenAt ?? row.createdAt,
   };
 }
 
@@ -535,6 +543,7 @@ function toSessionRow(session: Session): typeof sessions.$inferInsert {
     expiresAt: session.expiresAt,
     revokedAt: session.revokedAt ?? null,
     createdAt: session.createdAt,
+    lastSeenAt: session.lastSeenAt,
   };
 }
 

@@ -1193,9 +1193,14 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         csrfToken: "csrf-token",
         expiresAt: new Date("2026-12-01T00:00:00.000Z"),
         createdAt: now,
+        lastSeenAt: now,
       };
       await sessionRepo.insert(session);
       expect((await sessionRepo.findById(session.id))?.userId).toBe(userId);
+
+      const seenAt = new Date("2026-01-01T00:30:00.000Z");
+      await sessionRepo.touch(session.id, seenAt);
+      expect((await sessionRepo.findById(session.id))?.lastSeenAt).toEqual(seenAt);
 
       const revokedAt = new Date("2026-01-02T00:00:00.000Z");
       await sessionRepo.revoke(session.id, revokedAt);
@@ -1233,6 +1238,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         csrfToken: "t",
         expiresAt: new Date("2025-01-01T00:00:00.000Z"),
         createdAt: now,
+        lastSeenAt: now,
       };
       const future = {
         id: generateId("ses", now.getTime() + 1),
@@ -1240,6 +1246,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         csrfToken: "t",
         expiresAt: new Date("2027-01-01T00:00:00.000Z"),
         createdAt: now,
+        lastSeenAt: now,
       };
       await sessionRepo.insert(past);
       await sessionRepo.insert(future);

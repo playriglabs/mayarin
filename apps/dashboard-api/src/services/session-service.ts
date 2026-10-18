@@ -22,11 +22,15 @@ import {
 import { type Clock, UnauthorizedError } from "@mayarin/shared";
 import { Effect } from "effect";
 
+const TOUCH_INTERVAL_MS = 60_000;
+
 export interface SessionServiceOptions {
   readonly sessions: SessionRepository;
   readonly users: UserRepository;
   readonly clock: Clock;
   readonly ttlSeconds: number;
+  /** A session unused for this long is expired, whatever its absolute lifetime (SEC-15). */
+  readonly idleSeconds: number;
 }
 
 export interface VerifiedSession {
@@ -39,12 +43,14 @@ export class SessionService {
   readonly #users: UserRepository;
   readonly #clock: Clock;
   readonly #ttlSeconds: number;
+  readonly #idleSeconds: number;
 
   constructor(options: SessionServiceOptions) {
     this.#sessions = options.sessions;
     this.#users = options.users;
     this.#clock = options.clock;
     this.#ttlSeconds = options.ttlSeconds;
+    this.#idleSeconds = options.idleSeconds;
   }
 
   /** Issues a new session for `userId`. */
@@ -57,6 +63,7 @@ export class SessionService {
       csrfToken: csrfTokenOf(id),
       expiresAt: new Date(now.getTime() + this.#ttlSeconds * 1000),
       createdAt: now,
+      lastSeenAt: now,
     };
     return Effect.tryPromise({
       try: async () => {
@@ -76,6 +83,7 @@ export class SessionService {
     const sessions = this.#sessions;
     const users = this.#users;
     const now = this.#clock.now().getTime();
+    const idleMs = this.#idleSeconds * 1000;
     const tryRead = <T>(run: () => Promise<T>): Effect.Effect<T, Error> =>
       Effect.tryPromise({ try: run, catch: (error) => error as Error });
 
@@ -86,6 +94,15 @@ export class SessionService {
         return yield* Effect.fail(new UnauthorizedError("Session revoked"));
       if (session.expiresAt.getTime() <= now)
         return yield* Effect.fail(new UnauthorizedError("Session expired"));
+
+      if (now - session.lastSeenAt.getTime() > idleMs)
+        return yield* Effect.fail(new UnauthorizedError("Session idle too long"));
+
+      // Written at most once per interval: a read per request is the hot path,
+      // a write per request would be a second query on every call.
+      if (now - session.lastSeenAt.getTime() > TOUCH_INTERVAL_MS) {
+        yield* tryRead(() => sessions.touch(sessionId, new Date(now)));
+      }
 
       const user = yield* tryRead(() => users.findById(session.userId));
       if (user === null)
