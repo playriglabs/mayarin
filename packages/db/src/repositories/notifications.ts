@@ -21,7 +21,20 @@ import {
   type WebhookEndpointRepository,
   type WebhookOutbox,
 } from "@mayarin/notifications";
-import { and, asc, desc, eq, gt, gte, ilike, lt, lte, notInArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  isNotNull,
+  lt,
+  lte,
+  notInArray,
+  or,
+} from "drizzle-orm";
 import type { Database } from "../client.ts";
 import { present } from "../mapping.ts";
 import {
@@ -173,6 +186,20 @@ export class DrizzleWebhookEndpointRepository implements WebhookEndpointReposito
       .where(and(eq(webhookEndpoints.merchantId, merchantId), eq(webhookEndpoints.active, true)))
       .orderBy(asc(webhookEndpoints.id));
     return rows.map(toEndpoint);
+  }
+
+  async destroyExpiredPreviousSecrets(now: Date): Promise<number> {
+    const cleared = await this.#db
+      .update(webhookEndpoints)
+      .set({ previousSecret: null, previousSecretExpiresAt: null })
+      .where(
+        and(
+          isNotNull(webhookEndpoints.previousSecret),
+          lte(webhookEndpoints.previousSecretExpiresAt, now),
+        ),
+      )
+      .returning({ id: webhookEndpoints.id });
+    return cleared.length;
   }
 }
 
