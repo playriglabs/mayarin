@@ -5,7 +5,7 @@
  * a response. No payment logic lives here.
  */
 
-import { apiSecurityHeaders, rateLimit } from "@mayarin/http";
+import { apiSecurityHeaders, rateLimit, securityEvents } from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -64,6 +64,19 @@ export function createApp(container: Container): Hono {
   const v1 = new Hono();
   // `/v1` is JSON only; the hosted HTML pages are mounted outside it.
   v1.use("*", apiSecurityHeaders());
+  v1.use(
+    "*",
+    securityEvents({
+      service: "api",
+      identify: (c) => {
+        const scope = c.get("scope") as { merchantId?: string; kind?: string } | undefined;
+        return {
+          ...(scope?.kind === undefined ? {} : { actor: `api-key:${scope.kind}` }),
+          ...(scope?.merchantId === undefined ? {} : { tenant: scope.merchantId }),
+        };
+      },
+    }),
+  );
   // Any origin, because the publishable surface (#113) is called from
   // merchants' own storefront pages. This hides nothing: auth is bearer-based
   // with no cookies, so CORS was never the wall — the key is. A browser

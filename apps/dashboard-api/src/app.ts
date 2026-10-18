@@ -7,7 +7,7 @@
  * point that maps the domain error taxonomy onto HTTP.
  */
 
-import { apiSecurityHeaders, rateLimit } from "@mayarin/http";
+import { apiSecurityHeaders, rateLimit, securityEvents } from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "./container.ts";
@@ -52,6 +52,20 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
 
   const v1 = new Hono<{ Variables: AuthVars }>();
   v1.use("*", apiSecurityHeaders());
+  v1.use(
+    "*",
+    securityEvents({
+      service: "dashboard-api",
+      identify: (c) => {
+        const session = c.get("session") as AuthVars["session"];
+        const scope = c.get("scope") as AuthVars["scope"];
+        return {
+          ...(session === undefined ? {} : { actor: session.user.id }),
+          ...(scope === undefined ? {} : { tenant: scope.merchantId }),
+        };
+      },
+    }),
+  );
 
   // Registration and the two code endpoints share the login limiter's budget:
   // each is an unauthenticated write that sends mail or guesses a credential,
