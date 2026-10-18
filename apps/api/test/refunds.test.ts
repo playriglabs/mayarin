@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { createRefund } from "@mayarin/clearing";
+import { createRefund, markRefundSucceeded, refundPosting } from "@mayarin/clearing";
 import { money, toDecimalString } from "@mayarin/shared";
 import { createApiHarness, qrisPayload } from "./harness.ts";
 
@@ -263,5 +263,86 @@ describe("RefundService.resumePending (SEC-02)", () => {
 
     // Done: nothing left to resume.
     expect(await harness.container.refunds.resumePending(5 * 60_000)).toHaveLength(0);
+  });
+});
+
+describe("RefundService.reconcile (SEC-02)", () => {
+  async function transactionOf(harness: Harness, id: string) {
+    const transaction = await harness.clearingRepository.findByPaymentIntentId(id);
+    if (transaction === null || transaction.netAmount === undefined) throw new Error("not settled");
+    return { transaction, asset: transaction.netAmount.asset };
+  }
+  const since = new Date(0);
+
+  test("a refund issued through the service agrees with the ledger", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    await harness.request("POST", `/v1/payments/${id}/refunds`, { body: {} });
+
+    expect(await harness.container.refunds.reconcile(since)).toEqual([]);
+  });
+
+  test("a succeeded refund with no ledger posting is reported", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    const { transaction, asset } = await transactionOf(harness, id);
+    const refund = markRefundSucceeded(
+      createRefund({
+        clearingTransactionId: transaction.id,
+        paymentIntentId: transaction.paymentIntentId,
+        merchantId: transaction.merchant.id,
+        amount: money(1_000n, asset),
+        now: harness.clock.now(),
+      }),
+      "rail-ref",
+      harness.clock.now(),
+    );
+    await harness.refundRepository.insert(refund);
+
+    expect(await harness.container.refunds.reconcile(since)).toEqual([
+      { kind: "succeeded_without_posting", refundId: refund.id },
+    ]);
+  });
+
+  test("a posting for a refund that never succeeded is reported", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    const { transaction, asset } = await transactionOf(harness, id);
+    const pending = createRefund({
+      clearingTransactionId: transaction.id,
+      paymentIntentId: transaction.paymentIntentId,
+      merchantId: transaction.merchant.id,
+      amount: money(1_000n, asset),
+      now: harness.clock.now(),
+    });
+    await harness.refundRepository.insert(pending);
+    await harness.ledger.post(refundPosting(transaction, pending.id, pending.amount));
+
+    expect(await harness.container.refunds.reconcile(since)).toEqual([
+      { kind: "posting_without_success", refundId: pending.id, state: "PENDING" },
+    ]);
+  });
+
+  test("a posting for a different amount than the refund is reported", async () => {
+    const harness = createApiHarness();
+    const id = await settledPayment(harness);
+    const { transaction, asset } = await transactionOf(harness, id);
+    const refund = markRefundSucceeded(
+      createRefund({
+        clearingTransactionId: transaction.id,
+        paymentIntentId: transaction.paymentIntentId,
+        merchantId: transaction.merchant.id,
+        amount: money(1_000n, asset),
+        now: harness.clock.now(),
+      }),
+      "rail-ref",
+      harness.clock.now(),
+    );
+    await harness.refundRepository.insert(refund);
+    await harness.ledger.post(refundPosting(transaction, refund.id, money(900n, asset)));
+
+    expect(await harness.container.refunds.reconcile(since)).toEqual([
+      { kind: "amount_mismatch", refundId: refund.id, refunded: 1_000n, posted: 900n },
+    ]);
   });
 });

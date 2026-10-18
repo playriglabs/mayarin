@@ -52,6 +52,8 @@ if (finishedRefunds.length > 0) {
 // worker keeps running; finishing it only at start would leave it pending until
 // the next restart. Same call, on a timer, with no overlap (SEC-02).
 const REFUND_RECOVERY_INTERVAL_MS = 5 * 60_000;
+/** Reconciliation looks back this far each time; older refunds were checked many times already. */
+const REFUND_RECONCILE_WINDOW_MS = 7 * 24 * 60 * 60_000;
 let recoveringRefunds = false;
 const refundRecoveryTimer = setInterval(() => {
   if (recoveringRefunds) return;
@@ -64,6 +66,19 @@ const refundRecoveryTimer = setInterval(() => {
       }
     })
     .catch((error: unknown) => console.error("[chain-worker] refund recovery failed", error))
+    // After recovery, so a refund it just finished is not reported as unposted.
+    .then(() => container.refunds.reconcile(new Date(Date.now() - REFUND_RECONCILE_WINDOW_MS)))
+    .then((discrepancies) => {
+      for (const discrepancy of discrepancies) {
+        console.error(
+          JSON.stringify(
+            { type: "refund-discrepancy", ...discrepancy, amounts: undefined },
+            (_k, v) => (typeof v === "bigint" ? v.toString() : v),
+          ),
+        );
+      }
+    })
+    .catch((error: unknown) => console.error("[chain-worker] refund reconciliation failed", error))
     .finally(() => {
       recoveringRefunds = false;
     });
