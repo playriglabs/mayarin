@@ -38,6 +38,14 @@ export interface RateLimitOptions {
   readonly blockDurationMs?: number;
   /** Bounds per-process memory when many distinct clients arrive. */
   readonly maxClients?: number;
+  /**
+   * Buckets by this identity instead of the caller's address, for a quota that
+   * follows a credential across IPs (SEC-08). Returning `undefined` skips this
+   * limiter for the request, so an anonymous call is left to the per-IP one.
+   * The value is a map key and may end up in a heap dump: pass a digest, never
+   * the credential itself.
+   */
+  readonly bucketKey?: (c: Context) => string | undefined;
   /** Injectable monotonic-enough wall clock for deterministic tests. */
   readonly now?: () => number;
 }
@@ -58,13 +66,19 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
       return;
     }
 
+    const identity = options.bucketKey === undefined ? undefined : options.bucketKey(c);
+    if (options.bucketKey !== undefined && identity === undefined) {
+      await next();
+      return;
+    }
+
     const currentMs = now();
     if (currentMs >= nextCleanupMs) {
       pruneIdleBuckets(buckets, currentMs - bucketRetentionMs);
       nextCleanupMs = currentMs + options.windowMs;
     }
 
-    const client = clientId(c, options.clientIpSource);
+    const client = identity ?? clientId(c, options.clientIpSource);
     const key = buckets.has(client) || buckets.size < maxClients ? client : OVERFLOW_CLIENT;
     const consumed = consume(
       buckets.get(key),

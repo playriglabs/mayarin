@@ -5,6 +5,7 @@
  * a response. No payment logic lives here.
  */
 
+import { createHash } from "node:crypto";
 import { allowedHosts, apiSecurityHeaders, rateLimit, securityEvents } from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
@@ -98,6 +99,23 @@ export function createApp(container: Container): Hono {
       clientIpSource: container.config.rateLimitClientIpSource,
       blockDurationMs: container.config.rateLimitBlockSeconds * 1_000,
       maxClients: container.config.rateLimitMaxClients,
+    }),
+  );
+  // One key used from many addresses is not slowed by the per-IP budget above.
+  // Keyed by a digest of the presented bearer, so no lookup and no raw key in memory.
+  v1.use(
+    "*",
+    rateLimit({
+      limit: container.config.apiKeyRateLimitRequests,
+      windowMs: container.config.rateLimitWindowSeconds * 1_000,
+      clientIpSource: container.config.rateLimitClientIpSource,
+      blockDurationMs: container.config.rateLimitBlockSeconds * 1_000,
+      maxClients: container.config.rateLimitMaxClients,
+      bucketKey: (c) => {
+        const header = c.req.header("authorization");
+        if (!header?.toLowerCase().startsWith("bearer ")) return undefined;
+        return `key:${createHash("sha256").update(header.slice(7).trim()).digest("hex")}`;
+      },
     }),
   );
   v1.route("/payment-intents", paymentIntentRoutes(container));

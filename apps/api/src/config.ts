@@ -186,6 +186,8 @@ const configSchema = z.object({
   adminToken: z.string().min(16).optional(),
   /** Per-client request budget for the versioned HTTP API. */
   rateLimitRequests: z.coerce.number().int().positive().default(120),
+  /** Per-API-key request budget, whatever address the calls come from (SEC-08). */
+  apiKeyRateLimitRequests: z.coerce.number().int().positive().default(600),
   /** Seconds required to refill a fully exhausted request budget. */
   rateLimitWindowSeconds: z.coerce.number().int().positive().default(60),
   /** Fixed lockout after a client exhausts a request budget. */
@@ -1182,6 +1184,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     watcherReorgWatchWindow: env.WATCHER_REORG_WATCH_WINDOW,
     adminToken: env.ADMIN_TOKEN,
     rateLimitRequests: env.API_RATE_LIMIT_REQUESTS,
+    apiKeyRateLimitRequests: env.API_KEY_RATE_LIMIT_REQUESTS,
     rateLimitWindowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
     rateLimitBlockSeconds: env.RATE_LIMIT_BLOCK_SECONDS,
     rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
