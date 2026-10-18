@@ -73,6 +73,8 @@ export interface ApiHarnessOptions {
   readonly behaviour?: MockBehaviour;
   readonly assetReceiptMode?: Config["assetReceiptMode"];
   readonly adminToken?: string;
+  readonly adminAllowedHosts?: string;
+  readonly allowedHosts?: string;
   readonly rateLimitRequests?: number;
   readonly rateLimitBlockSeconds?: number;
 }
@@ -100,6 +102,10 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     // (#151) without needing a Vite build of apps/checkout-ui.
     CHECKOUT_UI_DIST: fileURLToPath(new URL("./fixtures/checkout-ui", import.meta.url)),
     ...(options.adminToken === undefined ? {} : { ADMIN_TOKEN: options.adminToken }),
+    ...(options.adminAllowedHosts === undefined
+      ? {}
+      : { ADMIN_ALLOWED_HOSTS: options.adminAllowedHosts }),
+    ...(options.allowedHosts === undefined ? {} : { ALLOWED_HOSTS: options.allowedHosts }),
   });
 
   // The same key path production takes: a repository, sha-256 lookup, and the

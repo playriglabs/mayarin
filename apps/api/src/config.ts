@@ -216,6 +216,14 @@ const configSchema = z.object({
    * Blank turns the check off.
    */
   allowedHosts: z.string().default("").transform(parseHostList),
+  /**
+   * Hostnames the admin routes answer on (SEC-14), e.g. the service's private
+   * Railway name. On any other `Host`, including the public one, `/v1/admin`
+   * is a 404, so an admin token alone does not make the endpoint reachable from
+   * the internet. A request must pass this and `ALLOWED_HOSTS`, so list these
+   * there too. Blank: admin answers on every allowed host.
+   */
+  adminAllowedHosts: z.string().default("").transform(parseHostList),
   rateLimitClientIpSource: z
     .enum(["cf-connecting-ip", "socket", "x-forwarded-for", "x-real-ip"])
     .default("socket"),
@@ -1235,6 +1243,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     rateLimitBlockSeconds: env.RATE_LIMIT_BLOCK_SECONDS,
     rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
     allowedHosts: env.ALLOWED_HOSTS,
+    adminAllowedHosts: env.ADMIN_ALLOWED_HOSTS,
     rateLimitClientIpSource: env.RATE_LIMIT_CLIENT_IP_SOURCE,
     realtimeEnabled: env.REALTIME_ENABLED,
     realtimeMaxWatched: env.REALTIME_MAX_WATCHED,

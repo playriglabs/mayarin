@@ -142,6 +142,7 @@ export function createApp(container: Container): Hono {
 
   const adminToken = container.config.adminToken;
   if (adminToken !== undefined) {
+    v1.use("/admin/*", allowedHosts({ hosts: container.config.adminAllowedHosts }));
     v1.route("/admin", adminRoutes(container, adminToken));
   }
   app.route("/v1", v1);
