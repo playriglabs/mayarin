@@ -19,7 +19,7 @@
  *   no half-updated state to reason about.
  */
 
-import { type ChainId, isChainAddress, isChainId } from "@mayarin/chain";
+import { type ChainId, isChainAddress, isChainId, isReviewedToken } from "@mayarin/chain";
 import type { PriceQuote, PriceSource } from "@mayarin/clearing";
 import { TablePriceSource } from "@mayarin/clearing";
 import {
@@ -27,6 +27,7 @@ import {
   assetDecimals,
   type Clock,
   getAsset,
+  isAssetCode,
   type MarketConfigEntry,
   type MarketConfigStore,
   type Money,
@@ -89,10 +90,24 @@ const onChainIdentitySchema = z
   });
 
 const stablecoinsSchema = z.array(
-  z.object({
-    asset: z.string(),
-    onChain: z.array(onChainIdentitySchema),
-  }),
+  z
+    .object({
+      asset: z.string(),
+      onChain: z.array(onChainIdentitySchema),
+    })
+    .superRefine((stablecoin, context) => {
+      // A runtime write must not admit what boot would refuse (SEC-18).
+      stablecoin.onChain.forEach((identity, index) => {
+        if (!isChainId(identity.chain) || !isAssetCode(stablecoin.asset)) return;
+        if (!isReviewedToken(identity.chain, stablecoin.asset, identity.address)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${stablecoin.asset} ${identity.address} is not in the reviewed mainnet token list`,
+            path: ["onChain", index, "address"],
+          });
+        }
+      });
+    }),
 );
 
 /** Rates travel as strings: JSON has no bigint, and a rate must stay exact. */
