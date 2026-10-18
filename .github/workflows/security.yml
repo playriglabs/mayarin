@@ -20,15 +20,14 @@ jobs:
   dependencies:
     name: known vulnerabilities in bun.lock
     runs-on: ubuntu-latest
-    # Report-only for now: on 18 Oct 2026 the lockfile already carries 32
-    # packages with advisories, almost all transitive build tooling. Left
-    # blocking it would be red from day one and ignored. Remove this line once
-    # the list is triaged (osv-scanner.toml for the accepted ones). A scanner
-    # crash is still visible in the log, but no longer fails the run.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: |
+      # Report-only for now: on 18 Oct 2026 the lockfile already carries 32
+      # packages with advisories, almost all transitive build tooling. Blocking
+      # would be red from day one and ignored. Drop `continue-on-error` once the
+      # list is triaged (osv-scanner.toml for the accepted ones).
+      - continue-on-error: true
+        run: |
           docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:v2.0.3 \
             scan source --lockfile bun.lock
 

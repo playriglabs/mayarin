@@ -1,0 +1,23 @@
+# gitleaks configuration (SEC-21). Extends the default rules; the allowlist
+# covers what the scan found on its first run (60 hits, none a secret).
+title = "mayarin"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "public identifiers and fixtures"
+regexTarget = "match"
+regexes = [
+  # EVM token/contract addresses and Solana mints in config examples: public
+  # on-chain identifiers that the generic-api-key rule mistakes for keys.
+  '''(?i)(token|mint|address)\w*"?\s*[:=]\s*"?(0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})''',
+  # logo.dev publishable key (pk_), shipped to browsers by design.
+  '''LOGO_DEV_TOKEN\s*=\s*"pk_[A-Za-z0-9_-]+"''',
+]
+paths = [
+  # Recorded testnet transactions: hashes and addresses only.
+  '''docs/evidence/''',
+  # Fixtures use made-up keys and well-known test vectors.
+  '''(^|/)test/''',
+]
