@@ -25,6 +25,7 @@ import {
   toIssueInvoiceCommand,
 } from "../dto/invoice.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { scopedIdempotencyKey } from "../idempotency.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
 import { withPayerCountry } from "../payer-country.ts";
 
@@ -61,7 +62,9 @@ export function invoiceRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
       ...(idempotencyKey === undefined
         ? {}
-        : { idempotencyKey: `${body.merchantId}:${idempotencyKey}` }),
+        : {
+            idempotencyKey: scopedIdempotencyKey(body.merchantId, "invoice-create", idempotencyKey),
+          }),
     });
 
     return c.json({ invoice: toInvoiceDto(invoice, baseUrl) }, 201);

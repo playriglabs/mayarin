@@ -24,6 +24,7 @@ import { disputeMessageBodySchema } from "../dto/escrow.ts";
 import { toDisputeMessageDto, toEscrowDto } from "../dto/escrow-mapper.ts";
 import { toPaymentDto } from "../dto/payment.ts";
 import { refundBodySchema, toRefundDto, toRefundSummaryDto } from "../dto/refund.ts";
+import { scopedIdempotencyKey } from "../idempotency.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
 import { fetchLogo, renderDocumentPdf } from "../services/document-pdf.ts";
 
@@ -137,7 +138,7 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(body.reason === undefined ? {} : { reason: body.reason }),
       ...(idempotencyKey === undefined
         ? {}
-        : { idempotencyKey: `${merchantId}:${idempotencyKey}` }),
+        : { idempotencyKey: scopedIdempotencyKey(merchantId, "refund", idempotencyKey) }),
     });
 
     return c.json({ refund: toRefundDto(refund) }, 201);

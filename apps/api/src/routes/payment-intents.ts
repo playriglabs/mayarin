@@ -26,6 +26,7 @@ import {
   createBodySchema,
   toPaymentIntentDto,
 } from "../dto/payment-intent.ts";
+import { scopedIdempotencyKey } from "../idempotency.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
 import { assertRailOffered } from "../rails.ts";
 
@@ -69,7 +70,13 @@ export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(body.ttlSeconds === undefined ? {} : { ttlSeconds: body.ttlSeconds }),
       ...(idempotencyKey === undefined
         ? {}
-        : { idempotencyKey: `${c.get("scope").merchantId}:${idempotencyKey}` }),
+        : {
+            idempotencyKey: scopedIdempotencyKey(
+              c.get("scope").merchantId,
+              "payment-intent",
+              idempotencyKey,
+            ),
+          }),
     };
 
     // The rail is the caller's choice now that it is no longer read from
