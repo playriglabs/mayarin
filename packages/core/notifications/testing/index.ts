@@ -69,6 +69,18 @@ export class InMemoryWebhookEndpointRepository implements WebhookEndpointReposit
   async listActiveByMerchant(merchantId: string): Promise<readonly WebhookEndpoint[]> {
     return (await this.listByMerchant(merchantId)).filter((endpoint) => endpoint.active);
   }
+
+  async destroyExpiredPreviousSecrets(now: Date): Promise<number> {
+    let destroyed = 0;
+    for (const endpoint of this.#endpoints.values()) {
+      const { previousSecret, previousSecretExpiresAt, ...rest } = endpoint;
+      if (previousSecret === undefined || previousSecretExpiresAt === undefined) continue;
+      if (previousSecretExpiresAt.getTime() > now.getTime()) continue;
+      this.#endpoints.set(endpoint.id, rest);
+      destroyed += 1;
+    }
+    return destroyed;
+  }
 }
 
 export class InMemoryWebhookDeliveryRepository implements WebhookDeliveryRepository {

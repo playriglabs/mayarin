@@ -42,6 +42,13 @@ export interface WebhookEndpointRepository {
   findById(id: string): Promise<WebhookEndpoint | null>;
   listByMerchant(merchantId: string): Promise<readonly WebhookEndpoint[]>;
   listActiveByMerchant(merchantId: string): Promise<readonly WebhookEndpoint[]>;
+  /**
+   * Erases every previous secret whose grace period has ended (SEC-12). Signing
+   * already ignores an expired one; this removes the value itself, so a leaked
+   * database holds nothing a rotated-out secret could be recovered from.
+   * Returns how many endpoints were cleared.
+   */
+  destroyExpiredPreviousSecrets(now: Date): Promise<number>;
 }
 
 export interface WebhookDeliveryRepository {

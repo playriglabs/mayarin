@@ -78,6 +78,7 @@ export class WebhookDispatcher {
   }
 
   async tick(): Promise<DispatchTickResult> {
+    await this.#endpoints.destroyExpiredPreviousSecrets(this.#clock.now());
     const enqueued = await this.#enqueue();
     const attempted = await this.#deliver();
     return { enqueued, ...attempted };

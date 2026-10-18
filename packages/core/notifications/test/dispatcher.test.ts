@@ -345,4 +345,21 @@ describe("deliver", () => {
       }),
     ).toBe(false);
   });
+
+  test("erases an expired previous secret and keeps one still in its grace period (SEC-12)", async () => {
+    const expired = await endpoint({
+      previousSecret: "whsec_old",
+      previousSecretExpiresAt: new Date(clock.now().getTime() - 1),
+    });
+    const live = await endpoint({
+      previousSecret: "whsec_recent",
+      previousSecretExpiresAt: new Date(clock.now().getTime() + 60_000),
+    });
+
+    await dispatcher.tick();
+
+    expect((await endpoints.findById(expired.id))?.previousSecret).toBeUndefined();
+    expect((await endpoints.findById(expired.id))?.previousSecretExpiresAt).toBeUndefined();
+    expect((await endpoints.findById(live.id))?.previousSecret).toBe("whsec_recent");
+  });
 });
