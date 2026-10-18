@@ -5,7 +5,7 @@
  * a response. No payment logic lives here.
  */
 
-import { apiSecurityHeaders, rateLimit, securityEvents } from "@mayarin/http";
+import { allowedHosts, apiSecurityHeaders, rateLimit, securityEvents } from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -32,6 +32,7 @@ import { checkoutUiRoutes } from "./services/checkout-shell.ts";
 export function createApp(container: Container): Hono {
   const app = new Hono();
 
+  app.use("*", allowedHosts({ hosts: container.config.allowedHosts }));
   app.onError(errorHandler);
   app.notFound(() => {
     throw new NotFoundError("Route not found");
