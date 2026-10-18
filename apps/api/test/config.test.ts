@@ -938,6 +938,9 @@ describe("TransFi sandbox auto-settle", () => {
       expect(() => loadConfig({ ...BASE, MAX_PAYMENT_SETTLEMENT: '{"USDC":"0"}' })).toThrow(
         /positive decimal/,
       );
+      expect(() => loadConfig({ ...BASE, MAX_MERCHANT_DAILY_SETTLEMENT: '{"NOPE":"5"}' })).toThrow(
+        /MAX_MERCHANT_DAILY_SETTLEMENT names an unknown asset/,
+      );
     });
   });
 });

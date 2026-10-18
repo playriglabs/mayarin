@@ -145,6 +145,15 @@ const configSchema = z.object({
    */
   maxPaymentSettlement: jsonObject<Record<string, string>>("MAX_PAYMENT_SETTLEMENT", "{}"),
   /**
+   * The most one merchant may be priced for in a rolling 24 hours, per settlement
+   * asset, whole units: `{"USDC":"2000"}`. Counts payments still waiting to be
+   * paid. Optional; not atomic across payments locking in the same instant.
+   */
+  maxMerchantDailySettlement: jsonObject<Record<string, string>>(
+    "MAX_MERCHANT_DAILY_SETTLEMENT",
+    "{}",
+  ),
+  /**
    * Encrypts webhook signing secrets at rest (SEC-12). Must be the same value on
    * the payment API and the dashboard API, which both read endpoints. Unset: the
    * secrets are stored as given (development). Required once a mainnet chain is
@@ -1090,15 +1099,21 @@ function withoutEmpty(env: Record<string, string | undefined>): Record<string, s
  */
 function assertPaymentLimit(data: RawConfig): void {
   const issues: string[] = [];
-  for (const [asset, value] of Object.entries(data.maxPaymentSettlement)) {
-    if (!isAssetCode(asset)) {
-      issues.push(`MAX_PAYMENT_SETTLEMENT names an unknown asset "${asset}"`);
-      continue;
-    }
-    try {
-      if (fromDecimalString(value, asset).amount <= 0n) throw new Error("not positive");
-    } catch {
-      issues.push(`MAX_PAYMENT_SETTLEMENT ${asset} must be a positive decimal, got "${value}"`);
+  const limits = {
+    MAX_PAYMENT_SETTLEMENT: data.maxPaymentSettlement,
+    MAX_MERCHANT_DAILY_SETTLEMENT: data.maxMerchantDailySettlement,
+  };
+  for (const [name, limit] of Object.entries(limits)) {
+    for (const [asset, value] of Object.entries(limit)) {
+      if (!isAssetCode(asset)) {
+        issues.push(`${name} names an unknown asset "${asset}"`);
+        continue;
+      }
+      try {
+        if (fromDecimalString(value, asset).amount <= 0n) throw new Error("not positive");
+      } catch {
+        issues.push(`${name} ${asset} must be a positive decimal, got "${value}"`);
+      }
     }
   }
   const onMainnet = [...Object.keys(data.chainAssets), ...Object.keys(data.paymentRouters)].some(
@@ -1202,6 +1217,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     executionPath: env.EXECUTION_PATH,
     exchangeRates: env.EXCHANGE_RATES,
     maxPaymentSettlement: env.MAX_PAYMENT_SETTLEMENT,
+    maxMerchantDailySettlement: env.MAX_MERCHANT_DAILY_SETTLEMENT,
     webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,

@@ -412,3 +412,46 @@ describe("per-payment limit", () => {
     expect(transaction.state).toBe("SUCCESS");
   });
 });
+
+describe("merchant daily limit", () => {
+  // Each payment prices at 5 USDC (5,000,000 minor units).
+  test("the payment that would pass the daily total fails, earlier ones clear", async () => {
+    const harness = createHarness({ maxMerchantDailySettlement: { USDC: 10_000_000n } });
+    const first = await harness.engine.start(
+      await harness.confirmedIntent({ idempotencyKey: "a" }),
+    );
+    const second = await harness.engine.start(
+      await harness.confirmedIntent({ idempotencyKey: "b" }),
+    );
+    const third = await harness.engine.start(
+      await harness.confirmedIntent({ idempotencyKey: "c" }),
+    );
+
+    expect([first.state, second.state, third.state]).toEqual(["SUCCESS", "SUCCESS", "FAILED"]);
+    expect(third.failure?.reason).toContain("daily limit");
+  });
+
+  test("a failed payment does not use up the allowance", async () => {
+    const harness = createHarness({
+      maxPaymentSettlement: { USDC: 4_999_999n },
+      maxMerchantDailySettlement: { USDC: 5_000_000n },
+    });
+    const over = await harness.engine.start(await harness.confirmedIntent({ idempotencyKey: "a" }));
+    expect(over.state).toBe("FAILED");
+    expect(
+      await harness.repositories.clearing.settlementVolumeSince(
+        over.merchant.id,
+        "USDC",
+        new Date(0),
+      ),
+    ).toBe(0n);
+  });
+
+  test("the window is 24 hours", async () => {
+    const harness = createHarness({ maxMerchantDailySettlement: { USDC: 5_000_000n } });
+    await harness.engine.start(await harness.confirmedIntent({ idempotencyKey: "a" }));
+    harness.clock.advance(24 * 60 * 60_000 + 1);
+    const next = await harness.engine.start(await harness.confirmedIntent({ idempotencyKey: "b" }));
+    expect(next.state).toBe("SUCCESS");
+  });
+});
