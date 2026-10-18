@@ -65,6 +65,7 @@ import {
   listenPaymentChanged,
   type PaymentFundingRepository,
   PostgresNonceSequencer,
+  SecretBox,
 } from "@mayarin/db";
 import { FallbackRouteSource } from "@mayarin/execution";
 import { InvoiceService } from "@mayarin/invoicing";
@@ -1236,7 +1237,12 @@ export function createContainer({
   let webhookEndpoints: WebhookEndpointRepository | undefined;
   let webhookDeliveries: WebhookDeliveryRepository | undefined;
   if (config.webhooksEnabled) {
-    webhookEndpoints = new DrizzleWebhookEndpointRepository(handle.db);
+    webhookEndpoints = new DrizzleWebhookEndpointRepository(
+      handle.db,
+      config.webhookSecretEncryptionKey === undefined
+        ? undefined
+        : new SecretBox(config.webhookSecretEncryptionKey),
+    );
     webhookDeliveries = new DrizzleWebhookDeliveryRepository(handle.db);
     webhooks = new WebhookDispatcher({
       outbox: new DrizzleWebhookOutbox(handle.db),

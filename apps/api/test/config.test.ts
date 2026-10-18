@@ -273,6 +273,7 @@ describe("contract path configuration", () => {
     CHAIN_ASSETS: '{"base":{"USDC":"0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22"}}',
     // `base` is a mainnet, and a mainnet will not boot without a payment cap.
     MAX_PAYMENT_SETTLEMENT: '{"USDC":"500"}',
+    WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
   } as const;
 
   test("is absent unless enabled", () => {
@@ -915,8 +916,18 @@ describe("TransFi sandbox auto-settle", () => {
       expect(() => loadConfig(mainnet)).toThrow(/MAX_PAYMENT_SETTLEMENT is required/);
     });
 
-    test("a mainnet chain with one boots, and the cap is read", () => {
-      const config = loadConfig({ ...mainnet, MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}' });
+    test("a mainnet chain without WEBHOOK_SECRET_ENCRYPTION_KEY will not boot (SEC-12)", () => {
+      expect(() => loadConfig({ ...mainnet, MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}' })).toThrow(
+        /WEBHOOK_SECRET_ENCRYPTION_KEY is required/,
+      );
+    });
+
+    test("a mainnet chain with both boots, and the cap is read", () => {
+      const config = loadConfig({
+        ...mainnet,
+        MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}',
+        WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
+      });
       expect(config.maxPaymentSettlement).toEqual({ USDC: "250" });
     });
 

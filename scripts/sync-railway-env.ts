@@ -65,6 +65,7 @@ const policies: readonly ServicePolicy[] = [
         "TRANSFI_PASSWORD",
         "TRANSFI_WEBHOOK_SECRET",
         "TURNKEY_API_PRIVATE_KEY",
+        "WEBHOOK_SECRET_ENCRYPTION_KEY",
         "ZERO_EX_API_KEY",
       ]),
       // Inbound-webhook and admin credentials only authenticate HTTP requests.
@@ -91,6 +92,7 @@ const policies: readonly ServicePolicy[] = [
         "RESEND_API_KEY",
         "TURNKEY_API_PRIVATE_KEY",
         "WALLET_DEPLOYER_PRIVATE_KEY",
+        "WEBHOOK_SECRET_ENCRYPTION_KEY",
       ]),
       // Inbound-webhook and admin credentials only authenticate HTTP requests.
       withheld: new Set<string>(),
@@ -123,7 +125,13 @@ const policies: readonly ServicePolicy[] = [
         "ZERO_EX_API_KEY",
       ]),
       // Inbound-webhook and admin credentials only authenticate HTTP requests.
-      withheld: new Set(["ADMIN_TOKEN", "MOCK_WEBHOOK_SECRET", "TRANSFI_WEBHOOK_SECRET"]),
+      // The worker never reads webhook endpoints, so it never holds the key that opens them.
+      withheld: new Set([
+        "ADMIN_TOKEN",
+        "MOCK_WEBHOOK_SECRET",
+        "TRANSFI_WEBHOOK_SECRET",
+        "WEBHOOK_SECRET_ENCRYPTION_KEY",
+      ]),
     },
     overrides: {
       DASHBOARD_URL: "https://dashboard-testnet.mayarin.xyz",

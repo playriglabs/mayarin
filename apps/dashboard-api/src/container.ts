@@ -71,6 +71,7 @@ import {
   DrizzleWebhookEndpointRepository,
   DrizzleX402ResourceRepository,
   type PaymentFundingRepository,
+  SecretBox,
 } from "@mayarin/db";
 import { type InvoiceRepository, InvoiceService } from "@mayarin/invoicing";
 import type { LedgerRepository } from "@mayarin/ledger";
@@ -511,7 +512,12 @@ export function createContainer(options: CreateContainerOptions): Container {
   const webhooks = new WebhookService({
     endpoints:
       options.webhookEndpoints ??
-      new DrizzleWebhookEndpointRepository(handle?.db ?? throwIfNoHandle()),
+      new DrizzleWebhookEndpointRepository(
+        handle?.db ?? throwIfNoHandle(),
+        config.webhookSecretEncryptionKey === undefined
+          ? undefined
+          : new SecretBox(config.webhookSecretEncryptionKey),
+      ),
     deliveries:
       options.webhookDeliveries ??
       new DrizzleWebhookDeliveryRepository(handle?.db ?? throwIfNoHandle()),
