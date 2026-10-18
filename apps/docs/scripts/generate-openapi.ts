@@ -649,10 +649,12 @@ registry.registerPath({
   tags: ["Payment intents"],
   operationId: "getPaymentIntent",
   summary: "Get a payment intent",
-  security: noAuth,
+  description: "Merchant read. Answers 404 for an intent that belongs to another merchant.",
+  security: secretKey,
   request: { params: idParams },
   responses: {
     "200": jsonResponse(paymentIntentSchema, "Current intent."),
+    "401": errorResponse("Missing or unknown API key."),
     "404": errorResponse("No intent with that id."),
   },
 });

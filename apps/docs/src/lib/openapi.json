@@ -1995,6 +1995,8 @@
                           "arbitrum",
                           "arbitrum-sepolia",
                           "arc-testnet",
+                          "polygon-amoy",
+                          "bsc-testnet",
                           "solana-devnet",
                           "solana-localnet"
                         ]
@@ -2151,7 +2153,12 @@
         ],
         "operationId": "getPaymentIntent",
         "summary": "Get a payment intent",
-        "security": [],
+        "description": "Merchant read. Answers 404 for an intent that belongs to another merchant.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -2169,6 +2176,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentIntent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or unknown API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -3375,6 +3392,8 @@
                           "arbitrum",
                           "arbitrum-sepolia",
                           "arc-testnet",
+                          "polygon-amoy",
+                          "bsc-testnet",
                           "solana-devnet",
                           "solana-localnet"
                         ]
@@ -3864,6 +3883,8 @@
                             "arbitrum",
                             "arbitrum-sepolia",
                             "arc-testnet",
+                            "polygon-amoy",
+                            "bsc-testnet",
                             "solana-devnet",
                             "solana-localnet"
                           ]
@@ -4270,6 +4291,8 @@
                           "arbitrum",
                           "arbitrum-sepolia",
                           "arc-testnet",
+                          "polygon-amoy",
+                          "bsc-testnet",
                           "solana-devnet",
                           "solana-localnet"
                         ]
@@ -5232,6 +5255,8 @@
                           "arbitrum",
                           "arbitrum-sepolia",
                           "arc-testnet",
+                          "polygon-amoy",
+                          "bsc-testnet",
                           "solana-devnet",
                           "solana-localnet"
                         ]
@@ -5947,6 +5972,8 @@
                             "arbitrum",
                             "arbitrum-sepolia",
                             "arc-testnet",
+                            "polygon-amoy",
+                            "bsc-testnet",
                             "solana-devnet",
                             "solana-localnet"
                           ]
