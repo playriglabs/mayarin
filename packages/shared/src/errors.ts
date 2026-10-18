@@ -106,6 +106,13 @@ export class UnauthorizedError extends MayarinError {
   readonly httpStatus = 401;
 }
 
+/** Too many failed attempts against one target; the same request can succeed once the wait is over. */
+export class RateLimitedError extends MayarinError {
+  readonly code = "RATE_LIMITED";
+  readonly httpStatus = 429;
+  override readonly retryable = true;
+}
+
 /** The caller is authenticated but lacks the role or scope for this resource. */
 export class ForbiddenError extends MayarinError {
   readonly code = "FORBIDDEN";

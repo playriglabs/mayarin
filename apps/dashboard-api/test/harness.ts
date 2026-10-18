@@ -197,7 +197,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     clock,
     ttlSeconds: config.sessionTtlSeconds,
   });
-  const authService = new AuthService({ users, hasher });
+  const authService = new AuthService({ users, hasher, clock });
   // Its own clock, offset from the suite's, so stepping past a used code does not
   // move the timestamps other assertions read.
   let mfaOffsetMs = 0;
