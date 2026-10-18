@@ -45,6 +45,8 @@ export interface RefundRepository {
   findById(id: string): Promise<Refund | null>;
   findByIdempotencyKey(key: string): Promise<Refund | null>;
   listByClearingTransactionId(clearingTransactionId: string): Promise<readonly Refund[]>;
+  /** Every refund created at or after `since`, oldest first. */
+  listCreatedSince(since: Date): Promise<readonly Refund[]>;
   /** Refunds still `PENDING` that were last touched before `before`. */
   listPendingBefore(before: Date): Promise<readonly Refund[]>;
   /**
@@ -68,6 +70,21 @@ export interface RefundServiceOptions {
   readonly clock: Clock;
   readonly events?: EventPublisher;
 }
+
+/**
+ * One way a refund and the ledger disagree (SEC-02). Each is something a person
+ * has to look at: the service reports and never repairs, because which side is
+ * right depends on what the rail actually did.
+ */
+export type RefundDiscrepancy =
+  | { readonly kind: "succeeded_without_posting"; readonly refundId: string }
+  | { readonly kind: "posting_without_success"; readonly refundId: string; readonly state: string }
+  | {
+      readonly kind: "amount_mismatch";
+      readonly refundId: string;
+      readonly refunded: bigint;
+      readonly posted: bigint;
+    };
 
 export interface IssueRefundCommand {
   readonly clearingTransactionId: string;
@@ -179,6 +196,50 @@ export class RefundService {
       resumed.push(await this.#execute(transaction, refund));
     }
     return resumed;
+  }
+
+  /**
+   * Compares every refund created since `since` with the ledger.
+   *
+   * A succeeded refund must have exactly the posting `refundPosting` makes (key
+   * `<refundId>:REFUND`, debit of the refunded amount); a pending or failed one
+   * must have none. A succeeded refund with no posting means value left that the
+   * books do not show; a posting for a refund that did not succeed means the
+   * books show value that did not leave.
+   */
+  async reconcile(since: Date): Promise<readonly RefundDiscrepancy[]> {
+    const found: RefundDiscrepancy[] = [];
+    const refunds = await this.#refunds.listCreatedSince(since);
+    const postingsByTransaction = new Map<string, Map<string, bigint>>();
+    for (const refund of refunds) {
+      let postings = postingsByTransaction.get(refund.clearingTransactionId);
+      if (postings === undefined) {
+        postings = new Map();
+        for (const posting of await this.#ledger.transactionsFor(refund.clearingTransactionId)) {
+          const debit = posting.entries.find((entry) => entry.direction === "DEBIT");
+          if (posting.idempotencyKey !== undefined && debit !== undefined) {
+            postings.set(posting.idempotencyKey, debit.amount.amount);
+          }
+        }
+        postingsByTransaction.set(refund.clearingTransactionId, postings);
+      }
+      const posted = postings.get(`${refund.id}:REFUND`);
+      if (refund.state === "SUCCEEDED") {
+        if (posted === undefined) {
+          found.push({ kind: "succeeded_without_posting", refundId: refund.id });
+        } else if (posted !== refund.amount.amount) {
+          found.push({
+            kind: "amount_mismatch",
+            refundId: refund.id,
+            refunded: refund.amount.amount,
+            posted,
+          });
+        }
+      } else if (posted !== undefined) {
+        found.push({ kind: "posting_without_success", refundId: refund.id, state: refund.state });
+      }
+    }
+    return found;
   }
 
   async #execute(transaction: ClearingTransaction, refund: Refund): Promise<Refund> {

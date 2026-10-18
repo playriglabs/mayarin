@@ -256,6 +256,12 @@ export class InMemoryRefundRepository implements RefundRepository {
     return this.#byId.get(id) ?? null;
   }
 
+  async listCreatedSince(since: Date): Promise<readonly Refund[]> {
+    return [...this.#byId.values()]
+      .filter((refund) => refund.createdAt >= since)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
   async listPendingBefore(before: Date): Promise<readonly Refund[]> {
     return [...this.#byId.values()].filter(
       (refund) => refund.state === "PENDING" && refund.updatedAt < before,
