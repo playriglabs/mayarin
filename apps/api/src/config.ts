@@ -12,6 +12,7 @@ import {
   isChainId,
   isEvmChainId,
   isMainnetChain,
+  isReviewedToken,
   isSolanaChainId,
 } from "@mayarin/chain";
 import type { FxFeed } from "@mayarin/provider-fx";
@@ -995,6 +996,14 @@ function resolveChain(data: RawConfig): ChainConfig | undefined {
     }
     confirmations[chainId] = data.chainConfirmations[chainId] ?? 6;
     tokenCount += Object.keys(tokens ?? {}).length;
+    for (const [asset, address] of Object.entries(tokens ?? {})) {
+      if (!isReviewedToken(chainId, asset as AssetCode, address)) {
+        issues.push(
+          `CHAIN_ASSETS lists ${asset} ${address} on ${chainId}, which is not in the reviewed ` +
+            `mainnet token list (packages/core/chain/src/reviewed-tokens.ts)`,
+        );
+      }
+    }
   }
 
   if (tokenCount === 0) {

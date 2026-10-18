@@ -885,4 +885,17 @@ describe("TransFi sandbox auto-settle", () => {
       /only allowed with/,
     );
   });
+
+  test("refuses a token on a mainnet chain that is not on the reviewed list (SEC-18)", () => {
+    expect(() =>
+      loadConfig({
+        ...BASE,
+        CHAIN_ENABLED: "true",
+        ASSET_RECEIPT_MODE: "manual",
+        CHAIN_RPC_URLS: '{"base":"https://mainnet.base.org"}',
+        CHAIN_ASSETS: '{"base":{"USDC":"0x1111111111111111111111111111111111111111"}}',
+        DEPOSIT_XPUB: "xpub-test",
+      }),
+    ).toThrow(/not in the reviewed mainnet token list/i);
+  });
 });
