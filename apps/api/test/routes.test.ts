@@ -169,6 +169,46 @@ describe("POST /payment-intents", () => {
   });
 });
 
+describe("GET /payment-intents/:id (SEC-09)", () => {
+  async function minted() {
+    const harness = createApiHarness();
+    const created = await harness.request("POST", "/v1/payment-intents", {
+      body: { qr: qrisPayload() },
+    });
+    return { harness, id: created.body.paymentIntent.id as string };
+  }
+
+  test("the owner reads it", async () => {
+    const { harness, id } = await minted();
+    const { status, body } = await harness.request("GET", `/v1/payment-intents/${id}`);
+    expect(status).toBe(200);
+    expect(body.paymentIntent.id).toBe(id);
+  });
+
+  test("holding the id is not enough: no key is a 401", async () => {
+    const { harness, id } = await minted();
+    const { status } = await harness.request("GET", `/v1/payment-intents/${id}`, { auth: false });
+    expect(status).toBe(401);
+  });
+
+  test("another tenant's key sees nothing", async () => {
+    const { harness, id } = await minted();
+    const foreign = harness.mintApiKey("mrc_2", "mak_other_merchant");
+    const { status } = await harness.request("GET", `/v1/payment-intents/${id}`, {
+      auth: foreign,
+    });
+    expect(status).toBe(404);
+  });
+
+  test("the payer can still confirm without a key", async () => {
+    const { harness, id } = await minted();
+    const { status } = await harness.request("POST", `/v1/payment-intents/${id}/confirm`, {
+      auth: false,
+    });
+    expect(status).toBe(200);
+  });
+});
+
 describe("POST /payment-intents/:id/confirm", () => {
   test("clears a payment end to end", async () => {
     const harness = createApiHarness();

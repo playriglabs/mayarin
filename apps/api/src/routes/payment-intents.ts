@@ -16,7 +16,7 @@ import {
   sourceFromParsedQr,
 } from "@mayarin/payment-intent";
 import { parseQr } from "@mayarin/qr-parser";
-import { ValidationError } from "@mayarin/shared";
+import { NotFoundError, ValidationError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toPaymentDto } from "../dto/payment.ts";
@@ -105,8 +105,15 @@ export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     return c.json(toPaymentDto(intent, transaction, events));
   });
 
-  app.get("/:id", async (c) => {
+  // The merchant's own read (SEC-09). It returns what the payer never needs
+  // back from this route, the merchant snapshot and metadata, and the payer's
+  // page reads status from `/payments/:id` instead, so holding the id is not
+  // enough. A payment that is not the caller's answers like one that does not exist.
+  app.get("/:id", requireApiKey(container.verifyApiKey), async (c) => {
     const intent = await container.intents.getById(c.req.param("id"));
+    if (intent.ownerMerchantId !== c.get("scope").merchantId) {
+      throw new NotFoundError(`Payment intent ${intent.id} not found`, { id: intent.id });
+    }
     return c.json({ paymentIntent: toPaymentIntentDto(intent) });
   });
 
