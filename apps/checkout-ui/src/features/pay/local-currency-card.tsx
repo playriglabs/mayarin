@@ -274,6 +274,12 @@ export function LocalCurrencyCard({
       if (instructions.kind === "redirect") {
         // A method TransFi cannot hand back as a QR or an account number: its
         // hosted page takes the payment, then returns here.
+        // Only a web page: the URL came from a payment provider's response.
+        if (!/^https:\/\//i.test(instructions.url)) {
+          setError("This payment method could not be opened. Try another.");
+          setBusy(false);
+          return;
+        }
         window.location.href = instructions.url;
         return;
       }
