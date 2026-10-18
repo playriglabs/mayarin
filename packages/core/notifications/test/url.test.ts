@@ -99,4 +99,22 @@ describe("webhook URL policy", () => {
       expect(isPrivateAddress(address)).toBe(false);
     }
   });
+
+  test("rejects alternative encodings of a private IPv4 literal (SEC-11)", () => {
+    for (const host of [
+      "2130706433", // 127.0.0.1 as one decimal
+      "0x7f000001", // as one hex number
+      "0x7f.1", // mixed hex and short form
+      "017700000001", // as one octal number
+      "127.1", // short form
+      "0177.0.0.1", // octal octet
+      "2852039166", // 169.254.169.254 as one decimal
+      "[::ffff:7f00:1]", // IPv4-mapped IPv6, hex form
+      "[0:0:0:0:0:ffff:127.0.0.1]", // expanded
+      "localhost.", // trailing dot
+      "LOCALHOST",
+    ]) {
+      expect(() => assertWebhookUrl(`https://${host}/hook`), host).toThrow(ValidationError);
+    }
+  });
 });

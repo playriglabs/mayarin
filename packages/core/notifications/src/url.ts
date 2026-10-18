@@ -31,7 +31,8 @@ export function assertWebhookUrl(url: string): URL {
     throw new ValidationError("url must use port 443");
   }
 
-  const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+  // A trailing dot is the same name: `localhost.` is `localhost`.
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "").replace(/\.$/, "");
   if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
     throw new ValidationError("url must not point at a private network");
   }
