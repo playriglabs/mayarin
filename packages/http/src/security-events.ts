@@ -46,7 +46,13 @@ export function resultOf(status: number): SecurityEvent["result"] {
 
 export function securityEvents(options: SecurityEventOptions): MiddlewareHandler {
   const now = options.now ?? (() => new Date());
-  const write = options.write ?? ((event) => console.log(JSON.stringify(event)));
+  // Quiet under `bun test` (NODE_ENV=test): a suite exercising refusals would
+  // otherwise print a line per request and bury its own failures.
+  const write =
+    options.write ??
+    ((event) => {
+      if (process.env.NODE_ENV !== "test") console.log(JSON.stringify(event));
+    });
 
   return async (c, next) => {
     // Cloudflare's id when present, so a log line joins the edge log.
