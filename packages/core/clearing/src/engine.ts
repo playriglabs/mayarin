@@ -150,6 +150,13 @@ export interface ClearingEngineOptions {
    */
   readonly maxPaymentSettlement?: Readonly<Partial<Record<AssetCode, bigint>>>;
   /**
+   * The most one merchant may be priced for in a rolling 24 hours, per settlement
+   * asset, in minor units. Read from the repository at each lock, so two payments
+   * locking in the same instant can both pass: a ceiling on exposure, not an
+   * atomic quota.
+   */
+  readonly maxMerchantDailySettlement?: Readonly<Partial<Record<AssetCode, bigint>>>;
+  /**
    * Allocates a per-payment deposit address. Absent for a deployment with no
    * chain layer, in which case an intent naming a rail is rejected rather than
    * silently cleared without an address.
@@ -226,6 +233,7 @@ export class ClearingEngine {
   readonly #rates: RateProvider;
   readonly #fees: FeePolicy;
   readonly #maxPaymentSettlement: Readonly<Partial<Record<AssetCode, bigint>>>;
+  readonly #maxMerchantDailySettlement: Readonly<Partial<Record<AssetCode, bigint>>>;
   readonly #depositAddresses: DepositAddressRepository | undefined;
   readonly #depositDeriver: DepositAddressDeriver | undefined;
   readonly #contractPlanner: ContractPaymentPlanner | undefined;
@@ -246,6 +254,7 @@ export class ClearingEngine {
     this.#rates = options.rates;
     this.#fees = options.fees;
     this.#maxPaymentSettlement = options.maxPaymentSettlement ?? {};
+    this.#maxMerchantDailySettlement = options.maxMerchantDailySettlement ?? {};
     this.#depositAddresses = options.depositAddresses;
     this.#depositDeriver = options.depositDeriver;
     this.#contractPlanner = options.contractPlanner;
@@ -889,13 +898,27 @@ export class ClearingEngine {
   }
 
   /** Quotes and freezes the settlement amount, fee and net payout. */
-  /** Refuses a lock above the deployment's per-payment cap for that asset. */
-  #assertWithinLimit(settlementAmount: Money): void {
+  /** Refuses a lock above the per-payment cap, or past the merchant's rolling daily cap. */
+  async #assertWithinLimit(merchantId: string, settlementAmount: Money): Promise<void> {
     const cap = this.#maxPaymentSettlement[settlementAmount.asset];
     if (cap !== undefined && settlementAmount.amount > cap) {
       throw new ValidationError("This payment is above the limit this deployment accepts", {
         asset: settlementAmount.asset,
         limit: cap.toString(),
+      });
+    }
+    const daily = this.#maxMerchantDailySettlement[settlementAmount.asset];
+    if (daily === undefined) return;
+    const since = new Date(this.#clock.now().getTime() - 24 * 60 * 60_000);
+    const already = await this.#repository.settlementVolumeSince(
+      merchantId,
+      settlementAmount.asset,
+      since,
+    );
+    if (already + settlementAmount.amount > daily) {
+      throw new ValidationError("This merchant has reached its daily limit on this deployment", {
+        asset: settlementAmount.asset,
+        limit: daily.toString(),
       });
     }
   }
@@ -942,7 +965,7 @@ export class ClearingEngine {
           merchantId: transaction.merchant.id,
           provider: transaction.provider,
         });
-    this.#assertWithinLimit(settlementAmount);
+    await this.#assertWithinLimit(transaction.merchant.id, settlementAmount);
     const netAmount = subtract(settlementAmount, fee);
 
     if (!isPositive(netAmount)) {
@@ -1076,7 +1099,7 @@ export class ClearingEngine {
       ),
     });
 
-    this.#assertWithinLimit(lock.settlementAmount);
+    await this.#assertWithinLimit(transaction.merchant.id, lock.settlementAmount);
     const netAmount = subtract(lock.settlementAmount, lock.fee);
     if (!isPositive(netAmount)) {
       throw new ValidationError(
@@ -1288,7 +1311,7 @@ export class ClearingEngine {
       });
     }
 
-    this.#assertWithinLimit(lock.settlementAmount);
+    await this.#assertWithinLimit(transaction.merchant.id, lock.settlementAmount);
     const netAmount = subtract(lock.settlementAmount, lock.fee);
     if (!isPositive(netAmount)) {
       throw new ValidationError(

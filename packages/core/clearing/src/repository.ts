@@ -1,3 +1,4 @@
+import type { AssetCode } from "@mayarin/shared";
 import type { ClearingEvent, ClearingTransaction } from "./types.ts";
 
 /**
@@ -39,6 +40,13 @@ export interface ClearingRepository {
     providerReference: string,
   ): Promise<ClearingTransaction | null>;
   listEvents(clearingTransactionId: string): Promise<ClearingEvent[]>;
+  /**
+   * What one merchant has been priced for in `asset` since `since`: the locked
+   * settlement amounts of every transaction that is not `FAILED`. A payment
+   * still waiting to be paid counts, so the figure is the exposure the merchant
+   * could reach, not only what has settled.
+   */
+  settlementVolumeSince(merchantId: string, asset: AssetCode, since: Date): Promise<bigint>;
   /** Transactions stuck in a non-terminal state, oldest first. Drives recovery sweeps. */
   listResumable(limit: number): Promise<ClearingTransaction[]>;
   /** Successful payments with refundable payer surplus not yet confirmed as returned. */

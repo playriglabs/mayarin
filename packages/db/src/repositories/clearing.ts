@@ -13,7 +13,7 @@ import {
 } from "@mayarin/clearing";
 import type { ExecutionPath } from "@mayarin/payment-intent";
 import { type AssetCode, ConcurrencyError } from "@mayarin/shared";
-import { and, asc, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import {
   present,
@@ -207,6 +207,23 @@ export class DrizzleClearingRepository implements ClearingRepository {
       .update(clearingTransactions)
       .set({ escrowOutcome: outcome, escrowClosedAt: closedAt })
       .where(eq(clearingTransactions.id, clearingTransactionId));
+  }
+
+  async settlementVolumeSince(merchantId: string, asset: AssetCode, since: Date): Promise<bigint> {
+    const [row] = await this.#db
+      .select({
+        total: sql<string>`coalesce(sum(${clearingTransactions.settlementAmount}), 0)::text`,
+      })
+      .from(clearingTransactions)
+      .where(
+        and(
+          eq(clearingTransactions.merchantId, merchantId),
+          eq(clearingTransactions.settlementAsset, asset),
+          ne(clearingTransactions.state, "FAILED"),
+          gte(clearingTransactions.createdAt, since),
+        ),
+      );
+    return BigInt(row?.total ?? "0");
   }
 
   async listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]> {

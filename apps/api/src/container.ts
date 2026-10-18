@@ -320,6 +320,16 @@ export interface CreateContainerOptions {
  * answer to a request for a resource this deployment cannot settle is that it
  * does not serve one.
  */
+/** `{"USDC":"500"}` in whole units, as the engine takes it: minor units per asset. */
+function minorLimits(limits: Readonly<Record<string, string>>): Partial<Record<AssetCode, bigint>> {
+  return Object.fromEntries(
+    Object.entries(limits).map(([asset, value]) => [
+      asset,
+      fromDecimalString(value, asset as AssetCode).amount,
+    ]),
+  );
+}
+
 /** The routers the cross-asset settler may approve and call, per chain (SEC-17). */
 function allowedSwapRouters(config: Config): Partial<Record<ChainId, readonly string[]>> {
   const allowed: Partial<Record<ChainId, string[]>> = {};
@@ -995,12 +1005,8 @@ export function createContainer({
     clock,
     events,
     autoConfirmAssetReceipt: config.assetReceiptMode === "auto",
-    maxPaymentSettlement: Object.fromEntries(
-      Object.entries(config.maxPaymentSettlement).map(([asset, value]) => [
-        asset,
-        fromDecimalString(value, asset as AssetCode).amount,
-      ]),
-    ),
+    maxPaymentSettlement: minorLimits(config.maxPaymentSettlement),
+    maxMerchantDailySettlement: minorLimits(config.maxMerchantDailySettlement),
     ...(depositAddresses === undefined ? {} : { depositAddresses }),
     ...(depositDeriver === undefined ? {} : { depositDeriver }),
     ...(contractPlanner === undefined ? {} : { contractPlanner }),

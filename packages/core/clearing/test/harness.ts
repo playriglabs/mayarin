@@ -40,6 +40,7 @@ export interface HarnessOptions {
   readonly feeBasisPoints?: number;
   readonly autoConfirmAssetReceipt?: boolean;
   readonly maxPaymentSettlement?: Partial<Record<AssetCode, bigint>>;
+  readonly maxMerchantDailySettlement?: Partial<Record<AssetCode, bigint>>;
   readonly webhookSecret?: string;
   /** Settlement mode for the mock adapter. Defaults to `"external"`. */
   readonly mode?: SettlementMode;
@@ -133,6 +134,9 @@ export function createHarness(options: HarnessOptions = {}) {
     ...(options.maxPaymentSettlement === undefined
       ? {}
       : { maxPaymentSettlement: options.maxPaymentSettlement }),
+    ...(options.maxMerchantDailySettlement === undefined
+      ? {}
+      : { maxMerchantDailySettlement: options.maxMerchantDailySettlement }),
   });
 
   /** Creates and confirms an intent for 50,000.00 IDR, ready to clear. */

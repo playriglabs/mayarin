@@ -93,6 +93,17 @@ export class InMemoryClearingRepository implements ClearingRepository {
   readonly #byPaymentIntentId = new Map<string, string>();
   readonly #events = new Map<string, ClearingEvent[]>();
 
+  async settlementVolumeSince(merchantId: string, asset: AssetCode, since: Date): Promise<bigint> {
+    let total = 0n;
+    for (const transaction of this.#byId.values()) {
+      if (transaction.merchant.id !== merchantId || transaction.state === "FAILED") continue;
+      if (transaction.createdAt < since) continue;
+      const locked = transaction.settlementAmount;
+      if (locked !== undefined && locked.asset === asset) total += locked.amount;
+    }
+    return total;
+  }
+
   async insert(transaction: ClearingTransaction, events: readonly ClearingEvent[]): Promise<void> {
     if (this.#byId.has(transaction.id)) {
       throw new ConflictError(`Clearing transaction ${transaction.id} already exists`, {
