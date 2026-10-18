@@ -528,6 +528,28 @@ describe("admin routes", () => {
     expect(JSON.stringify(events)).not.toContain(token);
   });
 
+  test("admin answers only on its own hostnames, whatever the token (SEC-14)", async () => {
+    const token = "a-very-long-admin-token-secret";
+    const harness = createApiHarness({
+      adminToken: token,
+      allowedHosts: "api.mayarin.xyz,core-api.railway.internal",
+      adminAllowedHosts: "core-api.railway.internal",
+    });
+    const call = (host: string, path: string) =>
+      harness.app.request(path, {
+        headers: { host, authorization: `Bearer ${token}` },
+      });
+
+    // Reaches the handler (which wants a merchantId), so neither 404 nor 401.
+    const internal = (await call("core-api.railway.internal", "/v1/admin/webhooks/endpoints"))
+      .status;
+    expect([404, 401]).not.toContain(internal);
+    // The public name, with the right token, never reaches the admin routes.
+    expect((await call("api.mayarin.xyz", "/v1/admin/webhooks/endpoints")).status).toBe(404);
+    // And the rest of the API is unaffected on the public name.
+    expect((await call("api.mayarin.xyz", "/health")).status).toBe(200);
+  });
+
   test("a token that is only a prefix of the real one is refused", async () => {
     const harness = createApiHarness({ adminToken: "a-very-long-admin-token-secret" });
     const response = await harness.app.request("/v1/admin/watcher/tick", {
