@@ -152,6 +152,21 @@ describe("a bad write reaches nothing", () => {
     ]);
   });
 
+  test("refuses an unreviewed token on a mainnet chain, admits a reviewed one (SEC-18)", async () => {
+    const { market, store } = harness();
+    const base = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+    await expect(
+      market.put("stablecoins", [{ asset: "USDC", onChain: [{ chain: "base", address: USDT }] }]),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(await store.get("stablecoins")).toBeUndefined();
+
+    await market.put("stablecoins", [
+      { asset: "USDC", onChain: [{ chain: "base", address: base }] },
+    ]);
+    expect(await store.get("stablecoins")).toBeDefined();
+  });
+
   test("an unparseable value is refused rather than stored", async () => {
     const { market, store } = harness();
     await market.seedFromEnvironment();
