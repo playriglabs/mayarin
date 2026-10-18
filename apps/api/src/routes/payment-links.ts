@@ -16,6 +16,7 @@ import {
   toPaymentLinkDto,
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { scopedIdempotencyKey } from "../idempotency.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
 import { withPayerCountry } from "../payer-country.ts";
 import { assertLinkRailOffered, linkRails, payerRails, unofferedRailWarnings } from "../rails.ts";
@@ -47,7 +48,9 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(body.rails === undefined ? {} : { rails: body.rails }),
       ...(idempotencyKey === undefined
         ? {}
-        : { idempotencyKey: `${body.merchant.id}:${idempotencyKey}` }),
+        : {
+            idempotencyKey: scopedIdempotencyKey(body.merchant.id, "link-create", idempotencyKey),
+          }),
     });
 
     // The restriction is validated as a warning, not a refusal (#259): a
@@ -155,7 +158,13 @@ export function paymentLinkRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(amount === undefined ? {} : { amount }),
       ...(idempotencyKey === undefined
         ? {}
-        : { idempotencyKey: `${c.req.param("id")}:${idempotencyKey}` }),
+        : {
+            idempotencyKey: scopedIdempotencyKey(
+              c.req.param("id"),
+              "link-checkout",
+              idempotencyKey,
+            ),
+          }),
     });
 
     return c.json({ paymentIntent: toPaymentIntentDto(intent) }, 201);

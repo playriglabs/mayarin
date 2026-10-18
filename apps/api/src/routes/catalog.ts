@@ -21,6 +21,7 @@ import {
   updateProductBodySchema,
 } from "../dto/catalog.ts";
 import { toMerchantSnapshot, toPaymentIntentDto } from "../dto/payment-intent.ts";
+import { scopedIdempotencyKey } from "../idempotency.ts";
 import {
   type ApiKeyAuthEnv,
   type ApiKeyScope,
@@ -126,7 +127,9 @@ export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       ...(metadata === undefined ? {} : { metadata }),
       ...(idempotencyKey === undefined
         ? {}
-        : { idempotencyKey: `${scope.merchantId}:${idempotencyKey}` }),
+        : {
+            idempotencyKey: scopedIdempotencyKey(scope.merchantId, "cart-checkout", idempotencyKey),
+          }),
     });
 
     // The storefront minting from its own server is not same-origin with the
