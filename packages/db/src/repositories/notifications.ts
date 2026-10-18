@@ -45,6 +45,7 @@ import {
   webhookDeliveries,
   webhookEndpoints,
 } from "../schema.ts";
+import { openSecret, type SecretBox, sealSecret } from "../secret-box.ts";
 
 export class DrizzleWebhookOutbox implements WebhookOutbox {
   readonly #db: Database;
@@ -145,19 +146,22 @@ export class DrizzleWebhookCursorRepository implements WebhookCursorRepository {
 
 export class DrizzleWebhookEndpointRepository implements WebhookEndpointRepository {
   readonly #db: Database;
+  readonly #box: SecretBox | undefined;
 
-  constructor(db: Database) {
+  /** With a `box`, signing secrets are encrypted at rest (SEC-12); without one they are stored as given. */
+  constructor(db: Database, box?: SecretBox) {
     this.#db = db;
+    this.#box = box;
   }
 
   async insert(endpoint: WebhookEndpoint): Promise<void> {
-    await this.#db.insert(webhookEndpoints).values(toEndpointRow(endpoint));
+    await this.#db.insert(webhookEndpoints).values(toEndpointRow(endpoint, this.#box));
   }
 
   async update(endpoint: WebhookEndpoint): Promise<void> {
     await this.#db
       .update(webhookEndpoints)
-      .set(toEndpointRow(endpoint))
+      .set(toEndpointRow(endpoint, this.#box))
       .where(eq(webhookEndpoints.id, endpoint.id));
   }
 
@@ -167,7 +171,7 @@ export class DrizzleWebhookEndpointRepository implements WebhookEndpointReposito
       .from(webhookEndpoints)
       .where(eq(webhookEndpoints.id, id))
       .limit(1);
-    return row === undefined ? null : toEndpoint(row);
+    return row === undefined ? null : toEndpoint(row, this.#box);
   }
 
   async listByMerchant(merchantId: string): Promise<readonly WebhookEndpoint[]> {
@@ -176,7 +180,7 @@ export class DrizzleWebhookEndpointRepository implements WebhookEndpointReposito
       .from(webhookEndpoints)
       .where(eq(webhookEndpoints.merchantId, merchantId))
       .orderBy(asc(webhookEndpoints.id));
-    return rows.map(toEndpoint);
+    return rows.map((row) => toEndpoint(row, this.#box));
   }
 
   async listActiveByMerchant(merchantId: string): Promise<readonly WebhookEndpoint[]> {
@@ -185,7 +189,7 @@ export class DrizzleWebhookEndpointRepository implements WebhookEndpointReposito
       .from(webhookEndpoints)
       .where(and(eq(webhookEndpoints.merchantId, merchantId), eq(webhookEndpoints.active, true)))
       .orderBy(asc(webhookEndpoints.id));
-    return rows.map(toEndpoint);
+    return rows.map((row) => toEndpoint(row, this.#box));
   }
 
   async destroyExpiredPreviousSecrets(now: Date): Promise<number> {
@@ -299,13 +303,14 @@ export class DrizzleWebhookDeliveryRepository implements WebhookDeliveryReposito
 type EndpointRow = typeof webhookEndpoints.$inferSelect;
 type DeliveryRow = typeof webhookDeliveries.$inferSelect;
 
-function toEndpointRow(endpoint: WebhookEndpoint): EndpointRow {
+function toEndpointRow(endpoint: WebhookEndpoint, box: SecretBox | undefined): EndpointRow {
   return {
     id: endpoint.id,
     merchantId: endpoint.merchantId,
     url: endpoint.url,
-    secret: endpoint.secret,
-    previousSecret: endpoint.previousSecret ?? null,
+    secret: sealSecret(box, endpoint.secret),
+    previousSecret:
+      endpoint.previousSecret === undefined ? null : sealSecret(box, endpoint.previousSecret),
     previousSecretExpiresAt: endpoint.previousSecretExpiresAt ?? null,
     active: endpoint.active,
     createdAt: endpoint.createdAt,
@@ -313,13 +318,13 @@ function toEndpointRow(endpoint: WebhookEndpoint): EndpointRow {
   };
 }
 
-function toEndpoint(row: EndpointRow): WebhookEndpoint {
+function toEndpoint(row: EndpointRow, box: SecretBox | undefined): WebhookEndpoint {
   return {
     id: row.id,
     merchantId: row.merchantId,
     url: row.url,
-    secret: row.secret,
-    ...(row.previousSecret === null ? {} : { previousSecret: row.previousSecret }),
+    secret: openSecret(box, row.secret),
+    ...(row.previousSecret === null ? {} : { previousSecret: openSecret(box, row.previousSecret) }),
     ...(row.previousSecretExpiresAt === null
       ? {}
       : { previousSecretExpiresAt: row.previousSecretExpiresAt }),

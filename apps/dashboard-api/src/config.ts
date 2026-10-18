@@ -44,6 +44,8 @@ const configSchema = z.object({
    * signing key and rotated deliberately.
    */
   mfaEncryptionKey: z.string().min(32),
+  /** Same value as the payment API's: both read webhook endpoints (SEC-12). */
+  webhookSecretEncryptionKey: z.string().min(32).optional(),
   /**
    * Sets the `Secure` flag on the session/CSRF cookies. True in production; set
    * `COOKIE_SECURE=false` for local dev over plain HTTP.
@@ -277,6 +279,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     sessionTtlSeconds: env.SESSION_TTL_SECONDS,
     sessionIdleSeconds: env.SESSION_IDLE_SECONDS,
     mfaEncryptionKey: env.MFA_ENCRYPTION_KEY,
+    webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
     withdrawCoolingOffHours: env.WITHDRAW_COOLING_OFF_HOURS,
     withdrawDailyLimit: env.WITHDRAW_DAILY_LIMIT,
     cookieSecure: env.COOKIE_SECURE,

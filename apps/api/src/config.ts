@@ -144,6 +144,13 @@ const configSchema = z.object({
    * be unbounded by omission.
    */
   maxPaymentSettlement: jsonObject<Record<string, string>>("MAX_PAYMENT_SETTLEMENT", "{}"),
+  /**
+   * Encrypts webhook signing secrets at rest (SEC-12). Must be the same value on
+   * the payment API and the dashboard API, which both read endpoints. Unset: the
+   * secrets are stored as given (development). Required once a mainnet chain is
+   * configured.
+   */
+  webhookSecretEncryptionKey: z.string().min(32).optional(),
   chainAssets: jsonObject<TokenMap>("CHAIN_ASSETS", "{}"),
   /**
    * The chain's own currency, which has no contract address and emits no
@@ -1102,6 +1109,9 @@ function assertPaymentLimit(data: RawConfig): void {
       "MAX_PAYMENT_SETTLEMENT is required when a mainnet chain is configured: set the largest payment, per settlement asset, this deployment will accept",
     );
   }
+  if (onMainnet && data.webhookSecretEncryptionKey === undefined) {
+    issues.push("WEBHOOK_SECRET_ENCRYPTION_KEY is required when a mainnet chain is configured");
+  }
   if (issues.length > 0) {
     throw new ConfigurationError(`Invalid payment limit: ${issues.join("; ")}`, { issues });
   }
@@ -1192,6 +1202,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     executionPath: env.EXECUTION_PATH,
     exchangeRates: env.EXCHANGE_RATES,
     maxPaymentSettlement: env.MAX_PAYMENT_SETTLEMENT,
+    webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,
     escrowArbiter: env.ESCROW_ARBITER,
