@@ -381,7 +381,11 @@ export function checkoutSuccessUrl(base: string | undefined, intentId: string): 
   if (base === undefined) return undefined;
   try {
     const url = new URL(`${base.replace(/\/+$/, "")}/${encodeURIComponent(intentId)}`);
-    return url.protocol === "https:" || url.hostname === "localhost" ? url.toString() : undefined;
+    // The scheme is checked, not just the host: `javascript://localhost/%0Aalert(1)`
+    // parses with the hostname `localhost` and would run in the checkout origin.
+    const secure = url.protocol === "https:";
+    const local = url.protocol === "http:" && url.hostname === "localhost";
+    return secure || local ? url.toString() : undefined;
   } catch {
     return undefined;
   }

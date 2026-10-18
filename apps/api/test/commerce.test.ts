@@ -341,6 +341,18 @@ describe("hosted checkout", () => {
     expect(checkoutSuccessUrl("http://shop.example/checkout/success", "pi_1")).toBeUndefined();
   });
 
+  test("refuses a success URL that is not a web page, whatever its host (SEC-19)", () => {
+    for (const base of [
+      "javascript://localhost/%0Aalert(1)",
+      "data://localhost/x",
+      "ftp://localhost/x",
+      "file://localhost/etc/passwd",
+      "not a url",
+    ]) {
+      expect(checkoutSuccessUrl(base, "pi_1"), base).toBeUndefined();
+    }
+  });
+
   test("boots the link page with its amount, and everything the SPA needs to mint", async () => {
     const harness = createApiHarness();
     const { body } = await harness.request("POST", "/v1/payment-links", {
