@@ -13,15 +13,17 @@ export function Hero() {
       <div class="mx-auto w-full max-w-300 px-6 md:px-10 text-center">
         <div class="relative z-20">
           <Reveal>
+            <p class="inline-flex rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-600">
+              Payments infrastructure for the borderless economy.
+            </p>
             <h1>
               Your business. <br class="hidden sm:block" />A world of <span>ways to pay.</span>
             </h1>
           </Reveal>
           <Reveal delay={120}>
             <p class="mx-auto mt-7 max-w-165 text-base leading-relaxed text-slate-600 md:text-[17px]">
-              Payments infrastructure for the borderless economy.
-              <br class="hidden md:block" /> One integration: local-currency pricing, customers who
-              pay with bank transfer, e-wallets or crypto, and stablecoin settlement.
+              One integration: local-currency pricing, customers who pay with bank transfer,
+              e-wallets or crypto, and stablecoin settlement.
             </p>
           </Reveal>
           <Reveal delay={240} class="mt-8 flex flex-wrap items-center justify-center gap-3">
