@@ -38,7 +38,7 @@ jobs:
       matrix:
         path: ${{ fromJSON(needs.release-please.outputs.paths) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       # Trusted publishing needs npm 11.5.1+, which ships with Node 24.
       - uses: actions/setup-node@v4
