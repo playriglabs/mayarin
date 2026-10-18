@@ -7,6 +7,7 @@
 
 import type { ChainId } from "@mayarin/chain";
 import { CHAIN_IDS } from "@mayarin/chain";
+import { parseHostList } from "@mayarin/http";
 import { type AssetCode, assetCodeSchema, ConfigurationError } from "@mayarin/shared";
 import { z } from "zod";
 
@@ -68,6 +69,12 @@ const configSchema = z.object({
   /** Maximum client buckets retained by one process. */
   rateLimitMaxClients: z.coerce.number().int().positive().default(10_000),
   /** Trusted source of the caller IP for rate-limit buckets. */
+  /**
+   * Hostnames this service answers to, comma-separated (SEC-13). Any other
+   * `Host` — the generated Railway domain, for one — gets a 404 before routing.
+   * Blank turns the check off.
+   */
+  allowedHosts: z.string().default("").transform(parseHostList),
   rateLimitClientIpSource: z
     .enum(["cf-connecting-ip", "socket", "x-forwarded-for", "x-real-ip"])
     .default("socket"),
@@ -279,6 +286,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     loginRateLimitRequests: env.DASHBOARD_LOGIN_RATE_LIMIT_REQUESTS,
     loginRateLimitWindowSeconds: env.DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
     rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
+    allowedHosts: env.ALLOWED_HOSTS,
     rateLimitClientIpSource: env.RATE_LIMIT_CLIENT_IP_SOURCE,
     paymentsPageSize: env.PAYMENTS_PAGE_SIZE,
     checkoutBaseUrl: env.CHECKOUT_BASE_URL ?? env.PUBLIC_BASE_URL,

@@ -15,6 +15,7 @@ import {
   isReviewedToken,
   isSolanaChainId,
 } from "@mayarin/chain";
+import { parseHostList } from "@mayarin/http";
 import type { FxFeed } from "@mayarin/provider-fx";
 import type { PythFeed } from "@mayarin/provider-pyth";
 import {
@@ -192,6 +193,12 @@ const configSchema = z.object({
   /** Maximum client buckets retained by one process. */
   rateLimitMaxClients: z.coerce.number().int().positive().default(10_000),
   /** Trusted source of the caller IP for rate-limit buckets. */
+  /**
+   * Hostnames this service answers to, comma-separated (SEC-13). Any other
+   * `Host` — the generated Railway domain, for one — gets a 404 before routing.
+   * Blank turns the check off.
+   */
+  allowedHosts: z.string().default("").transform(parseHostList),
   rateLimitClientIpSource: z
     .enum(["cf-connecting-ip", "socket", "x-forwarded-for", "x-real-ip"])
     .default("socket"),
@@ -1178,6 +1185,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     rateLimitWindowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
     rateLimitBlockSeconds: env.RATE_LIMIT_BLOCK_SECONDS,
     rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
+    allowedHosts: env.ALLOWED_HOSTS,
     rateLimitClientIpSource: env.RATE_LIMIT_CLIENT_IP_SOURCE,
     realtimeEnabled: env.REALTIME_ENABLED,
     realtimeMaxWatched: env.REALTIME_MAX_WATCHED,
