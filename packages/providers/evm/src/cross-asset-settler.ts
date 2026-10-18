@@ -47,6 +47,7 @@ import {
   type Account,
   type Address,
   decodeEventLog,
+  decodeFunctionData,
   encodeFunctionData,
   getAddress,
   type Hex,
@@ -60,6 +61,15 @@ const erc20Abi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
   "function transfer(address to, uint256 amount) returns (bool)",
   "event Transfer(address indexed from, address indexed to, uint256 value)",
+]);
+
+/**
+ * The two swap shapes this deployment encodes itself. A route naming any other
+ * function is refused: calldata that cannot be read cannot be checked.
+ */
+const swapAbi = parseAbi([
+  "function exactOutputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountOut, uint256 amountInMaximum, uint160 sqrtPriceLimitX96) params) returns (uint256 amountIn)",
+  "function swapTokensForExactTokens(uint256 amountOut, uint256 amountInMax, address[] path, address to, uint256 deadline) returns (uint256[] amounts)",
 ]);
 
 export interface EvmCrossAssetSettlerOptions {
@@ -248,7 +258,56 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
       chain: request.chain,
     });
     this.#assertAllowed(request.chain, route.router);
+    this.#assertCallData(request, route.callData);
     return route;
+  }
+
+  /**
+   * The route source is a third-party seam, so its calldata is read before the
+   * operator key signs it (SEC-17): it must swap the held asset for the
+   * settlement asset, pay the merchant exactly the invoice and spend no more
+   * than the payer authorised.
+   */
+  #assertCallData(request: CrossAssetSwapRequest, callData: Hex): void {
+    const held = this.#tokenFor(request.chain, request.held.asset);
+    const settlement = this.#tokenFor(request.chain, request.exactOut.asset);
+    const recipient = getAddress(request.recipient);
+
+    let tokenIn: Address;
+    let tokenOut: Address;
+    let to: Address;
+    let amountOut: bigint;
+    let amountInMax: bigint;
+    try {
+      const call = decodeFunctionData({ abi: swapAbi, data: callData });
+      if (call.functionName === "exactOutputSingle") {
+        const [params] = call.args;
+        ({ tokenIn, tokenOut, recipient: to, amountOut, amountInMaximum: amountInMax } = params);
+      } else {
+        const [out, inMax, path, recipientArg] = call.args;
+        const first = path[0];
+        const last = path[path.length - 1];
+        if (first === undefined || last === undefined) throw new Error("empty path");
+        [amountOut, amountInMax, tokenIn, tokenOut, to] = [out, inMax, first, last, recipientArg];
+      }
+    } catch {
+      throw new ConfigurationError("The route calldata is not a swap this settler recognises", {
+        chain: request.chain,
+      });
+    }
+
+    const matches =
+      getAddress(tokenIn) === held &&
+      getAddress(tokenOut) === settlement &&
+      getAddress(to) === recipient &&
+      amountOut === request.exactOut.amount &&
+      amountInMax <= request.held.amount;
+    if (!matches) {
+      throw new ConfigurationError(
+        "The route calldata does not swap the held asset for the invoice to the merchant",
+        { chain: request.chain },
+      );
+    }
   }
 
   #assertAllowed(chain: ChainId, router: string): void {

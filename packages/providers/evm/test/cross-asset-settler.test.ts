@@ -61,8 +61,45 @@ const REFUND: PayerSurplusRefundRequest = {
   recipient: PAYER,
 };
 
+const swapAbi = parseAbi([
+  "function exactOutputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountOut, uint256 amountInMaximum, uint160 sqrtPriceLimitX96) params) returns (uint256 amountIn)",
+  "function swapTokensForExactTokens(uint256 amountOut, uint256 amountInMax, address[] path, address to, uint256 deadline) returns (uint256[] amounts)",
+]);
+
+function v3Swap(
+  overrides: {
+    recipient?: Address;
+    amountOut?: bigint;
+    amountInMaximum?: bigint;
+    tokenOut?: Address;
+  } = {},
+) {
+  return encodeFunctionData({
+    abi: swapAbi,
+    functionName: "exactOutputSingle",
+    args: [
+      {
+        tokenIn: EURC,
+        tokenOut: overrides.tokenOut ?? USDC,
+        fee: 500,
+        recipient: overrides.recipient ?? MERCHANT,
+        amountOut: overrides.amountOut ?? 20_000n,
+        amountInMaximum: overrides.amountInMaximum ?? 20_101n,
+        sqrtPriceLimitX96: 0n,
+      },
+    ],
+  });
+}
+
+const V2_SWAP = encodeFunctionData({
+  abi: swapAbi,
+  functionName: "swapTokensForExactTokens",
+  args: [20_000n, 20_101n, [EURC, USDC], MERCHANT, 2n ** 64n - 1n],
+});
+
 function settler(
   options: {
+    readonly callData?: Hex;
     readonly logs?: readonly ReturnType<typeof transferLog>[];
     readonly status?: "success" | "reverted";
     readonly allowance?: bigint;
@@ -112,7 +149,7 @@ function settler(
         routed.push(request);
         return {
           router: ROUTER,
-          callData: "0xdeadbeef",
+          callData: options.callData ?? v3Swap(),
           // Deliberately below the authorization: a quote is an estimate, and
           // an estimate must not be what bounds the spend.
           expectedIn: money(options.expectedIn ?? 19_980n, request.payerAsset),
@@ -228,7 +265,7 @@ describe("sending a cross-asset swap", () => {
     expect(sent).toHaveLength(2);
     expect(sent[0]?.to).toBe(EURC);
     expect(sent[1]?.to).toBe(ROUTER);
-    expect(sent[1]?.data).toBe("0xdeadbeef");
+    expect(sent[1]?.data).toBe(v3Swap());
   });
 
   test("refuses a router that is not on the allowlist, before approving or sending", async () => {
@@ -304,6 +341,26 @@ describe("sending a cross-asset swap", () => {
     const { settler: instance, sent } = settler();
 
     expect(await instance.plan(REQUEST)).toEqual(money(19_980n, "EURC"));
+    expect(sent).toHaveLength(0);
+  });
+});
+
+describe("reading the route calldata before signing it (SEC-17)", () => {
+  test("sends a Uniswap V2 exact-output swap", async () => {
+    const { settler: instance, sent } = settler({ callData: V2_SWAP, allowance: 2n ** 255n });
+    await instance.send(REQUEST);
+    expect(sent.at(-1)?.data).toBe(V2_SWAP);
+  });
+
+  test.each([
+    ["pays somebody else", v3Swap({ recipient: PAYER })],
+    ["delivers a different amount", v3Swap({ amountOut: 19_000n })],
+    ["may spend more than was authorised", v3Swap({ amountInMaximum: 20_102n })],
+    ["delivers a different asset", v3Swap({ tokenOut: EURC })],
+    ["is not a swap this settler recognises", "0xdeadbeef" as Hex],
+  ])("refuses calldata that %s, before approving or sending", async (_name, callData) => {
+    const { settler: instance, sent } = settler({ callData });
+    await expect(instance.send(REQUEST)).rejects.toThrow();
     expect(sent).toHaveLength(0);
   });
 });
