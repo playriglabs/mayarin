@@ -28,6 +28,8 @@ function jsonObject<T>(name: string, fallback: string) {
 const configSchema = z.object({
   port: z.coerce.number().int().positive().default(3001),
   databaseUrl: z.string().min(1),
+  /** A session unused for this many seconds is signed out. Defaults to 1 hour. */
+  sessionIdleSeconds: z.coerce.number().int().positive().default(3_600),
   /** Session lifetime in seconds. Defaults to 7 days. */
   sessionTtlSeconds: z.coerce
     .number()
@@ -266,6 +268,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     port: env.DASHBOARD_API_PORT ?? env.PORT,
     databaseUrl: env.DATABASE_URL,
     sessionTtlSeconds: env.SESSION_TTL_SECONDS,
+    sessionIdleSeconds: env.SESSION_IDLE_SECONDS,
     mfaEncryptionKey: env.MFA_ENCRYPTION_KEY,
     withdrawCoolingOffHours: env.WITHDRAW_COOLING_OFF_HOURS,
     withdrawDailyLimit: env.WITHDRAW_DAILY_LIMIT,

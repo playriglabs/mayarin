@@ -41,6 +41,7 @@ function makeSession(userId: string, overrides: Partial<Session> = {}): Session 
     csrfToken: "csrf-token",
     expiresAt: new Date("2026-01-08T00:00:00.000Z"),
     createdAt: clock.now(),
+    lastSeenAt: clock.now(),
     ...overrides,
   };
 }

@@ -42,6 +42,7 @@ describe("auth domain types", () => {
       csrfToken: "token",
       expiresAt: new Date("2026-01-08T00:00:00.000Z"),
       createdAt: now,
+      lastSeenAt: now,
     };
     const revoked: Session = { ...live, revokedAt: now };
     expect(live.revokedAt).toBeUndefined();
@@ -83,6 +84,7 @@ describe("auth domain types", () => {
         return null;
       },
       async revoke() {},
+      async touch() {},
       async revokeOthers() {},
       async deleteExpired() {
         return 0;

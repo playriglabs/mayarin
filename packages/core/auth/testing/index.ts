@@ -214,6 +214,12 @@ export class InMemorySessionRepository implements SessionRepository {
     this.#byId.set(id, { ...session, revokedAt });
   }
 
+  async touch(id: string, seenAt: Date): Promise<void> {
+    const session = this.#byId.get(id);
+    if (session === undefined) return;
+    this.#byId.set(id, { ...session, lastSeenAt: seenAt });
+  }
+
   async revokeOthers(userId: string, keepId: string, revokedAt: Date): Promise<void> {
     for (const [id, session] of this.#byId) {
       if (session.userId === userId && id !== keepId && session.revokedAt === undefined) {

@@ -521,6 +521,8 @@ export const sessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
     createdAt: createdAt(),
+    /** Null on a session from before idle expiry; read as `created_at`. */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     index("sessions_user_idx").on(table.userId),

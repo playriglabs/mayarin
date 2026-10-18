@@ -77,4 +77,6 @@ export interface Session {
   /** Present once the session has been revoked. */
   readonly revokedAt?: Date;
   readonly createdAt: Date;
+  /** Last request this session served, to within the touch interval; idle expiry reads it. */
+  readonly lastSeenAt: Date;
 }

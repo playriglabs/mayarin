@@ -346,6 +346,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     users,
     clock,
     ttlSeconds: config.sessionTtlSeconds,
+    idleSeconds: config.sessionIdleSeconds,
   });
   const authService = new AuthService({ users, hasher, clock });
   const mfa = new MfaService({ users, clock, encryptionKey: config.mfaEncryptionKey });

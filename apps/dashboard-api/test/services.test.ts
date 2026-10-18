@@ -45,7 +45,13 @@ describe("SessionService", () => {
     const user = makeUser(clock);
     await users.insert(user);
 
-    const service = new SessionService({ sessions, users, clock, ttlSeconds: 3600 });
+    const service = new SessionService({
+      sessions,
+      users,
+      clock,
+      ttlSeconds: 3600,
+      idleSeconds: 1800,
+    });
     const session = await Effect.runPromise(service.create(user.id));
     expect(session.id.startsWith("ses_")).toBe(true);
     expect(session.userId).toBe(user.id);
@@ -55,6 +61,34 @@ describe("SessionService", () => {
     expect(verified.user.id).toBe(user.id);
   });
 
+  test("a session unused past the idle limit is signed out, one in use is kept alive (SEC-15)", async () => {
+    const clock = new FixedClock("2026-01-01T00:00:00.000Z");
+    const users = new InMemoryUserRepository();
+    const sessions = new InMemorySessionRepository();
+    const user = makeUser(clock);
+    await users.insert(user);
+    const service = new SessionService({
+      sessions,
+      users,
+      clock,
+      ttlSeconds: 86_400,
+      idleSeconds: 1800,
+    });
+    const idle = await Effect.runPromise(service.create(user.id));
+    const active = await Effect.runPromise(service.create(user.id));
+
+    // Twenty minutes in, the active session is used; the other is not.
+    clock.advance(20 * 60_000);
+    await Effect.runPromise(service.verify(active.id));
+    // Another twenty: forty since the idle one was created, twenty since the active one was used.
+    clock.advance(20 * 60_000);
+
+    await expect(Effect.runPromise(service.verify(idle.id))).rejects.toThrow(
+      "Session idle too long",
+    );
+    await expect(Effect.runPromise(service.verify(active.id))).resolves.toBeDefined();
+  });
+
   test("verify rejects an unknown session with UnauthorizedError", async () => {
     const clock = new FixedClock("2026-01-01T00:00:00.000Z");
     const service = new SessionService({
@@ -62,6 +96,7 @@ describe("SessionService", () => {
       users: new InMemoryUserRepository(),
       clock,
       ttlSeconds: 3600,
+      idleSeconds: 1800,
     });
     await expect(Effect.runPromise(service.verify("ses_unknown"))).rejects.toThrow(
       "Session not found",
@@ -74,7 +109,13 @@ describe("SessionService", () => {
     const sessions = new InMemorySessionRepository();
     const user = makeUser(clock);
     await users.insert(user);
-    const service = new SessionService({ sessions, users, clock, ttlSeconds: 3600 });
+    const service = new SessionService({
+      sessions,
+      users,
+      clock,
+      ttlSeconds: 3600,
+      idleSeconds: 1800,
+    });
 
     const session = await Effect.runPromise(service.create(user.id));
     await Effect.runPromise(service.revoke(session.id));
@@ -87,7 +128,13 @@ describe("SessionService", () => {
     const sessions = new InMemorySessionRepository();
     const user = makeUser(clock);
     await users.insert(user);
-    const service = new SessionService({ sessions, users, clock, ttlSeconds: 1 });
+    const service = new SessionService({
+      sessions,
+      users,
+      clock,
+      ttlSeconds: 1,
+      idleSeconds: 1800,
+    });
 
     const session = await Effect.runPromise(service.create(user.id));
     clock.advance(2000); // past the 1-second TTL
@@ -101,6 +148,7 @@ describe("SessionService", () => {
       users: new InMemoryUserRepository(),
       clock,
       ttlSeconds: 3600,
+      idleSeconds: 1800,
     });
     await expect(Effect.runPromise(service.revoke("ses_unknown"))).rejects.toThrow(
       "Session not found",
