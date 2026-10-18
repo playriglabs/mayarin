@@ -1,0 +1,18 @@
+# Review ownership for the paths that move or guard funds (SEC-21).
+# With branch protection's "Require review from Code Owners" on, a change to
+# any of these needs the owner's approval. Until that setting is on, this file
+# only requests the review.
+
+*                                         @rahXephonz
+/packages/contracts/                      @rahXephonz
+/packages/providers/evm/                  @rahXephonz
+/packages/providers/solana/               @rahXephonz
+/packages/core/clearing/                  @rahXephonz
+/packages/core/ledger/                    @rahXephonz
+/packages/core/chain/src/reviewed-tokens.ts @rahXephonz
+/packages/db/migrations/                  @rahXephonz
+/packages/db/src/service-roles.ts         @rahXephonz
+/apps/api/src/container.ts                @rahXephonz
+/apps/api/src/config.ts                   @rahXephonz
+/scripts/                                 @rahXephonz
+/.github/                                 @rahXephonz

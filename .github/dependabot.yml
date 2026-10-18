@@ -1,0 +1,16 @@
+# Dependency and workflow-action updates (SEC-21). Weekly, grouped so a week of
+# patch bumps is one PR to review rather than twenty.
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
