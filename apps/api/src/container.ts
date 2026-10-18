@@ -115,6 +115,7 @@ import {
   type Clock,
   ConfigurationError,
   type EventPublisher,
+  fromDecimalString,
   InMemoryEventBus,
   type NonceSequencer,
   NotFoundError,
@@ -993,6 +994,12 @@ export function createContainer({
     clock,
     events,
     autoConfirmAssetReceipt: config.assetReceiptMode === "auto",
+    maxPaymentSettlement: Object.fromEntries(
+      Object.entries(config.maxPaymentSettlement).map(([asset, value]) => [
+        asset,
+        fromDecimalString(value, asset as AssetCode).amount,
+      ]),
+    ),
     ...(depositAddresses === undefined ? {} : { depositAddresses }),
     ...(depositDeriver === undefined ? {} : { depositDeriver }),
     ...(contractPlanner === undefined ? {} : { contractPlanner }),

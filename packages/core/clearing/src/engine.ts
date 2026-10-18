@@ -35,6 +35,7 @@ import type {
   WebhookContext,
 } from "@mayarin/settlement";
 import {
+  type AssetCode,
   type Clock,
   ConfigurationError,
   convert,
@@ -142,6 +143,13 @@ export interface ClearingEngineOptions {
   readonly rates: RateProvider;
   readonly fees: FeePolicy;
   /**
+   * The most one payment may settle for, per settlement asset, in minor units.
+   * A payment that prices above it fails at the lock, before any address or
+   * order exists. Absent or missing an asset means no cap (testnet); mainnet
+   * boot refuses to run without one.
+   */
+  readonly maxPaymentSettlement?: Readonly<Partial<Record<AssetCode, bigint>>>;
+  /**
    * Allocates a per-payment deposit address. Absent for a deployment with no
    * chain layer, in which case an intent naming a rail is rejected rather than
    * silently cleared without an address.
@@ -217,6 +225,7 @@ export class ClearingEngine {
   readonly #adapters: SettlementAdapterRegistry;
   readonly #rates: RateProvider;
   readonly #fees: FeePolicy;
+  readonly #maxPaymentSettlement: Readonly<Partial<Record<AssetCode, bigint>>>;
   readonly #depositAddresses: DepositAddressRepository | undefined;
   readonly #depositDeriver: DepositAddressDeriver | undefined;
   readonly #contractPlanner: ContractPaymentPlanner | undefined;
@@ -236,6 +245,7 @@ export class ClearingEngine {
     this.#adapters = options.adapters;
     this.#rates = options.rates;
     this.#fees = options.fees;
+    this.#maxPaymentSettlement = options.maxPaymentSettlement ?? {};
     this.#depositAddresses = options.depositAddresses;
     this.#depositDeriver = options.depositDeriver;
     this.#contractPlanner = options.contractPlanner;
@@ -879,6 +889,17 @@ export class ClearingEngine {
   }
 
   /** Quotes and freezes the settlement amount, fee and net payout. */
+  /** Refuses a lock above the deployment's per-payment cap for that asset. */
+  #assertWithinLimit(settlementAmount: Money): void {
+    const cap = this.#maxPaymentSettlement[settlementAmount.asset];
+    if (cap !== undefined && settlementAmount.amount > cap) {
+      throw new ValidationError("This payment is above the limit this deployment accepts", {
+        asset: settlementAmount.asset,
+        limit: cap.toString(),
+      });
+    }
+  }
+
   async #lockPrice(transaction: ClearingTransaction): Promise<ClearingTransaction> {
     if (transaction.executionPath === "on-chain-contract") {
       return this.#lockContract(transaction);
@@ -921,6 +942,7 @@ export class ClearingEngine {
           merchantId: transaction.merchant.id,
           provider: transaction.provider,
         });
+    this.#assertWithinLimit(settlementAmount);
     const netAmount = subtract(settlementAmount, fee);
 
     if (!isPositive(netAmount)) {
@@ -1054,6 +1076,7 @@ export class ClearingEngine {
       ),
     });
 
+    this.#assertWithinLimit(lock.settlementAmount);
     const netAmount = subtract(lock.settlementAmount, lock.fee);
     if (!isPositive(netAmount)) {
       throw new ValidationError(
@@ -1265,6 +1288,7 @@ export class ClearingEngine {
       });
     }
 
+    this.#assertWithinLimit(lock.settlementAmount);
     const netAmount = subtract(lock.settlementAmount, lock.fee);
     if (!isPositive(netAmount)) {
       throw new ValidationError(

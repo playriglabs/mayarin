@@ -22,6 +22,7 @@ import {
   type AssetCode,
   assetCodeSchema,
   ConfigurationError,
+  fromDecimalString,
   getAsset,
   isAssetCode,
 } from "@mayarin/shared";
@@ -136,6 +137,13 @@ const configSchema = z.object({
   emailFrom: z.string().min(1).default("Mayarin <onboarding@resend.dev>"),
   /** The dashboard's origin, for the link in that email. Unset: the email names the page. */
   dashboardUrl: z.string().url("DASHBOARD_URL must be a URL").optional(),
+  /**
+   * The most one payment may settle for, per settlement asset, in whole units:
+   * `{"USDC":"500"}`. A payment that prices above it fails at the lock. Required
+   * as soon as a mainnet chain is configured, so the first live payment cannot
+   * be unbounded by omission.
+   */
+  maxPaymentSettlement: jsonObject<Record<string, string>>("MAX_PAYMENT_SETTLEMENT", "{}"),
   chainAssets: jsonObject<TokenMap>("CHAIN_ASSETS", "{}"),
   /**
    * The chain's own currency, which has no contract address and emits no
@@ -1073,6 +1081,32 @@ function withoutEmpty(env: Record<string, string | undefined>): Record<string, s
  * evidence — so it exists only where no value can. Anything that is not
  * TransFi's sandbox host fails boot rather than quietly settling real payments.
  */
+function assertPaymentLimit(data: RawConfig): void {
+  const issues: string[] = [];
+  for (const [asset, value] of Object.entries(data.maxPaymentSettlement)) {
+    if (!isAssetCode(asset)) {
+      issues.push(`MAX_PAYMENT_SETTLEMENT names an unknown asset "${asset}"`);
+      continue;
+    }
+    try {
+      if (fromDecimalString(value, asset).amount <= 0n) throw new Error("not positive");
+    } catch {
+      issues.push(`MAX_PAYMENT_SETTLEMENT ${asset} must be a positive decimal, got "${value}"`);
+    }
+  }
+  const onMainnet = [...Object.keys(data.chainAssets), ...Object.keys(data.paymentRouters)].some(
+    (chain) => isChainId(chain) && isMainnetChain(chain),
+  );
+  if (onMainnet && Object.keys(data.maxPaymentSettlement).length === 0) {
+    issues.push(
+      "MAX_PAYMENT_SETTLEMENT is required when a mainnet chain is configured: set the largest payment, per settlement asset, this deployment will accept",
+    );
+  }
+  if (issues.length > 0) {
+    throw new ConfigurationError(`Invalid payment limit: ${issues.join("; ")}`, { issues });
+  }
+}
+
 function assertTransfiSandboxSettle(data: RawConfig): void {
   if (!data.transfiSandboxAutoSettle) return;
   const base = data.transfiBaseUrl;
@@ -1157,6 +1191,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     assetReceiptMode: env.ASSET_RECEIPT_MODE,
     executionPath: env.EXECUTION_PATH,
     exchangeRates: env.EXCHANGE_RATES,
+    maxPaymentSettlement: env.MAX_PAYMENT_SETTLEMENT,
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,
     escrowArbiter: env.ESCROW_ARBITER,
@@ -1292,6 +1327,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
   const contract = resolveContract(result.data, quote, stablecoins);
   assertTreasuryExecution(result.data, quote);
   assertTransfiSandboxSettle(result.data);
+  assertPaymentLimit(result.data);
 
   if (result.data.executionPath === "on-chain-contract" && contract === undefined) {
     throw new ConfigurationError(
