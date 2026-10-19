@@ -127,6 +127,39 @@ Nothing rebroadcasts on its own.
 3. Restart one replica. Deposits are keyed by `(chain, tx_hash, log_index)`, so a
    re-scan is safe.
 
+## A deposit arrived after the payment expired
+
+**Signal:** a `{"type":"late-deposit",...}` line from the chain worker, or a payer
+who says they paid and a payment that shows failed. The worker checks every five
+minutes and reports each payment once per process.
+
+The funds are at the deposit address, confirmed, and cover what was asked; the
+payment failed with `PAYMENT_EXPIRED` before they were seen. The watcher keeps
+recording deposits for 24 hours after a payment ends, but only funds one that is
+still waiting, so nothing settles or returns this money on its own.
+
+1. List them: `GET /v1/admin/late-deposits` (the admin token, on a host in
+   `ADMIN_ALLOWED_HOSTS`). Each has the payment, chain, address, what was asked and
+   what is confirmed.
+2. Decide. Settling now uses the **price that was locked**. Compare it with the
+   market. A stable-for-stable payment barely moves; a volatile payer asset can
+   have moved a lot, and the difference is the platform's or the merchant's to
+   absorb. If the price is acceptable:
+   `POST /v1/admin/late-deposits/<clearingTransactionId>/accept`. It checks again
+   that the funds are there, books the receipt, reopens the payment and settles it
+   as an on-time one would (the history shows `lateFunds: true`).
+3. If it is not acceptable, refund the payer instead. This is manual: sweep the
+   deposit address with the operator (the forwarder factory, or the derived
+   Solana owner), then return the amount to the sending address. Record it
+   against the payment so the books show where the money went.
+4. Look at why the funds were late. A watcher that is behind the head
+   (`block(s) behind the head` in the chain worker's log) is the usual cause, and
+   fixing that is what stops it recurring.
+
+Only a deposit-match payment can be reopened this way. The contract path funds
+atomically on chain and x402 settles through a facilitator; neither parks funds at
+an address for a payer to send late.
+
 ## Rotating a deposit-forwarder destination
 
 `DepositForwarder.destination` is immutable and every deposit address is a

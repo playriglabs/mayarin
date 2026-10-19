@@ -28,6 +28,8 @@ import {
 import { pairsOf } from "@mayarin/stablecoin";
 import { Hono } from "hono";
 import type { Container } from "../container.ts";
+import { toClearingDto } from "../dto/clearing.ts";
+import { toMoneyDto } from "../dto/money.ts";
 import { toPaymentIntentDto } from "../dto/payment-intent.ts";
 import { toX402ResourceDto, x402ResourceSchema } from "../dto/x402-resource.ts";
 import { isMarketConfigKey, MARKET_CONFIG_KEYS } from "../market.ts";
@@ -46,6 +48,39 @@ export function adminRoutes(container: Container, token: string): Hono {
       clientIpSource: container.config.rateLimitClientIpSource,
     }),
   );
+
+  /**
+   * Funds that reached a deposit address after its payment expired (a payer who
+   * paid near the deadline, or a deposit the watcher saw late). Listing changes
+   * nothing.
+   */
+  app.get("/late-deposits", async (c) => {
+    const late = container.lateDeposits;
+    if (late === undefined) throw new NotFoundError("The chain layer is not enabled", {});
+    return c.json({
+      lateDeposits: (await late.list()).map((item) => ({
+        paymentIntentId: item.paymentIntentId,
+        clearingTransactionId: item.clearingTransactionId,
+        chain: item.chain,
+        address: item.address,
+        required: toMoneyDto(item.required),
+        received: toMoneyDto(item.received),
+        expiredAt: item.expiredAt.toISOString(),
+      })),
+    });
+  });
+
+  /**
+   * Accepts one: the payment reopens and settles at the price that was locked.
+   * Check that price against the market before calling this; the alternative is
+   * refunding the payer (docs/runbooks.md).
+   */
+  app.post("/late-deposits/:clearingTransactionId/accept", async (c) => {
+    const late = container.lateDeposits;
+    if (late === undefined) throw new NotFoundError("The chain layer is not enabled", {});
+    const transaction = await late.accept(c.req.param("clearingTransactionId"));
+    return c.json({ clearing: toClearingDto(transaction) });
+  });
 
   /** Forces one watcher pass over every configured pair. */
   app.post("/watcher/tick", async (c) => {

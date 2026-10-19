@@ -49,6 +49,8 @@ export interface ClearingRepository {
   settlementVolumeSince(merchantId: string, asset: AssetCode, since: Date): Promise<bigint>;
   /** Transactions stuck in a non-terminal state, oldest first. Drives recovery sweeps. */
   listResumable(limit: number): Promise<ClearingTransaction[]>;
+  /** Transactions that failed with `code` at or after `since`, newest first. */
+  listFailedByCode(code: string, since: Date, limit: number): Promise<ClearingTransaction[]>;
   /** Successful payments with refundable payer surplus not yet confirmed as returned. */
   listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]>;
 }

@@ -344,6 +344,55 @@ export function reopenTransaction(
   };
 }
 
+/** The failure code `sweepExpired` records for a payer who never paid in time. */
+export const PAYMENT_EXPIRED = "PAYMENT_EXPIRED";
+
+/**
+ * Reopens a payment that expired before its funds were seen, because they
+ * arrived after all.
+ *
+ * Not `reopenTransaction`: that is for a payment whose funds were already
+ * received and whose clearing failed since. Here the funds were never recorded,
+ * so the history has no `ASSET_RECEIVED` and this is what writes it. Only an
+ * expired payment qualifies: any other failure took a decision, and a late
+ * deposit does not undo it. Whether the deposit covers the amount is the chain
+ * layer's to check, and the price this settles at is the one that was locked.
+ */
+export function reopenForLateFunds(transaction: ClearingTransaction, now: Date): TransitionResult {
+  if (transaction.state !== "FAILED" || transaction.failure?.code !== PAYMENT_EXPIRED) {
+    throw new InvalidStateTransitionError(
+      `Transaction ${transaction.id} did not fail by expiring, so late funds do not reopen it`,
+      { id: transaction.id, state: transaction.state, code: transaction.failure?.code },
+    );
+  }
+
+  const updatedAt = new Date(now);
+  const { failure, ...rest } = transaction;
+  const next: ClearingTransaction = {
+    ...rest,
+    state: "ASSET_RECEIVED",
+    updatedAt,
+    version: transaction.version + 1,
+  };
+  return {
+    transaction: next,
+    event: {
+      id: generateId("evt", updatedAt.getTime()),
+      clearingTransactionId: transaction.id,
+      sequence: next.version,
+      type: "state.reopened",
+      fromState: "FAILED",
+      toState: "ASSET_RECEIVED",
+      payload: {
+        previousReason: failure.reason,
+        previousCode: failure.code,
+        lateFunds: true,
+      },
+      occurredAt: updatedAt,
+    },
+  };
+}
+
 export function failTransaction(
   transaction: ClearingTransaction,
   failure: ClearingFailure,

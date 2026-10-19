@@ -389,6 +389,73 @@ describe("clearing engine — expiry sweep", () => {
   });
 });
 
+describe("clearing engine — late funds", () => {
+  async function expired() {
+    const harness = createHarness({ autoConfirmAssetReceipt: false });
+    const transaction = await harness.engine.start(await harness.confirmedIntent());
+    harness.clock.advance(900_000 + 1);
+    const [failed] = await harness.engine.sweepExpired();
+    expect(failed?.failure?.code).toBe("PAYMENT_EXPIRED");
+    return { harness, transaction, failed: failed as NonNullable<typeof failed> };
+  }
+
+  test("lists what expired without funds, and accepting late funds settles it at the locked price", async () => {
+    const { harness, failed } = await expired();
+    const since = new Date(harness.clock.now().getTime() - 60_000);
+    expect((await harness.engine.listExpired(since)).map((t) => t.id)).toEqual([failed.id]);
+
+    const progress = await harness.engine.acceptLateFunds(failed.id);
+
+    expect(progress.transaction.state).toBe("SUCCESS");
+    expect(progress.transaction.failure).toBeUndefined();
+    const intent = await harness.intents.getById(failed.paymentIntentId);
+    expect(intent.status).toBe("COMPLETED");
+    // The history says why it reopened, so the late funds are not invisible.
+    const reopened = (await harness.engine.history(failed.id)).find(
+      (event) => event.type === "state.reopened",
+    );
+    expect(reopened).toMatchObject({
+      fromState: "FAILED",
+      toState: "ASSET_RECEIVED",
+      payload: { previousCode: "PAYMENT_EXPIRED", lateFunds: true },
+    });
+    // Settled once; and it no longer shows as expired.
+    expect(await harness.engine.listExpired(since)).toHaveLength(0);
+  });
+
+  test("a payment that failed for any other reason is not reopened by late funds", async () => {
+    const harness = createHarness({ autoConfirmAssetReceipt: false });
+    const pending = await harness.engine.start(await harness.confirmedIntent());
+    const failed = await harness.engine.fail(pending.id, "declined by the merchant", "DECLINED");
+
+    await expect(harness.engine.acceptLateFunds(failed.id)).rejects.toThrow(
+      /did not fail by expiring/,
+    );
+    expect(await harness.engine.listExpired(new Date(0))).toHaveLength(0);
+  });
+
+  test("a payment that has not failed cannot be reopened", async () => {
+    const harness = createHarness({ autoConfirmAssetReceipt: false });
+    const pending = await harness.engine.start(await harness.confirmedIntent());
+    await expect(harness.engine.acceptLateFunds(pending.id)).rejects.toThrow(
+      /did not fail by expiring/,
+    );
+  });
+
+  test("accepting twice does not settle twice", async () => {
+    const { harness, failed } = await expired();
+    await harness.engine.acceptLateFunds(failed.id);
+    await expect(harness.engine.acceptLateFunds(failed.id)).rejects.toThrow();
+
+    // The same postings an on-time payment makes, and no more.
+    const onTime = createHarness();
+    const settled = await onTime.engine.start(await onTime.confirmedIntent());
+    expect(await harness.ledger.transactionsFor(failed.id)).toHaveLength(
+      (await onTime.ledger.transactionsFor(settled.id)).length,
+    );
+  });
+});
+
 describe("per-payment limit", () => {
   test("a payment above the cap fails at the lock, before any address exists", async () => {
     // The 50,000.00 IDR payment prices at 5 USDC (5,000,000 minor units).

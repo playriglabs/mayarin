@@ -98,6 +98,46 @@ const operatorFloatTimer =
           });
       }, OPERATOR_FLOAT_INTERVAL_MS);
 
+// Funds that reached a deposit address after its payment expired: money with no
+// payment to settle. Reported once per payment per process.
+const LATE_DEPOSIT_INTERVAL_MS = 5 * 60_000;
+const reportedLate = new Set<string>();
+let checkingLate = false;
+const lateDepositTimer =
+  container.lateDeposits === undefined
+    ? undefined
+    : setInterval(() => {
+        if (checkingLate) return;
+        checkingLate = true;
+        void container.lateDeposits
+          ?.list()
+          .then((late) => {
+            for (const item of late) {
+              if (reportedLate.has(item.clearingTransactionId)) continue;
+              reportedLate.add(item.clearingTransactionId);
+              console.error(
+                JSON.stringify({
+                  type: "late-deposit",
+                  paymentIntentId: item.paymentIntentId,
+                  clearingTransactionId: item.clearingTransactionId,
+                  chain: item.chain,
+                  address: item.address,
+                  required: item.required.amount.toString(),
+                  received: item.received.amount.toString(),
+                  asset: item.required.asset,
+                  expiredAt: item.expiredAt.toISOString(),
+                }),
+              );
+            }
+          })
+          .catch((error: unknown) =>
+            console.error("[chain-worker] late deposit check failed", error),
+          )
+          .finally(() => {
+            checkingLate = false;
+          });
+      }, LATE_DEPOSIT_INTERVAL_MS);
+
 let recoveringRefunds = false;
 const refundRecoveryTimer = setInterval(() => {
   if (recoveringRefunds) return;
@@ -168,6 +208,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   clearInterval(refundRecoveryTimer);
   clearInterval(operatorReconcileTimer);
   clearInterval(operatorFloatTimer);
+  clearInterval(lateDepositTimer);
   await container.close();
   await lease.release();
   process.exit(0);

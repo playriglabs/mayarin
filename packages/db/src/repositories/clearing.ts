@@ -13,7 +13,7 @@ import {
 } from "@mayarin/clearing";
 import type { ExecutionPath } from "@mayarin/payment-intent";
 import { type AssetCode, ConcurrencyError } from "@mayarin/shared";
-import { and, asc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, ne, notInArray, sql } from "drizzle-orm";
 import type { Executor } from "../client.ts";
 import {
   present,
@@ -224,6 +224,22 @@ export class DrizzleClearingRepository implements ClearingRepository {
         ),
       );
     return BigInt(row?.total ?? "0");
+  }
+
+  async listFailedByCode(code: string, since: Date, limit: number): Promise<ClearingTransaction[]> {
+    const rows = await this.#db
+      .select()
+      .from(clearingTransactions)
+      .where(
+        and(
+          eq(clearingTransactions.state, "FAILED"),
+          eq(clearingTransactions.failureCode, code),
+          gte(clearingTransactions.failureAt, since),
+        ),
+      )
+      .orderBy(desc(clearingTransactions.updatedAt))
+      .limit(limit);
+    return rows.map(toDomain);
   }
 
   async listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]> {
