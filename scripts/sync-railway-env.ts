@@ -59,6 +59,7 @@ const policies: readonly ServicePolicy[] = [
         "MOCK_WEBHOOK_SECRET",
         "OPERATOR_PRIVATE_KEY",
         "OPERATOR_TURNKEY_API_PRIVATE_KEY",
+        "ORIGIN_AUTH_SECRET",
         "PAYER_TOKEN_KEY",
         "PYTH_API_KEY",
         "QUOTE_SIGNER_PRIVATE_KEY",
@@ -69,6 +70,7 @@ const policies: readonly ServicePolicy[] = [
         "TRANSFI_WEBHOOK_SECRET",
         "TURNKEY_API_PRIVATE_KEY",
         "WEBHOOK_SECRET_ENCRYPTION_KEY",
+        "WEBHOOK_SECRET_PREVIOUS_KEYS",
         "ZERO_EX_API_KEY",
       ]),
       // Inbound-webhook and admin credentials only authenticate HTTP requests.
@@ -91,6 +93,7 @@ const policies: readonly ServicePolicy[] = [
       allowed: new Set([
         "INTERNAL_API_TOKEN",
         "MFA_ENCRYPTION_KEY",
+        "ORIGIN_AUTH_SECRET",
         "PAYER_TOKEN_KEY",
         "R2_ACCESS_KEY_ID",
         "R2_SECRET_ACCESS_KEY",
@@ -98,6 +101,7 @@ const policies: readonly ServicePolicy[] = [
         "TURNKEY_API_PRIVATE_KEY",
         "WALLET_DEPLOYER_PRIVATE_KEY",
         "WEBHOOK_SECRET_ENCRYPTION_KEY",
+        "WEBHOOK_SECRET_PREVIOUS_KEYS",
       ]),
       // Inbound-webhook and admin credentials only authenticate HTTP requests.
       withheld: new Set<string>(),
@@ -136,9 +140,12 @@ const policies: readonly ServicePolicy[] = [
         "ADMIN_TOKEN",
         "INTERNAL_API_TOKEN",
         "MOCK_WEBHOOK_SECRET",
+        // The worker has no HTTP surface for an edge to authenticate (SEC-13).
+        "ORIGIN_AUTH_SECRET",
         "PAYER_TOKEN_KEY",
         "TRANSFI_WEBHOOK_SECRET",
         "WEBHOOK_SECRET_ENCRYPTION_KEY",
+        "WEBHOOK_SECRET_PREVIOUS_KEYS",
       ]),
     },
     overrides: {
