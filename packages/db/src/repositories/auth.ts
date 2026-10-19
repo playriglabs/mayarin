@@ -96,6 +96,10 @@ export class DrizzleUserRepository implements UserRepository {
       .where(eq(users.id, id));
   }
 
+  async updatePassword(id: string, passwordHash: string, now: Date): Promise<void> {
+    await this.#db.update(users).set({ passwordHash, updatedAt: now }).where(eq(users.id, id));
+  }
+
   async saveMfa(id: string, mfa: MfaState | null, now: Date): Promise<void> {
     await this.#db
       .update(users)

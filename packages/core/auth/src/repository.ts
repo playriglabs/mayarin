@@ -22,6 +22,8 @@ export interface UserRepository {
   touchUpdatedAt(id: string, updatedAt: Date): Promise<void>;
   /** Records that this account proved control of its email. Idempotent. */
   markEmailVerified(id: string, verifiedAt: Date): Promise<void>;
+  /** Replaces the password hash. */
+  updatePassword(id: string, passwordHash: string, now: Date): Promise<void>;
   /** Replaces the account's TOTP state; `null` removes the second factor. */
   saveMfa(id: string, mfa: MfaState | null, now: Date): Promise<void>;
 }

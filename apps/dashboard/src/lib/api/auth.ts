@@ -6,6 +6,8 @@
 import { Effect } from "effect";
 import { type ApiError, request } from "@/lib/api/client";
 import type {
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
   LoginRequest,
   LoginResponse,
   LogoutResponse,
@@ -16,6 +18,7 @@ import type {
   OkResponse,
   RegisterRequest,
   ResendVerificationRequest,
+  ResetPasswordRequest,
   VerifyEmailRequest,
 } from "@/types/auth";
 import type { MeResponse, UserDto } from "@/types/user";
@@ -62,6 +65,18 @@ export const authApi = {
   /** POST `/auth/resend-verification` — issues a new code, retiring the last. */
   resendVerification: (body: ResendVerificationRequest): Effect.Effect<OkResponse, ApiError> =>
     request<OkResponse>("/auth/resend-verification", { method: "POST", body }),
+
+  /** POST `/auth/password/change` — signs out every other device. */
+  changePassword: (body: ChangePasswordRequest): Effect.Effect<OkResponse, ApiError> =>
+    request<OkResponse>("/auth/password/change", { method: "POST", body }),
+
+  /** POST `/auth/password/forgot` — emails a reset code; says nothing about the address. */
+  forgotPassword: (body: ForgotPasswordRequest): Effect.Effect<OkResponse, ApiError> =>
+    request<OkResponse>("/auth/password/forgot", { method: "POST", body }),
+
+  /** POST `/auth/password/reset` — redeems the code; every device is signed out. */
+  resetPassword: (body: ResetPasswordRequest): Effect.Effect<OkResponse, ApiError> =>
+    request<OkResponse>("/auth/password/reset", { method: "POST", body }),
 
   /** POST `/auth/logout` (CSRF auto-attached by the client). */
   logout: (): Effect.Effect<LogoutResponse, ApiError> =>

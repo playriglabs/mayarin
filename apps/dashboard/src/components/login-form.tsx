@@ -67,9 +67,13 @@ function LoginForm() {
   // the URL so a reload does not congratulate them again.
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.searchParams.get("verified") !== "1") return;
-    toast.success("Email confirmed. Sign in to continue.");
-    url.searchParams.delete("verified");
+    if (url.searchParams.get("verified") === "1") {
+      toast.success("Email confirmed. Sign in to continue.");
+      url.searchParams.delete("verified");
+    } else if (url.searchParams.get("reset") === "1") {
+      toast.success("Password changed. Sign in with the new one.");
+      url.searchParams.delete("reset");
+    } else return;
     window.history.replaceState(null, "", url);
   }, []);
 
@@ -362,6 +366,12 @@ function LoginForm() {
             "Continue"
           )}
         </Button>
+
+        <p className="text-center text-sm text-muted-foreground">
+          <a href="/forgot-password" className="underline underline-offset-2 hover:text-foreground">
+            Forgot your password?
+          </a>
+        </p>
 
         <p className="text-center text-sm text-muted-foreground">
           New to Mayarin?{" "}

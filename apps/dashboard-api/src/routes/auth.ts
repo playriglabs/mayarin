@@ -21,13 +21,16 @@ import { setCookie } from "hono/cookie";
 import type { Container } from "../container.ts";
 import {
   CSRF_COOKIE,
+  changePasswordBodySchema,
   clearCookieOptions,
   csrfCookieOptions,
+  forgotPasswordBodySchema,
   loginBodySchema,
   mfaCodeBodySchema,
   mfaLoginBodySchema,
   registerBodySchema,
   resendVerificationBodySchema,
+  resetPasswordBodySchema,
   SESSION_COOKIE,
   sessionCookieOptions,
   toUserDto,
@@ -113,6 +116,39 @@ export function authRoutes(container: Container): Hono<{ Variables: AuthVars }> 
     await container.mfa.disable(verified.user, code);
     await container.sessions.revokeOthers(verified.user.id, verified.session.id);
     return c.json({ enabled: false });
+  });
+
+  /** Changes the password; every other device is signed out. */
+  app.post("/password/change", requireAuth(), csrfMiddleware(), async (c) => {
+    const verified = requireSession(c);
+    const body = changePasswordBodySchema.parse(await c.req.json());
+    await container.passwords.change(verified.user, {
+      currentPassword: body.currentPassword,
+      newPassword: body.newPassword,
+      ...(body.code === undefined ? {} : { code: body.code }),
+    });
+    await container.sessions.revokeOthers(verified.user.id, verified.session.id);
+    return c.json({ ok: true });
+  });
+
+  /** Emails a reset code. Always `202`, whether or not the address has an account. */
+  app.post("/password/forgot", async (c) => {
+    const { email } = forgotPasswordBodySchema.parse(await c.req.json());
+    await container.passwords.requestReset(email);
+    return c.json({ ok: true }, 202);
+  });
+
+  /** Redeems the code, sets the password and signs out every device. */
+  app.post("/password/reset", async (c) => {
+    const body = resetPasswordBodySchema.parse(await c.req.json());
+    const user = await container.passwords.reset({
+      email: body.email,
+      code: body.code,
+      newPassword: body.newPassword,
+      ...(body.mfaCode === undefined ? {} : { mfaCode: body.mfaCode }),
+    });
+    await container.sessions.revokeOthers(user.id, "");
+    return c.json({ ok: true });
   });
 
   /**

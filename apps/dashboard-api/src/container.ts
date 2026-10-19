@@ -138,6 +138,7 @@ import { MerchantSettingsService } from "./services/merchant-settings-service.ts
 import { MfaService } from "./services/mfa-service.ts";
 import { NotificationService, type NotificationStore } from "./services/notification-service.ts";
 import { OrderReadService } from "./services/order-read-service.ts";
+import { PasswordService } from "./services/password-service.ts";
 import { PaymentApiClient } from "./services/payment-api-client.ts";
 import {
   type ClearingReadRepository,
@@ -185,6 +186,7 @@ export interface Container {
   readonly invoiceEmails: InvoiceEmailSender;
   /** Self-service signup and the email-verification codes that finish it. */
   readonly registrations: RegistrationService;
+  readonly passwords: PasswordService;
   /** The merchant's customer directory, scoped the same way. */
   readonly customers: CustomerService;
   /** The commerce view of the merchant's payments — line items + customer. Read-only. */
@@ -372,6 +374,15 @@ export function createContainer(options: CreateContainerOptions): Container {
     emails: verificationEmails,
     clock,
     settlementAsset: config.settlementAsset,
+  });
+
+  const passwords = new PasswordService({
+    users,
+    verifications: verificationRepository,
+    hasher,
+    emails: verificationEmails,
+    mfa,
+    clock,
   });
 
   const intents =
@@ -666,6 +677,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     invoices,
     invoiceEmails,
     registrations,
+    passwords,
     customers,
     orders,
     apiKeys,

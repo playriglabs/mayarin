@@ -15,8 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CodeInput } from "@/components/ui/code-input";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
-import { useMe, useMfaDisable, useMfaSetup, useMfaVerify } from "@/hooks/auth";
+import { useChangePassword, useMe, useMfaDisable, useMfaSetup, useMfaVerify } from "@/hooks/auth";
 import { ApiError } from "@/lib/api/client";
 import type { MfaSetupResponse } from "@/types/auth";
 
@@ -317,6 +318,90 @@ export function SecuritySection() {
           </div>
         </div>
       )}
+    </Card>
+  );
+}
+
+/** Changes the password; every other device is signed out. */
+export function PasswordSection() {
+  const me = useMe();
+  const change = useChangePassword();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const mfaEnabled = me.data?.mfaEnabled === true;
+
+  function submit(event: { preventDefault(): void }) {
+    event.preventDefault();
+    setError(null);
+    change.mutate(
+      { currentPassword, newPassword, ...(mfaEnabled ? { code } : {}) },
+      {
+        onSuccess: () => {
+          setCurrentPassword("");
+          setNewPassword("");
+          setCode("");
+          toast.success("Password changed. Other devices were signed out.");
+        },
+        onError: (failure) => setError(reasonOf(failure)),
+      },
+    );
+  }
+
+  return (
+    <Card id="password" className="gap-5 p-5">
+      <div className="flex flex-col gap-1">
+        <h3 className="font-medium text-foreground text-sm">Password</h3>
+        <p className="text-sm text-muted-foreground">Changing it signs out every other device.</p>
+      </div>
+      <form onSubmit={submit} className="flex max-w-sm flex-col gap-3">
+        <Field>
+          <FieldLabel htmlFor="current-password">Current password</FieldLabel>
+          <Input
+            id="current-password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="new-password">New password (12 characters or more)</FieldLabel>
+          <Input
+            id="new-password"
+            type="password"
+            autoComplete="new-password"
+            minLength={12}
+            required
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+        </Field>
+        {mfaEnabled ? (
+          <Field>
+            <FieldLabel htmlFor="password-mfa">Authenticator or recovery code</FieldLabel>
+            <Input
+              id="password-mfa"
+              autoComplete="one-time-code"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+          </Field>
+        ) : null}
+        {error === null ? null : (
+          <p role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
+        <div>
+          <Button type="submit" disabled={change.isPending}>
+            Change password
+          </Button>
+        </div>
+      </form>
     </Card>
   );
 }
