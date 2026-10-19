@@ -1,6 +1,6 @@
 import type { MerchantRef } from "./types.ts";
 
-const MAYARIN_LOGO_DARK = "https://mayarin.xyz/brand-kit/mayarin-white.png";
+const MAYARIN_LOGO_DARK = "https://mayarin.xyz/brand-kit/mayarin-logo-white.svg";
 const MAYARIN_LOGO_LIGHT = "https://mayarin.xyz/brand-kit/mayarin-logo-black.svg";
 
 /**
