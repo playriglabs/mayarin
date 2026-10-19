@@ -94,6 +94,7 @@ import type {
 } from "@mayarin/wallet";
 import type { Config, ContractConfig } from "./config.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
+import type { MerchantRegistry } from "./services/merchant-registry.ts";
 
 type Hex = `0x${string}`;
 
@@ -135,6 +136,12 @@ export interface ContractLayerOptions {
    * to fall back to, and then an unset address is still a refusal.
    */
   readonly settlementAddresses?: SettlementAddressResolver;
+  /**
+   * Asked before an EVM order is signed whether the chain's router will pay the
+   * destination (SEC-06). Optional: a deployment whose routers have no registry
+   * has nothing to ask.
+   */
+  readonly registry?: MerchantRegistry;
   /** Mayarin Resolution: the arbiter an escrow names when the merchant names none (#304). */
   readonly escrowArbiter?: string;
   readonly clock: Clock;
@@ -347,6 +354,9 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         : escrowAddress({ ...escrow, intentId })) as Hex,
       refundTo: request.payerAddress as Hex,
     };
+    // The destination the order will name, escrow vault included. Refused here,
+    // with a reason, rather than reverting on chain at the payer's expense.
+    await this.#options.registry?.assertPayable(request.chain, context.merchantSafe);
     const composed = "composed" in fiat ? fiat.composed : undefined;
     if (composed === undefined) {
       // Same-asset: no swap leg, no lock to gross up. The payer pays exactly

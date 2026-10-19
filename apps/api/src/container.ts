@@ -158,6 +158,7 @@ import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
 import { FiatSettler } from "./services/fiat-settler.ts";
 import { LateDepositService } from "./services/late-deposits.ts";
+import { rpcMerchantRegistry } from "./services/merchant-registry.ts";
 import { rpcOperatorBumper } from "./services/operator-bumper.ts";
 import { rpcOperatorChainReader } from "./services/operator-chain-reader.ts";
 import { rpcFloatReader } from "./services/operator-float-reader.ts";
@@ -991,6 +992,11 @@ export function createContainer({
           // it, rather than finding out at their first payment that a settings
           // field nobody mentioned was load-bearing.
           settlementAddresses,
+          registry: rpcMerchantRegistry({
+            rpcUrls: config.chainRpcUrls,
+            routers: config.contract.paymentRouters,
+            clock,
+          }),
           ...(solanaRuntime === undefined
             ? {}
             : {

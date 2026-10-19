@@ -85,6 +85,11 @@ Optional but part of the launch posture:
 - [ ] A penetration test of the dashboard, both APIs, the checkout and embed, and
       webhooks.
 
+- **Destination registry (optional, recommended).** Deploy the router with the
+  registry, grant a registrar key that is not the quote signer, register every
+  merchant, then enforce, all through the timelock. Do not enforce on a chain that
+  offers escrow. See `destination-registry.md`.
+
 ## 6. Launch posture
 
 - Start with small `MAX_PAYMENT_SETTLEMENT` and `MAX_MERCHANT_DAILY_SETTLEMENT`

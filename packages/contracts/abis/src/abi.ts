@@ -278,6 +278,44 @@ export const paymentRouterAbi = [
   },
   {
     type: "function",
+    name: "isMerchantSafeRegistered",
+    inputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "isMerchantSafeRevoked",
+    inputs: [
+      {
+        name: "",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "isRouterWhitelisted",
     inputs: [
       {
@@ -305,6 +343,19 @@ export const paymentRouterAbi = [
         internalType: "address",
       },
     ],
+    outputs: [
+      {
+        name: "",
+        type: "bool",
+        internalType: "bool",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "merchantRegistryEnforced",
+    inputs: [],
     outputs: [
       {
         name: "",
@@ -484,6 +535,32 @@ export const paymentRouterAbi = [
   },
   {
     type: "function",
+    name: "registerMerchantSafe",
+    inputs: [
+      {
+        name: "safe",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "reinstateMerchantSafe",
+    inputs: [
+      {
+        name: "safe",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "removeInputAsset",
     inputs: [
       {
@@ -541,6 +618,19 @@ export const paymentRouterAbi = [
   },
   {
     type: "function",
+    name: "revokeMerchantSafe",
+    inputs: [
+      {
+        name: "safe",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "revokeRole",
     inputs: [
       {
@@ -565,6 +655,19 @@ export const paymentRouterAbi = [
         name: "recipient",
         type: "address",
         internalType: "address",
+      },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "setMerchantRegistryEnforced",
+    inputs: [
+      {
+        name: "enforced",
+        type: "bool",
+        internalType: "bool",
       },
     ],
     outputs: [],
@@ -660,6 +763,64 @@ export const paymentRouterAbi = [
     inputs: [
       {
         name: "asset",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "MerchantRegistryEnforcementSet",
+    inputs: [
+      {
+        name: "enforced",
+        type: "bool",
+        indexed: false,
+        internalType: "bool",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "MerchantSafeRegistered",
+    inputs: [
+      {
+        name: "safe",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "MerchantSafeReinstated",
+    inputs: [
+      {
+        name: "safe",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "MerchantSafeRevoked",
+    inputs: [
+      {
+        name: "safe",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "by",
         type: "address",
         indexed: true,
         internalType: "address",
@@ -1032,6 +1193,28 @@ export const paymentRouterAbi = [
   },
   {
     type: "error",
+    name: "MerchantSafeIsRevoked",
+    inputs: [
+      {
+        name: "safe",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
+    name: "MerchantSafeNotRegistered",
+    inputs: [
+      {
+        name: "safe",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+  },
+  {
+    type: "error",
     name: "MinOutNotMet",
     inputs: [
       {
@@ -1059,6 +1242,11 @@ export const paymentRouterAbi = [
   {
     type: "error",
     name: "NoSettlementAsset",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "NotRegistryAuthority",
     inputs: [],
   },
   {
