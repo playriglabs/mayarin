@@ -20,11 +20,15 @@ export interface EscrowDisputeLog {
   /** `opened` is true only for the call that created the case file. */
   open(input: OpenDispute, now: Date): Promise<{ dispute: EscrowDispute; opened: boolean }>;
   findByPaymentIntentId(paymentIntentId: string): Promise<EscrowDispute | undefined>;
+  findById(id: string): Promise<EscrowDispute | undefined>;
+  /** One merchant's disputes, newest first. */
+  listByMerchant(merchantId: string, limit?: number): Promise<readonly EscrowDispute[]>;
+  /** The dispute this call closed; `undefined` when there was none open to close. */
   close(
     paymentIntentId: string,
     status: "released" | "refunded" | "split",
     now: Date,
-  ): Promise<void>;
+  ): Promise<EscrowDispute | undefined>;
   listOpen(): Promise<readonly EscrowDispute[]>;
   markAlerted(id: string, alert: DisputeAlert): Promise<void>;
   listMessages(disputeId: string): Promise<readonly DisputeMessage[]>;
@@ -69,9 +73,15 @@ export function alertDue(dispute: EscrowDispute, now: Date): DisputeAlert | unde
 
 export type DisputeAlertSink = (text: string) => Promise<void>;
 
-/** Tells the merchant a dispute was opened on one of their payments (#313). */
+/**
+ * Tells the merchant what happens in a dispute over one of their payments (#313):
+ * it opens, someone writes in it, the chain decides it. None throws; a failed
+ * notice is logged and the dispute stands either way.
+ */
 export interface DisputeNotifier {
   opened(dispute: EscrowDispute): Promise<void>;
+  message(dispute: EscrowDispute, message: DisputeMessage): Promise<void>;
+  resolved(dispute: EscrowDispute): Promise<void>;
 }
 
 /**

@@ -5,6 +5,18 @@ export {
   type WebhookDispatcherOptions,
 } from "./dispatcher.ts";
 export {
+  type DisputeFacts,
+  type DisputeMessageFacts,
+  disputeMessageEvent,
+  disputeOpenedEvent,
+  disputeResolvedEvent,
+} from "./dispute-events.ts";
+export {
+  enqueueMerchantEvent,
+  type MerchantEvent,
+  type MerchantEventSink,
+} from "./merchant-event.ts";
+export {
   type ListWebhookDeliveriesOptions,
   replayed,
   type WebhookCursorRepository,

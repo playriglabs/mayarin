@@ -26,8 +26,16 @@ import {
   LOGO_IMG,
   toRestAttachments,
 } from "@mayarin/documents";
-import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
-import { type Clock, generateId, numericReference } from "@mayarin/shared";
+import {
+  disputeMessageEvent,
+  disputeOpenedEvent,
+  disputeResolvedEvent,
+  enqueueMerchantEvent,
+  type MerchantEvent,
+  type WebhookDeliveryRepository,
+  type WebhookEndpointRepository,
+} from "@mayarin/notifications";
+import { type Clock, numericReference } from "@mayarin/shared";
 import type { DisputeNotifier } from "./escrow-dispute.ts";
 
 export interface DisputeNotifierOptions {
@@ -50,15 +58,22 @@ export interface DisputeNotifierOptions {
 }
 
 export function disputeNotifier(options: DisputeNotifierOptions): DisputeNotifier {
+  /** Never throws: a failed webhook is logged, and the dispute stands. */
+  const enqueue = async (dispute: EscrowDispute, event: MerchantEvent): Promise<void> => {
+    if (options.webhooks === undefined) return;
+    await enqueueMerchantEvent(
+      options.webhooks,
+      dispute.merchantId,
+      event,
+      options.clock.now(),
+    ).catch((error: unknown) => log("webhook", dispute, error));
+  };
+
   return {
     async opened(dispute) {
       const reference = numericReference(dispute.id);
       await Promise.all([
-        options.webhooks === undefined
-          ? undefined
-          : enqueueWebhook(options.webhooks, dispute, reference, options.clock).catch(
-              (error: unknown) => log("webhook", dispute, error),
-            ),
+        enqueue(dispute, disputeOpenedEvent(dispute)),
         options.email === undefined
           ? undefined
           : sendEmail(options.email, dispute, reference).catch((error: unknown) =>
@@ -66,45 +81,13 @@ export function disputeNotifier(options: DisputeNotifierOptions): DisputeNotifie
             ),
       ]);
     },
-  };
-}
-
-async function enqueueWebhook(
-  webhooks: NonNullable<DisputeNotifierOptions["webhooks"]>,
-  dispute: EscrowDispute,
-  reference: string,
-  clock: Clock,
-): Promise<void> {
-  const endpoints = await webhooks.endpoints.listActiveByMerchant(dispute.merchantId);
-  if (endpoints.length === 0) return;
-  const now = clock.now();
-  const body = JSON.stringify({
-    id: dispute.id,
-    type: "escrow.disputed",
-    occurredAt: dispute.createdAt.toISOString(),
-    data: {
-      disputeId: dispute.id,
-      reference,
-      paymentIntentId: dispute.paymentIntentId,
-      chain: dispute.chain,
-      payer: dispute.payer,
-      resolveBy: dispute.resolveBy.toISOString(),
+    async message(dispute, message) {
+      await enqueue(dispute, disputeMessageEvent(dispute, message));
     },
-  });
-  await webhooks.deliveries.insertMany(
-    endpoints.map((endpoint) => ({
-      id: generateId("whd", now.getTime()),
-      eventId: dispute.id,
-      endpointId: endpoint.id,
-      merchantId: dispute.merchantId,
-      body,
-      status: "PENDING" as const,
-      attempts: 0,
-      nextAttemptAt: now,
-      createdAt: now,
-      updatedAt: now,
-    })),
-  );
+    async resolved(dispute) {
+      await enqueue(dispute, disputeResolvedEvent(dispute));
+    },
+  };
 }
 
 async function sendEmail(

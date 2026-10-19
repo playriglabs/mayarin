@@ -36,10 +36,27 @@ export class InMemoryEscrowDisputeLog implements EscrowDisputeLog {
     return this.disputes.get(paymentIntentId);
   }
 
-  async close(paymentIntentId: string, status: "released" | "refunded" | "split", now: Date) {
+  async findById(id: string): Promise<EscrowDispute | undefined> {
+    return [...this.disputes.values()].find((dispute) => dispute.id === id);
+  }
+
+  async listByMerchant(merchantId: string, limit = 100): Promise<readonly EscrowDispute[]> {
+    return [...this.disputes.values()]
+      .filter((dispute) => dispute.merchantId === merchantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
+
+  async close(
+    paymentIntentId: string,
+    status: "released" | "refunded" | "split",
+    now: Date,
+  ): Promise<EscrowDispute | undefined> {
     const dispute = this.disputes.get(paymentIntentId);
-    if (dispute === undefined || dispute.status !== "open") return;
-    this.disputes.set(paymentIntentId, { ...dispute, status, decidedAt: now });
+    if (dispute === undefined || dispute.status !== "open") return undefined;
+    const closed = { ...dispute, status, decidedAt: now };
+    this.disputes.set(paymentIntentId, closed);
+    return closed;
   }
 
   async listOpen(): Promise<readonly EscrowDispute[]> {

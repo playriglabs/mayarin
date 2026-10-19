@@ -113,8 +113,11 @@ export class EscrowService {
       if (opened) await this.#notifier.opened(dispute);
     }
     if (record !== undefined && record.status === "open" && state.outcome !== "held") {
-      await this.#disputes.close(intent.id, state.outcome, now);
+      const closed = await this.#disputes.close(intent.id, state.outcome, now);
       record = { ...record, status: state.outcome, decidedAt: now };
+      // Only the call that closed it announces it; a concurrent view or the keeper
+      // that lost the race gets `undefined` and says nothing.
+      if (closed !== undefined) await this.#notifier.resolved(closed);
     }
 
     return {
@@ -170,7 +173,61 @@ export class EscrowService {
     if (!signed) {
       throw new ForbiddenError("Sign with the wallet you paid with", {});
     }
-    return this.#disputes.addMessage(view.dispute.record.id, "payer", body, now);
+    const message = await this.#disputes.addMessage(view.dispute.record.id, "payer", body, now);
+    await this.#notifier.message(view.dispute.record, message);
+    return message;
+  }
+
+  /** One merchant's disputes, newest first, for the merchant API. */
+  async disputesOf(merchantId: string, limit = 50): Promise<readonly EscrowDispute[]> {
+    return this.#disputes.listByMerchant(merchantId, limit);
+  }
+
+  /**
+   * One of the merchant's disputes with its thread. Another merchant's is a 404,
+   * the answer for one that does not exist, so a dispute id is no oracle.
+   *
+   * The case file follows the chain and closes the first time anyone reads the
+   * escrow after the funds move, so the escrow is read first: a merchant polling
+   * here sees the outcome, and the `escrow.dispute.resolved` event goes out then
+   * if the keeper has not already sent it. A chain that cannot be read leaves the
+   * record as it is.
+   */
+  async disputeCase(
+    merchantId: string,
+    id: string,
+  ): Promise<{ readonly dispute: EscrowDispute; readonly messages: readonly DisputeMessage[] }> {
+    const found = await this.#disputes.findById(id);
+    if (found === undefined || found.merchantId !== merchantId) {
+      throw new NotFoundError("No such dispute", { id });
+    }
+    await this.view(found.paymentIntentId).catch(() => undefined);
+    const dispute = (await this.#disputes.findById(id)) ?? found;
+    return { dispute, messages: await this.#disputes.listMessages(id) };
+  }
+
+  /**
+   * The merchant's answer in a dispute over their payment, through the API:
+   * evidence of delivery, or an offer to refund. Accepted only while the dispute
+   * is open, like every message in the thread.
+   */
+  async postMerchantMessage(merchantId: string, id: string, text: string): Promise<DisputeMessage> {
+    const body = text.trim();
+    if (body === "" || body.length > MAX_MESSAGE_LENGTH) {
+      throw new ValidationError(`A message is 1–${MAX_MESSAGE_LENGTH} characters`, {});
+    }
+    const { dispute } = await this.disputeCase(merchantId, id);
+    if (dispute.status !== "open") {
+      throw new ConflictError("This dispute is already decided", { id });
+    }
+    const message = await this.#disputes.addMessage(
+      dispute.id,
+      "merchant",
+      body,
+      this.#clock.now(),
+    );
+    await this.#notifier.message(dispute, message);
+    return message;
   }
 
   #client(chain: ChainId): PublicClient {

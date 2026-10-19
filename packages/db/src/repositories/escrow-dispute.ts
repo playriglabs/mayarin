@@ -147,18 +147,23 @@ export class DrizzleEscrowDisputeRepository {
     return rows.map(toDispute);
   }
 
-  /** Records the chain's outcome. Only an open dispute moves; a closed one stays as it was. */
+  /**
+   * Records the chain's outcome. Only an open dispute moves; a closed one stays as
+   * it was. Returns the dispute this call closed, so only that call announces it.
+   */
   async close(
     paymentIntentId: string,
     status: Exclude<DisputeStatus, "open">,
     now: Date,
-  ): Promise<void> {
-    await this.#db
+  ): Promise<EscrowDispute | undefined> {
+    const [row] = await this.#db
       .update(escrowDisputes)
       .set({ status, decidedAt: now })
       .where(
         and(eq(escrowDisputes.paymentIntentId, paymentIntentId), eq(escrowDisputes.status, "open")),
-      );
+      )
+      .returning();
+    return row === undefined ? undefined : toDispute(row);
   }
 
   async markAlerted(id: string, alert: DisputeAlert): Promise<void> {

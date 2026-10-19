@@ -81,6 +81,7 @@ const FOUNDER_PERMISSIONS: readonly Permission[] = [
   "refunds:manage",
   "api-keys:manage",
   "wallets:withdraw",
+  "disputes:manage",
 ];
 
 export interface RegistrationServiceOptions {

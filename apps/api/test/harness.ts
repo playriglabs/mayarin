@@ -141,6 +141,10 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   }
   mintApiKey(TEST_MERCHANT_ID, API_KEY_SECRET);
 
+  /** The escrow dispute case files, and what the merchant was told about them. */
+  const escrowDisputes = new InMemoryEscrowDisputeLog();
+  const disputeNotices = { messages: [] as { disputeId: string; messageId: string }[] };
+
   const adapter = new MockSettlementAdapter({
     clock,
     behaviour: options.behaviour ?? "succeed",
@@ -302,8 +306,12 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     engine,
     rates,
     paymentApp,
-    escrow: new EscrowService(paymentApp, {}, new InMemoryEscrowDisputeLog(), clock, {
+    escrow: new EscrowService(paymentApp, {}, escrowDisputes, clock, {
       opened: async () => {},
+      message: async (dispute, message) => {
+        disputeNotices.messages.push({ disputeId: dispute.id, messageId: message.id });
+      },
+      resolved: async () => {},
     }),
     payerStanding: new PayerStanding(
       { payerRecord: async () => ({ escrowed: 0, disputes: 0, lost: 0 }) },
@@ -415,6 +423,8 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     apiKeys,
     /** Every admin-surface call so far, in order (SEC-14). */
     adminAuditEvents,
+    escrowDisputes,
+    disputeNotices,
   };
 }
 

@@ -44,6 +44,7 @@ function harness(rows: DueEscrow[], state: EscrowState) {
   const disputes = new InMemoryEscrowDisputeLog();
   const alerts: string[] = [];
   const notified: string[] = [];
+  const resolved: string[] = [];
   const paid: string[] = [];
   const keeper = new EscrowKeeper({
     repository: {
@@ -65,6 +66,10 @@ function harness(rows: DueEscrow[], state: EscrowState) {
       opened: async (dispute) => {
         notified.push(dispute.paymentIntentId);
       },
+      message: async () => {},
+      resolved: async (dispute) => {
+        resolved.push(`${dispute.paymentIntentId}:${dispute.status}`);
+      },
     },
     paid: {
       released: async (id) => {
@@ -73,7 +78,7 @@ function harness(rows: DueEscrow[], state: EscrowState) {
     },
     clock: new FixedClock(NOW),
   });
-  return { keeper, marked, sent, disputes, alerts, notified, paid };
+  return { keeper, marked, sent, disputes, alerts, notified, resolved, paid };
 }
 
 const held = (disputed = false): EscrowState => ({
@@ -134,14 +139,16 @@ describe("EscrowKeeper disputes (#313)", () => {
   });
 
   test("closes the case file with the refund at resolveBy", async () => {
-    const { keeper, disputes } = harness([due("clr_1", NOW_S)], held(true));
+    const { keeper, disputes, resolved } = harness([due("clr_1", NOW_S)], held(true));
 
     await keeper.tick();
     expect((await disputes.findByPaymentIntentId("pi_clr_1"))?.status).toBe("refunded");
+    // Announced to the merchant, with the outcome, once.
+    expect(resolved).toEqual(["pi_clr_1:refunded"]);
   });
 
   test("closes the case file when the arbiter already decided", async () => {
-    const { keeper, disputes } = harness([due("clr_1")], {
+    const { keeper, disputes, resolved } = harness([due("clr_1")], {
       outcome: "released",
       disputed: true,
       balance: 0n,
@@ -163,6 +170,11 @@ describe("EscrowKeeper disputes (#313)", () => {
 
     await keeper.tick();
     expect((await disputes.findByPaymentIntentId("pi_clr_1"))?.status).toBe("released");
+    expect(resolved).toEqual(["pi_clr_1:released"]);
+
+    // A second pass finds it closed already and announces nothing more.
+    await keeper.tick();
+    expect(resolved).toHaveLength(1);
   });
 
   test("warns once at 48 hours and once at 24 hours before resolveBy", async () => {

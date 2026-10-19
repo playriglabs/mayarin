@@ -194,7 +194,8 @@ export class EscrowKeeper {
   ): Promise<void> {
     const now = this.#options.clock.now();
     await this.#options.repository.markEscrowOutcome(clearingTransactionId, outcome, now);
-    await this.#options.disputes.close(paymentIntentId, outcome, now);
+    const closed = await this.#options.disputes.close(paymentIntentId, outcome, now);
+    if (closed !== undefined) await this.#options.notifier.resolved(closed);
     // A disputed release is the arbiter's decision, told through the dispute;
     // only a hold that ran out quietly is "you got paid".
     if (

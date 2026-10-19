@@ -8,6 +8,7 @@
 
 import { type BaseMayarinClient, buildClient, type ClientConfig } from "./client.ts";
 import { type CommerceModule, createCommerceModule } from "./commerce.ts";
+import { createDisputesModule, type DisputesModule } from "./disputes.ts";
 import { createPaymentModule, type PaymentModule } from "./payment.ts";
 import { createX402ResourcesModule, type X402ResourcesModule } from "./x402-resources.ts";
 
@@ -19,6 +20,8 @@ export interface MayarinConfig extends ClientConfig {
 export interface MayarinClient extends BaseMayarinClient {
   readonly commerce: CommerceModule;
   readonly payment: PaymentModule;
+  /** Escrow disputes: read the thread, answer. Pair with the dispute webhooks (#313). */
+  readonly disputes: DisputesModule;
   /** Agent-endpoint management (#269). Registration only — the request-time surface is keyless. */
   readonly x402: { readonly resources: X402ResourcesModule };
 }
@@ -39,11 +42,20 @@ export function createMayarin(config: MayarinConfig): MayarinClient {
     ...client,
     commerce: createCommerceModule(client.transport),
     payment: createPaymentModule(client.transport),
+    disputes: createDisputesModule(client.transport),
     x402: { resources: createX402ResourcesModule(client.transport) },
   };
 }
 
-export type { X402ResourceBody, X402ResourceDto } from "@mayarin/api/dto";
+export type {
+  DisputeCaseDto,
+  DisputeDto,
+  DisputeListDto,
+  DisputeMessageDto,
+  DisputeStatus,
+  X402ResourceBody,
+  X402ResourceDto,
+} from "@mayarin/api/dto";
 // Re-exported so a merchant rendering its own paywall names a network the way
 // every other Mayarin surface does. `CHAIN_LABELS` is the single source of
 // truth for that, and a merchant copying it into its own map is how a chain
@@ -51,6 +63,7 @@ export type { X402ResourceBody, X402ResourceDto } from "@mayarin/api/dto";
 export { chainLabel, chainOfCaip2 } from "@mayarin/chain";
 export type { ClientConfig } from "./client.ts";
 export type { CommerceModule } from "./commerce.ts";
+export type { DisputesModule, ListDisputesOptions } from "./disputes.ts";
 export { isMayarinApiError, MayarinApiError } from "./errors.ts";
 export type { PaymentModule } from "./payment.ts";
 export { PRESETS, type Preset, type PresetName } from "./presets.ts";

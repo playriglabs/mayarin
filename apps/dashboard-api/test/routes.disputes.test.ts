@@ -6,6 +6,10 @@
 import { describe, expect, test } from "bun:test";
 import type { Permission, User } from "@mayarin/auth";
 import type { EscrowDispute } from "@mayarin/db";
+import {
+  InMemoryWebhookDeliveryRepository,
+  InMemoryWebhookEndpointRepository,
+} from "@mayarin/notifications/testing";
 import { FixedClock, generateId } from "@mayarin/shared";
 import { DisputeService } from "../src/services/disputes.ts";
 import type { PaymentApiClient } from "../src/services/payment-api-client.ts";
@@ -56,6 +60,65 @@ describe("DisputeService (#313)", () => {
     const message = await service(store).postMerchantMessage("mrc_1", "pi_1", "  Tracking 123  ");
     expect(message.author).toBe("merchant");
     expect(message.body).toBe("Tracking 123");
+  });
+
+  test("a message from the merchant or the arbiter is queued for the merchant's webhook endpoints", async () => {
+    const store = new InMemoryDisputeStore();
+    store.disputes.push(dispute());
+    const endpoints = new InMemoryWebhookEndpointRepository();
+    const deliveries = new InMemoryWebhookDeliveryRepository();
+    await endpoints.insert({
+      id: "whe_1",
+      merchantId: "mrc_1",
+      url: "https://merchant.example/hooks",
+      secret: "s",
+      active: true,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    const withWebhooks = new DisputeService({
+      store,
+      paymentApi: {} as PaymentApiClient,
+      arbiter: ARBITER,
+      webhooks: { endpoints, deliveries },
+      clock: new FixedClock(NOW),
+    });
+
+    const merchant = await withWebhooks.postMerchantMessage("mrc_1", "pi_1", "Tracking 123");
+    const arbiter = await withWebhooks.postArbiterMessage("dsp_1", "Please send proof");
+
+    const queued = await deliveries.listByMerchant({ merchantId: "mrc_1", limit: 10 });
+    const bodies = queued.map((row) => JSON.parse(row.body));
+    expect(bodies.map((b) => [b.type, b.data.author, b.id])).toEqual(
+      expect.arrayContaining([
+        ["escrow.dispute.message", "merchant", merchant.id],
+        ["escrow.dispute.message", "arbiter", arbiter.id],
+      ]),
+    );
+  });
+
+  test("a message that cannot be queued is still saved", async () => {
+    const store = new InMemoryDisputeStore();
+    store.disputes.push(dispute());
+    const failing = new DisputeService({
+      store,
+      paymentApi: {} as PaymentApiClient,
+      arbiter: ARBITER,
+      webhooks: {
+        endpoints: { listActiveByMerchant: async () => [{ id: "whe_1" }] } as never,
+        deliveries: {
+          insertMany: async () => {
+            throw new Error("database down");
+          },
+        } as never,
+      },
+      clock: new FixedClock(NOW),
+    });
+
+    const message = await failing.postMerchantMessage("mrc_1", "pi_1", "Tracking 123");
+
+    expect(message.body).toBe("Tracking 123");
+    expect(await store.listMessages("dsp_1")).toHaveLength(1);
   });
 
   test("another merchant's dispute is not found", async () => {

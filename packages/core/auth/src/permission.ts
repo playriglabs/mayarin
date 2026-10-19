@@ -20,6 +20,7 @@ export type Permission =
   | "refunds:manage"
   | "api-keys:manage"
   | "wallets:withdraw"
+  | "disputes:manage"
   | "disputes:arbitrate";
 
 export const PERMISSION_LIST: readonly Permission[] = [
@@ -31,6 +32,7 @@ export const PERMISSION_LIST: readonly Permission[] = [
   "refunds:manage",
   "api-keys:manage",
   "wallets:withdraw",
+  "disputes:manage",
   "disputes:arbitrate",
 ];
 
@@ -72,6 +74,11 @@ export const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
   // settings: configuring a settlement address and sending funds are different
   // acts with different people behind them.
   "wallets:withdraw": "Provision wallets and send payouts",
+  // Answering a dispute over the merchant's own payments: evidence of delivery, or
+  // an offer to refund. Held apart from `refunds:manage`: an integration that
+  // replies in a dispute thread cannot move money, and one that can refund is not
+  // thereby allowed to speak for the merchant in front of an arbiter.
+  "disputes:manage": "Answer disputes",
   // Mayarin Resolution's console: every open dispute, across merchants.
   "disputes:arbitrate": "Arbitrate escrow disputes",
 } as const;
@@ -90,4 +97,5 @@ export const MERCHANT_ADMIN_PERMISSIONS: readonly Permission[] = [
   "refunds:manage",
   "api-keys:manage",
   "wallets:withdraw",
+  "disputes:manage",
 ];

@@ -104,4 +104,102 @@ describe("dispute notifier (#313)", () => {
 
     await expect(notifier.opened(dispute())).resolves.toBeUndefined();
   });
+
+  const sinkOf = () => {
+    const queued: WebhookDelivery[] = [];
+    const notifier = disputeNotifier({
+      webhooks: {
+        endpoints: { listActiveByMerchant: async () => [endpoint] } as never,
+        deliveries: {
+          insertMany: async (rows: readonly WebhookDelivery[]) => {
+            queued.push(...rows);
+            return rows.length;
+          },
+        } as never,
+      },
+      clock: new FixedClock(NOW),
+    });
+    return { notifier, queued };
+  };
+
+  test("queues escrow.dispute.message for a message, keyed by the message, with its author and text", async () => {
+    const { notifier, queued } = sinkOf();
+    const opened = dispute();
+    const message = {
+      id: "dsm_1",
+      disputeId: opened.id,
+      author: "payer" as const,
+      body: "I never received the parcel",
+      createdAt: NOW,
+    };
+
+    await notifier.message(opened, message);
+
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.eventId).toBe("dsm_1");
+    const body = JSON.parse(queued[0]?.body ?? "{}");
+    expect(body).toMatchObject({
+      id: "dsm_1",
+      type: "escrow.dispute.message",
+      data: {
+        disputeId: opened.id,
+        paymentIntentId: "pi_1",
+        messageId: "dsm_1",
+        author: "payer",
+        body: "I never received the parcel",
+      },
+    });
+  });
+
+  test("queues escrow.dispute.resolved with the outcome, one event per dispute", async () => {
+    const { notifier, queued } = sinkOf();
+    const decided = { ...dispute(), status: "refunded" as const, decidedAt: NOW };
+
+    await notifier.resolved(decided);
+
+    const body = JSON.parse(queued[0]?.body ?? "{}");
+    expect(body.type).toBe("escrow.dispute.resolved");
+    expect(body.id).toBe(`${decided.id}:resolved`);
+    expect(queued[0]?.eventId).toBe(`${decided.id}:resolved`);
+    expect(body.data).toMatchObject({
+      disputeId: decided.id,
+      paymentIntentId: "pi_1",
+      outcome: "refunded",
+      decidedAt: NOW.toISOString(),
+    });
+  });
+
+  test("a merchant with no webhook endpoint queues nothing, and a failing queue does not throw", async () => {
+    const none = disputeNotifier({
+      webhooks: {
+        endpoints: { listActiveByMerchant: async () => [] } as never,
+        deliveries: {
+          insertMany: async () => {
+            throw new Error("must not be called");
+          },
+        } as never,
+      },
+      clock: new FixedClock(NOW),
+    });
+    await none.resolved({ ...dispute(), status: "released", decidedAt: NOW });
+
+    const failing = disputeNotifier({
+      webhooks: {
+        endpoints: { listActiveByMerchant: async () => [endpoint] } as never,
+        deliveries: {
+          insertMany: async () => {
+            throw new Error("database down");
+          },
+        } as never,
+      },
+      clock: new FixedClock(NOW),
+    });
+    await failing.message(dispute(), {
+      id: "dsm_2",
+      disputeId: "x",
+      author: "merchant",
+      body: "hello",
+      createdAt: NOW,
+    });
+  });
 });
