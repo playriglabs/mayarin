@@ -18,7 +18,7 @@
  */
 
 import { defineMiddleware } from "astro:middleware";
-import { getApiBase } from "@/lib/api/origin";
+import { getApiBase, originAuthHeaders } from "@/lib/api/origin";
 import type { Permission, UserDto } from "@/types/user";
 
 const PROTECTED_PREFIXES = [
@@ -89,7 +89,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (cookie !== undefined && cookie !== "") {
     try {
       const res = await fetch(`${getApiBase()}/auth/me`, {
-        headers: { cookie: `mayarin_session=${cookie}` },
+        headers: { cookie: `mayarin_session=${cookie}`, ...originAuthHeaders() },
       });
       if (res.ok) {
         const body = (await res.json()) as { user: UserDto | null };

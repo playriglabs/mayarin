@@ -7,7 +7,13 @@
  * point that maps the domain error taxonomy onto HTTP.
  */
 
-import { allowedHosts, apiSecurityHeaders, rateLimit, securityEvents } from "@mayarin/http";
+import {
+  allowedHosts,
+  apiSecurityHeaders,
+  originSecret,
+  rateLimit,
+  securityEvents,
+} from "@mayarin/http";
 import { NotFoundError } from "@mayarin/shared";
 import { Hono } from "hono";
 import type { Container } from "./container.ts";
@@ -45,6 +51,7 @@ import { x402ResourceRoutes } from "./routes/x402-resources.ts";
 export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
 
+  app.use("*", originSecret({ secret: container.config.originAuthSecret }));
   app.use("*", allowedHosts({ hosts: container.config.allowedHosts }));
   app.onError(errorHandler);
   app.notFound(() => {

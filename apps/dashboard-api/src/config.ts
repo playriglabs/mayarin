@@ -98,6 +98,12 @@ const configSchema = z.object({
    * Blank turns the check off.
    */
   allowedHosts: z.string().default("").transform(parseHostList),
+  /**
+   * A secret only the edge adds as `x-origin-secret`; a request without it is a
+   * 404, so the generated Railway domain is no way around Cloudflare (SEC-13).
+   * Unset turns the check off. Set it at the edge first.
+   */
+  originAuthSecret: z.string().min(32).optional(),
   rateLimitClientIpSource: z
     .enum(["cf-connecting-ip", "socket", "x-forwarded-for", "x-real-ip"])
     .default("socket"),
@@ -317,6 +323,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     loginRateLimitWindowSeconds: env.DASHBOARD_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
     rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
     allowedHosts: env.ALLOWED_HOSTS,
+    originAuthSecret: env.ORIGIN_AUTH_SECRET,
     rateLimitClientIpSource: env.RATE_LIMIT_CLIENT_IP_SOURCE,
     paymentsPageSize: env.PAYMENTS_PAGE_SIZE,
     checkoutBaseUrl: env.CHECKOUT_BASE_URL ?? env.PUBLIC_BASE_URL,
