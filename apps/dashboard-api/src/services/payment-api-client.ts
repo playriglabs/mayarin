@@ -16,7 +16,7 @@
  * the caller has already been authenticated and scoped by the route.
  */
 
-import { ProviderError } from "@mayarin/shared";
+import { ConflictError, NotFoundError, ProviderError, ValidationError } from "@mayarin/shared";
 
 export interface PaymentRail {
   readonly asset: string;
@@ -310,11 +310,18 @@ export class PaymentApiClient {
     const body: unknown = text === "" ? undefined : safeJson(text);
 
     if (!response.ok) {
+      const message = messageOf(body) ?? "The payment API refused the request";
+      // A refusal of the request is the merchant's to read, as the status it
+      // is. As a 502 it looked like an outage, and the edge in front of the
+      // dashboard replaces a 502 with its own page, so the message never arrived.
+      if (response.status === 400 || response.status === 422) throw new ValidationError(message);
+      if (response.status === 404) throw new NotFoundError(message);
+      if (response.status === 409) throw new ConflictError(message);
       throw new ProviderError(
-        messageOf(body) ?? "The payment API refused the request",
+        message,
         { path, status: response.status },
-        // A refusal is a decision, not a blip: retrying it produces the same
-        // refusal and would only hide the reason behind a spinner.
+        // A decision, not a blip: retrying it produces the same refusal and
+        // would only hide the reason behind a spinner.
         { retryable: false },
       );
     }
