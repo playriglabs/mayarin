@@ -375,6 +375,7 @@ export class EvmCrossAssetSettler implements CrossAssetSettler {
         () => publicClient.getTransactionCount({ address: account.address, blockTag: "pending" }),
         (nonce) =>
           walletClient.sendTransaction({ account, to, data, value: 0n, nonce, chain: null }),
+        { to, data, value: 0n },
       );
     } catch (error) {
       throw new ProviderError(

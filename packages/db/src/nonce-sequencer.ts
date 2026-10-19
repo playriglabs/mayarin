@@ -23,7 +23,13 @@
  * holding the lock could never record its own nonce.
  */
 
-import { type Clock, generateId, ID_PREFIXES, type NonceSequencer } from "@mayarin/shared";
+import {
+  type Clock,
+  generateId,
+  ID_PREFIXES,
+  type NonceSequencer,
+  type OperatorCall,
+} from "@mayarin/shared";
 import { eq, sql } from "drizzle-orm";
 import type { Executor } from "./client.ts";
 import { runInTransaction } from "./mapping.ts";
@@ -46,6 +52,7 @@ export class PostgresNonceSequencer implements NonceSequencer {
     key: string,
     observed: () => Promise<number>,
     send: (nonce: number) => Promise<T>,
+    call?: OperatorCall,
   ): Promise<T> {
     try {
       return await runInTransaction(this.#db, async (tx) => {
@@ -71,6 +78,9 @@ export class PostgresNonceSequencer implements NonceSequencer {
           nonce,
           status: "allocated",
           allocatedAt: now,
+          ...(call === undefined
+            ? {}
+            : { toAddress: call.to, data: call.data, value: call.value.toString() }),
         });
         let result: T;
         try {

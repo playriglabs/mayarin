@@ -15,11 +15,14 @@
  *   moved past it. A broadcast may have landed without us noting it; look.
  * - `reverted`: mined and failed. The nonce is spent, the payment is not.
  *
- * It reports; it does not rebroadcast. A transaction that needs replacing is a
- * decision about fees and intent that a person makes with the finding in hand.
+ * A `stuck` row that kept its call is replaced under the same nonce with fees
+ * raised by 12.5%, at most `MAX_BUMPS` times. That bound is the fee cap: three
+ * bumps is about 1.4 times the original, so a congested chain cannot run the
+ * fee away. Past it, or without a call, the row is only reported.
  */
 
 import type { Clock } from "./clock.ts";
+import type { OperatorCall } from "./nonce-sequencer.ts";
 
 export type OperatorTransactionStatus =
   | "allocated"
@@ -38,13 +41,25 @@ export interface OperatorTransaction {
   readonly txHash?: string;
   readonly allocatedAt: Date;
   readonly submittedAt?: Date;
+  /** Absent when the submitter did not record it; such a row is never replaced. */
+  readonly call?: OperatorCall;
+  readonly bumpCount: number;
 }
 
 export interface OperatorTransactionStore {
   /** Rows still `allocated` or `submitted`. */
   listOpen(): Promise<readonly OperatorTransaction[]>;
   resolve(id: string, status: OperatorTransactionStatus, at: Date): Promise<void>;
+  /** The replacement's hash takes the row over, and the grace period starts again. */
+  recordBump(id: string, txHash: string, at: Date): Promise<void>;
 }
+
+/** Sends the same call again under the row's nonce with higher fees; returns the new hash. */
+export interface OperatorTransactionBumper {
+  bump(row: OperatorTransaction & { readonly call: OperatorCall }): Promise<string>;
+}
+
+export const MAX_BUMPS = 3;
 
 export interface OperatorChainReader {
   /** The key's mined transaction count (`latest`, not pending). */
@@ -55,7 +70,7 @@ export interface OperatorChainReader {
 
 export interface OperatorTransactionFinding {
   readonly type: "operator-tx";
-  readonly finding: "stuck" | "replaced" | "unrecorded" | "reverted";
+  readonly finding: "stuck" | "bumped" | "replaced" | "unrecorded" | "reverted";
   readonly id: string;
   readonly key: string;
   readonly nonce: number;
@@ -70,6 +85,8 @@ export interface OperatorTransactionReconcilerOptions {
   readonly chain: OperatorChainReader;
   readonly clock: Clock;
   readonly graceMs?: number;
+  /** Absent where nothing can sign, and a stuck transaction is then only reported. */
+  readonly bumper?: OperatorTransactionBumper;
 }
 
 export class OperatorTransactionReconciler {
@@ -77,12 +94,14 @@ export class OperatorTransactionReconciler {
   readonly #chain: OperatorChainReader;
   readonly #clock: Clock;
   readonly #graceMs: number;
+  readonly #bumper: OperatorTransactionBumper | undefined;
 
   constructor(options: OperatorTransactionReconcilerOptions) {
     this.#store = options.store;
     this.#chain = options.chain;
     this.#clock = options.clock;
     this.#graceMs = options.graceMs ?? DEFAULT_GRACE_MS;
+    this.#bumper = options.bumper;
   }
 
   /** One pass over the open rows; what needs a person's attention is returned. */
@@ -107,6 +126,22 @@ export class OperatorTransactionReconciler {
     return findings;
   }
 
+  async #bump(row: OperatorTransaction, now: Date): Promise<OperatorTransactionFinding["finding"]> {
+    const { call } = row;
+    if (this.#bumper === undefined || call === undefined || row.bumpCount >= MAX_BUMPS) {
+      return "stuck";
+    }
+    try {
+      await this.#store.recordBump(row.id, await this.#bumper.bump({ ...row, call }), now);
+      return "bumped";
+    } catch (error) {
+      // The original may have mined in the meantime ("nonce too low"); the next
+      // pass finds its receipt. Anything else stays visible as a stuck row.
+      console.error("[operator-tx] bump failed", error);
+      return "stuck";
+    }
+  }
+
   async #reconcile(
     row: OperatorTransaction,
     now: Date,
@@ -125,7 +160,7 @@ export class OperatorTransactionReconciler {
         await this.#store.resolve(row.id, "replaced", now);
         return "replaced";
       }
-      return "stuck";
+      return this.#bump(row, now);
     }
 
     // Allocated and never recorded: either the send failed before the node saw
@@ -148,5 +183,13 @@ export class InMemoryOperatorTransactionStore implements OperatorTransactionStor
     const index = this.rows.findIndex((row) => row.id === id);
     const row = this.rows[index];
     if (row !== undefined) this.rows[index] = { ...row, status };
+  }
+
+  async recordBump(id: string, txHash: string, at: Date): Promise<void> {
+    const index = this.rows.findIndex((row) => row.id === id);
+    const row = this.rows[index];
+    if (row !== undefined) {
+      this.rows[index] = { ...row, txHash, submittedAt: at, bumpCount: row.bumpCount + 1 };
+    }
   }
 }

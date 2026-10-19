@@ -3,15 +3,19 @@ import { FixedClock } from "../src/clock.ts";
 import {
   DEFAULT_GRACE_MS,
   InMemoryOperatorTransactionStore,
+  MAX_BUMPS,
   type OperatorChainReader,
   type OperatorTransaction,
+  type OperatorTransactionBumper,
   OperatorTransactionReconciler,
 } from "../src/operator-transactions.ts";
 
 const KEY = "base:0xabc";
 const START = "2026-01-01T00:00:00.000Z";
 
-function setup(chain: Partial<OperatorChainReader> = {}) {
+const CALL = { to: "0xdef", data: "0x1234", value: 0n };
+
+function setup(chain: Partial<OperatorChainReader> = {}, bumper?: OperatorTransactionBumper) {
   const clock = new FixedClock(START);
   const store = new InMemoryOperatorTransactionStore();
   const reader: OperatorChainReader = {
@@ -19,17 +23,24 @@ function setup(chain: Partial<OperatorChainReader> = {}) {
     receipt: async () => undefined,
     ...chain,
   };
-  const reconciler = new OperatorTransactionReconciler({ store, chain: reader, clock });
+  const reconciler = new OperatorTransactionReconciler({
+    store,
+    chain: reader,
+    clock,
+    ...(bumper === undefined ? {} : { bumper }),
+  });
   const add = (row: Partial<OperatorTransaction> & Pick<OperatorTransaction, "id" | "status">) =>
     store.rows.push({
       key: KEY,
       nonce: 5,
+      bumpCount: 0,
       allocatedAt: clock.now(),
       ...row,
     });
+  const rowOf = (id: string) => store.rows.find((row) => row.id === id);
   const statusOf = (id: string) => store.rows.find((row) => row.id === id)?.status;
   const pastGrace = () => clock.advance(DEFAULT_GRACE_MS + 1);
-  return { add, reconciler, statusOf, pastGrace };
+  return { add, reconciler, statusOf, rowOf, pastGrace };
 }
 
 describe("OperatorTransactionReconciler", () => {
@@ -97,5 +108,65 @@ describe("OperatorTransactionReconciler", () => {
     add({ id: "a", status: "finalized", txHash: "0x1" });
     pastGrace();
     expect(await reconciler.run()).toEqual([]);
+  });
+
+  describe("replacing a stuck transaction", () => {
+    test("replaces it under its own nonce and starts the grace period again", async () => {
+      let bumps = 0;
+      const bumper = {
+        bump: async () => {
+          bumps++;
+          return "0x2";
+        },
+      };
+      const { add, reconciler, rowOf, pastGrace } = setup({}, bumper);
+      add({ id: "a", status: "submitted", txHash: "0x1", call: CALL });
+      pastGrace();
+      const [finding] = await reconciler.run();
+      expect(finding).toMatchObject({ finding: "bumped", id: "a" });
+      expect(rowOf("a")).toMatchObject({ txHash: "0x2", bumpCount: 1, status: "submitted" });
+      expect(await reconciler.run()).toEqual([]);
+      expect(bumps).toBe(1);
+    });
+
+    test("stops after MAX_BUMPS and reports the row as stuck", async () => {
+      let calls = 0;
+      const { add, reconciler, pastGrace } = setup(
+        {},
+        {
+          bump: async () => {
+            calls++;
+            return "0x9";
+          },
+        },
+      );
+      add({ id: "a", status: "submitted", txHash: "0x1", call: CALL, bumpCount: MAX_BUMPS });
+      pastGrace();
+      expect(await reconciler.run()).toMatchObject([{ finding: "stuck" }]);
+      expect(calls).toBe(0);
+    });
+
+    test("leaves a row with no recorded call alone", async () => {
+      const bump = async () => "0x2";
+      const { add, reconciler, pastGrace } = setup({}, { bump });
+      add({ id: "a", status: "submitted", txHash: "0x1" });
+      pastGrace();
+      expect(await reconciler.run()).toMatchObject([{ finding: "stuck" }]);
+    });
+
+    test("a failed bump is reported as stuck and retried on the next pass", async () => {
+      const { add, reconciler, rowOf, pastGrace } = setup(
+        {},
+        {
+          bump: async () => {
+            throw new Error("nonce too low");
+          },
+        },
+      );
+      add({ id: "a", status: "submitted", txHash: "0x1", call: CALL });
+      pastGrace();
+      expect(await reconciler.run()).toMatchObject([{ finding: "stuck" }]);
+      expect(rowOf("a")).toMatchObject({ txHash: "0x1", bumpCount: 0 });
+    });
   });
 });
