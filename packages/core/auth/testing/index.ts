@@ -14,6 +14,8 @@ import type {
   ApiKeyRepository,
   EmailVerification,
   EmailVerificationRepository,
+  LoginEvent,
+  LoginEventRepository,
   Merchant,
   MerchantAccountRepository,
   MerchantRepository,
@@ -196,6 +198,21 @@ export class InMemoryMerchantAccountRepository implements MerchantAccountReposit
       this.#merchants.remove(merchant.id);
       throw error;
     }
+  }
+}
+
+export class InMemoryLoginEventRepository implements LoginEventRepository {
+  readonly #events: LoginEvent[] = [];
+
+  async append(event: LoginEvent): Promise<void> {
+    this.#events.push(event);
+  }
+
+  async listByUser(userId: string, limit: number): Promise<readonly LoginEvent[]> {
+    return this.#events
+      .filter((event) => event.userId === userId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))
+      .slice(0, limit);
   }
 }
 

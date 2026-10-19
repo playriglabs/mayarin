@@ -68,6 +68,16 @@ export interface EmailVerification {
   readonly createdAt: Date;
 }
 
+/** One successful sign-in, kept after its session is gone. */
+export interface LoginEvent {
+  readonly id: string;
+  readonly userId: string;
+  /** What the deployment's trusted header or socket said; `"unknown"` if neither did. */
+  readonly ip: string;
+  readonly userAgent: string;
+  readonly createdAt: Date;
+}
+
 export interface Session {
   readonly id: string;
   readonly userId: string;

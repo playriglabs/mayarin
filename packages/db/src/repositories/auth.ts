@@ -12,6 +12,8 @@ import type {
   ApiKeyRepository,
   EmailVerification,
   EmailVerificationRepository,
+  LoginEvent,
+  LoginEventRepository,
   Merchant,
   MerchantAccountRepository,
   MerchantRepository,
@@ -41,6 +43,7 @@ import type { Executor } from "../client.ts";
 import { present, runInTransaction } from "../mapping.ts";
 import {
   emailVerifications,
+  loginEvents,
   merchantApiKeys,
   merchantSettingChanges,
   merchants,
@@ -294,6 +297,27 @@ export class DrizzleMerchantAccountRepository implements MerchantAccountReposito
       // row every time.
       throw toConflict(error, user.email);
     }
+  }
+}
+
+export class DrizzleLoginEventRepository implements LoginEventRepository {
+  readonly #db: Executor;
+
+  constructor(db: Executor) {
+    this.#db = db;
+  }
+
+  async append(event: LoginEvent): Promise<void> {
+    await this.#db.insert(loginEvents).values(event);
+  }
+
+  async listByUser(userId: string, limit: number): Promise<readonly LoginEvent[]> {
+    return this.#db
+      .select()
+      .from(loginEvents)
+      .where(eq(loginEvents.userId, userId))
+      .orderBy(desc(loginEvents.createdAt), desc(loginEvents.id))
+      .limit(limit);
   }
 }
 

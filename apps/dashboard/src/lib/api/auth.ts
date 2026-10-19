@@ -8,6 +8,7 @@ import { type ApiError, request } from "@/lib/api/client";
 import type {
   ChangePasswordRequest,
   ForgotPasswordRequest,
+  LoginHistoryResponse,
   LoginRequest,
   LoginResponse,
   LogoutResponse,
@@ -24,6 +25,10 @@ import type {
 import type { MeResponse, UserDto } from "@/types/user";
 
 export const authApi = {
+  /** GET `/auth/login-history` — the last sign-ins to this account. */
+  loginHistory: (): Effect.Effect<LoginHistoryResponse, ApiError> =>
+    request<LoginHistoryResponse>("/auth/login-history"),
+
   /** GET `/auth/me` -> current user, or `null` when unauthenticated (401). */
   me: (): Effect.Effect<UserDto | null, ApiError> =>
     request<MeResponse>("/auth/me").pipe(
