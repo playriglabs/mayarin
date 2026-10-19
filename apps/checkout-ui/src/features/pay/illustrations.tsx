@@ -14,8 +14,8 @@ const TWINKLE =
 const DELAY = "[animation-delay:1.1s]";
 
 /**
- * Money on its way: a clock face, ringed by an arc that turns and a soft pulse.
- * Quiet on purpose — the payer has nothing left to do here. A clock rather than
+ * Money on its way: an hourglass, ringed by an arc that turns and a soft pulse.
+ * Quiet on purpose — the payer has nothing left to do here. An hourglass rather than
  * the asset they sent: the page already said what arrived, and what it is waiting
  * for now is time.
  */
@@ -38,14 +38,14 @@ export function ProcessingArt() {
       </svg>
       <span className="relative grid size-24 place-items-center rounded-full bg-panel">
         <svg viewBox="0 0 48 48" className="size-14" aria-hidden="true">
-          <circle cx="24" cy="24" r="17" strokeWidth="3" className="fill-none stroke-brand" />
           <path
-            d="M24 14 v10 l7 4"
+            d="M15 9 h18 M15 39 h18 M17 9 v4 c0 6 7 8 7 11 c0 3 -7 5 -7 11 v4 M31 9 v4 c0 6 -7 8 -7 11 c0 3 7 5 7 11 v4"
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
             className="fill-none stroke-brand"
           />
+          <path d="M20 35 h8 l-4 -5 z" className="fill-brand" />
         </svg>
       </span>
     </div>
