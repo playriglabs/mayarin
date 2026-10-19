@@ -22,11 +22,11 @@ import { toContractCallDto } from "../dto/contract-call-mapper.ts";
 import { toDepositDto } from "../dto/deposit.ts";
 import { disputeMessageBodySchema } from "../dto/escrow.ts";
 import { toDisputeMessageDto, toEscrowDto } from "../dto/escrow-mapper.ts";
-import { toPaymentDto } from "../dto/payment.ts";
+import { toPayerPaymentDto, toPaymentDto } from "../dto/payment.ts";
 import { refundBodySchema, toRefundDto, toRefundSummaryDto } from "../dto/refund.ts";
 import { scopedIdempotencyKey } from "../idempotency.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
-import { payerAccess } from "../middleware/payer-access.ts";
+import { PAYER_CALLER, payerAccess } from "../middleware/payer-access.ts";
 import { fetchLogo, renderDocumentPdf } from "../services/document-pdf.ts";
 
 /**
@@ -96,7 +96,8 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
             deposit.requiredConfirmations,
             token,
           );
-    return c.json(toPaymentDto(intent, transaction, events, depositDto));
+    const dto = toPaymentDto(intent, transaction, events, depositDto);
+    return c.json(c.get(PAYER_CALLER) === true ? toPayerPaymentDto(dto) : dto);
   });
 
   /**

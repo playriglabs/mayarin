@@ -26,7 +26,7 @@ export type ApiKeyVerifier = (secret: string) => Promise<ApiKeyScope | null>;
 
 /** Hono environment for route groups that read the verified scope. */
 export interface ApiKeyAuthEnv {
-  readonly Variables: { scope: ApiKeyScope };
+  readonly Variables: { scope: ApiKeyScope; payerCaller?: boolean };
 }
 
 const BEARER_PREFIX = "bearer ";
