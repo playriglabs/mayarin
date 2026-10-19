@@ -59,3 +59,18 @@ export function payerAccessFor(container: Container, paymentId: string) {
     checkoutUrl: `${container.config.checkoutBaseUrl}/checkout/pay/${encodeURIComponent(paymentId)}?t=${payerToken}`,
   };
 }
+
+/** Where a payer who leaves for a third party is sent back, and the cookie that lets them in. */
+export const RETURN_COOKIE = "mayarin_return";
+export const RETURN_COOKIE_MAX_AGE_SECONDS = 3_600;
+
+export const returnPath = (paymentId: string): string =>
+  `/checkout/return/${encodeURIComponent(paymentId)}`;
+
+/**
+ * The URL a third party (TransFi) redirects the payer to. It carries no
+ * capability: the token travels in an HttpOnly cookie set on the payer's own
+ * browser, so the third party, its logs and its referrers never see it.
+ */
+export const returnUrlFor = (container: Container, paymentId: string): string =>
+  `${container.config.checkoutBaseUrl}${returnPath(paymentId)}`;
