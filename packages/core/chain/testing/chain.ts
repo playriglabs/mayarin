@@ -105,7 +105,19 @@ export class InMemoryDepositRepository implements DepositRepository {
       const key = depositKey(transfer.chain, transfer.txHash, transfer.logIndex);
       const existing = this.#byKey.get(key);
       if (existing !== undefined) {
-        recorded.push(existing);
+        if (existing.status !== "ORPHANED") {
+          recorded.push(existing);
+          continue;
+        }
+        const { confirmedAt: _confirmed, orphanedAt: _orphaned, ...rest } = existing;
+        const revived: Deposit = {
+          ...rest,
+          blockNumber: transfer.blockNumber,
+          blockHash: transfer.blockHash,
+          status: "PENDING",
+        };
+        this.#byKey.set(key, revived);
+        recorded.push(revived);
         continue;
       }
 
@@ -187,7 +199,16 @@ export class InMemoryWatcherCursorRepository implements WatcherCursorRepository 
   }
 
   async set(chain: ChainId, stream: string, block: bigint): Promise<void> {
-    this.#cursors.set(`${chain}/${stream}`, block);
+    const current = this.#cursors.get(`${chain}/${stream}`);
+    this.#cursors.set(
+      `${chain}/${stream}`,
+      current === undefined || block > current ? block : current,
+    );
+  }
+
+  async rewind(chain: ChainId, stream: string, block: bigint): Promise<void> {
+    const current = this.#cursors.get(`${chain}/${stream}`);
+    if (current !== undefined && block < current) this.#cursors.set(`${chain}/${stream}`, block);
   }
 }
 

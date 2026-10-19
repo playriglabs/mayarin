@@ -228,6 +228,32 @@ describe("WalletWatcher", () => {
     expect(harness.funded).toEqual([]);
   });
 
+  test("a transaction mined again after a reorg is picked up and still funds the payment", async () => {
+    const address = await harness.awaitingPayment();
+    harness.chain.transfer({ asset: ASSET, to: address, amount: REQUIRED.amount });
+    harness.chain.mine(3);
+    await harness.watcher.tick(CHAIN, ASSET);
+
+    // The same transfer lands in the replacement block at the same height, a
+    // block the cursor had already passed.
+    harness.chain.reorg({ depth: 3, reinclude: true });
+    await harness.watcher.tick(CHAIN, ASSET);
+    expect((await harness.deposits.listByAddress(CHAIN, address))[0]?.status).toBe("ORPHANED");
+
+    await harness.watcher.tick(CHAIN, ASSET);
+    const [revived] = await harness.deposits.listByAddress(CHAIN, address);
+    expect(revived?.status).toBe("PENDING");
+    expect(revived?.orphanedAt).toBeUndefined();
+    expect(harness.funded).toEqual([]);
+
+    harness.chain.mine(6);
+    await harness.watcher.tick(CHAIN, ASSET);
+    await harness.watcher.tick(CHAIN, ASSET);
+    expect(harness.funded).toEqual(["clr_1"]);
+    expect((await harness.deposits.listByAddress(CHAIN, address))[0]?.status).toBe("CONFIRMED");
+    expect((await harness.deposits.listByAddress(CHAIN, address)).length).toBe(1);
+  });
+
   test("a reorg above the depth records the orphan and publishes an event", async () => {
     const address = await harness.awaitingPayment();
     harness.chain.transfer({ asset: ASSET, to: address, amount: REQUIRED.amount });

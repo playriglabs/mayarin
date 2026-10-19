@@ -21,6 +21,8 @@ import type {
 } from "../src/index.ts";
 
 interface PendingTransfer {
+  /** Stable across a reorg, as a real transaction hash is. */
+  readonly hash: string;
   readonly asset: AssetCode;
   readonly from: string;
   readonly to: string;
@@ -67,10 +69,13 @@ export class FakeChainClient implements ChainClient {
   /** Value that arrived without a visible transfer, per address. */
   readonly #internal = new Map<string, bigint>();
   #epoch = 0;
+  #sequence = 0;
 
   /** Queues a transfer for the next mined block. */
   transfer(input: FakeTransferInput): this {
+    this.#sequence += 1;
     this.#pending.push({
+      hash: `0xtx${this.#sequence}`,
       asset: input.asset,
       from: input.from ?? DEFAULT_SENDER,
       to: input.to.toLowerCase(),
@@ -124,9 +129,13 @@ export class FakeChainClient implements ChainClient {
    * Replaces the top `depth` blocks with fresh empty ones at the same heights.
    * Bumping the epoch is what changes their hashes.
    */
-  reorg({ depth }: { depth: number }): this {
+  reorg({ depth, reinclude = false }: { depth: number; reinclude?: boolean }): this {
     const keep = Math.max(0, this.#blocks.length - depth);
     const replaced = this.#blocks.length - keep;
+    // A transaction usually survives a reorg: it is mined again into the
+    // replacement chain. `reinclude` puts the dropped transfers back, in the
+    // first replacement block.
+    const dropped = reinclude ? this.#blocks.slice(keep).flatMap((block) => block.transfers) : [];
     this.#blocks.length = keep;
     this.#epoch += 1;
     for (let i = 0; i < replaced; i += 1) {
@@ -134,7 +143,7 @@ export class FakeChainClient implements ChainClient {
       this.#blocks.push({
         number,
         hash: this.#hashFor(number),
-        transfers: [],
+        transfers: i === 0 ? dropped : [],
         settlements: [],
       });
     }
@@ -190,7 +199,7 @@ export class FakeChainClient implements ChainClient {
         logs.push({
           chain: query.chain,
           asset: transfer.asset,
-          txHash: `0xtx${block.number}-${logIndex}-${this.#epoch}`,
+          txHash: transfer.hash,
           logIndex,
           blockNumber: block.number,
           blockHash: block.hash,

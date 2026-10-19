@@ -682,6 +682,46 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     expect(await repository.get("base-sepolia", "USDC")).toBe(900n);
   });
 
+  test("a cursor rewinds to an earlier block and never forward (SEC-04)", async () => {
+    const repository = new DrizzleWatcherCursorRepository(handle.db);
+    await repository.set("base-sepolia", "USDC", 900n);
+
+    await repository.rewind("base-sepolia", "USDC", 850n);
+    expect(await repository.get("base-sepolia", "USDC")).toBe(850n);
+
+    await repository.rewind("base-sepolia", "USDC", 990n);
+    expect(await repository.get("base-sepolia", "USDC")).toBe(850n);
+  });
+
+  test("a transfer orphaned by a reorg and mined again is a new pending deposit (SEC-04)", async () => {
+    const repository = new DrizzleDepositRepository(handle.db);
+    const log = {
+      chain: "base-sepolia",
+      asset: "USDC",
+      txHash: `0xre${Date.now().toString(16)}`,
+      logIndex: 0,
+      blockNumber: 100n,
+      blockHash: "0xold",
+      from: "0xfrom",
+      to: "0xreorged",
+      amount: 1_000_000n,
+    } as const;
+    const [first] = await repository.record([log], new Date());
+    await repository.updateStatuses([{ id: first?.id ?? "", status: "ORPHANED", at: new Date() }]);
+
+    await repository.record([{ ...log, blockNumber: 101n, blockHash: "0xnew" }], new Date());
+
+    const [stored] = await repository.listByAddress("base-sepolia", "0xreorged");
+    expect(stored).toMatchObject({ status: "PENDING", blockNumber: 101n, blockHash: "0xnew" });
+    expect(stored?.orphanedAt).toBeUndefined();
+
+    // A replayed scan of a live deposit changes nothing.
+    await repository.record([{ ...log, blockNumber: 555n, blockHash: "0xother" }], new Date());
+    expect((await repository.listByAddress("base-sepolia", "0xreorged"))[0]?.blockNumber).toBe(
+      101n,
+    );
+  });
+
   describe("x402 resource repository", () => {
     const resources = new DrizzleX402ResourceRepository(handle.db);
     const MERCHANT = "ID1020017611473";
