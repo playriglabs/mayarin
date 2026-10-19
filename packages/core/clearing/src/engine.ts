@@ -324,7 +324,16 @@ export class ClearingEngine {
     const stuck = await this.#repository.listResumable(limit);
     const results: ClearingProgress[] = [];
     for (const transaction of stuck) {
-      results.push(await this.#advance(transaction));
+      try {
+        results.push(await this.#advance(transaction));
+      } catch (error) {
+        // A retryable failure leaves the payment where it is for the next pass
+        // (see `#advance`), and one payment that cannot move yet must not stop the
+        // others, nor take down the process that asked: a process with no treasury
+        // executor met a payment that needed one and exited at boot.
+        if (isMayarinError(error) && error.retryable) continue;
+        throw error;
+      }
     }
     return results;
   }

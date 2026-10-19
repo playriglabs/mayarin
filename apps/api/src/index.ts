@@ -49,9 +49,15 @@ if (container.stream !== undefined) {
   console.log("[api] live payment status enabled");
 }
 
-const recovered = await container.engine.resumeStuck();
-if (recovered.length > 0) {
-  console.log(`[api] resumed ${recovered.length} clearing transaction(s) on startup`);
+// Best effort: whatever this process cannot move (it has no treasury executor)
+// is left for the chain worker, and no payment's state may keep the API down.
+try {
+  const recovered = await container.engine.resumeStuck();
+  if (recovered.length > 0) {
+    console.log(`[api] resumed ${recovered.length} clearing transaction(s) on startup`);
+  }
+} catch (error) {
+  console.error("[api] could not resume clearing transactions on startup", error);
 }
 
 // A payer who scanned the QR and walked away leaves the clearing transaction

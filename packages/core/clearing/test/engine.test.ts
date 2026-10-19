@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { totalsByAsset } from "@mayarin/ledger";
 import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
-import { money, RATE_SCALE } from "@mayarin/shared";
+import { money, ProviderError, RATE_SCALE } from "@mayarin/shared";
 import { createHarness } from "./harness.ts";
 
 const USDC = (minorUnits: bigint) => money(minorUnits, "USDC");
@@ -166,6 +166,30 @@ describe("clearing engine — waiting for the outside world", () => {
     expect(resumed.transaction.state).toBe("SUCCESS");
     expect(await harness.balance("SETTLEMENT_IN_FLIGHT")).toEqual(USDC(0n));
     expect(await harness.balance("TREASURY")).toEqual(USDC(25_000n));
+  });
+
+  test("a payment that cannot move yet does not stop the others, nor throw", async () => {
+    // Two payments in flight; the provider is down for the first and answers the
+    // second. The pass completes and reports the one it moved, and the first stays
+    // where it is for the next pass.
+    const harness = createHarness({ behaviour: "pending" });
+    const first = await harness.engine.start(await harness.confirmedIntent());
+    const second = await harness.engine.start(await harness.confirmedIntent());
+    harness.adapter.complete(first.providerReference as string);
+    harness.adapter.complete(second.providerReference as string);
+    const answer = harness.adapter.status.bind(harness.adapter);
+    harness.adapter.status = async (reference: string) => {
+      if (reference === first.providerReference) {
+        throw new ProviderError("provider unreachable", {}, { retryable: true });
+      }
+      return answer(reference);
+    };
+
+    const resumed = await harness.engine.resumeStuck();
+
+    expect(resumed.map((progress) => progress.transaction.id)).toEqual([second.id]);
+    expect((await harness.engine.getById(first.id)).state).toBe("SETTLING");
+    expect((await harness.engine.getById(second.id)).state).toBe("SUCCESS");
   });
 
   test("resumeStuck picks up everything left mid-flight", async () => {
