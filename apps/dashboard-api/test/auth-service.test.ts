@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PasswordHasher, UserRepository } from "@mayarin/auth";
+import { InMemoryLoginFailures } from "@mayarin/auth";
 import { FixedClock } from "@mayarin/shared";
 import { Effect } from "effect";
 import { AuthService } from "../src/services/auth-service.ts";
@@ -46,10 +47,14 @@ describe("AuthService failed-login backoff (SEC-08)", () => {
     },
   } as unknown as UserRepository;
 
-  function build() {
+  function build(options: { failures?: InMemoryLoginFailures } = {}) {
     const hasher = new CountingHasher();
     const clock = new FixedClock(new Date("2026-01-01T00:00:00Z"));
-    return { service: new AuthService({ users, hasher, clock }), hasher, clock };
+    return {
+      service: new AuthService({ users, hasher, clock, ...options }),
+      hasher,
+      clock,
+    };
   }
 
   const attempt = (service: AuthService, email: string, password: string) =>
@@ -108,5 +113,17 @@ describe("AuthService failed-login backoff (SEC-08)", () => {
     const { service } = build();
     await fail(service, "nobody@example.com", 6);
     expect((await attempt(service, "known@example.com", "right"))._tag).toBe("Success");
+  });
+
+  test("two replicas sharing a store block an email together", async () => {
+    const failures = new InMemoryLoginFailures();
+    const first = build({ failures });
+    const second = build({ failures });
+    await fail(first.service, "known@example.com", 3);
+    await fail(second.service, "known@example.com", 2);
+
+    expect(JSON.stringify(await attempt(first.service, "known@example.com", "right"))).toContain(
+      "RATE_LIMITED",
+    );
   });
 });

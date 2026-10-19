@@ -1373,6 +1373,18 @@ export const operatorTransactions = pgTable(
   (table) => [index("operator_transactions_status_idx").on(table.status)],
 );
 
+/** Failed sign-in passwords per email digest, shared across replicas (SEC-08). */
+export const loginFailures = pgTable(
+  "login_failures",
+  {
+    key: text("key").primaryKey(),
+    count: integer("count").notNull(),
+    blockedUntil: timestamp("blocked_until", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [index("login_failures_updated_idx").on(table.updatedAt)],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -1412,4 +1424,5 @@ export const schema = {
   escrowDisputeMessages,
   operatorNonces,
   operatorTransactions,
+  loginFailures,
 };

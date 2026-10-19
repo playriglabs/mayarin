@@ -435,6 +435,13 @@
       "when": 1792500000000,
       "tag": "0061_operator_transaction_request",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0062_login_failures",
+      "breakpoints": true
     }
   ]
 }

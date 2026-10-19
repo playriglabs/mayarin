@@ -57,6 +57,7 @@ import {
 import { DrizzleClearingRepository } from "../src/repositories/clearing.ts";
 import { DrizzleEscrowDisputeRepository } from "../src/repositories/escrow-dispute.ts";
 import { DrizzleLedgerRepository } from "../src/repositories/ledger.ts";
+import { DrizzleLoginFailures } from "../src/repositories/login-failures.ts";
 import {
   DrizzleWebhookCursorRepository,
   DrizzleWebhookDeliveryRepository,
@@ -71,7 +72,7 @@ import {
   DrizzleWalletWithdrawalRepository,
 } from "../src/repositories/wallet.ts";
 import { DrizzleX402ResourceRepository } from "../src/repositories/x402.ts";
-import { operatorTransactions } from "../src/schema.ts";
+import { loginFailures as loginFailuresTable, operatorTransactions } from "../src/schema.ts";
 import { guardedTestDatabaseUrl } from "./database-guard.ts";
 
 const TEST_DATABASE_URL = guardedTestDatabaseUrl(process.env);
@@ -129,7 +130,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table operator_transactions, operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table login_failures, operator_transactions, operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -1019,6 +1020,22 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         [3, "submitted"],
         [4, "abandoned"],
       ]);
+    });
+
+    test("login failures are counted in the database, wait doubles, and clear forgets them", async () => {
+      const failures = new DrizzleLoginFailures(handle.db);
+      const now = new Date("2026-01-01T00:00:00Z");
+      for (let i = 0; i < 5; i += 1) await failures.record("a@example.com", now);
+      expect(await failures.waitMs("a@example.com", now)).toBe(30_000);
+      await failures.record("a@example.com", now);
+      expect(await failures.waitMs("a@example.com", now)).toBe(60_000);
+      expect(await failures.waitMs("b@example.com", now)).toBe(0);
+
+      const stored = await handle.db.select().from(loginFailuresTable);
+      expect(JSON.stringify(stored)).not.toContain("a@example.com");
+
+      await failures.clear("a@example.com");
+      expect(await failures.waitMs("a@example.com", now)).toBe(0);
     });
 
     test("keeps the call so a stuck transaction can be replaced, and counts each bump", async () => {
