@@ -7,7 +7,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { bootstrapScript, requestOrigin, shellCsp } from "../src/services/checkout-shell.ts";
+import { bootstrapScript, shellCsp } from "../src/services/checkout-shell.ts";
 import { createApiHarness } from "./harness.ts";
 
 describe("bootstrap script", () => {
@@ -31,37 +31,6 @@ describe("shell CSP", () => {
     expect(csp).toContain(`script-src 'self' 'sha256-${hash}'`);
     expect(csp).not.toMatch(/script-src[^;]*unsafe/);
     expect(csp).toContain("default-src 'none'");
-  });
-});
-
-describe("requestOrigin", () => {
-  const fallback = "http://localhost:3000";
-  const headers =
-    (entries: Record<string, string>) =>
-    (name: string): string | undefined =>
-      entries[name.toLowerCase()];
-
-  test("uses the forwarded host so a proxied buyer origin is same-origin", () => {
-    expect(
-      requestOrigin(headers({ "x-forwarded-host": "pay-testnet.mayarin.xyz" }), fallback),
-    ).toBe("https://pay-testnet.mayarin.xyz");
-  });
-
-  test("respects the forwarded proto", () => {
-    expect(
-      requestOrigin(
-        headers({ "x-forwarded-host": "pay-testnet.mayarin.xyz", "x-forwarded-proto": "http" }),
-        fallback,
-      ),
-    ).toBe("http://pay-testnet.mayarin.xyz");
-  });
-
-  test("falls back to publicBaseUrl when no forwarded host is present", () => {
-    expect(requestOrigin(headers({}), fallback)).toBe(fallback);
-  });
-
-  test("ignores an empty forwarded host", () => {
-    expect(requestOrigin(headers({ "x-forwarded-host": "" }), fallback)).toBe(fallback);
   });
 });
 

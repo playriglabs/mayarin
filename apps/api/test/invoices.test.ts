@@ -287,7 +287,8 @@ describe("GET /invoices/:id/view", () => {
     // is owed from the payments itself.
     expect(page.bootstrap.outstanding.display).toBe("Rp 125.000,00");
     expect(page.bootstrap.payable).toBe(true);
-    expect(page.bootstrap.checkoutUrl).toContain(`/v1/invoices/${body.invoice.id}/checkout`);
+    // Relative: the page's CSP allows requests to its own origin only.
+    expect(page.bootstrap.checkoutUrl).toBe(`/v1/invoices/${body.invoice.id}/checkout`);
     // Line totals are computed server-side: money is bigint minor units, and
     // the page renders display strings without doing arithmetic.
     expect(page.bootstrap.lines[0].lineTotal.display).toBe("Rp 50.000,00");

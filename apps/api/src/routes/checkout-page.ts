@@ -36,7 +36,7 @@ import type { RailDto } from "../dto/rails.ts";
 import { merchantLogoUrl } from "../merchant-logo.ts";
 import { payerAccess, RETURN_COOKIE } from "../middleware/payer-access.ts";
 import { linkRails, payerRails } from "../rails.ts";
-import { requestOrigin, shellResponse } from "../services/checkout-shell.ts";
+import { shellResponse } from "../services/checkout-shell.ts";
 import { fetchLogo } from "../services/document-pdf.ts";
 import { type ProtectionOffer, protectionOffer } from "../services/protection.ts";
 
@@ -198,7 +198,6 @@ export function checkoutPageRoutes(container: Container): Hono {
         ? undefined
         : await container.catalog.getLink(intent.metadata.paymentLinkId).catch(() => undefined);
     const successUrl = checkoutSuccessUrl(intent.metadata.checkoutSuccessBaseUrl, intent.id);
-    const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
 
     // Minted without a rail — a storefront's cart checkout rings up the sale
     // before the buyer has said how they will pay — so the page asks first, with
@@ -244,7 +243,9 @@ export function checkoutPageRoutes(container: Container): Hono {
           ? null
           : await intentLines(container, intent.metadata[CART_METADATA_KEY]),
       expiresAt: intent.expiresAt.toISOString(),
-      statusUrl: `${origin}/v1/payments/${intent.id}`,
+      // Relative on purpose: the page's CSP lets it talk to its own origin only,
+      // and the page is reached through a proxy whose host this API cannot see.
+      statusUrl: `/v1/payments/${intent.id}`,
       streaming: container.stream !== undefined,
       successUrl: successUrl ?? null,
       pollMs: POLL_MS,
