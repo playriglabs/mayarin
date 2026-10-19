@@ -10,12 +10,14 @@ import {
   type ComboboxOption,
 } from "@/components/ui/combobox";
 import { useCurrencies } from "@/hooks/fx";
+import { currencyFlag } from "@/lib/country-currency";
 
 const NAMES = new Intl.DisplayNames("en", { type: "currency" });
 
 function label(code: string): string {
   const name = NAMES.of(code);
-  return name === undefined || name === code ? code : `${code} · ${name}`;
+  const text = name === undefined || name === code ? code : `${code} - ${name}`;
+  return `${currencyFlag(code)} ${text}`;
 }
 
 export function CurrencyCombobox({

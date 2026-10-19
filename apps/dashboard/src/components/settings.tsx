@@ -785,10 +785,9 @@ function Settings() {
                         daily rate.
                       </p>
                     </div>
-                    {/* One row: a city and a country are one fact — where the
-                        merchant is — not two settings a reader hunts for. */}
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field>
+
+                    <div className="flex flex-col gap-4 md:flex-row">
+                      <Field className="min-w-0 md:flex-1">
                         <FieldLabel htmlFor="merchant-city">City</FieldLabel>
                         <InputGroup>
                           <InputGroupAddon>
@@ -803,7 +802,7 @@ function Settings() {
                         </InputGroup>
                       </Field>
 
-                      <Field>
+                      <Field className="min-w-0 md:flex-1">
                         <FieldLabel htmlFor="merchant-country">Country</FieldLabel>
                         <Combobox
                           items={COUNTRY_OPTIONS}
@@ -828,7 +827,7 @@ function Settings() {
                         </Combobox>
                       </Field>
 
-                      <Field className="sm:col-span-2">
+                      <Field className="min-w-0 md:flex-1">
                         <FieldLabel htmlFor="merchant-display-currency">
                           Display currency
                         </FieldLabel>
