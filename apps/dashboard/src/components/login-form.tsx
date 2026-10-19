@@ -174,9 +174,23 @@ function LoginForm() {
 
           <div className="mt-2 flex flex-col gap-3">
             <Field>
-              <FieldLabel id="login-mfa-label" htmlFor="login-mfa-code" className="mb-1 text-sm">
-                {useRecovery ? "Recovery code" : "Authentication code"}
-              </FieldLabel>
+              <div className="mb-1 flex items-center justify-between gap-4">
+                <FieldLabel id="login-mfa-label" htmlFor="login-mfa-code" className="text-sm">
+                  {useRecovery ? "Recovery code" : "Authentication code"}
+                </FieldLabel>
+                <button
+                  type="button"
+                  className="cursor-pointer text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  onClick={() => {
+                    setChallenge(null);
+                    setCode("");
+                    setUseRecovery(false);
+                    setState({ status: "idle" });
+                  }}
+                >
+                  Use a different account
+                </button>
+              </div>
               {useRecovery ? (
                 <Input
                   id="login-mfa-code"
@@ -236,18 +250,6 @@ function LoginForm() {
               }}
             >
               {useRecovery ? "Use your authenticator app" : "Use a recovery code instead"}
-            </button>
-            <button
-              type="button"
-              className="cursor-pointer underline underline-offset-2 hover:text-foreground"
-              onClick={() => {
-                setChallenge(null);
-                setCode("");
-                setUseRecovery(false);
-                setState({ status: "idle" });
-              }}
-            >
-              Use a different account
             </button>
           </div>
         </form>
