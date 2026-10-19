@@ -125,6 +125,7 @@ import {
   InMemoryEventBus,
   type NonceSequencer,
   NotFoundError,
+  OperatorFloatMonitor,
   OperatorTransactionReconciler,
   systemClock,
 } from "@mayarin/shared";
@@ -158,6 +159,7 @@ import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts"
 import { FiatSettler } from "./services/fiat-settler.ts";
 import { rpcOperatorBumper } from "./services/operator-bumper.ts";
 import { rpcOperatorChainReader } from "./services/operator-chain-reader.ts";
+import { rpcFloatReader } from "./services/operator-float-reader.ts";
 import { PaidNotifier } from "./services/paid-notifier.ts";
 import { PayerStanding } from "./services/payer-standing.ts";
 import { PaymentAppService } from "./services/payment.ts";
@@ -202,6 +204,8 @@ export interface Container {
   readonly refunds: RefundService;
   /** Closes the operator key's sent-transaction rows once the chain settles them (SEC-04). */
   readonly operatorTransactions: OperatorTransactionReconciler;
+  /** What the operator holds against its limits (SEC-06); absent without limits or an operator. */
+  readonly operatorFloat?: OperatorFloatMonitor;
   /**
    * Live payment status for the hosted checkout (#13).
    *
@@ -1001,6 +1005,18 @@ export function createContainer({
   const outbox = createDatabase({ url: config.databaseUrl, maxConnections: 2 });
   const nonces = new PostgresNonceSequencer(handle.db, clock, outbox.db, fence);
   const operator = operatorAccount(config);
+  const operatorFloat =
+    operator === undefined || Object.keys(config.operatorFloatLimits).length === 0
+      ? undefined
+      : new OperatorFloatMonitor(
+          rpcFloatReader({
+            address: operator.address,
+            rpcUrls: config.chainRpcUrls,
+            nativeAssets: config.chainNativeAssets,
+            tokens: tokensOf(config.stablecoins),
+          }),
+          config.operatorFloatLimits,
+        );
   const operatorTransactions = new OperatorTransactionReconciler({
     store: new DrizzleOperatorTransactionStore(handle.db),
     chain: rpcOperatorChainReader(config.chainRpcUrls),
@@ -1479,6 +1495,7 @@ export function createContainer({
     ...(paidNotices === undefined ? {} : { paidNotices }),
     refunds,
     operatorTransactions,
+    ...(operatorFloat === undefined ? {} : { operatorFloat }),
     ...(stream === undefined ? {} : { stream }),
     adapters,
     events,

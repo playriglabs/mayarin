@@ -7,6 +7,7 @@ export * from "./locale.ts";
 export * from "./market-config.ts";
 export * from "./money.ts";
 export * from "./nonce-sequencer.ts";
+export * from "./operator-float.ts";
 export * from "./operator-transactions.ts";
 export * from "./payment-metadata.ts";
 export * from "./schema.ts";

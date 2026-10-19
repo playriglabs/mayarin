@@ -967,6 +967,18 @@ describe("TransFi sandbox auto-settle", () => {
         TURNKEY_API_PUBLIC_KEY: "02rootpublic",
       };
 
+      test("float limits are read per chain and asset", () => {
+        const config = loadConfig({
+          ...ready,
+          ...turnkey,
+          OPERATOR_FLOAT_LIMITS: '{"base":{"USDC":{"max":"500"},"ETH":{"min":"0.005"}}}',
+        });
+        expect(config.operatorFloatLimits).toEqual({
+          base: { USDC: { max: "500" }, ETH: { min: "0.005" } },
+        });
+        expect(loadConfig({ ...ready, ...turnkey }).operatorFloatLimits).toEqual({});
+      });
+
       test("a raw operator key is refused when a mainnet chain is configured", () => {
         expect(() =>
           loadConfig({ ...ready, OPERATOR_PRIVATE_KEY: `0x${"22".repeat(32)}` }),
