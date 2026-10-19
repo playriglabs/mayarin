@@ -434,6 +434,7 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
         `${chain}:${account.address.toLowerCase()}`,
         () => publicClient.getTransactionCount({ address: account.address, blockTag: "pending" }),
         (nonce) => walletClient.sendTransaction({ account, to, data, value, nonce, chain: null }),
+        { to, data, value },
       ),
     );
     const receipt = await publicClient.waitForTransactionReceipt({

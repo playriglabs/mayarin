@@ -1021,6 +1021,26 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       ]);
     });
 
+    test("keeps the call so a stuck transaction can be replaced, and counts each bump", async () => {
+      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
+      await sequencer.broadcast(
+        "k",
+        async () => 7,
+        async (nonce) => `0x${nonce}`,
+        { to: "0xabc", data: "0x1234", value: 5n },
+      );
+      const store = new DrizzleOperatorTransactionStore(handle.db);
+      const [row] = await store.listOpen();
+      expect(row).toMatchObject({
+        nonce: 7,
+        bumpCount: 0,
+        call: { to: "0xabc", data: "0x1234", value: 5n },
+      });
+
+      await store.recordBump(row?.id ?? "", "0xnew", nonceClock.now());
+      expect((await store.listOpen())[0]).toMatchObject({ txHash: "0xnew", bumpCount: 1 });
+    });
+
     test("a stale floor is ignored so a dropped broadcast cannot leave a gap", async () => {
       const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
       await sequencer.broadcast(

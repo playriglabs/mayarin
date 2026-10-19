@@ -428,6 +428,13 @@
       "when": 1792400100000,
       "tag": "0060_merchant_display_currency",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0061_operator_transaction_request",
+      "breakpoints": true
     }
   ]
 }

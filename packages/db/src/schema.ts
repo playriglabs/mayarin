@@ -1363,6 +1363,12 @@ export const operatorTransactions = pgTable(
     allocatedAt: timestamp("allocated_at", { withTimezone: true, mode: "date" }).notNull(),
     submittedAt: timestamp("submitted_at", { withTimezone: true, mode: "date" }),
     resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    /** The call, kept so a stuck transaction can be replaced under the same nonce. */
+    toAddress: text("to_address"),
+    data: text("data"),
+    /** Wei, as a decimal string; a bigint does not fit a JS number. */
+    value: text("value"),
+    bumpCount: integer("bump_count").notNull().default(0),
   },
   (table) => [index("operator_transactions_status_idx").on(table.status)],
 );

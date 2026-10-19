@@ -154,6 +154,7 @@ import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
 import { FiatSettler } from "./services/fiat-settler.ts";
+import { rpcOperatorBumper } from "./services/operator-bumper.ts";
 import { rpcOperatorChainReader } from "./services/operator-chain-reader.ts";
 import { PaidNotifier } from "./services/paid-notifier.ts";
 import { PayerStanding } from "./services/payer-standing.ts";
@@ -997,6 +998,14 @@ export function createContainer({
     store: new DrizzleOperatorTransactionStore(handle.db),
     chain: rpcOperatorChainReader(config.chainRpcUrls),
     clock,
+    ...(config.operatorPrivateKey === undefined
+      ? {}
+      : {
+          bumper: rpcOperatorBumper(
+            privateKeyToAccount(config.operatorPrivateKey as `0x${string}`),
+            config.chainRpcUrls,
+          ),
+        }),
   });
 
   const treasury = createTreasuryExecutor({
