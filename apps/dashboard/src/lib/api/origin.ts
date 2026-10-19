@@ -44,3 +44,13 @@ export function getApiOrigin(): string {
 export function getApiBase(): string {
   return `${getApiOrigin()}/v1`;
 }
+
+/**
+ * Proof, for the API, that this request came through the dashboard and so
+ * through the edge (SEC-13). Empty when no secret is configured, which is how
+ * local development and a rollout in progress behave.
+ */
+export function originAuthHeaders(): Record<string, string> {
+  const secret = getSecret("ORIGIN_AUTH_SECRET");
+  return secret === undefined || secret === "" ? {} : { "x-origin-secret": secret };
+}

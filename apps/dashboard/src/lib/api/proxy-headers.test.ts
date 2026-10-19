@@ -52,4 +52,15 @@ describe("apiProxyResponseHeaders", () => {
     expect(headers.get("content-type")).toBe("application/json");
     expect(headers.has("x-railway-edge")).toBe(false);
   });
+
+  test("adds the origin proof after the allowlist, so a visitor's own copy is dropped", () => {
+    const headers = apiProxyHeaders(
+      new Headers({ cookie: "mayarin_session=abc", "x-origin-secret": "visitor-guess" }),
+      { "x-origin-secret": "edge-secret" },
+    );
+    expect(headers.get("x-origin-secret")).toBe("edge-secret");
+    expect(
+      apiProxyHeaders(new Headers({ "x-origin-secret": "visitor-guess" })).get("x-origin-secret"),
+    ).toBeNull();
+  });
 });

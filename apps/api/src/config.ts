@@ -248,6 +248,12 @@ const configSchema = z.object({
    */
   allowedHosts: z.string().default("").transform(parseHostList),
   /**
+   * A secret only the edge adds as `x-origin-secret`; a request without it is a
+   * 404, so the generated Railway domain is no way around Cloudflare (SEC-13).
+   * Unset turns the check off. Set it at the edge first.
+   */
+  originAuthSecret: z.string().min(32).optional(),
+  /**
    * Hostnames the admin routes answer on (SEC-14), e.g. the service's private
    * Railway name. On any other `Host`, including the public one, `/v1/admin`
    * is a 404, so an admin token alone does not make the endpoint reachable from
@@ -1340,6 +1346,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     rateLimitBlockSeconds: env.RATE_LIMIT_BLOCK_SECONDS,
     rateLimitMaxClients: env.RATE_LIMIT_MAX_CLIENTS,
     allowedHosts: env.ALLOWED_HOSTS,
+    originAuthSecret: env.ORIGIN_AUTH_SECRET,
     adminAllowedHosts: env.ADMIN_ALLOWED_HOSTS,
     rateLimitClientIpSource: env.RATE_LIMIT_CLIENT_IP_SOURCE,
     realtimeEnabled: env.REALTIME_ENABLED,

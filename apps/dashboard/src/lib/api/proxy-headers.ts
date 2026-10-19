@@ -40,8 +40,14 @@ function pick(source: Headers, names: readonly string[]): Headers {
   return headers;
 }
 
-export function apiProxyHeaders(incoming: Headers): Headers {
+export function apiProxyHeaders(
+  incoming: Headers,
+  extra: Readonly<Record<string, string>> = {},
+): Headers {
   const headers = pick(incoming, REQUEST_HEADERS);
+  // Ours, never the visitor's: set after the allowlist, so a visitor sending the
+  // same header gets nothing through it.
+  for (const [name, value] of Object.entries(extra)) headers.set(name, value);
 
   // The next hop is another hostname in this Cloudflare zone. Cloudflare
   // derives that hop's `CF-Connecting-IP` from `x-real-ip`, so stamp the

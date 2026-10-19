@@ -18,6 +18,8 @@ import { allowed } from "./allowlist.ts";
 
 interface Env {
   ORIGIN: string;
+  /** Proves to the origin that a request came through the edge (SEC-13); a Worker secret. */
+  ORIGIN_AUTH_SECRET?: string;
 }
 
 /** Hop-by-hop and request-context headers not forwarded to the origin. */
@@ -32,6 +34,8 @@ const STRIP_HEADERS = new Set([
   "x-forwarded-proto",
   "x-forwarded-host",
   "x-real-ip",
+  // Ours to set, never a visitor's to supply.
+  "x-origin-secret",
 ]);
 
 export default {
@@ -49,6 +53,11 @@ export default {
     for (const [name, value] of request.headers) {
       if (!STRIP_HEADERS.has(name.toLowerCase())) headers.set(name, value);
     }
+
+    // The origin answers 404 to a request without this once it requires it, so a
+    // direct hit on its generated domain skips nothing.
+    if (env.ORIGIN_AUTH_SECRET !== undefined)
+      headers.set("x-origin-secret", env.ORIGIN_AUTH_SECRET);
 
     const response = await fetch(target, {
       method: request.method,

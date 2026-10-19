@@ -1,7 +1,7 @@
 /** Same-origin proxy from the dashboard to its Railway API. */
 
 import type { APIRoute } from "astro";
-import { getApiOrigin } from "@/lib/api/origin";
+import { getApiOrigin, originAuthHeaders } from "@/lib/api/origin";
 import { apiProxyHeaders, apiProxyResponseHeaders } from "@/lib/api/proxy-headers";
 import {
   capBytes,
@@ -44,7 +44,7 @@ export const ALL: APIRoute = async (context) => {
   try {
     upstream = await fetch(url, {
       method: request.method,
-      headers: apiProxyHeaders(request.headers),
+      headers: apiProxyHeaders(request.headers, originAuthHeaders()),
       redirect: "manual",
       // Ends on the client going away as well as on the deadline.
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)]),

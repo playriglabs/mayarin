@@ -30,6 +30,7 @@ Optional but part of the launch posture:
 - `MAX_MERCHANT_DAILY_SETTLEMENT`: rolling 24-hour ceiling per merchant and asset.
 - `ALLOWED_HOSTS`: the public hostnames; any other `Host` is a 404. `/health` is exempt.
 - `ADMIN_ALLOWED_HOSTS`: where `/v1/admin` answers (a private name); list it in `ALLOWED_HOSTS` too.
+- `ORIGIN_AUTH_SECRET`: a secret only the edge adds as `x-origin-secret`; without it a request is a 404, so the Railway domain is no way around Cloudflare. Same value on both APIs; set it at the edge first (`origin-authentication.md`).
 - `API_KEY_RATE_LIMIT_REQUESTS`: per-key budget (default 600 per window).
 - `SESSION_IDLE_SECONDS`: dashboard idle sign-out (default 3600).
 

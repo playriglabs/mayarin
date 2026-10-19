@@ -22,7 +22,7 @@ import ThemeToggle from "../components/theme-toggle.tsx";
 import SocialMeta from "../components/social-meta.astro";
 import Toaster from "../components/ui/toaster.tsx";
 import "../styles/global.css";
-import { getApiBase } from "../lib/api/origin";
+import { getApiBase, originAuthHeaders } from "../lib/api/origin";
 import type { UserDto } from "../types/user";
 
 interface Props {
@@ -40,7 +40,10 @@ let openDisputes = 0;
 if (user.permissions.includes("payments:read")) {
   try {
     const res = await fetch(`${getApiBase()}/escrow-disputes`, {
-      headers: { cookie: `mayarin_session=${Astro.cookies.get("mayarin_session")?.value ?? ""}` },
+      headers: {
+        cookie: `mayarin_session=${Astro.cookies.get("mayarin_session")?.value ?? ""}`,
+        ...originAuthHeaders(),
+      },
     });
     if (res.ok) openDisputes = ((await res.json()) as { open: number }).open;
   } catch {
