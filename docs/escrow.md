@@ -149,12 +149,28 @@ beside it, so the arbiter decides on evidence rather than on silence.
   The dashboard API needs `ESCROW_ARBITER` set to the same address as the
   payment API; unset, the console is empty.
 
-- **Telling the merchant.** When a dispute's case file is first opened, the
-  merchant is told at once: a webhook `escrow.disputed` (one delivery per
-  active endpoint, through the same signed, retried queue as payment events;
-  the event `id` is the dispute id) and, with `RESEND_API_KEY`, an email to the
-  merchant's admin accounts with the dispute number and a link
-  (`DASHBOARD_URL`). A failed notice is logged; the dispute stands either way.
+- **Telling the merchant.** Three webhook events, through the same signed,
+  retried queue as payment events (one delivery per active endpoint; the event
+  `id` is the receiver's idempotency key). A failed notice is logged; the
+  dispute and the message stand either way.
+
+  | Event                     | Sent when                                                                                    | Event `id`              |
+  | ------------------------- | -------------------------------------------------------------------------------------------- | ----------------------- |
+  | `escrow.disputed`         | the case file is first opened                                                                | the dispute id          |
+  | `escrow.dispute.message`  | anyone writes in the thread (`author`: payer, merchant, arbiter); the text is in `data.body` | the message id          |
+  | `escrow.dispute.resolved` | the chain shows the funds moved (`data.outcome`: released, refunded, split)                  | `<dispute id>:resolved` |
+
+  The opening also sends, with `RESEND_API_KEY`, an email to the merchant's
+  admin accounts with the dispute number and a link (`DASHBOARD_URL`).
+
+  The event builders and `enqueueMerchantEvent` live in `@mayarin/notifications`
+  (`dispute-events.ts`, `merchant-event.ts`) because two processes write to a
+  thread: the payment API (the buyer's signed message, and both places a dispute
+  is closed: the keeper and the escrow view) and the dashboard API (the
+  merchant's and the arbiter's messages). Each sends the same event from the same
+  code. `EscrowDisputeLog.close()` returns the dispute only to the call that
+  closed it, so `escrow.dispute.resolved` goes out once even when the keeper and a
+  read race.
 
   ```json
   {
@@ -171,6 +187,29 @@ beside it, so the arbiter decides on evidence rather than on silence.
     }
   }
   ```
+
+- **The merchant API.** The same case file for an integration, with a secret key,
+  on the payment API (`apps/api/src/routes/disputes.ts`):
+
+  | Route                            | Permission        | Does                                                                                               |
+  | -------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------- |
+  | `GET /v1/disputes`               | `payments:read`   | the merchant's disputes, newest first, and how many are open (`?status`, `?limit`)                 |
+  | `GET /v1/disputes/:id`           | `payments:read`   | the dispute and its thread; refreshes from the chain first, so a decided dispute shows its outcome |
+  | `POST /v1/disputes/:id/messages` | `disputes:manage` | the merchant's answer; only while open                                                             |
+
+  Scoped by the key's merchant: another merchant's dispute is the same `404` as
+  one that does not exist. `disputes:manage` is separate from `refunds:manage` on
+  purpose: a key that replies cannot move money, and one that can refund is not
+  thereby allowed to speak for the merchant before an arbiter. It is grantable
+  (unlike `disputes:arbitrate`), set on new founder accounts, and does not change
+  what existing accounts and keys can do; the dashboard's own reply route never
+  required it. The SDK exposes it as `disputes.list/get/reply`. The public guide
+  is `apps/docs/content/docs/guides/disputes.mdx`.
+
+  A dispute is opened by the buyer on chain, so no webhook can stop one. The
+  point of the events is that the merchant learns at once and can answer or
+  refund before the arbiter decides; the bond and the payer's standing are what
+  make opening one costly.
 
 - **SLA.** Decide within 3 days of the dispute. The keeper warns at 48 hours
   and 24 hours before `resolveBy` — logged, and posted as `{ "text": … }` to

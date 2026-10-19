@@ -419,6 +419,7 @@ account (Safe with a relayer, or ERC-4337). A pure MPC-signed EOA kills this.
 - ☑ Real-time payment status — SSE on the hosted checkout, backed by Postgres `NOTIFY`
 - ☑ In-app notifications — the dashboard bell and `/notifications` page, derived from records the system already keeps; only a per-user seen mark is stored
 - ☑ "You got paid" email to the merchant's admins — on `SUCCESS`, or when an escrow hold ends undisputed
+- ☑ Dispute webhooks (`escrow.disputed`, `escrow.dispute.message`, `escrow.dispute.resolved`) and a merchant API to read and answer disputes (`/v1/disputes`, `disputes:manage`) — an integration can respond or refund before an arbiter decides
 
 ### Developer SDK
 
