@@ -25,17 +25,17 @@ function AuthLogo() {
         src="https://mayarin.xyz/brand-kit/mayarin-logo-black.svg"
         alt=""
         aria-hidden="true"
-        width="48"
-        height="48"
-        className="auth-logo auth-logo-light size-12"
+        width="40"
+        height="40"
+        className="auth-logo auth-logo-light size-10"
       />
       <img
         src="https://mayarin.xyz/brand-kit/mayarin-logo-white.svg"
         alt=""
         aria-hidden="true"
-        width="48"
-        height="48"
-        className="auth-logo auth-logo-dark size-12"
+        width="40"
+        height="40"
+        className="auth-logo auth-logo-dark size-10"
       />
     </>
   );
@@ -43,7 +43,7 @@ function AuthLogo() {
 
 export function AuthCard({ children }: { readonly children: ReactNode }) {
   return (
-    <div className="flex w-full flex-col gap-8 px-6 pt-20 pb-10 sm:my-16 sm:max-w-[30rem] sm:rounded-3xl sm:border sm:border-border sm:bg-card sm:p-14 dark:sm:border-transparent dark:sm:bg-muted">
+    <div className="flex w-full flex-col gap-6 px-6 pt-20 pb-10 sm:my-12 sm:max-w-[27rem] sm:rounded-3xl sm:border sm:border-border sm:bg-card sm:p-8 dark:sm:border-transparent dark:sm:bg-muted">
       <a href="https://mayarin.xyz" aria-label="Mayarin home" className="inline-flex w-fit">
         <AuthLogo />
       </a>
@@ -68,6 +68,9 @@ export function AuthSetup({
 }) {
   return (
     <div className="flex min-h-svh w-full lg:items-center lg:justify-center lg:p-6">
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <ThemeToggle />
+      </div>
       <div className="flex flex-1 flex-col lg:h-[min(48rem,calc(100svh-3rem))] lg:max-w-5xl lg:flex-row lg:gap-3 lg:rounded-3xl lg:border lg:border-border lg:bg-card lg:p-3 dark:lg:border-transparent dark:lg:bg-muted">
         <div className="flex items-center justify-between px-6 pt-20 pb-6 lg:w-80 lg:shrink-0 lg:flex-col lg:items-start lg:p-10">
           <a
@@ -80,14 +83,9 @@ export function AuthSetup({
               mayarin
             </span>
           </a>
-          {/* The toggle lives in the brand column here: pinned to the page
-            corner, it sat on top of the frame. */}
-          <div className="flex items-center gap-3 lg:w-full lg:justify-between">
-            {aside !== undefined && (
-              <div className="hidden text-sm text-muted-foreground lg:block">{aside}</div>
-            )}
-            <ThemeToggle />
-          </div>
+          {aside !== undefined && (
+            <div className="hidden text-sm text-muted-foreground lg:block">{aside}</div>
+          )}
         </div>
 
         <div className="flex flex-1 flex-col bg-background lg:rounded-2xl lg:border lg:border-border">

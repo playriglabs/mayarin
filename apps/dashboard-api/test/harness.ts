@@ -319,6 +319,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   // Keeps the plaintext code a test needs, which is the one thing the real
   // sender is built never to hand back.
   const verificationEmails: SendVerificationEmailRequest[] = [];
+  const accountExistsEmails: string[] = [];
   const verificationEmailSender: VerificationEmailSender = {
     sendVerification: async (request) => {
       verificationEmails.push(request);
@@ -327,6 +328,10 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     sendPasswordReset: async (request) => {
       verificationEmails.push(request);
       return { id: "eml_test_password_reset" };
+    },
+    sendAccountExists: async (email) => {
+      accountExistsEmails.push(email);
+      return { id: "eml_test_account_exists" };
     },
   };
   const verifications = new InMemoryEmailVerificationRepository();
@@ -716,6 +721,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     invoiceEmailCalls,
     /** Every verification email sent, with its plaintext code. */
     verificationEmails,
+    accountExistsEmails,
     customerRepository,
     apiKeyRepository,
     eventLogRepository,

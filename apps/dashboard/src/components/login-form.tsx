@@ -285,9 +285,17 @@ function LoginForm() {
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="login-password" className="text-sm">
-              Password
-            </FieldLabel>
+            <div className="flex items-center justify-between">
+              <FieldLabel htmlFor="login-password" className="text-sm">
+                Password
+              </FieldLabel>
+              <a
+                href="/forgot-password"
+                className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                Forgot your password?
+              </a>
+            </div>
             <InputGroup className="h-12">
               <InputGroupInput
                 id="login-password"
@@ -366,12 +374,6 @@ function LoginForm() {
             "Continue"
           )}
         </Button>
-
-        <p className="text-center text-sm text-muted-foreground">
-          <a href="/forgot-password" className="underline underline-offset-2 hover:text-foreground">
-            Forgot your password?
-          </a>
-        </p>
 
         <p className="text-center text-sm text-muted-foreground">
           New to Mayarin?{" "}

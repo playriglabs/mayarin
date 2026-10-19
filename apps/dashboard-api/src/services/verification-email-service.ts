@@ -29,6 +29,12 @@ export interface VerificationEmailSender {
   sendVerification(request: SendVerificationEmailRequest): Promise<VerificationEmailDelivery>;
   /** The same shape of message for a password reset: a code, never a link. */
   sendPasswordReset(request: SendVerificationEmailRequest): Promise<VerificationEmailDelivery>;
+  /**
+   * Tells the owner of an address that somebody tried to sign up with it again.
+   * The signup answers the same either way, so this email is the only place the
+   * owner learns the account exists. No code and no link: nothing to redeem.
+   */
+  sendAccountExists(email: string): Promise<VerificationEmailDelivery>;
 }
 
 export interface ResendVerificationEmailSenderOptions {
@@ -55,20 +61,46 @@ export class ResendVerificationEmailSender implements VerificationEmailSender {
     return this.#send(request, PASSWORD_RESET_COPY);
   }
 
-  async #send(
+  async sendAccountExists(email: string): Promise<VerificationEmailDelivery> {
+    return this.#deliver({
+      to: email,
+      subject: "You already have a Mayarin account",
+      html: renderAccountExistsHtml(),
+      text: `${ACCOUNT_EXISTS_TEXT}\n${EMAIL_FOOTER_TEXT}`,
+      category: "account-exists",
+    });
+  }
+
+  #send(
     request: SendVerificationEmailRequest,
     copy: EmailCopy,
   ): Promise<VerificationEmailDelivery> {
+    return this.#deliver({
+      to: request.email,
+      subject: `${request.code} is your Mayarin ${copy.subjectNoun}`,
+      html: renderHtml(request, copy),
+      text: `${renderText(request, copy)}\n${EMAIL_FOOTER_TEXT}`,
+      category: copy.category,
+    });
+  }
+
+  async #deliver(message: {
+    readonly to: string;
+    readonly subject: string;
+    readonly html: string;
+    readonly text: string;
+    readonly category: string;
+  }): Promise<VerificationEmailDelivery> {
     let result: Awaited<ReturnType<Resend["emails"]["send"]>>;
     try {
       result = await this.#resend.emails.send({
         from: this.#from,
-        to: request.email,
-        subject: `${request.code} is your Mayarin ${copy.subjectNoun}`,
-        html: renderHtml(request, copy),
-        text: `${renderText(request, copy)}\n${EMAIL_FOOTER_TEXT}`,
+        to: message.to,
+        subject: message.subject,
+        html: message.html,
+        text: message.text,
         attachments: [...EMAIL_ATTACHMENTS],
-        tags: [{ name: "category", value: copy.category }],
+        tags: [{ name: "category", value: message.category }],
       });
       // Deliberately no idempotency key: every resend is a new code, and a
       // deduplicated second send would leave the reader holding a code the
@@ -104,6 +136,10 @@ export class UnavailableVerificationEmailSender implements VerificationEmailSend
     return this.#unavailable();
   }
 
+  sendAccountExists(): Promise<VerificationEmailDelivery> {
+    return this.#unavailable();
+  }
+
   #unavailable(): Promise<VerificationEmailDelivery> {
     return Promise.reject(
       new ConfigurationError("Email is not configured. Set RESEND_API_KEY and try again."),
@@ -136,6 +172,38 @@ const PASSWORD_RESET_COPY: EmailCopy = {
   ignore:
     "If you did not ask for this, ignore this email — your password stays as it is and nobody can change it without the code.",
 };
+
+const ACCOUNT_EXISTS_TEXT = `You already have a Mayarin account
+
+Someone, probably you, tried to create a Mayarin account with this email address, but one already exists. Nothing was changed.
+
+Sign in from the Mayarin dashboard. If you forgot your password, use "Forgot your password?" on the sign-in page.
+
+If this was not you, you can ignore this email.
+`;
+
+function renderAccountExistsHtml(): string {
+  return `<!doctype html>
+<html lang="en">
+${EMAIL_HEAD}
+  <body style="margin:0;background:#f5f5f4;color:#1c1917;font-family:${FONT_STACK}">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f5f4;padding:32px 16px;font-family:${FONT_STACK}">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:16px">
+          <tr><td style="padding:32px;font-family:${FONT_STACK}">
+            ${LOGO_IMG}
+            <h1 style="margin:0 0 12px;font-size:28px;font-weight:500;line-height:1.25">You already have a Mayarin account</h1>
+            <p style="margin:0 0 16px;color:#57534e;font-size:16px;line-height:1.6">Someone, probably you, tried to create a Mayarin account with this email address, but one already exists. Nothing was changed.</p>
+            <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6">Sign in from the Mayarin dashboard. If you forgot your password, use &ldquo;Forgot your password?&rdquo; on the sign-in page.</p>
+            <p style="margin:0;color:#78716c;font-size:12px;line-height:1.5">If this was not you, you can ignore this email.</p>
+          </td></tr>
+        </table>
+        ${EMAIL_FOOTER}
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+}
 
 function renderHtml(request: SendVerificationEmailRequest, copy: EmailCopy): string {
   const code = escapeHtml(request.code);

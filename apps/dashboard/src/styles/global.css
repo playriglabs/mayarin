@@ -254,6 +254,24 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
   --sidebar-marker: var(--chart-1);
 }
 
+/* Behind the auth card: a faint dot grid under a soft brand glow from the top. Decoration only, so nothing sits on it. */
+.auth-backdrop {
+  background-image:
+    radial-gradient(
+      ellipse 60% 45% at 50% 0%,
+      color-mix(in srgb, var(--brand) 18%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      circle,
+      color-mix(in srgb, var(--foreground) 14%, transparent) 1px,
+      transparent 1px
+    );
+  background-size:
+    100% 100%,
+    24px 24px;
+}
+
 /* Auth logo: one image per theme, swapped by the theme the app is in. */
 .auth-logo {
   height: auto;

@@ -172,9 +172,11 @@ describe("self-registration", () => {
 
     expect(again.status).toBe(stranger.status);
     expect(again.body).toEqual(stranger.body);
-    // And the verified account is not spammed with a code it did not ask for.
+    // And the verified account is not spammed with a code it did not ask for:
+    // it is told, by email, that the account already exists.
     expect(harness.verificationEmails).toHaveLength(sentSoFar + 1);
     expect(harness.verificationEmails.at(-1)?.email).toBe("nobody@example.test");
+    expect(harness.accountExistsEmails).toEqual([EMAIL]);
   });
 
   test("refuses a password too short to be worth hashing", async () => {
