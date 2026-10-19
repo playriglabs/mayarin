@@ -34,3 +34,18 @@ export interface PaymentDto {
   readonly deposit: DepositDto;
   readonly timeline: readonly TimelineEntryDto[];
 }
+
+/**
+ * What the payer is shown of their own payment (SEC-09): the intent, the
+ * clearing state and the deposit to pay. Not the timeline, provider references,
+ * fee, net amount, rate or failure internals, which are the merchant's record.
+ */
+export function toPayerPaymentDto(dto: PaymentDto): Omit<PaymentDto, "clearing" | "timeline"> & {
+  readonly clearing: { readonly state: string } | null;
+} {
+  return {
+    paymentIntent: dto.paymentIntent,
+    clearing: dto.clearing === null ? null : { state: dto.clearing.state },
+    deposit: dto.deposit,
+  };
+}

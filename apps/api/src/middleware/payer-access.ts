@@ -17,11 +17,20 @@ import type { Container } from "../container.ts";
 
 const BEARER_PREFIX = "bearer ";
 
+/**
+ * Set on a request that got in with the payer's token and nothing stronger. Such
+ * a caller sees what it takes to pay, not the operational record of the payment.
+ */
+export const PAYER_CALLER = "payerCaller";
+
 export function payerAccess(container: Container, param = "id"): MiddlewareHandler {
   return async (c, next) => {
     const id = c.req.param(param) ?? "";
     const token = c.req.query("t") ?? c.req.header("x-payer-token");
-    if (container.payerTokens.verify(id, token)) return next();
+    if (container.payerTokens.verify(id, token)) {
+      c.set(PAYER_CALLER, true);
+      return next();
+    }
     if (isInternal(container, c.req.header("x-internal-token"))) return next();
     if (await ownsPayment(container, id, c.req.header("authorization"))) return next();
     throw new NotFoundError(`Payment ${id} not found`, { id });
