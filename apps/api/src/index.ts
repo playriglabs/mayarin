@@ -6,6 +6,7 @@
  */
 
 import { CHAIN_IDS } from "@mayarin/chain";
+import { MAX_JSON_BODY_BYTES } from "@mayarin/http";
 import { createApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createContainer } from "./container.ts";
@@ -176,6 +177,7 @@ console.log(`[api] listening on http://localhost:${config.port}`);
 
 export default {
   idleTimeout: 30,
+  maxRequestBodySize: MAX_JSON_BODY_BYTES,
   port: config.port,
   fetch: app.fetch,
 };
