@@ -1,5 +1,3 @@
-import { COUNTRIES } from "./countries";
-
 /**
  * The currency each country uses, to pre-fill the display currency at signup.
  *
@@ -263,22 +261,4 @@ const CURRENCY_OF_COUNTRY: Readonly<Record<string, string>> = {
 /** `USD` for a country not listed, so a new code never leaves the field empty. */
 export function currencyOfCountry(countryCode: string): string {
   return CURRENCY_OF_COUNTRY[countryCode] ?? "USD";
-}
-
-const COUNTRY_CODES: ReadonlySet<string> = new Set([
-  ...COUNTRIES.map((country) => country.code),
-  "EU",
-]);
-
-/**
- * A flag for a currency: the first two letters of an ISO 4217 code are the
- * country's (IDR is Indonesia, JPY is Japan, EUR is the EU). Where they are not
- * a country (XOF, XCD, XDR) it is a globe rather than two stray letters.
- */
-export function currencyFlag(currency: string): string {
-  const country = currency.slice(0, 2);
-  if (!COUNTRY_CODES.has(country)) return "🌐";
-  return String.fromCodePoint(
-    ...Array.from(country, (letter) => 0x1f1e6 + letter.charCodeAt(0) - 65),
-  );
 }

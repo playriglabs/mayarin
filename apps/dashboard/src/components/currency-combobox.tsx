@@ -10,14 +10,27 @@ import {
   type ComboboxOption,
 } from "@/components/ui/combobox";
 import { useCurrencies } from "@/hooks/fx";
-import { currencyFlag } from "@/lib/country-currency";
 
 const NAMES = new Intl.DisplayNames("en", { type: "currency" });
 
+/** Listed first, in this order; everything else follows by name. */
+const COMMON = ["USD", "EUR", "GBP"];
+
+function nameOf(code: string): string {
+  return NAMES.of(code) ?? code;
+}
+
+/** What the closed field shows and what a search matches against. */
 function label(code: string): string {
-  const name = NAMES.of(code);
-  const text = name === undefined || name === code ? code : `${code} - ${name}`;
-  return `${currencyFlag(code)} ${text}`;
+  return `${code} - ${nameOf(code)}`;
+}
+
+function byCommonThenName(a: string, b: string): number {
+  const rank = (code: string) => {
+    const index = COMMON.indexOf(code);
+    return index === -1 ? COMMON.length : index;
+  };
+  return rank(a) - rank(b) || nameOf(a).localeCompare(nameOf(b));
 }
 
 export function CurrencyCombobox({
@@ -34,7 +47,7 @@ export function CurrencyCombobox({
   readonly inputClassName?: string;
 }) {
   const currencies = useCurrencies();
-  const items = (currencies.data?.currencies ?? []).map((code) => ({
+  const items = [...(currencies.data?.currencies ?? [])].sort(byCommonThenName).map((code) => ({
     value: code,
     label: label(code),
   }));
@@ -51,7 +64,12 @@ export function CurrencyCombobox({
         <ComboboxList>
           {(currency: ComboboxOption) => (
             <ComboboxItem key={currency.value} value={currency}>
-              {currency.label}
+              <span className="flex min-w-0 items-baseline gap-3">
+                <span className="w-9 shrink-0 text-xs text-subtle-foreground">
+                  {currency.value}
+                </span>
+                <span className="truncate">{nameOf(currency.value)}</span>
+              </span>
             </ComboboxItem>
           )}
         </ComboboxList>
