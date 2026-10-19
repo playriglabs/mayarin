@@ -253,7 +253,7 @@ describe("step-up on routes that move funds", () => {
         headers,
       }),
       harness.request("PATCH", "/v1/settings", {
-        body: { city: "Bandung" },
+        body: { settlementAddress: "0x1111111111111111111111111111111111111111" },
         cookies: auth.jar,
         headers,
       }),
@@ -262,6 +262,18 @@ describe("step-up on routes that move funds", () => {
     for (const res of await Promise.all(attempts)) {
       expect(res.status).toBe(403);
     }
+  });
+
+  test("profile settings do not: city, country and display currency are not money", async () => {
+    const harness = await seeded();
+    const { auth } = await enrol(harness);
+    const res = await harness.request("PATCH", "/v1/settings", {
+      body: { city: "Bandung", displayCurrency: "IDR" },
+      cookies: auth.jar,
+      headers: { "x-csrf-token": auth.csrf, "x-mfa-code": "" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body?.settings.displayCurrency).toBe("IDR");
   });
 
   test("disabling needs a valid code", async () => {

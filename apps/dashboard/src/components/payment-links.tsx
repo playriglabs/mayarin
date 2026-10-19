@@ -93,7 +93,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TableSkeleton } from "@/components/ui/skeleton";
+import { Skeleton, TableSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -208,6 +208,32 @@ const EMPTY_DRAFT: Draft = {
   quantity: "1",
   merchantReference: "",
 };
+
+/**
+ * The QR is drawn by the payment API, so it arrives after the dialog opens. A
+ * pulsing block of the same size holds its place until the image is in, so the
+ * dialog does not open with a hole in it and then jump.
+ */
+function QrImage({ src, alt }: { readonly src: string; readonly alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="relative size-60">
+      {!loaded && <Skeleton aria-hidden="true" className="absolute inset-0 size-60" />}
+      <img
+        // A cached image can be complete before React attaches `onLoad`.
+        ref={(image) => {
+          if (image?.complete === true && image.naturalWidth > 0) setLoaded(true);
+        }}
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        className={cn("size-60 bg-white p-2", !loaded && "opacity-0")}
+      />
+    </div>
+  );
+}
 
 /**
  * The QR endpoint lives beside the link, on the payment API that serves it.
@@ -1528,10 +1554,10 @@ function PaymentLinks() {
               {/* This code is a URL. A wallet scanning it would open a browser,
                   not a transfer — which is why it says so rather than sitting
                   next to a wallet icon and being mistaken for a payment code. */}
-              <img
+              <QrImage
+                key={sharing.id}
                 src={qrSrc(sharing)}
                 alt={`QR code that opens ${sharing.url}`}
-                className="size-60 bg-white p-2"
               />
               <a
                 href={qrSrc(sharing, true)}

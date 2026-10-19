@@ -8,18 +8,18 @@
  * in words. The keyframes live in `styles.css`.
  */
 
-import { AssetLogo } from "../../shared/asset-logo.tsx";
-
 const ART = "block size-44 overflow-visible sm:size-52";
 const TWINKLE =
   "origin-center [transform-box:fill-box] animate-[art-twinkle_2.2s_ease-in-out_infinite] motion-reduce:animate-none";
 const DELAY = "[animation-delay:1.1s]";
 
 /**
- * Money on its way: the asset the payer sent, ringed by an arc that turns and
- * a soft pulse. Quiet on purpose — the payer has nothing left to do here.
+ * Money on its way: an hourglass, ringed by an arc that turns and a soft pulse.
+ * Quiet on purpose — the payer has nothing left to do here. An hourglass rather than
+ * the asset they sent: the page already said what arrived, and what it is waiting
+ * for now is time.
  */
-export function ProcessingArt({ asset }: { readonly asset: string }) {
+export function ProcessingArt() {
   return (
     <div className="relative grid size-40 place-items-center" aria-hidden="true">
       <span className="absolute inset-6 rounded-full bg-brand/15 motion-safe:animate-ping" />
@@ -37,7 +37,16 @@ export function ProcessingArt({ asset }: { readonly asset: string }) {
         />
       </svg>
       <span className="relative grid size-24 place-items-center rounded-full bg-panel">
-        <AssetLogo symbol={asset} size={64} />
+        <svg viewBox="0 0 48 48" className="size-14" aria-hidden="true">
+          <path
+            d="M15 9 h18 M15 39 h18 M17 9 v4 c0 6 7 8 7 11 c0 3 -7 5 -7 11 v4 M31 9 v4 c0 6 -7 8 -7 11 c0 3 7 5 7 11 v4"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="fill-none stroke-brand"
+          />
+          <path d="M20 35 h8 l-4 -5 z" className="fill-brand" />
+        </svg>
       </span>
     </div>
   );

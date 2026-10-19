@@ -19,7 +19,7 @@ import { NAV_GROUPS } from "@/components/nav-items";
 import { cn } from "@/lib/utils";
 import type { Permission } from "@/types/user";
 
-const SIDEBAR_ICON_SIZE = 20;
+const SIDEBAR_ICON_SIZE = 18;
 
 /** `/` matches only itself; every other item matches its own subtree. */
 function isActive(href: string, pathname: string): boolean {
@@ -40,7 +40,7 @@ export default function SideNav({
     <nav
       aria-label="Primary"
       data-sidebar-nav
-      className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-3 py-3"
+      className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-3 py-2"
     >
       {NAV_GROUPS.map((group) => {
         const items = group.items.filter(
@@ -54,17 +54,17 @@ export default function SideNav({
             aria-labelledby={`nav-${group.label.toLowerCase()}`}
             data-sidebar-section
             data-tour={`nav-group-${group.label.toLowerCase()}`}
-            className="block border-sidebar-border border-b py-3 first:pt-0 last:border-b-0 last:pb-0"
+            className="block border-sidebar-border border-b py-2 first:pt-0 last:border-b-0 last:pb-0"
           >
             <h2
               id={`nav-${group.label.toLowerCase()}`}
               data-sidebar-section-label
-              className="mb-1.5 block px-2 text-[10px] font-medium tracking-[0.1em] text-sidebar-muted-foreground/60 uppercase"
+              className="mb-1 block px-2.5 pt-1 text-[10px] font-medium tracking-[0.1em] text-sidebar-muted-foreground/60 uppercase"
             >
               {group.label}
             </h2>
 
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-px">
               {items.map(({ href, label, icon: IconComponent, flag }) => {
                 const active = isActive(href, pathname);
                 return (
@@ -76,7 +76,7 @@ export default function SideNav({
                     data-tour={`nav-${href}`}
                     title={label}
                     className={cn(
-                      "relative flex min-h-11 shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-200",
+                      "relative flex min-h-10 shrink-0 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors duration-200 md:min-h-9",
                       active
                         ? "bg-sidebar-accent font-medium text-sidebar-foreground"
                         : "font-normal text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground",
@@ -90,7 +90,7 @@ export default function SideNav({
                         active ? "text-sidebar-foreground" : "text-sidebar-muted-foreground"
                       }
                     />
-                    <span data-sidebar-nav-label className="text-base">
+                    <span data-sidebar-nav-label className="text-[0.9375rem]">
                       {label}
                     </span>
                     {(counts[href] ?? 0) > 0 && (

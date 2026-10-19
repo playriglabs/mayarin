@@ -421,6 +421,8 @@ export const merchants = pgTable(
     logoUrl: text("logo_url"),
     /** The chain a local-currency payment is delivered to (0045). Null: the deployment's rule. */
     localCurrencyChain: text("local_currency_chain"),
+    /** ISO 4217 the dashboard shows money in (0060). Null: US dollars. */
+    displayCurrency: text("display_currency"),
     /**
      * The merchant's place in sign-up order — #1, #2, … Assigned by Postgres on
      * insert and never written by the application.

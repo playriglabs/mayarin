@@ -10,10 +10,9 @@
  * `value` is a float only because geometry is.
  */
 
-import { formatMoneyLocale } from "@mayarin/shared/locale";
-import { money } from "@mayarin/shared/money";
 import { inWindow } from "@/lib/analytics-insights";
 import { payInAmountUsd, settlementsByPaymentIntent } from "@/lib/analytics-movements";
+import { formatUsdCents } from "@/lib/display-currency";
 import { toUsdCents } from "@/lib/money";
 import type { PaymentIntentDto } from "@/types/payment";
 import type { SettlementDto } from "@/types/settlement";
@@ -173,7 +172,7 @@ function median(samples: readonly number[]): number {
 }
 
 export function formatUsd(cents: bigint): string {
-  return formatMoneyLocale(money(cents, "USD"), { trimZeroFraction: true });
+  return formatUsdCents(cents, { trimZeroFraction: true });
 }
 
 export function formatDuration(seconds: number): string {
@@ -306,13 +305,13 @@ export const REVENUE: readonly Definition[] = [
   {
     key: "revenue",
     label: "Revenue",
-    hint: "Gross USD value of completed payments, at each payment's locked rate, dated by when it was created.",
+    hint: "Gross value of completed payments, at each payment's locked rate, dated by when it was created.",
     point: (bucket) => moneyPoint(bucket.revenue),
   },
   {
     key: "net-revenue",
     label: "Net revenue",
-    hint: "What reached you after fees, in USD across every settlement asset, dated by when it settled.",
+    hint: "What reached you after fees, across every settlement asset, dated by when it settled.",
     point: (bucket) => moneyPoint(bucket.net),
   },
   {
@@ -366,7 +365,7 @@ export const SETTLEMENTS: readonly Definition[] = [
   {
     key: "settled",
     label: "Settled volume",
-    hint: "Net amount settled to you, in USD, dated by when it settled.",
+    hint: "Net amount settled to you, dated by when it settled.",
     chart: "bar",
     point: (bucket) => moneyPoint(bucket.net),
   },

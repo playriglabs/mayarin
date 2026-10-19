@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
+import { CurrencyCombobox } from "@/components/currency-combobox";
 import { InfoHint } from "@/components/info-hint";
 import { LoginHistory } from "@/components/login-history";
 import { MerchantProfile } from "@/components/merchant-profile";
@@ -123,6 +124,7 @@ interface Draft {
   readonly protectionBond: string;
   readonly city: string;
   readonly countryCode: string;
+  readonly displayCurrency: string;
   /** The chain a local-currency payment is delivered to; `""` is the deployment's rule. */
   readonly localCurrencyChain: string;
 }
@@ -144,6 +146,7 @@ function draftOf(settings: SettingsDto): Draft {
     protectionBond: String((settings.buyerProtection?.bondBps ?? 0) / 100),
     city: settings.city ?? "",
     countryCode: settings.countryCode ?? "",
+    displayCurrency: settings.displayCurrency,
     localCurrencyChain: settings.localCurrencyChain ?? "",
   };
 }
@@ -445,6 +448,10 @@ function Settings() {
           : null,
         city: orNull(draft.city),
         countryCode: orNull(draft.countryCode),
+        // Only when changed, so saving something else does not log a currency "change".
+        ...(draft.displayCurrency === loaded?.displayCurrency
+          ? {}
+          : { displayCurrency: draft.displayCurrency }),
         localCurrencyChain: orNull(draft.localCurrencyChain),
       });
       setNotice("Settings saved.");
@@ -771,15 +778,16 @@ function Settings() {
 
                   <Card className="flex flex-col gap-5 p-5">
                     <div className="flex flex-col gap-1">
-                      <h3 className="font-medium text-foreground text-sm">Business location</h3>
+                      <h3 className="font-medium text-foreground text-sm">Business profile</h3>
                       <p className="text-muted-foreground text-sm">
-                        Shown to buyers on every payment. A payment link needs both.
+                        City and country are shown to buyers on every payment, and a payment link
+                        needs both. Your balance and analytics are shown in the currency below, at a
+                        daily rate.
                       </p>
                     </div>
-                    {/* One row: a city and a country are one fact — where the
-                        merchant is — not two settings a reader hunts for. */}
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Field>
+
+                    <div className="flex flex-col gap-4 md:flex-row">
+                      <Field className="min-w-0 md:flex-1">
                         <FieldLabel htmlFor="merchant-city">City</FieldLabel>
                         <InputGroup>
                           <InputGroupAddon>
@@ -794,7 +802,7 @@ function Settings() {
                         </InputGroup>
                       </Field>
 
-                      <Field>
+                      <Field className="min-w-0 md:flex-1">
                         <FieldLabel htmlFor="merchant-country">Country</FieldLabel>
                         <Combobox
                           items={COUNTRY_OPTIONS}
@@ -817,6 +825,17 @@ function Settings() {
                             </ComboboxList>
                           </ComboboxContent>
                         </Combobox>
+                      </Field>
+
+                      <Field className="min-w-0 md:flex-1">
+                        <FieldLabel htmlFor="merchant-display-currency">
+                          Display currency
+                        </FieldLabel>
+                        <CurrencyCombobox
+                          id="merchant-display-currency"
+                          value={draft.displayCurrency}
+                          onChange={(next) => edit({ ...draft, displayCurrency: next })}
+                        />
                       </Field>
                     </div>
                   </Card>

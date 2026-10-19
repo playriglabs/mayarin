@@ -100,6 +100,8 @@ export interface RegisterInput {
   readonly merchantName: string;
   readonly city: string;
   readonly countryCode: string;
+  /** Absent: US dollars. */
+  readonly displayCurrency?: string;
 }
 
 export interface VerifyEmailInput {
@@ -153,6 +155,7 @@ export class RegistrationService {
       name: input.merchantName,
       city: input.city,
       countryCode: input.countryCode,
+      ...(input.displayCurrency === undefined ? {} : { displayCurrency: input.displayCurrency }),
       settlementAsset: this.#settlementAsset,
       // Empty defers to the deployment default, which is what a merchant who
       // has never opened the asset matrix should accept.

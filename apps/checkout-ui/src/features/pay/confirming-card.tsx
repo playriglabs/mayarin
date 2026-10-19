@@ -22,7 +22,7 @@ export function ConfirmingCard({
 
   return (
     <div className={stateView} role="status">
-      <ProcessingArt asset={deposit.amount.asset} />
+      <ProcessingArt />
       <h2 className={stateTitle}>Payment processing</h2>
       {/* One sentence: what arrived and where, then how long. The amount is
           the payer's proof it landed, so it leads. */}

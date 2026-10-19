@@ -77,6 +77,7 @@ import { chainReceipts } from "../src/rails.ts";
 import { ApiKeyService } from "../src/services/api-key-service.ts";
 import { AuthService } from "../src/services/auth-service.ts";
 import { CustomerService } from "../src/services/customer-service.ts";
+import { DisplayRateService } from "../src/services/display-rate-service.ts";
 import { DisputeService } from "../src/services/disputes.ts";
 import { EventLogService } from "../src/services/event-log-service.ts";
 import type {
@@ -549,6 +550,13 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     config,
     auth: authService,
     sessions: sessionService,
+    // A fixed table, never the network: one dollar buys 16 000 rupiah.
+    displayRates: new DisplayRateService({
+      url: "http://rates.test",
+      ttlSeconds: 3_600,
+      clock,
+      fetch: async () => Response.json({ rates: { USD: 1, IDR: 16_000, EUR: 0.9, JPY: 150 } }),
+    }),
     loginEvents,
     mfa,
     users: userService,

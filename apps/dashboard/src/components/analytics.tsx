@@ -69,6 +69,7 @@ import {
 } from "@/lib/analytics-series";
 import { ApiError } from "@/lib/api/client";
 import { countryLabel } from "@/lib/countries";
+import { setDisplayCurrency } from "@/lib/display-currency";
 import { ICON_CARD } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
@@ -282,7 +283,7 @@ function MetricBox({
       className={className}
     >
       <div className="flex flex-col gap-3 px-6">
-        <span className="text-[34px] leading-10 font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[44px] xl:leading-13">
+        <span className="text-[28px] leading-9 font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[36px] xl:leading-11">
           {point?.display ?? metric.total}
         </span>
         <span className="flex items-center gap-2 text-sm text-muted-foreground tabular-nums">
@@ -436,7 +437,7 @@ function StatusBox({ settlements }: { readonly settlements: readonly SettlementD
   return (
     <Box title="Status overview" hint="Settlements in the range, by their current state.">
       <div className="flex flex-col gap-3 px-6">
-        <span className="text-[34px] leading-10 font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[44px] xl:leading-13">
+        <span className="text-[28px] leading-9 font-normal tracking-[-0.02em] text-foreground tabular-nums xl:text-[36px] xl:leading-11">
           {rate === undefined ? "—" : `${rate}%`}
         </span>
         <span className="text-sm text-muted-foreground">
@@ -510,6 +511,7 @@ function Dashboards({ data }: { readonly data: AnalyticsResponse }) {
     chain: chain === ALL ? undefined : chain,
     asset: asset === ALL ? undefined : asset,
   };
+  setDisplayCurrency(data.display);
   const payments = filterPayments(data.payments, filters);
   const settlements = filterSettlements(data.settlements, filters);
   const input = { payments, settlements, range, interval, rates: data.usdRates };

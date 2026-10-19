@@ -58,6 +58,8 @@ export interface RegisterRequest {
   readonly merchantName: string;
   readonly city: string;
   readonly countryCode: string;
+  /** ISO 4217. Absent: US dollars. */
+  readonly displayCurrency?: string;
 }
 
 /** POST `/auth/verify-email` request body. */

@@ -56,6 +56,7 @@ const SETTING_LABELS: Readonly<Record<string, string>> = {
   settlementAddress: "payout address",
   city: "city",
   countryCode: "country",
+  displayCurrency: "display currency",
 };
 
 /** Which filter a notification falls under. */
