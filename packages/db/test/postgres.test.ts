@@ -39,7 +39,7 @@ import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
 import { ConcurrencyError, FixedClock, generateId, money, RATE_SCALE } from "@mayarin/shared";
 import type { X402Resource } from "@mayarin/x402";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
 import { FLOOR_TTL_MS, PostgresNonceSequencer } from "../src/nonce-sequencer.ts";
 import { listenPaymentChanged, notifyPaymentChanged } from "../src/notify.ts";
@@ -72,7 +72,11 @@ import {
   DrizzleWalletWithdrawalRepository,
 } from "../src/repositories/wallet.ts";
 import { DrizzleX402ResourceRepository } from "../src/repositories/x402.ts";
-import { loginFailures as loginFailuresTable, operatorTransactions } from "../src/schema.ts";
+import {
+  loginFailures as loginFailuresTable,
+  operatorTransactions,
+  workerFencing,
+} from "../src/schema.ts";
 import { guardedTestDatabaseUrl } from "./database-guard.ts";
 
 const TEST_DATABASE_URL = guardedTestDatabaseUrl(process.env);
@@ -130,7 +134,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table login_failures, operator_transactions, operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table worker_fencing, login_failures, operator_transactions, operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -1076,6 +1080,36 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
 
       await failures.clear("a@example.com");
       expect(await failures.waitMs("a@example.com", now)).toBe(0);
+    });
+
+    test("a worker whose lease was taken over cannot broadcast, and leaves no trace (SEC-04)", async () => {
+      await handle.db.insert(workerFencing).values({ name: "chain-worker", token: "1" });
+      const stale = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db, {
+        name: "chain-worker",
+        token: 1n,
+      });
+      const current = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db, {
+        name: "chain-worker",
+        token: 2n,
+      });
+
+      // A successor takes the lease: the next token.
+      await handle.db
+        .update(workerFencing)
+        .set({ token: "2" })
+        .where(eq(workerFencing.name, "chain-worker"));
+
+      let sent = 0;
+      const send = async (nonce: number) => {
+        sent += 1;
+        return `0x${nonce}`;
+      };
+      await expect(stale.broadcast("k", async () => 0, send)).rejects.toThrow("taken over");
+      expect(sent).toBe(0);
+      expect(await handle.db.select().from(operatorTransactions)).toHaveLength(0);
+
+      expect(await current.broadcast("k", async () => 0, send)).toBe("0x0");
+      expect(sent).toBe(1);
     });
 
     test("keeps the call so a stuck transaction can be replaced, and counts each bump", async () => {

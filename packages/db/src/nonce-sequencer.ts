@@ -33,19 +33,39 @@ import {
 import { eq, sql } from "drizzle-orm";
 import type { Executor } from "./client.ts";
 import { runInTransaction } from "./mapping.ts";
-import { operatorNonces, operatorTransactions } from "./schema.ts";
+import { operatorNonces, operatorTransactions, workerFencing } from "./schema.ts";
 
 export const FLOOR_TTL_MS = 60_000;
+
+/**
+ * Ties a sequencer to one lease. A broadcast is refused once a newer lease has
+ * taken the next token, which is how a worker that lost its lock without
+ * noticing is kept from submitting alongside its successor (SEC-04).
+ */
+export interface Fence {
+  readonly name: string;
+  readonly token: bigint;
+}
+
+/** Thrown when this process's lease has been superseded. Never retried: stop. */
+export class FencedError extends Error {
+  constructor(name: string) {
+    super(`The ${name} lease was taken over by a newer worker; this one must not broadcast`);
+    this.name = "FencedError";
+  }
+}
 
 export class PostgresNonceSequencer implements NonceSequencer {
   readonly #db: Executor;
   readonly #clock: Clock;
   readonly #outbox: Executor;
+  readonly #fence: Fence | undefined;
 
-  constructor(db: Executor, clock: Clock, outbox: Executor) {
+  constructor(db: Executor, clock: Clock, outbox: Executor, fence?: Fence) {
     this.#db = db;
     this.#clock = clock;
     this.#outbox = outbox;
+    this.#fence = fence;
   }
 
   async broadcast<T extends string>(
@@ -57,6 +77,9 @@ export class PostgresNonceSequencer implements NonceSequencer {
     try {
       return await runInTransaction(this.#db, async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`nonce:${key}`}))`);
+        // Checked under the lock and before a nonce is allocated: a superseded
+        // worker must leave no trace, not a row that looks like a send.
+        await this.#assertCurrent();
         const [row] = await tx
           .select()
           .from(operatorNonces)
@@ -104,6 +127,18 @@ export class PostgresNonceSequencer implements NonceSequencer {
       // Rebuild from the chain next time, as the in-memory sequencer does.
       await this.#db.delete(operatorNonces).where(eq(operatorNonces.key, key));
       throw error;
+    }
+  }
+
+  async #assertCurrent(): Promise<void> {
+    if (this.#fence === undefined) return;
+    const [row] = await this.#db
+      .select({ token: workerFencing.token })
+      .from(workerFencing)
+      .where(eq(workerFencing.name, this.#fence.name))
+      .limit(1);
+    if (row === undefined || BigInt(row.token) !== this.#fence.token) {
+      throw new FencedError(this.#fence.name);
     }
   }
 

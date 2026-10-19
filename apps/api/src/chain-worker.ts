@@ -1,7 +1,7 @@
 /** Railway entry point for continuous chain ingestion. */
 
 import { CHAIN_IDS } from "@mayarin/chain";
-import { acquireWorkerLease } from "@mayarin/db";
+import { acquireWorkerLease, CHAIN_WORKER_FENCE } from "@mayarin/db";
 import { ConfigurationError } from "@mayarin/shared";
 import { loadConfig } from "./config.ts";
 import { createContainer, watchedPairs } from "./container.ts";
@@ -29,7 +29,10 @@ const lease = await acquireWorkerLease(config.databaseUrl, {
   },
 });
 
-const container = createContainer({ config });
+const container = createContainer({
+  config,
+  fence: { name: CHAIN_WORKER_FENCE, token: lease.fencingToken },
+});
 
 const seeded = await container.market.seedFromEnvironment();
 if (seeded.length > 0) {

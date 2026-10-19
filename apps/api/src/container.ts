@@ -64,6 +64,7 @@ import {
   DrizzleWebhookEndpointRepository,
   DrizzleWebhookOutbox,
   DrizzleX402ResourceRepository,
+  type Fence,
   listenPaymentChanged,
   type PaymentFundingRepository,
   PostgresNonceSequencer,
@@ -316,6 +317,12 @@ export interface Container {
 export interface CreateContainerOptions {
   readonly config: Config;
   readonly clock?: Clock;
+  /**
+   * The worker lease this process holds, for the nonce sequencer to check: a
+   * broadcast is refused once a newer lease supersedes it (SEC-04). Only the
+   * chain worker has one.
+   */
+  readonly fence?: Fence;
 }
 
 /**
@@ -745,6 +752,7 @@ function transfiClientOf(config: Config): TransfiClient | undefined {
 export function createContainer({
   config,
   clock = systemClock,
+  fence,
 }: CreateContainerOptions): Container {
   const handle: DatabaseHandle = createDatabase({ url: config.databaseUrl });
   const events = new InMemoryEventBus();
@@ -991,7 +999,7 @@ export function createContainer({
 
   // Its own two connections for the outbox writes; see PostgresNonceSequencer.
   const outbox = createDatabase({ url: config.databaseUrl, maxConnections: 2 });
-  const nonces = new PostgresNonceSequencer(handle.db, clock, outbox.db);
+  const nonces = new PostgresNonceSequencer(handle.db, clock, outbox.db, fence);
   const operator = operatorAccount(config);
   const operatorTransactions = new OperatorTransactionReconciler({
     store: new DrizzleOperatorTransactionStore(handle.db),

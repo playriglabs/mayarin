@@ -44,6 +44,16 @@ describe.skipIf(URL === undefined)("worker lease", () => {
     await second?.release();
   });
 
+  test("each lease takes a larger fencing token than the one before (SEC-04)", async () => {
+    const first = await acquireWorkerLease(URL as string);
+    const before = first.fencingToken;
+    await first.release();
+
+    const second = await acquireWorkerLease(URL as string);
+    expect(second.fencingToken).toBe(before + 1n);
+    await second.release();
+  });
+
   test("reports the lease lost when its connection is killed", async () => {
     let lost = 0;
     const lease = await acquireWorkerLease(URL as string, {

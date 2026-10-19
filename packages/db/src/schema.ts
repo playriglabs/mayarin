@@ -1385,6 +1385,12 @@ export const loginFailures = pgTable(
   (table) => [index("login_failures_updated_idx").on(table.updatedAt)],
 );
 
+/** The chain worker lease's fencing token: each lease takes the next one (SEC-04). */
+export const workerFencing = pgTable("worker_fencing", {
+  name: text("name").primaryKey(),
+  token: minorUnits("token").notNull(),
+});
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -1425,4 +1431,5 @@ export const schema = {
   operatorNonces,
   operatorTransactions,
   loginFailures,
+  workerFencing,
 };
