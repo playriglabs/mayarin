@@ -354,7 +354,7 @@ function BalanceOverview({
         <div className="flex flex-col gap-3">
           <span className="font-medium text-foreground text-base">Balance</span>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-1">
-            <span className="font-medium text-[42px] leading-none text-foreground tracking-[-0.04em]">
+            <span className="font-medium text-[34px] leading-none text-foreground tracking-[-0.04em]">
               {balanceDisplay(shownTotal, asset)}
             </span>
             <TodayIndicator total={today} asset={asset} />
@@ -429,7 +429,7 @@ function MovementCard({
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="font-medium text-foreground text-base">{title}</span>
-          <span className="font-medium text-[42px] leading-none text-foreground tracking-[-0.04em]">
+          <span className="font-medium text-[34px] leading-none text-foreground tracking-[-0.04em]">
             {formatted}
           </span>
           <span className="text-subtle-foreground text-xs mt-1">{hint}</span>
@@ -657,7 +657,7 @@ function Overview() {
               hint={`${pending} currently in progress.`}
               icon={<ReceiptIcon size={24} weight="regular" aria-hidden="true" />}
               className="min-h-44 justify-between p-6"
-              valueClassName="text-[40px] leading-none tracking-[-0.04em]"
+              valueClassName="text-[32px] leading-none tracking-[-0.04em]"
             />
             <Stat
               label="Completion rate"
@@ -672,7 +672,7 @@ function Overview() {
               }
               hint={`${completed} completed payment${completed === 1 ? "" : "s"}.`}
               className="min-h-44 justify-between p-6"
-              valueClassName="text-[40px] leading-none tracking-[-0.04em]"
+              valueClassName="text-[32px] leading-none tracking-[-0.04em]"
             />
             <Stat
               label="Volume"
@@ -680,7 +680,7 @@ function Overview() {
               hint={volume.hint}
               icon={<CoinsIcon size={24} weight="regular" aria-hidden="true" />}
               className="min-h-44 justify-between p-6"
-              valueClassName="text-[40px] leading-none tracking-[-0.04em]"
+              valueClassName="text-[32px] leading-none tracking-[-0.04em]"
             />
           </div>
 
