@@ -14,6 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CodeInput } from "@/components/ui/code-input";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageLoader } from "@/components/ui/page-loader";
@@ -322,15 +331,25 @@ export function SecuritySection() {
   );
 }
 
-/** Changes the password; every other device is signed out. */
+/** Changes the password in a dialog; every other device is signed out. */
 export function PasswordSection() {
   const me = useMe();
   const change = useChangePassword();
+  const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const mfaEnabled = me.data?.mfaEnabled === true;
+
+  function close(next: boolean) {
+    setOpen(next);
+    if (next) return;
+    setCurrentPassword("");
+    setNewPassword("");
+    setCode("");
+    setError(null);
+  }
 
   function submit(event: { preventDefault(): void }) {
     event.preventDefault();
@@ -339,9 +358,7 @@ export function PasswordSection() {
       { currentPassword, newPassword, ...(mfaEnabled ? { code } : {}) },
       {
         onSuccess: () => {
-          setCurrentPassword("");
-          setNewPassword("");
-          setCode("");
+          close(false);
           toast.success("Password changed. Other devices were signed out.");
         },
         onError: (failure) => setError(reasonOf(failure)),
@@ -351,57 +368,74 @@ export function PasswordSection() {
 
   return (
     <Card id="password" className="gap-5 p-5">
-      <div className="flex flex-col gap-1">
-        <h3 className="font-medium text-foreground text-sm">Password</h3>
-        <p className="text-sm text-muted-foreground">Changing it signs out every other device.</p>
-      </div>
-      <form onSubmit={submit} className="flex max-w-sm flex-col gap-3">
-        <Field>
-          <FieldLabel htmlFor="current-password">Current password</FieldLabel>
-          <Input
-            id="current-password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="new-password">New password (12 characters or more)</FieldLabel>
-          <Input
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            required
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-        </Field>
-        {mfaEnabled ? (
-          <Field>
-            <FieldLabel htmlFor="password-mfa">Authenticator or recovery code</FieldLabel>
-            <Input
-              id="password-mfa"
-              autoComplete="one-time-code"
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-            />
-          </Field>
-        ) : null}
-        {error === null ? null : (
-          <p role="alert" className="text-xs text-destructive">
-            {error}
-          </p>
-        )}
-        <div>
-          <Button type="submit" disabled={change.isPending}>
-            Change password
-          </Button>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h3 className="font-medium text-foreground text-sm">Password</h3>
+          <p className="text-sm text-muted-foreground">Changing it signs out every other device.</p>
         </div>
-      </form>
+        <Button type="button" variant="secondary" onClick={() => setOpen(true)}>
+          Change password
+        </Button>
+      </div>
+
+      <Dialog open={open} onOpenChange={close}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change password</DialogTitle>
+            <DialogDescription>
+              Every other device is signed out once it is changed.
+            </DialogDescription>
+          </DialogHeader>
+          <form id="change-password-form" onSubmit={submit} className="flex flex-col gap-3">
+            <Field>
+              <FieldLabel htmlFor="current-password">Current password</FieldLabel>
+              <Input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="new-password">New password (12 characters or more)</FieldLabel>
+              <Input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </Field>
+            {mfaEnabled ? (
+              <Field>
+                <FieldLabel htmlFor="password-mfa">Authenticator or recovery code</FieldLabel>
+                <Input
+                  id="password-mfa"
+                  autoComplete="one-time-code"
+                  required
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              </Field>
+            ) : null}
+            {error === null ? null : (
+              <p role="alert" className="text-xs text-destructive">
+                {error}
+              </p>
+            )}
+          </form>
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+            <Button type="submit" form="change-password-form" disabled={change.isPending}>
+              {change.isPending ? "Changing…" : "Change password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
