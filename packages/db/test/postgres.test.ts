@@ -37,7 +37,16 @@ import type { WebhookDelivery, WebhookEndpoint } from "@mayarin/notifications";
 import { PaymentIntentService } from "@mayarin/payment-intent";
 import { MockSettlementAdapter } from "@mayarin/provider-mock";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
-import { ConcurrencyError, FixedClock, generateId, money, RATE_SCALE } from "@mayarin/shared";
+import {
+  ConcurrencyError,
+  DEFAULT_GRACE_MS,
+  FixedClock,
+  generateId,
+  money,
+  type OperatorChainReader,
+  OperatorTransactionReconciler,
+  RATE_SCALE,
+} from "@mayarin/shared";
 import type { X402Resource } from "@mayarin/x402";
 import { eq, sql } from "drizzle-orm";
 import { createDatabase } from "../src/client.ts";
@@ -1080,6 +1089,132 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
 
       await failures.clear("a@example.com");
       expect(await failures.waitMs("a@example.com", now)).toBe(0);
+    });
+
+    describe("crash at each state transition (SEC-04)", () => {
+      const KEY = "base-sepolia:0xcrash";
+      const reader = (confirmed: number): OperatorChainReader => ({
+        confirmedNonce: async () => confirmed,
+        receipt: async () => undefined,
+      });
+
+      test("a crash after the broadcast, before its hash is recorded: the nonce is not reused and the row is reported", async () => {
+        // The outbox dies the moment the sequencer tries to record the hash.
+        const dying = new Proxy(outbox.db, {
+          get: (target, property) =>
+            property === "update"
+              ? () => {
+                  throw new Error("process died");
+                }
+              : Reflect.get(target, property),
+        });
+        const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, dying);
+        expect(
+          await sequencer.broadcast(
+            KEY,
+            async () => 5,
+            async (nonce) => `0x${nonce}`,
+          ),
+        ).toBe("0x5");
+
+        // The node has not seen it yet and still says 5: the floor keeps it from reuse.
+        const next = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
+        expect(
+          await next.broadcast(
+            KEY,
+            async () => 5,
+            async (nonce) => `0x${nonce}`,
+          ),
+        ).toBe("0x6");
+
+        // Left `allocated` with no hash; once the chain has moved past it, the
+        // reconciler says a broadcast may have landed unrecorded.
+        const rows = await handle.db.select().from(operatorTransactions);
+        expect(rows.find((row) => row.nonce === 5)).toMatchObject({
+          status: "allocated",
+          txHash: null,
+        });
+        const store = new DrizzleOperatorTransactionStore(handle.db);
+        const reconciler = new OperatorTransactionReconciler({
+          store,
+          chain: reader(7),
+          clock: new FixedClock(new Date(nonceClock.now().getTime() + DEFAULT_GRACE_MS + 1)),
+        });
+        const findings = await reconciler.run();
+        expect(findings.map((finding) => [finding.nonce, finding.finding])).toContainEqual([
+          5,
+          "unrecorded",
+        ]);
+      });
+
+      test("a crash after the hash is recorded, before the floor commits: the send is on record and the next nonce follows it", async () => {
+        await handle.db.execute(
+          sql`create or replace function fail_operator_nonce() returns trigger as $$ begin raise exception 'process died'; end $$ language plpgsql`,
+        );
+        await handle.db.execute(
+          sql`create trigger fail_operator_nonce before insert on operator_nonces for each row execute function fail_operator_nonce()`,
+        );
+        try {
+          const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
+          await expect(
+            sequencer.broadcast(
+              KEY,
+              async () => 9,
+              async (nonce) => `0x${nonce}`,
+            ),
+          ).rejects.toThrow();
+        } finally {
+          await handle.db.execute(sql`drop trigger fail_operator_nonce on operator_nonces`);
+          await handle.db.execute(sql`drop function fail_operator_nonce()`);
+        }
+
+        // The caller saw an error, but the transaction was broadcast and its hash
+        // is on record for the reconciler.
+        const [row] = await handle.db.select().from(operatorTransactions);
+        expect(row).toMatchObject({ nonce: 9, status: "submitted", txHash: "0x9" });
+
+        // The floor was never written; the node has seen nonce 9, so it says 10.
+        const next = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
+        expect(
+          await next.broadcast(
+            KEY,
+            async () => 10,
+            async (nonce) => `0x${nonce}`,
+          ),
+        ).toBe("0x10");
+      });
+
+      test("a node that is behind (providers disagree) never makes the sequencer reuse a nonce", async () => {
+        const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
+        const first = await sequencer.broadcast(
+          KEY,
+          async () => 12,
+          async (nonce) => `0x${nonce}`,
+        );
+        // The next read lands on a lagging node and answers with an older count.
+        const second = await sequencer.broadcast(
+          KEY,
+          async () => 11,
+          async (nonce) => `0x${nonce}`,
+        );
+        expect([first, second]).toEqual(["0x12", "0x13"]);
+      });
+
+      test("a restart finds the floor in the database, not in memory", async () => {
+        await new PostgresNonceSequencer(handle.db, nonceClock, outbox.db).broadcast(
+          KEY,
+          async () => 20,
+          async (nonce) => `0x${nonce}`,
+        );
+        // A new instance is a new process: nothing in memory, a node that lags.
+        expect(
+          await new PostgresNonceSequencer(handle.db, nonceClock, outbox.db).broadcast(
+            KEY,
+            async () => 20,
+            async (nonce) => `0x${nonce}`,
+          ),
+        ).toBe("0x21");
+      });
     });
 
     test("a worker whose lease was taken over cannot broadcast, and leaves no trace (SEC-04)", async () => {
