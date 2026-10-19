@@ -1272,7 +1272,7 @@ export function createContainer({
       handle.db,
       config.webhookSecretEncryptionKey === undefined
         ? undefined
-        : new SecretBox(config.webhookSecretEncryptionKey),
+        : new SecretBox(config.webhookSecretEncryptionKey, config.webhookSecretPreviousKeys),
     );
     webhookDeliveries = new DrizzleWebhookDeliveryRepository(handle.db);
     webhooks = new WebhookDispatcher({

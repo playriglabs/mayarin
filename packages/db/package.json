@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "generate": "bun --env-file=../../.env run drizzle-kit generate",
     "migrate": "bun --env-file=../../.env run src/migrate.ts",
+    "rotate-webhook-secrets": "bun --env-file=../../.env run src/rotate-webhook-secrets.ts",
     "studio": "bun --env-file=../../.env run drizzle-kit studio"
   },
   "dependencies": {

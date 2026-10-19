@@ -539,7 +539,7 @@ export function createContainer(options: CreateContainerOptions): Container {
         handle?.db ?? throwIfNoHandle(),
         config.webhookSecretEncryptionKey === undefined
           ? undefined
-          : new SecretBox(config.webhookSecretEncryptionKey),
+          : new SecretBox(config.webhookSecretEncryptionKey, config.webhookSecretPreviousKeys),
       ),
     deliveries:
       options.webhookDeliveries ??
