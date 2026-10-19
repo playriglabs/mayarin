@@ -3,7 +3,8 @@ import { ORDER_TYPES, type OrderTypedData } from "@mayarin/quote";
 import { ProviderError } from "@mayarin/shared";
 import { hashTypedData, recoverAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { assembleSignature, TurnkeyOrderSigner } from "../src/adapter.ts";
+import { TurnkeyOrderSigner } from "../src/adapter.ts";
+import { assembleSignature } from "../src/sign-digest.ts";
 import { ApiKeyStamper, type TurnkeyStamper } from "../src/stamper.ts";
 
 const SIGNER_ADDRESS = "0x000000000000000000000000000000000000a11c" as const;

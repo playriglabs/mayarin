@@ -949,6 +949,62 @@ describe("TransFi sandbox auto-settle", () => {
       expect(config.maxPaymentSettlement).toEqual({ USDC: "250" });
     });
 
+    describe("operator signer (SEC-06)", () => {
+      const ready = {
+        ...mainnet,
+        MAX_PAYMENT_SETTLEMENT: '{"USDC":"250"}',
+        WEBHOOK_SECRET_ENCRYPTION_KEY: "w".repeat(32),
+        PAYER_TOKEN_KEY: "p".repeat(32),
+        INTERNAL_API_TOKEN: "i".repeat(32),
+      };
+      const turnkey = {
+        OPERATOR_SIGNER: "turnkey",
+        TURNKEY_ORGANIZATION_ID: "org_1",
+        OPERATOR_TURNKEY_SIGN_WITH: "0x00000000000000000000000000000000000000aa",
+        OPERATOR_ADDRESS: "0x00000000000000000000000000000000000000aa",
+        OPERATOR_TURNKEY_API_PUBLIC_KEY: "02operatorpublic",
+        OPERATOR_TURNKEY_API_PRIVATE_KEY: "operatorprivate",
+        TURNKEY_API_PUBLIC_KEY: "02rootpublic",
+      };
+
+      test("a raw operator key is refused when a mainnet chain is configured", () => {
+        expect(() =>
+          loadConfig({ ...ready, OPERATOR_PRIVATE_KEY: `0x${"22".repeat(32)}` }),
+        ).toThrow(/OPERATOR_SIGNER=local .* refused when a mainnet chain is configured/);
+      });
+
+      test("a Turnkey operator boots on mainnet, with no raw key in the environment", () => {
+        const config = loadConfig({ ...ready, ...turnkey });
+        expect(config.operatorSigner).toBe("turnkey");
+        expect(config.operatorPrivateKey).toBeUndefined();
+      });
+
+      test("a Turnkey operator needs its own key, address and credentials", () => {
+        for (const missing of [
+          "TURNKEY_ORGANIZATION_ID",
+          "OPERATOR_TURNKEY_SIGN_WITH",
+          "OPERATOR_ADDRESS",
+          "OPERATOR_TURNKEY_API_PRIVATE_KEY",
+        ]) {
+          const env: Record<string, string | undefined> = { ...ready, ...turnkey };
+          env[missing] = undefined;
+          expect(() => loadConfig(env)).toThrow(new RegExp(missing));
+        }
+      });
+
+      test("the operator may not authenticate as the organization's root key", () => {
+        expect(() =>
+          loadConfig({ ...ready, ...turnkey, OPERATOR_TURNKEY_API_PUBLIC_KEY: "02rootpublic" }),
+        ).toThrow(/must differ from TURNKEY_API_PUBLIC_KEY/);
+      });
+
+      test("a raw key beside a Turnkey operator is a mistake, not a fallback", () => {
+        expect(() =>
+          loadConfig({ ...ready, ...turnkey, OPERATOR_PRIVATE_KEY: `0x${"22".repeat(32)}` }),
+        ).toThrow(/OPERATOR_PRIVATE_KEY must not be set/);
+      });
+    });
+
     test("an unknown asset or a non-positive amount is refused", () => {
       expect(() => loadConfig({ ...BASE, MAX_PAYMENT_SETTLEMENT: '{"NOPE":"5"}' })).toThrow(
         /unknown asset/,
