@@ -166,14 +166,7 @@ function RecoveryCodes({
   const [saved, setSaved] = useState(false);
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h3 className="text-base font-medium text-foreground">Save your recovery codes</h3>
-        <p className="text-sm text-muted-foreground">
-          Each works once, in place of an authenticator code, if you lose your phone. They are shown
-          only now.
-        </p>
-      </div>
-      <ul className="grid max-w-md grid-cols-2 gap-2 font-mono text-sm">
+      <ul className="grid grid-cols-2 gap-2 font-mono text-sm">
         {codes.map((code) => (
           <li key={code} className="rounded bg-muted px-3 py-2 text-center">
             {code}
@@ -202,63 +195,83 @@ function Disable({ onDone }: { readonly onDone: () => void }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  if (!open) {
-    return (
+  function close(next: boolean) {
+    setOpen(next);
+    if (next) return;
+    setCode("");
+    setError(null);
+  }
+
+  return (
+    <>
       <Button type="button" variant="destructive" onClick={() => setOpen(true)}>
         Turn off
       </Button>
-    );
-  }
-  return (
-    <form
-      className="flex flex-col gap-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        setError(null);
-        disable.mutate(
-          { code: code.trim() },
-          {
-            onSuccess: () => {
-              toast.success("Two-factor authentication turned off");
-              onDone();
-            },
-            onError: (failure) => setError(reasonOf(failure)),
-          },
-        );
-      }}
-    >
-      <Field>
-        <FieldLabel id="mfa-disable-label" htmlFor="mfa-disable-code" className="mb-1 text-sm">
-          Enter a code to turn it off
-        </FieldLabel>
-        <CodeInput
-          id="mfa-disable-code"
-          value={code}
-          onChange={setCode}
-          length={6}
-          disabled={disable.isPending}
-          invalid={error !== null}
-          labelledBy="mfa-disable-label"
-        />
-      </Field>
-      {error === null ? null : (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <Button
-          type="submit"
-          variant="destructive"
-          disabled={disable.isPending || code.length !== 6}
-        >
-          Turn off two-factor
-        </Button>
-        <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+      <Dialog open={open} onOpenChange={close}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Turn off two-factor authentication</DialogTitle>
+            <DialogDescription>
+              Withdrawals and payouts are blocked again until you turn it back on.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            id="mfa-disable-form"
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setError(null);
+              disable.mutate(
+                { code: code.trim() },
+                {
+                  onSuccess: () => {
+                    close(false);
+                    toast.success("Two-factor authentication turned off");
+                    onDone();
+                  },
+                  onError: (failure) => setError(reasonOf(failure)),
+                },
+              );
+            }}
+          >
+            <Field>
+              <FieldLabel
+                id="mfa-disable-label"
+                htmlFor="mfa-disable-code"
+                className="mb-1 text-sm"
+              >
+                Enter a code to turn it off
+              </FieldLabel>
+              <CodeInput
+                id="mfa-disable-code"
+                value={code}
+                onChange={setCode}
+                length={6}
+                disabled={disable.isPending}
+                invalid={error !== null}
+                labelledBy="mfa-disable-label"
+              />
+            </Field>
+            {error === null ? null : (
+              <p role="alert" className="text-xs text-destructive">
+                {error}
+              </p>
+            )}
+          </form>
+          <DialogFooter>
+            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+            <Button
+              type="submit"
+              form="mfa-disable-form"
+              variant="destructive"
+              disabled={disable.isPending || code.length !== 6}
+            >
+              Turn off two-factor
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -296,15 +309,7 @@ export function SecuritySection() {
         <Badge variant={enabled ? "success" : "warning"}>{enabled ? "On" : "Off"}</Badge>
       </div>
 
-      {view.kind === "recovery" ? (
-        <RecoveryCodes codes={view.codes} onAcknowledge={() => setView({ kind: "overview" })} />
-      ) : view.kind === "enrolling" ? (
-        <Enrolling
-          setup={view.setup}
-          onDone={(codes) => setView({ kind: "recovery", codes })}
-          onCancel={() => setView({ kind: "overview" })}
-        />
-      ) : enabled ? (
+      {enabled ? (
         <Disable onDone={() => void me.refetch()} />
       ) : (
         <div className="flex flex-col gap-3">
@@ -327,6 +332,50 @@ export function SecuritySection() {
           </div>
         </div>
       )}
+
+      {/* The recovery codes are shown once, so that step cannot be dismissed by
+          Escape or a click outside: only "Done", after the user says they saved them. */}
+      <Dialog
+        open={view.kind !== "overview"}
+        onOpenChange={(next) => {
+          if (!next && view.kind === "enrolling") setView({ kind: "overview" });
+        }}
+      >
+        <DialogContent>
+          {view.kind === "enrolling" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Set up authenticator app</DialogTitle>
+                <DialogDescription>
+                  Scan the code, then enter what the app shows to turn it on.
+                </DialogDescription>
+              </DialogHeader>
+              <Enrolling
+                setup={view.setup}
+                onDone={(codes) => setView({ kind: "recovery", codes })}
+                onCancel={() => setView({ kind: "overview" })}
+              />
+            </>
+          ) : view.kind === "recovery" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Save your recovery codes</DialogTitle>
+                <DialogDescription>
+                  Each works once, in place of an authenticator code, if you lose your phone. They
+                  are shown only now.
+                </DialogDescription>
+              </DialogHeader>
+              <RecoveryCodes
+                codes={view.codes}
+                onAcknowledge={() => {
+                  setView({ kind: "overview" });
+                  void me.refetch();
+                }}
+              />
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
