@@ -31,6 +31,7 @@ import { paymentIntentRoutes } from "./routes/payment-intents.ts";
 import { paymentLinkRoutes } from "./routes/payment-links.ts";
 import { paymentRoutes } from "./routes/payments.ts";
 import { quoteRoutes } from "./routes/quotes.ts";
+import { riskRoutes } from "./routes/risk.ts";
 import { subscriptionRoutes } from "./routes/subscriptions.ts";
 import { webhookRoutes } from "./routes/webhooks.ts";
 import { x402Routes } from "./routes/x402.ts";
@@ -129,6 +130,7 @@ export function createApp(container: Container): Hono {
   v1.route("/payment-intents", paymentIntentRoutes(container));
   v1.route("/payments", paymentRoutes(container));
   v1.route("/disputes", disputeRoutes(container));
+  v1.route("/risk", riskRoutes(container));
   // Whether a wallet may take buyer protection (#314), for the hosted checkout.
   v1.route("/payers", payerRoutes(container));
   // Local-currency funding of a deposit address (TransFi).

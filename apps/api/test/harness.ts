@@ -29,7 +29,9 @@ import {
   TablePriceSource,
 } from "@mayarin/clearing";
 import { InMemoryClearingRepository, InMemoryRefundRepository } from "@mayarin/clearing/testing";
-import type { AdminAuditEvent, PaymentFunding } from "@mayarin/db";
+import type { AdminAuditEvent, PaymentFunding, StoredRiskAssessment } from "@mayarin/db";
+import { RiskAssessor } from "@mayarin/fraud";
+import { InMemoryDenylist, InMemoryRiskHistory } from "@mayarin/fraud/testing";
 import { PayerTokens } from "@mayarin/http";
 import { InvoiceService } from "@mayarin/invoicing";
 import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
@@ -65,6 +67,7 @@ import { EscrowService } from "../src/services/escrow.ts";
 import { PayerStanding } from "../src/services/payer-standing.ts";
 import { PaymentAppService } from "../src/services/payment.ts";
 import { PaymentStream } from "../src/services/payment-stream.ts";
+import { RiskGateService } from "../src/services/risk-gate.ts";
 import { SubscriptionApiService } from "../src/services/subscriptions.ts";
 import { InMemoryEscrowDisputeLog } from "./fixtures/escrow-disputes.ts";
 
@@ -157,11 +160,31 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
   const registry = new InMemoryStablecoinRegistry(config.stablecoins);
 
   const intentRepository = new InMemoryPaymentIntentRepository();
+  // The fraud gate over in-memory history. `market` is built further down, which is
+  // fine: the rules are read when a payment is confirmed, not when this is built.
+  const riskHistory = new InMemoryRiskHistory();
+  const denylist = new InMemoryDenylist();
+  const flagged: StoredRiskAssessment[] = [];
+  const riskGate = new RiskGateService({
+    assessor: new RiskAssessor({
+      rules: () => market.riskRules(),
+      history: riskHistory,
+      denylist,
+      clock,
+    }),
+    assessments: {
+      async record(id, assessment) {
+        flagged.push({ id, ...assessment });
+      },
+    },
+    clock,
+  });
   const intents = new PaymentIntentService({
     repository: intentRepository,
     clock,
     events,
     registry,
+    riskGate,
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
@@ -250,6 +273,17 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
       async record(event) {
         adminAuditEvents.push(event);
       },
+    },
+    riskAssessments: {
+      async listFlagged(merchantId, limit = 50) {
+        return flagged.filter((a) => a.merchantId === merchantId).slice(0, limit);
+      },
+    },
+    denylist: {
+      async add(address) {
+        denylist.add(address);
+      },
+      async remove() {},
     },
     paymentFundings: {
       async record(funding, now) {
@@ -425,6 +459,9 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     adminAuditEvents,
     escrowDisputes,
     disputeNotices,
+    riskHistory,
+    denylist,
+    flagged,
   };
 }
 

@@ -25,11 +25,12 @@ A webhook is a notification, not settlement truth. Mayarin itself re-queries aut
 
 ## Events
 
-| Event                                                        | Sent when                                                            | Guide                                              |
-| ------------------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------- |
-| `payment.created`, `payment.state_changed`, `payment.failed` | A payment is created, moves state, or fails.                         | [Webhook helpers](/sdk/typescript/webhooks)        |
-| `escrow.disputed`                                            | A buyer disputes an escrowed payment.                                | [Disputes](/guides/disputes)                       |
-| `escrow.dispute.message`                                     | Anyone writes in a dispute's thread: the buyer, you, or the arbiter. | [Disputes](/guides/disputes#escrowdisputemessage)  |
-| `escrow.dispute.resolved`                                    | The funds of a disputed escrow move: released, refunded or split.    | [Disputes](/guides/disputes#escrowdisputeresolved) |
+| Event                                                        | Sent when                                                                                                              | Guide                                              |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `payment.created`, `payment.state_changed`, `payment.failed` | A payment is created, moves state, or fails.                                                                           | [Webhook helpers](/sdk/typescript/webhooks)        |
+| `escrow.disputed`                                            | A buyer disputes an escrowed payment.                                                                                  | [Disputes](/guides/disputes)                       |
+| `escrow.dispute.message`                                     | Anyone writes in a dispute's thread: the buyer, you, or the arbiter.                                                   | [Disputes](/guides/disputes#escrowdisputemessage)  |
+| `escrow.dispute.resolved`                                    | The funds of a disputed escrow move: released, refunded or split.                                                      | [Disputes](/guides/disputes#escrowdisputeresolved) |
+| `payment.flagged`                                            | Fraud rules flagged a payment (`outcome`: `REVIEW` went ahead, `BLOCKED` was refused). `data.signals` says which rule. | `GET /v1/risk/flags`                               |
 
 Every event carries the envelope `{ id, type, occurredAt, data }`, and `id` is your deduplication key.

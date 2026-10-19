@@ -171,6 +171,28 @@ export function adminRoutes(container: Container, token: string): Hono {
     return c.json({ key, updated: true });
   });
 
+  /**
+   * The denylist: addresses nobody may pay from. A payment whose payer is listed is
+   * refused at confirm, whatever the rules say. Operator only; no merchant can edit it.
+   */
+  app.put("/denylist/:address", async (c) => {
+    const address = c.req.param("address");
+    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+      throw new ValidationError("address must be an EVM address", { address });
+    }
+    const body = await c.req.json();
+    if (typeof body.reason !== "string" || body.reason.trim() === "") {
+      throw new ValidationError("A denylist entry needs a reason");
+    }
+    await container.denylist.add(address, body.reason.trim(), container.clock.now());
+    return c.json({ address: address.toLowerCase(), listed: true });
+  });
+
+  app.delete("/denylist/:address", async (c) => {
+    await container.denylist.remove(c.req.param("address"));
+    return c.json({ address: c.req.param("address").toLowerCase(), listed: false });
+  });
+
   /** Forces one webhook dispatcher pass: enqueue new events, attempt due deliveries. */
   app.post("/webhooks/tick", async (c) => {
     if (container.webhooks === undefined) {

@@ -12,6 +12,7 @@ import {
   type AssetCode,
   type Clock,
   type EventPublisher,
+  ForbiddenError,
   getAsset,
   IdempotencyConflictError,
   type Money,
@@ -41,6 +42,7 @@ import {
 } from "./merchant-policy.ts";
 import type { PayerStandingSource } from "./payer-standing.ts";
 import type { ListPaymentIntentsOptions, PaymentIntentRepository } from "./repository.ts";
+import type { RiskGate } from "./risk-gate.ts";
 import type {
   EscrowRequest,
   ExecutionPath,
@@ -101,6 +103,8 @@ export interface PaymentIntentServiceOptions {
    * requires is refused. Absent: every wallet is in good standing.
    */
   readonly payerStanding?: PayerStandingSource;
+  /** Fraud rules, run when a payment is confirmed. Absent: nothing is blocked. */
+  readonly riskGate?: RiskGate;
   readonly defaults: {
     readonly settlementAsset: AssetCode;
     readonly provider: string;
@@ -118,6 +122,7 @@ export class PaymentIntentService {
   readonly #merchantPolicies: MerchantAssetPolicySource | undefined;
   readonly #escrowChains: readonly ChainId[];
   readonly #payerStanding: PayerStandingSource | undefined;
+  readonly #riskGate: RiskGate | undefined;
   readonly #defaults: PaymentIntentServiceOptions["defaults"];
 
   constructor(options: PaymentIntentServiceOptions) {
@@ -128,6 +133,7 @@ export class PaymentIntentService {
     this.#merchantPolicies = options.merchantPolicies;
     this.#escrowChains = options.escrowChains ?? [];
     this.#payerStanding = options.payerStanding;
+    this.#riskGate = options.riskGate;
     this.#defaults = options.defaults;
   }
 
@@ -350,6 +356,11 @@ export class PaymentIntentService {
       intent.status === "COMPLETED"
     ) {
       return intent;
+    }
+    const verdict = await this.#riskGate?.check(intent);
+    if (verdict?.blocked === true) {
+      // No reason to the payer: telling them which rule fired teaches them how to avoid it.
+      throw new ForbiddenError("This payment cannot be processed", { id });
     }
     return this.#apply(
       confirmIntent(intent, this.#clock.now()),

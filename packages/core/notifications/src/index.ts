@@ -24,6 +24,7 @@ export {
   type WebhookEndpointRepository,
   type WebhookOutbox,
 } from "./repository.ts";
+export { paymentFlaggedEvent, type RiskFacts } from "./risk-events.ts";
 export {
   type SignWebhookOptions,
   signWebhook,

@@ -49,6 +49,10 @@
       "description": "Recurring plans, billed as one invoice per cycle."
     },
     {
+      "name": "Risk",
+      "description": "Payments the fraud rules flagged or blocked."
+    },
+    {
       "name": "Disputes",
       "description": "Disputes buyers open on escrowed payments: read the thread, answer it."
     },
@@ -2963,6 +2967,118 @@
           },
           "409": {
             "description": "The dispute is already decided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/risk/flags": {
+      "get": {
+        "tags": [
+          "Risk"
+        ],
+        "operationId": "listRiskFlags",
+        "summary": "List flagged payments",
+        "description": "Payments Mayarin's fraud rules flagged (`REVIEW`, went ahead) or blocked (`BLOCKED`, refused at confirm), newest first. Announced by the `payment.flagged` webhook. Needs `payments:read`.",
+        "security": [
+          {
+            "secretKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Default 50."
+            },
+            "required": false,
+            "description": "Default 50.",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The flagged payments.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "flags": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "paymentIntentId": {
+                            "type": "string"
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "REVIEW",
+                              "BLOCKED"
+                            ]
+                          },
+                          "payer": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "signals": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "rule": {
+                                  "type": "string"
+                                },
+                                "detail": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "rule",
+                                "detail"
+                              ]
+                            }
+                          },
+                          "assessedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "paymentIntentId",
+                          "outcome",
+                          "payer",
+                          "signals",
+                          "assessedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "flags"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key lacks `payments:read`, or is publishable.",
             "content": {
               "application/json": {
                 "schema": {

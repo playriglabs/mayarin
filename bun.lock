@@ -31,6 +31,7 @@
         "@mayarin/db": "workspace:*",
         "@mayarin/documents": "workspace:*",
         "@mayarin/execution": "workspace:*",
+        "@mayarin/fraud": "workspace:*",
         "@mayarin/http": "workspace:*",
         "@mayarin/invoicing": "workspace:*",
         "@mayarin/ledger": "workspace:*",
@@ -389,6 +390,14 @@
         "@mayarin/shared": "workspace:*",
       },
     },
+    "packages/core/fraud": {
+      "name": "@mayarin/fraud",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mayarin/compliance": "workspace:*",
+        "@mayarin/shared": "workspace:*",
+      },
+    },
     "packages/core/invoicing": {
       "name": "@mayarin/invoicing",
       "version": "0.1.0",
@@ -494,6 +503,7 @@
         "@mayarin/chain": "workspace:*",
         "@mayarin/clearing": "workspace:*",
         "@mayarin/compliance": "workspace:*",
+        "@mayarin/fraud": "workspace:*",
         "@mayarin/invoicing": "workspace:*",
         "@mayarin/ledger": "workspace:*",
         "@mayarin/notifications": "workspace:*",
@@ -1488,6 +1498,8 @@
     "@mayarin/embed": ["@mayarin/embed@workspace:packages/embed"],
 
     "@mayarin/execution": ["@mayarin/execution@workspace:packages/core/execution"],
+
+    "@mayarin/fraud": ["@mayarin/fraud@workspace:packages/core/fraud"],
 
     "@mayarin/http": ["@mayarin/http@workspace:packages/http"],
 

@@ -891,6 +891,40 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
+  path: "/v1/risk/flags",
+  tags: ["Risk"],
+  operationId: "listRiskFlags",
+  summary: "List flagged payments",
+  description:
+    "Payments Mayarin's fraud rules flagged (`REVIEW`, went ahead) or blocked (`BLOCKED`, refused at confirm), newest first. Announced by the `payment.flagged` webhook. Needs `payments:read`.",
+  security: secretKey,
+  request: {
+    query: z.object({
+      limit: z.coerce.number().int().min(1).max(100).optional().describe("Default 50."),
+    }),
+  },
+  responses: {
+    "200": jsonResponse(
+      z.object({
+        flags: z.array(
+          z.object({
+            id: z.string(),
+            paymentIntentId: z.string(),
+            outcome: z.enum(["REVIEW", "BLOCKED"]),
+            payer: z.string().nullable(),
+            signals: z.array(z.object({ rule: z.string(), detail: z.string() })),
+            assessedAt: z.string(),
+          }),
+        ),
+      }),
+      "The flagged payments.",
+    ),
+    "403": errorResponse("The key lacks `payments:read`, or is publishable."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
   path: "/v1/payments/{id}/refunds",
   tags: ["Payments"],
   operationId: "listPaymentRefunds",
@@ -1721,6 +1755,7 @@ const document = generator.generateDocument({
     { name: "Payment links", description: "Shareable hosted checkout links." },
     { name: "Invoices", description: "Numbered requests with buyers and due dates." },
     { name: "Subscriptions", description: "Recurring plans, billed as one invoice per cycle." },
+    { name: "Risk", description: "Payments the fraud rules flagged or blocked." },
     {
       name: "Disputes",
       description: "Disputes buyers open on escrowed payments: read the thread, answer it.",

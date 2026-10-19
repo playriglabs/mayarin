@@ -1391,6 +1391,37 @@ export const workerFencing = pgTable("worker_fencing", {
   token: minorUnits("token").notNull(),
 });
 
+/**
+ * What the fraud rules found on a payment (FDS). Append-only: a payment assessed
+ * twice has two rows, and the latest one stands.
+ */
+export const riskAssessments = pgTable(
+  "risk_assessments",
+  {
+    id: text("id").primaryKey(),
+    paymentIntentId: text("payment_intent_id").notNull(),
+    merchantId: text("merchant_id").notNull(),
+    payer: text("payer"),
+    /** `CLEAR`, `REVIEW` or `BLOCKED`, CHECK-constrained, no postgres enum. */
+    outcome: text("outcome").notNull(),
+    signals: jsonb("signals")
+      .$type<{ rule: string; action: "block" | "review"; detail: string }[]>()
+      .notNull(),
+    assessedAt: timestamp("assessed_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("risk_assessments_merchant_time_idx").on(table.merchantId, table.assessedAt),
+    index("risk_assessments_intent_idx").on(table.paymentIntentId),
+  ],
+);
+
+/** Addresses nobody may pay from, lower-cased. Set by an operator. */
+export const addressDenylist = pgTable("address_denylist", {
+  address: text("address").primaryKey(),
+  reason: text("reason").notNull(),
+  addedAt: timestamp("added_at", { withTimezone: true, mode: "date" }).notNull(),
+});
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -1432,4 +1463,6 @@ export const schema = {
   operatorTransactions,
   loginFailures,
   workerFencing,
+  riskAssessments,
+  addressDenylist,
 };

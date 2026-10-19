@@ -5,5 +5,6 @@ export * from "./merchant-policy.ts";
 export * from "./payer-standing.ts";
 export * from "./rail-catalog.ts";
 export * from "./repository.ts";
+export * from "./risk-gate.ts";
 export * from "./service.ts";
 export * from "./types.ts";

@@ -521,6 +521,7 @@ third-party developer can use.
 - ☑ Immutable audit trail (ledger + on-chain events)
 - ☑ Audit query interface, merchant-scoped, with ledger ↔ chain reconciliation
 - ☑ Screening port with a disabled default (`NOT_SCREENED`, never `CLEAR`)
+- ☑ Fraud detection at confirm — velocity, amount spike, operator denylist; flags a payment, blocks only a denylisted payer ([fraud.md](./fraud.md))
 
 Even crypto-only, Mayarin has compliance surface — stablecoin issuers can
 freeze, and screening is expected by acquirers, issuers, and regulators. The

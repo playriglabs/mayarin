@@ -17,6 +17,7 @@
     "@mayarin/catalog": "workspace:*",
     "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
+    "@mayarin/fraud": "workspace:*",
     "@mayarin/db": "workspace:*",
     "@mayarin/execution": "workspace:*",
     "@mayarin/http": "workspace:*",

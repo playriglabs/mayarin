@@ -8,6 +8,7 @@ export * from "./repositories/catalog.ts";
 export * from "./repositories/chain.ts";
 export * from "./repositories/clearing.ts";
 export * from "./repositories/escrow-dispute.ts";
+export * from "./repositories/fraud.ts";
 export * from "./repositories/invoice.ts";
 export * from "./repositories/ledger.ts";
 export * from "./repositories/login-failures.ts";
