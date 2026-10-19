@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { type Connection, Keypair, type PublicKey } from "@solana/web3.js";
-import { SolanaDepositClient } from "../src/deposits.ts";
+import { SOLANA_SCAN_RANGE, SolanaDepositClient } from "../src/deposits.ts";
 
 const CHAIN = "solana-devnet" as const;
 const BLOCK_HASH = "8tNWWV9EYBttJa2H8rQQ3Srj5gLhL9KiaRATgWQ4jA1G";
@@ -204,6 +204,71 @@ describe("SolanaDepositClient", () => {
       now = new Date(now.getTime() + 2_001);
       await client.head(CHAIN);
       expect(calls(connection, "getSlot")).toBe(2);
+    });
+  });
+
+  describe("signature pages", () => {
+    const signature = (n: number, slot: number) => ({
+      blockTime: 1_700_000_000,
+      confirmationStatus: "confirmed",
+      err: null,
+      memo: null,
+      signature: `sig-${n}`,
+      slot,
+    });
+
+    test("keeps paging back until the oldest signature is before the range", async () => {
+      const owner = Keypair.generate().publicKey;
+      const pages = [
+        Array.from({ length: 1_000 }, (_, i) => signature(i, 9_000 - i)),
+        Array.from({ length: 1_000 }, (_, i) => signature(1_000 + i, 8_000 - i)),
+        [signature(2_000, 100)],
+      ];
+      const asked: (string | undefined)[] = [];
+      const connection = {
+        getMultipleAccountsInfo: async (keys: PublicKey[]) => keys.map(() => ({ lamports: 1 })),
+        getSignaturesForAddress: async (_account: PublicKey, options: { before?: string }) => {
+          asked.push(options.before);
+          return pages[asked.length - 1] ?? [];
+        },
+        getParsedTransaction: async () => null,
+      } as unknown as Connection;
+      const client = new SolanaDepositClient({ connection, tokens: {} });
+
+      await client.transfers({
+        chain: CHAIN,
+        asset: "SOL",
+        addresses: [owner.toBase58()],
+        fromBlock: 50n,
+        toBlock: 9_500n,
+      });
+
+      expect(asked).toEqual([undefined, "sig-999", "sig-1999"]);
+    });
+
+    test("stops at the first short page, and a tick can span the whole gap", async () => {
+      const owner = Keypair.generate().publicKey;
+      let calls = 0;
+      const connection = {
+        getMultipleAccountsInfo: async (keys: PublicKey[]) => keys.map(() => ({ lamports: 1 })),
+        getSignaturesForAddress: async () => {
+          calls += 1;
+          return [signature(1, 500)];
+        },
+        getParsedTransaction: async () => null,
+      } as unknown as Connection;
+      const client = new SolanaDepositClient({ connection, tokens: {} });
+
+      await client.transfers({
+        chain: CHAIN,
+        asset: "SOL",
+        addresses: [owner.toBase58()],
+        fromBlock: 1n,
+        toBlock: BigInt(SOLANA_SCAN_RANGE),
+      });
+
+      expect(calls).toBe(1);
+      expect(SOLANA_SCAN_RANGE).toBeGreaterThan(1_019_513);
     });
   });
 });
