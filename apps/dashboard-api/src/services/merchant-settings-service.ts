@@ -93,6 +93,13 @@ export class MerchantSettingsService {
     return { merchant: next, changes };
   }
 
+  /** Which fields `patch` would actually change, without writing anything. */
+  async changedFields(scope: Scope, patch: MerchantSettingsPatch): Promise<readonly string[]> {
+    const current = await this.get(scope);
+    const next = updateMerchantSettings(current, patch, this.#clock.now());
+    return diffMerchantSettings(current, next).map((entry) => entry.field);
+  }
+
   /** The caller's own change history. Scoped, like everything else here. */
   async history(scope: Scope, limit?: number): Promise<readonly MerchantSettingChange[]> {
     return this.#changes.list(scope.merchantId, limit);

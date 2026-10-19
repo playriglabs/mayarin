@@ -23,6 +23,9 @@ import type { AuthVars } from "../middleware/types.ts";
 import { settlementChains } from "../rails.ts";
 import { MAX_LOGO_BYTES } from "../services/logo-storage.ts";
 
+/** Settings that change what a buyer is shown, not where money goes. */
+const PROFILE_FIELDS: ReadonlySet<string> = new Set(["city", "countryCode", "displayCurrency"]);
+
 export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars }> {
   const app = new Hono<{ Variables: AuthVars }>();
 
@@ -108,7 +111,7 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
 
   // CSRF-guarded like every other state-changing route: this one decides where
   // the merchant's money is paid, so a forged cross-site form must not reach it.
-  app.patch("/", csrfMiddleware(), requireMfa(container.mfa), async (c) => {
+  app.patch("/", csrfMiddleware(), async (c) => {
     const scope = c.get("scope");
     const session = c.get("session");
     if (scope === undefined || session === undefined) {
@@ -124,7 +127,7 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
       await assertAddressExistsEverywhere(/^0x/.test(trimmed) ? trimmed.toLowerCase() : trimmed);
     }
 
-    const { merchant, changes } = await container.settings.update(scope, session.user.id, {
+    const patch = {
       ...(body.settlementAsset === undefined ? {} : { settlementAsset: body.settlementAsset }),
       ...(body.settlementAssetByChain === undefined
         ? {}
@@ -155,7 +158,16 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
       ...(body.localCurrencyChain === undefined
         ? {}
         : { localCurrencyChain: body.localCurrencyChain }),
-    });
+    };
+
+    // A second factor only where money could move: where it is paid, what is
+    // accepted, buyer protection. Profile fields are not worth a code, and a save
+    // that changes nothing is not either.
+    const changed = await container.settings.changedFields(scope, patch);
+    if (changed.some((field) => !PROFILE_FIELDS.has(field))) {
+      await requireMfa(container.mfa)(c, async () => {});
+    }
+    const { merchant, changes } = await container.settings.update(scope, session.user.id, patch);
 
     return c.json({
       settings: await settingsDto(merchant),
