@@ -4,4 +4,5 @@ export * from "./merchant-key-provider.ts";
 export * from "./policies.ts";
 export * from "./sign-digest.ts";
 export * from "./stamper.ts";
+export * from "./treasury-safe.ts";
 export * from "./wallet-provider.ts";
