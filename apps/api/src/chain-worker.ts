@@ -46,6 +46,30 @@ if (recovered.length > 0) {
   console.log(`[chain-worker] resumed ${recovered.length} clearing transaction(s)`);
 }
 
+// A payment parks at a step the process that recorded its receipt cannot run:
+// core-api has no treasury executor, so a deposit it records stops at
+// ASSET_RECEIVED. Resuming only at start left such a payment waiting for the next
+// deploy; this worker holds the executor, so it picks them up as they appear.
+// Every step is keyed per state and the writes are version-checked, so a pass that
+// overlaps another process's is harmless.
+const RESUME_INTERVAL_MS = 30_000;
+let resuming = false;
+const resumeTimer = setInterval(() => {
+  if (resuming) return;
+  resuming = true;
+  void container.engine
+    .resumeStuck()
+    .then((resumed) => {
+      if (resumed.length > 0) {
+        console.log(`[chain-worker] resumed ${resumed.length} clearing transaction(s)`);
+      }
+    })
+    .catch((error: unknown) => console.error("[chain-worker] resume pass failed", error))
+    .finally(() => {
+      resuming = false;
+    });
+}, RESUME_INTERVAL_MS);
+
 const finishedRefunds = await container.refunds.resumePending();
 if (finishedRefunds.length > 0) {
   console.log(`[chain-worker] finished ${finishedRefunds.length} pending refund(s)`);
@@ -208,6 +232,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   clearInterval(refundRecoveryTimer);
   clearInterval(operatorReconcileTimer);
   clearInterval(operatorFloatTimer);
+  clearInterval(resumeTimer);
   clearInterval(lateDepositTimer);
   await container.close();
   await lease.release();

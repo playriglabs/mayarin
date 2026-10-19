@@ -34,6 +34,8 @@ const PAY_AFTER_MS = 8_000;
 const MAX_AGE_MS = 2 * 60 * 60 * 1000;
 const BATCH = 25;
 /** A payment may be funded by up to this much more than it needs; beyond, it is not this payment. */
+// Looser than what the route offers: this matches money that has already arrived
+// to its payment, and a rate that moved since the quote must not strand it.
 const MAX_OVERPAYMENT = 1.5;
 
 export interface FiatSettlerOptions {
@@ -54,7 +56,10 @@ export interface FiatSettlerOptions {
       } | null;
     }>;
   };
-  readonly engine: { recordAssetReceived(id: string): Promise<unknown> };
+  readonly engine: {
+    recordAssetReceived(id: string): Promise<unknown>;
+    getById(id: string): Promise<{ readonly state: string }>;
+  };
   /**
    * Puts what TransFi's sandbox only pretended to deliver on the deposit address.
    * Absent where no operator key is wired; the receipt is then recorded bare.
@@ -151,7 +156,16 @@ export class FiatSettler {
       this.#funded.add(transaction.id);
     }
 
-    await engine.recordAssetReceived(transaction.id);
+    try {
+      await engine.recordAssetReceived(transaction.id);
+    } catch (error) {
+      // The receipt is booked and the payment is at ASSET_RECEIVED; what failed is
+      // a later step, and this process (core-api) has no treasury executor to run
+      // it. The chain worker has one and resumes the payment. Retrying here every
+      // pass would only repeat the failure, so the receipt counts as recorded.
+      const { state } = await engine.getById(transaction.id);
+      if (state !== "ASSET_RECEIVED") throw error;
+    }
     return true;
   }
 }

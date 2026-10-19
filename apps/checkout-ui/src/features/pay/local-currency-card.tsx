@@ -183,7 +183,13 @@ export function LocalCurrencyCard({
     setMethods({ status: "loading" });
     setChoice("");
     setBankCode("");
-    fetch(`/v1/fiat-onramp/methods?currency=${marketCurrency}`)
+    // With the payment named, the server leaves out the methods whose minimum order
+    // would charge more than this payment is worth.
+    fetch(
+      withPayerToken(
+        `/v1/fiat-onramp/methods?currency=${marketCurrency}&paymentId=${encodeURIComponent(intentId)}`,
+      ),
+    )
       .then(async (response) => {
         const body = await response.json();
         if (cancelled) return;
@@ -202,7 +208,7 @@ export function LocalCurrencyCard({
     return () => {
       cancelled = true;
     };
-  }, [open, marketCurrency]);
+  }, [open, marketCurrency, intentId]);
 
   useEffect(() => {
     if (!copied) return;
@@ -424,7 +430,14 @@ export function LocalCurrencyCard({
                     )}
                   </div>
 
-                  <fieldset className="m-0 mt-5 min-w-0 border-0 p-0">
+                  {all.length === 0 && (
+                    <p className="m-0 mt-5 text-sm text-muted" role="status">
+                      No local payment method takes an amount this small in {market.currency}.
+                      Choose another currency, or pay with crypto instead.
+                    </p>
+                  )}
+
+                  <fieldset className="m-0 mt-5 min-w-0 border-0 p-0" hidden={all.length === 0}>
                     <legend className={fieldLabel}>Payment method</legend>
                     <div className="grid grid-cols-2 gap-3">
                       {wallets.map((method) => (
