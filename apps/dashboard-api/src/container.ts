@@ -11,6 +11,7 @@
 import type {
   ApiKeyRepository,
   EmailVerificationRepository,
+  LoginEventRepository,
   MerchantAccountRepository,
   MerchantRepository,
   MerchantSettingChangeRepository,
@@ -49,6 +50,7 @@ import {
   DrizzleEscrowDisputeRepository,
   DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
+  DrizzleLoginEventRepository,
   DrizzleMerchantAccountRepository,
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantEventRepository,
@@ -169,6 +171,7 @@ export interface Container {
   readonly config: Config;
   readonly auth: AuthService;
   readonly sessions: SessionService;
+  readonly loginEvents: LoginEventRepository;
   readonly mfa: MfaService;
   /** Mints the payer tokens in the document links a merchant opens (SEC-09). */
   readonly payerTokens: PayerTokens;
@@ -264,6 +267,7 @@ export interface CreateContainerOptions {
   readonly userRepository?: UserRepository;
   readonly merchantAccountRepository?: MerchantAccountRepository;
   readonly sessionRepository?: SessionRepository;
+  readonly loginEventRepository?: LoginEventRepository;
   readonly paymentIntents?: PaymentIntentRepository;
   readonly paymentFundings?: Pick<PaymentFundingRepository, "listByPayment" | "latestByPayments">;
   readonly clearing?: ClearingReadRepository;
@@ -345,6 +349,9 @@ export function createContainer(options: CreateContainerOptions): Container {
     new DrizzleMerchantAccountRepository(handle?.db ?? throwIfNoHandle());
   const sessions =
     options.sessionRepository ?? new DrizzleSessionRepository(handle?.db ?? throwIfNoHandle());
+  const loginEvents =
+    options.loginEventRepository ??
+    new DrizzleLoginEventRepository(handle?.db ?? throwIfNoHandle());
   const hasher = options.hasher ?? new Argon2PasswordHasher();
 
   const sessionService = new SessionService({
@@ -672,6 +679,7 @@ export function createContainer(options: CreateContainerOptions): Container {
     config,
     auth: authService,
     sessions: sessionService,
+    loginEvents,
     mfa,
     users: userService,
     payments,

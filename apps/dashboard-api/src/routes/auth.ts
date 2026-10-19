@@ -14,7 +14,8 @@
  * second mapping layer in the route.
  */
 
-import { ForbiddenError, UnauthorizedError } from "@mayarin/shared";
+import { clientId } from "@mayarin/http";
+import { ForbiddenError, generateId, ID_PREFIXES, UnauthorizedError } from "@mayarin/shared";
 import { Effect } from "effect";
 import { type Context, Hono } from "hono";
 import { setCookie } from "hono/cookie";
@@ -60,6 +61,13 @@ export function authRoutes(container: Container): Hono<{ Variables: AuthVars }> 
     const { session } = await runEffect(
       sessions.create(userId).pipe(Effect.map((created) => ({ session: created }))),
     );
+    await container.loginEvents.append({
+      id: generateId(ID_PREFIXES.loginEvent),
+      userId,
+      ip: clientId(c, config.rateLimitClientIpSource),
+      userAgent: (c.req.header("user-agent") ?? "").slice(0, 300),
+      createdAt: session.createdAt,
+    });
     setCookie(c, SESSION_COOKIE, session.id, sessionCookieOptions(ttl, secure));
     setCookie(c, CSRF_COOKIE, session.csrfToken, csrfCookieOptions(ttl, secure));
   };
@@ -101,6 +109,20 @@ export function authRoutes(container: Container): Hono<{ Variables: AuthVars }> 
     const recoveryCodes = await container.mfa.confirmSetup(verified.user, code);
     await container.sessions.revokeOthers(verified.user.id, verified.session.id);
     return c.json({ enabled: true, recoveryCodes });
+  });
+
+  /** The last 50 sign-ins to this account, newest first. */
+  app.get("/login-history", requireAuth(), async (c) => {
+    const verified = requireSession(c);
+    const events = await container.loginEvents.listByUser(verified.user.id, 50);
+    return c.json({
+      logins: events.map((event) => ({
+        id: event.id,
+        ip: event.ip,
+        userAgent: event.userAgent,
+        createdAt: event.createdAt.toISOString(),
+      })),
+    });
   });
 
   /** Signs out every other device. */

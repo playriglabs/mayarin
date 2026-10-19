@@ -13,6 +13,7 @@ import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
   ChangePasswordRequest,
   ForgotPasswordRequest,
+  LoginHistoryResponse,
   LoginRequest,
   LoginResponse,
   LogoutResponse,
@@ -80,6 +81,14 @@ export function useVerifyEmail() {
 export function useResendVerification() {
   return useEffectMutation<OkResponse, ResendVerificationRequest, ApiError>({
     mutation: (body) => authApi.resendVerification(body),
+  });
+}
+
+/** GET `/auth/login-history`. */
+export function useLoginHistory() {
+  return useEffectQuery<LoginHistoryResponse, ApiError>({
+    queryKey: ["auth", "login-history"],
+    query: () => authApi.loginHistory(),
   });
 }
 

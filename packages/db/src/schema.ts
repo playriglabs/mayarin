@@ -530,6 +530,21 @@ export const sessions = pgTable(
   ],
 );
 
+/** Every successful sign-in, kept after the session itself is deleted. */
+export const loginEvents = pgTable(
+  "login_events",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    ip: text("ip").notNull(),
+    userAgent: text("user_agent").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [index("login_events_user_idx").on(table.userId, table.createdAt)],
+);
+
 /**
  * Catalog products (#10).
  *
@@ -1364,6 +1379,7 @@ export const schema = {
   users,
   emailVerifications,
   sessions,
+  loginEvents,
   products,
   productPrices,
   paymentLinks,

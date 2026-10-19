@@ -26,6 +26,7 @@ export const ID_PREFIXES = {
   deposit: "dep",
   user: "usr",
   session: "ses",
+  loginEvent: "log",
   merchant: "mrc",
   merchantWallet: "wlt",
   walletWithdrawal: "wdr",

@@ -20,6 +20,7 @@ import {
 import {
   InMemoryApiKeyRepository,
   InMemoryEmailVerificationRepository,
+  InMemoryLoginEventRepository,
   InMemoryMerchantAccountRepository,
   InMemoryMerchantRepository,
   InMemoryMerchantSettingChangeRepository,
@@ -176,6 +177,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   const merchants = new InMemoryMerchantRepository();
   const accounts = new InMemoryMerchantAccountRepository(merchants, users);
   const sessions = new InMemorySessionRepository();
+  const loginEvents = new InMemoryLoginEventRepository();
   const intents = new InMemoryPaymentIntentRepository();
   const clearing = new InMemoryClearingRepository();
   const hasher = new PlainPasswordHasher();
@@ -542,6 +544,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     config,
     auth: authService,
     sessions: sessionService,
+    loginEvents,
     mfa,
     users: userService,
     logos,
@@ -732,6 +735,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     walletBalances,
     merchantKeyProvider,
     sessions,
+    loginEvents,
     intents,
     intentService,
     clearing,

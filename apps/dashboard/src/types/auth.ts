@@ -95,3 +95,12 @@ export interface ResetPasswordRequest {
   readonly newPassword: string;
   readonly mfaCode?: string;
 }
+
+export interface LoginHistoryResponse {
+  readonly logins: readonly {
+    readonly id: string;
+    readonly ip: string;
+    readonly userAgent: string;
+    readonly createdAt: string;
+  }[];
+}

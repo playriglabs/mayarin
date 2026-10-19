@@ -12,7 +12,7 @@ import type {
   MerchantSettingChange,
   MerchantSettingChangeRepository,
 } from "./merchant.ts";
-import type { EmailVerification, MfaState, Session, User } from "./types.ts";
+import type { EmailVerification, LoginEvent, MfaState, Session, User } from "./types.ts";
 
 export interface UserRepository {
   findById(id: string): Promise<User | null>;
@@ -55,6 +55,12 @@ export interface SessionRepository {
    */
   revokeOthers(userId: string, keepId: string, revokedAt: Date): Promise<void>;
   deleteExpired(now: Date): Promise<number>;
+}
+
+export interface LoginEventRepository {
+  append(event: LoginEvent): Promise<void>;
+  /** Newest first. */
+  listByUser(userId: string, limit: number): Promise<readonly LoginEvent[]>;
 }
 
 export interface ApiKeyRepository {

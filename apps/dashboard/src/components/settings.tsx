@@ -26,6 +26,7 @@ import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
 import { InfoHint } from "@/components/info-hint";
+import { LoginHistory } from "@/components/login-history";
 import { MerchantProfile } from "@/components/merchant-profile";
 import { PasswordSection, SecuritySection } from "@/components/security";
 import { NetworkSettings, settlementOptionsOf } from "@/components/settings-networks";
@@ -126,7 +127,7 @@ interface Draft {
   readonly localCurrencyChain: string;
 }
 
-const SETTINGS_TABS = ["settlement", "general", "history"] as const;
+const SETTINGS_TABS = ["settlement", "general", "history", "logins"] as const;
 const HISTORY_PAGE_SIZE = 10;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
@@ -495,6 +496,7 @@ function Settings() {
                         ["settlement", "Settlement"],
                         ["general", "General"],
                         ["history", "Change history"],
+                        ["logins", "Login history"],
                       ] as const
                     ).map(([value, label]) => (
                       <Tabs.Tab
@@ -506,7 +508,7 @@ function Settings() {
                       </Tabs.Tab>
                     ))}
                   </Tabs.List>
-                  {activeTab !== "history" && (
+                  {activeTab !== "history" && activeTab !== "logins" && (
                     <Button
                       size="default"
                       className="w-full sm:w-auto"
@@ -967,6 +969,13 @@ function Settings() {
                       )}
                     </div>
                   )}
+                </Tabs.Panel>
+
+                <Tabs.Panel
+                  value="logins"
+                  className="flex flex-col gap-4 pt-6 focus-visible:outline-none"
+                >
+                  <LoginHistory />
                 </Tabs.Panel>
               </Tabs.Root>
             </>

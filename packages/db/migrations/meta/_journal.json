@@ -414,6 +414,13 @@
       "when": 1792309779837,
       "tag": "0058_operator_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1792400000000,
+      "tag": "0059_login_events",
+      "breakpoints": true
     }
   ]
 }
