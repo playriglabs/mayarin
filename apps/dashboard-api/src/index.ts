@@ -7,9 +7,11 @@
  * database.
  */
 
+import { bodyCeilingFor } from "@mayarin/http";
 import { createApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createContainer } from "./container.ts";
+import { MAX_LOGO_BYTES } from "./services/logo-storage.ts";
 
 const config = loadConfig();
 const container = createContainer({ config });
@@ -47,6 +49,8 @@ export default {
   // Bun's default. Railway runs with NODE_ENV=production and keeps the existing
   // server default; this allowance belongs only to the local development path.
   ...(process.env.NODE_ENV === "development" ? { idleTimeout: 30 } : {}),
+  // JSON everywhere except the logo upload, which has its own cap (SEC-08).
+  maxRequestBodySize: bodyCeilingFor(MAX_LOGO_BYTES),
   port: config.port,
   fetch: app.fetch,
 };
