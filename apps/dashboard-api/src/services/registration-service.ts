@@ -130,15 +130,19 @@ export class RegistrationService {
    * Creates the merchant and its first account, then emails a code.
    *
    * Returns nothing either way. An email already registered is answered
-   * identically to a fresh one, and the existing owner gets a code they can use
-   * — which is also the recovery path when somebody abandons a signup halfway.
+   * identically to a fresh one. An unverified owner gets a code they can use —
+   * the recovery path when somebody abandons a signup halfway — and a verified
+   * one gets a note that the account exists.
    */
   async register(input: RegisterInput): Promise<void> {
     const existing = await this.#users.findByEmail(input.email);
     if (existing !== null) {
-      // Already verified: nothing to send, and saying so would answer the
-      // question this endpoint refuses to answer.
-      if (existing.emailVerifiedAt !== undefined) return;
+      // Already verified: the response stays the same, so the owner is told by
+      // email, where only they can read it, instead of waiting for a code.
+      if (existing.emailVerifiedAt !== undefined) {
+        await this.#emails.sendAccountExists(existing.email);
+        return;
+      }
       await this.#issueCode(existing);
       return;
     }
