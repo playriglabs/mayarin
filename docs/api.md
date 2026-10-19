@@ -51,6 +51,16 @@ path `apps/checkout-ui/dist`.
 `/v1` answers cross-origin browser requests (permissive CORS). Auth is
 bearer-based with no cookies, so the key was always the wall.
 
+## Disputes (merchant API)
+
+`GET /v1/disputes`, `GET /v1/disputes/:id` and `POST /v1/disputes/:id/messages`
+give an integration the dispute case file the dashboard shows: read with
+`payments:read`, answer with `disputes:manage`. Three webhooks announce each step
+(`escrow.disputed`, `escrow.dispute.message`, `escrow.dispute.resolved`). The
+design, the permission split and the event ids are in [escrow.md](./escrow.md#disputes-313);
+the public guide is `apps/docs/content/docs/guides/disputes.mdx`, and the routes
+are in the generated OpenAPI (`bun run --cwd apps/docs generate`).
+
 ## Dashboard API (`apps/dashboard-api`)
 
 A second surface, on its own port, for the merchant signed into the dashboard.
