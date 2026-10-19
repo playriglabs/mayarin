@@ -47,6 +47,18 @@ const configSchema = z.object({
   /** Same value as the payment API's: both read webhook endpoints (SEC-12). */
   webhookSecretEncryptionKey: z.string().min(32).optional(),
   /**
+   * Proves to the payment API that this service, not a payer, is asking about a
+   * payment (SEC-09). Must equal its `INTERNAL_API_TOKEN`.
+   */
+  internalApiToken: z.string().min(32),
+  /** Signs the payer tokens in the document links; must equal the payment API's `PAYER_TOKEN_KEY`. */
+  payerTokenKey: z.string().min(32),
+  payerTokenTtlSeconds: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30 * 24 * 3600),
+  /**
    * Sets the `Secure` flag on the session/CSRF cookies. True in production; set
    * `COOKIE_SECURE=false` for local dev over plain HTTP.
    */
@@ -280,6 +292,9 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     sessionIdleSeconds: env.SESSION_IDLE_SECONDS,
     mfaEncryptionKey: env.MFA_ENCRYPTION_KEY,
     webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
+    internalApiToken: env.INTERNAL_API_TOKEN,
+    payerTokenKey: env.PAYER_TOKEN_KEY,
+    payerTokenTtlSeconds: env.PAYER_TOKEN_TTL_SECONDS,
     withdrawCoolingOffHours: env.WITHDRAW_COOLING_OFF_HOURS,
     withdrawDailyLimit: env.WITHDRAW_DAILY_LIMIT,
     cookieSecure: env.COOKIE_SECURE,

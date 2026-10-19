@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ShieldIcon, shortAddress } from "../../shared/buyer-protection.tsx";
+import { withPayerToken } from "../../shared/payer-token.ts";
 import { errorText, primaryButton, secondaryButton } from "../../shared/ui.ts";
 import { connectWallet, sendCall } from "../../shared/wallet.ts";
 import { DisputeThread } from "./dispute-thread.tsx";
@@ -19,7 +20,7 @@ export function EscrowCard({ statusUrl }: { readonly statusUrl: string }) {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const response = await fetch(`${statusUrl}/escrow`);
+    const response = await fetch(withPayerToken(`${statusUrl}/escrow`));
     if (!response.ok) return;
     setEscrow(((await response.json()) as { escrow: EscrowPayload }).escrow);
   }, [statusUrl]);

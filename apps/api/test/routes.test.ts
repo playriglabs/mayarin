@@ -204,6 +204,7 @@ describe("GET /payment-intents/:id (SEC-09)", () => {
     const { harness, id } = await minted();
     const { status } = await harness.request("POST", `/v1/payment-intents/${id}/confirm`, {
       auth: false,
+      headers: { "x-payer-token": harness.payerToken(id) },
     });
     expect(status).toBe(200);
   });
@@ -319,7 +320,7 @@ describe("GET /payments/:id", () => {
     expect(body.clearing.state).toBe("SUCCESS");
   });
 
-  test("returns the payment by clearing transaction id", async () => {
+  test("the clearing transaction id is not a way in (SEC-09)", async () => {
     const harness = createApiHarness();
     const created = await harness.request("POST", "/v1/payment-intents", {
       body: { qr: qrisPayload() },
@@ -329,13 +330,9 @@ describe("GET /payments/:id", () => {
       `/v1/payment-intents/${created.body.paymentIntent.id}/confirm`,
     );
 
-    const { status, body } = await harness.request(
-      "GET",
-      `/v1/payments/${confirmed.body.clearing.id}`,
-    );
+    const { status } = await harness.request("GET", `/v1/payments/${confirmed.body.clearing.id}`);
 
-    expect(status).toBe(200);
-    expect(body.paymentIntent.id).toBe(created.body.paymentIntent.id);
+    expect(status).toBe(404);
   });
 
   test("reports a payment that has not been confirmed yet", async () => {

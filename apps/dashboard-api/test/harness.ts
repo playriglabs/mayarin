@@ -43,6 +43,7 @@ import {
   InMemoryAuditQueryRepository,
   InMemoryMerchantEventRepository,
 } from "@mayarin/compliance/testing";
+import { PayerTokens } from "@mayarin/http";
 import { InvoiceService } from "@mayarin/invoicing";
 import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
 import { LedgerService } from "@mayarin/ledger";
@@ -154,6 +155,8 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     DASHBOARD_API_PORT: "3001",
     DATABASE_URL: "memory://",
     MFA_ENCRYPTION_KEY: "test-only-mfa-encryption-key-0123456789",
+    INTERNAL_API_TOKEN: "test-only-internal-api-token-0123456789",
+    PAYER_TOKEN_KEY: "test-only-payer-token-key-0123456789ab",
     SESSION_TTL_SECONDS: "3600",
     COOKIE_SECURE:
       options.cookieSecure === undefined ? "false" : options.cookieSecure ? "true" : "false",
@@ -392,6 +395,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
   let confirmFailure: string | undefined;
   const paymentApi = new PaymentApiClient({
     baseUrl: "http://payment-api.test",
+    internalToken: config.internalApiToken,
     fetch: (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(typeof input === "string" ? input : input.toString());
       const body = init?.body === undefined ? undefined : JSON.parse(String(init.body));
@@ -555,6 +559,11 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     catalog,
     invoices,
     invoiceEmails,
+    payerTokens: new PayerTokens({
+      key: config.payerTokenKey,
+      ttlSeconds: config.payerTokenTtlSeconds,
+      clock,
+    }),
     registrations,
     passwords,
     customers,

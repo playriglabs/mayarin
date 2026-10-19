@@ -30,6 +30,7 @@ import {
 } from "@mayarin/clearing";
 import { InMemoryClearingRepository, InMemoryRefundRepository } from "@mayarin/clearing/testing";
 import type { AdminAuditEvent, PaymentFunding } from "@mayarin/db";
+import { PayerTokens } from "@mayarin/http";
 import { InvoiceService } from "@mayarin/invoicing";
 import { InMemoryInvoiceRepository } from "@mayarin/invoicing/testing";
 import { LedgerService } from "@mayarin/ledger";
@@ -274,6 +275,11 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
       },
     },
     verifyApiKey: createApiKeyVerifier({ keys: apiKeys, clock }),
+    payerTokens: new PayerTokens({
+      key: "test-only-payer-token-key-0123456789abcdef",
+      ttlSeconds: 3600,
+      clock,
+    }),
     intents,
     merchantPolicies,
     merchants: new InMemoryMerchantRepository(),
@@ -379,6 +385,8 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
     adapter,
     container,
     request,
+    /** The payer's token for a payment, as the create response would hand it back. */
+    payerToken: (paymentId: string) => container.payerTokens.mint(paymentId),
     requestHtml,
     requestBootstrap,
     ledger,

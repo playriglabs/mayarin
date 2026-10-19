@@ -14,6 +14,8 @@ import { loadConfig } from "../src/config.ts";
 const MINIMAL = {
   DATABASE_URL: "postgres://mayarin:mayarin@localhost:5433/mayarin",
   MFA_ENCRYPTION_KEY: "test-only-mfa-encryption-key-0123456789",
+  INTERNAL_API_TOKEN: "test-only-internal-api-token-0123456789",
+  PAYER_TOKEN_KEY: "test-only-payer-token-key-0123456789ab",
 };
 
 describe("loadConfig", () => {

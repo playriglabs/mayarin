@@ -54,9 +54,11 @@ const policies: readonly ServicePolicy[] = [
       allowed: new Set([
         "ADMIN_TOKEN",
         "DEPOSIT_XPUB",
+        "INTERNAL_API_TOKEN",
         "LIFI_API_KEY",
         "MOCK_WEBHOOK_SECRET",
         "OPERATOR_PRIVATE_KEY",
+        "PAYER_TOKEN_KEY",
         "PYTH_API_KEY",
         "QUOTE_SIGNER_PRIVATE_KEY",
         "RESEND_API_KEY",
@@ -86,7 +88,9 @@ const policies: readonly ServicePolicy[] = [
     configPath: "apps/dashboard-api/src/config.ts",
     secrets: {
       allowed: new Set([
+        "INTERNAL_API_TOKEN",
         "MFA_ENCRYPTION_KEY",
+        "PAYER_TOKEN_KEY",
         "R2_ACCESS_KEY_ID",
         "R2_SECRET_ACCESS_KEY",
         "RESEND_API_KEY",
@@ -128,7 +132,9 @@ const policies: readonly ServicePolicy[] = [
       // The worker never reads webhook endpoints, so it never holds the key that opens them.
       withheld: new Set([
         "ADMIN_TOKEN",
+        "INTERNAL_API_TOKEN",
         "MOCK_WEBHOOK_SECRET",
+        "PAYER_TOKEN_KEY",
         "TRANSFI_WEBHOOK_SECRET",
         "WEBHOOK_SECRET_ENCRYPTION_KEY",
       ]),

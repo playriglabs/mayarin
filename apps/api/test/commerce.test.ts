@@ -119,7 +119,10 @@ describe("POST /carts/checkout", () => {
     expect(JSON.parse(body.paymentIntent.metadata.cart).lines).toHaveLength(2);
     // The buyer URL comes from the API's `checkoutBaseUrl`, not the caller —
     // a storefront never has to know the checkout host (RFC #163).
-    expect(body.url).toBe(`http://localhost:3000/checkout/pay/${body.paymentIntent.id}`);
+    expect(body.url).toBe(
+      `http://localhost:3000/checkout/pay/${body.paymentIntent.id}?t=${body.payerToken}`,
+    );
+    expect(body.checkoutUrl).toBe(body.url);
   });
 
   test("an idempotency key makes a retried checkout return the same intent", async () => {
@@ -418,7 +421,9 @@ describe("hosted checkout", () => {
       },
     );
 
-    const page = await harness.requestBootstrap(`/checkout/pay/${paid.body.paymentIntent.id}`);
+    const page = await harness.requestBootstrap(
+      `/checkout/pay/${paid.body.paymentIntent.id}?t=${harness.payerToken(paid.body.paymentIntent.id)}`,
+    );
 
     expect(page.status).toBe(200);
     expect(page.bootstrap.page).toBe("pay");
@@ -446,7 +451,9 @@ describe("hosted checkout", () => {
     });
     const id = cart.body.paymentIntent.id as string;
 
-    const before = await harness.requestBootstrap(`/checkout/pay/${id}`);
+    const before = await harness.requestBootstrap(
+      `/checkout/pay/${id}?t=${harness.payerToken(id)}`,
+    );
     expect(before.bootstrap.choice.rails).toEqual([
       {
         chain: "base-sepolia",
@@ -466,7 +473,7 @@ describe("hosted checkout", () => {
       asset: "USDC",
     });
 
-    const after = await harness.requestBootstrap(`/checkout/pay/${id}`);
+    const after = await harness.requestBootstrap(`/checkout/pay/${id}?t=${harness.payerToken(id)}`);
     expect(after.bootstrap.choice).toBeNull();
   });
 
@@ -486,7 +493,7 @@ describe("hosted checkout", () => {
     });
     expect(refused.status).toBe(400);
 
-    const page = await harness.requestBootstrap(`/checkout/pay/${id}`);
+    const page = await harness.requestBootstrap(`/checkout/pay/${id}?t=${harness.payerToken(id)}`);
     expect(page.bootstrap.choice).not.toBeNull();
   });
 
@@ -560,7 +567,9 @@ describe("hosted checkout", () => {
       },
     );
 
-    const page = await harness.requestBootstrap(`/checkout/pay/${paid.body.paymentIntent.id}`);
+    const page = await harness.requestBootstrap(
+      `/checkout/pay/${paid.body.paymentIntent.id}?t=${harness.payerToken(paid.body.paymentIntent.id)}`,
+    );
 
     expect(page.bootstrap.expiresAt).toBe(paid.body.paymentIntent.expiresAt);
   });
@@ -709,7 +718,9 @@ describe("live payment status", () => {
     });
     const id = created.body.paymentIntent.id;
 
-    const response = await harness.app.request(`/checkout/events/${id}`);
+    const response = await harness.app.request(
+      `/checkout/events/${id}?t=${harness.payerToken(id)}`,
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/event-stream");
@@ -750,7 +761,9 @@ describe("live payment status", () => {
       },
     );
 
-    const page = await harness.requestBootstrap(`/checkout/pay/${paid.body.paymentIntent.id}`);
+    const page = await harness.requestBootstrap(
+      `/checkout/pay/${paid.body.paymentIntent.id}?t=${harness.payerToken(paid.body.paymentIntent.id)}`,
+    );
 
     expect(page.bootstrap.streaming).toBe(true);
     expect(page.bootstrap.pollMs).toBe(8000);

@@ -122,14 +122,15 @@ export function paymentRoutes(container: Container): Hono<{ Variables: AuthVars 
     const scope = c.get("scope");
     if (scope === undefined) throw new UnauthorizedError("Authentication required");
     const { intent, transaction, events } = await container.payments.get(scope, c.req.param("id"));
-    // The PDFs render on the payment API, public by payment id (#293); the
+    // The PDFs render on the payment API, behind a payer token (SEC-09, #293); the
     // dashboard is handed absolute URLs for the same reason as `qrUrl` below.
     const base = `${container.config.checkoutBaseUrl}/v1/payments/${intent.id}`;
+    const token = `?t=${container.payerTokens.mint(intent.id)}`;
     return c.json({
       ...toPaymentDetailDto(intent, transaction, events),
       documents: {
-        invoiceUrl: `${base}/invoice.pdf`,
-        receiptUrl: intent.status === "COMPLETED" ? `${base}/receipt.pdf` : null,
+        invoiceUrl: `${base}/invoice.pdf${token}`,
+        receiptUrl: intent.status === "COMPLETED" ? `${base}/receipt.pdf${token}` : null,
       },
     });
   });

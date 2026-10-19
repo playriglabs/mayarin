@@ -125,6 +125,8 @@ export interface QuoteView {
 
 export interface PaymentApiClientOptions {
   readonly baseUrl: string;
+  /** Sent with every call so the payment API knows the dashboard, not a payer, is asking (SEC-09). */
+  readonly internalToken: string;
   /** Injected for tests; defaults to the platform `fetch`. */
   readonly fetch?: typeof fetch;
 }
@@ -132,8 +134,10 @@ export interface PaymentApiClientOptions {
 export class PaymentApiClient {
   readonly #baseUrl: string;
   readonly #fetch: typeof fetch;
+  readonly #internalToken: string;
 
   constructor(options: PaymentApiClientOptions) {
+    this.#internalToken = options.internalToken;
     // The merchant API lives under `/v1` (#138); every path here is relative
     // to that base.
     this.#baseUrl = `${options.baseUrl.replace(/\/+$/, "")}/v1`;
@@ -286,7 +290,13 @@ export class PaymentApiClient {
   async #send<T>(path: string, init: RequestInit): Promise<T> {
     let response: Response;
     try {
-      response = await this.#fetch(`${this.#baseUrl}${path}`, init);
+      response = await this.#fetch(`${this.#baseUrl}${path}`, {
+        ...init,
+        headers: {
+          ...init.headers,
+          "x-internal-token": this.#internalToken,
+        },
+      });
     } catch (error) {
       throw new ProviderError(
         `The payment API is unreachable at ${this.#baseUrl}`,

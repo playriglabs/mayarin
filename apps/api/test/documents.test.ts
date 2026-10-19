@@ -14,7 +14,9 @@ describe("GET /payments/:id/{invoice,receipt}.pdf (#293)", () => {
   test("serves the invoice of a payment that has not been paid yet", async () => {
     const { harness, id } = await createdPayment();
 
-    const response = await harness.app.request(`/v1/payments/${id}/invoice.pdf`);
+    const response = await harness.app.request(`/v1/payments/${id}/invoice.pdf`, {
+      headers: { "x-payer-token": harness.payerToken(id) },
+    });
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/pdf");
@@ -38,7 +40,9 @@ describe("GET /payments/:id/{invoice,receipt}.pdf (#293)", () => {
     const { harness, id } = await createdPayment();
     await harness.request("POST", `/v1/payment-intents/${id}/confirm`);
 
-    const response = await harness.app.request(`/v1/payments/${id}/receipt.pdf`);
+    const response = await harness.app.request(`/v1/payments/${id}/receipt.pdf`, {
+      headers: { "x-payer-token": harness.payerToken(id) },
+    });
 
     expect(response.status).toBe(200);
     const bytes = new Uint8Array(await response.arrayBuffer());

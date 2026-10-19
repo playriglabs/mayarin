@@ -1,3 +1,4 @@
+import { withPayerToken } from "../../shared/payer-token.ts";
 import { footnote, stateText, stateTitle, stateView } from "../../shared/ui.ts";
 import { EscrowCard } from "./escrow-card.tsx";
 import { SuccessArt } from "./illustrations.tsx";
@@ -109,11 +110,11 @@ export function Outcome({
       <p className={stateText}>{note}</p>
       {escrowed && <EscrowCard statusUrl={statusUrl} />}
       <div className="mt-6 grid w-full max-w-sm grid-cols-2 gap-2.5">
-        <a href={`${statusUrl}/invoice.pdf`} download className={documentLink}>
+        <a href={withPayerToken(`${statusUrl}/invoice.pdf`)} download className={documentLink}>
           <InvoiceIcon />
           Download invoice
         </a>
-        <a href={`${statusUrl}/receipt.pdf`} download className={documentLink}>
+        <a href={withPayerToken(`${statusUrl}/receipt.pdf`)} download className={documentLink}>
           <ReceiptIcon />
           Download receipt
         </a>

@@ -105,7 +105,9 @@ describe("cart mode (#113)", () => {
   test("the plan mints and confirms under /v1 with the pk as bearer", () => {
     const plan = cartCheckoutPlan(asCart(cartAttributes()));
     expect(plan.mintUrl).toBe("https://api.mayarin.xyz/v1/carts/checkout");
-    expect(plan.confirmUrl("pi_1")).toBe("https://api.mayarin.xyz/v1/payment-intents/pi_1/confirm");
+    expect(plan.confirmUrl("pi_1", "tok")).toBe(
+      "https://api.mayarin.xyz/v1/payment-intents/pi_1/confirm?t=tok",
+    );
     expect(plan.headers["authorization"]).toBe("Bearer pk_test");
   });
 
@@ -118,8 +120,8 @@ describe("cart mode (#113)", () => {
   });
 
   test("the pay page URL is the unversioned buyer page", () => {
-    expect(payUrl(asCart(cartAttributes()), "pi_1")).toBe(
-      "https://api.mayarin.xyz/checkout/pay/pi_1",
+    expect(payUrl(asCart(cartAttributes()), "pi_1", "tok")).toBe(
+      "https://api.mayarin.xyz/checkout/pay/pi_1?t=tok",
     );
   });
 });

@@ -89,9 +89,10 @@ export class MayarinCheckoutElement extends HTMLElement {
       const plan = cartCheckoutPlan(config);
       const minted = await postJson(plan.mintUrl, plan.headers, plan.body);
       const intentId = intentIdOf(minted);
-      const confirmed = await postJson(plan.confirmUrl(intentId), plan.headers, {});
+      const payerToken = payerTokenOf(minted);
+      const confirmed = await postJson(plan.confirmUrl(intentId, payerToken), plan.headers, {});
       failIfUnpayable(confirmed);
-      this.#paint(token, frame(payUrl(config, intentId), config.height));
+      this.#paint(token, frame(payUrl(config, intentId, payerToken), config.height));
     } catch (error) {
       this.#paint(token, notice(messageOf(error), "alert"));
     }
@@ -137,6 +138,14 @@ function intentIdOf(payload: Record<string, unknown>): string {
     throw new Error("mayarin-checkout: the mint answered without a payment intent id.");
   }
   return id;
+}
+
+function payerTokenOf(payload: Record<string, unknown>): string {
+  const token = payload["payerToken"];
+  if (typeof token !== "string" || token === "") {
+    throw new Error("mayarin-checkout: the mint answered without a payer token.");
+  }
+  return token;
 }
 
 /** A payment that fails to price answers 200 with a FAILED intent. */

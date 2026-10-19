@@ -7,7 +7,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { deactivateApiKey } from "@mayarin/auth";
-import { createApiHarness, TEST_MERCHANT_ID } from "./harness.ts";
+import { createApiHarness, qrisPayload, TEST_MERCHANT_ID } from "./harness.ts";
 
 const merchant = { id: TEST_MERCHANT_ID, name: "Warung Kopi", city: "Jakarta", countryCode: "ID" };
 
@@ -187,14 +187,65 @@ describe("buyer routes stay open", () => {
     );
     expect(checkout.status).toBe(201);
 
+    // The token comes back with the payment, to whoever minted it (SEC-09).
     const intentId = checkout.body.paymentIntent.id;
+    const token = checkout.body.payerToken;
+    expect(token).toBeString();
+    expect(checkout.body.checkoutUrl).toContain(`/checkout/pay/${intentId}?t=${token}`);
+
     const confirmed = await harness.request("POST", `/v1/payment-intents/${intentId}/confirm`, {
       auth: false,
+      headers: { "x-payer-token": token },
     });
     expect(confirmed.status).toBe(200);
 
-    const polled = await harness.request("GET", `/v1/payments/${intentId}`, { auth: false });
+    const polled = await harness.request("GET", `/v1/payments/${intentId}?t=${token}`, {
+      auth: false,
+    });
     expect(polled.status).toBe(200);
+  });
+
+  test("the id alone opens nothing, and a token is for one payment", async () => {
+    const harness = createApiHarness();
+    const link = await harness.request("POST", "/v1/payment-links", {
+      body: { kind: "fixed", merchant, amount: { amount: "50000.00", asset: "IDR" } },
+    });
+    const mint = () =>
+      harness.request("POST", `/v1/payment-links/${link.body.paymentLink.id}/checkout`, {
+        auth: false,
+        body: {},
+      });
+    const first = await mint();
+    const second = await mint();
+    const id: string = first.body.paymentIntent.id;
+
+    const read = (path: string, init: { headers?: Record<string, string> } = {}) =>
+      harness.request("GET", path, { auth: false, ...init });
+    expect((await read(`/v1/payments/${id}`)).status).toBe(404);
+    expect((await read(`/v1/payments/${id}?t=garbage`)).status).toBe(404);
+    expect((await read(`/v1/payments/${id}?t=${second.body.payerToken}`)).status).toBe(404);
+    expect((await read(`/v1/payments/${id}?t=${first.body.payerToken}`)).status).toBe(200);
+    expect(
+      (await read(`/v1/payments/${id}`, { headers: { authorization: "Bearer nope" } })).status,
+    ).toBe(404);
+    // The owning merchant needs no token.
+    expect((await harness.request("GET", `/v1/payments/${id}`)).status).toBe(200);
+  });
+
+  test("a token stops working when it expires", async () => {
+    const harness = createApiHarness();
+    const created = await harness.request("POST", "/v1/payment-intents", {
+      body: { qr: qrisPayload() },
+    });
+    const id: string = created.body.paymentIntent.id;
+    const token = created.body.payerToken;
+    expect(
+      (await harness.request("GET", `/v1/payments/${id}?t=${token}`, { auth: false })).status,
+    ).toBe(200);
+    harness.clock.advance(2 * 3600 * 1000);
+    expect(
+      (await harness.request("GET", `/v1/payments/${id}?t=${token}`, { auth: false })).status,
+    ).toBe(404);
   });
 });
 

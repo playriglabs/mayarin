@@ -34,6 +34,7 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Container } from "../container.ts";
+import { payerAccess, payerAccessFor } from "../middleware/payer-access.ts";
 
 /** Every currency TransFi lists as a deposit currency for these markets carries two decimals. */
 const FIAT_DECIMALS = 2;
@@ -209,7 +210,7 @@ export function fiatOnrampRoutes(container: Container): Hono {
 
   // What the payer was last told to pay, so a page that reloads — the hosted
   // TransFi page returns here — can say it is waiting instead of starting over.
-  app.get("/:paymentId/funding", async (c) => {
+  app.get("/:paymentId/funding", payerAccess(container, "paymentId"), async (c) => {
     const [latest] = await container.paymentFundings.listByPayment(c.req.param("paymentId"));
     if (latest === undefined || latest.settledAt !== null) return c.json({ funding: null });
     return c.json({
@@ -222,7 +223,7 @@ export function fiatOnrampRoutes(container: Container): Hono {
     });
   });
 
-  app.post("/:paymentId/order", async (c) => {
+  app.post("/:paymentId/order", payerAccess(container, "paymentId"), async (c) => {
     const transfi = client();
     const paymentId = c.req.param("paymentId");
 
@@ -322,7 +323,7 @@ export function fiatOnrampRoutes(container: Container): Hono {
       ...(ip === undefined || ip === "" ? {} : { ip }),
     };
 
-    const checkoutUrl = `${container.config.checkoutBaseUrl}/checkout/pay/${intent.id}`;
+    const checkoutUrl = payerAccessFor(container, intent.id).checkoutUrl;
     const order = await transfi
       .createOrder({
         userId,

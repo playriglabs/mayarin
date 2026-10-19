@@ -1,5 +1,6 @@
 import { type ChangeEvent, useEffect, useId, useState } from "react";
 import { Dropdown } from "../../shared/dropdown.tsx";
+import { withPayerToken } from "../../shared/payer-token.ts";
 import { errorText, fieldLabel, noteText, panelIntro, primaryButton } from "../../shared/ui.ts";
 import { parseBirthDate } from "./birth-date.ts";
 import { availableMarkets, flagEmoji, type Market, pickMarket } from "./markets.ts";
@@ -149,7 +150,7 @@ export function LocalCurrencyCard({
   // returns here — is waiting on it, not choosing a method again.
   useEffect(() => {
     let cancelled = false;
-    fetch(`/v1/fiat-onramp/${intentId}/funding`)
+    fetch(withPayerToken(`/v1/fiat-onramp/${intentId}/funding`))
       .then(async (response) => {
         if (cancelled || !response.ok) return;
         const body = (await response.json()) as {
@@ -243,7 +244,7 @@ export function LocalCurrencyCard({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/v1/fiat-onramp/${intentId}/order`, {
+      const response = await fetch(withPayerToken(`/v1/fiat-onramp/${intentId}/order`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

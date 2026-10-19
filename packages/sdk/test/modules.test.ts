@@ -29,12 +29,17 @@ function clientReturning(responseBody: unknown) {
 describe("payment module", () => {
   test("creates a typed payment intent through the shared transport", async () => {
     const paymentIntent = { id: "pi_1" };
-    const { calls, client } = clientReturning({ paymentIntent });
+    const { calls, client } = clientReturning({
+      paymentIntent,
+      payerToken: "tok",
+      checkoutUrl: "https://pay.test/checkout/pay/pi_1?t=tok",
+    });
     const result = await client.payment.createIntent({
       merchant: { id: "m_1", name: "Toko", city: "Jakarta", countryCode: "ID" },
       amount: { amount: "50000.00", asset: "IDR" },
     });
     expect(result.id).toBe(paymentIntent.id);
+    expect(result.checkoutUrl).toBe("https://pay.test/checkout/pay/pi_1?t=tok");
     expect(calls[0]).toMatchObject({ url: "https://api.test/v1/payment-intents", method: "POST" });
   });
 

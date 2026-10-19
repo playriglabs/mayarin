@@ -10,6 +10,8 @@ export interface RailChoice {
 export interface PayBootstrap {
   readonly page: "pay";
   readonly intentId: string;
+  /** The payer's capability to this payment; every request about it carries it. */
+  readonly payerToken: string;
   readonly amount: MoneyDto;
   readonly merchant: MerchantRef;
   readonly title: string;

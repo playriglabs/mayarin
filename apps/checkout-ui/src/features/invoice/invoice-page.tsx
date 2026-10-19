@@ -5,6 +5,7 @@ import { Brand } from "../../shared/brand.tsx";
 import { BuyerProtection, railBody } from "../../shared/buyer-protection.tsx";
 import { CheckoutShell, TestnetBanner } from "../../shared/checkout-shell.tsx";
 import { CheckoutSummary, type SummaryRow } from "../../shared/checkout-summary.tsx";
+import { withPayerToken } from "../../shared/payer-token.ts";
 import { PoweredBy } from "../../shared/powered-by.tsx";
 import { RailMark } from "../../shared/rail-mark.tsx";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
@@ -76,9 +77,13 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         setBusy(false);
         return;
       }
-      const confirmation = await fetch(`/v1/payment-intents/${created.paymentIntent.id}/confirm`, {
-        method: "POST",
-      });
+      const confirmation = await fetch(
+        withPayerToken(
+          `/v1/payment-intents/${created.paymentIntent.id}/confirm`,
+          created.payerToken,
+        ),
+        { method: "POST" },
+      );
       const confirmed = await confirmation.json();
       if (!confirmation.ok || confirmed?.paymentIntent?.status === "FAILED") {
         setError(
@@ -89,7 +94,7 @@ export function InvoicePage({ bootstrap }: { readonly bootstrap: InvoiceBootstra
         setBusy(false);
         return;
       }
-      location.href = `/checkout/pay/${created.paymentIntent.id}`;
+      location.href = `/checkout/pay/${created.paymentIntent.id}?t=${encodeURIComponent(created.payerToken)}`;
     } catch {
       setError("Network error. Please try again.");
       setBusy(false);

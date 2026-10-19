@@ -26,6 +26,7 @@ import { toPaymentDto } from "../dto/payment.ts";
 import { refundBodySchema, toRefundDto, toRefundSummaryDto } from "../dto/refund.ts";
 import { scopedIdempotencyKey } from "../idempotency.ts";
 import { type ApiKeyAuthEnv, requireApiKey } from "../middleware/api-key.ts";
+import { payerAccess } from "../middleware/payer-access.ts";
 import { fetchLogo, renderDocumentPdf } from "../services/document-pdf.ts";
 
 /**
@@ -71,7 +72,12 @@ async function pdfResponse(c: Context, doc: PaymentDocument): Promise<Response> 
 export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
   const app = new Hono<ApiKeyAuthEnv>();
 
-  app.get("/:id", async (c) => {
+  // A route that acts on one payment by id proves who is asking (SEC-09): the
+  // payer's token, the owning merchant's key, or the dashboard API. The refund
+  // routes are the merchant's alone and check their own key.
+  const access = payerAccess(container);
+
+  app.get("/:id", access, async (c) => {
     const { intent, transaction, events, deposit } = await container.paymentApp.getPayment(
       c.req.param("id"),
     );
@@ -98,11 +104,11 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * payment id, the same rule as the status read above; the receipt is a 409
    * until the payment has completed.
    */
-  app.get("/:id/invoice.pdf", async (c) =>
+  app.get("/:id/invoice.pdf", access, async (c) =>
     pdfResponse(c, invoiceDocument(await documentSources(container, c.req.param("id")))),
   );
 
-  app.get("/:id/receipt.pdf", async (c) =>
+  app.get("/:id/receipt.pdf", access, async (c) =>
     pdfResponse(c, receiptDocument(await documentSources(container, c.req.param("id")))),
   );
 
@@ -174,7 +180,7 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * `FAILED`, or whose funds never arrived — and the retry only ever settles to
    * the merchant's own configured destination.
    */
-  app.post("/:id/retry", async (c) => {
+  app.post("/:id/retry", access, async (c) => {
     // The caller holds whichever id they were handed, so resolve through the
     // same view the status route uses rather than assuming a clearing id.
     const { transaction } = await container.paymentApp.getPayment(c.req.param("id"));
@@ -191,7 +197,7 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * executable route. Fetched per attempt — a route is perishable, so the
    * client asks again rather than reusing an old response.
    */
-  app.get("/:id/contract-call", async (c) => {
+  app.get("/:id/contract-call", access, async (c) => {
     const checkout = container.checkout;
     if (checkout === undefined) {
       throw new NotFoundError("The contract execution path is not enabled on this deployment", {});
@@ -204,7 +210,7 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * (#304). Open like `contract-call`: the terms are public on chain anyway,
    * and the factory, not this route, decides who may send each call.
    */
-  app.get("/:id/escrow", async (c) => {
+  app.get("/:id/escrow", access, async (c) => {
     const view = await container.escrow.view(c.req.param("id"));
     const standing = await container.payerStanding.standing(view.terms.payer);
     return c.json({ escrow: toEscrowDto(view, standing) });
@@ -216,7 +222,7 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * arbiter's wallet sends it, and the factory accepts it only from the
    * arbiter, so this is as open as the escrow view.
    */
-  app.get("/:id/escrow/resolve", async (c) => {
+  app.get("/:id/escrow/resolve", access, async (c) => {
     const payeeBps = Number(c.req.query("payeeBps"));
     if (!Number.isInteger(payeeBps) || payeeBps < 0 || payeeBps > 10_000) {
       throw new ValidationError("payeeBps is a whole number from 0 to 10000", {});
@@ -236,7 +242,7 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
    * checkout has no session — so the body carries a signature from the wallet
    * the escrow refunds to, and only that wallet is accepted.
    */
-  app.post("/:id/escrow/dispute/messages", async (c) => {
+  app.post("/:id/escrow/dispute/messages", access, async (c) => {
     const input = disputeMessageBodySchema.parse(await c.req.json());
     const message = await container.escrow.postPayerMessage(c.req.param("id"), input);
     return c.json({ message: toDisputeMessageDto(message) }, 201);

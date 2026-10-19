@@ -60,9 +60,9 @@ class Mayarin_Client {
         );
     }
 
-    /** The hosted payment page for a confirmed intent. */
-    public function pay_page_url(string $intent_id): string {
-        return $this->base_url . '/checkout/pay/' . rawurlencode($intent_id);
+    /** The hosted payment page for a confirmed intent; the token is the buyer's way in. */
+    public function pay_page_url(string $intent_id, string $payer_token): string {
+        return $this->base_url . '/checkout/pay/' . rawurlencode($intent_id) . '?t=' . rawurlencode($payer_token);
     }
 
     /**

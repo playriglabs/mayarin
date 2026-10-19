@@ -52,6 +52,7 @@ const linkBootstrap: LinkBootstrap = {
 const payBootstrap: PayBootstrap = {
   page: "pay",
   intentId: "pi_1",
+  payerToken: "token_1",
   amount: idr("Rp 50.000,00"),
   merchant: { name: "Warung Kopi", city: "Jakarta", logoUrl: null },
   title: "Paket",

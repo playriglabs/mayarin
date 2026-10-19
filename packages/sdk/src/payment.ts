@@ -8,11 +8,21 @@ import type {
 } from "@mayarin/api/dto";
 import type { RequestOptions, Transport } from "./transport.ts";
 
+/**
+ * What creating an intent returns: the intent, and the buyer's way into it.
+ * `checkoutUrl` is the hosted payment page with the payer's token attached
+ * (SEC-09); a payment id alone opens nothing.
+ */
+export interface CreatedPaymentIntent extends PaymentIntentDto {
+  readonly payerToken: string;
+  readonly checkoutUrl: string;
+}
+
 export interface PaymentModule {
   readonly createIntent: (
     body: CreatePaymentIntentBody,
     options?: RequestOptions,
-  ) => Promise<PaymentIntentDto>;
+  ) => Promise<CreatedPaymentIntent>;
   readonly getIntent: (id: string, options?: RequestOptions) => Promise<PaymentIntentDto>;
   readonly confirmIntent: (id: string, options?: RequestOptions) => Promise<PaymentDto>;
   readonly get: (id: string, options?: RequestOptions) => Promise<PaymentDto>;
@@ -30,12 +40,12 @@ export interface PaymentModule {
 export function createPaymentModule(transport: Transport): PaymentModule {
   return {
     createIntent: async (body, options) => {
-      const response = await transport.post<{ paymentIntent: PaymentIntentDto }>(
-        "/payment-intents",
-        body,
-        options,
-      );
-      return response.paymentIntent;
+      const { paymentIntent, payerToken, checkoutUrl } = await transport.post<{
+        paymentIntent: PaymentIntentDto;
+        payerToken: string;
+        checkoutUrl: string;
+      }>("/payment-intents", body, options);
+      return { ...paymentIntent, payerToken, checkoutUrl };
     },
     getIntent: async (id, options) => {
       const response = await transport.get<{ paymentIntent: PaymentIntentDto }>(
