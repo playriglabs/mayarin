@@ -81,3 +81,15 @@ export function toneOf(state: string): StateVariant {
   if (state === "CREATED" || state === "QR_PARSED" || state === "EXPIRED") return "default";
   return "warning";
 }
+
+/**
+ * Whether the payer's funds ever arrived, read from the payment's history.
+ *
+ * The payment API refuses to retry a failed payment unless they did: a payment
+ * that failed with nothing received has nothing to settle, and "start a new
+ * payment" is the only way forward. The Retry button follows the same rule so it
+ * is never offered for a refusal.
+ */
+export function fundsArrived(timeline: readonly { readonly state: string }[]): boolean {
+  return timeline.some((event) => event.state === "ASSET_RECEIVED");
+}

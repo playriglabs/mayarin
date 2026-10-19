@@ -35,7 +35,7 @@ import { QueryError } from "@/components/ui/query-error";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useDeposit, useFunding, usePayment, useRetrySettlement } from "@/hooks/payments";
 import { ApiError } from "@/lib/api/client";
-import { intentStatusLabel, labelOf, stepIndex, toneOf } from "@/lib/clearing";
+import { fundsArrived, intentStatusLabel, labelOf, stepIndex, toneOf } from "@/lib/clearing";
 import { formatDateTime, isoAttr } from "@/lib/date";
 import { withQuery } from "@/lib/with-query";
 
@@ -235,9 +235,10 @@ function PaymentDetail({ id }: { id: string }) {
                   {/* A failed payment can be retried once whatever broke it is
                       fixed — the button disappears with the FAILED status it
                       clears, because the invalidated detail reads back
-                      PROCESSING. A payment that must not be retried answers
-                      with the reason, as a toast from the mutation. */}
-                  {intent.status === "FAILED" && clearing !== null && (
+                      PROCESSING. Only when the payer's funds arrived: one that
+                      failed with nothing received has nothing to settle and the
+                      payment API refuses it, so it is not offered. */}
+                  {intent.status === "FAILED" && clearing !== null && fundsArrived(timeline) && (
                     <Button
                       variant="secondary"
                       onClick={() => void retry.mutateAsync()}
