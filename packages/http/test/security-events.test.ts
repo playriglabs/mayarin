@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
-import { type SecurityEvent, securityEvents } from "../src/security-events.ts";
+import { type SecurityEvent, securityEvents, targetOf } from "../src/security-events.ts";
 
 function harness() {
   const events: SecurityEvent[] = [];
@@ -32,7 +32,7 @@ describe("security events (SEC-22)", () => {
   test("records a mutation with the route template, actor and tenant", async () => {
     const { app, events } = harness();
 
-    await app.request("/payments/pay_secret123/refunds?token=abc", {
+    await app.request("/payments/pay_ID1/refunds?token=abc", {
       method: "POST",
       headers: { "x-as": "1", authorization: "Bearer sk_live_secret", "cf-ray": "ray-1" },
       body: JSON.stringify({ password: "hunter2" }),
@@ -50,11 +50,12 @@ describe("security events (SEC-22)", () => {
         result: "success",
         actor: "usr_1",
         tenant: "mrc_1",
+        target: "pay_ID1",
       },
     ]);
-    // Nothing the caller sent can have reached the line.
+    // Nothing else the caller sent can have reached the line.
     const line = JSON.stringify(events);
-    for (const secret of ["pay_secret123", "abc", "sk_live_secret", "hunter2"]) {
+    for (const secret of ["abc", "sk_live_secret", "hunter2"]) {
       expect(line).not.toContain(secret);
     }
   });
@@ -77,5 +78,25 @@ describe("security events (SEC-22)", () => {
 
     expect(events[0]?.result).toBe("error");
     expect(response.headers.get("x-request-id")).toBe(events[0]?.requestId ?? "");
+  });
+});
+
+describe("security event target (SEC-22)", () => {
+  test("names the id a mutation acted on, from the route's :id slot", async () => {
+    const { app, events } = harness();
+    await app.request("/payments/pay_01J9ZX/refunds", { method: "POST" });
+    expect(events[0]?.target).toBe("pay_01J9ZX");
+  });
+
+  test("drops a value in the :id slot that is not one of our ids", async () => {
+    const { app, events } = harness();
+    await app.request("/payments/sk_live_SECRET-value/refunds", { method: "POST" });
+    expect(events[0]).not.toHaveProperty("target");
+    expect(JSON.stringify(events)).not.toContain("SECRET");
+  });
+
+  test("a route with no :id has no target", () => {
+    expect(targetOf("/v1/payments", "/v1/payments")).toBeUndefined();
+    expect(targetOf("/v1/payments/:id", "/v1/payments/pay_1")).toBe("pay_1");
   });
 });
