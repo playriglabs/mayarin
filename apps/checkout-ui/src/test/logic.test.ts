@@ -49,6 +49,41 @@ describe("payment status deposit", () => {
       }),
     ).toBeUndefined();
   });
+
+  const money = (formatted: string) => ({
+    amount: "1",
+    asset: "USDC",
+    formatted,
+    display: formatted,
+  });
+  const deposit = (overrides: Record<string, unknown> = {}) => ({
+    paymentIntent: { status: "PAYMENT_PENDING" },
+    deposit: {
+      uri: null,
+      chain: "base-sepolia",
+      address: `0x${"ab".repeat(20)}`,
+      amount: money("3.500000"),
+      received: money("0.000000"),
+      ...overrides,
+    },
+  });
+
+  test("shows a well-formed EVM or Solana deposit", () => {
+    expect(usableDeposit(deposit())).toBeDefined();
+    expect(
+      usableDeposit(deposit({ address: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin" })),
+    ).toBeDefined();
+  });
+
+  test.each([
+    ["markup in the address", { address: "<img src=x onerror=alert(1)>" }],
+    ["a short address", { address: "0x1234" }],
+    ["markup in the chain", { chain: "base<script>" }],
+    ["a localized amount", { amount: money("3,50") }],
+    ["a script in the received amount", { received: money("1<script>") }],
+  ])("never shows a deposit with %s", (_name, overrides) => {
+    expect(usableDeposit(deposit(overrides))).toBeUndefined();
+  });
 });
 
 function linkBootstrap(overrides: Partial<LinkBootstrap> = {}): LinkBootstrap {
