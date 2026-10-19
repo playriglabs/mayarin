@@ -137,7 +137,6 @@ import type {
 } from "@mayarin/x402";
 import { AssetCapabilities, facilitatorRegistry } from "@mayarin/x402";
 import { createPublicClient, createWalletClient, encodeFunctionData, http, parseAbi } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import type { Config } from "./config.ts";
 import {
   ApiContractPlanner,
@@ -147,6 +146,7 @@ import {
 } from "./contract-layer.ts";
 import { RuntimeMarket, RuntimePriceSource, RuntimeStablecoinRegistry } from "./market.ts";
 import type { ApiKeyVerifier } from "./middleware/api-key.ts";
+import { operatorAccount } from "./operator-account.ts";
 import type { QuoteLayer } from "./quote-layer.ts";
 import { chainReceipts, QuotePricingSource } from "./rails.ts";
 import { createApiKeyVerifier } from "./services/api-key-verifier.ts";
@@ -400,10 +400,10 @@ function createX402(deps: {
   } = deps;
 
   if (!config.x402Enabled) return undefined;
-  if (config.operatorPrivateKey === undefined) return undefined;
+  const account = operatorAccount(config);
+  if (account === undefined) return undefined;
 
   const rpcUrls = config.chain?.rpcUrls ?? {};
-  const account = privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
 
   // The swap half of a cross-asset rail, and its absence is what keeps such a
   // rail out of the `402`. A deployment with no route-capable venue simply does
@@ -598,10 +598,7 @@ function createTreasuryExecutor(deps: {
   if (depositAddresses === undefined) return undefined;
   const evmChains = Object.keys(config.depositForwarders).filter(isEvmChainId);
   const solanaChains = Object.keys(config.contract?.paymentRouters ?? {}).filter(isSolanaChainId);
-  const account =
-    evmChains.length === 0 || config.operatorPrivateKey === undefined
-      ? undefined
-      : privateKeyToAccount(config.operatorPrivateKey as `0x${string}`);
+  const account = evmChains.length === 0 ? undefined : operatorAccount(config);
 
   // A client pair per router chain. One pair for the whole executor sent every
   // submission to whichever chain came first in `PAYMENT_ROUTERS` — so a sweep
@@ -995,18 +992,12 @@ export function createContainer({
   // Its own two connections for the outbox writes; see PostgresNonceSequencer.
   const outbox = createDatabase({ url: config.databaseUrl, maxConnections: 2 });
   const nonces = new PostgresNonceSequencer(handle.db, clock, outbox.db);
+  const operator = operatorAccount(config);
   const operatorTransactions = new OperatorTransactionReconciler({
     store: new DrizzleOperatorTransactionStore(handle.db),
     chain: rpcOperatorChainReader(config.chainRpcUrls),
     clock,
-    ...(config.operatorPrivateKey === undefined
-      ? {}
-      : {
-          bumper: rpcOperatorBumper(
-            privateKeyToAccount(config.operatorPrivateKey as `0x${string}`),
-            config.chainRpcUrls,
-          ),
-        }),
+    ...(operator === undefined ? {} : { bumper: rpcOperatorBumper(operator, config.chainRpcUrls) }),
   });
 
   const treasury = createTreasuryExecutor({

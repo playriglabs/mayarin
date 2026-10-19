@@ -519,6 +519,22 @@ const configSchema = z.object({
   /** The operator key. Pays gas and is the one key that can move funds. */
   operatorPrivateKey: z.string().min(1).optional(),
   /**
+   * Where the operator key lives. `local` is `OPERATOR_PRIVATE_KEY` in this
+   * process, refused when a mainnet chain is configured; `turnkey` keeps it in
+   * Turnkey, whose policy bounds what it may sign (SEC-06).
+   */
+  operatorSigner: z.enum(["local", "turnkey"]).default("local"),
+  /** The Turnkey key the operator signs with, and the address it signs as. */
+  operatorTurnkeySignWith: z.string().min(1).optional(),
+  operatorAddress: z.string().min(1).optional(),
+  /**
+   * The API key the operator authenticates to Turnkey with. Its own non-root
+   * user's: Turnkey's policy engine does not apply to root users, so the
+   * `TURNKEY_API_*` pair (the organization's) must not be reused here.
+   */
+  operatorTurnkeyApiPublicKey: z.string().min(1).optional(),
+  operatorTurnkeyApiPrivateKey: z.string().min(1).optional(),
+  /**
    * The x402 rail (#207): endpoints payable per call by an agent that never
    * registered.
    *
@@ -1154,6 +1170,37 @@ function assertPaymentLimit(data: RawConfig): void {
       "MAX_PAYMENT_SETTLEMENT is required when a mainnet chain is configured: set the largest payment, per settlement asset, this deployment will accept",
     );
   }
+  if (onMainnet && data.operatorSigner === "local" && data.operatorPrivateKey !== undefined) {
+    issues.push(
+      "OPERATOR_SIGNER=local holds the operator key in this process and is refused when a mainnet chain is configured: use OPERATOR_SIGNER=turnkey",
+    );
+  }
+  if (data.operatorSigner === "turnkey") {
+    if (data.turnkeyOrganizationId === undefined) {
+      issues.push("TURNKEY_ORGANIZATION_ID is required when OPERATOR_SIGNER=turnkey");
+    }
+    if (data.operatorTurnkeySignWith === undefined) {
+      issues.push("OPERATOR_TURNKEY_SIGN_WITH is required when OPERATOR_SIGNER=turnkey");
+    }
+    if (data.operatorAddress === undefined) {
+      issues.push("OPERATOR_ADDRESS is required when OPERATOR_SIGNER=turnkey");
+    }
+    if (
+      data.operatorTurnkeyApiPublicKey === undefined ||
+      data.operatorTurnkeyApiPrivateKey === undefined
+    ) {
+      issues.push(
+        "OPERATOR_TURNKEY_API_PUBLIC_KEY and OPERATOR_TURNKEY_API_PRIVATE_KEY are required when OPERATOR_SIGNER=turnkey",
+      );
+    } else if (data.operatorTurnkeyApiPublicKey === data.turnkeyApiPublicKey) {
+      issues.push(
+        "OPERATOR_TURNKEY_API_PUBLIC_KEY must differ from TURNKEY_API_PUBLIC_KEY: a policy does not bind the organization's root key",
+      );
+    }
+    if (data.operatorPrivateKey !== undefined) {
+      issues.push("OPERATOR_PRIVATE_KEY must not be set when OPERATOR_SIGNER=turnkey");
+    }
+  }
   if (onMainnet && data.webhookSecretEncryptionKey === undefined) {
     issues.push("WEBHOOK_SECRET_ENCRYPTION_KEY is required when a mainnet chain is configured");
   }
@@ -1207,8 +1254,10 @@ function assertTreasuryExecution(data: RawConfig, quote: QuoteConfig | undefined
   if (hasEvmRouter && data.treasuryAddress === undefined) {
     issues.push("TREASURY_ADDRESS is required when TREASURY_EXECUTION_ENABLED is true");
   }
-  if (hasEvmRouter && data.operatorPrivateKey === undefined) {
-    issues.push("OPERATOR_PRIVATE_KEY is required when TREASURY_EXECUTION_ENABLED is true");
+  if (hasEvmRouter && !operatorConfigured(data)) {
+    issues.push(
+      "An operator signer is required when TREASURY_EXECUTION_ENABLED is true: OPERATOR_PRIVATE_KEY, or OPERATOR_SIGNER=turnkey",
+    );
   }
   if (hasEvmRouter && data.depositForwarderInitCodeHash === undefined) {
     issues.push(
@@ -1364,6 +1413,11 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     depositForwarderInitCodeHash: env.DEPOSIT_FORWARDER_INIT_CODE_HASH,
     treasuryAddress: env.TREASURY_ADDRESS,
     operatorPrivateKey: env.OPERATOR_PRIVATE_KEY,
+    operatorSigner: env.OPERATOR_SIGNER,
+    operatorTurnkeySignWith: env.OPERATOR_TURNKEY_SIGN_WITH,
+    operatorAddress: env.OPERATOR_ADDRESS,
+    operatorTurnkeyApiPublicKey: env.OPERATOR_TURNKEY_API_PUBLIC_KEY,
+    operatorTurnkeyApiPrivateKey: env.OPERATOR_TURNKEY_API_PRIVATE_KEY,
     treasuryMaxAttempts: env.TREASURY_MAX_ATTEMPTS,
     uniswapSwapRouters: env.UNISWAP_SWAP_ROUTERS,
     swapRouterAllowlist: env.SWAP_ROUTER_ALLOWLIST,
@@ -1412,4 +1466,15 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     ...(quote === undefined ? {} : { quote }),
     ...(contract === undefined ? {} : { contract }),
   };
+}
+
+/** Whether some operator signer is set up, whichever kind. */
+function operatorConfigured(data: {
+  readonly operatorSigner: "local" | "turnkey";
+  readonly operatorPrivateKey?: string | undefined;
+  readonly operatorTurnkeySignWith?: string | undefined;
+}): boolean {
+  return data.operatorSigner === "turnkey"
+    ? data.operatorTurnkeySignWith !== undefined
+    : data.operatorPrivateKey !== undefined;
 }

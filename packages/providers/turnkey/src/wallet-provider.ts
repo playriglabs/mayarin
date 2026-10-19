@@ -99,7 +99,7 @@ import {
   toHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { DEFAULT_TURNKEY_ENDPOINT } from "./adapter.ts";
+import { DEFAULT_TURNKEY_ENDPOINT } from "./sign-digest.ts";
 import type { TurnkeyStamper } from "./stamper.ts";
 
 const PROXY_FACTORY_ABI = parseAbi([

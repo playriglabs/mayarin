@@ -43,7 +43,7 @@ import type {
   PasskeyTransport,
 } from "@mayarin/wallet";
 import { z } from "zod";
-import { DEFAULT_TURNKEY_ENDPOINT } from "./adapter.ts";
+import { DEFAULT_TURNKEY_ENDPOINT } from "./sign-digest.ts";
 import type { TurnkeyStamper } from "./stamper.ts";
 
 /** Domain vocabulary → Turnkey's enum. Kept here so `core` never spells these. */
