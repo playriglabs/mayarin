@@ -778,9 +778,11 @@ function Settings() {
 
                   <Card className="flex flex-col gap-5 p-5">
                     <div className="flex flex-col gap-1">
-                      <h3 className="font-medium text-foreground text-sm">Business location</h3>
+                      <h3 className="font-medium text-foreground text-sm">Business profile</h3>
                       <p className="text-muted-foreground text-sm">
-                        Shown to buyers on every payment. A payment link needs both.
+                        City and country are shown to buyers on every payment, and a payment link
+                        needs both. Your balance and analytics are shown in the currency below, at a
+                        daily rate.
                       </p>
                     </div>
                     {/* One row: a city and a country are one fact — where the
@@ -825,25 +827,18 @@ function Settings() {
                           </ComboboxContent>
                         </Combobox>
                       </Field>
-                    </div>
-                  </Card>
 
-                  <Card className="flex flex-col gap-5 p-5">
-                    <div className="flex flex-col gap-1">
-                      <h3 className="font-medium text-foreground text-sm">Display currency</h3>
-                      <p className="text-muted-foreground text-sm">
-                        Your balance and analytics are shown in this currency, at a daily rate.
-                        Payments are still priced and settled as before.
-                      </p>
+                      <Field className="sm:col-span-2">
+                        <FieldLabel htmlFor="merchant-display-currency">
+                          Display currency
+                        </FieldLabel>
+                        <CurrencyCombobox
+                          id="merchant-display-currency"
+                          value={draft.displayCurrency}
+                          onChange={(next) => edit({ ...draft, displayCurrency: next })}
+                        />
+                      </Field>
                     </div>
-                    <Field className="sm:max-w-sm">
-                      <FieldLabel htmlFor="merchant-display-currency">Currency</FieldLabel>
-                      <CurrencyCombobox
-                        id="merchant-display-currency"
-                        value={draft.displayCurrency}
-                        onChange={(next) => edit({ ...draft, displayCurrency: next })}
-                      />
-                    </Field>
                   </Card>
 
                   <Card className="flex flex-col gap-4 p-4">
