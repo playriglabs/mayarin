@@ -22,6 +22,7 @@
 import { type ChainId, isChainAddress, isChainId, isReviewedToken } from "@mayarin/chain";
 import type { PriceQuote, PriceSource } from "@mayarin/clearing";
 import { TablePriceSource } from "@mayarin/clearing";
+import type { RiskRules } from "@mayarin/fraud";
 import {
   type AssetCode,
   assetDecimals,
@@ -61,6 +62,7 @@ export const MARKET_CONFIG_KEYS = [
   "chainlinkFeeds",
   "uniswapPools",
   "disputeStanding",
+  "riskRules",
 ] as const;
 
 export type MarketConfigKey = (typeof MARKET_CONFIG_KEYS)[number];
@@ -148,6 +150,21 @@ export const DEFAULT_DISPUTE_STANDING: DisputeStandingRules = {
   minEscrows: 4,
 };
 
+/**
+ * Thresholds for the fraud rules. A rule with no number is off, so the default
+ * flags nothing; an operator turns each one on after reading what real traffic
+ * looks like (docs/fraud.md).
+ */
+const riskRulesSchema = z.object({
+  windowSeconds: z.number().int().min(60),
+  payerAttempts: z.number().int().min(1).optional(),
+  merchantAttempts: z.number().int().min(1).optional(),
+  spikeFactor: z.number().int().min(2).optional(),
+  spikeMinHistory: z.number().int().min(1).optional(),
+});
+
+export const DEFAULT_RISK_RULES: RiskRules = { windowSeconds: 3_600 };
+
 const SCHEMAS: Readonly<Record<MarketConfigKey, z.ZodTypeAny>> = {
   stablecoins: stablecoinsSchema,
   exchangeRates: exchangeRatesSchema,
@@ -157,6 +174,7 @@ const SCHEMAS: Readonly<Record<MarketConfigKey, z.ZodTypeAny>> = {
   chainlinkFeeds: chainlinkFeedsSchema,
   uniswapPools: uniswapPoolsSchema,
   disputeStanding: disputeStandingSchema,
+  riskRules: riskRulesSchema,
 };
 
 /** Validates a value for a key, throwing rather than storing something unreadable. */
@@ -182,6 +200,7 @@ interface MarketSnapshot {
   readonly chainlinkFeeds: Record<string, unknown>;
   readonly uniswapPools: Record<string, unknown>;
   readonly disputeStanding: DisputeStandingRules;
+  readonly riskRules: RiskRules;
 }
 
 /** Everything rebuilt from one snapshot, cached until that snapshot is replaced. */
@@ -294,6 +313,11 @@ export class RuntimeMarket {
     return (await this.#snapshotOf()).disputeStanding;
   }
 
+  /** The fraud rule thresholds; empty means every rule is off. */
+  async riskRules(): Promise<RiskRules> {
+    return (await this.#snapshotOf()).riskRules;
+  }
+
   /** The current pool map, for the route sources the contract path builds per call. */
   async uniswapPools(): Promise<Record<string, unknown>> {
     return (await this.#snapshotOf()).uniswapPools;
@@ -358,6 +382,7 @@ export class RuntimeMarket {
       chainlinkFeeds: read<Record<string, unknown>>("chainlinkFeeds"),
       uniswapPools: read<Record<string, unknown>>("uniswapPools"),
       disputeStanding: read<DisputeStandingRules>("disputeStanding"),
+      riskRules: read<RiskRules>("riskRules"),
     };
 
     this.#snapshot = snapshot;
@@ -451,6 +476,7 @@ function environmentValues(config: Config): Readonly<Record<MarketConfigKey, unk
     uniswapPools: config.uniswapPools,
     // Not an environment value: a platform policy, set at runtime only.
     disputeStanding: DEFAULT_DISPUTE_STANDING,
+    riskRules: DEFAULT_RISK_RULES,
   };
 }
 

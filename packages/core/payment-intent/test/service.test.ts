@@ -551,3 +551,39 @@ describe("buyer protection (#304)", () => {
     );
   });
 });
+
+describe("PaymentIntentService fraud gate", () => {
+  const build = (blocked: boolean) => {
+    const repository = new InMemoryPaymentIntentRepository();
+    const service = new PaymentIntentService({
+      repository,
+      clock: new FixedClock(new Date("2026-10-19T00:00:00.000Z")),
+      riskGate: { check: async () => ({ blocked }) },
+      defaults: {
+        settlementAsset: "USDC",
+        provider: "mock",
+        executionPath: "deposit-match",
+        ttlSeconds: 900,
+      },
+    });
+    return service;
+  };
+  const command = {
+    merchant: { id: "m1", name: "Warung", city: "Jakarta", countryCode: "ID" },
+    amount: money(5_000_000n, "IDR"),
+    source: { type: "qr", scheme: "QRIS", payload: "x" },
+  } as never;
+
+  test("a blocked payment is refused and stays unconfirmed", async () => {
+    const service = build(true);
+    const created = await service.create(command);
+    await expect(service.confirm(created.id)).rejects.toThrow("cannot be processed");
+    expect((await service.getById(created.id)).status).toBe("CREATED");
+  });
+
+  test("a payment the gate lets through confirms", async () => {
+    const service = build(false);
+    const created = await service.create(command);
+    expect((await service.confirm(created.id)).status).toBe("CONFIRMED");
+  });
+});

@@ -20,6 +20,7 @@
     "@mayarin/chain": "workspace:*",
     "@mayarin/clearing": "workspace:*",
     "@mayarin/compliance": "workspace:*",
+    "@mayarin/fraud": "workspace:*",
     "@mayarin/invoicing": "workspace:*",
     "@mayarin/ledger": "workspace:*",
     "@mayarin/notifications": "workspace:*",

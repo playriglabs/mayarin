@@ -66,6 +66,11 @@ import {
 } from "../src/repositories/chain.ts";
 import { DrizzleClearingRepository } from "../src/repositories/clearing.ts";
 import { DrizzleEscrowDisputeRepository } from "../src/repositories/escrow-dispute.ts";
+import {
+  DrizzleDenylist,
+  DrizzleRiskAssessments,
+  DrizzleRiskHistory,
+} from "../src/repositories/fraud.ts";
 import { DrizzleLedgerRepository } from "../src/repositories/ledger.ts";
 import { DrizzleLoginFailures } from "../src/repositories/login-failures.ts";
 import {
@@ -144,7 +149,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table worker_fencing, login_failures, operator_transactions, operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table risk_assessments, address_denylist, worker_fencing, login_failures, operator_transactions, operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -599,6 +604,51 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       disputes: 1,
       lost: 0,
     });
+  });
+
+  test("fraud detection counts history from intents, keeps a denylist and the flagged assessments", async () => {
+    const history = new DrizzleRiskHistory(handle.db);
+    const denylist = new DrizzleDenylist(handle.db);
+    const assessments = new DrizzleRiskAssessments(handle.db);
+    const day = new Date(clock.now().getTime() - 86_400_000);
+
+    await confirmedIntent();
+    const second = await confirmedIntent();
+    expect(await history.merchantAttempts("ID1020017611473", day)).toBe(2);
+    expect(await history.merchantAttempts("someone-else", day)).toBe(0);
+    expect(
+      await history.merchantAttempts("ID1020017611473", new Date(clock.now().getTime() + 60_000)),
+    ).toBe(0);
+    expect(await history.payerAttempts("0x000000000000000000000000000000000000CAFE", day)).toBe(0);
+    expect(await history.merchantPaid("ID1020017611473", "IDR", day)).toEqual({
+      count: 0,
+      largest: 0n,
+    });
+
+    const address = "0x000000000000000000000000000000000000CAFE";
+    expect(await denylist.has(address)).toBe(false);
+    await denylist.add(address, "sanctioned", clock.now());
+    expect(await denylist.has(address.toLowerCase())).toBe(true);
+    await denylist.remove(address);
+    expect(await denylist.has(address)).toBe(false);
+
+    const base = { merchantId: "ID1020017611473", payer: address, assessedAt: clock.now() };
+    await assessments.record("rsk_1", {
+      ...base,
+      paymentIntentId: second.id,
+      outcome: "CLEAR",
+      signals: [],
+    });
+    await assessments.record("rsk_2", {
+      ...base,
+      paymentIntentId: second.id,
+      outcome: "REVIEW",
+      signals: [{ rule: "payer-velocity", action: "review", detail: "3 payments" }],
+    });
+    const flagged = await assessments.listFlagged("ID1020017611473");
+    expect(flagged.map((a) => a.id)).toEqual(["rsk_2"]);
+    expect(flagged[0]?.payer).toBe(address.toLowerCase());
+    expect(flagged[0]?.signals[0]?.rule).toBe("payer-velocity");
   });
 
   test("allocates one deposit address per clearing transaction", async () => {

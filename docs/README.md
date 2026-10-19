@@ -57,6 +57,7 @@ moves through them.
 | [Escrow](./escrow.md)                         | Conditional settlement: hold until the payer releases or the hold ends     |
 | [Merchant Wallets](./wallet.md)               | Proving control of a payout address, and provisioning a self-custodial one |
 | [Compliance](./compliance.md)                 | The audit trail, and reconciling the ledger against the chain              |
+| [Fraud detection](./fraud.md)                 | Rules run at confirm, the denylist, and what a merchant is told            |
 
 ---
 

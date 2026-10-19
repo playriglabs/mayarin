@@ -38,6 +38,7 @@ import {
   DrizzleApiKeyRepository,
   DrizzleClearingRepository,
   DrizzleCustomerRepository,
+  DrizzleDenylist,
   DrizzleDepositAddressRepository,
   DrizzleDepositRepository,
   DrizzleEscrowDisputeRepository,
@@ -55,6 +56,8 @@ import {
   DrizzlePaymentLinkRepository,
   DrizzleProductRepository,
   DrizzleRefundRepository,
+  DrizzleRiskAssessments,
+  DrizzleRiskHistory,
   DrizzleSettlementEventRepository,
   DrizzleSubscriptionRepository,
   DrizzleUserRepository,
@@ -71,6 +74,7 @@ import {
   SecretBox,
 } from "@mayarin/db";
 import { FallbackRouteSource } from "@mayarin/execution";
+import { RiskAssessor } from "@mayarin/fraud";
 import { PayerTokens } from "@mayarin/http";
 import { InvoiceService } from "@mayarin/invoicing";
 import { LedgerService } from "@mayarin/ledger";
@@ -166,6 +170,7 @@ import { PaidNotifier } from "./services/paid-notifier.ts";
 import { PayerStanding } from "./services/payer-standing.ts";
 import { PaymentAppService } from "./services/payment.ts";
 import { PaymentStream } from "./services/payment-stream.ts";
+import { RiskGateService } from "./services/risk-gate.ts";
 import { SubscriptionApiService } from "./services/subscriptions.ts";
 import { PinnedWebhookTransport } from "./services/webhook-transport.ts";
 import { X402Service } from "./services/x402.ts";
@@ -272,6 +277,9 @@ export interface Container {
   readonly escrow: EscrowService;
   /** Whether a payer wallet may still take buyer protection (#314). */
   readonly payerStanding: PayerStanding;
+  /** Fraud detection: what the rules flagged, and the addresses nobody may pay from. */
+  readonly riskAssessments: Pick<DrizzleRiskAssessments, "listFlagged">;
+  readonly denylist: Pick<DrizzleDenylist, "add" | "remove">;
   /** Local-currency funding of a deposit address; present only with the TRANSFI_* env set. */
   readonly transfi?: TransfiClient;
   /** How each payment was funded when its payer's own wallet did not. */
@@ -837,6 +845,36 @@ export function createContainer({
   const transfi = transfiClientOf(config);
   const paymentFundings = new DrizzlePaymentFundingRepository(handle.db);
 
+  // Built before the intent service: the fraud gate announces a flagged payment
+  // on the same delivery table the dispatcher drains, and the service takes the gate.
+  let webhookEndpoints: WebhookEndpointRepository | undefined;
+  let webhookDeliveries: WebhookDeliveryRepository | undefined;
+  if (config.webhooksEnabled) {
+    webhookEndpoints = new DrizzleWebhookEndpointRepository(
+      handle.db,
+      config.webhookSecretEncryptionKey === undefined
+        ? undefined
+        : new SecretBox(config.webhookSecretEncryptionKey, config.webhookSecretPreviousKeys),
+    );
+    webhookDeliveries = new DrizzleWebhookDeliveryRepository(handle.db);
+  }
+
+  const riskAssessments = new DrizzleRiskAssessments(handle.db);
+  const denylist = new DrizzleDenylist(handle.db);
+  const riskGate = new RiskGateService({
+    assessor: new RiskAssessor({
+      rules: () => market.riskRules(),
+      history: new DrizzleRiskHistory(handle.db),
+      denylist,
+      clock,
+    }),
+    assessments: riskAssessments,
+    ...(webhookEndpoints === undefined || webhookDeliveries === undefined
+      ? {}
+      : { webhooks: { endpoints: webhookEndpoints, deliveries: webhookDeliveries } }),
+    clock,
+  });
+
   const intentRepository = new DrizzlePaymentIntentRepository(handle.db);
   const intents = new PaymentIntentService({
     repository: intentRepository,
@@ -850,6 +888,8 @@ export function createContainer({
     escrowChains: ESCROW_CHAINS,
     // A wallet that keeps losing disputes is not offered protection (#314).
     payerStanding,
+    // Fraud rules run when a payment is confirmed; only a block refuses it.
+    riskGate,
     defaults: {
       settlementAsset: config.settlementAsset,
       provider: config.defaultProvider,
@@ -1291,16 +1331,7 @@ export function createContainer({
   // Delivery derives from the clearing event log the engine already writes, so
   // enabling webhooks wires nothing into the engine itself.
   let webhooks: WebhookDispatcher | undefined;
-  let webhookEndpoints: WebhookEndpointRepository | undefined;
-  let webhookDeliveries: WebhookDeliveryRepository | undefined;
-  if (config.webhooksEnabled) {
-    webhookEndpoints = new DrizzleWebhookEndpointRepository(
-      handle.db,
-      config.webhookSecretEncryptionKey === undefined
-        ? undefined
-        : new SecretBox(config.webhookSecretEncryptionKey, config.webhookSecretPreviousKeys),
-    );
-    webhookDeliveries = new DrizzleWebhookDeliveryRepository(handle.db);
+  if (webhookEndpoints !== undefined && webhookDeliveries !== undefined) {
     webhooks = new WebhookDispatcher({
       outbox: new DrizzleWebhookOutbox(handle.db),
       cursor: new DrizzleWebhookCursorRepository(handle.db),
@@ -1450,6 +1481,8 @@ export function createContainer({
     paymentApp,
     escrow: new EscrowService(paymentApp, config.chainRpcUrls, disputes, clock, disputeNotices),
     payerStanding,
+    riskAssessments,
+    denylist,
     ...(transfi === undefined ? {} : { transfi }),
     paymentFundings,
     clock,
