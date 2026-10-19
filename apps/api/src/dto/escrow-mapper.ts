@@ -6,11 +6,12 @@
  */
 
 import { evmChainIdOf } from "@mayarin/chain";
-import type { DisputeMessage } from "@mayarin/db";
+import type { DisputeMessage, EscrowDispute } from "@mayarin/db";
 import { escrowBondApproveCalldata } from "@mayarin/provider-evm";
 import { numericReference } from "@mayarin/shared";
 import type { EscrowView } from "../services/escrow.ts";
 import type { Standing } from "../services/payer-standing.ts";
+import type { DisputeCaseDto, DisputeDto } from "./dispute.ts";
 import type { DisputeMessageDto, EscrowDto } from "./escrow.ts";
 
 export function toDisputeMessageDto(message: DisputeMessage): DisputeMessageDto {
@@ -67,4 +68,25 @@ export function toEscrowDto(view: EscrowView, payerStanding: Standing): EscrowDt
             messages: view.dispute.messages.map(toDisputeMessageDto),
           },
   };
+}
+
+export function toDisputeDto(dispute: EscrowDispute): DisputeDto {
+  return {
+    id: dispute.id,
+    reference: numericReference(dispute.id),
+    paymentIntentId: dispute.paymentIntentId,
+    status: dispute.status,
+    chain: dispute.chain,
+    payer: dispute.payer,
+    resolveBy: dispute.resolveBy.toISOString(),
+    openedAt: dispute.createdAt.toISOString(),
+    decidedAt: dispute.decidedAt?.toISOString() ?? null,
+  };
+}
+
+export function toDisputeCaseDto(
+  dispute: EscrowDispute,
+  messages: readonly DisputeMessage[],
+): DisputeCaseDto {
+  return { ...toDisputeDto(dispute), messages: messages.map(toDisputeMessageDto) };
 }

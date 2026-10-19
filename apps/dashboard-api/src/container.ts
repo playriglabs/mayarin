@@ -538,18 +538,20 @@ export function createContainer(options: CreateContainerOptions): Container {
 
   // Webhook inspection (#13). The dispatcher itself runs in the payment API;
   // the dashboard only reads and re-queues, scoped to the caller's merchant.
+  const webhookEndpoints =
+    options.webhookEndpoints ??
+    new DrizzleWebhookEndpointRepository(
+      handle?.db ?? throwIfNoHandle(),
+      config.webhookSecretEncryptionKey === undefined
+        ? undefined
+        : new SecretBox(config.webhookSecretEncryptionKey, config.webhookSecretPreviousKeys),
+    );
+  const webhookDeliveries =
+    options.webhookDeliveries ??
+    new DrizzleWebhookDeliveryRepository(handle?.db ?? throwIfNoHandle());
   const webhooks = new WebhookService({
-    endpoints:
-      options.webhookEndpoints ??
-      new DrizzleWebhookEndpointRepository(
-        handle?.db ?? throwIfNoHandle(),
-        config.webhookSecretEncryptionKey === undefined
-          ? undefined
-          : new SecretBox(config.webhookSecretEncryptionKey, config.webhookSecretPreviousKeys),
-      ),
-    deliveries:
-      options.webhookDeliveries ??
-      new DrizzleWebhookDeliveryRepository(handle?.db ?? throwIfNoHandle()),
+    endpoints: webhookEndpoints,
+    deliveries: webhookDeliveries,
     clock,
     pageSize: config.paymentsPageSize,
   });
@@ -680,6 +682,9 @@ export function createContainer(options: CreateContainerOptions): Container {
       options.disputeStore ?? new DrizzleEscrowDisputeRepository(handle?.db ?? throwIfNoHandle()),
     paymentApi,
     arbiter: config.escrowArbiter,
+    // A message from the merchant or the arbiter is told to the merchant's own
+    // endpoints, as the payer's is by the payment API.
+    webhooks: { endpoints: webhookEndpoints, deliveries: webhookDeliveries },
     clock,
   });
 

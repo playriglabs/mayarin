@@ -1,0 +1,60 @@
+---
+title: Disputes
+description: Read the disputes buyers open on your escrowed payments and answer them from the SDK.
+---
+
+`mayarin.disputes` covers the dispute thread of an [escrowed payment](/guides/escrow): list the disputes, read one with its messages, and reply. It is the same case file the dashboard shows. Pair it with the `escrow.dispute.*` webhooks, which tell you when to look; see the [disputes guide](/guides/disputes) for the sequence and the event payloads.
+
+Server-side only: it needs a secret key. Reading needs `payments:read`; replying needs `disputes:manage`.
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const mayarin = createMayarin({
+  baseUrl: "https://api.mayarin.xyz",
+  secretKey: process.env.MAYARIN_SECRET_KEY ?? "",
+});
+```
+
+## `disputes.list(options?)`
+
+`GET /v1/disputes`. Your disputes, newest first, and how many are open.
+
+```ts
+const { disputes, open } = await mayarin.disputes.list({
+  status: "open",
+  limit: 20,
+});
+```
+
+| Option   | Meaning                                                  |
+| -------- | -------------------------------------------------------- |
+| `status` | `open`, `released`, `refunded` or `split`. Omit for all. |
+| `limit`  | 1 to 100. Default 50.                                    |
+
+`open` counts every open dispute of yours, whatever the filter. Each item is a `DisputeDto`: `id`, `reference`, `paymentIntentId`, `status`, `chain`, `payer`, `resolveBy`, `openedAt`, `decidedAt`.
+
+## `disputes.get(id)`
+
+`GET /v1/disputes/:id`. One `DisputeCaseDto`: the same fields plus `messages`, oldest first. Reading refreshes the dispute from the chain, so a decided dispute shows its outcome even if you missed the webhook.
+
+```ts
+const dispute = await mayarin.disputes.get("dsp_01K…");
+for (const message of dispute.messages)
+  console.log(message.author, message.body);
+```
+
+## `disputes.reply(id, body)`
+
+`POST /v1/disputes/:id/messages`. Answer in the thread: evidence of delivery, or an offer to refund. 1 to 2,000 characters, trimmed. Accepted only while the dispute is `open`.
+
+```ts
+const message = await mayarin.disputes.reply(
+  dispute.id,
+  "Delivered 2 Oct by JNE, tracking 123.",
+);
+```
+
+Errors arrive as `MayarinApiError` with the API's `code`: `NOT_FOUND` for a dispute that is not yours or does not exist, `CONFLICT` once it is decided, `VALIDATION_ERROR` for an empty or over-long message, `FORBIDDEN` when the key lacks the permission.
+
+Types are exported from the package: `DisputeDto`, `DisputeCaseDto`, `DisputeListDto`, `DisputeMessageDto`, `DisputeStatus`.

@@ -581,8 +581,14 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     ]);
 
     await repository.markAlerted(opened.id, "48h");
-    await repository.close(intent.id, "refunded", clock.now());
-    await repository.close(intent.id, "released", clock.now());
+    // Only the call that closes it gets the dispute back, so only that call announces it.
+    const closedNow = await repository.close(intent.id, "refunded", clock.now());
+    expect(closedNow).toMatchObject({ id: opened.id, status: "refunded" });
+    expect(await repository.close(intent.id, "released", clock.now())).toBeUndefined();
+    expect(await repository.findById(opened.id)).toMatchObject({ status: "refunded" });
+    expect((await repository.listByMerchant(intent.merchant.id)).map((d) => d.id)).toEqual([
+      opened.id,
+    ]);
     const closed = await repository.findByPaymentIntentId(intent.id);
     expect(closed?.status).toBe("refunded");
     expect(closed?.alerted).toBe("48h");

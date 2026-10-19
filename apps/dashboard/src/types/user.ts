@@ -15,6 +15,7 @@ export type Permission =
   | "refunds:manage"
   | "api-keys:manage"
   | "wallets:withdraw"
+  | "disputes:manage"
   | "disputes:arbitrate";
 
 /**
@@ -30,6 +31,7 @@ export const PERMISSION_LIST = [
   "refunds:manage",
   "api-keys:manage",
   "wallets:withdraw",
+  "disputes:manage",
 ] as const;
 
 /**
@@ -51,6 +53,7 @@ export const PERMISSION_LABELS: Readonly<Record<Permission, string>> = {
   "refunds:manage": "Issue refunds",
   "api-keys:manage": "Manage API keys",
   "wallets:withdraw": "Provision wallets and send payouts",
+  "disputes:manage": "Answer disputes",
   "disputes:arbitrate": "Arbitrate escrow disputes",
 } as const;
 

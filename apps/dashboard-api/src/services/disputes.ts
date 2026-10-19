@@ -13,6 +13,11 @@
  */
 
 import type { DisputeAuthor, DisputeMessage, EscrowDispute } from "@mayarin/db";
+import {
+  disputeMessageEvent,
+  enqueueMerchantEvent,
+  type MerchantEventSink,
+} from "@mayarin/notifications";
 import { type Clock, ConflictError, NotFoundError, ValidationError } from "@mayarin/shared";
 import type { EscrowView, PaymentApiClient } from "./payment-api-client.ts";
 
@@ -44,6 +49,7 @@ export class DisputeService {
   readonly #store: DisputeStore;
   readonly #paymentApi: PaymentApiClient;
   readonly #arbiter: string | undefined;
+  readonly #webhooks: MerchantEventSink | undefined;
   readonly #clock: Clock;
 
   constructor(options: {
@@ -51,11 +57,14 @@ export class DisputeService {
     readonly paymentApi: PaymentApiClient;
     /** Mayarin Resolution's address (`ESCROW_ARBITER`); unset, the console has nothing to decide. */
     readonly arbiter: string | undefined;
+    /** Where a message is announced to the merchant's webhook endpoints; absent, nowhere. */
+    readonly webhooks?: MerchantEventSink;
     readonly clock: Clock;
   }) {
     this.#store = options.store;
     this.#paymentApi = options.paymentApi;
     this.#arbiter = options.arbiter?.toLowerCase();
+    this.#webhooks = options.webhooks;
     this.#clock = options.clock;
   }
 
@@ -134,6 +143,23 @@ export class DisputeService {
     if (dispute.status !== "open") {
       throw new ConflictError("This dispute is already decided", { id: dispute.id });
     }
-    return this.#store.addMessage(dispute.id, author, text, this.#clock.now());
+    const message = await this.#store.addMessage(dispute.id, author, text, this.#clock.now());
+    await this.#announce(dispute, message);
+    return message;
+  }
+
+  /** Tells the merchant's endpoints; a failed notice is logged and the message stands. */
+  async #announce(dispute: EscrowDispute, message: DisputeMessage): Promise<void> {
+    if (this.#webhooks === undefined) return;
+    await enqueueMerchantEvent(
+      this.#webhooks,
+      dispute.merchantId,
+      disputeMessageEvent(dispute, message),
+      this.#clock.now(),
+    ).catch((error: unknown) => {
+      console.error(
+        `[disputes] webhook for message ${message.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
   }
 }

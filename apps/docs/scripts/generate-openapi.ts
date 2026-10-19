@@ -316,6 +316,37 @@ const escrowSchema = z
   })
   .openapi("Escrow");
 
+const disputeMessageSchema = z
+  .object({
+    id: z.string(),
+    author: z.enum(["payer", "merchant", "arbiter"]),
+    body: z.string(),
+    createdAt: z.string(),
+  })
+  .openapi("DisputeMessage");
+
+const disputeSchema = z
+  .object({
+    id: z.string(),
+    reference: z.string().describe("The number a person quotes, e.g. 93129301239."),
+    paymentIntentId: z.string(),
+    status: z
+      .enum(["open", "released", "refunded", "split"])
+      .describe("`open` until the chain decides it; then how the funds moved."),
+    chain: z.string(),
+    payer: z.string().describe("The wallet that paid, and that a refund returns to."),
+    resolveBy: z
+      .string()
+      .describe("ISO time after which a dispute nobody decided refunds the payer."),
+    openedAt: z.string(),
+    decidedAt: z.string().nullable(),
+  })
+  .openapi("Dispute");
+
+const disputeCaseSchema = disputeSchema
+  .extend({ messages: z.array(disputeMessageSchema).describe("The thread, oldest first.") })
+  .openapi("DisputeCase");
+
 const refundSchema = z
   .object({
     id: z.string(),
@@ -783,6 +814,78 @@ registry.registerPath({
   responses: {
     "200": jsonResponse(z.object({ escrow: escrowSchema }), "The escrow."),
     "404": errorResponse("No such payment, or it is not held in escrow."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/disputes",
+  tags: ["Disputes"],
+  operationId: "listDisputes",
+  summary: "List disputes",
+  description:
+    "The disputes buyers opened on this merchant's escrowed payments, newest first, and how many are open. Needs `payments:read`.",
+  security: secretKey,
+  request: {
+    query: z.object({
+      status: z.enum(["open", "released", "refunded", "split"]).optional(),
+      limit: z.coerce.number().int().min(1).max(100).optional().describe("Default 50."),
+    }),
+  },
+  responses: {
+    "200": jsonResponse(
+      z.object({
+        disputes: z.array(disputeSchema),
+        open: z.number().int().describe("Open disputes of this merchant, whatever the filter."),
+      }),
+      "The disputes.",
+    ),
+    "403": errorResponse("The key lacks `payments:read`, or is publishable."),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/disputes/{id}",
+  tags: ["Disputes"],
+  operationId: "getDispute",
+  summary: "Get a dispute and its thread",
+  description:
+    "One dispute with its messages, oldest first. Reading refreshes it from the chain, so a decided dispute shows its outcome. Another merchant's dispute is a 404.",
+  security: secretKey,
+  request: { params: idParams },
+  responses: {
+    "200": jsonResponse(z.object({ dispute: disputeCaseSchema }), "The dispute."),
+    "404": errorResponse("No such dispute."),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/disputes/{id}/messages",
+  tags: ["Disputes"],
+  operationId: "replyToDispute",
+  summary: "Answer in a dispute",
+  description:
+    "Posts the merchant's answer in the thread: evidence of delivery, or an offer to refund. Needs `disputes:manage`, which is separate from `refunds:manage`. Accepted only while the dispute is open. Announced by the `escrow.dispute.message` webhook.",
+  security: secretKey,
+  request: {
+    params: idParams,
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: z.object({ body: z.string().describe("1 to 2,000 characters; trimmed.") }),
+        },
+      },
+    },
+  },
+  responses: {
+    "201": jsonResponse(z.object({ message: disputeMessageSchema }), "The saved message."),
+    "400": errorResponse("Empty or over-long message."),
+    "403": errorResponse("The key lacks `disputes:manage`, or is publishable."),
+    "404": errorResponse("No such dispute."),
+    "409": errorResponse("The dispute is already decided."),
   },
 });
 
@@ -1618,6 +1721,10 @@ const document = generator.generateDocument({
     { name: "Payment links", description: "Shareable hosted checkout links." },
     { name: "Invoices", description: "Numbered requests with buyers and due dates." },
     { name: "Subscriptions", description: "Recurring plans, billed as one invoice per cycle." },
+    {
+      name: "Disputes",
+      description: "Disputes buyers open on escrowed payments: read the thread, answer it.",
+    },
     {
       name: "x402 resources",
       description: "Per-call resources an agent pays for over the x402 rail.",

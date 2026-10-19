@@ -1,0 +1,221 @@
+---
+title: Disputes
+description: Read the disputes buyers open on your escrowed payments, answer them from your own system, and react to each step by webhook.
+---
+
+When a buyer disputes an [escrowed payment](/guides/escrow), the funds stay put until an arbiter decides. Until then you can answer, or refund, and either one usually ends it. This guide is for doing that from your own system instead of the dashboard: an API to read the dispute and its thread and to post your answer, and three webhooks that tell you when to look.
+
+A dispute is opened by the buyer, on chain, from their own wallet. Nothing you build can stop that. What you control is how fast you find out and what you do next, and what makes disputing costly in the first place ([the bond](/guides/escrow#dispute-bond) and [buyer standing](/guides/escrow#buyer-standing)).
+
+## The sequence
+
+| Step | What happens                                                | Your webhook                                    |
+| ---- | ----------------------------------------------------------- | ----------------------------------------------- |
+| 1    | The buyer disputes during the hold. The release is stopped. | `escrow.disputed`                               |
+| 2    | The buyer states their case in the thread.                  | `escrow.dispute.message` (`author: "payer"`)    |
+| 3    | You answer with evidence of delivery, or offer a refund.    | `escrow.dispute.message` (`author: "merchant"`) |
+| 4    | The arbiter may ask for more, or explain.                   | `escrow.dispute.message` (`author: "arbiter"`)  |
+| 5    | The funds move: released to you, refunded, or split.        | `escrow.dispute.resolved`                       |
+
+If nobody has decided by the deadline (`resolveBy`), the buyer is refunded. That is the default, so a dispute you ignore is one you lose.
+
+To end it yourself, **refund the buyer**: the calldata comes from [`GET /v1/payments/:id/escrow`](/guides/escrow#watch-the-hold) (`escrow.calls.refund`), sent from your payee wallet. The dispute then resolves as `refunded`.
+
+## Webhooks
+
+The three events use the same signed, retried delivery as every other event; see [verify webhooks](/guides/webhooks). Each `id` is the receiver's idempotency key: the dispute's for `escrow.disputed`, the message's for a message, and `<dispute id>:resolved` for the outcome. A repeated delivery carries the same `id`.
+
+### `escrow.disputed`
+
+```json
+{
+  "id": "dsp_01K…",
+  "type": "escrow.disputed",
+  "occurredAt": "2026-10-02T11:21:00.000Z",
+  "data": {
+    "disputeId": "dsp_01K…",
+    "reference": "92965881664",
+    "paymentIntentId": "pi_01M…",
+    "chain": "base-sepolia",
+    "payer": "0x1d96…f48f6",
+    "resolveBy": "2026-10-10T11:21:00.000Z"
+  }
+}
+```
+
+### `escrow.dispute.message`
+
+Sent for every message in the thread, whoever wrote it, including your own: so a second system of yours stays in step.
+
+```json
+{
+  "id": "dsm_01K…",
+  "type": "escrow.dispute.message",
+  "occurredAt": "2026-10-02T13:02:11.000Z",
+  "data": {
+    "disputeId": "dsp_01K…",
+    "reference": "92965881664",
+    "paymentIntentId": "pi_01M…",
+    "messageId": "dsm_01K…",
+    "author": "payer",
+    "body": "The parcel never arrived."
+  }
+}
+```
+
+`author` is `payer`, `merchant` or `arbiter`. `body` is the message text, so you can act on it without a second call. It is the merchant's own dispute thread: treat it as you would any customer text.
+
+### `escrow.dispute.resolved`
+
+```json
+{
+  "id": "dsp_01K…:resolved",
+  "type": "escrow.dispute.resolved",
+  "occurredAt": "2026-10-04T09:40:00.000Z",
+  "data": {
+    "disputeId": "dsp_01K…",
+    "reference": "92965881664",
+    "paymentIntentId": "pi_01M…",
+    "outcome": "refunded",
+    "decidedAt": "2026-10-04T09:40:00.000Z"
+  }
+}
+```
+
+`outcome` is `released` (to you), `refunded` (to the buyer) or `split` (divided by the arbiter). Sent once, when Mayarin sees the funds have moved on chain; that can be a minute or so after the transaction.
+
+A webhook is a notification, not settlement truth: re-read the dispute before you act on it.
+
+## The API
+
+Disputes are scoped to the merchant of the key. Another merchant's dispute is a `404`, the same answer as one that does not exist.
+
+| Route                            | Permission        | What it does                                                                                                    |
+| -------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/disputes`               | `payments:read`   | Your disputes, newest first, and how many are open. `?status=open\|released\|refunded\|split`, `?limit=1..100`. |
+| `GET /v1/disputes/:id`           | `payments:read`   | One dispute with its thread, oldest message first.                                                              |
+| `POST /v1/disputes/:id/messages` | `disputes:manage` | Answer in the thread. `{ "body": "…" }`, 1 to 2,000 characters.                                                 |
+
+`disputes:manage` is a separate permission on purpose. A key that can refund is not thereby allowed to speak for you in front of an arbiter, and a key that only replies cannot move money. Grant it when you create the secret key (**API keys** in the dashboard). A publishable key has no access.
+
+```bash
+curl https://api.mayarin.xyz/v1/disputes?status=open \
+  -H "Authorization: Bearer $MAYARIN_SECRET_KEY"
+```
+
+```json
+{
+  "disputes": [
+    {
+      "id": "dsp_01K…",
+      "reference": "92965881664",
+      "paymentIntentId": "pi_01M…",
+      "status": "open",
+      "chain": "base-sepolia",
+      "payer": "0x1d96…f48f6",
+      "resolveBy": "2026-10-10T11:21:00.000Z",
+      "openedAt": "2026-10-02T11:21:00.000Z",
+      "decidedAt": null
+    }
+  ],
+  "open": 1
+}
+```
+
+```bash
+curl https://api.mayarin.xyz/v1/disputes/dsp_01K… \
+  -H "Authorization: Bearer $MAYARIN_SECRET_KEY"
+```
+
+The same fields, plus `messages`:
+
+```json
+{
+  "dispute": {
+    "id": "dsp_01K…",
+    "status": "open",
+    "messages": [
+      {
+        "id": "dsm_01K…",
+        "author": "payer",
+        "body": "The parcel never arrived.",
+        "createdAt": "2026-10-02T13:02:11.000Z"
+      }
+    ]
+  }
+}
+```
+
+Reading a dispute also refreshes it from the chain, so a dispute that was decided shows its outcome here even if you missed the webhook.
+
+```bash
+curl -X POST https://api.mayarin.xyz/v1/disputes/dsp_01K…/messages \
+  -H "Authorization: Bearer $MAYARIN_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "body": "Delivered 2 Oct by JNE, tracking 123. Receipt attached in the order." }'
+```
+
+A `201` returns the saved message. A message is accepted only while the dispute is `open`; on a decided one the answer is `409`. Text is trimmed, and an empty or over-long message is a `400`.
+
+With the SDK:
+
+```ts
+import { createMayarin } from "@mayarin/sdk";
+
+const mayarin = createMayarin({
+  baseUrl: "https://api.mayarin.xyz",
+  secretKey: process.env.MAYARIN_SECRET_KEY ?? "",
+});
+
+const { disputes, open } = await mayarin.disputes.list({ status: "open" });
+const dispute = await mayarin.disputes.get(disputes[0].id);
+await mayarin.disputes.reply(dispute.id, "Delivered 2 Oct, tracking 123.");
+```
+
+See [the SDK page](/sdk/typescript/disputes).
+
+## Reacting by webhook
+
+A handler that answers the buyer's case as it arrives:
+
+```ts
+import { constructWebhook } from "@mayarin/sdk";
+
+export async function POST(request: Request) {
+  const event = await constructWebhook<{
+    type: string;
+    data: Record<string, string>;
+  }>({
+    payload: await request.text(),
+    signature: request.headers.get("webhook-signature") ?? "",
+    secret: process.env.MAYARIN_WEBHOOK_SECRET ?? "",
+  });
+
+  if (event.type === "escrow.disputed") {
+    await openCase(event.data.paymentIntentId, event.data.resolveBy);
+  } else if (
+    event.type === "escrow.dispute.message" &&
+    event.data.author === "payer"
+  ) {
+    // Look the order up, then answer with what you have.
+    const evidence = await deliveryEvidenceFor(event.data.paymentIntentId);
+    if (evidence !== undefined)
+      await mayarin.disputes.reply(event.data.disputeId, evidence);
+    else await escalateToSupport(event.data.disputeId); // or refund: see below
+  } else if (event.type === "escrow.dispute.resolved") {
+    await closeCase(event.data.paymentIntentId, event.data.outcome);
+  }
+
+  return new Response(null, { status: 204 });
+}
+```
+
+If you would rather refund than argue, read the escrow, send `escrow.calls.refund` from your payee wallet, and the dispute resolves as `refunded`.
+
+## Things to know
+
+- **Deliveries are at least once.** Deduplicate on `id`.
+- **Order is not guaranteed.** A `resolved` can overtake a `message` on a retry. Use `occurredAt`, or read the dispute.
+- **Your own replies come back as events** (`author: "merchant"`), whether you posted them through the API or the dashboard.
+- **Messages in the thread are visible to the buyer and the arbiter.** Do not put secrets in them.
+- **Only escrowed payments can be disputed.** An ordinary payment has no dispute; see [refunds](/guides/escrow#refund) for returning money on those.

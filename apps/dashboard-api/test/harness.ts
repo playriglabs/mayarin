@@ -538,6 +538,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     store: disputeStore,
     paymentApi,
     arbiter: config.escrowArbiter,
+    webhooks: { endpoints: webhookEndpoints, deliveries: webhookDeliveries },
     clock,
   });
 

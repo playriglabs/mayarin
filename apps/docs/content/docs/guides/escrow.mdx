@@ -66,7 +66,7 @@ Amounts are decimal strings in the settlement token's minor units. The buyer see
 
 You are told at once:
 
-- a webhook `escrow.disputed`, through the same signed, retried delivery as payment events — the event `id` is the dispute id;
+- a webhook `escrow.disputed`, through the same signed, retried delivery as payment events — the event `id` is the dispute id. Each later step has its own event, `escrow.dispute.message` and `escrow.dispute.resolved`, and the dispute and its thread can be read and answered through the API: see [Disputes](/guides/disputes);
 - an email to your admin accounts with the dispute number and a link to it;
 - a notification in the dashboard.
 
@@ -86,7 +86,7 @@ You are told at once:
 }
 ```
 
-The buyer states their case in the dispute's thread, from their payment page, and the arbiter answers there. You read the same thread in the dashboard under **Disputes**. Mayarin Resolution aims to decide within 3 days of the dispute.
+The buyer states their case in the dispute's thread, from their payment page, and the arbiter answers there. You read the same thread in the dashboard under **Disputes**, or through [the disputes API](/guides/disputes) from your own system. Mayarin Resolution aims to decide within 3 days of the dispute.
 
 ## Dispute bond
 

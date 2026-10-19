@@ -8,7 +8,7 @@ import {
 } from "../src/permission.ts";
 
 describe("permission", () => {
-  test("the permission list is the eight merchant flags plus the platform's arbiter", () => {
+  test("the permission list is the nine merchant flags plus the platform's arbiter", () => {
     expect(PERMISSION_LIST).toEqual([
       "payments:read",
       "users:manage",
@@ -18,6 +18,7 @@ describe("permission", () => {
       "refunds:manage",
       "api-keys:manage",
       "wallets:withdraw",
+      "disputes:manage",
       "disputes:arbitrate",
     ]);
   });
@@ -52,6 +53,7 @@ describe("permission", () => {
       "refunds:manage",
       "api-keys:manage",
       "wallets:withdraw",
+      "disputes:manage",
     ]);
   });
 });
