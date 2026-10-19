@@ -191,14 +191,15 @@ describe("SolanaDepositClient", () => {
     test("one head answer serves every asset's tick, and a failure is not reused", async () => {
       let now = new Date("2026-01-01T00:00:00.000Z");
       const slot = counted(async () => 500);
-      const connection = {
-        getSlot: slot,
-        getBlock: async () => ({ blockhash: BLOCK_HASH }),
-      } as unknown as Connection;
+      const block = counted(async () => ({ blockhash: BLOCK_HASH }));
+      const connection = { getSlot: slot, getBlock: block } as unknown as Connection;
       const client = new SolanaDepositClient({ connection, tokens: {}, clock: { now: () => now } });
 
-      await Promise.all([client.head(CHAIN), client.head(CHAIN), client.head(CHAIN)]);
+      const heads = await Promise.all([client.head(CHAIN), client.head(CHAIN), client.head(CHAIN)]);
+      expect(heads[0]).toEqual({ number: 500n });
       expect(calls(connection, "getSlot")).toBe(1);
+      // The head is a slot number; its hash is not worth a getBlock.
+      expect(calls(connection, "getBlock")).toBe(0);
 
       now = new Date(now.getTime() + 2_001);
       await client.head(CHAIN);

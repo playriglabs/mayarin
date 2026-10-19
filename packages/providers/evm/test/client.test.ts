@@ -13,7 +13,7 @@ describe.skipIf(RPC_URLS === undefined)("EvmChainClient", () => {
 
   test("reads a canonical block hash at a height", async () => {
     const head = await client.head("base-sepolia");
-    expect(await client.blockHash("base-sepolia", head.number)).toBe(head.hash);
+    expect(await client.blockHash("base-sepolia", head.number)).toBe(head.hash ?? null);
   });
 
   test("returns null above the head", async () => {

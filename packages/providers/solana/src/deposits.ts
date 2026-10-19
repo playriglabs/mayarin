@@ -26,8 +26,8 @@ export interface SolanaDepositClientOptions {
 
 /**
  * How long one `head` answer is reused. The watcher ticks once per asset, all
- * within a second or two of each other, and every tick asks for the head:
- * without this each asset pays a `getSlot` and a `getBlock` for the same slot.
+ * within a second or two of each other, and the payment status endpoint asks
+ * on every poll: without this each of them pays a `getSlot`.
  */
 export const HEAD_TTL_MS = 2_000;
 
@@ -61,19 +61,13 @@ export class SolanaDepositClient implements ChainClient {
     return block;
   }
 
+  /**
+   * The slot only. A `getBlock` for the hash, retried back through up to 32
+   * slots because the newest confirmed slot often has no block yet, was
+   * the largest single cost on the RPC bill (44%); nothing reads a head's hash.
+   */
   async #readHead(): Promise<BlockRef> {
-    let slot = await this.#connection.getSlot("confirmed");
-    for (let attempt = 0; attempt < 32; attempt += 1) {
-      const block = await this.#connection.getBlock(slot, {
-        commitment: "confirmed",
-        transactionDetails: "none",
-        rewards: false,
-        maxSupportedTransactionVersion: 0,
-      });
-      if (block !== null) return { number: BigInt(slot), hash: block.blockhash };
-      slot -= 1;
-    }
-    throw new Error("No recent confirmed Solana block is available");
+    return { number: BigInt(await this.#connection.getSlot("confirmed")) };
   }
 
   async blockHash(_chain: ChainId, number: bigint): Promise<string | null> {

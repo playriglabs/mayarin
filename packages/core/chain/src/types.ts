@@ -177,10 +177,15 @@ export function chainOfCaip2(id: string): ChainId | undefined {
   return CHAIN_IDS.find((chain) => caip2Of(chain) === id);
 }
 
-/** A block identified by both height and hash — the hash is what detects a reorg. */
+/**
+ * A block identified by height and, where the client has it, hash. The hash is
+ * what detects a reorg, but that probe asks `blockHash` for it; nothing reads
+ * the hash of a head. A client for which the hash costs a call (Solana's is a
+ * `getBlock`) leaves it out of `head`.
+ */
 export interface BlockRef {
   readonly number: bigint;
-  readonly hash: string;
+  readonly hash?: string;
 }
 
 /** An ERC-20 `Transfer` as read from the chain, before any policy is applied. */
