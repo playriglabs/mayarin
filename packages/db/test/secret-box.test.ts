@@ -25,8 +25,11 @@ describe("SecretBox (SEC-12)", () => {
   test("a tampered value does not open", () => {
     const box = new SecretBox(KEY);
     const stored = box.seal("whsec_x");
-    const flipped = `${stored.slice(0, -2)}${stored.endsWith("A") ? "B" : "A"}=`;
-    expect(() => box.open(flipped)).toThrow();
+    // A byte of the ciphertext, not the base64 text: the last characters carry
+    // padding bits that decode to the same bytes, so flipping one is a coin toss.
+    const raw = Buffer.from(stored.slice("enc:v1:".length), "base64");
+    raw[raw.length - 1] = (raw[raw.length - 1] ?? 0) ^ 0xff;
+    expect(() => box.open(`enc:v1:${raw.toString("base64")}`)).toThrow();
   });
 
   test("a row written before encryption is returned as it is", () => {
