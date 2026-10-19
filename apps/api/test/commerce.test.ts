@@ -430,9 +430,8 @@ describe("hosted checkout", () => {
     expect(page.bootstrap.intentId).toBe(paid.body.paymentIntent.id);
     expect(page.bootstrap.amount.display).toBe("Rp 50.000,00");
     // Where the SPA reads status from, and how, are the page's to know.
-    expect(page.bootstrap.statusUrl).toBe(
-      `http://localhost:3000/v1/payments/${paid.body.paymentIntent.id}`,
-    );
+    // Relative: the page's CSP allows requests to its own origin only.
+    expect(page.bootstrap.statusUrl).toBe(`/v1/payments/${paid.body.paymentIntent.id}`);
     expect(typeof page.bootstrap.streaming).toBe("boolean");
     expect(page.bootstrap.pollMs).toBeGreaterThan(0);
   });

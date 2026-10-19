@@ -7,10 +7,8 @@
  * else, so the full `/v1/*` API surface is not exposed on the pay host.
  *
  * The SPA issues relative `/v1/*` calls, so forwarding them same-origin is what
- * lets it run unmodified. The Worker stamps `x-forwarded-host` /
- * `x-forwarded-proto` with the inbound values so `core-api` builds a
- * same-origin bootstrap `statusUrl` (see `requestOrigin` in
- * `apps/api/src/services/checkout-shell.ts`).
+ * lets it run unmodified, and its CSP (`connect-src 'self'`) requires it: the
+ * bootstrap carries relative URLs, never an API host.
  *
  * SSE on `/checkout/events/:id` streams: the origin `Response` is returned
  * directly, never buffered.
@@ -51,10 +49,6 @@ export default {
     for (const [name, value] of request.headers) {
       if (!STRIP_HEADERS.has(name.toLowerCase())) headers.set(name, value);
     }
-    // The origin builds the bootstrap `statusUrl` from this, so the pay page
-    // polls its own host rather than the API host behind the proxy.
-    headers.set("x-forwarded-host", url.hostname);
-    headers.set("x-forwarded-proto", url.protocol.replace(":", ""));
 
     const response = await fetch(target, {
       method: request.method,

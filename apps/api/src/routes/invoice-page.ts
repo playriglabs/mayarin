@@ -22,7 +22,7 @@ import { toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
 import { merchantLogoUrl } from "../merchant-logo.ts";
 import { payerRails } from "../rails.ts";
-import { requestOrigin, shellResponse } from "../services/checkout-shell.ts";
+import { shellResponse } from "../services/checkout-shell.ts";
 import { type ProtectionOffer, protectionOffer } from "../services/protection.ts";
 
 export function invoicePageRoutes(container: Container): Hono {
@@ -35,7 +35,6 @@ export function invoicePageRoutes(container: Container): Hono {
     // cannot offer a pair the link page would refuse — ranked the same way
     // (#260), so it cannot offer an order the link page would not either.
     const report = await container.rails.describe(view.invoice.merchantId);
-    const origin = requestOrigin((name) => c.req.header(name), container.config.publicBaseUrl);
     // A subscription's cycle is an ordinary invoice; the page only needs to
     // know the period, so checkout can price it "/ mo" the way a plan reads.
     const subscriptionId = view.invoice.metadata[SUBSCRIPTION_METADATA_KEY];
@@ -48,7 +47,7 @@ export function invoicePageRoutes(container: Container): Hono {
       distDir,
       invoiceBootstrap(
         view,
-        `${origin}/v1/invoices/${view.invoice.id}/checkout`,
+        `/v1/invoices/${view.invoice.id}/checkout`,
         await payerRails(report.rails),
         await protectionOffer(container, view.invoice.merchantId, undefined),
         await merchantLogoUrl(container, view.invoice.merchantId),
