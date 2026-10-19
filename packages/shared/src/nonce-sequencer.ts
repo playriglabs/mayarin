@@ -15,8 +15,12 @@ export interface NonceSequencer {
    * the chain's pending count (`observed`), raised to the one after the last
    * nonce this sequencer handed out, because a node may not have seen that
    * broadcast yet. The counter advances only when `send` resolves.
+   *
+   * `send` returns the transaction hash. A durable sequencer records it against
+   * the nonce, which is what lets `OperatorTransactionReconciler` tell a
+   * finalized transaction from a stuck, replaced or never-recorded one.
    */
-  broadcast<T>(
+  broadcast<T extends string>(
     key: string,
     observed: () => Promise<number>,
     send: (nonce: number) => Promise<T>,
@@ -28,7 +32,7 @@ export class InMemoryNonceSequencer implements NonceSequencer {
   readonly #queues = new Map<string, Promise<unknown>>();
   readonly #next = new Map<string, number>();
 
-  broadcast<T>(
+  broadcast<T extends string>(
     key: string,
     observed: () => Promise<number>,
     send: (nonce: number) => Promise<T>,

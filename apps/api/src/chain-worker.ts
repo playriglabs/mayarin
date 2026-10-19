@@ -54,6 +54,24 @@ if (finishedRefunds.length > 0) {
 const REFUND_RECOVERY_INTERVAL_MS = 5 * 60_000;
 /** Reconciliation looks back this far each time; older refunds were checked many times already. */
 const REFUND_RECONCILE_WINDOW_MS = 7 * 24 * 60 * 60_000;
+// What the operator key sent and what became of it (SEC-04). Reports, never
+// rebroadcasts: a stuck or replaced transaction is a decision for a person.
+const OPERATOR_RECONCILE_INTERVAL_MS = 60_000;
+let reconcilingOperator = false;
+const operatorReconcileTimer = setInterval(() => {
+  if (reconcilingOperator) return;
+  reconcilingOperator = true;
+  void container.operatorTransactions
+    .run()
+    .then((findings) => {
+      for (const finding of findings) console.error(JSON.stringify(finding));
+    })
+    .catch((error: unknown) => console.error("[chain-worker] operator reconcile failed", error))
+    .finally(() => {
+      reconcilingOperator = false;
+    });
+}, OPERATOR_RECONCILE_INTERVAL_MS);
+
 let recoveringRefunds = false;
 const refundRecoveryTimer = setInterval(() => {
   if (recoveringRefunds) return;
@@ -122,6 +140,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   stopIndexerLoops();
   stopEscrowKeeper();
   clearInterval(refundRecoveryTimer);
+  clearInterval(operatorReconcileTimer);
   await container.close();
   await lease.release();
   process.exit(0);

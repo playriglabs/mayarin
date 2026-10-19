@@ -9,7 +9,7 @@ describe("InMemoryNonceSequencer", () => {
     const observed = async () => 5;
     const send = async (nonce: number) => {
       used.push(nonce);
-      return nonce;
+      return `0x${nonce}`;
     };
 
     await Promise.all([
@@ -26,7 +26,7 @@ describe("InMemoryNonceSequencer", () => {
     await sequencer.broadcast(
       "k",
       async () => 5,
-      async (n) => n,
+      async (n) => `0x${n}`,
     );
     await expect(
       sequencer.broadcast(
@@ -41,9 +41,9 @@ describe("InMemoryNonceSequencer", () => {
       await sequencer.broadcast(
         "k",
         async () => 6,
-        async (n) => n,
+        async (n) => `0x${n}`,
       ),
-    ).toBe(6);
+    ).toBe("0x6");
   });
 
   test("keys do not wait on or share a counter", async () => {
@@ -51,14 +51,14 @@ describe("InMemoryNonceSequencer", () => {
     await sequencer.broadcast(
       "a",
       async () => 9,
-      async (n) => n,
+      async (n) => `0x${n}`,
     );
     expect(
       await sequencer.broadcast(
         "b",
         async () => 2,
-        async (n) => n,
+        async (n) => `0x${n}`,
       ),
-    ).toBe(2);
+    ).toBe("0x2");
   });
 });

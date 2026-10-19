@@ -48,6 +48,7 @@ import {
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantRepository,
   DrizzleMerchantWalletRepository,
+  DrizzleOperatorTransactionStore,
   DrizzlePayableQuoteRepository,
   DrizzlePaymentFundingRepository,
   DrizzlePaymentIntentRepository,
@@ -122,6 +123,7 @@ import {
   InMemoryEventBus,
   type NonceSequencer,
   NotFoundError,
+  OperatorTransactionReconciler,
   systemClock,
 } from "@mayarin/shared";
 import { pairsOf, type Stablecoin, type StablecoinRegistry } from "@mayarin/stablecoin";
@@ -152,6 +154,7 @@ import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
 import { FiatSettler } from "./services/fiat-settler.ts";
+import { rpcOperatorChainReader } from "./services/operator-chain-reader.ts";
 import { PaidNotifier } from "./services/paid-notifier.ts";
 import { PayerStanding } from "./services/payer-standing.ts";
 import { PaymentAppService } from "./services/payment.ts";
@@ -194,6 +197,8 @@ export interface Container {
   readonly paymentApp: PaymentAppService;
   /** Refunds against settled payments (#12). */
   readonly refunds: RefundService;
+  /** Closes the operator key's sent-transaction rows once the chain settles them (SEC-04). */
+  readonly operatorTransactions: OperatorTransactionReconciler;
   /**
    * Live payment status for the hosted checkout (#13).
    *
@@ -985,7 +990,14 @@ export function createContainer({
         })
       : undefined;
 
-  const nonces = new PostgresNonceSequencer(handle.db, clock);
+  // Its own two connections for the outbox writes; see PostgresNonceSequencer.
+  const outbox = createDatabase({ url: config.databaseUrl, maxConnections: 2 });
+  const nonces = new PostgresNonceSequencer(handle.db, clock, outbox.db);
+  const operatorTransactions = new OperatorTransactionReconciler({
+    store: new DrizzleOperatorTransactionStore(handle.db),
+    chain: rpcOperatorChainReader(config.chainRpcUrls),
+    clock,
+  });
 
   const treasury = createTreasuryExecutor({
     config,
@@ -1456,6 +1468,7 @@ export function createContainer({
         }),
     ...(paidNotices === undefined ? {} : { paidNotices }),
     refunds,
+    operatorTransactions,
     ...(stream === undefined ? {} : { stream }),
     adapters,
     events,
@@ -1475,7 +1488,10 @@ export function createContainer({
     ...(webhookDeliveries === undefined ? {} : { webhookDeliveries }),
     ...(x402 === undefined ? {} : { x402 }),
     ...(x402Payables === undefined ? {} : { x402Payables }),
-    close: () => handle.close(),
+    close: async () => {
+      await outbox.close();
+      await handle.close();
+    },
   };
 }
 

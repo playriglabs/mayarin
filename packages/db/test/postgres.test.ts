@@ -63,6 +63,7 @@ import {
   DrizzleWebhookEndpointRepository,
   DrizzleWebhookOutbox,
 } from "../src/repositories/notifications.ts";
+import { DrizzleOperatorTransactionStore } from "../src/repositories/operator-transactions.ts";
 import { DrizzlePaymentIntentRepository } from "../src/repositories/payment-intent.ts";
 import { DrizzleRefundRepository } from "../src/repositories/refund.ts";
 import {
@@ -70,6 +71,7 @@ import {
   DrizzleWalletWithdrawalRepository,
 } from "../src/repositories/wallet.ts";
 import { DrizzleX402ResourceRepository } from "../src/repositories/x402.ts";
+import { operatorTransactions } from "../src/schema.ts";
 import { guardedTestDatabaseUrl } from "./database-guard.ts";
 
 const TEST_DATABASE_URL = guardedTestDatabaseUrl(process.env);
@@ -127,7 +129,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
    */
   async function truncateAll(): Promise<void> {
     await handle.db.execute(
-      sql`truncate table operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
+      sql`truncate table operator_transactions, operator_nonces, escrow_dispute_messages, escrow_disputes, x402_resources, webhook_deliveries, webhook_endpoints, webhook_cursors, wallet_withdrawals, wallet_challenges, merchant_wallets, sessions, users, merchants, chain_deposits, deposit_addresses, settlement_events, watcher_cursors, clearing_events, clearing_transactions, ledger_entries, ledger_transactions, ledger_accounts, payment_intents restart identity cascade`,
     );
   }
 
@@ -946,8 +948,12 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
   describe("nonce sequencer", () => {
     // Its own clock: advancing the suite's shared one would age everything after.
     const nonceClock = new FixedClock("2026-01-01T00:00:00.000Z");
+    // The suite pool is 4 and the first test runs 4 submitters at once: the
+    // outbox must not need a connection from it.
+    const outbox = createDatabase({ url: TEST_DATABASE_URL as string, maxConnections: 2 });
+    afterAll(() => outbox.close());
     test("concurrent submitters on separate connections get distinct nonces", async () => {
-      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock);
+      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
       const used: number[] = [];
       // A node that has not seen the last broadcast always answers 7.
       const run = () =>
@@ -957,7 +963,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
           async (nonce) => {
             used.push(nonce);
             await new Promise((resolve) => setTimeout(resolve, 10));
-            return nonce;
+            return `0x${nonce}`;
           },
         );
 
@@ -967,11 +973,11 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     });
 
     test("a failed send is not counted, and the floor is dropped", async () => {
-      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock);
+      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
       await sequencer.broadcast(
         "k",
         async () => 3,
-        async (nonce) => nonce,
+        async (nonce) => `0x${nonce}`,
       );
       await expect(
         sequencer.broadcast(
@@ -985,17 +991,42 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         await sequencer.broadcast(
           "k",
           async () => 4,
-          async (nonce) => nonce,
+          async (nonce) => `0x${nonce}`,
         ),
-      ).toBe(4);
+      ).toBe("0x4");
     });
 
-    test("a stale floor is ignored so a dropped broadcast cannot leave a gap", async () => {
-      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock);
+    test("records each nonce: submitted with its hash, abandoned when the send fails", async () => {
+      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
       await sequencer.broadcast(
         "k",
         async () => 3,
-        async (nonce) => nonce,
+        async (nonce) => `0x${nonce}`,
+      );
+      await expect(
+        sequencer.broadcast(
+          "k",
+          async () => 4,
+          () => Promise.reject(new Error("boom")),
+        ),
+      ).rejects.toThrow("boom");
+
+      const rows = await new DrizzleOperatorTransactionStore(handle.db).listOpen();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ key: "k", nonce: 3, status: "submitted", txHash: "0x3" });
+      const all = await handle.db.select().from(operatorTransactions);
+      expect(all.map((row) => [row.nonce, row.status]).sort()).toEqual([
+        [3, "submitted"],
+        [4, "abandoned"],
+      ]);
+    });
+
+    test("a stale floor is ignored so a dropped broadcast cannot leave a gap", async () => {
+      const sequencer = new PostgresNonceSequencer(handle.db, nonceClock, outbox.db);
+      await sequencer.broadcast(
+        "k",
+        async () => 3,
+        async (nonce) => `0x${nonce}`,
       );
 
       nonceClock.advance(FLOOR_TTL_MS + 1);
@@ -1004,9 +1035,9 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
         await sequencer.broadcast(
           "k",
           async () => 3,
-          async (nonce) => nonce,
+          async (nonce) => `0x${nonce}`,
         ),
-      ).toBe(3);
+      ).toBe("0x3");
     });
   });
 

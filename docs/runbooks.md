@@ -106,12 +106,24 @@ resources). It is one static bearer.
 ## Chain worker or nonce trouble
 
 The worker holds a Postgres advisory lease; a second replica waits, and a worker
-that loses the lease exits. Nonces come from a shared Postgres sequencer.
+that loses the lease exits. Nonces come from a shared Postgres sequencer, which
+records every nonce in `operator_transactions`; the worker closes finished rows
+once a minute and logs the rest as `{"type":"operator-tx","finding":...}`:
+
+- `stuck`: broadcast, no receipt, the chain has not reached the nonce. Replace it
+  by hand from the operator key with the same nonce and a higher fee.
+- `replaced`: the chain used the nonce for something else. Check the payment it
+  belonged to; the clearing engine will retry it.
+- `unrecorded`: a nonce was allocated, no hash was recorded, the chain moved
+  past it. A broadcast may have landed. Look at the operator key's history for
+  that nonce before retrying the payment.
+- `reverted`: mined and failed. The nonce is spent, the payment is not.
+
+Nothing rebroadcasts on its own.
 
 1. Stop the worker (platform console) before touching anything.
-2. Check for a stuck transaction from the operator key; the sequencer has a 60 s
-   floor and **no replace/finalise recovery** (SEC-04), so a dropped
-   transaction means a manual replacement from that key.
+2. Read the findings above, and
+   `select * from operator_transactions where status in ('allocated','submitted')`.
 3. Restart one replica. Deposits are keyed by `(chain, tx_hash, log_index)`, so a
    re-scan is safe.
 

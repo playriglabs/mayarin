@@ -46,6 +46,7 @@ export const ID_PREFIXES = {
   escrowDispute: "dsp",
   escrowDisputeMessage: "dsm",
   adminAudit: "aud",
+  operatorTransaction: "otx",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];
