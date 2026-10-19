@@ -58,4 +58,30 @@ describe("allowlist", () => {
     expect(allowed("GET", "/invoices/01INV")).toBe(false);
     expect(allowed("POST", "/invoices/01INV/view")).toBe(false);
   });
+
+  test("forwards the local-currency and protection calls the SPA makes", () => {
+    expect(allowed("GET", "/v1/fiat-onramp/currencies")).toBe(true);
+    expect(allowed("GET", "/v1/fiat-onramp/methods")).toBe(true);
+    expect(allowed("POST", "/v1/fiat-onramp/rail")).toBe(true);
+    expect(allowed("GET", "/v1/fiat-onramp/01INTENT/funding")).toBe(true);
+    expect(allowed("POST", "/v1/fiat-onramp/01INTENT/order")).toBe(true);
+    expect(allowed("GET", "/v1/payers/0xabc/protection")).toBe(true);
+    expect(allowed("POST", "/v1/payments/01INTENT/escrow/dispute/messages")).toBe(true);
+  });
+
+  test("keeps the rest of those families closed, by method and by segment", () => {
+    expect(allowed("POST", "/v1/fiat-onramp/currencies")).toBe(false); // wrong method
+    expect(allowed("GET", "/v1/fiat-onramp/rail")).toBe(false);
+    expect(allowed("GET", "/v1/fiat-onramp/01INTENT/order")).toBe(false);
+    expect(allowed("POST", "/v1/fiat-onramp/01INTENT/funding")).toBe(false);
+    expect(allowed("POST", "/v1/fiat-onramp/a/b/order")).toBe(false); // extra segment
+    expect(allowed("POST", "/v1/fiat-onramp//order")).toBe(false); // empty id
+    expect(allowed("GET", "/v1/fiat-onramp/01INTENT")).toBe(false);
+    expect(allowed("GET", "/v1/payers/0xabc")).toBe(false);
+    expect(allowed("GET", "/v1/payers/0xabc/protection/extra")).toBe(false);
+    expect(allowed("GET", "/v1/payers")).toBe(false);
+    expect(allowed("POST", "/v1/payments/01INTENT/refunds")).toBe(false);
+    expect(allowed("POST", "/v1/payments/01INTENT/retry")).toBe(false);
+    expect(allowed("POST", "/v1/payments/01INTENT/escrow/dispute")).toBe(false);
+  });
 });
