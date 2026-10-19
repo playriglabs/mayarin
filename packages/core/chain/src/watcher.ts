@@ -180,7 +180,12 @@ export class WalletWatcher {
     const reconciled = reconcileBalance
       ? await this.#reconcileBalances(chain, asset, head.number, watched, now)
       : 0;
-    const { confirmed, orphaned } = await this.#reclassify(chain, head.number, watched, now);
+    const { confirmed, orphaned, rewinds } = await this.#reclassify(
+      chain,
+      head.number,
+      watched,
+      now,
+    );
     const funded = await this.#fund(chain, asset, watched);
 
     // A confirmed balance accounts for everything through its settled height,
@@ -191,9 +196,16 @@ export class WalletWatcher {
     const reconciledTo = reconcileBalance ? this.#settledBlock(head.number) : undefined;
     const cursorTo = max(hasNewBlocks ? to : start, reconciledTo ?? start);
 
+    // A reorg replaced blocks this scan had already passed, so what the
+    // replacement chain holds there has not been read. Move each affected
+    // stream back to just before the first replaced block; the re-read is
+    // idempotent, and this stream's own advance is dropped so it cannot undo it.
+    for (const [rewound, block] of rewinds) {
+      await this.#cursors.rewind(chain, rewound, block - 1n);
+    }
     // Written last: a crash before this line repeats the scan and balance read,
     // both of which are idempotent.
-    if (cursorTo > start) await this.#cursors.set(chain, asset, cursorTo);
+    if (cursorTo > start && !rewinds.has(asset)) await this.#cursors.set(chain, asset, cursorTo);
 
     return {
       chain,
@@ -316,7 +328,12 @@ export class WalletWatcher {
     headNumber: bigint,
     watched: readonly WatchedAddress[],
     now: Date,
-  ): Promise<{ confirmed: number; orphaned: number }> {
+  ): Promise<{
+    confirmed: number;
+    orphaned: number;
+    /** Per asset, the lowest block a reorg took a deposit out of. */
+    rewinds: ReadonlyMap<AssetCode, bigint>;
+  }> {
     const probable = await this.#deposits.listProbable(chain, this.#probeLimit);
     const inWatch: Deposit[] = [];
     // Past the reorg-watch window a deposit is final — that is what the window
@@ -339,7 +356,7 @@ export class WalletWatcher {
     }
 
     if (inWatch.length === 0 && finalPending.length === 0) {
-      return { confirmed: 0, orphaned: 0 };
+      return { confirmed: 0, orphaned: 0, rewinds: new Map() };
     }
 
     // One probe per distinct height: N deposits in one block cost one call.
@@ -375,9 +392,18 @@ export class WalletWatcher {
 
     await this.#publishOrphans(orphans, watched, now);
 
+    const rewinds = new Map<AssetCode, bigint>();
+    for (const orphan of orphans) {
+      const known = rewinds.get(orphan.amount.asset);
+      if (known === undefined || orphan.blockNumber < known) {
+        rewinds.set(orphan.amount.asset, orphan.blockNumber);
+      }
+    }
+
     return {
       confirmed: updates.filter((update) => update.status === "CONFIRMED").length,
       orphaned: updates.filter((update) => update.status === "ORPHANED").length,
+      rewinds,
     };
   }
 

@@ -192,7 +192,19 @@ export class DrizzleDepositRepository implements DepositRepository {
           firstSeenAt: new Date(now),
         })),
       )
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: [chainDeposits.chain, chainDeposits.txHash, chainDeposits.logIndex],
+        // Only an orphan comes back to life: the same transaction, mined again
+        // into the replacement chain. Anything else is a replayed scan.
+        set: {
+          status: "PENDING",
+          blockNumber: sql`excluded.block_number`,
+          blockHash: sql`excluded.block_hash`,
+          confirmedAt: null,
+          orphanedAt: null,
+        },
+        setWhere: sql`${chainDeposits.status} = 'ORPHANED'`,
+      });
 
     const rows = await this.#db
       .select()
@@ -305,6 +317,16 @@ export class DrizzleWatcherCursorRepository implements WatcherCursorRepository {
           updatedAt: new Date(),
         },
       });
+  }
+
+  async rewind(chain: ChainId, stream: string, block: bigint): Promise<void> {
+    await this.#db
+      .update(watcherCursors)
+      .set({
+        lastBlock: sql`least(${watcherCursors.lastBlock}, ${block.toString()}::numeric)`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(watcherCursors.chain, chain), eq(watcherCursors.asset, stream)));
   }
 }
 

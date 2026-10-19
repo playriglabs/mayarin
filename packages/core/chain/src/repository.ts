@@ -50,7 +50,11 @@ export interface DepositStatusUpdate {
 }
 
 export interface DepositRepository {
-  /** Upsert on `(chain, txHash, logIndex)`. Replaying a log cannot double-count. */
+  /**
+   * Upsert on `(chain, txHash, logIndex)`. Replaying a log cannot double-count.
+   * A log that was ORPHANED and is seen again (the same transaction mined into
+   * the replacement chain) is a new PENDING observation at its new block.
+   */
   record(transfers: readonly TransferLog[], now: Date): Promise<Deposit[]>;
   /** Non-terminal or recently-confirmed deposits worth re-probing, oldest first. */
   listProbable(chain: ChainId, limit: number): Promise<Deposit[]>;
@@ -81,7 +85,13 @@ export interface DepositRepository {
  */
 export interface WatcherCursorRepository {
   get(chain: ChainId, stream: string): Promise<bigint | null>;
+  /** Forward only: a slow or duplicate worker cannot drag progress backwards. */
   set(chain: ChainId, stream: string, block: bigint): Promise<void>;
+  /**
+   * Moves the cursor back to `block`, never forward. The one way a scan is made
+   * to read blocks again, used when a reorg replaced blocks it had passed.
+   */
+  rewind(chain: ChainId, stream: string, block: bigint): Promise<void>;
 }
 
 export interface SettlementStatusUpdate {
