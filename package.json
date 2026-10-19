@@ -27,6 +27,7 @@
     "db:down": "docker compose down",
     "db:generate": "bun run --cwd packages/db generate",
     "db:migrate": "bun run --cwd packages/db migrate",
+    "db:rotate-webhook-secrets": "bun run --cwd packages/db rotate-webhook-secrets",
     "db:reset": "bun run db:wipe && bun run db:migrate",
     "db:studio": "bun run --cwd packages/db studio",
     "db:check:railway": "bun run scripts/with-railway-db.ts",

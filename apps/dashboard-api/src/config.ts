@@ -50,6 +50,11 @@ const configSchema = z.object({
   mfaEncryptionKey: z.string().min(32),
   /** Same value as the payment API's: both read webhook endpoints (SEC-12). */
   webhookSecretEncryptionKey: z.string().min(32).optional(),
+  /** Keys that rows may still be sealed under while a rotation rewrites them; comma separated. */
+  webhookSecretPreviousKeys: z
+    .string()
+    .default("")
+    .transform((value) => value.split(",").filter((key) => key !== "")),
   /**
    * Proves to the payment API that this service, not a payer, is asking about a
    * payment (SEC-09). Must equal its `INTERNAL_API_TOKEN`.
@@ -298,6 +303,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     displayRatesTtlSeconds: env.DISPLAY_RATES_TTL_SECONDS,
     mfaEncryptionKey: env.MFA_ENCRYPTION_KEY,
     webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
+    webhookSecretPreviousKeys: env.WEBHOOK_SECRET_PREVIOUS_KEYS,
     internalApiToken: env.INTERNAL_API_TOKEN,
     payerTokenKey: env.PAYER_TOKEN_KEY,
     payerTokenTtlSeconds: env.PAYER_TOKEN_TTL_SECONDS,

@@ -160,6 +160,11 @@ const configSchema = z.object({
    * configured.
    */
   webhookSecretEncryptionKey: z.string().min(32).optional(),
+  /** Keys that rows may still be sealed under while a rotation rewrites them; comma separated. */
+  webhookSecretPreviousKeys: z
+    .string()
+    .default("")
+    .transform((value) => value.split(",").filter((key) => key !== "")),
   /**
    * Signs the payer's token for one payment (SEC-09). Unset: a random key per
    * process, so every restart invalidates the links already handed out. Required
@@ -1250,6 +1255,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     maxPaymentSettlement: env.MAX_PAYMENT_SETTLEMENT,
     maxMerchantDailySettlement: env.MAX_MERCHANT_DAILY_SETTLEMENT,
     webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
+    webhookSecretPreviousKeys: env.WEBHOOK_SECRET_PREVIOUS_KEYS,
     payerTokenKey: env.PAYER_TOKEN_KEY,
     payerTokenTtlSeconds: env.PAYER_TOKEN_TTL_SECONDS,
     internalApiToken: env.INTERNAL_API_TOKEN,
