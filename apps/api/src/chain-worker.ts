@@ -57,8 +57,8 @@ if (finishedRefunds.length > 0) {
 const REFUND_RECOVERY_INTERVAL_MS = 5 * 60_000;
 /** Reconciliation looks back this far each time; older refunds were checked many times already. */
 const REFUND_RECONCILE_WINDOW_MS = 7 * 24 * 60 * 60_000;
-// What the operator key sent and what became of it (SEC-04). Reports, never
-// rebroadcasts: a stuck or replaced transaction is a decision for a person.
+// What the operator key sent and what became of it (SEC-04). A stuck transaction
+// is replaced with higher fees a bounded number of times; the rest is reported.
 const OPERATOR_RECONCILE_INTERVAL_MS = 60_000;
 let reconcilingOperator = false;
 const operatorReconcileTimer = setInterval(() => {
@@ -74,6 +74,29 @@ const operatorReconcileTimer = setInterval(() => {
       reconcilingOperator = false;
     });
 }, OPERATOR_RECONCILE_INTERVAL_MS);
+
+// What the operator holds against its limits (SEC-06). Reports a balance above
+// its ceiling or native currency under its floor; it moves nothing.
+const OPERATOR_FLOAT_INTERVAL_MS = 5 * 60_000;
+let checkingFloat = false;
+const operatorFloatTimer =
+  container.operatorFloat === undefined
+    ? undefined
+    : setInterval(() => {
+        if (checkingFloat) return;
+        checkingFloat = true;
+        void container.operatorFloat
+          ?.run()
+          .then((findings) => {
+            for (const finding of findings) console.error(JSON.stringify(finding));
+          })
+          .catch((error: unknown) =>
+            console.error("[chain-worker] operator float check failed", error),
+          )
+          .finally(() => {
+            checkingFloat = false;
+          });
+      }, OPERATOR_FLOAT_INTERVAL_MS);
 
 let recoveringRefunds = false;
 const refundRecoveryTimer = setInterval(() => {
@@ -144,6 +167,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   stopEscrowKeeper();
   clearInterval(refundRecoveryTimer);
   clearInterval(operatorReconcileTimer);
+  clearInterval(operatorFloatTimer);
   await container.close();
   await lease.release();
   process.exit(0);

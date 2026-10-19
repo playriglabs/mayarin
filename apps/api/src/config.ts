@@ -541,6 +541,16 @@ const configSchema = z.object({
   operatorTurnkeyApiPublicKey: z.string().min(1).optional(),
   operatorTurnkeyApiPrivateKey: z.string().min(1).optional(),
   /**
+   * What the operator may hold, per chain and asset: `{"base":{"USDC":{"max":"500"},"ETH":{"min":"0.005"}}}`.
+   * A ceiling bounds what a compromise takes; a floor on the native asset warns
+   * before the operator cannot pay gas. The chain worker reports a breach every
+   * five minutes; it moves nothing (SEC-06).
+   */
+  operatorFloatLimits: jsonObject<Record<string, Record<string, { min?: string; max?: string }>>>(
+    "OPERATOR_FLOAT_LIMITS",
+    "{}",
+  ),
+  /**
    * The x402 rail (#207): endpoints payable per call by an agent that never
    * registered.
    *
@@ -1423,6 +1433,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     operatorSigner: env.OPERATOR_SIGNER,
     operatorTurnkeySignWith: env.OPERATOR_TURNKEY_SIGN_WITH,
     operatorAddress: env.OPERATOR_ADDRESS,
+    operatorFloatLimits: env.OPERATOR_FLOAT_LIMITS,
     operatorTurnkeyApiPublicKey: env.OPERATOR_TURNKEY_API_PUBLIC_KEY,
     operatorTurnkeyApiPrivateKey: env.OPERATOR_TURNKEY_API_PRIVATE_KEY,
     treasuryMaxAttempts: env.TREASURY_MAX_ATTEMPTS,

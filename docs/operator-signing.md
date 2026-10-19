@@ -68,8 +68,17 @@ needs a Smart Contract Interface uploaded per target, then
    documentation, and `selftest` is the first thing to run against the live
    organization.
 
-6. Bound the exposure: keep only the gas and float the executor needs in the
-   operator's address, and sweep the rest to the treasury Safe.
+6. Bound the exposure. Set `OPERATOR_FLOAT_LIMITS` to a ceiling for each asset the
+   operator holds and a floor for each chain's native currency:
+
+   ```bash
+   OPERATOR_FLOAT_LIMITS='{"base":{"USDC":{"max":"500"},"ETH":{"min":"0.005"}}}'
+   ```
+
+   The chain worker checks every five minutes and logs one JSON line per breach,
+   `{"type":"operator-float","finding":"above-max"|"below-min",...}`, with the
+   balance and the limit in minor units. Alert on that line. It moves nothing: send
+   the excess to the treasury Safe yourself.
 
 ## Failure modes to know
 
