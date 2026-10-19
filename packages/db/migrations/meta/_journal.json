@@ -442,6 +442,13 @@
       "when": 1792600000000,
       "tag": "0062_login_failures",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1792700000000,
+      "tag": "0063_worker_fencing",
+      "breakpoints": true
     }
   ]
 }

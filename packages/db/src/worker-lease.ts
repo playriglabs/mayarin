@@ -18,8 +18,17 @@ import postgres from "postgres";
 const CHAIN_WORKER_LOCK = 7_243_001;
 
 export interface WorkerLease {
+  /**
+   * This lease's fencing token. Every lease takes the next one, so a worker that
+   * lost the lock without noticing holds a smaller token than the worker that
+   * took over, and the nonce sequencer refuses to broadcast for it.
+   */
+  readonly fencingToken: bigint;
   release(): Promise<void>;
 }
+
+/** The row the sequencer checks the token against. */
+export const CHAIN_WORKER_FENCE = "chain-worker";
 
 export interface WorkerLeaseOptions {
   readonly pollMs?: number;
@@ -51,6 +60,13 @@ export async function acquireWorkerLease(
     await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
 
+  // Taken once the lock is held, so tokens follow the order leases were granted.
+  const [fence] = await sql<{ token: string }[]>`
+    insert into worker_fencing (name, token) values (${CHAIN_WORKER_FENCE}, 1)
+    on conflict (name) do update set token = worker_fencing.token + 1
+    returning token`;
+  if (fence === undefined) throw new Error("Could not take a fencing token for the worker lease");
+
   const checkMs = options.checkMs ?? 10_000;
   let held = true;
   const watchdog = setInterval(() => {
@@ -63,6 +79,7 @@ export async function acquireWorkerLease(
   }, checkMs);
 
   return {
+    fencingToken: BigInt(fence.token),
     release: async () => {
       held = false;
       clearInterval(watchdog);
