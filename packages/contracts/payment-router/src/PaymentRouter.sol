@@ -41,6 +41,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 ///        never moves funds, so it needs no delay) but cannot unpause: that is
 ///        `CONFIG_ROLE`, so a compromised guardian cannot undo containment. There is no code path — admin
 ///        or otherwise — by which funds can be redirected.
+///      - **Destination registry (optional, timelock-enabled)** — once
+///        `merchantRegistryEnforced`, an order may settle only to a merchant Safe
+///        that a `REGISTRAR_ROLE` key registered. The registrar is a different key
+///        from the quote signer, so redirecting settlement needs both. The guardian
+///        revokes a destination instantly; only `CONFIG_ROLE` reinstates one.
 contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using OrderHash for IPaymentRouter.Order;
@@ -58,6 +63,10 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     ///      Held by the external TimelockController, so every config change is
     ///      delayed. The multisig governs the timelock (proposer/canceller).
     bytes32 internal constant CONFIG_ROLE = keccak256("CONFIG_ROLE");
+    /// @dev Registers merchant Safes as admissible settlement destinations. Held by
+    ///      a key that is not the quote signer, so a compromised signer alone cannot
+    ///      introduce a destination. Granted through the timelock (DEFAULT_ADMIN).
+    bytes32 internal constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
     // ---------------------------------------------------------------------
     // Immutables
@@ -89,6 +98,16 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     ///      among admitted assets, never introduce one.
     mapping(address => bool) public isSettlementAssetWhitelisted;
 
+    /// @dev When true, `Order.merchantSafe` must be registered. Off at deploy so a
+    ///      new router can be backfilled before it starts refusing; turning it on
+    ///      is a `CONFIG_ROLE` (timelocked) act.
+    bool public merchantRegistryEnforced;
+    /// @dev Admissible settlement destinations.
+    mapping(address => bool) public isMerchantSafeRegistered;
+    /// @dev A revoked destination cannot be registered again by the registrar: a
+    ///      compromised-then-revoked address must not be one key away from live.
+    mapping(address => bool) public isMerchantSafeRevoked;
+
     // ---------------------------------------------------------------------
     // Events
     // ---------------------------------------------------------------------
@@ -115,6 +134,10 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     event SettlementAssetRemoved(address indexed asset);
     event FeeRecipientUpdated(address indexed feeRecipient);
     event SignerUpdated(address indexed signer);
+    event MerchantSafeRegistered(address indexed safe);
+    event MerchantSafeRevoked(address indexed safe, address indexed by);
+    event MerchantSafeReinstated(address indexed safe);
+    event MerchantRegistryEnforcementSet(bool enforced);
 
     // ---------------------------------------------------------------------
     // Errors
@@ -135,6 +158,9 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
     error NoSettlementAsset();
     error UnexpectedNative();
     error ZeroAddress();
+    error MerchantSafeNotRegistered(address safe);
+    error MerchantSafeIsRevoked(address safe);
+    error NotRegistryAuthority();
 
     // ---------------------------------------------------------------------
     // Types
@@ -296,6 +322,9 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         if (order.fee >= order.minOut) revert FeeExceedsSettlement(); // merchant must be > 0
         if (!isSettlementAssetWhitelisted[order.settlementToken]) {
             revert SettlementAssetNotWhitelisted(order.settlementToken);
+        }
+        if (merchantRegistryEnforced && !isMerchantSafeRegistered[order.merchantSafe]) {
+            revert MerchantSafeNotRegistered(order.merchantSafe);
         }
         if (consumed[order.intentId]) revert AlreadyConsumed();
         consumed[order.intentId] = true;
@@ -472,6 +501,41 @@ contract PaymentRouter is IPaymentRouter, AccessControl, Pausable, ReentrancyGua
         if (recipient == address(0)) revert ZeroAddress();
         feeRecipient = recipient;
         emit FeeRecipientUpdated(recipient);
+    }
+
+    /// @notice Turns the destination registry on or off. Timelocked: a router is
+    ///         backfilled first, then enforcement is switched on.
+    function setMerchantRegistryEnforced(bool enforced) external onlyRole(CONFIG_ROLE) {
+        merchantRegistryEnforced = enforced;
+        emit MerchantRegistryEnforcementSet(enforced);
+    }
+
+    /// @notice Admits a destination. Refused for one that was revoked.
+    function registerMerchantSafe(address safe) external onlyRole(REGISTRAR_ROLE) {
+        if (safe == address(0)) revert ZeroAddress();
+        if (isMerchantSafeRevoked[safe]) revert MerchantSafeIsRevoked(safe);
+        isMerchantSafeRegistered[safe] = true;
+        emit MerchantSafeRegistered(safe);
+    }
+
+    /// @notice Withdraws a destination at once. The guardian (instant, like pause)
+    ///         or the timelock may; the registrar may not, so the key that adds
+    ///         destinations is not also the one that decides which are bad.
+    function revokeMerchantSafe(address safe) external {
+        if (!hasRole(GUARDIAN_ROLE, msg.sender) && !hasRole(CONFIG_ROLE, msg.sender)) {
+            revert NotRegistryAuthority();
+        }
+        isMerchantSafeRegistered[safe] = false;
+        isMerchantSafeRevoked[safe] = true;
+        emit MerchantSafeRevoked(safe, msg.sender);
+    }
+
+    /// @notice Admits a revoked destination again. Timelocked, after investigation.
+    function reinstateMerchantSafe(address safe) external onlyRole(CONFIG_ROLE) {
+        if (safe == address(0)) revert ZeroAddress();
+        isMerchantSafeRevoked[safe] = false;
+        isMerchantSafeRegistered[safe] = true;
+        emit MerchantSafeReinstated(safe);
     }
 
     function setSigner(address newSigner) external onlyRole(CONFIG_ROLE) {

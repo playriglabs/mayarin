@@ -65,3 +65,12 @@ reproduces) and reports 24 results across 7 detectors:
 Slither exits non-zero while any result remains, so it cannot gate CI as it is. A
 gate needs a baseline of these accepted results, and a parser or compiler error
 must fail the job rather than print a partial report.
+
+## PaymentRouter: destination registry (SEC-06)
+
+Added after the review above; see [destination-registry.md](./destination-registry.md).
+`registerMerchantSafe` (registrar), `revokeMerchantSafe` (guardian or timelock),
+`reinstateMerchantSafe` and `setMerchantRegistryEnforced` (timelock). Off at deploy.
+Slither: 24 results before and after, none in the new code. The 12 tests in
+`test/MerchantRegistry.t.sol` pin the roles, the revoked-cannot-return rule, the
+timelocked governance and the fuzzed invariant. Not independently audited.
