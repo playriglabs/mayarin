@@ -13,6 +13,7 @@ export * from "./repositories/ledger.ts";
 export * from "./repositories/market-config.ts";
 export * from "./repositories/merchant-notifications.ts";
 export * from "./repositories/notifications.ts";
+export * from "./repositories/operator-transactions.ts";
 export * from "./repositories/payment-funding.ts";
 export * from "./repositories/payment-intent.ts";
 export * from "./repositories/payouts.ts";

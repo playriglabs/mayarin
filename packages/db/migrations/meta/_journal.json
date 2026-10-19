@@ -407,6 +407,13 @@
       "when": 1792309719837,
       "tag": "0057_session_last_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1792309779837,
+      "tag": "0058_operator_transactions",
+      "breakpoints": true
     }
   ]
 }

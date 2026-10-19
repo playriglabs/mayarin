@@ -44,7 +44,12 @@ import { InMemoryPaymentIntentRepository } from "@mayarin/payment-intent/testing
 import { type MockBehaviour, MockSettlementAdapter } from "@mayarin/provider-mock";
 import { StablecoinSettlementAdapter } from "@mayarin/provider-stablecoin";
 import { SettlementAdapterRegistry } from "@mayarin/settlement";
-import { FixedClock, InMemoryEventBus } from "@mayarin/shared";
+import {
+  FixedClock,
+  InMemoryEventBus,
+  InMemoryOperatorTransactionStore,
+  OperatorTransactionReconciler,
+} from "@mayarin/shared";
 import { InMemoryMarketConfigStore } from "@mayarin/shared/testing";
 import { InMemoryStablecoinRegistry } from "@mayarin/stablecoin";
 import { InMemorySubscriptionRepository } from "@mayarin/subscriptions/testing";
@@ -305,6 +310,11 @@ export function createApiHarness(options: ApiHarnessOptions = {}) {
       async () => DEFAULT_DISPUTE_STANDING,
     ),
     stream,
+    operatorTransactions: new OperatorTransactionReconciler({
+      store: new InMemoryOperatorTransactionStore(),
+      chain: { confirmedNonce: async () => 0, receipt: async () => undefined },
+      clock,
+    }),
     refunds: new RefundService({
       clearing: clearingRepository,
       refunds: refundRepository,

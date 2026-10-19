@@ -1328,6 +1328,28 @@ export const operatorNonces = pgTable("operator_nonces", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
 });
 
+/**
+ * What the operator key sent under each nonce (SEC-04). Written by
+ * `PostgresNonceSequencer` when it allocates a nonce and again when the node
+ * accepts the broadcast; closed by `OperatorTransactionReconciler`. A row that
+ * stays `allocated` or `submitted` past the grace period is a finding.
+ */
+export const operatorTransactions = pgTable(
+  "operator_transactions",
+  {
+    id: text("id").primaryKey(),
+    key: text("key").notNull(),
+    nonce: integer("nonce").notNull(),
+    /** allocated | submitted | finalized | reverted | replaced | abandoned, CHECK-constrained. */
+    status: text("status").notNull(),
+    txHash: text("tx_hash"),
+    allocatedAt: timestamp("allocated_at", { withTimezone: true, mode: "date" }).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true, mode: "date" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [index("operator_transactions_status_idx").on(table.status)],
+);
+
 export const schema = {
   paymentIntents,
   clearingTransactions,
@@ -1365,4 +1387,5 @@ export const schema = {
   escrowDisputes,
   escrowDisputeMessages,
   operatorNonces,
+  operatorTransactions,
 };
