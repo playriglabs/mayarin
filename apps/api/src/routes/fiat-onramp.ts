@@ -32,9 +32,16 @@ import {
   ValidationError,
 } from "@mayarin/shared";
 import { Hono } from "hono";
+import { setCookie } from "hono/cookie";
 import { z } from "zod";
 import type { Container } from "../container.ts";
-import { payerAccess, payerAccessFor } from "../middleware/payer-access.ts";
+import {
+  payerAccess,
+  RETURN_COOKIE,
+  RETURN_COOKIE_MAX_AGE_SECONDS,
+  returnPath,
+  returnUrlFor,
+} from "../middleware/payer-access.ts";
 
 /** Every currency TransFi lists as a deposit currency for these markets carries two decimals. */
 const FIAT_DECIMALS = 2;
@@ -323,7 +330,16 @@ export function fiatOnrampRoutes(container: Container): Hono {
       ...(ip === undefined || ip === "" ? {} : { ip }),
     };
 
-    const checkoutUrl = payerAccessFor(container, intent.id).checkoutUrl;
+    // TransFi is sent the payer back to a URL with no token in it. The token
+    // waits in a cookie on this browser, scoped to the one return path.
+    const returnUrl = returnUrlFor(container, intent.id);
+    setCookie(c, RETURN_COOKIE, container.payerTokens.mint(intent.id), {
+      httpOnly: true,
+      secure: c.req.url.startsWith("https:"),
+      sameSite: "Lax",
+      path: returnPath(intent.id),
+      maxAge: RETURN_COOKIE_MAX_AGE_SECONDS,
+    });
     const order = await transfi
       .createOrder({
         userId,
@@ -335,8 +351,8 @@ export function fiatOnrampRoutes(container: Container): Hono {
         paymentType: method.type,
         cryptoCurrency,
         walletAddress: deposit.address,
-        successRedirectUrl: checkoutUrl,
-        failureRedirectUrl: checkoutUrl,
+        successRedirectUrl: returnUrl,
+        failureRedirectUrl: returnUrl,
         details,
         device,
       })

@@ -26,6 +26,7 @@ import { chainLabel } from "@mayarin/chain";
 import { ESCROW_CHAINS } from "@mayarin/provider-evm";
 import { money, NotFoundError, ValidationError, zero } from "@mayarin/shared";
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import { toString as qrToString } from "qrcode";
 import sharp from "sharp";
@@ -33,7 +34,7 @@ import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
 import { merchantLogoUrl } from "../merchant-logo.ts";
-import { payerAccess } from "../middleware/payer-access.ts";
+import { payerAccess, RETURN_COOKIE } from "../middleware/payer-access.ts";
 import { linkRails, payerRails } from "../rails.ts";
 import { requestOrigin, shellResponse } from "../services/checkout-shell.ts";
 import { fetchLogo } from "../services/document-pdf.ts";
@@ -175,6 +176,20 @@ export function checkoutPageRoutes(container: Container): Hono {
   });
 
   /** The payment page: amount, deposit address, QR, and streamed status. */
+  // Where TransFi sends the payer back (SEC-09). The URL holds no token; the
+  // cookie set when the order was created does. Anyone without it, including
+  // whoever read the URL from TransFi's side, gets the same 404 as a missing page.
+  app.get("/return/:intentId", (c) => {
+    const intentId = c.req.param("intentId");
+    const token = getCookie(c, RETURN_COOKIE);
+    if (!container.payerTokens.verify(intentId, token)) {
+      throw new NotFoundError(`Payment ${intentId} not found`, { intentId });
+    }
+    c.header("cache-control", "no-store");
+    c.header("referrer-policy", "no-referrer");
+    return c.redirect(`/checkout/pay/${encodeURIComponent(intentId)}?t=${token}`);
+  });
+
   app.get("/pay/:intentId", payerAccess(container, "intentId"), async (c) => {
     const intentId = c.req.param("intentId");
     const { intent } = await container.paymentApp.getPayment(intentId);
