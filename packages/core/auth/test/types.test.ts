@@ -73,6 +73,7 @@ describe("auth domain types", () => {
         return [];
       },
       async touchUpdatedAt() {},
+      async updatePassword() {},
       async markEmailVerified() {},
       async saveMfa() {},
     };

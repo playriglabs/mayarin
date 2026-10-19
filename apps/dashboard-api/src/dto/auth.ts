@@ -95,6 +95,26 @@ export const verifyEmailBodySchema = z.object({
     .regex(/^\d{6}$/, "A code is six digits"),
 });
 
+const newPasswordSchema = z.string().min(12).max(200);
+
+export const changePasswordBodySchema = z.object({
+  currentPassword: z.string().min(1).max(200),
+  newPassword: newPasswordSchema,
+  code: mfaCodeBodySchema.shape.code.optional(),
+});
+
+export const forgotPasswordBodySchema = z.object({ email: z.string().email() });
+
+export const resetPasswordBodySchema = z.object({
+  email: z.string().email(),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "A code is six digits"),
+  newPassword: newPasswordSchema,
+  mfaCode: mfaCodeBodySchema.shape.code.optional(),
+});
+
 export const resendVerificationBodySchema = z.object({ email: z.string().email() });
 
 /**

@@ -75,3 +75,23 @@ export interface ResendVerificationRequest {
 export interface OkResponse {
   readonly ok: boolean;
 }
+
+/** POST `/auth/password/change` request body. `code` is owed when a second factor is on. */
+export interface ChangePasswordRequest {
+  readonly currentPassword: string;
+  readonly newPassword: string;
+  readonly code?: string;
+}
+
+/** POST `/auth/password/forgot` request body. */
+export interface ForgotPasswordRequest {
+  readonly email: string;
+}
+
+/** POST `/auth/password/reset` request body. `mfaCode` is owed when a second factor is on. */
+export interface ResetPasswordRequest {
+  readonly email: string;
+  readonly code: string;
+  readonly newPassword: string;
+  readonly mfaCode?: string;
+}

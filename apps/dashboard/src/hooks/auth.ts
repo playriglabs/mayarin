@@ -11,6 +11,8 @@ import { authApi } from "@/lib/api/auth";
 import type { ApiError } from "@/lib/api/client";
 import { useEffectMutation, useEffectQuery } from "@/lib/query";
 import type {
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
   LoginRequest,
   LoginResponse,
   LogoutResponse,
@@ -21,6 +23,7 @@ import type {
   OkResponse,
   RegisterRequest,
   ResendVerificationRequest,
+  ResetPasswordRequest,
   VerifyEmailRequest,
 } from "@/types/auth";
 import type { UserDto } from "@/types/user";
@@ -77,6 +80,27 @@ export function useVerifyEmail() {
 export function useResendVerification() {
   return useEffectMutation<OkResponse, ResendVerificationRequest, ApiError>({
     mutation: (body) => authApi.resendVerification(body),
+  });
+}
+
+/** POST `/auth/password/change`. */
+export function useChangePassword() {
+  return useEffectMutation<OkResponse, ChangePasswordRequest, ApiError>({
+    mutation: (body) => authApi.changePassword(body),
+  });
+}
+
+/** POST `/auth/password/forgot`. */
+export function useForgotPassword() {
+  return useEffectMutation<OkResponse, ForgotPasswordRequest, ApiError>({
+    mutation: (body) => authApi.forgotPassword(body),
+  });
+}
+
+/** POST `/auth/password/reset`. */
+export function useResetPassword() {
+  return useEffectMutation<OkResponse, ResetPasswordRequest, ApiError>({
+    mutation: (body) => authApi.resetPassword(body),
   });
 }
 

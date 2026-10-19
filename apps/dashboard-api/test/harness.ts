@@ -87,6 +87,7 @@ import { MerchantSettingsService } from "../src/services/merchant-settings-servi
 import { MfaService } from "../src/services/mfa-service.ts";
 import { NotificationService } from "../src/services/notification-service.ts";
 import { OrderReadService } from "../src/services/order-read-service.ts";
+import { PasswordService } from "../src/services/password-service.ts";
 import { PaymentApiClient } from "../src/services/payment-api-client.ts";
 import { PaymentReadService } from "../src/services/payment-read-service.ts";
 import type { PayoutReceipt } from "../src/services/payout-chain.ts";
@@ -317,15 +318,28 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
       verificationEmails.push(request);
       return { id: "eml_test_verification" };
     },
+    sendPasswordReset: async (request) => {
+      verificationEmails.push(request);
+      return { id: "eml_test_password_reset" };
+    },
   };
+  const verifications = new InMemoryEmailVerificationRepository();
   const registrations = new RegistrationService({
     users,
     accounts,
-    verifications: new InMemoryEmailVerificationRepository(),
+    verifications,
     hasher,
     emails: verificationEmailSender,
     clock,
     settlementAsset: config.settlementAsset,
+  });
+  const passwords = new PasswordService({
+    users,
+    verifications,
+    hasher,
+    emails: verificationEmailSender,
+    mfa,
+    clock: mfaClock,
   });
 
   const invoiceEmailCalls: SendInvoiceEmailRequest[] = [];
@@ -542,6 +556,7 @@ export async function createDashboardHarness(options: DashboardHarnessOptions = 
     invoices,
     invoiceEmails,
     registrations,
+    passwords,
     customers,
     orders,
     apiKeys,

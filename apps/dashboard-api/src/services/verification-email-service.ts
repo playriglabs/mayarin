@@ -27,6 +27,8 @@ export interface VerificationEmailDelivery {
 /** Port injected into the auth route; tests never reach the network. */
 export interface VerificationEmailSender {
   sendVerification(request: SendVerificationEmailRequest): Promise<VerificationEmailDelivery>;
+  /** The same shape of message for a password reset: a code, never a link. */
+  sendPasswordReset(request: SendVerificationEmailRequest): Promise<VerificationEmailDelivery>;
 }
 
 export interface ResendVerificationEmailSenderOptions {
@@ -45,26 +47,35 @@ export class ResendVerificationEmailSender implements VerificationEmailSender {
     this.#resend = options.resend ?? new Resend(options.apiKey);
   }
 
-  async sendVerification(
+  sendVerification(request: SendVerificationEmailRequest): Promise<VerificationEmailDelivery> {
+    return this.#send(request, VERIFICATION_COPY);
+  }
+
+  sendPasswordReset(request: SendVerificationEmailRequest): Promise<VerificationEmailDelivery> {
+    return this.#send(request, PASSWORD_RESET_COPY);
+  }
+
+  async #send(
     request: SendVerificationEmailRequest,
+    copy: EmailCopy,
   ): Promise<VerificationEmailDelivery> {
     let result: Awaited<ReturnType<Resend["emails"]["send"]>>;
     try {
       result = await this.#resend.emails.send({
         from: this.#from,
         to: request.email,
-        subject: `${request.code} is your Mayarin verification code`,
-        html: renderVerificationHtml(request),
-        text: `${renderVerificationText(request)}\n${EMAIL_FOOTER_TEXT}`,
+        subject: `${request.code} is your Mayarin ${copy.subjectNoun}`,
+        html: renderHtml(request, copy),
+        text: `${renderText(request, copy)}\n${EMAIL_FOOTER_TEXT}`,
         attachments: [...EMAIL_ATTACHMENTS],
-        tags: [{ name: "category", value: "verification" }],
+        tags: [{ name: "category", value: copy.category }],
       });
       // Deliberately no idempotency key: every resend is a new code, and a
       // deduplicated second send would leave the reader holding a code the
       // database has already superseded.
     } catch (error) {
       throw new ProviderError(
-        "Could not send the verification email. Try again.",
+        "Could not send the email. Try again.",
         { cause: error instanceof Error ? error.message : String(error) },
         { retryable: true },
       );
@@ -73,7 +84,7 @@ export class ResendVerificationEmailSender implements VerificationEmailSender {
     if (result.error !== null) {
       const status = result.error.statusCode;
       throw new ProviderError(
-        `Could not send the verification email: ${result.error.message}`,
+        `Could not send the email: ${result.error.message}`,
         { provider: "resend", status },
         { retryable: status === 429 || (status !== null && status >= 500) },
       );
@@ -86,15 +97,47 @@ export class ResendVerificationEmailSender implements VerificationEmailSender {
 /** Keeps deployments without email credentials bootable, but fails explicitly on use. */
 export class UnavailableVerificationEmailSender implements VerificationEmailSender {
   sendVerification(): Promise<VerificationEmailDelivery> {
+    return this.#unavailable();
+  }
+
+  sendPasswordReset(): Promise<VerificationEmailDelivery> {
+    return this.#unavailable();
+  }
+
+  #unavailable(): Promise<VerificationEmailDelivery> {
     return Promise.reject(
-      new ConfigurationError(
-        "Email verification is not configured. Set RESEND_API_KEY and try again.",
-      ),
+      new ConfigurationError("Email is not configured. Set RESEND_API_KEY and try again."),
     );
   }
 }
 
-function renderVerificationHtml(request: SendVerificationEmailRequest): string {
+interface EmailCopy {
+  readonly subjectNoun: string;
+  readonly category: string;
+  readonly heading: string;
+  readonly intro: string;
+  readonly ignore: string;
+}
+
+const VERIFICATION_COPY: EmailCopy = {
+  subjectNoun: "verification code",
+  category: "verification",
+  heading: "Confirm your email",
+  intro: "Enter this code to finish creating your Mayarin account.",
+  ignore:
+    "If you did not ask for this, ignore this email — the account stays unusable without the code, and nobody can sign in to it.",
+};
+
+const PASSWORD_RESET_COPY: EmailCopy = {
+  subjectNoun: "password reset code",
+  category: "password-reset",
+  heading: "Reset your password",
+  intro: "Enter this code to choose a new Mayarin password.",
+  ignore:
+    "If you did not ask for this, ignore this email — your password stays as it is and nobody can change it without the code.",
+};
+
+function renderHtml(request: SendVerificationEmailRequest, copy: EmailCopy): string {
   const code = escapeHtml(request.code);
   const minutes = String(request.expiresInMinutes);
 
@@ -102,18 +145,18 @@ function renderVerificationHtml(request: SendVerificationEmailRequest): string {
 <html lang="en">
 ${EMAIL_HEAD}
   <body style="margin:0;background:#f5f5f4;color:#1c1917;font-family:${FONT_STACK}">
-    <div style="display:none;max-height:0;overflow:hidden">${code} is your Mayarin verification code.</div>
+    <div style="display:none;max-height:0;overflow:hidden">${code} is your Mayarin ${copy.subjectNoun}.</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f5f4;padding:32px 16px;font-family:${FONT_STACK}">
       <tr><td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e5e4;border-radius:16px">
           <tr><td style="padding:32px;font-family:${FONT_STACK}">
             ${LOGO_IMG}
-            <h1 style="margin:0 0 12px;font-size:28px;font-weight:500;line-height:1.25">Confirm your email</h1>
-            <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6">Enter this code to finish creating your Mayarin account. It expires in ${minutes} minutes.</p>
+            <h1 style="margin:0 0 12px;font-size:28px;font-weight:500;line-height:1.25">${copy.heading}</h1>
+            <p style="margin:0 0 28px;color:#57534e;font-size:16px;line-height:1.6">${copy.intro} It expires in ${minutes} minutes.</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:28px;background:#fafaf9;border:1px solid #f0efee;border-radius:12px;font-family:${FONT_STACK}">
               <tr><td align="center" style="padding:24px 16px;font-size:34px;font-weight:500;letter-spacing:.32em;line-height:1">${code}</td></tr>
             </table>
-            <p style="margin:0;color:#78716c;font-size:12px;line-height:1.5">If you did not ask for this, ignore this email — the account stays unusable without the code, and nobody can sign in to it.</p>
+            <p style="margin:0;color:#78716c;font-size:12px;line-height:1.5">${copy.ignore}</p>
           </td></tr>
         </table>
         ${EMAIL_FOOTER}
@@ -123,10 +166,10 @@ ${EMAIL_HEAD}
 </html>`;
 }
 
-function renderVerificationText(request: SendVerificationEmailRequest): string {
-  return `Confirm your email
+function renderText(request: SendVerificationEmailRequest, copy: EmailCopy): string {
+  return `${copy.heading}
 
-Enter this code to finish creating your Mayarin account:
+${copy.intro}
 
 ${request.code}
 
