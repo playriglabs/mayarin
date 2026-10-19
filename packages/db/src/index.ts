@@ -10,6 +10,7 @@ export * from "./repositories/clearing.ts";
 export * from "./repositories/escrow-dispute.ts";
 export * from "./repositories/invoice.ts";
 export * from "./repositories/ledger.ts";
+export * from "./repositories/login-failures.ts";
 export * from "./repositories/market-config.ts";
 export * from "./repositories/merchant-notifications.ts";
 export * from "./repositories/notifications.ts";

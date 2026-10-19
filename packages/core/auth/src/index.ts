@@ -1,4 +1,5 @@
 export * from "./api-key.ts";
+export * from "./login-failures.ts";
 export * from "./merchant.ts";
 export * from "./password.ts";
 export * from "./permission.ts";

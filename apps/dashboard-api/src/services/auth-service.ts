@@ -13,7 +13,13 @@
  * costs an attacker the credential they did not have.
  */
 
-import type { PasswordHasher, User, UserRepository } from "@mayarin/auth";
+import {
+  InMemoryLoginFailures,
+  type LoginFailures,
+  type PasswordHasher,
+  type User,
+  type UserRepository,
+} from "@mayarin/auth";
 import { type Clock, RateLimitedError, systemClock, UnauthorizedError } from "@mayarin/shared";
 import { Effect } from "effect";
 import { EMAIL_NOT_VERIFIED } from "./registration-service.ts";
@@ -22,18 +28,8 @@ export interface AuthServiceOptions {
   readonly users: UserRepository;
   readonly hasher: PasswordHasher;
   readonly clock?: Clock;
-}
-
-/** Failures an email may make before the wait starts. */
-const FREE_FAILURES = 5;
-const BASE_DELAY_MS = 30_000;
-const MAX_DELAY_MS = 15 * 60_000;
-/** Bounds the memory a flood of made-up emails can take. */
-const MAX_TRACKED = 10_000;
-
-interface Failures {
-  count: number;
-  blockedUntil: number;
+  /** Where failed passwords are counted; per process unless a durable store is given. */
+  readonly failures?: LoginFailures;
 }
 
 const INVALID_CREDENTIALS = new UnauthorizedError("Invalid email or password");
@@ -49,17 +45,16 @@ export class AuthService {
   readonly #decoy: Promise<string>;
   readonly #clock: Clock;
   /**
-   * Failed passwords per email (SEC-08). The per-IP limiter cannot see a
-   * password sprayed at one account from many addresses. Keyed by the email as
-   * typed, known or not, so the wait is no enumeration oracle. Process-local:
-   * a restart forgets it, which only ever helps the account owner.
+   * Failed passwords per email (SEC-08), keyed by the email as typed, known or
+   * not, so the wait is no enumeration oracle.
    */
-  readonly #failures = new Map<string, Failures>();
+  readonly #failures: LoginFailures;
 
   constructor(options: AuthServiceOptions) {
     this.#users = options.users;
     this.#hasher = options.hasher;
     this.#clock = options.clock ?? systemClock;
+    this.#failures = options.failures ?? new InMemoryLoginFailures();
     this.#decoy = options.hasher.hash(crypto.randomUUID());
     // Rejected only if the hasher is broken; login reports that when it needs it.
     this.#decoy.catch(() => undefined);
@@ -79,14 +74,14 @@ export class AuthService {
     const hasher = this.#hasher;
     const decoy = this.#decoy;
     const key = email.trim().toLowerCase();
-    const waitMs = this.#waitMs(key);
-    const recordFailure = () => this.#recordFailure(key);
-    const clearFailures = () => this.#failures.delete(key);
+    const failures = this.#failures;
+    const clock = this.#clock;
     const tryRun = <T>(run: () => Promise<T>): Effect.Effect<T, Error> =>
       Effect.tryPromise({ try: run, catch: (error) => error as Error });
 
     return Effect.gen(function* () {
       // Before any hashing, so a blocked email costs the server nothing.
+      const waitMs = yield* tryRun(() => failures.waitMs(key, clock.now()));
       if (waitMs > 0) {
         return yield* Effect.fail(
           new RateLimitedError("Too many failed sign-in attempts; try again later", {
@@ -97,42 +92,21 @@ export class AuthService {
       const user = yield* tryRun(() => users.findByEmail(email));
       if (user === null) {
         yield* tryRun(async () => hasher.verify(password, await decoy));
-        recordFailure();
+        yield* tryRun(() => failures.record(key, clock.now()));
         return yield* Effect.fail(INVALID_CREDENTIALS);
       }
 
       const ok = yield* tryRun(() => hasher.verify(password, user.passwordHash));
       if (!ok) {
-        recordFailure();
+        yield* tryRun(() => failures.record(key, clock.now()));
         return yield* Effect.fail(INVALID_CREDENTIALS);
       }
-      clearFailures();
+      yield* tryRun(() => failures.clear(key));
 
       // Checked only after the password does, so the distinct answer is not an
       // enumeration oracle: reaching it already required the right credentials.
       if (user.emailVerifiedAt === undefined) return yield* Effect.fail(EMAIL_NOT_VERIFIED);
       return user;
     });
-  }
-
-  #waitMs(key: string): number {
-    const entry = this.#failures.get(key);
-    return entry === undefined ? 0 : Math.max(0, entry.blockedUntil - this.#clock.now().getTime());
-  }
-
-  #recordFailure(key: string): void {
-    const now = this.#clock.now().getTime();
-    if (this.#failures.size >= MAX_TRACKED && !this.#failures.has(key)) {
-      // Drop what has already stopped waiting; if that frees nothing, drop the oldest.
-      for (const [tracked, entry] of this.#failures) {
-        if (entry.blockedUntil <= now) this.#failures.delete(tracked);
-      }
-      const oldest = this.#failures.keys().next();
-      if (this.#failures.size >= MAX_TRACKED && !oldest.done) this.#failures.delete(oldest.value);
-    }
-    const count = (this.#failures.get(key)?.count ?? 0) + 1;
-    const over = count - FREE_FAILURES;
-    const delay = over < 0 ? 0 : Math.min(BASE_DELAY_MS * 2 ** over, MAX_DELAY_MS);
-    this.#failures.set(key, { count, blockedUntil: now + delay });
   }
 }

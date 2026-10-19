@@ -51,6 +51,7 @@ import {
   DrizzleInvoiceRepository,
   DrizzleLedgerRepository,
   DrizzleLoginEventRepository,
+  DrizzleLoginFailures,
   DrizzleMerchantAccountRepository,
   DrizzleMerchantAssetPolicySource,
   DrizzleMerchantEventRepository,
@@ -363,7 +364,12 @@ export function createContainer(options: CreateContainerOptions): Container {
     ttlSeconds: config.sessionTtlSeconds,
     idleSeconds: config.sessionIdleSeconds,
   });
-  const authService = new AuthService({ users, hasher, clock });
+  const authService = new AuthService({
+    users,
+    hasher,
+    clock,
+    ...(handle === undefined ? {} : { failures: new DrizzleLoginFailures(handle.db) }),
+  });
   const mfa = new MfaService({ users, clock, encryptionKey: config.mfaEncryptionKey });
   const userService = new UserService({ users, accounts, hasher, clock });
 
