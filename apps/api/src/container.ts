@@ -6,6 +6,7 @@
  * swappable.
  */
 
+import { randomBytes } from "node:crypto";
 import type { MerchantRepository } from "@mayarin/auth";
 import { CatalogService, CheckoutService } from "@mayarin/catalog";
 import {
@@ -68,6 +69,7 @@ import {
   SecretBox,
 } from "@mayarin/db";
 import { FallbackRouteSource } from "@mayarin/execution";
+import { PayerTokens } from "@mayarin/http";
 import { InvoiceService } from "@mayarin/invoicing";
 import { LedgerService } from "@mayarin/ledger";
 import {
@@ -168,6 +170,8 @@ export interface Container {
    * them, which is why the container carries a verifier and not the service.
    */
   readonly verifyApiKey: ApiKeyVerifier;
+  /** The payer's capability to one payment (SEC-09). */
+  readonly payerTokens: PayerTokens;
   readonly intents: PaymentIntentService;
   /** Products and payment links (#10). Optional to use, always wired. */
   readonly catalog: CatalogService;
@@ -1383,6 +1387,11 @@ export function createContainer({
   return {
     config,
     verifyApiKey: createApiKeyVerifier({ keys: new DrizzleApiKeyRepository(handle.db), clock }),
+    payerTokens: new PayerTokens({
+      key: config.payerTokenKey ?? randomBytes(32).toString("hex"),
+      ttlSeconds: config.payerTokenTtlSeconds,
+      clock,
+    }),
     intents,
     catalog,
     commerce,

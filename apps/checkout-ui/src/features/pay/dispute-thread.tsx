@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { shortAddress } from "../../shared/buyer-protection.tsx";
+import { withPayerToken } from "../../shared/payer-token.ts";
 import { errorText, secondaryButton } from "../../shared/ui.ts";
 import { connectWallet, signMessage } from "../../shared/wallet.ts";
 import type { DisputeMessage } from "./types.ts";
@@ -66,7 +67,7 @@ export function DisputeThread({
         from,
         `Mayarin dispute message\nPayment: ${paymentId}\nSigned at: ${signedAt}\n\n${body}`,
       );
-      const response = await fetch(`${statusUrl}/escrow/dispute/messages`, {
+      const response = await fetch(withPayerToken(`${statusUrl}/escrow/dispute/messages`), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ body, signedAt, signature }),

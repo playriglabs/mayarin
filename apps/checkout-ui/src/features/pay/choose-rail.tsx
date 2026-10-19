@@ -7,6 +7,7 @@ import {
   PaymentMethodTabs,
   useLocalCurrencyRail,
 } from "../../shared/local-currency-option.tsx";
+import { withPayerToken } from "../../shared/payer-token.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
 import type { Rail } from "../../shared/types.ts";
 import {
@@ -62,14 +63,17 @@ export function ChooseRail({
     try {
       // The hosted page has no wallet to connect, so it pins the deposit path —
       // the same choice the link page makes.
-      const response = await fetch(`/v1/payment-intents/${bootstrap.intentId}/confirm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          payment: railBody(target, protection, localCurrency ? null : payerAddress),
-          executionPath: "deposit-match",
-        }),
-      });
+      const response = await fetch(
+        withPayerToken(`/v1/payment-intents/${bootstrap.intentId}/confirm`, bootstrap.payerToken),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            payment: railBody(target, protection, localCurrency ? null : payerAddress),
+            executionPath: "deposit-match",
+          }),
+        },
+      );
       const confirmed = await response.json();
       if (!response.ok) {
         setError(confirmed?.error?.message ?? "Unable to lock the price");

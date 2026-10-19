@@ -86,8 +86,8 @@ export function checkoutUrl(config: LinkEmbedConfig): string {
 }
 
 /** The pay page for a minted intent — also a buyer page, also unversioned. */
-export function payUrl(config: CartEmbedConfig, intentId: string): string {
-  return `${config.baseUrl}/checkout/pay/${encodeURIComponent(intentId)}`;
+export function payUrl(config: CartEmbedConfig, intentId: string, payerToken: string): string {
+  return `${config.baseUrl}/checkout/pay/${encodeURIComponent(intentId)}?t=${encodeURIComponent(payerToken)}`;
 }
 
 /**
@@ -97,14 +97,14 @@ export function payUrl(config: CartEmbedConfig, intentId: string): string {
  */
 export function cartCheckoutPlan(config: CartEmbedConfig): {
   readonly mintUrl: string;
-  readonly confirmUrl: (intentId: string) => string;
+  readonly confirmUrl: (intentId: string, payerToken: string) => string;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: Readonly<Record<string, unknown>>;
 } {
   return {
     mintUrl: `${config.baseUrl}/v1/carts/checkout`,
-    confirmUrl: (intentId) =>
-      `${config.baseUrl}/v1/payment-intents/${encodeURIComponent(intentId)}/confirm`,
+    confirmUrl: (intentId, payerToken) =>
+      `${config.baseUrl}/v1/payment-intents/${encodeURIComponent(intentId)}/confirm?t=${encodeURIComponent(payerToken)}`,
     headers: {
       authorization: `Bearer ${config.publishableKey}`,
       "content-type": "application/json",

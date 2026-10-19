@@ -10,6 +10,7 @@ import {
   PaymentMethodTabs,
   useLocalCurrencyRail,
 } from "../../shared/local-currency-option.tsx";
+import { withPayerToken } from "../../shared/payer-token.ts";
 import { RailPicker, railSummary } from "../../shared/rail-picker.tsx";
 import type { Rail } from "../../shared/types.ts";
 import {
@@ -94,9 +95,11 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       // confirming it is what hands it to the clearing engine. The payment page
       // has nothing to show until this has run, so it runs before the redirect.
       const intentId: string = payload.paymentIntent.id;
-      const confirmation = await fetch(`/v1/payment-intents/${intentId}/confirm`, {
-        method: "POST",
-      });
+      const payerToken: string = payload.payerToken;
+      const confirmation = await fetch(
+        withPayerToken(`/v1/payment-intents/${intentId}/confirm`, payerToken),
+        { method: "POST" },
+      );
       const confirmed = await confirmation.json();
       if (!confirmation.ok) {
         setError(confirmed?.error?.message ?? "Unable to lock the price");
@@ -110,7 +113,7 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
       }
 
       if (localCurrency) rememberLocalCurrencyIntent(intentId);
-      location.href = `/checkout/pay/${intentId}`;
+      location.href = `/checkout/pay/${intentId}?t=${encodeURIComponent(payerToken)}`;
     } catch {
       setError("Network error. Please try again.");
       setBusy(false);

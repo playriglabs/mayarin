@@ -160,6 +160,23 @@ const configSchema = z.object({
    * configured.
    */
   webhookSecretEncryptionKey: z.string().min(32).optional(),
+  /**
+   * Signs the payer's token for one payment (SEC-09). Unset: a random key per
+   * process, so every restart invalidates the links already handed out. Required
+   * once a mainnet chain is configured. Rotating it revokes every token.
+   */
+  payerTokenKey: z.string().min(32).optional(),
+  /** How long a payer's token stays valid; long enough to fetch a receipt later. */
+  payerTokenTtlSeconds: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30 * 24 * 3600),
+  /**
+   * Shared with the dashboard API, which reads payments on a merchant's behalf
+   * without holding the payer's token. Unset: nobody gets that bypass.
+   */
+  internalApiToken: z.string().min(32).optional(),
   chainAssets: jsonObject<TokenMap>("CHAIN_ASSETS", "{}"),
   /**
    * The chain's own currency, which has no contract address and emits no
@@ -1135,6 +1152,12 @@ function assertPaymentLimit(data: RawConfig): void {
   if (onMainnet && data.webhookSecretEncryptionKey === undefined) {
     issues.push("WEBHOOK_SECRET_ENCRYPTION_KEY is required when a mainnet chain is configured");
   }
+  if (onMainnet && data.payerTokenKey === undefined) {
+    issues.push("PAYER_TOKEN_KEY is required when a mainnet chain is configured");
+  }
+  if (onMainnet && data.internalApiToken === undefined) {
+    issues.push("INTERNAL_API_TOKEN is required when a mainnet chain is configured");
+  }
   if (issues.length > 0) {
     throw new ConfigurationError(`Invalid payment limit: ${issues.join("; ")}`, { issues });
   }
@@ -1227,6 +1250,9 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     maxPaymentSettlement: env.MAX_PAYMENT_SETTLEMENT,
     maxMerchantDailySettlement: env.MAX_MERCHANT_DAILY_SETTLEMENT,
     webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
+    payerTokenKey: env.PAYER_TOKEN_KEY,
+    payerTokenTtlSeconds: env.PAYER_TOKEN_TTL_SECONDS,
+    internalApiToken: env.INTERNAL_API_TOKEN,
     chainEnabled: env.CHAIN_ENABLED,
     chainRpcUrls: env.CHAIN_RPC_URLS,
     escrowArbiter: env.ESCROW_ARBITER,

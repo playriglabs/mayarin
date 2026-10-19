@@ -15,12 +15,14 @@ Incident procedures are in [runbooks.md](./runbooks.md).
 These are enforced at start-up, so a missing one is a failed deploy rather than a
 quiet gap. Set all of them on the payment API:
 
-| Variable                        | What it does                                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `MAX_PAYMENT_SETTLEMENT`        | Largest single payment per settlement asset. Required with any mainnet chain.                                       |
-| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Encrypts webhook signing secrets in the database. Required with any mainnet chain. Same value on the dashboard API. |
-| `CHAIN_ASSETS` / market config  | Only tokens in `packages/core/chain/src/reviewed-tokens.ts` are accepted on `base` and `arbitrum`.                  |
-| `QUOTE_SIGNER`                  | `local` is refused for a mainnet router: use `turnkey` or the AWS KMS signer.                                       |
+| Variable                        | What it does                                                                                                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAX_PAYMENT_SETTLEMENT`        | Largest single payment per settlement asset. Required with any mainnet chain.                                                                                              |
+| `WEBHOOK_SECRET_ENCRYPTION_KEY` | Encrypts webhook signing secrets in the database. Required with any mainnet chain. Same value on the dashboard API.                                                        |
+| `PAYER_TOKEN_KEY`               | Signs the payer's link token (SEC-09). Required with any mainnet chain. Same value on the dashboard API. Rotating it revokes every payer link: that is the incident lever. |
+| `INTERNAL_API_TOKEN`            | Lets the dashboard API read payments without a payer token. Required with any mainnet chain. Same value on the dashboard API, which will not boot without it.              |
+| `CHAIN_ASSETS` / market config  | Only tokens in `packages/core/chain/src/reviewed-tokens.ts` are accepted on `base` and `arbitrum`.                                                                         |
+| `QUOTE_SIGNER`                  | `local` is refused for a mainnet router: use `turnkey` or the AWS KMS signer.                                                                                              |
 
 Optional but part of the launch posture:
 

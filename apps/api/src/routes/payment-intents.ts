@@ -28,6 +28,7 @@ import {
 } from "../dto/payment-intent.ts";
 import { scopedIdempotencyKey } from "../idempotency.ts";
 import { type ApiKeyAuthEnv, assertMerchant, requireApiKey } from "../middleware/api-key.ts";
+import { payerAccess, payerAccessFor } from "../middleware/payer-access.ts";
 import { assertRailOffered } from "../rails.ts";
 
 export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
@@ -85,10 +86,13 @@ export function paymentIntentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     await assertRailOffered(container, command.merchant.id, command.payment);
 
     const intent = await container.intents.create(command);
-    return c.json({ paymentIntent: toPaymentIntentDto(intent) }, 201);
+    return c.json(
+      { paymentIntent: toPaymentIntentDto(intent), ...payerAccessFor(container, intent.id) },
+      201,
+    );
   });
 
-  app.post("/:id/confirm", async (c) => {
+  app.post("/:id/confirm", payerAccess(container), async (c) => {
     const id = c.req.param("id");
     // Most callers confirm an intent that already has its rail and send no
     // body. A buyer on the hosted payment page for an intent minted without

@@ -7,7 +7,7 @@ description: Create intents, confirm them, inspect status, and obtain contract c
 
 | Method                          | Returns            | Use it for                                            |
 | ------------------------------- | ------------------ | ----------------------------------------------------- |
-| `createIntent(body, options?)`  | `PaymentIntentDto` | Price a charge and choose the payer's rail.           |
+| `createIntent(body, options?)`  | `CreatedPaymentIntent` | Price a charge and choose the payer's rail.       |
 | `getIntent(id, options?)`       | `PaymentIntentDto` | Read intent status and its resolved execution path.   |
 | `confirmIntent(id, options?)`   | `PaymentDto`       | Lock the price and start clearing.                    |
 | `get(id, options?)`             | `PaymentDto`       | Full view: intent, clearing, deposit, timeline.       |
@@ -15,7 +15,7 @@ description: Create intents, confirm them, inspect status, and obtain contract c
 | `getEscrow(id, options?)`       | `EscrowDto`        | Where an escrowed payment's funds are, and its calls. |
 | `retry(id, options?)`           | `ClearingDto`      | Resume a failed payment after funds arrived.          |
 
-`get` accepts a payment intent ID or a clearing transaction ID.
+`get` takes a payment intent ID, with your secret key. A payment ID alone opens nothing for anyone else: the buyer's way in is the `checkoutUrl` that `createIntent` returns.
 
 ## Create an intent
 
@@ -40,7 +40,10 @@ const intent = await mayarin.payment.createIntent({
 intent.id; // "pi_01KZ…"
 intent.status; // "CREATED"
 intent.executionPath; // "on-chain-contract" | "deposit-match" | null
+intent.checkoutUrl; // the hosted payment page, with the buyer's token: send this to the payer
 ```
+
+`checkoutUrl` carries `?t=<token>`, a capability for this one payment that expires (30 days by default). Treat it like a password reset link: send it only to the payer, and do not log or publish it.
 
 | Field               | Meaning                                                                                                                     |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |

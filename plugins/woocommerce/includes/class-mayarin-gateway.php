@@ -209,7 +209,7 @@ class Mayarin_Gateway extends WC_Payment_Gateway {
 
         return [
             'result'   => 'success',
-            'redirect' => $client->pay_page_url($intent_id),
+            'redirect' => $client->pay_page_url($intent_id, (string) ($minted['payerToken'] ?? '')),
         ];
     }
 

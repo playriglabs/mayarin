@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { withPayerToken } from "../../shared/payer-token.ts";
 import { usableDeposit } from "./payment-status.ts";
 import { isTerminal } from "./status-wording.ts";
 import type { Deposit, PayBootstrap, PaymentStatusPayload } from "./types.ts";
@@ -23,7 +24,7 @@ export interface LiveStatus {
  * the first thing they look for is whether their payment was noticed.
  */
 export function usePaymentStatus(bootstrap: PayBootstrap): LiveStatus {
-  const { intentId, statusUrl, streaming, successUrl, pollMs } = bootstrap;
+  const { intentId, payerToken, statusUrl, streaming, successUrl, pollMs } = bootstrap;
 
   const [status, setStatus] = useState("");
   const [clearingState, setClearingState] = useState("");
@@ -34,7 +35,7 @@ export function usePaymentStatus(bootstrap: PayBootstrap): LiveStatus {
   const terminal = isTerminal(status);
 
   const refresh = useCallback(async () => {
-    const response = await fetch(statusUrl);
+    const response = await fetch(withPayerToken(statusUrl, payerToken));
     if (!response.ok) return;
     const payload: PaymentStatusPayload = await response.json();
     const next = payload.paymentIntent.status;
@@ -51,7 +52,7 @@ export function usePaymentStatus(bootstrap: PayBootstrap): LiveStatus {
         setTimeout(() => location.assign(successUrl), 600);
       }
     }
-  }, [statusUrl, successUrl]);
+  }, [statusUrl, successUrl, payerToken]);
 
   useEffect(() => {
     void refresh();
@@ -62,7 +63,7 @@ export function usePaymentStatus(bootstrap: PayBootstrap): LiveStatus {
     };
 
     if (streaming && "EventSource" in window) {
-      const stream = new EventSource(`/checkout/events/${intentId}`);
+      const stream = new EventSource(withPayerToken(`/checkout/events/${intentId}`, payerToken));
       source.current = stream;
       stream.addEventListener("payment", () => void refresh());
       // Falls back rather than retrying forever: EventSource reconnects on its
@@ -76,7 +77,7 @@ export function usePaymentStatus(bootstrap: PayBootstrap): LiveStatus {
       clearInterval(pollTimer.current);
       source.current?.close();
     };
-  }, [refresh, streaming, intentId, pollMs]);
+  }, [refresh, streaming, intentId, pollMs, payerToken]);
 
   useEffect(() => {
     if (terminal) return;

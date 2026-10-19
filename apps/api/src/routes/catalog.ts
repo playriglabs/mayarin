@@ -29,6 +29,7 @@ import {
   requireApiKey,
   requirePublishableKey,
 } from "../middleware/api-key.ts";
+import { payerAccessFor } from "../middleware/payer-access.ts";
 import { withPayerCountry } from "../payer-country.ts";
 
 export function catalogRoutes(container: Container): Hono<ApiKeyAuthEnv> {
@@ -136,11 +137,9 @@ export function cartRoutes(container: Container): Hono<ApiKeyAuthEnv> {
     // checkout, so the API sends the absolute buyer URL with the intent — built
     // from `checkoutBaseUrl` (RFC #163), the same source the payment-link and
     // invoice `url` come from. A storefront never has to know the checkout host.
+    const access = payerAccessFor(container, intent.id);
     return c.json(
-      {
-        paymentIntent: toPaymentIntentDto(intent),
-        url: `${container.config.checkoutBaseUrl}/checkout/pay/${encodeURIComponent(intent.id)}`,
-      },
+      { paymentIntent: toPaymentIntentDto(intent), ...access, url: access.checkoutUrl },
       201,
     );
   });

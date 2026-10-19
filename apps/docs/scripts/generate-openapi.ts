@@ -63,7 +63,16 @@ registry.registerComponent("securitySchemes", "publishableOrSecretKey", {
     "Browser-safe `pk_` key, or a stronger server-side `sk_` key. Identifies the merchant for catalog read and cart checkout; carries no permissions.",
 });
 
+registry.registerComponent("securitySchemes", "payerToken", {
+  type: "apiKey",
+  in: "query",
+  name: "t",
+  description:
+    "The payer's token for one payment, returned as `payerToken` (and inside `checkoutUrl`) when the payment is created. Also accepted as the `x-payer-token` header. The owning merchant's secret key works instead.",
+});
+
 const secretKey = [{ secretKey: [] }];
+const payerOrSecretKey: Record<string, string[]>[] = [{ payerToken: [] }, { secretKey: [] }];
 const publishableOrSecretKey = [{ publishableOrSecretKey: [] }];
 const noAuth: never[] = [];
 
@@ -632,7 +641,7 @@ registry.registerPath({
   operationId: "createPaymentIntent",
   summary: "Create a payment intent",
   description:
-    "Creates an immutable fiat-denominated payment request. Reusing an idempotency key with the same body returns the original intent; the same key with different parameters is a 409.",
+    "Creates an immutable fiat-denominated payment request. Reusing an idempotency key with the same body returns the original intent; the same key with different parameters is a 409. The response also carries `payerToken` and `checkoutUrl`: the hosted payment page with the payer's token attached. Send that URL to the payer; the payment id alone opens nothing.",
   security: secretKey,
   request: { headers: idempotencyHeaders, body: jsonBody(createBodySchema) },
   responses: {
@@ -667,7 +676,7 @@ registry.registerPath({
   summary: "Confirm a payment intent",
   description:
     "Confirms the intent and hands it to the clearing engine. Safe to retry: confirming an intent that is already clearing returns its current position rather than starting a second one.",
-  security: noAuth,
+  security: payerOrSecretKey,
   request: { params: idParams, headers: idempotencyHeaders },
   responses: {
     "200": jsonResponse(paymentSchema, "Current payment and clearing state."),
@@ -681,8 +690,9 @@ registry.registerPath({
   tags: ["Payments"],
   operationId: "getPayment",
   summary: "Get payment status",
-  description: "Accepts a payment intent id (`pi_…`) or clearing transaction id (`clr_…`).",
-  security: noAuth,
+  description:
+    "Takes a payment intent id (`pi_…`) and the payer's token, or the owning merchant's secret key.",
+  security: payerOrSecretKey,
   request: { params: idParams },
   responses: {
     "200": jsonResponse(paymentSchema, "Payment, clearing state, deposit, and timeline."),
@@ -698,7 +708,7 @@ registry.registerPath({
   summary: "Retry a failed payment whose funds arrived",
   description:
     "Reopens a `FAILED` payment at `ASSET_RECEIVED` and replays the clearing steps, for a failure since fixed (a missing swap pool, an asset not yet whitelisted) while the payer's money sat at the deposit address. Every step is idempotent per state, so nothing that already happened happens twice. A deposit-match order whose deadline passed is re-signed with the same terms and a fresh deadline. Refused with 409 when the payment has not failed or its funds never arrived.",
-  security: noAuth,
+  security: payerOrSecretKey,
   request: { params: idParams },
   responses: {
     "200": jsonResponse(
@@ -718,7 +728,7 @@ registry.registerPath({
   summary: "Download the payment's invoice",
   description:
     "A one-page PDF invoice, rendered on request from the payment's immutable snapshots. An intent minted from an invoice prints that invoice's number and buyer; any other payment prints a number derived from its id.",
-  security: noAuth,
+  security: payerOrSecretKey,
   request: { params: idParams },
   responses: {
     "200": { description: "The invoice.", content: { "application/pdf": { schema: z.string() } } },
@@ -734,7 +744,7 @@ registry.registerPath({
   summary: "Download the payment's receipt",
   description:
     "A one-page PDF receipt with the settlement proof: the asset paid, network, locked rate, settled amount, fee and transaction hash. Available once the payment has completed.",
-  security: noAuth,
+  security: payerOrSecretKey,
   request: { params: idParams },
   responses: {
     "200": { description: "The receipt.", content: { "application/pdf": { schema: z.string() } } },
@@ -751,7 +761,7 @@ registry.registerPath({
   summary: "Get fresh contract call data",
   description:
     "Returns the signed EIP-712 order, the deployed PaymentRouter address and chain, and a fresh executable route for an on-chain-contract payment. A 404 means the contract path is not enabled; a 410 means the quote lock expired — request a new payment.",
-  security: noAuth,
+  security: payerOrSecretKey,
   request: { params: idParams },
   responses: {
     "200": jsonResponse(contractCallSchema, "Signed order and submit payload."),
@@ -768,7 +778,7 @@ registry.registerPath({
   summary: "Get an escrowed payment's hold",
   description:
     "Where an escrowed payment's funds are, read from the chain, and the calldata to release, refund or dispute them. The escrow contract decides who may send each call: the payer releases or disputes, the merchant refunds, anyone releases once an undisputed hold ends.",
-  security: noAuth,
+  security: payerOrSecretKey,
   request: { params: idParams },
   responses: {
     "200": jsonResponse(z.object({ escrow: escrowSchema }), "The escrow."),

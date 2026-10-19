@@ -73,6 +73,7 @@ import {
   type PaymentFundingRepository,
   SecretBox,
 } from "@mayarin/db";
+import { PayerTokens } from "@mayarin/http";
 import { type InvoiceRepository, InvoiceService } from "@mayarin/invoicing";
 import type { LedgerRepository } from "@mayarin/ledger";
 import type { WebhookDeliveryRepository, WebhookEndpointRepository } from "@mayarin/notifications";
@@ -169,6 +170,8 @@ export interface Container {
   readonly auth: AuthService;
   readonly sessions: SessionService;
   readonly mfa: MfaService;
+  /** Mints the payer tokens in the document links a merchant opens (SEC-09). */
+  readonly payerTokens: PayerTokens;
   readonly users: UserService;
   readonly payments: PaymentReadService;
   /** How each payment was funded when its payer's own wallet did not. Read-only. */
@@ -609,7 +612,12 @@ export function createContainer(options: CreateContainerOptions): Container {
     clock,
   });
 
-  const paymentApi = options.paymentApi ?? new PaymentApiClient({ baseUrl: config.paymentApiUrl });
+  const paymentApi =
+    options.paymentApi ??
+    new PaymentApiClient({
+      baseUrl: config.paymentApiUrl,
+      internalToken: config.internalApiToken,
+    });
 
   const contractCode =
     Object.keys(config.chainRpcUrls).length === 0
@@ -676,6 +684,11 @@ export function createContainer(options: CreateContainerOptions): Container {
     catalog,
     invoices,
     invoiceEmails,
+    payerTokens: new PayerTokens({
+      key: config.payerTokenKey,
+      ttlSeconds: config.payerTokenTtlSeconds,
+      clock,
+    }),
     registrations,
     passwords,
     customers,

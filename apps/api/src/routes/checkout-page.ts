@@ -33,6 +33,7 @@ import type { Container } from "../container.ts";
 import { type MoneyDto, toMoneyDto } from "../dto/money.ts";
 import type { RailDto } from "../dto/rails.ts";
 import { merchantLogoUrl } from "../merchant-logo.ts";
+import { payerAccess } from "../middleware/payer-access.ts";
 import { linkRails, payerRails } from "../rails.ts";
 import { requestOrigin, shellResponse } from "../services/checkout-shell.ts";
 import { fetchLogo } from "../services/document-pdf.ts";
@@ -115,7 +116,7 @@ export function checkoutPageRoutes(container: Container): Hono {
    * is nothing further to send, and a socket held open past that point is a
    * socket held for no reason.
    */
-  app.get("/events/:intentId", async (c) => {
+  app.get("/events/:intentId", payerAccess(container, "intentId"), async (c) => {
     const stream = container.stream;
     if (stream === undefined) {
       // Not an error: the page falls back to polling, which still works.
@@ -174,7 +175,7 @@ export function checkoutPageRoutes(container: Container): Hono {
   });
 
   /** The payment page: amount, deposit address, QR, and streamed status. */
-  app.get("/pay/:intentId", async (c) => {
+  app.get("/pay/:intentId", payerAccess(container, "intentId"), async (c) => {
     const intentId = c.req.param("intentId");
     const { intent } = await container.paymentApp.getPayment(intentId);
     const paymentLink =
@@ -211,6 +212,9 @@ export function checkoutPageRoutes(container: Container): Hono {
     return shellResponse(c, distDir, {
       page: "pay",
       intentId: intent.id,
+      // The request's own token when it brought one, so the address bar and the
+      // API calls agree; a merchant or the dashboard API opening the page gets a fresh one.
+      payerToken: c.req.query("t") ?? container.payerTokens.mint(intent.id),
       amount: toMoneyDto(intent.amount),
       merchant: {
         name: intent.merchant.name,
