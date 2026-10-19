@@ -28,6 +28,7 @@ import {
   type ClearingTransaction,
   createClearingTransaction,
   createRefund,
+  failTransaction,
   markRefundFailed,
   type Refund,
   StaticRateProvider,
@@ -374,6 +375,39 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
     });
 
     expect(replay.id).toBe(first.id);
+  });
+
+  test("lists the payments that failed with a code since a time, newest first (late funds)", async () => {
+    const failedWith = async (code: string, at: Date) => {
+      const intent = await confirmedIntent();
+      const { transaction, event } = createClearingTransaction(intent, clock.now());
+      const failed = failTransaction(transaction, { reason: `failed: ${code}`, code, at });
+      await clearingRepository.insert(transaction, [event]);
+      await clearingRepository.update(failed.transaction, transaction.version, [failed.event]);
+      return transaction.id;
+    };
+    const old = await failedWith("PAYMENT_EXPIRED", new Date(clock.now().getTime() - 3_600_000));
+    const recent = await failedWith("PAYMENT_EXPIRED", new Date(clock.now().getTime() - 60_000));
+    const other = await failedWith("DECLINED", new Date(clock.now().getTime() - 60_000));
+
+    const since = new Date(clock.now().getTime() - 7_200_000);
+    const ids = (await clearingRepository.listFailedByCode("PAYMENT_EXPIRED", since, 10)).map(
+      (t) => t.id,
+    );
+    expect(ids).toContain(old);
+    expect(ids).toContain(recent);
+    expect(ids).not.toContain(other);
+
+    // Only what failed at or after `since`.
+    const narrow = (
+      await clearingRepository.listFailedByCode(
+        "PAYMENT_EXPIRED",
+        new Date(clock.now().getTime() - 1_800_000),
+        10,
+      )
+    ).map((t) => t.id);
+    expect(narrow).toContain(recent);
+    expect(narrow).not.toContain(old);
   });
 
   test("clears a payment end to end", async () => {

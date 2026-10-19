@@ -204,6 +204,18 @@ export class InMemoryClearingRepository implements ClearingRepository {
       .slice(0, limit);
   }
 
+  async listFailedByCode(code: string, since: Date, limit: number): Promise<ClearingTransaction[]> {
+    return [...this.#byId.values()]
+      .filter(
+        (transaction) =>
+          transaction.state === "FAILED" &&
+          transaction.failure?.code === code &&
+          transaction.failure.at.getTime() >= since.getTime(),
+      )
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      .slice(0, limit);
+  }
+
   async listPendingPayerSurplusRefunds(limit: number): Promise<ClearingTransaction[]> {
     return [...this.#byId.values()]
       .filter((transaction) => {

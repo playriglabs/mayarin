@@ -81,11 +81,13 @@ import { canTransition, isTerminal } from "./state-machine.ts";
 import {
   createClearingTransaction,
   failTransaction,
+  PAYMENT_EXPIRED,
   recordCrossAssetSwap,
   recordOrderRenewed,
   recordPayerSurplusRefundBroadcast,
   recordPayerSurplusRefundConfirmed,
   recordSettlementBroadcast,
+  reopenForLateFunds,
   reopenTransaction,
   type TransitionResult,
   transition,
@@ -366,7 +368,7 @@ export class ClearingEngine {
       const intent = await this.#intents.getById(transaction.paymentIntentId);
       if (intent.expiresAt.getTime() <= now.getTime()) {
         failed.push(
-          await this.#fail(transaction, "payment expired before funds arrived", "PAYMENT_EXPIRED"),
+          await this.#fail(transaction, "payment expired before funds arrived", PAYMENT_EXPIRED),
         );
       }
     }
@@ -652,6 +654,40 @@ export class ClearingEngine {
     return this.#advance(transaction);
   }
 
+  /** Payments that expired without funds since `since`: candidates for late funds. */
+  listExpired(since: Date, limit = 100): Promise<ClearingTransaction[]> {
+    return this.#repository.listFailedByCode(PAYMENT_EXPIRED, since, limit);
+  }
+
+  /**
+   * Accepts funds that arrived after the payment expired.
+   *
+   * The caller has already established that a confirmed deposit covers the
+   * amount (the engine does not read the chain). The payment reopens at
+   * `ASSET_RECEIVED` and settles at the price that was locked, so a person
+   * decides whether that price is still acceptable: this is not automatic.
+   */
+  async acceptLateFunds(id: string): Promise<ClearingProgress> {
+    const transaction = await this.getById(id);
+    if (!usesDepositAddress(transaction.executionPath)) {
+      // The contract path funds atomically on chain and x402 settles through a
+      // facilitator: neither parks at a deposit address for funds to arrive late.
+      throw new ValidationError("Only a deposit-match payment can receive late funds", {
+        id,
+        executionPath: transaction.executionPath,
+      });
+    }
+    // The receipt is booked here because the reopen skips the step that books it
+    // on time: without it `clearingPosting` would debit a payable nothing had
+    // credited. Keyed per transaction, so a crash before the reopen replays it
+    // harmlessly.
+    reopenForLateFunds(transaction, this.#clock.now());
+    await this.#postDepositReceipt(transaction);
+    const reopened = await this.#apply(reopenForLateFunds(transaction, this.#clock.now()));
+    await this.#intents.reopen(await this.#intents.getById(transaction.paymentIntentId));
+    return this.#advance(reopened);
+  }
+
   /**
    * Retries a payment that failed after the payer's funds arrived.
    *
@@ -848,11 +884,7 @@ export class ClearingEngine {
         //
         // Without a signed order the deposit settles internally, acquiring
         // the settlement asset at receipt, and the original posting is correct.
-        await this.#ledger.post(
-          this.#splitsDepositReceipt(transaction)
-            ? depositAssetReceivedPosting(transaction)
-            : assetReceivedPosting(transaction),
-        );
+        await this.#postDepositReceipt(transaction);
         return this.#apply(
           transition(
             transaction,
@@ -895,6 +927,15 @@ export class ClearingEngine {
       case "FAILED":
         return null;
     }
+  }
+
+  /** Books the payer's deposit as received, in the form this payment's settlement expects. */
+  async #postDepositReceipt(transaction: ClearingTransaction): Promise<void> {
+    await this.#ledger.post(
+      this.#splitsDepositReceipt(transaction)
+        ? depositAssetReceivedPosting(transaction)
+        : assetReceivedPosting(transaction),
+    );
   }
 
   /** Quotes and freezes the settlement amount, fee and net payout. */

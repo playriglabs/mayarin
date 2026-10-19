@@ -157,6 +157,7 @@ import { EscrowService } from "./services/escrow.ts";
 import { disputeAlertSink } from "./services/escrow-dispute.ts";
 import { EscrowKeeper, rpcEscrowStateReader } from "./services/escrow-keeper.ts";
 import { FiatSettler } from "./services/fiat-settler.ts";
+import { LateDepositService } from "./services/late-deposits.ts";
 import { rpcOperatorBumper } from "./services/operator-bumper.ts";
 import { rpcOperatorChainReader } from "./services/operator-chain-reader.ts";
 import { rpcFloatReader } from "./services/operator-float-reader.ts";
@@ -260,6 +261,8 @@ export interface Container {
   readonly watchers: ReadonlyMap<ChainId, WalletWatcher>;
   /** Present only when the chain layer is enabled. */
   readonly deposits?: DrizzleDepositRepository;
+  /** Funds that arrived after their payment expired; present with the chain layer. */
+  readonly lateDeposits?: LateDepositService;
   /** Current head of a chain, for rendering confirmation counts. */
   readonly chainHead?: (chain: ChainId) => Promise<BlockRef>;
   /** Contract-path checkout (#61). Present only when `CONTRACT_PATH_ENABLED` is true. */
@@ -1508,6 +1511,16 @@ export function createContainer({
     watchers,
     indexers,
     ...(deposits === undefined ? {} : { deposits }),
+    ...(deposits === undefined || chain === undefined
+      ? {}
+      : {
+          lateDeposits: new LateDepositService({
+            engine,
+            deposits,
+            clock,
+            windowMs: chain.retentionSeconds * 1_000,
+          }),
+        }),
     ...(chainHead === undefined ? {} : { chainHead }),
     ...(checkout === undefined ? {} : { checkout }),
     ...(webhooks === undefined ? {} : { webhooks }),
