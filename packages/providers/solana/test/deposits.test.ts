@@ -80,6 +80,7 @@ function fakeConnection(input: {
       ];
     },
     getSlot: async () => 500,
+    getMultipleAccountsInfo: async (keys: PublicKey[]) => keys.map(() => ({ lamports: 1 })),
   } as unknown as Connection;
 }
 
@@ -149,5 +150,60 @@ describe("SolanaDepositClient", () => {
     expect(transfers).toHaveLength(1);
     expect(transfers[0]?.to).toBe(owner.toBase58());
     expect(transfers[0]?.amount).toBe(10_000n);
+  });
+
+  describe("RPC cost", () => {
+    const calls = (connection: Connection, name: string) =>
+      (connection as unknown as Record<string, { calls: number }>)[name]?.calls ?? 0;
+    const counted = (fn: (...args: never[]) => Promise<unknown>) => {
+      const wrapped = Object.assign(
+        async (...args: never[]) => {
+          wrapped.calls += 1;
+          return fn(...args);
+        },
+        { calls: 0 },
+      );
+      return wrapped;
+    };
+
+    test("looks up signatures only for addresses that have an account", async () => {
+      const paid = Keypair.generate().publicKey;
+      const unpaid = Keypair.generate().publicKey;
+      const signatures = counted(async () => []);
+      const connection = {
+        getSignaturesForAddress: signatures,
+        getMultipleAccountsInfo: async (keys: PublicKey[]) =>
+          keys.map((key) => (key.equals(paid) ? { lamports: 1 } : null)),
+      } as unknown as Connection;
+      const client = new SolanaDepositClient({ connection, tokens: {} });
+
+      await client.transfers({
+        chain: CHAIN,
+        asset: "SOL",
+        addresses: [paid.toBase58(), unpaid.toBase58()],
+        fromBlock: 1n,
+        toBlock: 2n,
+      });
+
+      expect(signatures.calls).toBe(1);
+    });
+
+    test("one head answer serves every asset's tick, and a failure is not reused", async () => {
+      let now = new Date("2026-01-01T00:00:00.000Z");
+      const slot = counted(async () => 500);
+      const block = counted(async () => ({ blockhash: BLOCK_HASH }));
+      const connection = { getSlot: slot, getBlock: block } as unknown as Connection;
+      const client = new SolanaDepositClient({ connection, tokens: {}, clock: { now: () => now } });
+
+      const heads = await Promise.all([client.head(CHAIN), client.head(CHAIN), client.head(CHAIN)]);
+      expect(heads[0]).toEqual({ number: 500n });
+      expect(calls(connection, "getSlot")).toBe(1);
+      // The head is a slot number; its hash is not worth a getBlock.
+      expect(calls(connection, "getBlock")).toBe(0);
+
+      now = new Date(now.getTime() + 2_001);
+      await client.head(CHAIN);
+      expect(calls(connection, "getSlot")).toBe(2);
+    });
   });
 });
