@@ -421,6 +421,13 @@
       "when": 1792400000000,
       "tag": "0059_login_events",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792400100000,
+      "tag": "0060_merchant_display_currency",
+      "breakpoints": true
     }
   ]
 }

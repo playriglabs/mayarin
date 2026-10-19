@@ -128,6 +128,7 @@ import {
 } from "./services/api-key-service.ts";
 import { AuthService } from "./services/auth-service.ts";
 import { CustomerService } from "./services/customer-service.ts";
+import { DisplayRateService } from "./services/display-rate-service.ts";
 import { DisputeService, type DisputeStore } from "./services/disputes.ts";
 import { EventLogService } from "./services/event-log-service.ts";
 import {
@@ -171,6 +172,7 @@ export interface Container {
   readonly config: Config;
   readonly auth: AuthService;
   readonly sessions: SessionService;
+  readonly displayRates: DisplayRateService;
   readonly loginEvents: LoginEventRepository;
   readonly mfa: MfaService;
   /** Mints the payer tokens in the document links a merchant opens (SEC-09). */
@@ -679,6 +681,11 @@ export function createContainer(options: CreateContainerOptions): Container {
     config,
     auth: authService,
     sessions: sessionService,
+    displayRates: new DisplayRateService({
+      url: config.displayRatesUrl,
+      ttlSeconds: config.displayRatesTtlSeconds,
+      clock,
+    }),
     loginEvents,
     mfa,
     users: userService,

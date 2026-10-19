@@ -82,6 +82,8 @@ export const updateSettingsBodySchema = z
      */
     city: z.string().nullable().optional(),
     countryCode: z.string().nullable().optional(),
+    /** ISO 4217 the dashboard shows money in. `null` is US dollars. */
+    displayCurrency: z.string().nullable().optional(),
     /**
      * The chain a payment funded in a local currency is delivered to. `null`
      * goes back to the deployment's rule, an absent field leaves it alone.
@@ -139,6 +141,7 @@ export function toSettingsDto(
     buyerProtection: merchant.buyerProtection ?? null,
     city: merchant.city ?? null,
     countryCode: merchant.countryCode ?? null,
+    displayCurrency: merchant.displayCurrency ?? "USD",
     /** Where a local-currency payment is delivered. `null` is the deployment's rule. */
     localCurrencyChain: merchant.localCurrencyChain ?? null,
     /**

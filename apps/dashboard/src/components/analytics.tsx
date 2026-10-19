@@ -69,6 +69,7 @@ import {
 } from "@/lib/analytics-series";
 import { ApiError } from "@/lib/api/client";
 import { countryLabel } from "@/lib/countries";
+import { setDisplayCurrency } from "@/lib/display-currency";
 import { ICON_CARD } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { withQuery } from "@/lib/with-query";
@@ -510,6 +511,7 @@ function Dashboards({ data }: { readonly data: AnalyticsResponse }) {
     chain: chain === ALL ? undefined : chain,
     asset: asset === ALL ? undefined : asset,
   };
+  setDisplayCurrency(data.display);
   const payments = filterPayments(data.payments, filters);
   const settlements = filterSettlements(data.settlements, filters);
   const input = { payments, settlements, range, interval, rates: data.usdRates };

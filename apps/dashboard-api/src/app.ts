@@ -26,6 +26,7 @@ import { catalogRoutes } from "./routes/catalog.ts";
 import { customerRoutes } from "./routes/customers.ts";
 import { disputeRoutes } from "./routes/disputes.ts";
 import { eventLogRoutes } from "./routes/event-logs.ts";
+import { fxRoutes } from "./routes/fx.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { invoiceRoutes } from "./routes/invoices.ts";
 import { merchantDisputeRoutes } from "./routes/merchant-disputes.ts";
@@ -112,6 +113,7 @@ export function createApp(container: Container): Hono<{ Variables: AuthVars }> {
   v1.use("*", apiKeyMiddleware(container.apiKeys));
 
   v1.route("/auth", authRoutes(container));
+  v1.route("/fx", fxRoutes(container));
 
   // Authenticated merchant reads (own merchant only — no cross-merchant view).
   v1.use("/payments/*", requireAuth(), requirePermission("payments:read"));

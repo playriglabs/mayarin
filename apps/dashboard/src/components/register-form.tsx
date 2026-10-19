@@ -20,6 +20,7 @@ import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { match, P } from "ts-pattern";
 import { AuthCard, AuthSetup } from "@/components/auth-shell";
+import { CurrencyCombobox } from "@/components/currency-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -35,7 +36,9 @@ import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { ButtonLoader } from "@/components/ui/page-loader";
 import { useRegister } from "@/hooks/auth";
+import { useCurrencies } from "@/hooks/fx";
 import { COUNTRIES } from "@/lib/countries";
+import { currencyOfCountry } from "@/lib/country-currency";
 import { ICON_NAV } from "@/lib/icons";
 import { localRailsFor } from "@/lib/local-rails";
 import { formatRetryAfter, loginFailureOf } from "@/lib/login-failure";
@@ -64,6 +67,12 @@ function RegisterForm() {
   const [merchantName, setMerchantName] = useState("");
   const [countryCode, setCountryCode] = useState("");
   const [city, setCity] = useState("");
+  // Follows the country until the merchant picks one themselves.
+  const [currencyChoice, setCurrencyChoice] = useState<string | undefined>(undefined);
+  const currencies = useCurrencies();
+  const offered = currencies.data?.currencies ?? [];
+  const suggested = currencyOfCountry(countryCode);
+  const displayCurrency = currencyChoice ?? (offered.includes(suggested) ? suggested : "USD");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [revealed, setRevealed] = useState(false);
@@ -79,7 +88,14 @@ function RegisterForm() {
     if (tooShort || countryCode === "") return;
     setState({ status: "submitting" });
     register.mutate(
-      { email, password, merchantName, countryCode, city: city.trim() },
+      {
+        email,
+        password,
+        merchantName,
+        countryCode,
+        city: city.trim(),
+        ...(offered.length === 0 ? {} : { displayCurrency }),
+      },
       {
         // The address travels in the URL so the code step can address the
         // person by the inbox they are about to open, without a second typing.
@@ -117,7 +133,7 @@ function RegisterForm() {
         <form onSubmit={onContinue} className="flex w-full flex-col gap-4">
           <div className="flex flex-col gap-3">
             <p className="text-xs text-muted-foreground">Step 1 of 2</p>
-            <h1 className="text-2xl text-foreground">Create your testnet account</h1>
+            <h1 className="text-2xl text-foreground">Create your sandbox account</h1>
             <p className="text-base text-muted-foreground">
               This is a testing environment. Transactions use test assets and have no real-world
               value.
@@ -315,6 +331,21 @@ function RegisterForm() {
               className="h-12 px-4 text-base"
             />
           </Field>
+
+          {offered.length > 0 && (
+            <Field>
+              <FieldLabel htmlFor="register-currency" className="text-sm">
+                Show my balance in
+              </FieldLabel>
+              <CurrencyCombobox
+                id="register-currency"
+                value={displayCurrency}
+                onChange={setCurrencyChoice}
+                disabled={submitting}
+                inputClassName="h-12 pl-4 text-base"
+              />
+            </Field>
+          )}
         </div>
 
         <div aria-live="polite" className="empty:hidden">

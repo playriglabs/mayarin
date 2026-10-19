@@ -85,6 +85,10 @@ export const registerBodySchema = z.object({
   merchantName: z.string().trim().min(1).max(120),
   city: z.string().trim().min(1).max(120),
   countryCode: z.string().regex(/^[A-Z]{2}$/, "Use a two-letter uppercase country code"),
+  displayCurrency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, "Use a three-letter uppercase currency code")
+    .optional(),
 });
 
 export const verifyEmailBodySchema = z.object({

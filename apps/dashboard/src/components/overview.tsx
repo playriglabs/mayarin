@@ -32,6 +32,7 @@ import { useWalletBalance, useWalletWithdrawalHistory } from "@/hooks/settings";
 import { payInAmountUsd, settlementsByPaymentIntent } from "@/lib/analytics-movements";
 import { ApiError } from "@/lib/api/client";
 import { intentStatusLabel, toneOf } from "@/lib/clearing";
+import { displayCurrency, formatUsdCents, setDisplayCurrency } from "@/lib/display-currency";
 import { ICON_CARD } from "@/lib/icons";
 import { display, dominantAsset, totalIn, toUsdCents } from "@/lib/money";
 import { COUNT_UP_DURATION, EASE_OUT_EXPO } from "@/lib/motion";
@@ -69,9 +70,7 @@ function volumeOf(settlements: readonly SettlementDto[]): {
   const skipped = amounts.length - counted;
   const total = totalIn(amounts, asset);
   return {
-    value: DOLLAR_PEGGED.has(asset)
-      ? approximateDollarDisplay(total.amount, asset)
-      : display(total),
+    value: DOLLAR_PEGGED.has(asset) ? dollarPeggedDisplay(total.amount, asset) : display(total),
     hint:
       skipped === 0
         ? `Across ${counted} completed payment${counted === 1 ? "" : "s"}.`
@@ -143,19 +142,19 @@ const DOLLAR_PEGGED = new Set(["USDC", "USDT", "USDG", "PYUSD"]);
  * because a balance shown as more than it is invites a withdrawal that fails.
  */
 function balanceDisplay(total: bigint, asset: string): string {
+  if (asset === "USD") return formatUsdCents(total);
   if (!isAssetCode(asset)) return "—";
   if (!DOLLAR_PEGGED.has(asset)) return formatMoneyLocale(money(total, asset));
 
   const scale = 10n ** BigInt(assetDecimals(asset) - assetDecimals("USD"));
-  return formatMoneyLocale(money(total / scale, "USD"));
+  return formatUsdCents(total / scale);
 }
 
-/** A dollar-pegged volume at dashboard precision, marked as an approximation. */
-function approximateDollarDisplay(total: bigint, asset: string): string {
+/** A dollar-pegged volume at dashboard precision. */
+function dollarPeggedDisplay(total: bigint, asset: string): string {
   if (!isAssetCode(asset)) return "—";
   const scale = 10n ** BigInt(assetDecimals(asset) - assetDecimals("USD"));
-  const digits = formatMoneyLocale(money(total / scale, "USD"), { symbol: false });
-  return `≈ $${digits}`;
+  return formatUsdCents(total / scale);
 }
 
 /**
@@ -363,7 +362,7 @@ function BalanceOverview({
           <span className="text-subtle-foreground text-xs">
             {chains.length === 0
               ? "No settlement address yet."
-              : `${assets.length === 0 ? "Held" : `Held in ${assets.join(", ")}`} across ${chains.length} network${chains.length === 1 ? "" : "s"}, shown in US dollars.`}
+              : `${assets.length === 0 ? "Held" : `Held in ${assets.join(", ")}`} across ${chains.length} network${chains.length === 1 ? "" : "s"}, shown in ${displayCurrency()}.`}
           </span>
         </div>
 
@@ -577,6 +576,7 @@ function Overview() {
       />
     ))
     .with({ status: "success" }, ({ data }) => {
+      setDisplayCurrency(data.display);
       const all = data.payments;
       const completed = all.filter((p) => p.status === "COMPLETED").length;
       const pending = all.filter((p) => IN_PROGRESS.has(p.status)).length;
@@ -646,7 +646,7 @@ function Overview() {
             </div>
             <MovementCard
               title="Revenue"
-              hint="Gross USD value at the locked rate, over the last thirty days."
+              hint="Gross value at the locked rate, over the last thirty days."
               points={payInDaily}
               asset="USD"
               href="/analytics"

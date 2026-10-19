@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetLabel } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
+import { CurrencyCombobox } from "@/components/currency-combobox";
 import { InfoHint } from "@/components/info-hint";
 import { LoginHistory } from "@/components/login-history";
 import { MerchantProfile } from "@/components/merchant-profile";
@@ -123,6 +124,7 @@ interface Draft {
   readonly protectionBond: string;
   readonly city: string;
   readonly countryCode: string;
+  readonly displayCurrency: string;
   /** The chain a local-currency payment is delivered to; `""` is the deployment's rule. */
   readonly localCurrencyChain: string;
 }
@@ -144,6 +146,7 @@ function draftOf(settings: SettingsDto): Draft {
     protectionBond: String((settings.buyerProtection?.bondBps ?? 0) / 100),
     city: settings.city ?? "",
     countryCode: settings.countryCode ?? "",
+    displayCurrency: settings.displayCurrency,
     localCurrencyChain: settings.localCurrencyChain ?? "",
   };
 }
@@ -445,6 +448,10 @@ function Settings() {
           : null,
         city: orNull(draft.city),
         countryCode: orNull(draft.countryCode),
+        // Only when changed, so saving something else does not log a currency "change".
+        ...(draft.displayCurrency === loaded?.displayCurrency
+          ? {}
+          : { displayCurrency: draft.displayCurrency }),
         localCurrencyChain: orNull(draft.localCurrencyChain),
       });
       setNotice("Settings saved.");
@@ -819,6 +826,24 @@ function Settings() {
                         </Combobox>
                       </Field>
                     </div>
+                  </Card>
+
+                  <Card className="flex flex-col gap-5 p-5">
+                    <div className="flex flex-col gap-1">
+                      <h3 className="font-medium text-foreground text-sm">Display currency</h3>
+                      <p className="text-muted-foreground text-sm">
+                        Your balance and analytics are shown in this currency, at a daily rate.
+                        Payments are still priced and settled as before.
+                      </p>
+                    </div>
+                    <Field className="sm:max-w-sm">
+                      <FieldLabel htmlFor="merchant-display-currency">Currency</FieldLabel>
+                      <CurrencyCombobox
+                        id="merchant-display-currency"
+                        value={draft.displayCurrency}
+                        onChange={(next) => edit({ ...draft, displayCurrency: next })}
+                      />
+                    </Field>
                   </Card>
 
                   <Card className="flex flex-col gap-4 p-4">

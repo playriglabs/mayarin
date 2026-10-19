@@ -116,6 +116,9 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
     }
 
     const body = updateSettingsBodySchema.parse(await c.req.json());
+    if (typeof body.displayCurrency === "string") {
+      await container.displayRates.assertKnown(body.displayCurrency.trim().toUpperCase());
+    }
     if (typeof body.settlementAddress === "string") {
       const trimmed = body.settlementAddress.trim();
       await assertAddressExistsEverywhere(/^0x/.test(trimmed) ? trimmed.toLowerCase() : trimmed);
@@ -148,6 +151,7 @@ export function settingsRoutes(container: Container): Hono<{ Variables: AuthVars
           }),
       ...(body.city === undefined ? {} : { city: body.city }),
       ...(body.countryCode === undefined ? {} : { countryCode: body.countryCode }),
+      ...(body.displayCurrency === undefined ? {} : { displayCurrency: body.displayCurrency }),
       ...(body.localCurrencyChain === undefined
         ? {}
         : { localCurrencyChain: body.localCurrencyChain }),

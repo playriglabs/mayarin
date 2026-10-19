@@ -31,6 +31,10 @@ const configSchema = z.object({
   databaseUrl: z.string().min(1),
   /** A session unused for this many seconds is signed out. Defaults to 1 hour. */
   sessionIdleSeconds: z.coerce.number().int().positive().default(3_600),
+  /** Daily exchange-rate table for showing money in the merchant's currency. Display only. */
+  displayRatesUrl: z.string().url().default("https://open.er-api.com/v6/latest/USD"),
+  /** How long one fetch of that table is reused. The source updates once a day. */
+  displayRatesTtlSeconds: z.coerce.number().int().positive().default(21_600),
   /** Session lifetime in seconds. Defaults to 7 days. */
   sessionTtlSeconds: z.coerce
     .number()
@@ -290,6 +294,8 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     databaseUrl: env.DATABASE_URL,
     sessionTtlSeconds: env.SESSION_TTL_SECONDS,
     sessionIdleSeconds: env.SESSION_IDLE_SECONDS,
+    displayRatesUrl: env.DISPLAY_RATES_URL,
+    displayRatesTtlSeconds: env.DISPLAY_RATES_TTL_SECONDS,
     mfaEncryptionKey: env.MFA_ENCRYPTION_KEY,
     webhookSecretEncryptionKey: env.WEBHOOK_SECRET_ENCRYPTION_KEY,
     internalApiToken: env.INTERNAL_API_TOKEN,

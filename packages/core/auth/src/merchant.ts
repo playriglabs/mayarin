@@ -104,6 +104,8 @@ export interface Merchant {
   readonly countryCode?: string;
   /** Public URL of the company logo. Absent: none uploaded. */
   readonly logoUrl?: string;
+  /** ISO 4217, uppercase: what the dashboard shows money in. Absent: US dollars. */
+  readonly displayCurrency?: string;
   /**
    * The merchant's place in sign-up order — #1, #2, … Assigned by storage on
    * insert, so a merchant not yet stored has none.
@@ -182,6 +184,7 @@ export const MERCHANT_SETTING_FIELDS = [
   "countryCode",
   "logoUrl",
   "localCurrencyChain",
+  "displayCurrency",
 ] as const;
 
 export type MerchantSettingField = (typeof MERCHANT_SETTING_FIELDS)[number];
@@ -221,6 +224,8 @@ export interface MerchantSettingsPatch {
   readonly logoUrl?: string | null;
   /** `null` goes back to the deployment's rule; absent leaves it alone. */
   readonly localCurrencyChain?: ChainId | null;
+  /** `null` goes back to US dollars; absent leaves it alone. */
+  readonly displayCurrency?: string | null;
 }
 
 /**
@@ -270,6 +275,11 @@ export function updateMerchantSettings(
   const city = patchOptional(patch.city, merchant.city, normaliseCity);
   const countryCode = patchOptional(patch.countryCode, merchant.countryCode, normaliseCountryCode);
   const logoUrl = patchOptional(patch.logoUrl, merchant.logoUrl, (value) => value);
+  const displayCurrency = patchOptional(
+    patch.displayCurrency,
+    merchant.displayCurrency,
+    normaliseCurrency,
+  );
   const localCurrencyChain =
     patch.localCurrencyChain === undefined
       ? merchant.localCurrencyChain
@@ -285,6 +295,7 @@ export function updateMerchantSettings(
     city: _city,
     countryCode: _country,
     logoUrl: _logo,
+    displayCurrency: _display,
     localCurrencyChain: _localChain,
     ...rest
   } = merchant;
@@ -300,6 +311,7 @@ export function updateMerchantSettings(
     ...(city === undefined ? {} : { city }),
     ...(countryCode === undefined ? {} : { countryCode }),
     ...(logoUrl === undefined ? {} : { logoUrl }),
+    ...(displayCurrency === undefined ? {} : { displayCurrency }),
     ...(localCurrencyChain === undefined ? {} : { localCurrencyChain }),
     updatedAt: new Date(now),
     version: merchant.version + 1,
@@ -381,6 +393,7 @@ export function diffMerchantSettings(
     "countryCode",
     "logoUrl",
     "localCurrencyChain",
+    "displayCurrency",
   ] as const) {
     if (before[field] === after[field]) continue;
     changes.push({
@@ -464,6 +477,15 @@ function normaliseCity(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length === 0 || trimmed.length > 64) {
     throw new ValidationError("A city must be between 1 and 64 characters", { city: trimmed });
+  }
+  return trimmed;
+}
+
+/** ISO 4217 alpha-3, uppercased. Whether a rate exists for it is the rate service's question. */
+export function normaliseCurrency(value: string): string {
+  const trimmed = value.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(trimmed)) {
+    throw new ValidationError("A currency code is three letters, e.g. IDR", { currency: trimmed });
   }
   return trimmed;
 }

@@ -39,6 +39,8 @@ export interface SettingsDto {
   readonly effectiveSettlementAddress: string | null;
   readonly city: string | null;
   readonly countryCode: string | null;
+  /** ISO 4217 the dashboard shows money in. */
+  readonly displayCurrency: string;
   /** Where a local-currency payment is delivered. `null` is the deployment's rule. */
   readonly localCurrencyChain: string | null;
   /** False when neither a chosen nor a provisioned address exists. */
@@ -83,6 +85,7 @@ export interface UpdateSettingsRequest {
   } | null;
   readonly city?: string | null;
   readonly countryCode?: string | null;
+  readonly displayCurrency?: string | null;
   /** `null` goes back to the deployment's rule; an absent field leaves it alone. */
   readonly localCurrencyChain?: string | null;
 }

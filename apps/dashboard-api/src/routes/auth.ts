@@ -182,7 +182,14 @@ export function authRoutes(container: Container): Hono<{ Variables: AuthVars }> 
    */
   app.post("/register", async (c) => {
     const body = registerBodySchema.parse(await c.req.json());
-    await container.registrations.register(body);
+    if (body.displayCurrency !== undefined) {
+      await container.displayRates.assertKnown(body.displayCurrency);
+    }
+    const { displayCurrency, ...profile } = body;
+    await container.registrations.register({
+      ...profile,
+      ...(displayCurrency === undefined ? {} : { displayCurrency }),
+    });
     return c.json({ ok: true }, 202);
   });
 

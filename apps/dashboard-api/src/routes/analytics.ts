@@ -25,7 +25,13 @@ export function analyticsRoutes(container: Container): Hono<{ Variables: AuthVar
         ),
       ),
     ];
+    // What one US dollar buys in the merchant's display currency. A merchant on
+    // dollars, or a rate table that cannot be read, gets 1: the dashboard then
+    // shows dollars rather than a number nobody can stand behind.
+    const currency = (await container.settings.get(scope)).displayCurrency ?? "USD";
+    const perUsd = currency === "USD" ? undefined : await container.displayRates.perUsd(currency);
     return c.json({
+      display: perUsd === undefined ? { currency: "USD", perUsd: "1" } : { currency, perUsd },
       payments: payments.map(toPaymentIntentDto),
       settlements: settlements.map(toSettlementDto),
       usdRates: await usdRates(container, assets),
