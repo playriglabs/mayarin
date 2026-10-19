@@ -217,10 +217,10 @@ describe("pay page", () => {
     );
     expect(withLogo).toContain('src="https://cdn.example.com/logo.png"');
     expect(withLogo).toContain('alt="Warung Kopi"');
-    expect(withLogo).not.toContain("mayarin-white.png");
+    expect(withLogo).not.toContain("mayarin-logo-white.svg");
 
     const withoutLogo = renderToStaticMarkup(<LinkPage bootstrap={linkBootstrap} />);
-    expect(withoutLogo).toContain("mayarin-white.png");
+    expect(withoutLogo).toContain("mayarin-logo-white.svg");
   });
 
   test("a long cart shows five lines and counts the rest", () => {
