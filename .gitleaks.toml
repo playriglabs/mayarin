@@ -14,6 +14,10 @@ regexes = [
   '''(?i)(token|mint|address)\w*"?\s*[:=]\s*"?(0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})''',
   # logo.dev publishable key (pk_), shipped to browsers by design.
   '''LOGO_DEV_TOKEN\s*=\s*"pk_[A-Za-z0-9_-]+"''',
+  # docs/operator-signing.md tells an operator to set OPERATOR_SIGNER=turnkey. The
+  # rule reads that sentence as a key next to its value; it is a setting. Exactly
+  # this phrase, so nothing else is hidden by it.
+  '''chain-worker: `OPERATOR_SIGNER=turnkey`''',
 ]
 paths = [
   # Recorded testnet transactions: hashes and addresses only.
