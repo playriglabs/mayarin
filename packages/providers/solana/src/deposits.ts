@@ -31,6 +31,21 @@ export interface SolanaDepositClientOptions {
  */
 export const HEAD_TTL_MS = 2_000;
 
+/**
+ * Slots a watcher tick may cover on Solana. Solana finds a deposit by the
+ * signatures of its address, not by walking blocks, so a window costs the same
+ * lookup however wide it is. At the EVM-sized 2000 (100 for the native asset) a
+ * watcher that was down for a few days made hundreds of thousands of identical
+ * lookups to cross the gap, and a deposit made meanwhile sat unseen until the
+ * scan reached it. This is about 46 days of slots: one tick crosses any gap.
+ */
+export const SOLANA_SCAN_RANGE = 10_000_000;
+
+/** `getSignaturesForAddress` returns at most this many per call. */
+const SIGNATURES_PER_PAGE = 1_000;
+/** A single-use deposit address has a handful; this many pages means something is wrong. */
+const MAX_SIGNATURE_PAGES = 20;
+
 /** `getMultipleAccounts` takes at most 100 keys. */
 const ACCOUNTS_PER_CALL = 100;
 
@@ -95,11 +110,7 @@ export class SolanaDepositClient implements ChainClient {
       destinations
         .filter(({ account }) => funded.has(account.toBase58()))
         .map(async ({ owner, account }) => {
-          const signatures = await this.#connection.getSignaturesForAddress(
-            account,
-            { limit: 1_000 },
-            "confirmed",
-          );
+          const signatures = await this.#signatures(account, query.fromBlock);
           const inRange = signatures.filter(
             (entry) =>
               entry.err === null &&
@@ -154,6 +165,30 @@ export class SolanaDepositClient implements ChainClient {
 
   async settlements(_query: SettlementQuery): Promise<SettlementLog[]> {
     return [];
+  }
+
+  /**
+   * Every signature of an account back to `fromBlock`, newest first. A page is
+   * full when there may be more, and the next one starts before its oldest.
+   */
+  async #signatures(account: PublicKey, fromBlock: bigint) {
+    const found: Awaited<ReturnType<Connection["getSignaturesForAddress"]>> = [];
+    let before: string | undefined;
+    for (let page = 0; page < MAX_SIGNATURE_PAGES; page += 1) {
+      const batch = await this.#connection.getSignaturesForAddress(
+        account,
+        { limit: SIGNATURES_PER_PAGE, ...(before === undefined ? {} : { before }) },
+        "confirmed",
+      );
+      found.push(...batch);
+      const oldest = batch.at(-1);
+      if (batch.length < SIGNATURES_PER_PAGE || oldest === undefined) return found;
+      if (BigInt(oldest.slot) < fromBlock) return found;
+      before = oldest.signature;
+    }
+    throw new Error(
+      `${account.toBase58()} has more than ${MAX_SIGNATURE_PAGES * SIGNATURES_PER_PAGE} signatures in range`,
+    );
   }
 
   /** The accounts that exist, read without their data. */
