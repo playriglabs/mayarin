@@ -30,6 +30,8 @@ function setup(options: {
   readonly funding?: PaymentFunding;
   readonly deposit?: { chain: string; asset: string; amount: string } | null;
   readonly fund?: boolean;
+  /** What `recordAssetReceived` does, and the state the payment is in afterwards. */
+  readonly recording?: { readonly throws: Error; readonly state: string };
 }) {
   const clock = new FixedClock(START);
   const rows = [options.funding ?? funding()];
@@ -103,6 +105,10 @@ function setup(options: {
     engine: {
       async recordAssetReceived(id: string) {
         calls.received.push(id);
+        if (options.recording !== undefined) throw options.recording.throws;
+      },
+      async getById() {
+        return { state: options.recording?.state ?? "SUCCESS" };
       },
     },
     ...(options.fund === true
@@ -223,6 +229,36 @@ describe("FiatSettler", () => {
     await settler.tick();
 
     expect(calls.funded).toEqual([]);
+  });
+
+  test("a payment left at ASSET_RECEIVED for the worker counts as recorded, and is not retried every pass", async () => {
+    // core-api has no treasury executor: the receipt is booked, then the next step
+    // throws. The chain worker resumes the payment; repeating it here only spams.
+    const { settler, clock, calls } = setup({
+      recording: {
+        throws: new Error("carries a signed order, but this process has no treasury executor"),
+        state: "ASSET_RECEIVED",
+      },
+    });
+    clock.advance(9_000);
+    await settler.tick(); // marks the sandbox order paid
+    await settler.tick(); // records the receipt: the next step cannot run here
+    await settler.tick(); // nothing left to do for this order
+
+    expect(calls.received).toEqual(["clr_1"]);
+    expect(calls.updates.at(-1)).toContain("asset_settled");
+  });
+
+  test("a failure that left the payment anywhere else is still an error and is retried", async () => {
+    const { settler, clock, calls } = setup({
+      recording: { throws: new Error("ledger unavailable"), state: "PAYMENT_PENDING" },
+    });
+    clock.advance(9_000);
+    await settler.tick(); // marks the sandbox order paid
+    await settler.tick(); // records the receipt: fails
+    await settler.tick(); // and is tried again
+
+    expect(calls.received).toEqual(["clr_1", "clr_1"]);
   });
 
   test("a settled order is not looked at again", async () => {

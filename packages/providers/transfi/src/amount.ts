@@ -68,3 +68,51 @@ export async function fiatAmountFor(args: {
     required: args.required,
   });
 }
+
+/** A method's real minimum order, and what it delivers: the least a payer can be asked to send. */
+export interface MethodFloor {
+  /** Fiat amount of the smallest order the method accepts. */
+  readonly floor: number;
+  /** Stablecoin units that order delivers. */
+  readonly delivered: number;
+}
+
+/**
+ * The smallest order a method really takes.
+ *
+ * The method list's own `minAmount` is not that number: TransFi's sandbox lists
+ * QRIS at 1 IDR and then refuses anything under 92,015. The truth shows only in
+ * the quote's refusal, so this quotes at the listed minimum and, when refused,
+ * once more at the floor the refusal names. `undefined` when it cannot tell, so
+ * the caller can leave the method alone rather than guess.
+ */
+export async function methodFloor(args: {
+  readonly listedMin: number;
+  readonly quote: (
+    fiatAmount: number,
+  ) => Promise<{ readonly destinationAmount: number; readonly belowMinimum?: number }>;
+}): Promise<MethodFloor | undefined> {
+  const first = await args.quote(args.listedMin);
+  if (first.belowMinimum === undefined) {
+    return first.destinationAmount > 0
+      ? { floor: args.listedMin, delivered: first.destinationAmount }
+      : undefined;
+  }
+  const second = await args.quote(first.belowMinimum);
+  return second.destinationAmount > 0
+    ? { floor: first.belowMinimum, delivered: second.destinationAmount }
+    : undefined;
+}
+
+/**
+ * Whether charging a method's minimum for a payment this size is fair. Whatever
+ * the order delivers beyond what is owed stays in the deposit address, where the
+ * payer cannot reclaim it, so only rounding and fee drift are tolerated.
+ */
+export function minimumFitsPayment(
+  floor: MethodFloor,
+  required: number,
+  tolerance: number,
+): boolean {
+  return floor.delivered <= required * tolerance;
+}

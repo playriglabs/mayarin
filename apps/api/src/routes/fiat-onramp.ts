@@ -42,18 +42,27 @@ import {
   returnPath,
   returnUrlFor,
 } from "../middleware/payer-access.ts";
+import { MethodFloors } from "../services/fiat-methods.ts";
 
 /** Every currency TransFi lists as a deposit currency for these markets carries two decimals. */
 const FIAT_DECIMALS = 2;
 
 /**
- * How far above the required amount a payment may deliver before it is refused.
+ * How far above the required amount an order may deliver before it is refused,
+ * and before a method stops being offered.
  *
  * A method's minimum can exceed a small payment, and the difference would sit in
- * the deposit address as an overpayment the payer cannot reclaim. Past this the
- * payer is told to use another method instead of being charged the minimum.
+ * the deposit address as an overpayment the payer cannot reclaim. Only rounding
+ * and fee drift are tolerated: past this the payer is told to use another method
+ * or to pay with crypto, not charged the minimum.
  */
-const MAX_OVERPAYMENT = 1.5;
+const MAX_OVERCHARGE = 1.05;
+
+/** How long a method's real minimum is kept; it moves with the provider's rate. */
+const FLOOR_TTL_MS = 10 * 60_000;
+
+/** Quotes in flight at once while the minimums are being read. */
+const FLOOR_CONCURRENCY = 4;
 
 const methodFields = {
   currency: z.string().regex(/^[A-Z]{3}$/),
@@ -206,13 +215,48 @@ export function fiatOnrampRoutes(container: Container): Hono {
     return c.json({ currencies: currencies.list });
   });
 
+  /** The real minimum of each method, kept between requests; see `MethodFloors`. */
+  const floors = new MethodFloors({
+    quote: (args) => client().quote(args),
+    clock: container.clock,
+    tolerance: MAX_OVERCHARGE,
+    ttlMs: FLOOR_TTL_MS,
+    concurrency: FLOOR_CONCURRENCY,
+  });
+
   app.get("/methods", async (c) => {
     const currency = c.req.query("currency") ?? "";
     if (!/^[A-Z]{3}$/.test(currency)) {
       throw new ValidationError("currency must be a three-letter code", { currency });
     }
     const methods = await client().listPaymentMethods(currency);
-    return c.json({ currency, methods });
+
+    // With a payment named, only what can take it: the same payer token as the
+    // payment's other routes. Without one, the whole list, as before.
+    const paymentId = c.req.query("paymentId");
+    if (paymentId === undefined) return c.json({ currency, methods });
+    if (
+      !container.payerTokens.verify(paymentId, c.req.query("t") ?? c.req.header("x-payer-token"))
+    ) {
+      throw new NotFoundError(`Payment ${paymentId} not found`, { paymentId });
+    }
+    const { transaction } = await container.paymentApp.getPayment(paymentId);
+    const deposit = transaction?.deposit;
+    const cryptoCurrency =
+      deposit === undefined
+        ? undefined
+        : transfiTokenCode(deposit.chain, deposit.asset, { sandbox: sandbox() });
+    // No deposit address yet, or a network local currency cannot fund: nothing to
+    // measure against, so nothing is hidden.
+    if (deposit === undefined || cryptoCurrency === undefined) return c.json({ currency, methods });
+
+    const fitting = await floors.fit(
+      methods,
+      currency,
+      cryptoCurrency,
+      Number(toDecimalString(deposit.amount)),
+    );
+    return c.json({ currency, methods: fitting, hidden: methods.length - fitting.length });
   });
 
   // What the payer was last told to pay, so a page that reloads — the hosted
@@ -292,7 +336,7 @@ export function fiatOnrampRoutes(container: Container): Hono {
         maxAmount: method.maxAmount,
       });
     }
-    if (delivered > required * MAX_OVERPAYMENT) {
+    if (delivered > required * MAX_OVERCHARGE) {
       throw new ValidationError(
         "This payment is smaller than the minimum for that method. Choose another method or pay with crypto.",
         { required, minimumDelivers: delivered },
