@@ -10,7 +10,7 @@
 # mainnet-addresses.json. They differ by salt, so they are different addresses, and
 # each address is the same on every chain.
 #
-#   ./scripts/mainnet-safes.sh all                 # predict on all four chains; sends nothing
+#   ./scripts/mainnet-safes.sh all                 # predict on all five chains; sends nothing
 #   ./scripts/mainnet-safes.sh base                # predict on one
 #   ./scripts/mainnet-safes.sh base --execute      # deploy on one: asks for the typed word
 #   ./scripts/mainnet-safes.sh all --threshold 3   # default 2
@@ -32,7 +32,7 @@ ENV_FILE="${DEPLOY_ENV_FILE:-$REPO_ROOT/.env.mainnet}"
 OUT="${MAINNET_ADDRESSES_FILE:-$REPO_ROOT/mainnet-addresses.json}"
 
 TARGET="${1:-}"
-[[ -n "$TARGET" ]] || { echo "usage: $0 <base|arbitrum|polygon|bsc|all> [--execute] [--threshold N]"; exit 1; }
+[[ -n "$TARGET" ]] || { echo "usage: $0 <ethereum|base|arbitrum|polygon|bsc|all> [--execute] [--threshold N]"; exit 1; }
 shift
 EXECUTE=false
 THRESHOLD=2
@@ -51,9 +51,9 @@ command -v bun >/dev/null || { echo "bun not found"; exit 1; }
 [[ -f "$OUT" ]] || { echo "missing $OUT — run scripts/mainnet-wallets.sh first"; exit 1; }
 
 case "$TARGET" in
-  all) CHAINS="base arbitrum polygon bsc" ;;
-  base|arbitrum|polygon|bsc) CHAINS="$TARGET" ;;
-  *) echo "chain is base, arbitrum, polygon, bsc or all"; exit 1 ;;
+  all) CHAINS="ethereum base arbitrum polygon bsc" ;;
+  ethereum|base|arbitrum|polygon|bsc) CHAINS="$TARGET" ;;
+  *) echo "chain is ethereum, base, arbitrum, polygon, bsc or all"; exit 1 ;;
 esac
 
 # --- Owners come from the file; their addresses are never echoed ----------------------
@@ -85,6 +85,7 @@ fi
 # Public endpoints are enough to predict; a deploy uses the RPC in the env file.
 public_rpc() {
   case "$1" in
+    ethereum) echo "https://ethereum-rpc.publicnode.com" ;;
     base) echo "https://base-rpc.publicnode.com" ;;
     arbitrum) echo "https://arbitrum-one-rpc.publicnode.com" ;;
     polygon) echo "https://polygon-bor-rpc.publicnode.com" ;;

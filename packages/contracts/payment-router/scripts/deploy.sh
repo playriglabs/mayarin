@@ -35,7 +35,7 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet|base|arbitrum|polygon|bsc> [--dry] [--no-verify] [--factory-only|--router-only|--configure-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet|ethereum|base|arbitrum|polygon|bsc> [--dry] [--no-verify] [--factory-only|--router-only|--configure-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
@@ -71,10 +71,17 @@ done
 
 # macOS ships bash 3.2 — no associative arrays. One case, four facts.
 #
-# base and arbitrum are mainnets, and run under rules the testnets do not: see
-# "Mainnet rules" below.
+# ethereum, base, arbitrum, polygon and bsc are mainnets, and run under rules the
+# testnets do not (`MAINNET`, below).
 MAINNET=false
 case "$CHAIN" in
+  ethereum)
+    MAINNET=true
+    CHAIN_ID=1
+    RPC_VAR=ETHEREUM_RPC_URL
+    EXPLORER="https://etherscan.io/address"
+    VERIFIER=etherscan
+    ;;
   base)
     MAINNET=true
     CHAIN_ID=8453

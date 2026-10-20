@@ -20,9 +20,10 @@
 #
 # --adopt <name> records the address of a keystore made earlier (it asks that keystore's
 # password; the address is not stored in the keystore file). --sync-env fills the blank
-# GUARDIAN, MULTISIG, FEE_RECIPIENT and TREASURY_ADDRESS of .env.mainnet from this file:
+# GUARDIAN, MULTISIG, FEE_RECIPIENT and TREASURY_ADDRESS of .env.mainnet, and the blank
+# entries of CHAIN_RPC_URLS from the <CHAIN>_RPC_URL variables, from this file:
 # the guardian from its keystore, the two Safes only once scripts/mainnet-safes.sh has
-# found them deployed on every chain. It never overwrites a value that is set and
+# found them deployed on all five chains. It never overwrites a value that is set and
 # prints no value.
 #
 # What this does NOT make, on purpose:
@@ -128,9 +129,26 @@ if [[ "$SYNC_ENV" == true ]]; then
   set_blank GUARDIAN "$(jq -r '[.[] | select(.account == "mayarin-mainnet-guardian")][0].address // empty' <<<"$CREATED")"
   for role in multisig:MULTISIG treasury:FEE_RECIPIENT treasury:TREASURY_ADDRESS; do
     key="${role%%:*}"; var="${role##*:}"
-    everywhere="$(jq -r --arg k "$key" '.[$k] | if . == null then false else ([.deployed[]?] | length == 4 and all) end' <<<"$PREVIOUS_SAFES")"
+    everywhere="$(jq -r --argjson n 5 --arg k "$key" '.[$k] | if . == null then false else ([.deployed[]?] | length == $n and all) end' <<<"$PREVIOUS_SAFES")"
     [[ "$everywhere" == "true" ]] && set_blank "$var" "$(jq -r --arg k "$key" '.[$k].address' <<<"$PREVIOUS_SAFES")"
   done
+  # CHAIN_RPC_URLS (what the services read) is the five <CHAIN>_RPC_URL (what deploy.sh reads),
+  # kept in step: an entry that is blank is filled, one that is set is left alone.
+  RPC_JSON="$(sed -n 's/^CHAIN_RPC_URLS=//p' "$ENV_FILE" | sed -E 's/[[:space:]]+#.*//' | tail -1)"
+  RPC_JSON="$(jq -c . <<<"${RPC_JSON:-{\}}" 2>/dev/null || echo '{}')"
+  FILLED_RPC=0
+  for pair in ethereum:ETHEREUM_RPC_URL base:BASE_RPC_URL arbitrum:ARBITRUM_RPC_URL polygon:POLYGON_RPC_URL bsc:BSC_RPC_URL; do
+    chain="${pair%%:*}"; var="${pair##*:}"
+    url="$(sed -n "s/^$var=//p" "$ENV_FILE" | sed -E 's/[[:space:]]+#.*//' | tail -1 | tr -d '[:space:]')"
+    have="$(jq -r --arg c "$chain" '.[$c] // ""' <<<"$RPC_JSON")"
+    if [[ -n "$url" && -z "$have" ]]; then
+      RPC_JSON="$(jq -c --arg c "$chain" --arg u "$url" '. + {($c): $u}' <<<"$RPC_JSON")"; FILLED_RPC=1
+    fi
+  done
+  if [[ "$FILLED_RPC" == 1 ]]; then
+    NEW_RPC_JSON="$RPC_JSON" perl -pi -e 's/^CHAIN_RPC_URLS=.*/"CHAIN_RPC_URLS=".$ENV{NEW_RPC_JSON}/e' "$ENV_FILE"
+    SYNCED+=("CHAIN_RPC_URLS")
+  fi
   # What the file now says must be what the file now holds.
   set -a
   # shellcheck disable=SC1090
@@ -161,7 +179,7 @@ predicted() {
 }
 
 CHAINS="$(
-  { predicted base BASE_RPC_URL; predicted arbitrum ARBITRUM_RPC_URL
+  { predicted ethereum ETHEREUM_RPC_URL; predicted base BASE_RPC_URL; predicted arbitrum ARBITRUM_RPC_URL
     predicted polygon POLYGON_RPC_URL; predicted bsc BSC_RPC_URL; } | jq -s 'add'
 )"
 

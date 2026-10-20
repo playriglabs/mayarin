@@ -22,13 +22,15 @@ describe("chain facts", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  test("Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnets", () => {
-    for (const chain of ["base", "arbitrum", "polygon", "bsc"] as const) {
+  test("Ethereum, Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnets", () => {
+    for (const chain of ["ethereum", "base", "arbitrum", "polygon", "bsc"] as const) {
       expect(isMainnetChain(chain)).toBe(true);
     }
     expect(isMainnetChain("polygon-amoy")).toBe(false);
     expect(isMainnetChain("bsc-testnet")).toBe(false);
+    expect(EVM_CHAIN_IDS.ethereum).toBe(1n);
     expect(EVM_CHAIN_IDS.polygon).toBe(137n);
+    expect(isMainnetChain("ethereum-sepolia")).toBe(false);
     expect(EVM_CHAIN_IDS.bsc).toBe(56n);
     expect(chainLogoUrl("polygon")).toBe("/chains/polygon.svg");
     expect(chainLogoUrl("bsc")).toBe(chainLogoUrl("bsc-testnet"));
@@ -42,7 +44,8 @@ describe("chain facts", () => {
     expect(isChainId("bsc-testnet")).toBe(true);
     expect(isChainId("solana-devnet")).toBe(true);
     expect(isChainId("solana-localnet")).toBe(true);
-    expect(isChainId("ethereum")).toBe(false);
+    expect(isChainId("ethereum")).toBe(true);
+    expect(isChainId("ethereum-mainnet")).toBe(false);
   });
 
   // Arc mainnet is deliberately absent until the network is live and its id can
@@ -112,7 +115,8 @@ describe("CAIP-2", () => {
   // An unknown network arriving off the wire is a request to reject, not a bug
   // to throw on: x402 payers name their own network.
   test("returns undefined for a network this deployment does not know", () => {
-    expect(chainOfCaip2("eip155:1")).toBeUndefined();
+    expect(chainOfCaip2("eip155:10")).toBeUndefined();
+    expect(chainOfCaip2("eip155:1")).toBe("ethereum");
     expect(chainOfCaip2("solana:mainnet")).toBeUndefined();
     expect(chainOfCaip2("")).toBeUndefined();
   });

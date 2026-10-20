@@ -17,6 +17,22 @@ describe("reviewed mainnet tokens (SEC-18)", () => {
     expect(isReviewedToken("arbitrum", "USDC", BASE_USDC)).toBe(false);
   });
 
+  test("Ethereum admits USDC, USDT and EURC at their canonical addresses", () => {
+    expect(isReviewedToken("ethereum", "USDC", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")).toBe(
+      true,
+    );
+    expect(isReviewedToken("ethereum", "USDT", "0xdac17f958d2ee523a2206206994597c13d831ec7")).toBe(
+      true,
+    );
+    expect(isReviewedToken("ethereum", "EURC", "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c")).toBe(
+      true,
+    );
+    // A PYUSD or any other token is not reviewed here.
+    expect(isReviewedToken("ethereum", "PYUSD", "0x6c3ea9036406852006290770BEdFcAbA0e23A0e8")).toBe(
+      false,
+    );
+  });
+
   test("Polygon admits Circle's native USDC and nothing else", () => {
     expect(isReviewedToken("polygon", "USDC", "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359")).toBe(
       true,

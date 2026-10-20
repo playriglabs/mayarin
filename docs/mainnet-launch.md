@@ -13,8 +13,8 @@ does not mean it has been done on a mainnet: each ticked item still has an
 someone has done them.
 
 Status below follows #143 as of 20 October 2026. Nothing is deployed to mainnet:
-Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnet chains the code
-knows (`MAINNET_CHAIN_IDS`), and every contract and payment drill so far ran on testnet.
+Ethereum, Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnet chains the
+code knows (`MAINNET_CHAIN_IDS`), and every contract and payment drill so far ran on testnet.
 Of the items below, 9 are implemented and none is done on a mainnet.
 
 The deployment mechanics are in [deployment.md](./deployment.md#mainnet-gate).
@@ -188,16 +188,26 @@ How value is executed matters as much as the keys that execute it.
 
 ## 6. Mainnet chains
 
-Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnets the code knows
-(`MAINNET_CHAIN_IDS`). Their reviewed stablecoins, each read back from its chain
+Ethereum, Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnets the code
+knows (`MAINNET_CHAIN_IDS`). Their reviewed stablecoins, each read back from its chain
 (`symbol()`, `decimals()`, code present):
 
 | Chain           | Reviewed tokens                                                        |
 | --------------- | ---------------------------------------------------------------------- |
+| Ethereum        | USDC, USDT, EURC (6 decimals)                                          |
 | Base            | USDC, EURC                                                             |
 | Arbitrum One    | USDC, USDT                                                             |
 | Polygon         | USDC (Circle native, 6 decimals)                                       |
 | BNB Smart Chain | USDC and USDT, Binance-Peg tokens with **18 decimals** (`token-units`) |
+
+Ethereum is the dearest chain to be wrong on and, at 0.05 gwei, the cheapest it has been:
+the whole first deploy costs under a dollar and one deposit-match payment about five
+cents, but at 30 times that gas a payment costs about $1.50. The operator pays those gas
+fees and recovers them with `RELAYER_GAS_FEE_BASIS_POINTS` (0.1 %), which covers a
+$100 payment at today's gas and loses money past about five times it. A gas-aware fee,
+or a minimum payment per chain, does not exist yet: set `MAX_PAYMENT_SETTLEMENT` and the
+merchants you onboard with that in mind. Finality takes about 13 minutes; the starting
+`CHAIN_CONFIRMATIONS` is 12 (about 2.5 minutes).
 
 Left out on purpose: Polygon's USDT address now answers as **USDT0**, a LayerZero
 OFT, and needs its own review; Polygon's bridged USDC.e is a different token. On BNB
@@ -224,7 +234,7 @@ accept that before admitting them. Each chain still needs, before it carries val
   address for each) and records them in the same file; the deploy asks for a typed
   word and pays gas with the deployer keystore, decrypted into one process only;
 - a `.env.mainnet` with `DEPLOYER_ACCOUNT`, `DEPLOYER_ADDRESS`, the per-chain
-  `<CHAIN>_RPC_URL` (`BASE_`, `ARBITRUM_`, `POLYGON_`, `BSC_`), `MULTISIG`,
+  `<CHAIN>_RPC_URL` (`ETHEREUM_`, `BASE_`, `ARBITRUM_`, `POLYGON_`, `BSC_`), `MULTISIG`,
   `GUARDIAN`, `FEE_RECIPIENT`, `SIGNER`, `DESTINATION`, `ETHERSCAN_API_KEY`,
   `QUOTE_SIGNER` (not `local`), and `CHAIN_ASSETS` naming only the reviewed tokens.
 

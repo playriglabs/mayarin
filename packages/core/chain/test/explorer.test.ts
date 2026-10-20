@@ -35,7 +35,7 @@ describe("transactionExplorerUrl", () => {
 
   test("does not turn internal references or unsupported chains into links", () => {
     expect(transactionExplorerUrl("base-sepolia", "stl_01KZ")).toBeUndefined();
-    expect(transactionExplorerUrl("ethereum", HASH)).toBeUndefined();
+    expect(transactionExplorerUrl("optimism", HASH)).toBeUndefined();
   });
 });
 
@@ -67,6 +67,6 @@ describe("addressExplorerUrl", () => {
 
   test("does not turn an internal id or an unsupported chain into a link", () => {
     expect(addressExplorerUrl("base-sepolia", "pi_01KZ")).toBeUndefined();
-    expect(addressExplorerUrl("ethereum", ADDRESS)).toBeUndefined();
+    expect(addressExplorerUrl("optimism", ADDRESS)).toBeUndefined();
   });
 });
