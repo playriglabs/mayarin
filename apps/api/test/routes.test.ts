@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MOCK_SIGNATURE_HEADER } from "@mayarin/provider-mock";
+import { ProviderError } from "@mayarin/shared";
 import { API_KEY_SECRET, createApiHarness, qrisPayload, TEST_MERCHANT_ID } from "./harness.ts";
 
 describe("the /v1 boundary (#138)", () => {
@@ -301,6 +302,42 @@ describe("POST /payment-intents/:id/confirm", () => {
 
     expect(status).toBe(404);
     expect(body.error.code).toBe("NOT_FOUND");
+  });
+});
+
+describe("POST /payments/:id/retry", () => {
+  test("a retry only the worker's executor can finish is accepted, not a 502", async () => {
+    // The API holds no treasury executor by design. The reopen is persisted
+    // first, then the step that needs the executor throws a retryable error, and
+    // the chain worker finishes the payment: accepted work, not a failure.
+    const harness = createApiHarness();
+    const created = await harness.request("POST", "/v1/payment-intents", {
+      body: { qr: qrisPayload() },
+    });
+    const id = created.body.paymentIntent.id;
+    await harness.request("POST", `/v1/payment-intents/${id}/confirm`);
+    harness.container.engine.retry = async () => {
+      throw new ProviderError("this process has no treasury executor", {});
+    };
+
+    const { status, body } = await harness.request("POST", `/v1/payments/${id}/retry`);
+
+    expect(status).toBe(202);
+    expect(body.clearing.state).toBe("SUCCESS");
+  });
+
+  test("a failure the worker cannot fix is still reported", async () => {
+    const harness = createApiHarness();
+    const created = await harness.request("POST", "/v1/payment-intents", {
+      body: { qr: qrisPayload() },
+    });
+    const id = created.body.paymentIntent.id;
+    await harness.request("POST", `/v1/payment-intents/${id}/confirm`);
+    harness.container.engine.retry = async () => {
+      throw new ProviderError("rejected", {}, { retryable: false });
+    };
+
+    expect((await harness.request("POST", `/v1/payments/${id}/retry`)).status).toBe(502);
   });
 });
 

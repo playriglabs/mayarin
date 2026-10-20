@@ -7,7 +7,7 @@
     "./dto": "./src/dto/index.ts"
   },
   "scripts": {
-    "dev": "bun --env-file=../../.env run --hot src/index.ts",
+    "dev": "TREASURY_EXECUTION_ENABLED=false bun --env-file=../../.env run --hot src/index.ts",
     "start": "bun run src/index.ts",
     "start:worker": "bun run src/chain-worker.ts",
     "typecheck": "tsc --noEmit"

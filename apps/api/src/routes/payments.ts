@@ -14,7 +14,7 @@ import {
   receiptDocument,
 } from "@mayarin/documents";
 import { escrowResolveCalldata } from "@mayarin/provider-evm";
-import { NotFoundError, ValidationError } from "@mayarin/shared";
+import { isMayarinError, NotFoundError, ValidationError } from "@mayarin/shared";
 import { type Context, Hono } from "hono";
 import type { Container } from "../container.ts";
 import { toClearingDto } from "../dto/clearing.ts";
@@ -189,8 +189,19 @@ export function paymentRoutes(container: Container): Hono<ApiKeyAuthEnv> {
       throw new NotFoundError("This payment has no clearing transaction to retry", {});
     }
 
-    const progress = await container.engine.retry(transaction.id);
-    return c.json({ clearing: toClearingDto(progress.transaction) });
+    try {
+      const progress = await container.engine.retry(transaction.id);
+      return c.json({ clearing: toClearingDto(progress.transaction) });
+    } catch (error) {
+      // The reopen is persisted before the steps run. A process with no treasury
+      // executor (the API's, by design) cannot take a deposit-path payment past
+      // `ASSET_RECEIVED` and says so with a retryable error; the chain worker,
+      // which holds the executor, finishes it on its next pass. That is accepted
+      // work, not a failure to report as a 502.
+      if (!isMayarinError(error) || !error.retryable) throw error;
+      const reopened = await container.engine.getById(transaction.id);
+      return c.json({ clearing: toClearingDto(reopened) }, 202);
+    }
   });
 
   /**
