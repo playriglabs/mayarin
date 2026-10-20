@@ -173,8 +173,11 @@ How value is executed matters as much as the keys that execute it.
       altogether. `deploy.sh` asks Etherscan V2 about the chain before it broadcasts
       and refuses if the key's plan does not cover it: the free plan covers Arbitrum
       One and Polygon but **not Base or BNB Smart Chain**, which need a paid plan.
-      The alternative is `EXPLORER_VERIFIER=sourcify` in `.env.mainnet` (no key), with
-      the caveat that the explorer's own page may not show the source.
+      The free route is Sourcify, set per chain in `.env.mainnet`
+      (`BASE_EXPLORER_VERIFIER=sourcify`, `BSC_EXPLORER_VERIFIER=sourcify`; no key;
+      `EXPLORER_VERIFIER` sets it for all). Sourcify verifies this repository's
+      contracts with an exact match (checked on the router, the OpenZeppelin timelock
+      and the forwarder factory), but the explorer's own page may not show the source.
 - [x] A chain's deposit-match path is only as good as the single
       `DEPOSIT_FORWARDER_INIT_CODE_HASH`: the deploy script aborts when a chain's
       factory reports a different one. Implemented. Do not override it.
