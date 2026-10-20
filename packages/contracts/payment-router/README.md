@@ -296,6 +296,16 @@ slither.config.json`. Re-run after the `IPermit2.transferFrom` correction
   withdraw path. Zero untriaged high/medium. (Slither emits AST-resolution
   warnings on OZ 5.3 + solc 0.8.37 + `via_ir`; the detector pass completes — 26
   contracts, 102 detectors.)
+- **Echidna** (2.3.3, `echidna.yaml`) — `bun run test:echidna`. A second fuzzing
+  engine with a different search strategy over the same stateful invariant Foundry
+  runs: `InvariantsTest.invariant_no_custody_beyond_donations` while `PayHandler`'s
+  native, cross-asset and same-asset payments and donations are fuzzed. 200,037
+  calls on 20 October 2026, no falsification; a deliberately broken copy of the
+  invariant is falsified within 124 calls, so the pass is not an empty one. Only
+  that invariant is run: the suite's `test_fuzz_*` functions use
+  `assertTrue(bool, string)`, a cheatcode Echidna's hevm does not implement
+  (`BadCheatCode`), so under Echidna they fail for a reason that says nothing about
+  the contract. Not in CI yet.
 - **Mythril** (0.24.8) — `myth analyze src/PaymentRouter.sol --solc-json
 mythril-solc.json` (solc 0.8.37 via `solc-select`). Symbolic execution on a
   contract with OZ 5.3 inheritance + EIP712 + external Permit2 + low-level calls
