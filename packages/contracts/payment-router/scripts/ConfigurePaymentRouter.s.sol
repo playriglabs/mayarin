@@ -42,59 +42,90 @@ import {PaymentRouter} from "../src/PaymentRouter.sol";
 ///        SETTLEMENT_ASSETS comma-separated settlement ERC-20s to admit — a
 ///                          merchant settling a chain in EURC or PYUSD needs it
 ///                          here, or every payment into it reverts at CLEARING
-contract ConfigurePaymentRouter is Script {
+/// @dev The batch every config script agrees on. `ConfigurePaymentRouter` schedules
+///      it and `ExecutePaymentRouterConfig` executes it; both build it here from the
+///      same environment, so the operation id they compute cannot differ.
+abstract contract ConfigBatch is Script {
     /// @dev Fixed salt: the operation id is derived from it plus the calls, so a
     ///      re-run with the same config collides — which is the desired
     ///      behaviour, not a bug. Change it to schedule a genuinely new config.
     bytes32 internal constant SALT = keccak256("mayarin.payment-router.config.v1");
 
-    function run() external {
-        address timelockAddress = vm.envAddress("TIMELOCK");
-        address routerAddress = vm.envAddress("PAYMENT_ROUTER");
-        address[] memory dexRouters = vm.envOr("DEX_ROUTERS", ",", new address[](0));
-        address[] memory inputAssets = vm.envOr("INPUT_ASSETS", ",", new address[](0));
-        address[] memory settlementAssets = vm.envOr("SETTLEMENT_ASSETS", ",", new address[](0));
+    struct Batch {
+        address[] targets;
+        uint256[] values;
+        bytes[] payloads;
+        address[] dexRouters;
+        address[] inputAssets;
+        address[] settlementAssets;
+    }
 
-        if (dexRouters.length == 0 && inputAssets.length == 0 && settlementAssets.length == 0) {
+    function _batch() internal view returns (Batch memory b) {
+        address routerAddress = vm.envAddress("PAYMENT_ROUTER");
+        b.dexRouters = vm.envOr("DEX_ROUTERS", ",", new address[](0));
+        b.inputAssets = vm.envOr("INPUT_ASSETS", ",", new address[](0));
+        b.settlementAssets = vm.envOr("SETTLEMENT_ASSETS", ",", new address[](0));
+
+        if (b.dexRouters.length == 0 && b.inputAssets.length == 0 && b.settlementAssets.length == 0)
+        {
             revert("nothing to configure: set DEX_ROUTERS, INPUT_ASSETS and/or SETTLEMENT_ASSETS");
         }
 
-        TimelockController timelock = TimelockController(payable(timelockAddress));
-
-        uint256 total = dexRouters.length + inputAssets.length + settlementAssets.length;
-        address[] memory targets = new address[](total);
-        uint256[] memory values = new uint256[](total);
-        bytes[] memory payloads = new bytes[](total);
+        uint256 total = b.dexRouters.length + b.inputAssets.length + b.settlementAssets.length;
+        b.targets = new address[](total);
+        b.values = new uint256[](total);
+        b.payloads = new bytes[](total);
 
         uint256 index = 0;
-        for (uint256 i = 0; i < dexRouters.length; i += 1) {
-            targets[index] = routerAddress;
-            values[index] = 0;
-            payloads[index] = abi.encodeCall(PaymentRouter.addRouter, (dexRouters[i]));
+        for (uint256 i = 0; i < b.dexRouters.length; i += 1) {
+            b.targets[index] = routerAddress;
+            b.payloads[index] = abi.encodeCall(PaymentRouter.addRouter, (b.dexRouters[i]));
             index += 1;
         }
-        for (uint256 i = 0; i < inputAssets.length; i += 1) {
-            targets[index] = routerAddress;
-            values[index] = 0;
-            payloads[index] = abi.encodeCall(PaymentRouter.addInputAsset, (inputAssets[i]));
+        for (uint256 i = 0; i < b.inputAssets.length; i += 1) {
+            b.targets[index] = routerAddress;
+            b.payloads[index] = abi.encodeCall(PaymentRouter.addInputAsset, (b.inputAssets[i]));
             index += 1;
         }
-        for (uint256 i = 0; i < settlementAssets.length; i += 1) {
-            targets[index] = routerAddress;
-            values[index] = 0;
-            payloads[index] =
-                abi.encodeCall(PaymentRouter.addSettlementAsset, (settlementAssets[i]));
+        for (uint256 i = 0; i < b.settlementAssets.length; i += 1) {
+            b.targets[index] = routerAddress;
+            b.payloads[index] =
+                abi.encodeCall(PaymentRouter.addSettlementAsset, (b.settlementAssets[i]));
             index += 1;
         }
+    }
+}
 
+contract ConfigurePaymentRouter is ConfigBatch {
+    function run() external {
+        TimelockController timelock = TimelockController(payable(vm.envAddress("TIMELOCK")));
+        Batch memory b = _batch();
+        uint256 total = b.targets.length;
         uint256 delay = timelock.getMinDelay();
 
+        // What a Safe signs when the multisig is not a single key: the timelock is
+        // the `to`, these are the `data`. Printed before anything is broadcast.
+        console2.log("Timelock (Safe `to`):", address(timelock));
+        console2.log("scheduleBatch calldata:");
+        console2.logBytes(
+            abi.encodeCall(
+                TimelockController.scheduleBatch,
+                (b.targets, b.values, b.payloads, bytes32(0), SALT, delay)
+            )
+        );
+        console2.log("executeBatch calldata (send after the delay):");
+        console2.logBytes(
+            abi.encodeCall(
+                TimelockController.executeBatch, (b.targets, b.values, b.payloads, bytes32(0), SALT)
+            )
+        );
+
         vm.startBroadcast();
-        timelock.scheduleBatch(targets, values, payloads, bytes32(0), SALT, delay);
+        timelock.scheduleBatch(b.targets, b.values, b.payloads, bytes32(0), SALT, delay);
         // A zero delay makes the operation ready in the same block, which is the
         // point of a short testnet delay: deploy and configure without a wait.
         if (delay == 0) {
-            timelock.executeBatch(targets, values, payloads, bytes32(0), SALT);
+            timelock.executeBatch(b.targets, b.values, b.payloads, bytes32(0), SALT);
         }
         vm.stopBroadcast();
 
@@ -103,17 +134,20 @@ contract ConfigurePaymentRouter is Script {
         if (delay == 0) {
             console2.log("Executed immediately (zero delay).");
         } else {
-            console2.log("NOT executed. Re-run with the same env after the delay:");
-            console2.log("  forge script scripts/ExecutePaymentRouterConfig.s.sol ...");
+            console2.log("NOT executed. After the delay, with the same env:");
+            console2.log(
+                "  forge script scripts/ExecutePaymentRouterConfig.s.sol:ExecutePaymentRouterConfig \\"
+            );
+            console2.log("    --rpc-url $RPC --broadcast --sender $MULTISIG");
         }
-        for (uint256 i = 0; i < dexRouters.length; i += 1) {
-            console2.log("DEX router:      ", dexRouters[i]);
+        for (uint256 i = 0; i < b.dexRouters.length; i += 1) {
+            console2.log("DEX router:      ", b.dexRouters[i]);
         }
-        for (uint256 i = 0; i < inputAssets.length; i += 1) {
-            console2.log("Input asset:     ", inputAssets[i]);
+        for (uint256 i = 0; i < b.inputAssets.length; i += 1) {
+            console2.log("Input asset:     ", b.inputAssets[i]);
         }
-        for (uint256 i = 0; i < settlementAssets.length; i += 1) {
-            console2.log("Settlement asset:", settlementAssets[i]);
+        for (uint256 i = 0; i < b.settlementAssets.length; i += 1) {
+            console2.log("Settlement asset:", b.settlementAssets[i]);
         }
     }
 }
