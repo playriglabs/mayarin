@@ -21,6 +21,7 @@
 #   ./scripts/deploy.sh arc-testnet --factory-only   # router already deployed
 #   ./scripts/deploy.sh arc-testnet --router-only    # new router, keep the forwarder factory
 #   ./scripts/deploy.sh base-sepolia --no-verify     # deploy now, verify afterwards
+#   ./scripts/deploy.sh ethereum-sepolia --configure-only   # deployed, configure step failed
 #
 # The per-chain values that are not addresses live in the table below; the
 # addresses (MULTISIG, GUARDIAN, FEE_RECIPIENT, SIGNER, SETTLEMENT_TOKENS,
@@ -34,12 +35,13 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet> [--dry] [--no-verify] [--factory-only|--router-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet> [--dry] [--no-verify] [--factory-only|--router-only|--configure-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
 ROUTER_ONLY=false
 NO_VERIFY=false
+CONFIGURE_ONLY=false
 for flag in "${@:2}"; do
   case "$flag" in
     --dry) DRY_RUN=true ;;
@@ -47,6 +49,11 @@ for flag in "${@:2}"; do
     # one before the factory and the configure step and leaves the chain half
     # deployed. Verify afterwards with `forge verify-contract`.
     --no-verify) NO_VERIFY=true ;;
+    # The deploy went through and the configure step did not (it needs the same
+    # extra gas a chain like Ethereum Sepolia wants for the deploy). Re-running
+    # the whole script would deploy a second router, so this reads the addresses
+    # of the one just deployed and does only the configuration.
+    --configure-only) CONFIGURE_ONLY=true ;;
     # A chain whose router is already deployed and only needs the forwarder
     # factory — re-running the whole script would deploy a second router and
     # orphan the one the API is configured against.
@@ -59,8 +66,8 @@ for flag in "${@:2}"; do
   esac
 done
 
-[[ "$FACTORY_ONLY" == false || "$ROUTER_ONLY" == false ]] || {
-  echo "--factory-only and --router-only exclude each other"; exit 1; }
+[[ "$FACTORY_ONLY$ROUTER_ONLY$CONFIGURE_ONLY" != *true*true* ]] || {
+  echo "--factory-only, --router-only and --configure-only exclude each other"; exit 1; }
 
 # macOS ships bash 3.2 — no associative arrays. One case, four facts.
 case "$CHAIN" in
@@ -274,7 +281,7 @@ fi
 
 # --- 1. Deploy ----------------------------------------------------------------
 
-if [[ "$FACTORY_ONLY" == false ]]; then
+if [[ "$FACTORY_ONLY" == false && "$CONFIGURE_ONLY" == false ]]; then
   echo
   echo "==> DeployPaymentRouter"
   forge script scripts/DeployPaymentRouter.s.sol:DeployPaymentRouter "${BROADCAST_FLAGS[@]}"
@@ -292,7 +299,7 @@ fi
 # DEPOSIT_FORWARDER_INIT_CODE_HASH holds exactly one. The check after the
 # broadcast is what catches it, because the symptom otherwise is a payer sending
 # to an address nothing can sweep.
-if [[ "$ROUTER_ONLY" == false ]]; then
+if [[ "$ROUTER_ONLY" == false && "$CONFIGURE_ONLY" == false ]]; then
   echo
   echo "==> DeployDepositForwarderFactory"
   export DESTINATION="${DESTINATION:-$(cast wallet address --private-key "$OPERATOR_PRIVATE_KEY")}"
@@ -379,9 +386,10 @@ fi
 
 echo
 echo "==> ConfigurePaymentRouter"
+# shellcheck disable=SC2086
 forge script scripts/ConfigurePaymentRouter.s.sol:ConfigurePaymentRouter \
   --rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" \
-  --broadcast --sender "$MULTISIG"
+  --broadcast --sender "$MULTISIG" ${FORGE_EXTRA_FLAGS:-}
 
 # --- Output -------------------------------------------------------------------
 

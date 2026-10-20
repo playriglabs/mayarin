@@ -139,7 +139,8 @@ export class TreasuryExecutor {
    * Idempotent on two levels, both of which already existed: the postings are
    * keyed `${transactionId}:SWAPPED` and `:GAS`, and the contract consumes
    * `intentId` on success. A double submission is rejected on-chain with
-   * `AlreadyConsumed` rather than by this function happening to run once.
+   * `AlreadyConsumed` rather than by this function happening to run once; the
+   * port turns that into the earlier transaction's result when it can find it.
    */
   async execute(transaction: ClearingTransaction): Promise<TreasuryExecution> {
     const deposit = transaction.deposit;

@@ -1448,6 +1448,8 @@ export class ClearingEngine {
    * means the resumed step sweeps a drained forwarder (a no-op) and resubmits
    * an order the contract has already consumed (`AlreadyConsumed`) — which is
    * why the on-chain guard matters more than any flag this engine could keep.
+   * The executor port answers that revert with what the earlier transaction did
+   * when it can find it, so the resumed step finishes the payment.
    */
   async #executeTreasury(transaction: ClearingTransaction): Promise<ClearingTransaction> {
     if (!this.#splitsDepositReceipt(transaction)) return transaction;

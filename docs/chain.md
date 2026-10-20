@@ -691,6 +691,7 @@ hash (`0xee05…be89`) still have to be monitored and swept by the old factories
 | `base-sepolia`     | `0x5def4dc27a499644c1d2945c78c23aa4f3c15223` | `0xfc883d71375a15d3d3819ae6b21c063f432532a5` | `0x480989f9f3551e64ffbb88dc97f403667b51ba1a` | 48349576    |
 | `arbitrum-sepolia` | `0x96fd082f5bbcfec3cfb234f26b347429ecc3f13e` | `0xdd7ba6115c0273f68b25264655f8cc8eaf6647e6` | `0x09dc25cd37e181604b6aba21003b41c9ca781110` | 320934968   |
 | `arc-testnet`      | `0x4dd50ba4205e3bcd933067c07b41aaafa478cdd2` | `0x5df26ee8c83f0bbfa4252a8229e08c2e70a89ff8` | `0x7c736def2a82ac8c20a7d1fa63cea19563ae67b1` | 68117930    |
+| `ethereum-sepolia` | `0x407f7b9ffc337fa1d6ab65684635893090e5a480` | `0xe510412fe95c3d59245526701ae8d7aff0ab6a66` | `0x69c72c5191149e85cd862fccccc2a6f699e9582f` | 11953088    |
 
 Amoy and BSC share addresses, as do the escrow and batcher contracts below,
 because the deployer and nonce match and the others use CREATE2: read the chain
@@ -701,8 +702,8 @@ testnet have no swap venue, so they settle same-asset payments only. Base Sepoli
 carries two further routers from failed attempts (`0xef5e…2e64`, `0x0e8e…773c`);
 nothing refers to them.
 
-Deterministic singletons, one address on `arbitrum-sepolia`, `base-sepolia` and
-`arc-testnet`:
+Deterministic singletons, one address on `arbitrum-sepolia`, `base-sepolia`,
+`ethereum-sepolia` and `arc-testnet`:
 
 | Contract          | Address                                      | `INIT_CODE_HASH`                                                     |
 | ----------------- | -------------------------------------------- | -------------------------------------------------------------------- |
@@ -710,14 +711,16 @@ Deterministic singletons, one address on `arbitrum-sepolia`, `base-sepolia` and
 | `EscrowFactoryV2` | `0xB14EEab74d84F900132632ff9dAcDe26C5043cad` | `0x8e127716e7db0e6c441573aef490ba60d27dffdbe1c8538c8908b760f9e24c5f` |
 | `PayoutBatcher`   | `0x78F0C40E1Aa5a63DD71E58334586461eB3EB6312` | n/a                                                                  |
 
-**Ethereum Sepolia is not redeployed.** Its router, forwarder factory and escrow
-factories are still the 0.8.28 build. Its deposit addresses derive from the old
-hash, so the shared `DEPOSIT_FORWARDER_INIT_CODE_HASH` no longer matches them and a
-deposit-match payment there would go to an address nothing can sweep; it is also
-removed from `ESCROW_CHAINS`. The cause is the chain: `eth_estimateGas` for the
-same timelock creation returns 18.5M gas there against 2.7M on Base Sepolia, so
-forge's estimate (even at 300%) runs out of gas. Redeploy it with an explicit gas
-limit, or retire the chain.
+**Ethereum Sepolia needed extra gas.** Its gas schedule differs from the other
+chains': `eth_estimateGas` for the same router creation returns 18.5M there against
+2.7M on Base Sepolia, and a plain transfer estimates 15k, not 21k, so forge's own
+estimate runs out of gas and the transaction fails with all gas used. It was
+deployed with `FORGE_EXTRA_FLAGS="--gas-estimate-multiplier 800"`, and the
+configure step needs the same flag (`deploy.sh` now passes it, and
+`--configure-only` re-runs that step alone). The escrow factories and batcher were
+deployed with the same multiplier. Every contract above is verified on Etherscan,
+Basescan, Arbiscan, Polygonscan and BscScan; Arc is not, because ArcScan's
+Blockscout answered "too many requests" to the verification calls.
 
 ## Related
 
