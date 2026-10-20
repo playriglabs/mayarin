@@ -24,10 +24,9 @@ export const REVIEWED_MAINNET_TOKENS: Readonly<
     USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
     EURC: "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",
-    // Sky's DAI and USDS carry 18 decimals beside the 6-decimal stablecoins above:
-    // `token-units` scales them per token.
+    // Sky's DAI carries 18 decimals beside the 6-decimal stablecoins above:
+    // `token-units` scales it per token.
     DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-    USDS: "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
     // Payer-only, never settled in: wrapped ether and bitcoin, and the governance and
     // utility tokens people hold. Each was read back (name, symbol, decimals) and is in
     // Uniswap's token list at that address.
@@ -53,7 +52,6 @@ export const REVIEWED_MAINNET_TOKENS: Readonly<
     // lived at, admitted on the same terms as Polygon's.
     USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
     DAI: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
-    USDS: "0x6491c05A82219b8D1479057361ff1654749b876b",
     // Paxos's Global Dollar, 6 decimals.
     USDG: "0x004B506865409877C9fa29BFB1eba929984B9BBC",
     // Payer-only, never settled in.

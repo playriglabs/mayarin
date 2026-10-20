@@ -4,7 +4,7 @@
  * `assetDecimals` is one number per asset, and the quote, the ledger and the
  * signed order all count in it. A token on another chain may not agree: USDT and
  * USDC on BNB Smart Chain carry 18 decimals where everywhere else they carry 6,
- * and DAI and USDS carry 18 on Ethereum and Arbitrum beside 6-decimal USDC and
+ * and DAI carries 18 on Ethereum and Arbitrum beside 6-decimal USDC and
  * USDT. The domain keeps counting in the asset's own units; these functions are
  * the only place that crosses to what a token contract says, so a payment cannot
  * be off by 10^12 anywhere but here.
@@ -30,8 +30,8 @@ const STABLECOIN_DECIMALS: Readonly<Partial<Record<ChainId, number>>> = {
 const TOKEN_DECIMALS: Readonly<
   Partial<Record<ChainId, Readonly<Partial<Record<AssetCode, number>>>>>
 > = {
-  ethereum: { DAI: 18, USDS: 18 },
-  arbitrum: { DAI: 18, USDS: 18 },
+  ethereum: { DAI: 18 },
+  arbitrum: { DAI: 18 },
 };
 
 /** How many on-chain minor units one domain minor unit is. `1n` when they agree. */
