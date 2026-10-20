@@ -43,3 +43,24 @@ export function scaleSwapRate(fromAmount: bigint, toAmount: bigint, fromDecimals
   // RATE_DECIMALS rather than at a whole minor unit.
   return scaledRateFrom(toAmount * 10n ** BigInt(fromDecimals), fromAmount, "down");
 }
+
+/**
+ * The slice of `/v1/quote/toAmount` a route reads: the transaction to submit and what it
+ * spends and delivers. `toAmountMin` is the delivery LiFi's own slippage bound already
+ * guarantees, so it, not `toAmount`, is what is held against the locked `minOut`.
+ */
+export const lifiRouteResponseSchema = z.object({
+  transactionRequest: z.object({
+    to: z.string(),
+    data: z.string(),
+  }),
+  estimate: z.object({
+    fromAmount: decimalString,
+    toAmount: decimalString,
+    toAmountMin: decimalString,
+    /** The contract the input must be approved to; must be the one that is called. */
+    approvalAddress: z.string().optional(),
+  }),
+});
+
+export type LifiRouteResponse = z.infer<typeof lifiRouteResponseSchema>;

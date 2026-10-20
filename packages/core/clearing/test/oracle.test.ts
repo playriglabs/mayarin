@@ -161,4 +161,24 @@ describe("guardExecutablePrice", () => {
     const drifted = executable({ scaledRate: 3_900_000_000n });
     expect(() => guardExecutablePrice(drifted, reference(), policy, NOW)).toThrow(ProviderError);
   });
+
+  test("a venue named in maxDeviationBpsBySource gets its own, wider limit", () => {
+    // 2.7% under the reference: far past 50 bps, inside the 400 bps given to "lifi".
+    const costly = { scaledRate: 3_600_000_000n };
+    const wide: DeviationPolicy = { ...policy, maxDeviationBpsBySource: { lifi: 400 } };
+
+    expect(() =>
+      guardExecutablePrice(executable({ ...costly, source: "lifi" }), reference(), wide, NOW),
+    ).not.toThrow();
+    // Every other source keeps the default, so a pool is not loosened by an aggregator's.
+    expect(() =>
+      guardExecutablePrice(executable({ ...costly, source: "uniswap" }), reference(), wide, NOW),
+    ).toThrow(ProviderError);
+  });
+
+  test("the wider limit is still a limit", () => {
+    const wide: DeviationPolicy = { ...policy, maxDeviationBpsBySource: { lifi: 400 } };
+    const tooCostly = executable({ scaledRate: 3_400_000_000n, source: "lifi" });
+    expect(() => guardExecutablePrice(tooCostly, reference(), wide, NOW)).toThrow(ProviderError);
+  });
 });

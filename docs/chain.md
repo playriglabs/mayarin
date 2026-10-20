@@ -903,6 +903,47 @@ The `deploy.sh` output names the router in `PAYMENT_ROUTER` and the timelock in
 `TIMELOCK`; check the order against the table above, because forge's own summary
 labels the two contracts the wrong way round.
 
+## LiFi, the aggregator for what no pool covers
+
+A configured pool prices one pair through one pool. A token whose own pool is thin (CAKE and
+UNI on BNB Smart Chain, WETH and WBTC on Polygon, cbBTC on Base) cannot be priced that way, so
+LiFi is the second venue: it searches the DEXes of a chain for the deepest route, and the same
+venue serves every chain.
+
+`LifiSwapVenue` prices with `/v1/quote`, and `LifiRouteSource` builds the route with
+`/v1/quote/toAmount`, LiFi's exact-output form, so the merchant still receives exactly `minOut`
+and the payer's unspent input comes back to them. Both are same-chain. Nothing is listed per
+pair: a token's address comes from `CHAIN_ASSETS` and a chain's native coin is named by the zero
+address (`CHAIN_NATIVE_ASSETS`), so a token added to `CHAIN_ASSETS` is routable the moment it is
+there, on every chain. `QUOTE_VENUES` puts a pool first and LiFi after it: a pair with a
+configured pool is priced and routed by that pool (a pair the pool venue cannot serve raises a
+`ConfigurationError`, which is what moves on to the next venue), and the rest go to LiFi.
+
+Both addresses in the request are the PaymentRouter, which holds the input when the swap runs and
+receives the output. The call goes to LiFi's diamond, `0x1231…4EaE`, the same address on all five
+chains (code read back on each). Nothing LiFi returns is trusted for safety: `PaymentRouter`
+measures what arrived, refuses anything under `minOut` and refuses a resting balance, so a route
+that misbehaves reverts. The route source also refuses a route that spends past the payer's bound,
+one whose `toAmountMin` (the output after LiFi's own slippage) is under `minOut`, and one that
+wants its approval anywhere but the contract it calls.
+
+**What it costs.** The price carries LiFi's fee and the spread of the route. For 100 USDC out on
+BNB Smart Chain, against Coinbase: BNB 1.0%, CAKE 1.4%, LINK 1.7%, UNI 2.9%, where PancakeSwap v3
+direct is within 0.1% for WBNB, BTCB, USDT and DAI. Hence the order, and hence
+`QUOTE_DEVIATION_BPS_BY_VENUE={"lifi":400}`: the deviation guard holds a pool to
+`QUOTE_DEVIATION_BPS` (100) and an aggregator to 400, so its quote is not refused for the fee it
+carries, and no pool is loosened by it. The payer sees the price before paying.
+
+**What a chain needs before LiFi can serve it**, none of it in code:
+
+- the diamond is a DEX router on that chain's PaymentRouter (`addRouter`, a `CONFIG_ROLE` act through
+  the multisig and the 48 h timelock), and
+- the diamond is in `SWAP_ROUTER_ALLOWLIST` for that chain (SEC-17): LiFi names a route, not a
+  router, and the treasury executor refuses a router it has not been told about.
+
+`LIFI_API_KEY` is optional; without one LiFi rate-limits harder. `LIFI_FROM_ADDRESS` is the address
+the price quotes are made for, the PaymentRouter.
+
 ## Related
 
 - [Clearing Engine](./clearing-engine.md)

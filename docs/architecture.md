@@ -316,7 +316,7 @@ packages/
       ✓ swap-0x/          ZeroExSwapVenue + ZeroExRouteSource — price read + exact-output route
       ✓ swap-uniswap/     UniswapSwapVenue + UniswapRouteSource — QuoterV2 + exactOutputSingle
       ✓ swap-uniswap-v2/  constant-product venue for chains with no v3 deployment
-      ✓ swap-lifi/        LifiSwapVenue — LiFi quote, same-chain, price-only
+      ✓ swap-lifi/        LifiSwapVenue + LifiRouteSource — LiFi quote and exact-output route, same-chain
       ✓ pyth/             PythPriceOracle — Hermes reference read for the deviation guard
       ✓ fx/               FxRatesPriceOracle — the fiat leg no venue can price
       ✓ coinbase/         CoinbasePriceOracle — public ticker, covers what Pyth's grant denies

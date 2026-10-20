@@ -21,7 +21,7 @@ import { FxRatesPriceOracle } from "@mayarin/provider-fx";
 import { PythPriceOracle } from "@mayarin/provider-pyth";
 import { OrcaSolanaSwapVenue } from "@mayarin/provider-solana";
 import { ZeroExSwapVenue } from "@mayarin/provider-swap-0x";
-import { LifiSwapVenue } from "@mayarin/provider-swap-lifi";
+import { LifiSwapVenue, type LifiTokenResolver } from "@mayarin/provider-swap-lifi";
 import { UniswapSwapVenue } from "@mayarin/provider-swap-uniswap";
 import { UniswapV2SwapVenue } from "@mayarin/provider-swap-uniswap-v2";
 import { ApiKeyStamper, TurnkeyOrderSigner } from "@mayarin/provider-turnkey";
@@ -61,6 +61,7 @@ export function createQuoteLayer(config: Config, clock: Clock): QuoteLayer | und
       oracle,
       policy: {
         maxDeviationBps: quote.deviationBps,
+        maxDeviationBpsBySource: quote.deviationBpsByVenue,
         maxAgeMs: quote.maxReferenceAgeSeconds * 1_000,
       },
       unguardedTestnetPairs: quote.unguardedTestnetPairs,
@@ -112,6 +113,7 @@ function createVenue(name: string, config: Config): SwapVenue {
     case "lifi":
       return new LifiSwapVenue({
         pairs: config.lifiPairs as never,
+        tokenAddress: lifiTokenAddress(config),
         fromAddress: config.lifiFromAddress ?? "",
         ...(config.lifiApiKey === undefined ? {} : { apiKey: config.lifiApiKey }),
       });
@@ -206,4 +208,19 @@ function createSigner(config: Config): OrderSigner {
       apiPrivateKey: config.turnkeyApiPrivateKey ?? "",
     }),
   });
+}
+
+/** The zero address is how LiFi names a chain's native coin. */
+const LIFI_NATIVE = "0x0000000000000000000000000000000000000000";
+
+/**
+ * Where LiFi finds an asset on a chain: the deployment's own token table, and the zero
+ * address for the chain's native coin. Nothing is listed per pair, so a token added to
+ * `CHAIN_ASSETS` is routable the moment it is there.
+ */
+export function lifiTokenAddress(config: Config): LifiTokenResolver {
+  return (chain, asset) => {
+    if (config.chainNativeAssets[chain] === asset) return LIFI_NATIVE;
+    return config.chainAssets[chain]?.[asset];
+  };
 }
