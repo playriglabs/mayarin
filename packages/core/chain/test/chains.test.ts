@@ -53,9 +53,8 @@ describe("chain facts", () => {
     // A testnet wears its mainnet's mark; Trust Wallet registers only the mainnet.
     expect(chainLogoUrl("arbitrum-sepolia")).toBe(chainLogoUrl("arbitrum"));
     expect(chainLogoUrl("arc-testnet", "/arc.svg")).toBe("/arc.svg");
-    expect(chainLogoUrl("polygon-amoy")).toBe(
-      "https://assets-cdn.trustwallet.com/blockchains/polygon/info/logo.png",
-    );
+    expect(chainLogoUrl("polygon-amoy")).toBe("/chains/polygon.svg");
+    expect(chainLogoUrl("polygon-amoy", "/arc.svg", "/poly.svg")).toBe("/poly.svg");
     expect(chainLogoUrl("solana-devnet")).toBe(
       "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
     );
