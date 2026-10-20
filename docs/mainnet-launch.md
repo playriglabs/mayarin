@@ -146,10 +146,15 @@ How value is executed matters as much as the keys that execute it.
       code, so it decides the hash for this deployment.
 - [ ] `scripts/deploy.sh` has testnet chains only. Add a mainnet branch (chain id,
       RPC variable, explorer, verifier) in its own reviewed change. With a 48 h
-      delay and a multisig that is not the deployer, the configure step cannot run
-      in the same sitting: the script prints the command for the multisig to
-      schedule, and the router whitelists land two days later. Plan the first
-      payment after that, not the day of the deploy.
+      delay the configure step only **schedules** (the router whitelists, DEX
+      routers and extra input or settlement assets, land in one batch): the delay
+      runs from the schedule, not from the deploy, so schedule it right after the
+      deploy. `ConfigurePaymentRouter` prints the `scheduleBatch` and `executeBatch`
+      calldata for a Safe to sign; for a single-key multisig,
+      `ExecutePaymentRouterConfig` rebuilds the same batch, refuses until it is
+      ready (and says when), then executes. Same-asset payments in a settlement
+      asset the constructor whitelisted work before the batch executes; anything
+      needing a DEX waits for it.
 - [ ] Compare the target chain's gas before broadcasting. Ethereum Sepolia's
       `eth_estimateGas` for the router's creation was 18.5M against 2.7M on Base, so
       forge's own estimate ran out of gas and the transaction failed with all gas
