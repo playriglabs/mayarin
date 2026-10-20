@@ -55,6 +55,28 @@ describe("reviewed mainnet tokens (SEC-18)", () => {
     );
   });
 
+  test("Base and Polygon admit the payer-only ERC-20s at their canonical addresses", () => {
+    expect(isReviewedToken("base", "WETH", "0x4200000000000000000000000000000000000006")).toBe(
+      true,
+    );
+    expect(isReviewedToken("base", "CBBTC", "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf")).toBe(
+      true,
+    );
+    expect(isReviewedToken("polygon", "WETH", "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619")).toBe(
+      true,
+    );
+    expect(isReviewedToken("polygon", "WBTC", "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6")).toBe(
+      true,
+    );
+    // Not the other chain's token, and not an unlisted address.
+    expect(isReviewedToken("polygon", "WETH", "0x4200000000000000000000000000000000000006")).toBe(
+      false,
+    );
+    expect(isReviewedToken("base", "WBTC", "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6")).toBe(
+      false,
+    );
+  });
+
   test("BNB Smart Chain admits its two reviewed stablecoins, whatever the case", () => {
     expect(isReviewedToken("bsc", "USDT", "0x55d398326f99059ff775485246999027b3197955")).toBe(true);
     expect(isReviewedToken("bsc", "USDC", "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d")).toBe(true);

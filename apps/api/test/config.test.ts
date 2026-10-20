@@ -232,6 +232,22 @@ describe("stablecoin registry configuration", () => {
     );
   });
 
+  test("admits a payer-only ERC-20 in CHAIN_ASSETS without making it a settlement asset", () => {
+    const config = loadConfig({
+      ...BASE,
+      CHAIN_ASSETS: '{"base-sepolia":{"USDC":"0xAbc","WETH":"0xDef"}}',
+    });
+
+    expect(config.chainAssets["base-sepolia"]?.WETH).toBe("0xDef");
+    expect(config.stablecoins).toEqual([
+      { asset: "USDC", onChain: [{ chain: "base-sepolia", address: "0xabc" }] },
+    ]);
+  });
+
+  test("refuses a payer-only ERC-20 as a settlement asset", () => {
+    expect(() => loadConfig({ ...BASE, SETTLEMENT_ASSETS: '["WETH"]' })).toThrow(/WETH/);
+  });
+
   test("refuses a default settlement asset outside the admitted set", () => {
     expect(() =>
       loadConfig({ ...BASE, SETTLEMENT_ASSETS: '["USDC"]', SETTLEMENT_ASSET: "USDT" }),
