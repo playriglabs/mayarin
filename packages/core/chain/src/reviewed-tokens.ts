@@ -28,15 +28,19 @@ export const REVIEWED_MAINNET_TOKENS: Readonly<
   base: {
     USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     EURC: "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
+    // Tether USD as bridged to Base (name "Tether USD", 6 decimals, read back on chain).
+    USDT: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
   },
   arbitrum: {
     USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
   },
-  // Circle's native USDC, 6 decimals. Polygon's USDT address now answers as USDT0,
-  // a LayerZero OFT: not admitted until that is reviewed as a token of its own.
+  // Circle's native USDC, 6 decimals. Polygon's USDT address now answers as USDT0
+  // (`symbol()` is "USDT0"), a LayerZero OFT that is Tether's own token: admitted by
+  // decision of 20 October 2026, accepting that it is upgradeable and can be frozen.
   polygon: {
     USDC: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    USDT: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
   },
   // Binance-Peg tokens, not Circle's or Tether's own issuance, and 18 decimals:
   // `token-units` counts them in the domain's 6.

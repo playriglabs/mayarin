@@ -45,4 +45,32 @@ describe("depositUri", () => {
       ),
     ).toBeNull();
   });
+
+  test("builds a native request for POL on Polygon, with no token address", () => {
+    expect(
+      depositUri(
+        {
+          address: "0xc017aff14743c7be2d80370f4df152744f292e3e",
+          amount: { amount: 11_500_000_000_000_000_000n, asset: "POL" },
+          asset: "POL",
+          chain: "polygon",
+        },
+        undefined,
+      ),
+    ).toBe("ethereum:0xc017aff14743c7be2d80370f4df152744f292e3e@137?value=11500000000000000000");
+  });
+
+  test("names nothing transferable for BTC on an EVM chain", () => {
+    expect(
+      depositUri(
+        {
+          address: "0xc017aff14743c7be2d80370f4df152744f292e3e",
+          amount: { amount: 1n, asset: "BTC" },
+          asset: "BTC",
+          chain: "polygon",
+        },
+        undefined,
+      ),
+    ).toBeNull();
+  });
 });

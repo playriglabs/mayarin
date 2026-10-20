@@ -33,13 +33,21 @@ describe("reviewed mainnet tokens (SEC-18)", () => {
     );
   });
 
-  test("Polygon admits Circle's native USDC and nothing else", () => {
+  test("Base admits USDT at Tether's bridged address and nowhere else", () => {
+    expect(isReviewedToken("base", "USDT", "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2")).toBe(
+      true,
+    );
+    expect(isReviewedToken("base", "USDT", "0x1111111111111111111111111111111111111111")).toBe(
+      false,
+    );
+  });
+
+  test("Polygon admits Circle's native USDC and USDT0 at the old USDT address", () => {
     expect(isReviewedToken("polygon", "USDC", "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359")).toBe(
       true,
     );
-    // The address Polygon USDT lived at now answers as USDT0, an OFT: not reviewed.
     expect(isReviewedToken("polygon", "USDT", "0xc2132D05D31c914a87C6611C10748AEb04B58e8F")).toBe(
-      false,
+      true,
     );
     // The bridged USDC.e is a different token at a different address.
     expect(isReviewedToken("polygon", "USDC", "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174")).toBe(
