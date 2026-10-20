@@ -8,6 +8,7 @@ import {PaymentRouter} from "../src/PaymentRouter.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {MockERC20} from "./helpers/MockERC20.sol";
 import {MockPermit2} from "./helpers/MockPermit2.sol";
+import {ForceSend} from "./helpers/ForceSend.sol";
 import {MockRouter} from "./helpers/MockRouter.sol";
 import {SigHelpers} from "./helpers/SigHelpers.sol";
 
@@ -381,7 +382,11 @@ contract PayHandler is Test, SigHelpers {
         uint256 tokens = bound(tokenDust, 1, 1_000e6);
         uint256 native = bound(nativeDust, 1, 1 ether);
         usdc.mint(address(router), tokens);
-        vm.deal(address(router), address(router).balance + native);
+        // A real force-send: `vm.deal` on the router is a cheatcode balance edit that the
+        // invariant runner sometimes drops between calls, leaving the ghost total ahead of
+        // the balance. `SELFDESTRUCT` is an EVM state change and is carried like any other.
+        vm.deal(address(this), address(this).balance + native);
+        new ForceSend{value: native}(payable(address(router)));
         donatedSettlement += tokens;
         donatedNative += native;
     }
