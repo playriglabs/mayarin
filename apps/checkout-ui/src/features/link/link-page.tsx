@@ -192,7 +192,13 @@ export function LinkPage({ bootstrap }: { readonly bootstrap: LinkBootstrap }) {
                 aria-live="polite"
               >
                 <span>Estimated total in {rail.asset}</span>
-                <strong>{estimate.display}</strong>
+                {/* The placeholder is a prompt, not a figure, so it does not take the
+                    size of the total it stands in for. */}
+                <strong
+                  className={estimate.status === "idle" ? "text-base! text-muted" : undefined}
+                >
+                  {estimate.display}
+                </strong>
               </div>
 
               {estimate.status === "unavailable" && (
