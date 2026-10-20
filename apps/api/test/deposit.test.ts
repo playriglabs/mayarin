@@ -73,4 +73,34 @@ describe("depositUri", () => {
       ),
     ).toBeNull();
   });
+
+  test("builds a token transfer for a payer-only ERC-20 such as WBTC", () => {
+    expect(
+      depositUri(
+        {
+          address: "0xc017aff14743c7be2d80370f4df152744f292e3e",
+          amount: { amount: 50_000n, asset: "WBTC" },
+          asset: "WBTC",
+          chain: "polygon",
+        },
+        "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+      ),
+    ).toBe(
+      "ethereum:0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6@137/transfer?address=0xc017aff14743c7be2d80370f4df152744f292e3e&uint256=50000",
+    );
+  });
+
+  test("does not guess a missing token address for WETH", () => {
+    expect(
+      depositUri(
+        {
+          address: "0xc017aff14743c7be2d80370f4df152744f292e3e",
+          amount: { amount: 1n, asset: "WETH" },
+          asset: "WETH",
+          chain: "polygon",
+        },
+        undefined,
+      ),
+    ).toBeNull();
+  });
 });

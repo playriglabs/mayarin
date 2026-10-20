@@ -30,6 +30,10 @@ export const REVIEWED_MAINNET_TOKENS: Readonly<
     EURC: "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
     // Tether USD as bridged to Base (name "Tether USD", 6 decimals, read back on chain).
     USDT: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+    // Payer-only, never settled in. WETH is the OP-stack predeploy (18 decimals); cbBTC is
+    // Coinbase's wrapped bitcoin (8 decimals). Both read back on chain.
+    WETH: "0x4200000000000000000000000000000000000006",
+    CBBTC: "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
   },
   arbitrum: {
     USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
@@ -41,6 +45,9 @@ export const REVIEWED_MAINNET_TOKENS: Readonly<
   polygon: {
     USDC: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
     USDT: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+    // Payer-only, never settled in: the bridged WETH (18 decimals) and WBTC (8), read back.
+    WETH: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
+    WBTC: "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
   },
   // Binance-Peg tokens, not Circle's or Tether's own issuance, and 18 decimals:
   // `token-units` counts them in the domain's 6.

@@ -808,12 +808,21 @@ ETH and POL are paid with `payEth` and a deposit URI with no token address; the
 watcher and the treasury executor already took the native asset from
 `CHAIN_NATIVE_ASSETS`. A native payer needs the router's DEX router whitelisted first.
 
-**Not configured: WETH, WBTC (Polygon) and cbBTC (Base) as payers.** These are
-ERC-20s that are not stablecoins, and `CHAIN_ASSETS` refuses a non-stablecoin, so
-they need code: a registry entry, an entry in the reviewed list (WBTC and cbBTC have
-8 decimals, and the 18-decimal path is not yet exercised on chain), a pool and an
-oracle feed. The pools above are the ones to use when that lands. Do not add them to
-the env first: a pool whose asset the registry does not know has nothing to price it.
+**Payer-only ERC-20s: WETH and cbBTC on Base, WETH and WBTC on Polygon.** They are
+`AssetCode`s of their own (`WETH` 18 decimals, `WBTC` and `CBBTC` 8) and
+`isTokenizedCrypto` names them. `CHAIN_ASSETS` may list them, because the watcher and
+the rails read their addresses from it, but they never join the stablecoin settlement
+set: a merchant settles in a stablecoin, and `SETTLEMENT_ASSETS` refuses them. A native
+asset is still refused in `CHAIN_ASSETS`. Their on-chain decimals are the domain's, so
+`token-units` never scales them. Each is in `REVIEWED_MAINNET_TOKENS` at the address
+read back from its chain, and the deposit URI is a token transfer for them.
+
+Prices come from `COINBASE_PRODUCTS` (`WETH/USDC` from `ETH-USD`, `WBTC/USDC` and
+`CBBTC/USDC` from `BTC-USD`) and the pools in `UNISWAP_POOLS`: `base:WETH/USDC` and
+`base:CBBTC/USDC` and `polygon:WETH/USDC` at 0.05%, `polygon:WBTC/USDC` at 0.3%. The
+8-decimal path has not been exercised on chain with value, so send a small amount
+before a merchant accepts them. As with native assets, the Coinbase product is the one
+reference; a Pyth feed for each would give the deviation guard a second opinion.
 
 ### The router configuration still to schedule
 
@@ -822,15 +831,15 @@ swap clears on either chain. The settlement asset is already whitelisted by the
 constructor. From the multisig, `scheduleBatch` through the timelock, then
 `executeBatch` after 48 h:
 
-| Chain     | `DEX_ROUTERS`                                | `INPUT_ASSETS`                    | `SETTLEMENT_ASSETS` |
-| --------- | -------------------------------------------- | --------------------------------- | ------------------- |
-| `base`    | `0x2626664c2603336E57B271c5C0b26F421741e481` | Base USDC, USDT and EURC          | Base USDT and EURC  |
-| `polygon` | `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` | Polygon USDC, USDT, WETH and WBTC | Polygon USDT        |
+| Chain     | `DEX_ROUTERS`                                | `INPUT_ASSETS`                        | `SETTLEMENT_ASSETS` |
+| --------- | -------------------------------------------- | ------------------------------------- | ------------------- |
+| `base`    | `0x2626664c2603336E57B271c5C0b26F421741e481` | Base USDC, USDT, EURC, WETH and cbBTC | Base USDT and EURC  |
+| `polygon` | `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` | Polygon USDC, USDT, WETH and WBTC     | Polygon USDT        |
 
 Native ETH on Base and native POL on Polygon need only the DEX router: the router
-wraps the forwarded value, so neither is an input asset. WETH and WBTC are listed
-as input assets ahead of the code that prices them, so the 48 h wait is not paid
-twice; a whitelisted input asset the API does not accept moves nothing.
+wraps the forwarded value, so neither is an input asset. The payer-only ERC-20s
+(WETH, WBTC, cbBTC) are listed as input assets so a payer's swap clears once the 48 h
+wait is over; a whitelisted input asset the API does not accept moves nothing.
 
 The constructor whitelisted only USDC as a settlement asset on each chain, so USDT
 (both chains) and EURC (Base) are added here as settlement assets, and as input

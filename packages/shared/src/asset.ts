@@ -158,6 +158,11 @@ const DEFINITIONS = {
     payerDecimals: 8,
     name: "POL",
   },
+  // ERC-20 wrappers a payer may hold instead of the native coin. They keep the
+  // on-chain decimals as the domain's (18, 8, 8), so `token-units` never scales them.
+  WETH: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "Wrapped Ether" },
+  WBTC: { kind: "crypto", decimals: 8, name: "Wrapped Bitcoin" },
+  CBBTC: { kind: "crypto", decimals: 8, name: "Coinbase Wrapped BTC" },
   SOL: {
     kind: "crypto",
     decimals: 9,
@@ -183,6 +188,17 @@ export function isEvmNativeAsset(asset: AssetCode): boolean {
 }
 
 /**
+ * The non-stablecoin ERC-20s a payer may bring. They have a token address, which a
+ * native asset does not, and they are never settled in: a merchant settles in a
+ * stablecoin. `CHAIN_ASSETS` may name them; it still refuses a native asset.
+ */
+const TOKENIZED_CRYPTO_ASSETS: readonly AssetCode[] = ["WETH", "WBTC", "CBBTC"];
+
+export function isTokenizedCrypto(asset: AssetCode): boolean {
+  return TOKENIZED_CRYPTO_ASSETS.includes(asset);
+}
+
+/**
  * Token artwork, from Trust Wallet's public asset registry unless noted.
  *
  * The components accept strings from API responses. Fiat values deliberately
@@ -197,6 +213,10 @@ export function isEvmNativeAsset(asset: AssetCode): boolean {
 const ASSET_LOGOS: Readonly<Record<string, string>> = {
   BTC: "https://assets-cdn.trustwallet.com/blockchains/bitcoin/info/logo.png",
   ETH: "https://assets-cdn.trustwallet.com/blockchains/ethereum/info/logo.png",
+  WETH: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2/logo.png",
+  WBTC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599/logo.png",
+  CBBTC:
+    "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf/logo.png",
   SOL: "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
   EURC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
   PYUSD:

@@ -25,6 +25,7 @@ import {
   fromDecimalString,
   getAsset,
   isAssetCode,
+  isTokenizedCrypto,
 } from "@mayarin/shared";
 import type { Stablecoin, StablecoinOnChain } from "@mayarin/stablecoin";
 import { z } from "zod";
@@ -1022,6 +1023,9 @@ function resolveStablecoins(data: RawConfig): readonly Stablecoin[] {
         issues.push(`CHAIN_ASSETS names an unknown asset "${rawAsset}"`);
         continue;
       }
+      // A payer-only ERC-20 (WETH, WBTC, cbBTC) is watched and routed from CHAIN_ASSETS
+      // but is not a stablecoin, so it never joins the settlement set below.
+      if (isTokenizedCrypto(rawAsset)) continue;
       if (getAsset(rawAsset).kind !== "stablecoin") {
         issues.push(`CHAIN_ASSETS names a non-stablecoin asset "${rawAsset}"`);
         continue;

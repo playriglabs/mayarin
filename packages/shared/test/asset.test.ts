@@ -8,6 +8,7 @@ import {
   getAsset,
   isDustAmount,
   isEvmNativeAsset,
+  isTokenizedCrypto,
 } from "../src/asset.ts";
 
 const FIAT_CURRENCIES = {
@@ -118,5 +119,17 @@ describe("native assets", () => {
 
   test("POL carries Polygon's 18 decimals, which is what the native check compares", () => {
     expect(assetDecimals("POL")).toBe(18);
+  });
+
+  test("WETH, WBTC and cbBTC are the tokenized crypto, and a native asset is not", () => {
+    for (const asset of ["WETH", "WBTC", "CBBTC"] as const) {
+      expect(isTokenizedCrypto(asset)).toBe(true);
+      expect(isEvmNativeAsset(asset)).toBe(false);
+    }
+    expect(isTokenizedCrypto("ETH")).toBe(false);
+    expect(isTokenizedCrypto("USDC")).toBe(false);
+    expect([assetDecimals("WETH"), assetDecimals("WBTC"), assetDecimals("CBBTC")]).toEqual([
+      18, 8, 8,
+    ]);
   });
 });

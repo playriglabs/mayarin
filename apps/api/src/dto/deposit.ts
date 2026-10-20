@@ -18,7 +18,14 @@ import {
 } from "@mayarin/chain";
 import type { ClearingDeposit, ClearingTransaction } from "@mayarin/clearing";
 import { encodeAddressUri } from "@mayarin/qr-parser";
-import { type AssetCode, getAsset, isEvmNativeAsset, toDecimalString, zero } from "@mayarin/shared";
+import {
+  type AssetCode,
+  getAsset,
+  isEvmNativeAsset,
+  isTokenizedCrypto,
+  toDecimalString,
+  zero,
+} from "@mayarin/shared";
 import { type MoneyDto, toMoneyDto } from "./money.ts";
 
 export function toDepositDto(
@@ -120,7 +127,10 @@ export function depositUri(
   // ETH and POL are the native assets of the EVM chains Mayarin watches; BTC is on no
   // EVM chain at all, so it names nothing transferable here.
   if (isEvmNativeAsset(deposit.asset)) return encodeAddressUri(request);
-  if (getAsset(deposit.asset).kind !== "stablecoin") return null;
+  // A token deposit is a stablecoin or a payer-only ERC-20 such as WETH; anything else has no token.
+  if (getAsset(deposit.asset).kind !== "stablecoin" && !isTokenizedCrypto(deposit.asset)) {
+    return null;
+  }
   if (token === undefined || !/^0x[0-9a-fA-F]{40}$/.test(token)) return null;
   return encodeAddressUri({ ...request, token: token as `0x${string}` });
 }

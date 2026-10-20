@@ -38,6 +38,8 @@ describe("token units", () => {
 
   test("a non-stablecoin is never scaled", () => {
     expect(chainUnitScale("bsc-testnet", "ETH")).toBe(1n);
+    expect(chainUnitScale("polygon", "WBTC")).toBe(1n);
+    expect(chainUnitScale("polygon", "WETH")).toBe(1n);
   });
 
   test("settlement units use the stablecoin scale", () => {
