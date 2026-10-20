@@ -1,0 +1,27 @@
+---
+title: API keys
+description: "Create, name and revoke the keys your website or app uses to talk to Mayarin."
+---
+
+Open **API keys** in the sidebar. It needs the `api-keys:manage` permission, so an account without it will not see the menu.
+
+## Create a key
+
+1. Choose to create a key and name it after what will use it, for example `POS register 3`. One key per integration means revoking one never breaks another.
+2. Pick the kind:
+   - **Secret** (`sk_…`) for your server. Tick only the permissions it needs.
+   - **Publishable** (`pk_…`) for browser code. It has a fixed, limited reach.
+3. Copy the secret from the dialog straight away.
+
+The secret is shown **once**. Mayarin stores only a hash and cannot show it again. Lost it? Make a new key and deactivate the old one.
+
+## Keep it safe
+
+- Never put an `sk_` key in a web page, theme file, chat message or public repository.
+- Testnet and mainnet keys are separate. A testnet key is refused on mainnet.
+
+## If a key leaks
+
+Deactivate it under **API keys**. It stops working on the next request. Deactivation cannot be undone, so create the replacement and deploy it first if the integration is live.
+
+Developers: see [authentication and key safety](https://docs.mayarin.xyz/guides/authentication).

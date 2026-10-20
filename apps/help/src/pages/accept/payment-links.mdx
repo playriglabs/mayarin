@@ -1,0 +1,29 @@
+---
+title: Payment links
+description: "Create a link, share it anywhere, and get paid."
+---
+
+A payment link is a URL you send by chat, email or QR. The buyer opens it, picks an asset, and pays. Open **Payment links** in the sidebar. It needs the `catalog:manage` permission.
+
+## Create one
+
+1. Choose **Create link**.
+2. Pick a **kind**:
+   - **Fixed amount** — one set amount.
+   - **Open amount (counter QR)** — the buyer types the amount, for a counter or a tip jar.
+   - **From catalog** — pulls the price from a product in your [catalog](#sell-from-your-catalog).
+3. Enter the amount in your own currency, for example `50.000,00` for IDR. Indonesian formatting groups thousands with `.` and marks decimals with `,`.
+4. Optionally add a reference such as `order-1042` so you can match the payment to your own records.
+5. Save, then copy the link or its QR code.
+
+## Choose which assets buyers can use
+
+Use **Edit accepted rails** on a link to narrow what a buyer can pay with. Leave it alone to accept everything you enabled in [Settings](/start/choose-networks).
+
+## Sell from your catalog
+
+Open **Catalog**, add products with a name and price, then create a **From catalog** link. Change the price in the catalog and new links follow it.
+
+## After the buyer pays
+
+The payment appears under **Payments**. If you set up [webhooks](/integrate/webhooks) your own system hears about it automatically. A link can be paid by different buyers, one payment each.

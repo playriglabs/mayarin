@@ -1,0 +1,25 @@
+---
+title: What each payment status means
+description: "Read a payment's status without guessing."
+---
+
+Find any payment under **Payments** and open it. The timeline lists every step with its time.
+
+| Status            | In plain words                                                   | What you do                          |
+| ----------------- | ---------------------------------------------------------------- | ------------------------------------ |
+| `CREATED`         | A payment was started.                                           | Nothing.                             |
+| `PRICE_LOCKED`    | The buyer confirmed and the price is held for a short window.    | Nothing.                             |
+| `PAYMENT_PENDING` | Waiting for the buyer's transfer to arrive and confirm.          | Wait. See [stuck payment](/troubleshooting/payment-stuck). |
+| `ASSET_RECEIVED`  | The buyer's money arrived.                                       | Nothing.                             |
+| `CLEARING`        | Mayarin is converting it to your settlement asset.               | Nothing.                             |
+| `SETTLING`        | Sending it to your wallet.                                       | Nothing.                             |
+| `SUCCESS`         | You are credited. Final.                                         | Fulfil the order.                    |
+| `FAILED`          | It did not complete. The timeline says why.                      | See below.                           |
+
+Only fulfil an order on `SUCCESS`.
+
+## Failed
+
+- If the buyer's money **never arrived**, the buyer must start a new payment.
+- If it **arrived but a step failed**, use **Retry settlement** on the payment once the cause is fixed. Nothing is paid twice.
+- A quote that expired fails with `QUOTE_EXPIRED`. Mayarin never re-prices without the buyer's consent, so they start again.

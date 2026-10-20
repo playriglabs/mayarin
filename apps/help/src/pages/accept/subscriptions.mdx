@@ -1,0 +1,29 @@
+---
+title: Subscriptions
+description: "Bill a customer every week, month or year with a pay link each cycle."
+---
+
+Open **Subscriptions** in the sidebar (needs `catalog:manage`) and choose **New subscription**.
+
+## How it works
+
+There is no card on file. Each cycle, Mayarin issues the customer an invoice and emails them its pay link. They pay it like any invoice. If you also run software, your app can grant access when a cycle is paid.
+
+1. Choose or create the **customer**.
+2. Name the plan, for example `Pro plan`, and set the price.
+3. Pick the interval: week, month or year.
+4. Save. Billing starts on the first billing date.
+
+## States
+
+| State       | Meaning                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| `active`    | Invoices are issued each cycle.                                         |
+| `paused`    | No invoices. When you resume, missed periods are skipped, not back-billed. |
+| `cancelled` | Stopped for good.                                                       |
+
+## Month ends
+
+A subscription starting on 31 January bills on 28 or 29 February, then 31 March, then 30 April. Dates are in UTC.
+
+Building this into your own app? See the [subscriptions guide](https://docs.mayarin.xyz/guides/subscriptions).

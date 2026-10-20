@@ -1,0 +1,34 @@
+---
+title: WooCommerce
+description: "Accept Mayarin payments in a WordPress store."
+---
+
+The plugin keeps your prices in the store's currency. Your buyer pays on the Mayarin page; nothing crypto appears in your WordPress admin.
+
+## You need
+
+- A **secret key** (`sk_…`) from [API keys](/integrate/api-keys).
+- Your **merchant id** from the dashboard.
+- A store currency Mayarin prices: IDR, USD, SGD, THB or MYR.
+- Your store **city and country** set in WooCommerce. Checkout fails with a message naming the setting if one is missing.
+
+## Install
+
+1. Upload the plugin zip in WordPress under **Plugins → Add New**, then activate it.
+2. Open **WooCommerce → Settings → Payments → Mayarin**.
+3. Enter the secret key, merchant id and the payment asset and chain buyers pay on.
+
+The gateway stays hidden at checkout until the secret key and merchant id are set.
+
+## Connect webhooks
+
+Orders update from webhooks, not from the buyer coming back.
+
+1. In the Mayarin dashboard add the endpoint `https://your-store/wp-json/mayarin/v1/webhook` under [Webhooks](/integrate/webhooks).
+2. Copy its signing secret into the plugin's **Webhook signing secret** field.
+
+## Test it
+
+Place a test order on testnet. The order shows **pending**, then moves to paid when the payment reaches `SUCCESS`.
+
+Developer details: [WooCommerce guide](https://docs.mayarin.xyz/guides/woocommerce).

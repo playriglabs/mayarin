@@ -1,0 +1,33 @@
+---
+title: Refunds and disputes
+description: "How buyer protection works, how a dispute plays out, and what to do about one."
+---
+
+## Buyer protection
+
+With buyer protection on, a payment is held in an escrow instead of going straight to you. Turn it on in **Settings → Buyer protection** and set the hold in days (1 to 90).
+
+- The buyer can release the funds to you at any time.
+- Nobody disputed by the end of the hold? Mayarin releases the funds to you automatically, usually within about a minute.
+- **You can refund the buyer at any time.**
+
+The buyer opts in by connecting a wallet. A buyer who pays from an exchange is paid to you directly, as usual.
+
+## When a buyer opens a dispute
+
+The release stops and the case appears under **Disputes** in the sidebar (needs `payments:read`), with an open count beside it.
+
+1. Open the case and read the buyer's reason in the thread.
+2. **Reply** with evidence of delivery, or **refund** the buyer.
+3. The arbiter, **Mayarin Resolution**, may ask for more.
+4. The funds move: released to you, refunded, or split.
+
+**Answer promptly.** If nobody decides by the deadline, the buyer is refunded. A dispute you ignore is one you lose.
+
+You are told by webhook at each step: `escrow.disputed`, `escrow.dispute.message`, `escrow.dispute.resolved`.
+
+## Refunds outside buyer protection
+
+Refunds work on payments made by deposit. Contract-path refunds are not generally available yet. Contact [support](/contact) with the payment id if you need one.
+
+Developers: [disputes guide](https://docs.mayarin.xyz/guides/disputes), [escrow guide](https://docs.mayarin.xyz/guides/escrow).

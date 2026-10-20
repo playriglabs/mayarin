@@ -1,0 +1,25 @@
+{
+  "name": "@mayarin/help",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vocs dev",
+    "build": "vocs build",
+    "preview": "vocs preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@fontsource-variable/inter-tight": "^5.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^8.2.2",
+    "vocs": "^2.8.5",
+    "waku": "1.0.0-rc.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1"
+  }
+}

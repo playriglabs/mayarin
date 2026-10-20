@@ -1,0 +1,13 @@
+---
+title: Webhooks are not arriving
+description: "Work through the usual reasons your server hears nothing."
+---
+
+1. Open **Webhooks → Deliveries** and search for the event. If a delivery is listed, Mayarin did send it. Read its result.
+2. **Wrong URL or environment.** Testnet and mainnet have separate endpoints. An endpoint added on testnet does not exist on mainnet.
+3. **Your server answered non-`2xx`.** Mayarin retries after about 1 minute, 5 minutes, 30 minutes, 2 hours and 12 hours, then marks the delivery dead. Fix the server; later events will arrive.
+4. **Signature check failing.** Use the exact raw request body and the endpoint's signing secret. Re-saving or re-parsing the body changes the signed bytes. A delivery older than five minutes is rejected.
+5. **Firewall or redirect.** The URL must be publicly reachable, and a redirect may drop the body.
+6. **WooCommerce.** The endpoint is `https://your-store/wp-json/mayarin/v1/webhook` and the same signing secret must be in the plugin settings.
+
+Still nothing? Send [support](/contact) the delivery id and the endpoint URL.

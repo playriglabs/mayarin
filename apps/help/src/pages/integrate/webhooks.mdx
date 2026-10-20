@@ -1,0 +1,28 @@
+---
+title: Webhooks
+description: "Let your store or system hear about payments the moment they happen."
+---
+
+A webhook is a message Mayarin sends to a URL you own when something happens, such as a payment succeeding. Your order system should react to webhooks, never to the buyer returning to your site: a buyer who closes the tab is still paid.
+
+Open **Webhooks** in the sidebar (needs `settings:manage`).
+
+## Add an endpoint
+
+1. In **Endpoints**, add the URL, for example `https://example.com/webhooks/mayarin`.
+2. Copy its **signing secret**. Your server uses it to confirm a message really came from Mayarin.
+3. Save the secret in your server configuration, not in page code.
+
+## Check deliveries
+
+**Deliveries** lists every attempt with its event and result. Search by delivery, event or endpoint id.
+
+If your server does not answer with a `2xx`, Mayarin retries after about 1 minute, 5 minutes, 30 minutes, 2 hours and 12 hours, then marks it dead.
+
+## Events you will see
+
+- `payment.created`, `payment.state_changed`, `payment.failed`
+- `payment.flagged` — see [flagged payments](/manage/flagged-payments)
+- `escrow.disputed`, `escrow.dispute.message`, `escrow.dispute.resolved` — see [refunds and disputes](/manage/refunds-and-disputes)
+
+Nothing arriving? See [webhooks not arriving](/troubleshooting/webhook-not-arriving). Writing the receiver? See [verify webhooks](https://docs.mayarin.xyz/guides/webhooks).

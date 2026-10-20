@@ -1,0 +1,21 @@
+---
+title: A payment is stuck
+description: "Find out why a payment is not moving and what, if anything, to do."
+---
+
+Open the payment under **Payments** and read the timeline. Find the status below.
+
+| Status            | Usual cause                                           | What to do                                               |
+| ----------------- | ----------------------------------------------------- | -------------------------------------------------------- |
+| `PAYMENT_PENDING` | The buyer has not paid, or the transfer has not confirmed yet. | Wait. Blockchains confirm in seconds to minutes. If the buyer says they paid, ask for the transaction hash. |
+| `CLEARING` / `SETTLING` | Conversion or payout still running.            | Wait a few minutes.                                      |
+| `FAILED` and buyer's money arrived | A step failed after funds came in. | Use **Retry settlement** on the payment. If it is refused, contact [support](/contact). |
+| `FAILED` and no money arrived | Quote expired or buyer never paid. | The buyer starts a new payment.                          |
+
+## Before you contact support
+
+Have the payment id (`pi_…`), the buyer's transaction hash if you have it, and whether it is testnet or mainnet.
+
+## Never
+
+Do not ship goods for a payment that is not `SUCCESS`, and never ask the buyer to pay a second time while the first is still pending.

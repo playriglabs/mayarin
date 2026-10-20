@@ -49,3 +49,6 @@ SCALE_UP.md
 
 # Staged npm packages (scripts/stage-npm.ts).
 packages/*/npm/
+
+# MCP config holds a bearer token
+.mcp.json

@@ -1,0 +1,22 @@
+---
+title: Flagged payments
+description: "What it means when Mayarin flags a payment, and what you should do."
+---
+
+Mayarin checks every payment when the buyer confirms it.
+
+| Outcome   | What happens                                                          |
+| --------- | --------------------------------------------------------------------- |
+| Clear     | Nothing. Most payments.                                               |
+| `REVIEW`  | The payment goes ahead. You are told, with the reason.                |
+| `BLOCKED` | The payment is refused. The buyer sees only "This payment cannot be processed". |
+
+A `REVIEW` is a heads-up, not a rejection. The rules look for patterns such as many attempts from one address, many attempts on your account in a short window, or an amount far above your usual largest payment.
+
+## What to do
+
+- Look at the payment and the reason before you ship goods.
+- A large first-time order flagged as an amount spike is often legitimate. Confirm with the buyer if unsure.
+- `BLOCKED` payments are not created, so you have nothing to refund.
+
+You receive a `payment.flagged` [webhook](/integrate/webhooks) for both outcomes. Buyers are never told which rule fired.

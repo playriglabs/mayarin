@@ -1,0 +1,26 @@
+---
+title: Understand settlement
+description: "Read the Settlement page: what has landed, what is on the way, and what fees were taken."
+---
+
+Settlement is how a payment's value reaches you. The buyer pays in any asset; you receive your settlement asset.
+
+Open **Settlement** in the sidebar. Three totals sit at the top:
+
+| Total           | Means                                                             |
+| --------------- | ----------------------------------------------------------------- |
+| **Settled**     | Paid out to you.                                                  |
+| **Fees taken**  | What Mayarin deducted.                                            |
+| **In flight**   | Priced and on the way. Nothing failed.                            |
+
+The table below lists each settlement with its amount, **Fee** and net.
+
+## Where the money goes
+
+It goes to the address you configured. If you chose a managed wallet, that wallet receives it. With [buyer protection](/manage/refunds-and-disputes#buyer-protection) on, a payment is held first and released to you after the hold.
+
+If you see **Wallet not set up** or **Set a settlement address or provision a managed wallet**, finish [wallet setup](/start/set-up-wallet). Payments cannot settle without it.
+
+## A payment succeeded but I see no money
+
+Check **In flight** first. Then open the payment: if it is `SETTLING` it is still moving. If it is `FAILED` after the buyer's money arrived, see [payment stuck](/troubleshooting/payment-stuck).
