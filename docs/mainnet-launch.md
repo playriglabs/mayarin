@@ -215,8 +215,14 @@ accept that before admitting them. Each chain still needs, before it carries val
   one: the deployer, the roles already set, and the contract addresses each chain
   will get (timelock, router, forwarder factory, predicted from the deployer's nonce).
   `--guardian` and `--owners N` also create encrypted keystores with `cast wallet new`
-  (password prompt, interactive). It makes no Safe and no order signer or operator:
-  those are `scripts/deploy-treasury-safe.ts` and Turnkey or KMS;
+  (password prompt, interactive), `--adopt <name>` records a keystore made earlier,
+  and `--sync-env` fills the blank `GUARDIAN`, `MULTISIG`, `FEE_RECIPIENT` and
+  `TREASURY_ADDRESS` of `.env.mainnet` from the file without printing them. It makes
+  no order signer or operator (Turnkey or KMS). `scripts/mainnet-safes.sh` predicts,
+  and with `--execute` deploys, the two Safes (the multisig and the treasury, a
+  threshold of the `safe-owner-*` keystores, one address on every chain, a different
+  address for each) and records them in the same file; the deploy asks for a typed
+  word and pays gas with the deployer keystore, decrypted into one process only;
 - a `.env.mainnet` with `DEPLOYER_ACCOUNT`, `DEPLOYER_ADDRESS`, the per-chain
   `<CHAIN>_RPC_URL` (`BASE_`, `ARBITRUM_`, `POLYGON_`, `BSC_`), `MULTISIG`,
   `GUARDIAN`, `FEE_RECIPIENT`, `SIGNER`, `DESTINATION`, `ETHERSCAN_API_KEY`,

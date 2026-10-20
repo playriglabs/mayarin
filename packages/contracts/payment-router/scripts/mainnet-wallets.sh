@@ -10,11 +10,20 @@
 #   ./scripts/mainnet-wallets.sh                    # write the file from what exists
 #   ./scripts/mainnet-wallets.sh --guardian         # also create a guardian keystore
 #   ./scripts/mainnet-wallets.sh --owners 3         # also create three Safe-owner keystores
+#   ./scripts/mainnet-wallets.sh --adopt mayarin-mainnet-guardian   # record a keystore that already exists
+#   ./scripts/mainnet-wallets.sh --sync-env         # copy what the file knows into .env.mainnet
 #
 # A keystore is a Foundry encrypted JSON file in ~/.foundry/keystores, made with
 # `cast wallet new`, which asks for its password on the terminal (hidden). The
 # private key is never printed and never written in clear. Run this in your own
 # terminal, not through an assistant: the prompt is interactive.
+#
+# --adopt <name> records the address of a keystore made earlier (it asks that keystore's
+# password; the address is not stored in the keystore file). --sync-env fills the blank
+# GUARDIAN, MULTISIG, FEE_RECIPIENT and TREASURY_ADDRESS of .env.mainnet from this file:
+# the guardian from its keystore, the two Safes only once scripts/mainnet-safes.sh has
+# found them deployed on every chain. It never overwrites a value that is set and
+# prints no value.
 #
 # What this does NOT make, on purpose:
 #   MULTISIG and FEE_RECIPIENT are Safes (contracts): scripts/deploy-treasury-safe.ts.
@@ -39,10 +48,14 @@ KEYSTORES="${FOUNDRY_KEYSTORES_DIR:-$HOME/.foundry/keystores}"
 
 MAKE_GUARDIAN=false
 OWNERS=0
+ADOPT=()
+SYNC_ENV=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --guardian) MAKE_GUARDIAN=true ;;
     --owners) OWNERS="${2:-}"; shift ;;
+    --adopt) ADOPT+=("${2:-}"); shift ;;
+    --sync-env) SYNC_ENV=true ;;
     *) echo "unknown flag \"$1\""; exit 1 ;;
   esac
   shift
@@ -65,13 +78,17 @@ done
 # --- Keystores this script creates --------------------------------------------
 
 mkdir -p "$KEYSTORES"
+# Keystores recorded by an earlier run stay in the file: a second run must not forget them.
 CREATED='[]'
+if [[ -f "$OUT" ]]; then CREATED="$(jq -c '.createdKeystores // []' "$OUT" 2>/dev/null || echo '[]')"; fi
+PREVIOUS_SAFES='null'
+if [[ -f "$OUT" ]]; then PREVIOUS_SAFES="$(jq -c '.safes // null' "$OUT" 2>/dev/null || echo 'null')"; fi
 
 # new_keystore <name>: makes the keystore and records its address, never printing it.
 new_keystore() {
   local name="$1" file="$KEYSTORES/$1" out address
   if [[ -e "$file" ]]; then
-    echo "keystore $name already exists — not overwritten, not listed (its address needs its password: cast wallet address --account $name)"
+    echo "keystore $name already exists — not overwritten (record it with --adopt $name)"
     return 0
   fi
   # The password prompt reads the terminal; only the summary line is captured here.
@@ -81,8 +98,45 @@ new_keystore() {
   CREATED="$(jq -c --arg name "$name" --arg address "$address" '. + [{account: $name, address: $address}]' <<<"$CREATED")"
 }
 
+# adopt <name>: records an existing keystore's address. The password prompt is cast's.
+adopt() {
+  local name="$1" address
+  [[ -e "$KEYSTORES/$name" ]] || { echo "no keystore named $name"; exit 1; }
+  if [[ "$(jq --arg n "$name" '[.[] | select(.account == $n)] | length' <<<"$CREATED")" != "0" ]]; then return 0; fi
+  address="$(cast wallet address --account "$name" | grep -oE '0x[0-9a-fA-F]{40}' | head -1)"
+  [[ -n "$address" ]] || { echo "could not read the address of $name"; exit 1; }
+  CREATED="$(jq -c --arg name "$name" --arg address "$address" '. + [{account: $name, address: $address}]' <<<"$CREATED")"
+}
+
 [[ "$MAKE_GUARDIAN" == true ]] && new_keystore mayarin-mainnet-guardian
+for name in ${ADOPT[@]+"${ADOPT[@]}"}; do adopt "$name"; done
 for ((i = 1; i <= OWNERS; i++)); do new_keystore "mayarin-mainnet-safe-owner-$i"; done
+
+# --- Fill .env.mainnet from what is known ------------------------------------------
+
+# set_blank <VAR> <value>: sets VAR only if it is blank in the file. Prints nothing.
+set_blank() {
+  local var="$1" value="$2" current
+  [[ -n "$value" && "$value" != "null" ]] || return 0
+  current="$(sed -n "s/^$var=//p" "$ENV_FILE" | sed -E 's/[[:space:]]+#.*//' | tail -1 | tr -d '[:space:]')"
+  [[ -z "$current" ]] || return 0
+  VALUE="$value" perl -pi -e 's/^('"$var"'=)[ \t]*([^#\n]*)/$1.$ENV{VALUE}.($2 =~ m{\S} ? "" : "   ")/e' "$ENV_FILE"
+  SYNCED+=("$var")
+}
+SYNCED=()
+if [[ "$SYNC_ENV" == true ]]; then
+  set_blank GUARDIAN "$(jq -r '[.[] | select(.account == "mayarin-mainnet-guardian")][0].address // empty' <<<"$CREATED")"
+  for role in multisig:MULTISIG treasury:FEE_RECIPIENT treasury:TREASURY_ADDRESS; do
+    key="${role%%:*}"; var="${role##*:}"
+    everywhere="$(jq -r --arg k "$key" '.[$k] | if . == null then false else ([.deployed[]?] | length == 4 and all) end' <<<"$PREVIOUS_SAFES")"
+    [[ "$everywhere" == "true" ]] && set_blank "$var" "$(jq -r --arg k "$key" '.[$k].address' <<<"$PREVIOUS_SAFES")"
+  done
+  # What the file now says must be what the file now holds.
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
 
 # --- Contract addresses per chain ------------------------------------------------
 
@@ -131,7 +185,7 @@ jq -n \
   --arg multisig "$(role MULTISIG)" --arg guardian "$(role GUARDIAN)" \
   --arg feeRecipient "$(role FEE_RECIPIENT)" --arg signer "$(role SIGNER)" \
   --arg destination "$(role DESTINATION)" \
-  --argjson created "$CREATED" --argjson chains "$CHAINS" \
+  --argjson created "$CREATED" --argjson chains "$CHAINS" --argjson safes "$PREVIOUS_SAFES" \
   --argjson singletons "$SINGLETONS" --argjson tokens "$TOKENS" \
   '{
     generatedAt: $generatedAt,
@@ -142,10 +196,15 @@ jq -n \
       SIGNER: $signer, DESTINATION: $destination
     },
     createdKeystores: $created,
+    safes: $safes,
     tokens: $tokens,
     deterministicSingletons: $singletons,
     chains: $chains
   }' >"$OUT"
 chmod 600 "$OUT"
 
-echo "wrote $OUT ($(jq '[.createdKeystores[]] | length' "$OUT") keystore(s) created, mode 600). No address printed."
+echo "wrote $OUT ($(jq '[.createdKeystores[]] | length' "$OUT") keystore(s) recorded, mode 600). No address printed."
+if [[ "$SYNC_ENV" == true ]]; then
+  if [[ ${#SYNCED[@]} -eq 0 ]]; then echo "$ENV_FILE: nothing to fill (set already, or not known yet)."
+  else echo "$ENV_FILE: filled ${SYNCED[*]}."; fi
+fi
