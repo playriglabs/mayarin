@@ -316,7 +316,12 @@ describe("ApiContractPlanner", () => {
     const lock = await planner.lock(lockRequest("ETH"));
     const expiresAt = new Date(NOW.getTime() + 86_400_000);
 
-    const renewed = await planner.renew({ chain: "base", order: lock.order, expiresAt });
+    const renewed = await planner.renew({
+      chain: "base",
+      settlementAsset: "USDC",
+      order: lock.order,
+      expiresAt,
+    });
 
     // Same terms, fresh window: only the deadline and the signature differ.
     expect(renewed.intentId).toBe(lock.order.intentId);
@@ -343,7 +348,12 @@ describe("ApiContractPlanner", () => {
     const lock = await planner.lock(lockRequest("ETH"));
 
     await expect(
-      planner.renew({ chain: "base-sepolia", order: lock.order, expiresAt: NOW }),
+      planner.renew({
+        chain: "base-sepolia",
+        settlementAsset: "USDC",
+        order: lock.order,
+        expiresAt: NOW,
+      }),
     ).rejects.toThrow(/No PaymentRouter deployed/);
   });
 });

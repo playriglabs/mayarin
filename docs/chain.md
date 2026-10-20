@@ -282,6 +282,19 @@ to the wrong network while every check against the domain table still passed.
 The [Arc audit](./arc.md) records native-decimal regression coverage and the
 payer-submitted contract-path evidence.
 
+### A scale belongs to a chain and an asset
+
+Two stablecoins on one chain can disagree. DAI and USDS carry 18 decimals on Ethereum
+and Arbitrum, next to USDC, USDT and USDG at 6, so a scale per chain cannot hold:
+`chainUnitScale(chain, asset)` takes both. A chain whose stablecoins all differ from
+the registry (BNB Smart Chain, all 18) is one entry; a token that differs from its
+siblings (DAI and USDS on Ethereum and Arbitrum) is another. Every conversion names
+its asset: the order's `minOut` and `fee` use the settlement asset, the settlement
+indexer reads the asset out of the `PaymentCompleted` log and refuses a token the
+deployment does not list, and an order being renewed carries its settlement asset.
+The decimals in `token-units.ts` are what `decimals()` returned on each chain when the
+token was admitted; read them back again before adding a stablecoin.
+
 ### BNB Smart Chain, the first chain whose stablecoins are not 6 decimals
 
 USDT and USDC on BNB Smart Chain carry 18 decimals. The domain keeps counting

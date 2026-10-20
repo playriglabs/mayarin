@@ -15,7 +15,7 @@
  * below it does.
  */
 
-import { type ChainId, evmChainIdOf, isSolanaChainId, toSettlementUnits } from "@mayarin/chain";
+import { type ChainId, evmChainIdOf, isSolanaChainId, toChainUnits } from "@mayarin/chain";
 import type {
   ClearingContract,
   ClearingEngine,
@@ -73,6 +73,7 @@ import {
   signOrder,
 } from "@mayarin/quote";
 import {
+  type AssetCode,
   add,
   assetDecimals,
   type Clock,
@@ -368,7 +369,13 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         fee: fee.amount,
         deadline: orderDeadline,
       };
-      const signed = await signChainOrder(quote.signer, domain, request.chain, order);
+      const signed = await signChainOrder(
+        quote.signer,
+        domain,
+        request.chain,
+        request.settlementAsset,
+        order,
+      );
       return this.#contractLock({
         settlementAmount,
         fee,
@@ -399,10 +406,16 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
       now,
     );
     const assembled = assembleOrder(locked, context, now);
-    const signed = await signChainOrder(quote.signer, domain, request.chain, {
-      ...assembled,
-      deadline: request.orderExpiresAt === undefined ? assembled.deadline : orderDeadline,
-    });
+    const signed = await signChainOrder(
+      quote.signer,
+      domain,
+      request.chain,
+      request.settlementAsset,
+      {
+        ...assembled,
+        deadline: request.orderExpiresAt === undefined ? assembled.deadline : orderDeadline,
+      },
+    );
 
     return this.#contractLock({
       settlementAmount,
@@ -535,6 +548,7 @@ export class ApiContractPlanner implements ContractPaymentPlanner {
         verifyingContract: router as Hex,
       },
       request.chain,
+      request.settlementAsset,
       order,
     );
 
@@ -792,7 +806,7 @@ export class ContractCheckout {
       };
     }
 
-    const order = toChainOrder(rail.chain, toQuoteOrder(lock.order));
+    const order = toChainOrder(rail.chain, transaction.settlementAsset, toQuoteOrder(lock.order));
     const signature = lock.order.signature as Hex;
     const sameAsset = rail.asset === transaction.settlementAsset;
     const route = sameAsset
@@ -874,11 +888,11 @@ export class ContractCheckout {
  * in the asset's own minor units (the clearing engine compares them with the
  * settlement amount); the contract and the signature see the token's.
  */
-function toChainOrder(chain: ChainId, order: Order): Order {
+function toChainOrder(chain: ChainId, settlementAsset: AssetCode, order: Order): Order {
   return {
     ...order,
-    minOut: toSettlementUnits(chain, order.minOut),
-    fee: toSettlementUnits(chain, order.fee),
+    minOut: toChainUnits(chain, settlementAsset, order.minOut),
+    fee: toChainUnits(chain, settlementAsset, order.fee),
   };
 }
 
@@ -887,9 +901,10 @@ async function signChainOrder(
   signer: Parameters<typeof signOrder>[0],
   domain: OrderDomain,
   chain: ChainId,
+  settlementAsset: AssetCode,
   order: Order,
 ): Promise<Awaited<ReturnType<typeof signOrder>>> {
-  const signed = await signOrder(signer, domain, toChainOrder(chain, order));
+  const signed = await signOrder(signer, domain, toChainOrder(chain, settlementAsset, order));
   return { order, signature: signed.signature };
 }
 

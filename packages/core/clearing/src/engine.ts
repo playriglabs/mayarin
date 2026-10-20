@@ -1500,7 +1500,12 @@ export class ClearingEngine {
     }
 
     const expiresAt = new Date(now.getTime() + this.#renewedOrderTtlSeconds * 1_000);
-    const order = await planner.renew({ chain: deposit.chain, order: contract.order, expiresAt });
+    const order = await planner.renew({
+      chain: deposit.chain,
+      settlementAsset: transaction.settlementAsset,
+      order: contract.order,
+      expiresAt,
+    });
     return this.#apply(recordOrderRenewed(transaction, order, expiresAt, now));
   }
 
