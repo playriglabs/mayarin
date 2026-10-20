@@ -4,12 +4,18 @@
 
 What has to be true before real money moves, in the order to do it. It collects
 the work tracked in the security programme (#143) into one list; the RFC stays
-the authority on what each item means and what is still open. A box here is
-ticked by verifying the thing, not by a merged PR.
+the authority on what each item means and what is still open.
+
+A ticked box means the thing is **implemented and tested in this repository**. It
+does not mean it has been done on a mainnet: each ticked item still has an
+**On mainnet** step, done and checked when the mainnet is built. Boxes for actions
+(create a project, apply a migration, hold an audit, run a drill) stay empty until
+someone has done them.
 
 Status below follows #143 as of 20 October 2026. Nothing is deployed to mainnet:
 Base and Arbitrum One are the only mainnet chains the code knows
 (`MAINNET_CHAIN_IDS`), and every contract and payment drill so far ran on testnet.
+Of the items below, 8 are implemented and none is done on a mainnet.
 
 The deployment mechanics are in [deployment.md](./deployment.md#mainnet-gate).
 Incident procedures are in [runbooks.md](./runbooks.md).
@@ -47,19 +53,24 @@ Optional but part of the launch posture:
 - [ ] New Railway project, database, domains, RPC credentials, signers, Turnkey
       organisation and policies, webhook keys, API/session secrets. Nothing copied
       from testnet.
-- [ ] Database not reachable from the internet; each service on its own role
+- [x] Database not reachable from the internet; each service on its own role
       (`scripts/db-roles.ts`), and the roles wired into the service connection
-      strings. Migrations applied by a separate short-lived role. The roles exist
-      and are tested on Postgres; they are not yet applied to any live database.
-- [ ] No public generated origin on the services, or direct requests refused.
-      Verify: a request to the Railway domain fails while Cloudflare's health check
-      still passes.
+      strings. Migrations applied by a separate short-lived role. Implemented and
+      tested on Postgres (`service-roles.postgres.test.ts`). **On mainnet:** create
+      the roles, wire the connection strings, close the public endpoint.
+- [x] No public generated origin on the services, or direct requests refused.
+      Implemented as `ORIGIN_AUTH_SECRET` (`packages/http`, tested; off by default).
+      **On mainnet:** set it at the edge first, then on both APIs, and verify that a
+      request to the Railway domain fails while Cloudflare's health check still
+      passes.
 - [ ] Exactly one chain-worker replica, and an alert if that changes. A second
       replica waits on the worker lease and a worker that loses it exits (#359), and
       each lease takes a fencing token the nonce sequencer checks before it
       broadcasts (#419); there is still no alert on drift.
-- [ ] `scripts/sync-railway-env.ts` run with the reviewed per-service credential
-      lists; `--prune` removes anything stale.
+- [x] `scripts/sync-railway-env.ts` with the reviewed per-service credential lists;
+      `--prune` removes anything stale, and it fails on a credential with no
+      reviewed decision. Implemented. **On mainnet:** run it against the mainnet
+      project.
 - [ ] Every migration applied, through 0064, before any service of the new version
       starts. The recent ones that bite when missing: 0058 and 0061 (the operator
       transaction log and fee bumps, needed by the chain worker), 0062
@@ -100,19 +111,21 @@ How value is executed matters as much as the keys that execute it.
       `SOLANA_ORDER_SIGNER_SECRET_KEY`, `SOLANA_DEPOSIT_SEED`,
       `WALLET_DEPLOYER_PRIVATE_KEY`. Either move them or leave Solana and merchant
       wallet provisioning off on mainnet.
-- [ ] Treasury and merchant-facing destination addresses are multisigs.
+- [x] Treasury and merchant-facing destination addresses are multisigs.
       `scripts/deploy-treasury-safe.ts` deploys a threshold Safe on the canonical
       Safe 1.4.1, refuses a threshold under 2 and any key a service holds, and
-      reads the owners back from the chain; none is deployed on a live chain yet.
-- [ ] `PaymentRouter` roles: guardian holds `GUARDIAN_ROLE` only (pause);
+      reads the owners back from the chain. Implemented. **On mainnet:** deploy the
+      treasury Safe and record its owners.
+- [x] `PaymentRouter` roles: guardian holds `GUARDIAN_ROLE` only (pause);
       `CONFIG_ROLE`, including `unpause`, sits behind the timelock with multisig
-      owners; checked on-chain, not assumed. After every deploy read
+      owners. Implemented and tested (`Admin.t.sol`). **On mainnet:** checked
+      on-chain, not assumed. After every deploy read
       `hasRole(CONFIG_ROLE)` for the timelock, the deployer and the guardian,
       `signer()` against the order-signing address, and the whitelists.
 - [ ] Each `PaymentRouter` chain has a recorded deployment (address, block,
       `INIT_CODE_HASH`, in `docs/chain.md`) and the router allowlist matches it.
-- [ ] Settlement destination registry rolled out as `destination-registry.md`
-      says: registrar key that is not the quote signer, every merchant registered,
+- [x] Settlement destination registry, implemented (#425, `MerchantRegistry.t.sol`).
+      **On mainnet:** roll it out as `destination-registry.md` says: registrar key that is not the quote signer, every merchant registered,
       then enforced, all through the timelock. Do not enforce on a chain that
       offers escrow. New merchants must be registered before their first payment.
 
@@ -148,11 +161,13 @@ How value is executed matters as much as the keys that execute it.
       An explorer that has not indexed the contract yet answers "runtime bytecode
       does NOT match"; wait and repeat. Arc's explorer rate-limits verification
       altogether.
-- [ ] A chain's deposit-match path is only as good as the single
+- [x] A chain's deposit-match path is only as good as the single
       `DEPOSIT_FORWARDER_INIT_CODE_HASH`: the deploy script aborts when a chain's
-      factory reports a different one. Do not override that.
-- [ ] Token decimals checked on chain (`decimals()`), not assumed: the domain
-      counts stablecoins in 6, and BNB Smart Chain's are 18 (`token-units`).
+      factory reports a different one. Implemented. Do not override it.
+- [x] Token decimals checked on chain (`decimals()`), not assumed: the domain
+      counts stablecoins in 6, and BNB Smart Chain's are 18. The conversion is
+      implemented and tested (`token-units`). **On mainnet:** read `decimals()` of
+      every admitted token before it goes in `CHAIN_ASSETS`.
 
 ## 6. Adding a mainnet chain
 
