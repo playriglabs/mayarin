@@ -308,8 +308,12 @@ if [[ "$MAINNET" == true ]]; then
   # and finding that out after the broadcast leaves a deployed router with no
   # forwarder factory and no configuration. So it is asked before anything is sent.
   # EXPLORER_VERIFIER=sourcify (no key) is the way around a plan that does not
-  # cover the chain; the explorer's own page then may not show the source.
-  EXPLORER_VERIFIER="${EXPLORER_VERIFIER:-etherscan}"
+  # cover the chain; the explorer's own page then may not show the source (Sourcify
+  # does verify these contracts: exact_match on the router, the timelock and the factory).
+  # <CHAIN>_EXPLORER_VERIFIER (BASE_, BSC_, …) overrides it for one chain, so Arbitrum One
+  # and Polygon can stay on the key while Base and BNB Smart Chain use Sourcify.
+  CHAIN_VERIFIER_VAR="$(printf '%s' "$CHAIN" | tr '[:lower:]-' '[:upper:]_')_EXPLORER_VERIFIER"
+  EXPLORER_VERIFIER="${!CHAIN_VERIFIER_VAR:-${EXPLORER_VERIFIER:-etherscan}}"
   case "$EXPLORER_VERIFIER" in
     etherscan)
       [[ -n "${ETHERSCAN_API_KEY:-}" ]] || {
@@ -319,7 +323,7 @@ if [[ "$MAINNET" == true ]]; then
         || true)"
       if [[ "$(jq -r '.status // empty' <<<"$PLAN" 2>/dev/null)" != "1" ]]; then
         echo "Etherscan V2 will not verify chain $CHAIN_ID with this key: $(jq -r '.result // "no answer"' <<<"$PLAN" 2>/dev/null | cut -c1-140)"
-        echo "Upgrade the Etherscan plan, or set EXPLORER_VERIFIER=sourcify in $ENV_FILE."; exit 1
+        echo "Upgrade the Etherscan plan, or set $CHAIN_VERIFIER_VAR=sourcify in $ENV_FILE."; exit 1
       fi
       ;;
     sourcify) ;;
