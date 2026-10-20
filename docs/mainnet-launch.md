@@ -34,7 +34,7 @@ quiet gap. Set all of them on the payment API:
 | `INTERNAL_API_TOKEN`            | Lets the dashboard API read payments without a payer token. Required with any mainnet chain. Same value on the dashboard API, which will not boot without it.              |
 | `CHAIN_ASSETS` / market config  | Only tokens in `packages/core/chain/src/reviewed-tokens.ts` are accepted on `base` and `arbitrum` (Base USDC and EURC, Arbitrum USDC and USDT).                            |
 | `QUOTE_SIGNER`                  | `local` is refused for a mainnet router: use `turnkey` or the AWS KMS signer.                                                                                              |
-| `OPERATOR_SIGNER`               | A raw `OPERATOR_PRIVATE_KEY` is refused when a mainnet chain is configured: use `turnkey` (#417).                                                                          |
+| `OPERATOR_SIGNER`               | A raw `OPERATOR_PRIVATE_KEY` is refused when a mainnet chain is configured: use `turnkey` (#417) or `aws-kms`.                                                             |
 | `TREASURY_EXECUTION_ENABLED`    | On for the chain worker and **off for core-api**: one operator key, one nonce lane. See [execution topology](#3-execution-topology).                                       |
 
 Optional but part of the launch posture:
@@ -104,13 +104,40 @@ How value is executed matters as much as the keys that execute it.
 - [ ] No raw production private key in an environment variable: the order signer
       in Turnkey or KMS, the operator key (x402 broadcasts, treasury sweeps) in a
       custody provider with a policy that names chain, contract, selector, token
-      and amount. `OPERATOR_SIGNER=turnkey` and the quote-signer rule are enforced;
-      the Turnkey policies are written and not yet applied to an organisation, and
-      `scripts/turnkey-operator.ts selftest` has not been run against one. Still
+      and amount. `OPERATOR_SIGNER` is `turnkey` or `aws-kms`, and the quote-signer
+      rule is enforced. The Turnkey policies are written and not yet applied to an
+      organisation, and `scripts/turnkey-operator.ts selftest` has not been run against
+      one; the KMS route has no policy on what is signed (see below). Still
       raw in the environment and **not** refused on mainnet:
       `SOLANA_ORDER_SIGNER_SECRET_KEY`, `SOLANA_DEPOSIT_SEED`,
       `WALLET_DEPLOYER_PRIVATE_KEY`. Either move them or leave Solana and merchant
       wallet provisioning off on mainnet.
+- [ ] **KMS instead of Turnkey** (the unpaid route): two AWS KMS keys, never one, each
+      `ECC_SECG_P256K1` / `SIGN_VERIFY`: the order signer (`QUOTE_SIGNER=aws-kms`,
+      `AWS_KMS_KEY_ID`) and the operator (`OPERATOR_SIGNER=aws-kms`,
+      `OPERATOR_AWS_KMS_KEY_ID`). The config refuses one key for both, and a raw
+      operator key beside either. `scripts/aws-kms-addresses.ts` reads each key's
+      address from its public key into `mainnet-addresses.json`, and with
+      `--sync-env` fills `SIGNER`, `AWS_KMS_SIGNER_ADDRESS`, `DESTINATION` and
+      `OPERATOR_ADDRESS`; `--selftest` signs once with each key and checks it recovers to
+      its own address, which proves the identity running it may call `kms:Sign`. The
+      operator account signs transactions and typed data (Permit2) and refuses a raw
+      message, and a transaction it signs is byte for byte the one a plain local key signs
+      (tested). Implemented and tested against a stand-in KMS. **On mainnet:** create the
+      two keys and an alias for each, then one IAM identity per service with `kms:Sign`
+      and `kms:GetPublicKey` on that service's key only (core-api: the order signer;
+      chain-worker: the operator), nothing that schedules deletion or changes a key
+      policy, and CloudTrail alerts on every `Sign`, `ScheduleKeyDeletion` and
+      `PutKeyPolicy`. The AWS credentials are the SDK's (`AWS_ACCESS_KEY_ID` and
+      `AWS_SECRET_ACCESS_KEY`, or a role), set in Railway by hand per service and never in
+      a file.
+      **What KMS does not do:** Turnkey's policy engine refuses a transaction to a
+      contract that is not ours, and KMS cannot look inside one. A process that is
+      compromised while it holds the role can ask KMS to sign anything, and cannot take
+      the key away. The bounds are IAM (only that role), CloudTrail (every signature
+      is logged), and the float at the operator address (`OPERATOR_FLOAT_LIMITS`): keep
+      only the gas and the sweep in flight there. This does not meet the SEC-06 line
+      about a policy on selector, token and amount; it is the chosen trade for not paying.
 - [x] Treasury and merchant-facing destination addresses are multisigs.
       `scripts/deploy-treasury-safe.ts` deploys a threshold Safe on the canonical
       Safe 1.4.1, refuses a threshold under 2 and any key a service holds, and
