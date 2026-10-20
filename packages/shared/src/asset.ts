@@ -139,6 +139,11 @@ const DEFINITIONS = {
   EURC: { kind: "stablecoin", decimals: 6, dustThreshold: 10_000n, name: "Euro Coin" },
   PYUSD: { kind: "stablecoin", decimals: 6, name: "PayPal USD" },
   USDG: { kind: "stablecoin", decimals: 6, name: "Global Dollar" },
+  // Counted in six decimals like every settlement asset here; the token contracts carry
+  // 18 on some chains, and `token-units` is where that is crossed.
+  DAI: { kind: "stablecoin", decimals: 6, name: "Dai" },
+  USDS: { kind: "stablecoin", decimals: 6, name: "Sky Dollar" },
+  FDUSD: { kind: "stablecoin", decimals: 6, name: "First Digital USD" },
 
   // Native crypto
   ETH: {
@@ -219,6 +224,10 @@ const ASSET_LOGOS: Readonly<Record<string, string>> = {
     "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf/logo.png",
   SOL: "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
   EURC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
+  DAI: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x6B175474E89094C44Da98b954EedeAC495271d0F/logo.png",
+  USDS: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xdC035D45d973E3EC169d2276DDab16f1e407384F/logo.png",
+  FDUSD:
+    "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xc5f0f7b66764F6ec8C8Dff7BA683102295E16409/logo.png",
   PYUSD:
     "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x6c3ea9036406852006290770BEdFcAbA0e23A0e8/logo.png",
   USDC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",

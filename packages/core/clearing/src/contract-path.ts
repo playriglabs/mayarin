@@ -162,6 +162,8 @@ export interface ContractPaymentPlanner {
  */
 export interface ContractRenewRequest {
   readonly chain: ChainId;
+  /** What the order settles in: its token contract counts it in its own decimals. */
+  readonly settlementAsset: AssetCode;
   readonly order: ContractOrder;
   /** The new execution deadline; floored to whole seconds like `assembleOrder`. */
   readonly expiresAt: Date;

@@ -13,7 +13,6 @@ import {
   type ChainClient,
   type ChainId,
   fromChainUnits,
-  fromSettlementUnits,
   type SettlementLog,
   type SettlementQuery,
   type TransferLog,
@@ -257,16 +256,22 @@ export class EvmChainClient implements ChainClient {
       }
       if (log.logIndex === null) return [];
 
-      const { intentId, merchantSafe, settledAmount, fee, refundAmount } = log.args;
+      const { intentId, merchantSafe, settlementAsset, settledAmount, fee, refundAmount } =
+        log.args;
       if (
         intentId === undefined ||
         merchantSafe === undefined ||
+        settlementAsset === undefined ||
         settledAmount === undefined ||
         fee === undefined ||
         refundAmount === undefined
       ) {
         return [];
       }
+
+      // The token contract counts in its own decimals, and two stablecoins on one chain
+      // can disagree, so the amounts are read in the asset the log names.
+      const asset = this.#assetAt(query.chain, settlementAsset);
 
       return [
         {
@@ -277,12 +282,26 @@ export class EvmChainClient implements ChainClient {
           blockHash: log.blockHash,
           intentId: intentId.toLowerCase(),
           merchantSafe: merchantSafe.toLowerCase(),
-          settledAmount: fromSettlementUnits(query.chain, settledAmount),
-          fee: fromSettlementUnits(query.chain, fee),
-          refundAmount: fromSettlementUnits(query.chain, refundAmount),
+          settledAmount: fromChainUnits(query.chain, asset, settledAmount),
+          fee: fromChainUnits(query.chain, asset, fee),
+          refundAmount: fromChainUnits(query.chain, asset, refundAmount),
         },
       ];
     });
+  }
+
+  /** The configured asset whose contract is `token` on `chain`; a settlement in any other token cannot be read. */
+  #assetAt(chain: ChainId, token: string): AssetCode {
+    for (const [asset, address] of Object.entries(this.#tokens[chain] ?? {})) {
+      if (address?.toLowerCase() === token.toLowerCase()) return asset as AssetCode;
+    }
+    throw new ConfigurationError(
+      `PaymentCompleted settled in ${token}, which is not a configured token on ${chain}`,
+      {
+        chain,
+        token,
+      },
+    );
   }
 
   /**

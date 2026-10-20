@@ -128,7 +128,7 @@ describe("EVM settlement source", () => {
     try {
       const client = new EvmChainClient({
         rpcUrls: { "base-sepolia": `http://localhost:${server.port}` },
-        tokens: {},
+        tokens: { "base-sepolia": { USDC: SETTLEMENT_ASSET } },
         logRange: 2,
       });
       const settlements = await client.settlements({
@@ -522,5 +522,109 @@ describe("EVM transfers on a chain whose stablecoins carry 18 decimals", () => {
     } finally {
       server.stop(true);
     }
+  });
+});
+
+/** One PaymentCompleted that settled in `settlementToken`, served over JSON-RPC. */
+async function settlementsOf(
+  chain: "ethereum" | "base-sepolia",
+  tokens: Record<string, string>,
+  settlementToken: string,
+  amounts: { settled: bigint; fee: bigint; refund: bigint },
+) {
+  const topics = encodeEventTopics({
+    abi: paymentRouterAbi,
+    eventName: "PaymentCompleted",
+    args: { intentId: INTENT_ID, merchantSafe: MERCHANT, refundTo: REFUND_TO },
+  });
+  const data = encodeAbiParameters(
+    [
+      { type: "address" },
+      { type: "address" },
+      { type: "uint256" },
+      { type: "uint256" },
+      { type: "uint256" },
+      { type: "uint256" },
+      { type: "uint256" },
+    ],
+    [
+      INPUT_ASSET,
+      settlementToken as `0x${string}`,
+      amounts.settled + amounts.fee + amounts.refund,
+      amounts.settled,
+      amounts.fee,
+      amounts.refund,
+      2_000n,
+    ],
+  );
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      const body = (await request.json()) as { id: number; method: string };
+      const result =
+        body.method === "eth_getLogs"
+          ? [
+              {
+                address: ROUTER,
+                topics,
+                data,
+                blockNumber: "0xb",
+                blockHash: `0x${"bb".repeat(32)}`,
+                transactionHash: `0x${"cc".repeat(32)}`,
+                transactionIndex: "0x2",
+                logIndex: "0x3",
+                removed: false,
+              },
+            ]
+          : null;
+      return Response.json({ jsonrpc: "2.0", id: body.id, result });
+    },
+  });
+  try {
+    const client = new EvmChainClient({
+      rpcUrls: { [chain]: `http://localhost:${server.port}` },
+      tokens: { [chain]: tokens },
+      logRange: 10,
+    });
+    return await client.settlements({ chain, router: ROUTER, fromBlock: 10n, toBlock: 11n });
+  } finally {
+    server.stop(true);
+  }
+}
+
+describe("EVM settlement amounts follow the asset the log names", () => {
+  const DAI = "0x6b175474e89094c44da98b954eedeac495271d0f";
+  const USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+
+  test("a 6-decimal USDC settlement on Ethereum is read as it stands", async () => {
+    const [settlement] = await settlementsOf("ethereum", { USDC, DAI }, USDC, {
+      settled: 2_990_000n,
+      fee: 10_000n,
+      refund: 100_000n,
+    });
+    expect([settlement?.settledAmount, settlement?.fee, settlement?.refundAmount]).toEqual([
+      2_990_000n,
+      10_000n,
+      100_000n,
+    ]);
+  });
+
+  test("an 18-decimal DAI settlement on the same chain is scaled down to the domain's 6", async () => {
+    const [settlement] = await settlementsOf("ethereum", { USDC, DAI }, DAI, {
+      settled: 2_990_000n * 10n ** 12n,
+      fee: 10_000n * 10n ** 12n,
+      refund: 100_000n * 10n ** 12n,
+    });
+    expect([settlement?.settledAmount, settlement?.fee, settlement?.refundAmount]).toEqual([
+      2_990_000n,
+      10_000n,
+      100_000n,
+    ]);
+  });
+
+  test("a settlement in a token the deployment does not know is refused, not guessed", async () => {
+    await expect(
+      settlementsOf("ethereum", { USDC }, DAI, { settled: 1n, fee: 0n, refund: 0n }),
+    ).rejects.toThrow(/not a configured token/);
   });
 });

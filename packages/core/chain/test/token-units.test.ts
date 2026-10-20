@@ -1,11 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  chainUnitScale,
-  fromChainUnits,
-  fromSettlementUnits,
-  toChainUnits,
-  toSettlementUnits,
-} from "../src/token-units.ts";
+import { chainUnitScale, fromChainUnits, toChainUnits } from "../src/token-units.ts";
 
 describe("token units", () => {
   test("a chain that agrees with the registry is the identity", () => {
@@ -42,9 +36,34 @@ describe("token units", () => {
     expect(chainUnitScale("polygon", "WETH")).toBe(1n);
   });
 
-  test("settlement units use the stablecoin scale", () => {
-    expect(toSettlementUnits("bsc-testnet", 2n)).toBe(2n * 10n ** 12n);
-    expect(fromSettlementUnits("bsc-testnet", 2n * 10n ** 12n)).toBe(2n);
-    expect(toSettlementUnits("base", 2n)).toBe(2n);
+  test("DAI and USDS carry 18 decimals on Ethereum and Arbitrum beside 6-decimal USDC and USDT", () => {
+    for (const chain of ["ethereum", "arbitrum"] as const) {
+      expect(chainUnitScale(chain, "DAI")).toBe(10n ** 12n);
+      expect(chainUnitScale(chain, "USDS")).toBe(10n ** 12n);
+      expect(chainUnitScale(chain, "USDC")).toBe(1n);
+      expect(chainUnitScale(chain, "USDT")).toBe(1n);
+      expect(toChainUnits(chain, "DAI", 2_500_000n)).toBe(2_500_000n * 10n ** 12n);
+      expect(fromChainUnits(chain, "DAI", 2_500_000n * 10n ** 12n)).toBe(2_500_000n);
+    }
+  });
+
+  test("two stablecoins on one chain are scaled apart, which one scale per chain could not do", () => {
+    const usdc = toChainUnits("arbitrum", "USDC", 1_000_000n);
+    const dai = toChainUnits("arbitrum", "DAI", 1_000_000n);
+    expect(dai / usdc).toBe(10n ** 12n);
+  });
+
+  test("DAI is 18 decimals on BNB Smart Chain too, like every stablecoin there", () => {
+    expect(chainUnitScale("bsc", "DAI")).toBe(10n ** 12n);
+    expect(chainUnitScale("bsc", "FDUSD")).toBe(10n ** 12n);
+  });
+
+  test("USDG stays at the registry's 6 decimals on Arbitrum", () => {
+    expect(chainUnitScale("arbitrum", "USDG")).toBe(1n);
+  });
+
+  test("a sub-unit of DAI is dropped, never rounded up", () => {
+    expect(fromChainUnits("ethereum", "DAI", 10n ** 12n - 1n)).toBe(0n);
+    expect(fromChainUnits("ethereum", "DAI", 10n ** 12n + 999n)).toBe(1n);
   });
 });
