@@ -78,6 +78,7 @@ import {
   type Clock,
   ConfigurationError,
   ConflictError,
+  isEvmNativeAsset,
   isPositive,
   type Money,
   money,
@@ -806,7 +807,7 @@ export class ContractCheckout {
         );
 
     const payEth =
-      route !== null && rail.asset === "ETH"
+      route !== null && isEvmNativeAsset(rail.asset)
         ? buildPayEthCall({
             paymentRouter: paymentRouter as Hex,
             order,

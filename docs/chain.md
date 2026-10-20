@@ -797,20 +797,23 @@ WBTC is the exception: its 0.05% pool is shallow and quotes about 0.25% under th
 $0.2 million, WETH/USDC and WBTC/USDC under $0.7 million), so a payment there should
 carry a ceiling (`MAX_PAYMENT_SETTLEMENT`) until the depth is watched in use.
 
-**Configured now.** `UNISWAP_POOLS` in `.env.mainnet` carries `base:ETH/USDC` at
-fee 500, so a payer on Base can bring native ETH once the router is configured.
-`UNISWAP_SWAP_ROUTERS` and `UNISWAP_QUOTERS` name SwapRouter02 and QuoterV2 for
-Base (`0x2626…e481`, `0x3d4e…B76a`) and Polygon (`0x68b3…Fc45`, `0x61fF…B21e`).
+**Configured now: the native payer assets.** `CHAIN_NATIVE_ASSETS` names ETH on Base
+and POL on Polygon, `UNISWAP_POOLS` carries `base:ETH/USDC` and `polygon:POL/USDC`
+(both 0.05%, routed through the wrapped native token), and `COINBASE_PRODUCTS` prices
+`ETH/USDC` and `POL/USDC` from `ETH-USD` and `POL-USD`. `UNISWAP_SWAP_ROUTERS` and
+`UNISWAP_QUOTERS` name SwapRouter02 and QuoterV2 for Base (`0x2626…e481`,
+`0x3d4e…B76a`) and Polygon (`0x68b3…Fc45`, `0x61fF…B21e`). `POL` is an `AssetCode`
+(18 decimals, payer precision 8), and `isEvmNativeAsset` is the one place that says
+ETH and POL are paid with `payEth` and a deposit URI with no token address; the
+watcher and the treasury executor already took the native asset from
+`CHAIN_NATIVE_ASSETS`. A native payer needs the router's DEX router whitelisted first.
 
-**Not configured: POL, WETH, WBTC (Polygon) and cbBTC (Base) as payers.** The
-payer assets decided for Polygon are POL, USDT, USDC, WETH and WBTC, and for Base
-USDC, USDT, EURC, ETH and more to be named. `AssetCode` has `ETH` and `BTC` but no
-POL, WETH, WBTC or cbBTC, and `CHAIN_ASSETS` refuses a non-stablecoin, so a
-non-stable ERC-20 payer asset needs code: a registry entry, an entry in the reviewed
-list (WBTC and cbBTC have 8 decimals, and the 18-decimal path is not yet exercised
-on chain), a pool in `UNISWAP_POOLS` and an oracle feed. The pools above are the ones
-to use when that lands. Do not add them to the env first: a pool whose asset the
-registry does not know has nothing to price it.
+**Not configured: WETH, WBTC (Polygon) and cbBTC (Base) as payers.** These are
+ERC-20s that are not stablecoins, and `CHAIN_ASSETS` refuses a non-stablecoin, so
+they need code: a registry entry, an entry in the reviewed list (WBTC and cbBTC have
+8 decimals, and the 18-decimal path is not yet exercised on chain), a pool and an
+oracle feed. The pools above are the ones to use when that lands. Do not add them to
+the env first: a pool whose asset the registry does not know has nothing to price it.
 
 ### The router configuration still to schedule
 

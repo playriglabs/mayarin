@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
   ASSET_CODES,
+  assetDecimals,
   assetFromIso4217Numeric,
   assetLogoUrl,
   assetSymbol,
   getAsset,
   isDustAmount,
+  isEvmNativeAsset,
 } from "../src/asset.ts";
 
 const FIAT_CURRENCIES = {
@@ -58,7 +60,8 @@ describe("asset logos", () => {
 
   test("tokens use Trust Wallet's CDN, except USDT and USDG", () => {
     const tokens = ASSET_CODES.filter(
-      (code) => getAsset(code).kind !== "fiat" && code !== "USDT" && code !== "USDG",
+      (code) =>
+        getAsset(code).kind !== "fiat" && code !== "USDT" && code !== "USDG" && code !== "POL",
     );
     for (const token of tokens) {
       expect(assetLogoUrl(token)?.startsWith("https://assets-cdn.trustwallet.com/")).toBe(true);
@@ -68,6 +71,11 @@ describe("asset logos", () => {
     // Trust Wallet's USDT PNG ships without an alpha channel, so it is overridden.
     expect(assetLogoUrl("USDT")).toBe("/tokens/usdt.svg");
     expect(assetLogoUrl("USDT", "/assets/usdt.svg")).toBe("/assets/usdt.svg");
+    // POL wears Polygon's own mark, the same file as the chain logo, not Trust Wallet's.
+    expect(assetLogoUrl("POL")).toBe("/chains/polygon.svg");
+    expect(assetLogoUrl("POL", "/tokens/usdt.svg", "/assets/polygon.svg")).toBe(
+      "/assets/polygon.svg",
+    );
   });
 
   test("keeps token artwork ready and leaves fiat to the UI fallback", () => {
@@ -96,5 +104,19 @@ describe("dust", () => {
     expect(isDustAmount("ETH", 1n)).toBe(false);
     expect(isDustAmount("BTC", 1n)).toBe(false);
     expect(isDustAmount("IDR", 1n)).toBe(false);
+  });
+});
+
+describe("native assets", () => {
+  test("ETH and POL are the EVM native assets, and nothing else is", () => {
+    expect(isEvmNativeAsset("ETH")).toBe(true);
+    expect(isEvmNativeAsset("POL")).toBe(true);
+    expect(isEvmNativeAsset("SOL")).toBe(false);
+    expect(isEvmNativeAsset("BTC")).toBe(false);
+    expect(isEvmNativeAsset("USDC")).toBe(false);
+  });
+
+  test("POL carries Polygon's 18 decimals, which is what the native check compares", () => {
+    expect(assetDecimals("POL")).toBe(18);
   });
 });

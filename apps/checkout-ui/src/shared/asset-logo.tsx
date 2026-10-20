@@ -1,4 +1,5 @@
 import { assetLogoUrl } from "@mayarin/shared";
+import polygonLogo from "./polygon.svg";
 import usdtLogo from "./usdt.svg";
 
 export function AssetLogo({
@@ -11,7 +12,7 @@ export function AssetLogo({
   /** Overrides the size from inside a container, e.g. the rail mark's `size-full`. */
   readonly className?: string;
 }) {
-  const source = assetLogoUrl(symbol, usdtLogo);
+  const source = assetLogoUrl(symbol, usdtLogo, polygonLogo);
   if (source === undefined) {
     return (
       <span

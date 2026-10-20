@@ -150,6 +150,14 @@ const DEFINITIONS = {
     payerDecimals: 8,
     name: "Ether",
   },
+  // The native asset of Polygon, with ETH's 18 decimals and the same payer precision:
+  // at about $0.09 a payment is a dozen POL, so eight decimals are far finer than a cent.
+  POL: {
+    kind: "crypto",
+    decimals: 18,
+    payerDecimals: 8,
+    name: "POL",
+  },
   SOL: {
     kind: "crypto",
     decimals: 9,
@@ -164,15 +172,27 @@ export type AssetCode = keyof typeof DEFINITIONS;
 export const ASSET_CODES = Object.keys(DEFINITIONS) as readonly AssetCode[];
 
 /**
+ * The assets that are the native currency of an EVM chain Mayarin runs on: ETH on the
+ * Ethereum family, POL on Polygon. A payer holds one with no token contract, so it is
+ * paid with `payEth` and a deposit URI with no token address.
+ */
+const EVM_NATIVE_ASSETS: readonly AssetCode[] = ["ETH", "POL"];
+
+export function isEvmNativeAsset(asset: AssetCode): boolean {
+  return EVM_NATIVE_ASSETS.includes(asset);
+}
+
+/**
  * Token artwork, from Trust Wallet's public asset registry unless noted.
  *
  * The components accept strings from API responses. Fiat values deliberately
  * have no remote logo and render as a compact monogram in the UI.
  *
  * USDT is the one Trust Wallet logo that ships without an alpha channel — a flat
- * white square — so it is overridden with a self-hosted transparent mark. The
- * argument lets each frontend hand Vite or Astro the public URL it serves, the
- * same way `chainLogoUrl` handles the local Arc logo.
+ * white square — so it is overridden with a self-hosted transparent mark. POL is
+ * Polygon's own mark, the one `chainLogoUrl` serves for the chain, so the token and
+ * the chain read as one thing. The arguments let each frontend hand Vite or Astro
+ * the public URL it serves, the same way `chainLogoUrl` handles the local Arc logo.
  */
 const ASSET_LOGOS: Readonly<Record<string, string>> = {
   BTC: "https://assets-cdn.trustwallet.com/blockchains/bitcoin/info/logo.png",
@@ -190,11 +210,18 @@ const ASSET_LOGOS: Readonly<Record<string, string>> = {
  * The canonical token logo, or undefined when a value is not an on-chain token.
  *
  * USDT resolves to `usdtLogo` (default `/tokens/usdt.svg`) rather than the
- * white-background Trust Wallet PNG.
+ * white-background Trust Wallet PNG, and POL to `polLogo` (default
+ * `/chains/polygon.svg`), the same file as Polygon's chain logo.
  */
-export function assetLogoUrl(symbol: string, usdtLogo = "/tokens/usdt.svg"): string | undefined {
-  if (symbol.toUpperCase() === "USDT") return usdtLogo;
-  return ASSET_LOGOS[symbol.toUpperCase()];
+export function assetLogoUrl(
+  symbol: string,
+  usdtLogo = "/tokens/usdt.svg",
+  polLogo = "/chains/polygon.svg",
+): string | undefined {
+  const code = symbol.toUpperCase();
+  if (code === "USDT") return usdtLogo;
+  if (code === "POL") return polLogo;
+  return ASSET_LOGOS[code];
 }
 
 const REGISTRY: Readonly<Record<AssetCode, AssetDefinition>> = Object.fromEntries(
