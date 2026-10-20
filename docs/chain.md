@@ -254,6 +254,8 @@ with it.
 | `arc-testnet`      | 5042002    | `https://testnet.arcscan.app`  |
 | `polygon-amoy`     | 80002      | `https://amoy.polygonscan.com` |
 | `bsc-testnet`      | 97         | `https://testnet.bscscan.com`  |
+| `polygon`          | 137        | `https://polygonscan.com`      |
+| `bsc`              | 56         | `https://bscscan.com`          |
 
 Every id above was read off the network with `cast chain-id`, not copied from a
 documentation page. Arc mainnet is missing on purpose: it does not launch until

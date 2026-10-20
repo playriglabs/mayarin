@@ -26,6 +26,17 @@ export const REVIEWED_MAINNET_TOKENS: Readonly<
     USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
   },
+  // Circle's native USDC, 6 decimals. Polygon's USDT address now answers as USDT0,
+  // a LayerZero OFT: not admitted until that is reviewed as a token of its own.
+  polygon: {
+    USDC: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+  },
+  // Binance-Peg tokens, not Circle's or Tether's own issuance, and 18 decimals:
+  // `token-units` counts them in the domain's 6.
+  bsc: {
+    USDC: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+    USDT: "0x55d398326f99059fF775485246999027B3197955",
+  },
 };
 
 /** True for any token on a non-mainnet chain; on a mainnet chain, only a listed one. */

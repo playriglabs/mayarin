@@ -18,6 +18,8 @@ export const EVM_CHAINS = [
   "arc-testnet",
   "polygon-amoy",
   "bsc-testnet",
+  "polygon",
+  "bsc",
 ] as const;
 
 /** Solana clusters Mayarin runs on. */
@@ -73,6 +75,8 @@ export const EVM_CHAIN_IDS: Readonly<Record<EvmChainId, bigint>> = {
   "arc-testnet": 5_042_002n,
   "polygon-amoy": 80_002n,
   "bsc-testnet": 97n,
+  polygon: 137n,
+  bsc: 56n,
 };
 
 /** Returns the EIP-155 id, refusing a non-EVM chain at the adapter boundary. */
@@ -98,6 +102,8 @@ export const CHAIN_LABELS: Readonly<Record<ChainId, string>> = {
   "arc-testnet": "Arc Testnet",
   "polygon-amoy": "Polygon Amoy",
   "bsc-testnet": "BNB Smart Chain Testnet",
+  polygon: "Polygon",
+  bsc: "BNB Smart Chain",
   "solana-devnet": "Solana Devnet",
   "solana-localnet": "Solana Localnet",
 };
@@ -121,6 +127,7 @@ const MAINNET_OF: Readonly<Record<string, string>> = {
   "base-sepolia": "base",
   "arbitrum-sepolia": "arbitrum",
   "bsc-testnet": "bnb",
+  bsc: "bnb",
   "solana-devnet": "solana",
   "solana-localnet": "solana",
 };
@@ -139,7 +146,7 @@ export function chainLogoUrl(
   polygonLogo = "/chains/polygon.svg",
 ): string | undefined {
   if (chain === "arc-testnet") return arcLogo;
-  if (chain === "polygon-amoy") return polygonLogo;
+  if (chain === "polygon-amoy" || chain === "polygon") return polygonLogo;
   return TRUST_WALLET_CHAIN_LOGOS[MAINNET_OF[chain] ?? chain];
 }
 
@@ -151,7 +158,12 @@ export function chainLogoUrl(
  * Guards read this instead of comparing against a chain name, so adding a
  * mainnet cannot silently slip past a check written when Base was the only one.
  */
-export const MAINNET_CHAIN_IDS: ReadonlySet<ChainId> = new Set<ChainId>(["base", "arbitrum"]);
+export const MAINNET_CHAIN_IDS: ReadonlySet<ChainId> = new Set<ChainId>([
+  "base",
+  "arbitrum",
+  "polygon",
+  "bsc",
+]);
 
 export function isMainnetChain(chain: ChainId): boolean {
   return MAINNET_CHAIN_IDS.has(chain);
