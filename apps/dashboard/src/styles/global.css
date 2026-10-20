@@ -425,6 +425,16 @@ html[data-testnet-notice-dismissed="true"] [data-sidebar] {
     border-color: var(--color-border);
   }
 
+  /* Text the API words — an error, a toast — can carry one unbroken token, a
+     transaction hash or an address, that is wider than any container. It wraps
+     rather than pushing the box wider; a notification row says the same with
+     `wrap-anywhere` where it is drawn. */
+  [role="alert"],
+  [role="status"],
+  [data-sonner-toast] {
+    overflow-wrap: anywhere;
+  }
+
   /* On the void sidebar the forest ring vanishes, so the dark tone borrows the
      landing's electric focus colour. Scoped to the dark theme: in light mode
      the sidebar is paper and the forest ring is the readable one — electric on

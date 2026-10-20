@@ -29,9 +29,9 @@ export function RailMark({
       <AssetLogo symbol={asset} size={size} className="size-full" />
       <span
         className="absolute right-0 bottom-0 inline-grid translate-x-[18%] translate-y-[18%] place-items-center overflow-hidden rounded-full bg-panel ring-2 ring-panel"
-        style={{ width: size * 0.45, height: size * 0.45 }}
+        style={{ width: size * 0.5, height: size * 0.5 }}
       >
-        <ChainLogo chain={chain} size={Math.round(size * 0.45)} className="size-full" />
+        <ChainLogo chain={chain} size={Math.round(size * 0.5)} className="size-full" />
       </span>
       <span className="sr-only">{`${asset} on ${chainLabel(chain)}`}</span>
     </span>

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.37;
 
 import {IPaymentRouter} from "../src/interfaces/IPaymentRouter.sol";
 import {IPermit2} from "../src/interfaces/IPermit2.sol";

@@ -1,5 +1,5 @@
 [profile.default]
-solc = "0.8.28"
+solc = "0.8.37"
 evm_version = "cancun"
 src = "src"
 test = "test"

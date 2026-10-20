@@ -112,7 +112,6 @@ const TRUST_WALLET_CHAIN_LOGOS: Readonly<Record<string, string>> = {
   base: "https://assets-cdn.trustwallet.com/blockchains/base/info/logo.png",
   arbitrum: "https://assets-cdn.trustwallet.com/blockchains/arbitrum/info/logo.png",
   solana: "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
-  polygon: "https://assets-cdn.trustwallet.com/blockchains/polygon/info/logo.png",
   bnb: "https://assets-cdn.trustwallet.com/blockchains/smartchain/info/logo.png",
 };
 
@@ -121,7 +120,6 @@ const MAINNET_OF: Readonly<Record<string, string>> = {
   "ethereum-sepolia": "ethereum",
   "base-sepolia": "base",
   "arbitrum-sepolia": "arbitrum",
-  "polygon-amoy": "polygon",
   "bsc-testnet": "bnb",
   "solana-devnet": "solana",
   "solana-localnet": "solana",
@@ -130,11 +128,18 @@ const MAINNET_OF: Readonly<Record<string, string>> = {
 /**
  * The network mark shown beside a chain name.
  *
- * Arc is local because it is not in Trust Wallet's registry. The argument lets
- * each frontend hand Vite or Astro the public URL it actually serves.
+ * Arc is local because it is not in Trust Wallet's registry, and Polygon because
+ * Trust Wallet's is the purple mark on a white square, which a round logo slot
+ * shows as a white disc. The arguments let each frontend hand Vite or Astro the
+ * public URL it actually serves.
  */
-export function chainLogoUrl(chain: string, arcLogo = "/chains/arc.svg"): string | undefined {
+export function chainLogoUrl(
+  chain: string,
+  arcLogo = "/chains/arc.svg",
+  polygonLogo = "/chains/polygon.svg",
+): string | undefined {
   if (chain === "arc-testnet") return arcLogo;
+  if (chain === "polygon-amoy") return polygonLogo;
   return TRUST_WALLET_CHAIN_LOGOS[MAINNET_OF[chain] ?? chain];
 }
 

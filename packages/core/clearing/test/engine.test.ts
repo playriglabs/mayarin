@@ -192,6 +192,37 @@ describe("clearing engine — waiting for the outside world", () => {
     expect((await harness.engine.getById(second.id)).state).toBe("SUCCESS");
   });
 
+  test("a second recovery pass leaves a payment the first is still stepping alone", async () => {
+    // The step is slow — a transaction waiting for its confirmations — and the
+    // recovery timer fires meanwhile. Without the guard the second pass repeats the
+    // step's side effects, which on the deposit path is the same order submitted
+    // twice.
+    const harness = createHarness({ behaviour: "pending" });
+    const settling = await harness.engine.start(await harness.confirmedIntent());
+    harness.adapter.complete(settling.providerReference as string);
+    const answer = harness.adapter.status.bind(harness.adapter);
+    let calls = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    harness.adapter.status = async (reference: string) => {
+      calls += 1;
+      await gate;
+      return answer(reference);
+    };
+
+    const first = harness.engine.resumeStuck();
+    await Bun.sleep(0);
+    const second = await harness.engine.resumeStuck();
+    release();
+    const [progress] = await first;
+
+    expect(calls).toBe(1);
+    expect(second.map((entry) => entry.waiting)).toEqual([true]);
+    expect(progress?.transaction.state).toBe("SUCCESS");
+  });
+
   test("resumeStuck picks up everything left mid-flight", async () => {
     const harness = createHarness({ behaviour: "pending" });
     const settling = await harness.engine.start(await harness.confirmedIntent());

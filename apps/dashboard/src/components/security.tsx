@@ -39,13 +39,24 @@ function qrSource(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-function CopyButton({ value, label }: { readonly value: string; readonly label: string }) {
+function CopyButton({
+  value,
+  label,
+  size = "sm",
+  className,
+}: {
+  readonly value: string;
+  readonly label: string;
+  readonly size?: "sm" | "default";
+  readonly className?: string;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
       type="button"
       variant="secondary"
-      size="sm"
+      size={size}
+      {...(className === undefined ? {} : { className })}
       onClick={async () => {
         await navigator.clipboard.writeText(value);
         setCopied(true);
@@ -145,10 +156,16 @@ function Enrolling({
         </li>
       </ol>
       <div className="flex gap-2">
-        <Button type="submit" disabled={verify.isPending || code.length !== 6}>
+        <Button type="submit" className="flex-1" disabled={verify.isPending || code.length !== 6}>
           {verify.isPending ? "Verifying…" : "Verify and enable"}
         </Button>
-        <Button type="button" variant="secondary" onClick={onCancel} disabled={verify.isPending}>
+        <Button
+          type="button"
+          variant="secondary"
+          className="flex-1"
+          onClick={onCancel}
+          disabled={verify.isPending}
+        >
           Cancel
         </Button>
       </div>
@@ -173,15 +190,13 @@ function RecoveryCodes({
           </li>
         ))}
       </ul>
-      <div className="flex flex-wrap items-center gap-3">
-        <CopyButton value={codes.join("\n")} label="Copy all" />
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />I
-          have saved these somewhere safe
-        </label>
-      </div>
-      <div>
-        <Button type="button" disabled={!saved} onClick={onAcknowledge}>
+      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+        <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />I have
+        saved these somewhere safe
+      </label>
+      <div className="flex gap-2">
+        <CopyButton value={codes.join("\n")} label="Copy all" size="default" className="flex-1" />
+        <Button type="button" className="flex-1" disabled={!saved} onClick={onAcknowledge}>
           Done
         </Button>
       </div>
@@ -259,10 +274,17 @@ function Disable({ onDone }: { readonly onDone: () => void }) {
             )}
           </form>
           <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
+            <DialogClose
+              render={
+                <Button variant="secondary" className="flex-1">
+                  Cancel
+                </Button>
+              }
+            />
             <Button
               type="submit"
               form="mfa-disable-form"
+              className="flex-1"
               variant="destructive"
               disabled={disable.isPending || code.length !== 6}
             >

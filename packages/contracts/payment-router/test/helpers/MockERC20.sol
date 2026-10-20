@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.37;
 
 /// @dev Minimal ERC-20 for tests. Decimals are configurable (USDC=6, WETH=18) so
 ///      the decimal-handling tests exercise real minor-unit magnitudes. Public

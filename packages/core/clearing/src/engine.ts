@@ -228,6 +228,8 @@ export interface ClearingProgress {
 }
 
 export class ClearingEngine {
+  /** Transactions a pass in this process is stepping right now. */
+  readonly #advancing = new Set<string>();
   readonly #repository: ClearingRepository;
   readonly #intents: PaymentIntentService;
   readonly #ledger: LedgerService;
@@ -732,6 +734,25 @@ export class ClearingEngine {
     start: ClearingTransaction,
     signals: ClearingSignals = {},
   ): Promise<ClearingProgress> {
+    // A recovery pass over a payment this process is already stepping would run
+    // that step's side effects a second time while the first is still in flight:
+    // the treasury executor would submit the same order twice, and the second
+    // submission reverts `AlreadyConsumed` and fails a payment that has settled.
+    // A pass carrying a signal is not skipped, since it brings something the one
+    // in flight does not have. Another process is not covered by this; there the
+    // chain is the guard.
+    if (this.#advancing.has(start.id) && Object.keys(signals).length === 0) {
+      return { transaction: start, waiting: true };
+    }
+    this.#advancing.add(start.id);
+    try {
+      return await this.#run(start, signals);
+    } finally {
+      this.#advancing.delete(start.id);
+    }
+  }
+
+  async #run(start: ClearingTransaction, signals: ClearingSignals): Promise<ClearingProgress> {
     let current = start;
 
     while (!isTerminal(current)) {

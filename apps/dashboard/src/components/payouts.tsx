@@ -19,7 +19,6 @@ import { type ChangeEvent, useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetAmount } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
-import { MfaStepUpHost } from "@/components/mfa-step-up";
 import { TransactionLink } from "@/components/transaction-link";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -206,7 +205,6 @@ function Payouts() {
 
   return (
     <section className="flex flex-col gap-8">
-      <MfaStepUpHost />
       <section className="flex flex-col gap-3">
         <SectionHeader title="New batch" />
         <Card className="gap-5">

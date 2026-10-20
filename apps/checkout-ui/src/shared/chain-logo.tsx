@@ -1,5 +1,6 @@
 import { chainLabel, chainLogoUrl } from "@mayarin/chain";
 import arcLogo from "./arc.svg";
+import polygonLogo from "./polygon.svg";
 
 /**
  * Sized in `em` by default, because the same label sits standalone in a rail
@@ -14,7 +15,7 @@ export function ChainLogo({
   readonly size?: number;
   readonly className?: string;
 }) {
-  const source = chainLogoUrl(chain, arcLogo);
+  const source = chainLogoUrl(chain, arcLogo, polygonLogo);
   if (source === undefined) return null;
   return (
     <img

@@ -2,8 +2,8 @@
  * The question a funds-moving action asks (SEC-16): the code from the person's
  * authenticator app, or a note that they have not set one up yet.
  *
- * Mounted once per page that can move funds. It owns no logic about *when* to
- * ask; the API client does that and calls in through `lib/mfa-step-up`.
+ * Mounted once, in the dashboard layout, so every page can ask. It owns no logic
+ * about *when* to ask; the API client does that and calls in through `lib/mfa-step-up`.
  */
 
 import { ShieldCheckIcon } from "@phosphor-icons/react";

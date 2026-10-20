@@ -43,7 +43,7 @@ const MULTI_SEND_ABI = parseAbi(["function multiSend(bytes transactions) payable
  * `PayoutBatcher`, deployed with CREATE2 through the canonical deterministic
  * deployer and a fixed salt — one address on every chain.
  */
-export const PAYOUT_BATCHER = "0xfAd1c3EC064aE52676Ce874C2bA4d644FF2Ad0b9";
+export const PAYOUT_BATCHER = "0x78F0C40E1Aa5a63DD71E58334586461eB3EB6312";
 
 const BATCHER_ABI = parseAbi([
   "function payout(address[] tokens, address[] recipients, uint256[] amounts)",

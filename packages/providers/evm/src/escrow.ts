@@ -23,22 +23,22 @@ import {
   zeroAddress,
 } from "viem";
 
-export const ESCROW_FACTORY = "0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45";
+export const ESCROW_FACTORY = "0xCB6dd0781D36FE95a5ff69248498E48909BB4e1B";
 
 /** `EscrowFactory.INIT_CODE_HASH()` — keccak of `EscrowVault`'s creation code. */
 export const ESCROW_VAULT_INIT_CODE_HASH =
-  "0x670f4e5d0d7a9aae5bef60b138a4473f8006ec857ae11dd2f908bdd9e2238e72";
+  "0x58a2031708a2ba67cb2ff7c005b2e84f308e2ca4b28031ff0859886e71ea75fc";
 
 /**
  * `EscrowFactoryV2` (#315): the dispute bond and split resolution. Same
  * deterministic deployer, its own salt (`scripts/DeployEscrowFactoryV2.s.sol`).
  * Terms carrying a `bond` are v2 terms; terms without one are v1's.
  */
-export const ESCROW_FACTORY_V2 = "0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18";
+export const ESCROW_FACTORY_V2 = "0xB14EEab74d84F900132632ff9dAcDe26C5043cad";
 
 /** `EscrowFactoryV2.INIT_CODE_HASH()` — keccak of `EscrowVaultV2`'s creation code. */
 export const ESCROW_VAULT_V2_INIT_CODE_HASH =
-  "0xe6e0f3b50a48b160426f9187961c167638f39cb7aa2882749fdba96888301fb3";
+  "0x8e127716e7db0e6c441573aef490ba60d27dffdbe1c8538c8908b760f9e24c5f";
 
 /**
  * How long the arbiter has to decide a dispute once the hold has ended. A
@@ -50,7 +50,6 @@ export const ESCROW_ARBITRATION_SECONDS = 7 * 24 * 60 * 60;
 export const ESCROW_CHAINS: readonly ChainId[] = [
   "arbitrum-sepolia",
   "base-sepolia",
-  "ethereum-sepolia",
   "arc-testnet",
 ];
 
@@ -62,7 +61,6 @@ export const ESCROW_CHAINS: readonly ChainId[] = [
 export const ESCROW_V2_CHAINS: readonly ChainId[] = [
   "arbitrum-sepolia",
   "base-sepolia",
-  "ethereum-sepolia",
   "arc-testnet",
 ];
 

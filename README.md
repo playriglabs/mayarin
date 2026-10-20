@@ -139,9 +139,9 @@ Testnet only. Mainnet is deliberately unprovisioned.
 | Contract                  | Address                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `PaymentRouter`           | [`0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9`](https://sepolia.arbiscan.io/address/0xEe7c5B5a9eeAf667A6EFb217A8a77534C873f7a9) |
-| `EscrowFactoryV2`         | [`0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18`](https://sepolia.arbiscan.io/address/0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18) |
+| `EscrowFactoryV2`         | [`0xB14EEab74d84F900132632ff9dAcDe26C5043cad`](https://sepolia.arbiscan.io/address/0xB14EEab74d84F900132632ff9dAcDe26C5043cad) |
 | `DepositForwarderFactory` | [`0x4b96e74b963efa7ab7d7497854fc87220bd092c4`](https://sepolia.arbiscan.io/address/0x4b96e74b963efa7ab7d7497854fc87220bd092c4) |
-| `PayoutBatcher`           | [`0xfad1c3ec064ae52676ce874c2ba4d644ff2ad0b9`](https://sepolia.arbiscan.io/address/0xfad1c3ec064ae52676ce874c2ba4d644ff2ad0b9) |
+| `PayoutBatcher`           | [`0x78f0c40e1aa5a63dd71e58334586461eb3eb6312`](https://sepolia.arbiscan.io/address/0x78f0c40e1aa5a63dd71e58334586461eb3eb6312) |
 
 Other chains:
 

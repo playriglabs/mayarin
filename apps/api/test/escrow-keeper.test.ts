@@ -8,7 +8,7 @@ import { InMemoryEscrowDisputeLog } from "./fixtures/escrow-disputes.ts";
 
 const NOW = new Date("2026-10-10T00:00:00.000Z");
 const NOW_S = BigInt(NOW.getTime() / 1_000);
-const FACTORY = "0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45";
+const FACTORY = "0xCB6dd0781D36FE95a5ff69248498E48909BB4e1B";
 
 function due(id: string, resolveBy = NOW_S + 86_400n): DueEscrow {
   return {

@@ -66,6 +66,6 @@ jobs:
       # accepted there) but a compile or parser failure still fails the job.
       - run: |
           pip install slither-analyzer==0.11.6 solc-select
-          solc-select install 0.8.28
-          solc-select use 0.8.28
+          solc-select install 0.8.37
+          solc-select use 0.8.37
           slither . --config-file slither.config.json --fail-none

@@ -12,7 +12,7 @@ function dispute(): EscrowDispute {
     paymentIntentId: "pi_1",
     merchantId: "mrc_1",
     chain: "base-sepolia",
-    factory: "0x309bdd9af097bf0f3faaff718c5c6c9a7f511b18",
+    factory: "0xb14eeab74d84f900132632ff9dacde26c5043cad",
     payer: "0x000000000000000000000000000000000000cafe",
     payee: "0x000000000000000000000000000000000000beef",
     arbiter: "0x00000000000000000000000000000000000000a1",

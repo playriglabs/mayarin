@@ -50,8 +50,9 @@ if (recovered.length > 0) {
 // core-api has no treasury executor, so a deposit it records stops at
 // ASSET_RECEIVED. Resuming only at start left such a payment waiting for the next
 // deploy; this worker holds the executor, so it picks them up as they appear.
-// Every step is keyed per state and the writes are version-checked, so a pass that
-// overlaps another process's is harmless.
+// Every step is keyed per state and the writes are version-checked, and the engine
+// skips a payment this process is already stepping: a pass that waits on a
+// transaction's confirmations is not entered a second time by this timer.
 const RESUME_INTERVAL_MS = 30_000;
 let resuming = false;
 const resumeTimer = setInterval(() => {

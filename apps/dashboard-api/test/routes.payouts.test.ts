@@ -227,7 +227,7 @@ describe("POST /payouts", () => {
 
 describe("payouts from a connected wallet", () => {
   const PAYER = `0x${"77".repeat(20)}`;
-  const BATCHER = "0xfad1c3ec064ae52676ce874c2ba4d644ff2ad0b9";
+  const BATCHER = "0x78f0c40e1aa5a63dd71e58334586461eb3eb6312";
 
   test("any wallet can prepare, with no managed Safe at all", async () => {
     const { harness, auth } = await seed({ managed: false });

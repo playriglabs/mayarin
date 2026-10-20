@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import LogoutButton from "../components/logout-button.tsx";
 import LiveUpdates from "../components/live-updates.tsx";
+import { MfaStepUpHost } from "../components/mfa-step-up.tsx";
 import NotificationBell from "../components/notification-bell.tsx";
 import OnboardingTour from "../components/onboarding-tour.tsx";
 import SidebarToggle from "../components/sidebar-toggle.tsx";
@@ -112,6 +113,9 @@ const avatarUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(avatarS
       Skip to content
     </a>
     <Toaster client:load />
+    <!-- One host for every page: any action the API guards with an authenticator
+         code asks through it, so a page cannot forget to mount its own. -->
+    <MfaStepUpHost client:load />
     <LiveUpdates client:load />
     <OnboardingTour client:load userId={user.id} permissions={user.permissions} />
 

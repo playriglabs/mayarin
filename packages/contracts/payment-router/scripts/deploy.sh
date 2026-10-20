@@ -20,6 +20,7 @@
 #   ./scripts/deploy.sh arc-testnet --dry            # simulate, broadcast nothing
 #   ./scripts/deploy.sh arc-testnet --factory-only   # router already deployed
 #   ./scripts/deploy.sh arc-testnet --router-only    # new router, keep the forwarder factory
+#   ./scripts/deploy.sh base-sepolia --no-verify     # deploy now, verify afterwards
 #
 # The per-chain values that are not addresses live in the table below; the
 # addresses (MULTISIG, GUARDIAN, FEE_RECIPIENT, SIGNER, SETTLEMENT_TOKENS,
@@ -33,14 +34,19 @@ REPO_ROOT="$(cd "$CONTRACT_DIR/../../.." && pwd)"
 
 CHAIN="${1:-}"
 [[ -n "$CHAIN" ]] || {
-  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet> [--dry] [--factory-only|--router-only]"; exit 1; }
+  echo "usage: $0 <ethereum-sepolia|base-sepolia|arbitrum-sepolia|arc-testnet|polygon-amoy|bsc-testnet> [--dry] [--no-verify] [--factory-only|--router-only]"; exit 1; }
 
 DRY_RUN=false
 FACTORY_ONLY=false
 ROUTER_ONLY=false
+NO_VERIFY=false
 for flag in "${@:2}"; do
   case "$flag" in
     --dry) DRY_RUN=true ;;
+    # An explorer that cannot verify yet fails the forge script, which stops this
+    # one before the factory and the configure step and leaves the chain half
+    # deployed. Verify afterwards with `forge verify-contract`.
+    --no-verify) NO_VERIFY=true ;;
     # A chain whose router is already deployed and only needs the forwarder
     # factory — re-running the whole script would deploy a second router and
     # orphan the one the API is configured against.
@@ -244,7 +250,10 @@ cd "$CONTRACT_DIR"
 forge build
 forge test
 
-BROADCAST_FLAGS=(--rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY")
+# --sender is the address behind the key, stated rather than inferred: a script that
+# calls startBroadcast() with no argument simulated from forge's default sender on
+# Base Sepolia and failed with CreateCollision before anything was sent.
+BROADCAST_FLAGS=(--rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" --sender "$DEPLOYER_ADDRESS")
 # Extra forge flags for one run, e.g. FORGE_EXTRA_FLAGS="--gas-estimate-multiplier 300".
 # Ethereum Sepolia under-estimates the timelock deploy and the transaction fails
 # on chain; the fix is a larger estimate, not a code change.
@@ -252,7 +261,9 @@ BROADCAST_FLAGS=(--rpc-url "$RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY")
 BROADCAST_FLAGS+=(${FORGE_EXTRA_FLAGS:-})
 if [[ "$DRY_RUN" == false ]]; then
   BROADCAST_FLAGS+=(--broadcast)
-  if [[ "$VERIFIER" == "blockscout" ]]; then
+  if [[ "$NO_VERIFY" == true ]]; then
+    echo "--no-verify — deploying unverified"
+  elif [[ "$VERIFIER" == "blockscout" ]]; then
     BROADCAST_FLAGS+=(--verify --verifier blockscout --verifier-url "$VERIFIER_URL")
   elif [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
     BROADCAST_FLAGS+=(--verify --etherscan-api-key "$ETHERSCAN_API_KEY")
