@@ -20,6 +20,12 @@ describe("token units", () => {
     expect(fromChainUnits("bsc-testnet", "USDT", 1_500_000n * 10n ** 12n)).toBe(1_500_000n);
   });
 
+  test("BNB Smart Chain mainnet counts like its testnet", () => {
+    expect(chainUnitScale("bsc", "USDC")).toBe(10n ** 12n);
+    expect(toChainUnits("bsc", "USDT", 2_000_000n)).toBe(2_000_000n * 10n ** 12n);
+    expect(chainUnitScale("polygon", "USDC")).toBe(1n);
+  });
+
   test("sub-unit dust from the chain is dropped, not rounded up", () => {
     expect(fromChainUnits("bsc-testnet", "USDC", 10n ** 12n - 1n)).toBe(0n);
     expect(fromChainUnits("bsc-testnet", "USDC", 10n ** 12n + 999n)).toBe(1n);

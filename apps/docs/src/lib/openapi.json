@@ -2117,6 +2117,8 @@
                           "arc-testnet",
                           "polygon-amoy",
                           "bsc-testnet",
+                          "polygon",
+                          "bsc",
                           "solana-devnet",
                           "solana-localnet"
                         ]
@@ -3915,6 +3917,8 @@
                           "arc-testnet",
                           "polygon-amoy",
                           "bsc-testnet",
+                          "polygon",
+                          "bsc",
                           "solana-devnet",
                           "solana-localnet"
                         ]
@@ -4406,6 +4410,8 @@
                             "arc-testnet",
                             "polygon-amoy",
                             "bsc-testnet",
+                            "polygon",
+                            "bsc",
                             "solana-devnet",
                             "solana-localnet"
                           ]
@@ -4814,6 +4820,8 @@
                           "arc-testnet",
                           "polygon-amoy",
                           "bsc-testnet",
+                          "polygon",
+                          "bsc",
                           "solana-devnet",
                           "solana-localnet"
                         ]
@@ -5778,6 +5786,8 @@
                           "arc-testnet",
                           "polygon-amoy",
                           "bsc-testnet",
+                          "polygon",
+                          "bsc",
                           "solana-devnet",
                           "solana-localnet"
                         ]
@@ -6495,6 +6505,8 @@
                             "arc-testnet",
                             "polygon-amoy",
                             "bsc-testnet",
+                            "polygon",
+                            "bsc",
                             "solana-devnet",
                             "solana-localnet"
                           ]

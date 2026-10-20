@@ -22,6 +22,18 @@ describe("chain facts", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  test("Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnets", () => {
+    for (const chain of ["base", "arbitrum", "polygon", "bsc"] as const) {
+      expect(isMainnetChain(chain)).toBe(true);
+    }
+    expect(isMainnetChain("polygon-amoy")).toBe(false);
+    expect(isMainnetChain("bsc-testnet")).toBe(false);
+    expect(EVM_CHAIN_IDS.polygon).toBe(137n);
+    expect(EVM_CHAIN_IDS.bsc).toBe(56n);
+    expect(chainLogoUrl("polygon")).toBe("/chains/polygon.svg");
+    expect(chainLogoUrl("bsc")).toBe(chainLogoUrl("bsc-testnet"));
+  });
+
   test("recognises the chains it supports", () => {
     expect(isChainId("ethereum-sepolia")).toBe(true);
     expect(isChainId("arbitrum-sepolia")).toBe(true);

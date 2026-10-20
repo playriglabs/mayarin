@@ -15,6 +15,7 @@ import type { ChainId } from "./types.ts";
 /** Decimals every stablecoin carries on a chain that differs from the registry. */
 const STABLECOIN_DECIMALS: Readonly<Partial<Record<ChainId, number>>> = {
   "bsc-testnet": 18,
+  bsc: 18,
 };
 
 /** How many on-chain minor units one domain minor unit is. `1n` when they agree. */
