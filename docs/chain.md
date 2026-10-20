@@ -848,7 +848,7 @@ always one of the stablecoins; the rest are payer-only.
 | --------------- | --------------------------- | -------------------------------- | ------ |
 | Ethereum        | USDC, USDT, DAI, USDS       | WETH, WBTC, LINK, UNI, AAVE      | ETH    |
 | Arbitrum One    | USDC, USDT, DAI, USDS, USDG | WETH, WBTC, ARB, LINK, UNI, AAVE | ETH    |
-| BNB Smart Chain | USDC, USDT, DAI, FDUSD      | WBNB, BTCB, LINK, UNI, CAKE      | BNB    |
+| BNB Smart Chain | USDC, USDT, DAI, FDUSD      | WBNB, BTCB, UNI, CAKE            | BNB    |
 
 DAI and USDS have 18 decimals next to 6-decimal USDC and USDT on Ethereum and
 Arbitrum (scaled per asset, see above); everything on BNB Smart Chain has 18.
@@ -859,7 +859,7 @@ answers `symbol()` as "USD₮0": Tether's LayerZero OFT at the old address.
 
 BNB has no ETH on BNB Smart Chain: a Binance-Peg ETH is a token and was left out, so the
 native asset there is BNB and `isEvmNativeAsset` names it. `AssetCode` now has `BNB`,
-`WBNB`, `BTCB`, `LINK`, `UNI`, `AAVE`, `ARB` and `CAKE`, and the reviewed list carries
+`WBNB`, `BTCB`, `UNI`, `AAVE`, `ARB` and `CAKE`, and the reviewed list carries
 every address above. `reviewed-tokens.test.ts` holds each token's on-chain decimals
 against the registry and `token-units`, so a stablecoin counted wrong fails a test.
 

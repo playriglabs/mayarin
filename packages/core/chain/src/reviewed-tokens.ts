@@ -85,7 +85,6 @@ export const REVIEWED_MAINNET_TOKENS: Readonly<
     // Payer-only, never settled in. BNB itself is the native coin and has no address.
     WBNB: "0xbb4CdB9CBd36B01bD1cBaEBF2de08d9173bc095c",
     BTCB: "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
-    LINK: "0xF8A0BF9cF54Bb92F17374d9e9A321E6a111a51bD",
     UNI: "0xBf5140A22578168FD562DCcF235E5D43A02ce9B1",
     CAKE: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
   },
