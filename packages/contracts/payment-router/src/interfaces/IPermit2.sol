@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.37;
 
 /// @title IPermit2 — minimal slice of Uniswap Permit2 (IAllowanceTransfer)
 /// @notice Only the surface PaymentRouter calls: `permit` (set allowance from a

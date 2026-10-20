@@ -233,7 +233,7 @@ currency is USDC — a full deploy costs cents rather than test ETH nobody has.
 ## Commands
 
 ```bash
-forge build                 # compile (solc 0.8.28, cancun, via_ir, 200 runs)
+forge build                 # compile (solc 0.8.37, cancun, via_ir, 200 runs)
 forge test                  # unit + fuzz + invariant (68 tests, 1 RPC-gated skip)
 forge test --match-contract AdminTest      # one suite
 forge snapshot               # write .gas-snapshot
@@ -294,10 +294,10 @@ slither.config.json`. Re-run after the `IPermit2.transferFrom` correction
   no withdraw. **Triaged as known-safe by design**: the zero-resting-balance
   invariant means the contract never custodies ETH, so there is intentionally no
   withdraw path. Zero untriaged high/medium. (Slither emits AST-resolution
-  warnings on OZ 5.3 + solc 0.8.28 + `via_ir`; the detector pass completes — 26
+  warnings on OZ 5.3 + solc 0.8.37 + `via_ir`; the detector pass completes — 26
   contracts, 102 detectors.)
 - **Mythril** (0.24.8) — `myth analyze src/PaymentRouter.sol --solc-json
-mythril-solc.json` (solc 0.8.28 via `solc-select`). Symbolic execution on a
+mythril-solc.json` (solc 0.8.37 via `solc-select`). Symbolic execution on a
   contract with OZ 5.3 inheritance + EIP712 + external Permit2 + low-level calls
   - `via_ir` is long-running; it compiles and starts analysis but does not
     complete within the session window. Coverage of the symbolic-execution
@@ -348,7 +348,7 @@ which `PaymentRouter` had and this has not.
 
 ## Policies
 
-- **Solidity** is pinned in `foundry.toml` (`solc = 0.8.28`, `evm_version =
+- **Solidity** is pinned in `foundry.toml` (`solc = 0.8.37`, `evm_version =
 cancun` — supported on Base, the primary chain). Bump deliberately, in its
   own commit.
 - **License**: MIT per-file SPDX headers. The contract source is publicly

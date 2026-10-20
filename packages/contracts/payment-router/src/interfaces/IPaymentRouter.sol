@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.28;
+pragma solidity 0.8.37;
 
 /// @title IPaymentRouter — public interface of PaymentRouter (RFC #4)
 /// @notice Consumed off-chain by the Execution Engine (#5, calldata target), the
