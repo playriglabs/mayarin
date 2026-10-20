@@ -30,6 +30,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 ENV_FILE="${DEPLOY_ENV_FILE:-$REPO_ROOT/.env.mainnet}"
 OUT="${MAINNET_ADDRESSES_FILE:-$REPO_ROOT/mainnet-addresses.json}"
+# The raw output of every run, for a failure that says too little. No key is in it
+# (the key is only in the environment of the deploying process); addresses are, so it
+# is mode 600 and gitignored.
+LOG="${MAINNET_SAFES_LOG:-$REPO_ROOT/mainnet-safes.log}"
 
 TARGET="${1:-}"
 [[ -n "$TARGET" ]] || { echo "usage: $0 <ethereum|base|arbitrum|polygon|bsc|all> [--execute] [--threshold N]"; exit 1; }
@@ -47,6 +51,7 @@ done
 [[ "$THRESHOLD" =~ ^[0-9]+$ ]] || { echo "--threshold takes a number"; exit 1; }
 
 command -v jq  >/dev/null || { echo "jq not found"; exit 1; }
+command -v cast >/dev/null || { echo "cast not found — install Foundry: foundryup"; exit 1; }
 command -v bun >/dev/null || { echo "bun not found"; exit 1; }
 [[ -f "$OUT" ]] || { echo "missing $OUT — run scripts/mainnet-wallets.sh first"; exit 1; }
 
@@ -114,7 +119,24 @@ record() { # record <role> <chain> <address> <deployed true|false>
   chmod 600 "$OUT"
 }
 
+# redacted <text>: the last lines, with every hex string and URL hidden.
+redacted() {
+  printf '%s\n' "$1" | sed -E 's/0x[0-9a-fA-F]{16,}/<hex>/g; s#https?://[^[:space:]"]+#<url>#g' | tail -n 8 | sed 's/^/    | /'
+}
+
+# on_chain <chain> <rpc> <role>: is the recorded address a contract on that chain? A script
+# that dies after it has sent the transaction still leaves a Safe behind, so a failure
+# is checked against the chain rather than taken at its word.
+on_chain() {
+  local address code
+  address="$(jq -r --arg r "$3" '.safes[$r].address // empty' "$OUT")"
+  [[ -n "$address" ]] || return 1
+  code="$(cast code "$address" --rpc-url "$2" 2>/dev/null || true)"
+  [[ -n "$code" && "$code" != "0x" ]]
+}
+
 FAILED=0
+: >>"$LOG"; chmod 600 "$LOG"
 for chain in $CHAINS; do
   rpc="$(env_rpc "$chain")"
   [[ -n "$rpc" ]] || rpc="$(public_rpc "$chain")"
@@ -123,11 +145,23 @@ for chain in $CHAINS; do
     cmd=(bun --env-file="$ENV_FILE" run "$REPO_ROOT/scripts/deploy-treasury-safe.ts"
          --chain "$chain" --rpc "$rpc" "${OWNER_ARGS[@]}" --threshold "$THRESHOLD" --salt "$salt")
     if [[ "$EXECUTE" == true ]]; then
-      result="$(cd "$REPO_ROOT" && SAFE_DEPLOYER_PRIVATE_KEY="$KEY" "${cmd[@]}" --execute 2>&1)" || { echo "$role on $chain: FAILED ($(printf '%s' "$result" | tail -1 | cut -c1-100))"; FAILED=1; continue; }
-      address="$(printf '%s' "$result" | grep -oE '0x[0-9a-fA-F]{40}' | head -1)"
-      deployed=true
+      if result="$(cd "$REPO_ROOT" && SAFE_DEPLOYER_PRIVATE_KEY="$KEY" "${cmd[@]}" --execute 2>&1)"; then
+        printf '== %s %s (execute) ==\n%s\n' "$role" "$chain" "$result" >>"$LOG"
+        address="$(printf '%s' "$result" | grep -oE '0x[0-9a-fA-F]{40}' | head -1)"
+        deployed=true
+      else
+        printf '== %s %s (execute, exit %s) ==\n%s\n' "$role" "$chain" "$?" "$result" >>"$LOG"
+        # The prediction is recorded already (an earlier prediction run), so the chain can be asked.
+        if on_chain "$chain" "$rpc" "$role"; then
+          echo "$role on $chain: the script died AFTER sending, but the Safe is on chain — recorded as deployed"
+          address="$(jq -r --arg r "$role" '.safes[$r].address' "$OUT")"; deployed=true
+        else
+          echo "$role on $chain: FAILED and not on chain. Last lines (hex and URLs hidden); everything is in $LOG:"
+          redacted "$result"; FAILED=1; continue
+        fi
+      fi
     else
-      result="$(cd "$REPO_ROOT" && "${cmd[@]}" 2>&1)" || { echo "$role on $chain: FAILED ($(printf '%s' "$result" | tail -1 | cut -c1-100))"; FAILED=1; continue; }
+      result="$(cd "$REPO_ROOT" && "${cmd[@]}" 2>&1)" || { printf '== %s %s (predict, failed) ==\n%s\n' "$role" "$chain" "$result" >>"$LOG"; echo "$role on $chain: FAILED. Last lines (hex and URLs hidden); everything is in $LOG:"; redacted "$result"; FAILED=1; continue; }
       address="$(printf '%s' "$result" | sed -n 's/^address[[:space:]]*//p' | head -1)"
       if printf '%s' "$result" | grep -qE '^deployed[[:space:]]+yes'; then deployed=true; else deployed=false; fi
     fi

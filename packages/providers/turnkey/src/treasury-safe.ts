@@ -170,11 +170,42 @@ export async function predictTreasurySafe(
  * Deploys the Safe, or confirms the one already there, then reads it back.
  * Idempotent: the address is deterministic, so "already deployed" is recognised.
  */
+/**
+ * Reads that follow a write wait for the node to catch up.
+ *
+ * A provider that spreads requests over several nodes can answer a read from one that has
+ * not seen the block the write just landed in: the Safe that was just made "has no code",
+ * and the next transaction takes a nonce that is already used. Both were seen on Base
+ * with Alchemy, and failed a deploy that had in fact succeeded.
+ */
+export interface DeployWaitOptions {
+  /** How many times to try a read after a write before giving up. */
+  readonly attempts?: number;
+  readonly delayMs?: number;
+}
+
+export async function eventually<T>(
+  read: () => Promise<T>,
+  { attempts = 15, delayMs = 2_000 } = {},
+): Promise<T> {
+  let last: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await read();
+    } catch (error) {
+      last = error;
+      if (attempt < attempts - 1 && delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw last;
+}
+
 export async function deployTreasurySafe(
   client: PublicClient,
   wallet: WalletClient,
   request: TreasurySafeRequest,
   deployment: SafeDeployment = SAFE_1_4_1,
+  wait: DeployWaitOptions = {},
 ): Promise<TreasurySafe & { readonly deployed: boolean }> {
   const predicted = await predictTreasurySafe(client, request, deployment);
   const { salt } = validateTreasurySafe(request);
@@ -210,17 +241,27 @@ export async function deployTreasurySafe(
       throw new ConfigurationError("Safe deployment reverted", { hash });
     }
     deployed = true;
+    // The next transaction from this key, in this process or the next one, must see this
+    // one: wait until the node reports the account's nonce past it.
+    await eventually(async () => {
+      const sent = await client.getTransaction({ hash });
+      const nonce = await client.getTransactionCount({ address: account.address });
+      if (nonce <= sent.nonce) throw new Error("the node has not seen the deployment yet");
+    }, wait);
   }
 
   // Whoever the transaction says it made, the custody claim is what is on chain.
-  const [owners, threshold] = await Promise.all([
-    client.readContract({ address: predicted.address, abi: SAFE_ABI, functionName: "getOwners" }),
-    client.readContract({
-      address: predicted.address,
-      abi: SAFE_ABI,
-      functionName: "getThreshold",
-    }),
-  ]);
+  const readBack = async () =>
+    Promise.all([
+      client.readContract({ address: predicted.address, abi: SAFE_ABI, functionName: "getOwners" }),
+      client.readContract({
+        address: predicted.address,
+        abi: SAFE_ABI,
+        functionName: "getThreshold",
+      }),
+    ]);
+  // Just deployed: the node asked may not have it yet. Already there: one honest read.
+  const [owners, threshold] = deployed ? await eventually(readBack, wait) : await readBack();
   const sameOwners =
     owners.length === predicted.owners.length &&
     predicted.owners.every((owner) => owners.some((o) => o.toLowerCase() === owner.toLowerCase()));
