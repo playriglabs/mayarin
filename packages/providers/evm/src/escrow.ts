@@ -50,6 +50,7 @@ export const ESCROW_ARBITRATION_SECONDS = 7 * 24 * 60 * 60;
 export const ESCROW_CHAINS: readonly ChainId[] = [
   "arbitrum-sepolia",
   "base-sepolia",
+  "ethereum-sepolia",
   "arc-testnet",
 ];
 
@@ -61,6 +62,7 @@ export const ESCROW_CHAINS: readonly ChainId[] = [
 export const ESCROW_V2_CHAINS: readonly ChainId[] = [
   "arbitrum-sepolia",
   "base-sepolia",
+  "ethereum-sepolia",
   "arc-testnet",
 ];
 
