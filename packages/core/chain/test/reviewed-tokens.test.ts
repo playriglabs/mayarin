@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { isReviewedToken } from "../src/reviewed-tokens.ts";
+import { type AssetCode, assetDecimals, getAsset } from "@mayarin/shared";
+import { isReviewedToken, REVIEWED_MAINNET_TOKENS } from "../src/reviewed-tokens.ts";
+import { chainUnitScale } from "../src/token-units.ts";
+import type { ChainId } from "../src/types.ts";
 
 const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
@@ -89,5 +92,110 @@ describe("reviewed mainnet tokens (SEC-18)", () => {
     expect(
       isReviewedToken("base-sepolia", "USDC", "0x1111111111111111111111111111111111111111"),
     ).toBe(true);
+  });
+});
+
+/**
+ * `decimals()` of every reviewed token, as read back from its chain on 20 October 2026.
+ * A token added to the reviewed list needs its line here, and the scale and the
+ * registry are held against it: a stablecoin counted wrong is off by a power of ten.
+ */
+const ONCHAIN_DECIMALS: Readonly<Record<string, Readonly<Partial<Record<AssetCode, number>>>>> = {
+  ethereum: {
+    USDC: 6,
+    USDT: 6,
+    EURC: 6,
+    DAI: 18,
+    USDS: 18,
+    WETH: 18,
+    WBTC: 8,
+    LINK: 18,
+    UNI: 18,
+    AAVE: 18,
+  },
+  base: { USDC: 6, USDT: 6, EURC: 6, WETH: 18, CBBTC: 8 },
+  arbitrum: {
+    USDC: 6,
+    USDT: 6,
+    DAI: 18,
+    USDS: 18,
+    USDG: 6,
+    WETH: 18,
+    WBTC: 8,
+    ARB: 18,
+    LINK: 18,
+    UNI: 18,
+    AAVE: 18,
+  },
+  polygon: { USDC: 6, USDT: 6, WETH: 18, WBTC: 8 },
+  bsc: {
+    USDC: 18,
+    USDT: 18,
+    DAI: 18,
+    FDUSD: 18,
+    WBNB: 18,
+    BTCB: 18,
+    LINK: 18,
+    UNI: 18,
+    CAKE: 18,
+  },
+};
+
+describe("reviewed tokens against what their contracts count in", () => {
+  test("every reviewed token has its on-chain decimals recorded, and no more", () => {
+    for (const [chain, tokens] of Object.entries(REVIEWED_MAINNET_TOKENS)) {
+      expect(Object.keys(ONCHAIN_DECIMALS[chain] ?? {}).sort()).toEqual(
+        Object.keys(tokens ?? {}).sort(),
+      );
+    }
+  });
+
+  test("a stablecoin's scale is what turns the registry's decimals into the contract's", () => {
+    for (const [chain, tokens] of Object.entries(ONCHAIN_DECIMALS)) {
+      for (const [asset, onChain] of Object.entries(tokens) as [AssetCode, number][]) {
+        if (getAsset(asset).kind !== "stablecoin") continue;
+        expect(chainUnitScale(chain as ChainId, asset)).toBe(
+          10n ** BigInt(onChain - assetDecimals(asset)),
+        );
+      }
+    }
+  });
+
+  test("a non-stablecoin is counted in the contract's own decimals, so it is never scaled", () => {
+    for (const [chain, tokens] of Object.entries(ONCHAIN_DECIMALS)) {
+      for (const [asset, onChain] of Object.entries(tokens) as [AssetCode, number][]) {
+        if (getAsset(asset).kind === "stablecoin") continue;
+        expect(assetDecimals(asset)).toBe(onChain);
+        expect(chainUnitScale(chain as ChainId, asset)).toBe(1n);
+      }
+    }
+  });
+});
+
+describe("the new Ethereum, Arbitrum and BNB Smart Chain tokens", () => {
+  test("admit each at its address, whatever the case", () => {
+    expect(isReviewedToken("ethereum", "DAI", "0x6b175474e89094c44da98b954eedeac495271d0f")).toBe(
+      true,
+    );
+    expect(isReviewedToken("arbitrum", "USDG", "0x004b506865409877c9fa29bfb1eba929984b9bbc")).toBe(
+      true,
+    );
+    expect(isReviewedToken("bsc", "FDUSD", "0xc5f0f7b66764f6ec8c8dff7ba683102295e16409")).toBe(
+      true,
+    );
+    expect(isReviewedToken("bsc", "CAKE", "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82")).toBe(true);
+  });
+
+  test("refuse another chain's address for the same asset", () => {
+    expect(isReviewedToken("ethereum", "LINK", "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4")).toBe(
+      false,
+    );
+    expect(isReviewedToken("bsc", "WBNB", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")).toBe(
+      false,
+    );
+  });
+
+  test("BNB is the native coin of BNB Smart Chain and has no token address", () => {
+    expect(REVIEWED_MAINNET_TOKENS.bsc?.BNB).toBeUndefined();
   });
 });

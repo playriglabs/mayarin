@@ -163,11 +163,20 @@ const DEFINITIONS = {
     payerDecimals: 8,
     name: "POL",
   },
+  // BNB Smart Chain's native coin, with the same 18 decimals and payer precision as ETH.
+  BNB: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "BNB" },
   // ERC-20 wrappers a payer may hold instead of the native coin. They keep the
   // on-chain decimals as the domain's (18, 8, 8), so `token-units` never scales them.
   WETH: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "Wrapped Ether" },
   WBTC: { kind: "crypto", decimals: 8, name: "Wrapped Bitcoin" },
   CBBTC: { kind: "crypto", decimals: 8, name: "Coinbase Wrapped BTC" },
+  WBNB: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "Wrapped BNB" },
+  BTCB: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "Binance-Peg BTC" },
+  LINK: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "Chainlink" },
+  UNI: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "Uniswap" },
+  AAVE: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "Aave" },
+  ARB: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "Arbitrum" },
+  CAKE: { kind: "crypto", decimals: 18, payerDecimals: 8, name: "PancakeSwap" },
   SOL: {
     kind: "crypto",
     decimals: 9,
@@ -183,10 +192,10 @@ export const ASSET_CODES = Object.keys(DEFINITIONS) as readonly AssetCode[];
 
 /**
  * The assets that are the native currency of an EVM chain Mayarin runs on: ETH on the
- * Ethereum family, POL on Polygon. A payer holds one with no token contract, so it is
+ * Ethereum family, POL on Polygon, BNB on BNB Smart Chain. A payer holds one with no token contract, so it is
  * paid with `payEth` and a deposit URI with no token address.
  */
-const EVM_NATIVE_ASSETS: readonly AssetCode[] = ["ETH", "POL"];
+const EVM_NATIVE_ASSETS: readonly AssetCode[] = ["ETH", "POL", "BNB"];
 
 export function isEvmNativeAsset(asset: AssetCode): boolean {
   return EVM_NATIVE_ASSETS.includes(asset);
@@ -197,7 +206,18 @@ export function isEvmNativeAsset(asset: AssetCode): boolean {
  * native asset does not, and they are never settled in: a merchant settles in a
  * stablecoin. `CHAIN_ASSETS` may name them; it still refuses a native asset.
  */
-const TOKENIZED_CRYPTO_ASSETS: readonly AssetCode[] = ["WETH", "WBTC", "CBBTC"];
+const TOKENIZED_CRYPTO_ASSETS: readonly AssetCode[] = [
+  "WETH",
+  "WBTC",
+  "CBBTC",
+  "WBNB",
+  "BTCB",
+  "LINK",
+  "UNI",
+  "AAVE",
+  "ARB",
+  "CAKE",
+];
 
 export function isTokenizedCrypto(asset: AssetCode): boolean {
   return TOKENIZED_CRYPTO_ASSETS.includes(asset);
@@ -222,6 +242,15 @@ const ASSET_LOGOS: Readonly<Record<string, string>> = {
   WBTC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599/logo.png",
   CBBTC:
     "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf/logo.png",
+  BNB: "https://assets-cdn.trustwallet.com/blockchains/smartchain/info/logo.png",
+  // Trust Wallet has no WBNB artwork; the wrapped coin wears BNB's.
+  WBNB: "https://assets-cdn.trustwallet.com/blockchains/smartchain/info/logo.png",
+  BTCB: "https://assets-cdn.trustwallet.com/blockchains/smartchain/assets/0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c/logo.png",
+  LINK: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x514910771AF9Ca656af840dff83E8264EcF986CA/logo.png",
+  UNI: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984/logo.png",
+  AAVE: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9/logo.png",
+  ARB: "https://assets-cdn.trustwallet.com/blockchains/arbitrum/assets/0x912CE59144191C1204E64559FE8253a0e49E6548/logo.png",
+  CAKE: "https://assets-cdn.trustwallet.com/blockchains/smartchain/assets/0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82/logo.png",
   SOL: "https://assets-cdn.trustwallet.com/blockchains/solana/info/logo.png",
   EURC: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c/logo.png",
   DAI: "https://assets-cdn.trustwallet.com/blockchains/ethereum/assets/0x6B175474E89094C44Da98b954EedeAC495271d0F/logo.png",
