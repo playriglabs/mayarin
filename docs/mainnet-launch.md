@@ -219,13 +219,13 @@ Ethereum, Base, Arbitrum One, Polygon and BNB Smart Chain are the mainnets the c
 knows (`MAINNET_CHAIN_IDS`). Their reviewed stablecoins, each read back from its chain
 (`symbol()`, `decimals()`, code present):
 
-| Chain           | Reviewed tokens                                                        |
-| --------------- | ---------------------------------------------------------------------- |
-| Ethereum        | USDC, USDT, EURC (6 decimals)                                          |
-| Base            | USDC, USDT (Tether, bridged), EURC                                     |
-| Arbitrum One    | USDC, USDT                                                             |
-| Polygon         | USDC (Circle native), USDT (USDT0), 6 decimals                         |
-| BNB Smart Chain | USDC and USDT, Binance-Peg tokens with **18 decimals** (`token-units`) |
+| Chain           | Reviewed tokens                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Ethereum        | USDC, USDT, EURC (6 decimals), DAI, USDS (18); payer-only WETH, WBTC, LINK, UNI, AAVE                              |
+| Base            | USDC, USDT (Tether, bridged), EURC; payer-only WETH, cbBTC                                                         |
+| Arbitrum One    | USDC, USDT (USDT0), USDG (6 decimals), DAI, USDS (18); payer-only WETH, WBTC, ARB, LINK, UNI, AAVE                 |
+| Polygon         | USDC (Circle native), USDT (USDT0), 6 decimals; payer-only WETH, WBTC                                              |
+| BNB Smart Chain | USDC, USDT, DAI, FDUSD, all **18 decimals** (`token-units`); payer-only WBNB, BTCB, LINK, UNI, CAKE. BNB is native |
 
 Ethereum is the dearest chain to be wrong on and, at 0.05 gwei, the cheapest it has been:
 the whole first deploy costs under a dollar and one deposit-match payment about five

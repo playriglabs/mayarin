@@ -112,6 +112,8 @@ describe("native assets", () => {
   test("ETH and POL are the EVM native assets, and nothing else is", () => {
     expect(isEvmNativeAsset("ETH")).toBe(true);
     expect(isEvmNativeAsset("POL")).toBe(true);
+    expect(isEvmNativeAsset("BNB")).toBe(true);
+    expect(isEvmNativeAsset("WBNB")).toBe(false);
     expect(isEvmNativeAsset("SOL")).toBe(false);
     expect(isEvmNativeAsset("BTC")).toBe(false);
     expect(isEvmNativeAsset("USDC")).toBe(false);
@@ -122,7 +124,18 @@ describe("native assets", () => {
   });
 
   test("WETH, WBTC and cbBTC are the tokenized crypto, and a native asset is not", () => {
-    for (const asset of ["WETH", "WBTC", "CBBTC"] as const) {
+    for (const asset of [
+      "WETH",
+      "WBTC",
+      "CBBTC",
+      "WBNB",
+      "BTCB",
+      "LINK",
+      "UNI",
+      "AAVE",
+      "ARB",
+      "CAKE",
+    ] as const) {
       expect(isTokenizedCrypto(asset)).toBe(true);
       expect(isEvmNativeAsset(asset)).toBe(false);
     }

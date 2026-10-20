@@ -837,6 +837,36 @@ Prices come from `COINBASE_PRODUCTS` (`WETH/USDC` from `ETH-USD`, `WBTC/USDC` an
 before a merchant accepts them. As with native assets, the Coinbase product is the one
 reference; a Pyth feed for each would give the deviation guard a second opinion.
 
+### Ethereum, Arbitrum and BNB Smart Chain tokens
+
+The tokens decided for the next three chains, each read back from its chain (code
+present, `name()`, `symbol()`, `decimals()`) and found at that address in Uniswap's
+token list (Ethereum, Arbitrum) or PancakeSwap's (BNB Smart Chain). Settlement is
+always one of the stablecoins; the rest are payer-only.
+
+| Chain           | Stablecoins                 | Payer-only                       | Native |
+| --------------- | --------------------------- | -------------------------------- | ------ |
+| Ethereum        | USDC, USDT, DAI, USDS       | WETH, WBTC, LINK, UNI, AAVE      | ETH    |
+| Arbitrum One    | USDC, USDT, DAI, USDS, USDG | WETH, WBTC, ARB, LINK, UNI, AAVE | ETH    |
+| BNB Smart Chain | USDC, USDT, DAI, FDUSD      | WBNB, BTCB, LINK, UNI, CAKE      | BNB    |
+
+DAI and USDS have 18 decimals next to 6-decimal USDC and USDT on Ethereum and
+Arbitrum (scaled per asset, see above); everything on BNB Smart Chain has 18.
+Upgradeable proxies among them (an EIP-1967 implementation slot is set): USDS and AAVE
+on Ethereum; USDT0, USDS, WETH, ARB and USDG on Arbitrum; USDC, FDUSD and UNI on BNB
+Smart Chain. Admitting them accepts that their issuer can change them. Arbitrum's USDT
+answers `symbol()` as "USD₮0": Tether's LayerZero OFT at the old address.
+
+BNB has no ETH on BNB Smart Chain: a Binance-Peg ETH is a token and was left out, so the
+native asset there is BNB and `isEvmNativeAsset` names it. `AssetCode` now has `BNB`,
+`WBNB`, `BTCB`, `LINK`, `UNI`, `AAVE`, `ARB` and `CAKE`, and the reviewed list carries
+every address above. `reviewed-tokens.test.ts` holds each token's on-chain decimals
+against the registry and `token-units`, so a stablecoin counted wrong fails a test.
+
+Not yet: the three chains are not deployed, so `PAYMENT_ROUTERS`, the env maps, the
+Uniswap (and on BNB Smart Chain, PancakeSwap) pools and the price feeds for the new
+tokens, and each router's whitelist batch, follow the deploys.
+
 ### The router configuration still to schedule
 
 Neither router has a DEX router or an input asset yet, so no `payERC20` and no
