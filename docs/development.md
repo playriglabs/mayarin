@@ -59,6 +59,27 @@ The trust flag creates a linked, verified wallet record on the first chain in
 not use it for a real merchant; use **Dashboard → Wallets → Connect existing**
 and complete the verification challenge instead.
 
+### Running the stack against another env file
+
+The core API, chain worker and dashboard API read `../../.env` by default. Set
+`MAYARIN_ENV_FILE` to read another file instead, **and only that one**: the local
+`.env` is not layered underneath, so a testnet key or a Turnkey credential in it
+cannot reach a process that was meant to run on another network. A variable set in
+the shell wins over the file, which is how a database URL or a safety flag is
+passed without writing it down.
+
+```bash
+MAYARIN_ENV_FILE=../../.env.mainnet \
+DATABASE_URL='postgres://postgres:<password>@127.0.0.1:54329/railway' \
+TREASURY_EXECUTION_ENABLED=false \
+  bun run dev:all
+```
+
+The example is the mainnet configuration against the private Railway database
+through the tunnel in [deployment](./deployment.md#access-mainnet-postgres-locally).
+`TREASURY_EXECUTION_ENABLED=false` keeps the chain worker watching without
+sweeping: with it on, the worker signs with the operator key.
+
 ### Commands
 
 | Command                       | Does                                                                             |
