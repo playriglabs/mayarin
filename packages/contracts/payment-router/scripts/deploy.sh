@@ -303,8 +303,28 @@ if [[ "$MAINNET" == true ]]; then
   [[ "${QUOTE_SIGNER:-local}" != "local" ]] || {
     echo "QUOTE_SIGNER=local. A mainnet order signer is turnkey or KMS; the API refuses local as well."; exit 1; }
   [[ "$NO_VERIFY" == false ]] || { echo "--no-verify is for testnets. A mainnet verifies."; exit 1; }
-  [[ -n "${ETHERSCAN_API_KEY:-}" ]] || {
-    echo "missing ETHERSCAN_API_KEY in $ENV_FILE. A mainnet is never deployed unverified."; exit 1; }
+  # How this mainnet is verified. Etherscan V2 covers every chain with one key, but its
+  # free plan refuses some of them (Base and BNB Smart Chain at the time of writing),
+  # and finding that out after the broadcast leaves a deployed router with no
+  # forwarder factory and no configuration. So it is asked before anything is sent.
+  # EXPLORER_VERIFIER=sourcify (no key) is the way around a plan that does not
+  # cover the chain; the explorer's own page then may not show the source.
+  EXPLORER_VERIFIER="${EXPLORER_VERIFIER:-etherscan}"
+  case "$EXPLORER_VERIFIER" in
+    etherscan)
+      [[ -n "${ETHERSCAN_API_KEY:-}" ]] || {
+        echo "missing ETHERSCAN_API_KEY in $ENV_FILE. A mainnet is never deployed unverified."; exit 1; }
+      PLAN="$(curl -fsS --max-time 20 \
+        "https://api.etherscan.io/v2/api?chainid=$CHAIN_ID&module=stats&action=ethsupply&apikey=$ETHERSCAN_API_KEY" \
+        || true)"
+      if [[ "$(jq -r '.status // empty' <<<"$PLAN" 2>/dev/null)" != "1" ]]; then
+        echo "Etherscan V2 will not verify chain $CHAIN_ID with this key: $(jq -r '.result // "no answer"' <<<"$PLAN" 2>/dev/null | cut -c1-140)"
+        echo "Upgrade the Etherscan plan, or set EXPLORER_VERIFIER=sourcify in $ENV_FILE."; exit 1
+      fi
+      ;;
+    sourcify) ;;
+    *) echo "EXPLORER_VERIFIER is etherscan or sourcify, not \"$EXPLORER_VERIFIER\""; exit 1 ;;
+  esac
 else
   DEPLOYER_ADDRESS="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
 fi
@@ -366,6 +386,8 @@ if [[ "$DRY_RUN" == false ]]; then
   BROADCAST_FLAGS+=(--broadcast)
   if [[ "$NO_VERIFY" == true ]]; then
     echo "--no-verify — deploying unverified"
+  elif [[ "$MAINNET" == true && "${EXPLORER_VERIFIER:-etherscan}" == "sourcify" ]]; then
+    BROADCAST_FLAGS+=(--verify --verifier sourcify)
   elif [[ "$VERIFIER" == "blockscout" ]]; then
     BROADCAST_FLAGS+=(--verify --verifier blockscout --verifier-url "$VERIFIER_URL")
   elif [[ -n "${ETHERSCAN_API_KEY:-}" ]]; then
