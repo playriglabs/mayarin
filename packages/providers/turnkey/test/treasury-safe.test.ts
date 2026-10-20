@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { validateTreasurySafe } from "../src/treasury-safe.ts";
+import { eventually, validateTreasurySafe } from "../src/treasury-safe.ts";
 
 const A = "0x00000000000000000000000000000000000000a1";
 const B = "0x00000000000000000000000000000000000000b2";
@@ -62,5 +62,36 @@ describe("validateTreasurySafe", () => {
     expect(() => validateTreasurySafe({ owners: [A, B, C], threshold: 2, salt: " " })).toThrow(
       "salt",
     );
+  });
+});
+
+describe("eventually (a read after a write, on a node that has not caught up)", () => {
+  test("tries again until the node has seen the write", async () => {
+    let calls = 0;
+    const result = await eventually(
+      async () => {
+        calls += 1;
+        // The first two answers come from a node a block behind.
+        if (calls <= 2) throw new Error("returned no data");
+        return "owners";
+      },
+      { attempts: 5, delayMs: 0 },
+    );
+    expect(result).toBe("owners");
+    expect(calls).toBe(3);
+  });
+
+  test("gives up with the last error when the node never catches up", async () => {
+    let calls = 0;
+    await expect(
+      eventually(
+        async () => {
+          calls += 1;
+          throw new Error(`behind (${calls})`);
+        },
+        { attempts: 3, delayMs: 0 },
+      ),
+    ).rejects.toThrow("behind (3)");
+    expect(calls).toBe(3);
   });
 });
