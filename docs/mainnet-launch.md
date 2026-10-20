@@ -32,7 +32,7 @@ quiet gap. Set all of them on the payment API:
 | `WEBHOOK_SECRET_PREVIOUS_KEYS`  | Only during a key rotation: the old key, so rows sealed under it still open. Set the new key above, run `bun run db:rotate-webhook-secrets`, then empty this on both APIs. |
 | `PAYER_TOKEN_KEY`               | Signs the payer's link token (SEC-09). Required with any mainnet chain. Same value on the dashboard API. Rotating it revokes every payer link: that is the incident lever. |
 | `INTERNAL_API_TOKEN`            | Lets the dashboard API read payments without a payer token. Required with any mainnet chain. Same value on the dashboard API, which will not boot without it.              |
-| `CHAIN_ASSETS` / market config  | Only tokens in `packages/core/chain/src/reviewed-tokens.ts` are accepted on `base` and `arbitrum` (Base USDC and EURC, Arbitrum USDC and USDT).                            |
+| `CHAIN_ASSETS` / market config  | Only tokens in `packages/core/chain/src/reviewed-tokens.ts` are accepted on mainnet chains (Base USDC, USDT and EURC; Polygon USDC and USDT; Arbitrum USDC and USDT).      |
 | `QUOTE_SIGNER`                  | `local` is refused for a mainnet router: use `turnkey` or the AWS KMS signer.                                                                                              |
 | `OPERATOR_SIGNER`               | A raw `OPERATOR_PRIVATE_KEY` is refused when a mainnet chain is configured: use `turnkey` (#417) or `aws-kms`.                                                             |
 | `TREASURY_EXECUTION_ENABLED`    | On for the chain worker and **off for core-api**: one operator key, one nonce lane. See [execution topology](#3-execution-topology).                                       |
@@ -222,9 +222,9 @@ knows (`MAINNET_CHAIN_IDS`). Their reviewed stablecoins, each read back from its
 | Chain           | Reviewed tokens                                                        |
 | --------------- | ---------------------------------------------------------------------- |
 | Ethereum        | USDC, USDT, EURC (6 decimals)                                          |
-| Base            | USDC, EURC                                                             |
+| Base            | USDC, USDT (Tether, bridged), EURC                                     |
 | Arbitrum One    | USDC, USDT                                                             |
-| Polygon         | USDC (Circle native, 6 decimals)                                       |
+| Polygon         | USDC (Circle native), USDT (USDT0), 6 decimals                         |
 | BNB Smart Chain | USDC and USDT, Binance-Peg tokens with **18 decimals** (`token-units`) |
 
 Ethereum is the dearest chain to be wrong on and, at 0.05 gwei, the cheapest it has been:
@@ -236,8 +236,12 @@ or a minimum payment per chain, does not exist yet: set `MAX_PAYMENT_SETTLEMENT`
 merchants you onboard with that in mind. Finality takes about 13 minutes; the starting
 `CHAIN_CONFIRMATIONS` is 12 (about 2.5 minutes).
 
-Left out on purpose: Polygon's USDT address now answers as **USDT0**, a LayerZero
-OFT, and needs its own review; Polygon's bridged USDC.e is a different token. On BNB
+Polygon's USDT address now answers as **USDT0**, a LayerZero OFT that is Tether's
+own token. It was admitted on 20 October 2026 knowing it is upgradeable and can be
+frozen, and that its `symbol()` reads `USDT0`. Polygon's bridged USDC.e is a
+different token and is left out on purpose. Base's USDT (`0xfde4…9bb2`, 6 decimals) is
+Tether's bridged token, with about $29.5 million in supply: thin, so treat it as a
+settlement option and not as a venue. On BNB
 Smart Chain the tokens are Binance-Peg, not Circle's or Tether's own issuance:
 accept that before admitting them. Each chain still needs, before it carries value:
 

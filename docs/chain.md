@@ -725,6 +725,129 @@ deployed with the same multiplier. Every contract above is verified on Etherscan
 Basescan, Arbiscan, Polygonscan and BscScan; Arc is not, because ArcScan's
 Blockscout answered "too many requests" to the verification calls.
 
+## Mainnet: Polygon and Base (20 October 2026)
+
+First mainnet deploys, from the `mayarin-mainnet-deployer` keystore with
+`scripts/deploy.sh`. The multisig and the treasury are the Safes that
+`scripts/mainnet-safes.sh` deployed; the order signer and the operator are two
+separate AWS KMS keys in `ap-southeast-2` ([operator-signing](./operator-signing.md)).
+
+| Chain     | `PaymentRouter`                              | `TimelockController`                         | `DepositForwarderFactory`                    | Start block |
+| --------- | -------------------------------------------- | -------------------------------------------- | -------------------------------------------- | ----------- |
+| `polygon` | `0x8f90e9ad0120dd03352a2bc01bdf302447fb2537` | `0xbfc95af1706aa271f0207575cff31cc32ad7656f` | `0x0dc52ff8d7d82d1c43827640de024da88c14224b` | 95861092    |
+| `base`    | `0x8F90e9ad0120dd03352a2bC01BdF302447Fb2537` | `0xBFc95Af1706Aa271F0207575CfF31cC32Ad7656f` | `0x0dc52ff8d7d82d1c43827640de024da88c14224b` | 52854178    |
+
+The addresses are the same on both chains because the deployer's nonce was.
+Read back from each chain: the timelock holds `CONFIG_ROLE` and
+`DEFAULT_ADMIN_ROLE` with a 48 h delay and the multisig as proposer and executor,
+the deployer holds nothing, the guardian holds `GUARDIAN_ROLE`, `signer()` is the
+KMS order signer, `feeRecipient()` the treasury Safe, and the factory's
+`destination()` the KMS operator. `INIT_CODE_HASH` is
+`0xa219…5e79`, the same as in `DEPOSIT_FORWARDER_INIT_CODE_HASH`. The deployer's
+nonce moved by one between the plan and the deploy (it had sent the operator its
+gas), so the addresses in `mainnet-addresses.json` from before the deploy are not
+these: read the deploy output, not the prediction.
+
+Base verified on Sourcify (`exact_match` for the router and factory) and Basescan
+for the timelock; Polygon on Polygonscan.
+
+### What a payer can bring
+
+Settlement is always the chain's stablecoin: USDC on both chains. A payer's asset
+is limited by three separate things, and all three must allow it:
+
+1. **The reviewed list** (`REVIEWED_MAINNET_TOKENS`): on Base USDC, USDT and EURC,
+   on Polygon USDC and USDT (USDT0). `CHAIN_ASSETS` may name only these. A merchant
+   settles in any of them; a cross-asset payment between two needs a venue, and
+   Polygon has none, so there a payer brings the asset the merchant settles in.
+2. **A price**: a Uniswap pool in `UNISWAP_POOLS` (seeded into `market_config`)
+   and an oracle reference. Nothing is priced without one.
+3. **The router's own whitelist**: an input asset for every `payERC20` payer
+   (a USDC payer included, not only a swapped one) and a DEX router for every
+   swap. Both are `CONFIG_ROLE` acts, so they go through the multisig and the
+   48 h timelock. Native ETH needs only the DEX router, not an input asset.
+
+Pools on Base, read from the Uniswap v3 factory
+(`0x33128a8fC17869897dcE68Ed026d694621f6FDfD`, from SwapRouter02) and quoted
+through QuoterV2 for real execution:
+
+| Pair        | Fee   | Pool                                         | Quote                                             |
+| ----------- | ----- | -------------------------------------------- | ------------------------------------------------- |
+| WETH9/USDC  | 0.05% | `0xd0b53D9277642d899DF5C87A3966A349A798F224` | 5 ETH gives 11,954 USDC, against 11,905 at 0.3%   |
+| cbBTC/USDC  | 0.05% | `0xfBB6Eed8e7aa03B138556eeDaF5D271A5E1e43ef` | 0.1 cbBTC gives 8,150 USDC, against 8,119 at 0.3% |
+| cbBTC/WETH9 | 0.05% | `0x7AeA2E8A3843516afa07293a10Ac8E49906dabD1` | not quoted: not a USDC leg                        |
+
+The 0.05% tier is better for a retail-sized payment and the two converge around
+100 ETH. The 0.3% WETH/USDC pool holds the most liquidity (a GeckoTerminal
+reading, which can be off), but a payer pays its fee on every swap.
+
+Polygon uses the same SwapRouter02 (`0x68b3…Fc45`) and QuoterV2 (`0x61fF…B21e`) as
+Arbitrum; both answer with the Uniswap v3 factory `0x1F98…F984` and `WETH9` equal to
+WPOL, so a native POL payment routes through the WPOL pools. Quoted for real
+execution, USDC out:
+
+| Pair      | Pool picked | Quote                                                   |
+| --------- | ----------- | ------------------------------------------------------- |
+| WPOL/USDC | 0.05%       | 1,000 POL gives 92.32 USDC, against 91.68 at 0.3%       |
+| WETH/USDC | 0.05%       | 1 WETH gives 2,388.89 USDC, against 2,317.73 at 0.3%    |
+| WBTC/USDC | 0.3%        | 0.1 WBTC gives 8,071.96 USDC, against 8,052.24 at 0.05% |
+
+WBTC is the exception: its 0.05% pool is shallow and quotes about 0.25% under the
+0.3% pool at this size. Polygon's pools are thin next to Base's (WPOL/USDC about
+$0.2 million, WETH/USDC and WBTC/USDC under $0.7 million), so a payment there should
+carry a ceiling (`MAX_PAYMENT_SETTLEMENT`) until the depth is watched in use.
+
+**Configured now.** `UNISWAP_POOLS` in `.env.mainnet` carries `base:ETH/USDC` at
+fee 500, so a payer on Base can bring native ETH once the router is configured.
+`UNISWAP_SWAP_ROUTERS` and `UNISWAP_QUOTERS` name SwapRouter02 and QuoterV2 for
+Base (`0x2626…e481`, `0x3d4e…B76a`) and Polygon (`0x68b3…Fc45`, `0x61fF…B21e`).
+
+**Not configured: POL, WETH, WBTC (Polygon) and cbBTC (Base) as payers.** The
+payer assets decided for Polygon are POL, USDT, USDC, WETH and WBTC, and for Base
+USDC, USDT, EURC, ETH and more to be named. `AssetCode` has `ETH` and `BTC` but no
+POL, WETH, WBTC or cbBTC, and `CHAIN_ASSETS` refuses a non-stablecoin, so a
+non-stable ERC-20 payer asset needs code: a registry entry, an entry in the reviewed
+list (WBTC and cbBTC have 8 decimals, and the 18-decimal path is not yet exercised
+on chain), a pool in `UNISWAP_POOLS` and an oracle feed. The pools above are the ones
+to use when that lands. Do not add them to the env first: a pool whose asset the
+registry does not know has nothing to price it.
+
+### The router configuration still to schedule
+
+Neither router has a DEX router or an input asset yet, so no `payERC20` and no
+swap clears on either chain. The settlement asset is already whitelisted by the
+constructor. From the multisig, `scheduleBatch` through the timelock, then
+`executeBatch` after 48 h:
+
+| Chain     | `DEX_ROUTERS`                                | `INPUT_ASSETS`                    | `SETTLEMENT_ASSETS` |
+| --------- | -------------------------------------------- | --------------------------------- | ------------------- |
+| `base`    | `0x2626664c2603336E57B271c5C0b26F421741e481` | Base USDC, USDT and EURC          | Base USDT and EURC  |
+| `polygon` | `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` | Polygon USDC, USDT, WETH and WBTC | Polygon USDT        |
+
+Native ETH on Base and native POL on Polygon need only the DEX router: the router
+wraps the forwarded value, so neither is an input asset. WETH and WBTC are listed
+as input assets ahead of the code that prices them, so the 48 h wait is not paid
+twice; a whitelisted input asset the API does not accept moves nothing.
+
+The constructor whitelisted only USDC as a settlement asset on each chain, so USDT
+(both chains) and EURC (Base) are added here as settlement assets, and as input
+assets so a payer can bring the same token. Without that, an order whose
+`settlementToken` is USDT or EURC reverts `SettlementAssetNotWhitelisted`.
+
+`scripts/ConfigurePaymentRouter.s.sol` prints the transaction to sign and
+broadcasts nothing:
+
+```bash
+TIMELOCK=<timelock> PAYMENT_ROUTER=<router> DEX_ROUTERS=<routers> \
+INPUT_ASSETS=<assets> SETTLEMENT_ASSETS= \
+  forge script scripts/ConfigurePaymentRouter.s.sol:ConfigurePaymentRouter \
+    --rpc-url $<CHAIN>_RPC_URL --sender <MULTISIG>
+```
+
+The `deploy.sh` output names the router in `PAYMENT_ROUTER` and the timelock in
+`TIMELOCK`; check the order against the table above, because forge's own summary
+labels the two contracts the wrong way round.
+
 ## Related
 
 - [Clearing Engine](./clearing-engine.md)
