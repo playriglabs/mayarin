@@ -851,18 +851,41 @@ factory's `destination()` the KMS operator, its `INIT_CODE_HASH` equals
 `DEPOSIT_FORWARDER_INIT_CODE_HASH`, and BSC USDC (18 decimals) is the settlement asset the
 constructor whitelisted. All three are verified on BscScan; Sourcify has none of them.
 
-**No swap venue yet, on purpose.** Uniswap v3 exists on BNB Smart Chain (SwapRouter02
-`0xB971…85d2`, QuoterV2 `0x78D7…B077`, factory `0xdB1d…61F7`, `WETH9` is WBNB) but it is not where
-the liquidity is. Only WBNB/USDC has real depth, UNI/USDC has none and LINK and CAKE are thin, and
-the quotes miss the market: 1 WBNB gave 723.5 USDC at the 0.01% tier and 698.5 at 0.3% against a
-Coinbase price of 736.4, 1.8% to 5% under a guard of 1%. The liquidity is on PancakeSwap v3, which
-has no venue adapter here. So the BSC batch below carries **no DEX router**: a payer on BNB Smart
-Chain pays in the asset the merchant settles in, and BNB, WBNB, BTCB, LINK, UNI and CAKE wait for a
-PancakeSwap venue. `CHAIN_NATIVE_ASSETS` therefore has no `bsc` entry yet.
+**The venue is PancakeSwap v3, not Uniswap.** Uniswap v3 exists on BNB Smart Chain but it is not
+where the liquidity is: only WBNB/USDC has depth, UNI/USDC has none, LINK and CAKE are thin, and
+its quotes missed the market (1 WBNB gave 723.5 USDC at the 0.01% tier and 698.5 at 0.3% against a
+Coinbase price of 736.4, 1.8% to 5% under a guard of 1%). PancakeSwap v3's SmartRouter
+(`0x13f4…8Dd4`) and QuoterV2 (`0xB048…5997`) expose the same `exactOutputSingle` and
+`quoteExactInputSingle` / `quoteExactOutputSingle` the swap adapter encodes (the selectors are in
+their bytecode, and `quoteExactOutputSingle` answers), so the existing venue serves it with
+configuration alone: `UNISWAP_SWAP_ROUTERS` and `UNISWAP_QUOTERS` name Pancake's contracts for
+`bsc`, and the pool fee tiers are Pancake's (100, 500, 2500, 10000). The venue keeps the name
+`uniswap` in configuration and logs. `WETH9` on the router is WBNB, so BNB routes through the WBNB
+pool.
+
+Quoted through Pancake's QuoterV2, USDC (18 decimals) out, against Coinbase:
+
+| Pair      | Pool picked | Quote                    | Market   |
+| --------- | ----------- | ------------------------ | -------- |
+| WBNB/USDC | 0.01%       | 1 WBNB gives 736.82      | 736.42   |
+| BTCB/USDC | 0.05%       | 0.01 BTCB gives 829.05   | 829.58   |
+| USDT/USDC | 0.01%       | 1,000 USDT gives 998.86  | 998.84   |
+| DAI/USDC  | 0.01%       | 1,000 DAI gives 1,000.03 | 1,000.23 |
+
+BTCB is thin for size (1 BTCB gives 76,719, about 7.5% under market), so a payment there needs a
+ceiling. FDUSD/USDC is deep (0.01% tier) but Coinbase has no FDUSD product, so it has no
+reference for the deviation guard and is not configured as a payer. **LINK, UNI and CAKE are not
+priceable through one hop to USDC**: LINK/USDC has no liquidity, UNI/USDC quotes 45% under the
+market and CAKE/USDC 16% under (1,000 CAKE gave 1,857 against 2,222). They stay reviewed tokens
+and router input assets, and wait for a pool that can price them (a second hop or another settlement
+asset). `UNISWAP_POOLS` carries `bsc:BNB/USDC`, `bsc:WBNB/USDC`, `bsc:BTCB/USDC`, `bsc:USDT/USDC`
+and `bsc:DAI/USDC`, `COINBASE_PRODUCTS` prices BNB, WBNB, BTCB and DAI, and `CHAIN_NATIVE_ASSETS`
+names BNB for `bsc`.
 
 The batch for the multisig, `scheduleBatch` through the timelock then `executeBatch` after 48 h:
-`addInputAsset` for USDC, USDT, DAI, FDUSD, WBNB, BTCB, LINK, UNI and CAKE (listed now so the
-48 h is not paid twice), and `addSettlementAsset` for USDT, DAI and FDUSD.
+`addRouter` for the PancakeSwap v3 SmartRouter, `addInputAsset` for USDC, USDT, DAI, FDUSD, WBNB,
+BTCB, LINK, UNI and CAKE (listed now so the 48 h is not paid twice), and `addSettlementAsset` for
+USDT, DAI and FDUSD.
 
 ### Ethereum, Arbitrum and BNB Smart Chain tokens
 
@@ -890,7 +913,7 @@ native asset there is BNB and `isEvmNativeAsset` names it. `AssetCode` now has `
 every address above. `reviewed-tokens.test.ts` holds each token's on-chain decimals
 against the registry and `token-units`, so a stablecoin counted wrong fails a test.
 
-Not yet: Ethereum and Arbitrum are not deployed, and BNB Smart Chain has no venue, so the env maps, the
+Not yet: Ethereum and Arbitrum are not deployed, and the env maps, the
 Uniswap (and on BNB Smart Chain, PancakeSwap) pools and the price feeds for the new
 tokens, and each router's whitelist batch, follow the deploys.
 
