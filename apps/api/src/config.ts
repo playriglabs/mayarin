@@ -527,9 +527,18 @@ const configSchema = z.object({
   /**
    * Where the operator key lives. `local` is `OPERATOR_PRIVATE_KEY` in this
    * process, refused when a mainnet chain is configured; `turnkey` keeps it in
-   * Turnkey, whose policy bounds what it may sign (SEC-06).
+   * Turnkey, whose policy bounds what it may sign (SEC-06); `aws-kms` keeps it in
+   * an AWS KMS key that cannot be exported, bounded by IAM and CloudTrail rather
+   * than by a policy on what is signed.
    */
-  operatorSigner: z.enum(["local", "turnkey"]).default("local"),
+  operatorSigner: z.enum(["local", "turnkey", "aws-kms"]).default("local"),
+  /**
+   * The KMS key the operator signs with, when `OPERATOR_SIGNER=aws-kms`. Its own key,
+   * never the order signer's (`AWS_KMS_KEY_ID`): the two keys hold different powers and
+   * must not share a compromise. The region is `AWS_KMS_REGION`, the address is
+   * `OPERATOR_ADDRESS`.
+   */
+  operatorAwsKmsKeyId: z.string().min(1).optional(),
   /** The Turnkey key the operator signs with, and the address it signs as. */
   operatorTurnkeySignWith: z.string().min(1).optional(),
   operatorAddress: z.string().min(1).optional(),
@@ -1188,8 +1197,27 @@ function assertPaymentLimit(data: RawConfig): void {
   }
   if (onMainnet && data.operatorSigner === "local" && data.operatorPrivateKey !== undefined) {
     issues.push(
-      "OPERATOR_SIGNER=local holds the operator key in this process and is refused when a mainnet chain is configured: use OPERATOR_SIGNER=turnkey",
+      "OPERATOR_SIGNER=local holds the operator key in this process and is refused when a mainnet chain is configured: use OPERATOR_SIGNER=turnkey or aws-kms",
     );
+  }
+  if (data.operatorSigner === "aws-kms") {
+    if (data.operatorAwsKmsKeyId === undefined) {
+      issues.push("OPERATOR_AWS_KMS_KEY_ID is required when OPERATOR_SIGNER=aws-kms");
+    }
+    if (data.awsKmsRegion === undefined) {
+      issues.push("AWS_KMS_REGION is required when OPERATOR_SIGNER=aws-kms");
+    }
+    if (data.operatorAddress === undefined) {
+      issues.push("OPERATOR_ADDRESS is required when OPERATOR_SIGNER=aws-kms");
+    }
+    if (data.operatorAwsKmsKeyId !== undefined && data.operatorAwsKmsKeyId === data.awsKmsKeyId) {
+      issues.push(
+        "OPERATOR_AWS_KMS_KEY_ID must differ from AWS_KMS_KEY_ID: the operator and the order signer hold different powers and must not share a key",
+      );
+    }
+    if (data.operatorPrivateKey !== undefined) {
+      issues.push("OPERATOR_PRIVATE_KEY must not be set when OPERATOR_SIGNER=aws-kms");
+    }
   }
   if (data.operatorSigner === "turnkey") {
     if (data.turnkeyOrganizationId === undefined) {
@@ -1272,7 +1300,7 @@ function assertTreasuryExecution(data: RawConfig, quote: QuoteConfig | undefined
   }
   if (hasEvmRouter && !operatorConfigured(data)) {
     issues.push(
-      "An operator signer is required when TREASURY_EXECUTION_ENABLED is true: OPERATOR_PRIVATE_KEY, or OPERATOR_SIGNER=turnkey",
+      "An operator signer is required when TREASURY_EXECUTION_ENABLED is true: OPERATOR_PRIVATE_KEY, or OPERATOR_SIGNER=turnkey or aws-kms",
     );
   }
   if (hasEvmRouter && data.depositForwarderInitCodeHash === undefined) {
@@ -1431,6 +1459,7 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
     treasuryAddress: env.TREASURY_ADDRESS,
     operatorPrivateKey: env.OPERATOR_PRIVATE_KEY,
     operatorSigner: env.OPERATOR_SIGNER,
+    operatorAwsKmsKeyId: env.OPERATOR_AWS_KMS_KEY_ID,
     operatorTurnkeySignWith: env.OPERATOR_TURNKEY_SIGN_WITH,
     operatorAddress: env.OPERATOR_ADDRESS,
     operatorFloatLimits: env.OPERATOR_FLOAT_LIMITS,
@@ -1488,10 +1517,12 @@ export function loadConfig(rawEnv: Record<string, string | undefined> = process.
 
 /** Whether some operator signer is set up, whichever kind. */
 function operatorConfigured(data: {
-  readonly operatorSigner: "local" | "turnkey";
+  readonly operatorSigner: "local" | "turnkey" | "aws-kms";
   readonly operatorPrivateKey?: string | undefined;
   readonly operatorTurnkeySignWith?: string | undefined;
+  readonly operatorAwsKmsKeyId?: string | undefined;
 }): boolean {
+  if (data.operatorSigner === "aws-kms") return data.operatorAwsKmsKeyId !== undefined;
   return data.operatorSigner === "turnkey"
     ? data.operatorTurnkeySignWith !== undefined
     : data.operatorPrivateKey !== undefined;

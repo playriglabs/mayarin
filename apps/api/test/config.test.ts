@@ -1010,6 +1010,46 @@ describe("TransFi sandbox auto-settle", () => {
         ).toThrow(/must differ from TURNKEY_API_PUBLIC_KEY/);
       });
 
+      const kms = {
+        OPERATOR_SIGNER: "aws-kms",
+        OPERATOR_AWS_KMS_KEY_ID: "alias/mayarin-operator",
+        OPERATOR_ADDRESS: "0x00000000000000000000000000000000000000bb",
+        AWS_KMS_REGION: "ap-southeast-1",
+      };
+
+      test("a KMS operator boots on mainnet, with no raw key in the environment", () => {
+        const config = loadConfig({ ...ready, ...kms });
+        expect(config.operatorSigner).toBe("aws-kms");
+        expect(config.operatorAwsKmsKeyId).toBe("alias/mayarin-operator");
+        expect(config.operatorPrivateKey).toBeUndefined();
+      });
+
+      test("a KMS operator needs its own key, its region and its address", () => {
+        for (const missing of ["OPERATOR_AWS_KMS_KEY_ID", "AWS_KMS_REGION", "OPERATOR_ADDRESS"]) {
+          const env: Record<string, string | undefined> = { ...ready, ...kms };
+          env[missing] = undefined;
+          expect(() => loadConfig(env)).toThrow(new RegExp(missing));
+        }
+      });
+
+      test("the operator and the order signer may not share a KMS key", () => {
+        expect(() =>
+          loadConfig({
+            ...ready,
+            ...kms,
+            QUOTE_SIGNER: "aws-kms",
+            AWS_KMS_KEY_ID: "alias/mayarin-operator",
+            AWS_KMS_SIGNER_ADDRESS: "0x00000000000000000000000000000000000000cc",
+          }),
+        ).toThrow(/OPERATOR_AWS_KMS_KEY_ID must differ from AWS_KMS_KEY_ID/);
+      });
+
+      test("a raw key beside a KMS operator is a mistake, not a fallback", () => {
+        expect(() =>
+          loadConfig({ ...ready, ...kms, OPERATOR_PRIVATE_KEY: `0x${"22".repeat(32)}` }),
+        ).toThrow(/OPERATOR_PRIVATE_KEY must not be set when OPERATOR_SIGNER=aws-kms/);
+      });
+
       test("a raw key beside a Turnkey operator is a mistake, not a fallback", () => {
         expect(() =>
           loadConfig({ ...ready, ...turnkey, OPERATOR_PRIVATE_KEY: `0x${"22".repeat(32)}` }),
