@@ -22,10 +22,10 @@ nothing triggers it on push or merge.
 
 ## Target Registry
 
-| Target  | Railway project   | Project ID                             | Status      |
-| ------- | ----------------- | -------------------------------------- | ----------- |
-| Testnet | `mayarin-testnet` | `70236ce0-42f9-458e-bed1-b02ec10e5b7c` | Provisioned |
-| Mainnet | `mayarin-mainnet` | Not created                            | Planned     |
+| Target  | Railway project   | Project ID                             | Status        |
+| ------- | ----------------- | -------------------------------------- | ------------- |
+| Testnet | `mayarin-testnet` | `70236ce0-42f9-458e-bed1-b02ec10e5b7c` | Provisioned   |
+| Mainnet | `mayarin-mainnet` | `ca89cedb-c8be-4f27-ac65-4ea748cad4e7` | Postgres only |
 
 The Railway environment inside each project may be named `production`. That
 name describes Railway's environment lifecycle, not the blockchain network.
@@ -404,6 +404,36 @@ Use `bun run seed:merchant:railway` to create a merchant in that shared testnet
 database; all normal seed flags and interactive prompts are forwarded.
 The existing `bun run dev:all`, `bun run db:studio`, and `bun run db:migrate`
 commands continue to use the local `.env` and Docker Postgres.
+
+### Access mainnet Postgres locally
+
+The mainnet Postgres has **no public TCP proxy** and should not get one. It is
+reached from a laptop through an SSH tunnel that only listens on `127.0.0.1`:
+
+```bash
+railway connect Postgres --tunnel-only -P 54329 \
+  -p ca89cedb-c8be-4f27-ac65-4ea748cad4e7 -e production
+```
+
+The command prints the host, port, user, password and database to that terminal
+and holds the tunnel until Ctrl+C. Point a client, or `DATABASE_URL` for one
+command such as `bun run db:migrate`, at `127.0.0.1:54329`. Nothing is written to
+`.env`, and the password is never needed anywhere else: do not paste it into a
+chat or a log.
+
+Two things must be true first, and both fail with a timeout rather than a reason:
+
+- the CLI is recent (the tunnel needs 5.71 or newer; 5.37 times out), and
+- the SSH key is registered (`railway ssh keys add --key ~/.ssh/<key>.pub`) **and
+  offered** by the client. Railway answers `no_ssh_key` when `ssh` sends no key,
+  which happens when the key is not the default name and is not in the agent. A
+  `Host ssh.railway.com` entry in `~/.ssh/config` with `IdentityFile` and
+  `IdentitiesOnly yes` fixes it. Test with
+  `railway ssh -s Postgres -p <project> -e production -- "echo ssh-ok"`.
+
+The scripts above (`with-railway-db.ts` and the rest) still name the testnet
+project only. A mainnet deploy path is a separate piece of work behind the
+[Mainnet Gate](#mainnet-gate).
 
 ---
 
