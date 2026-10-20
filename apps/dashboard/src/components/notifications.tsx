@@ -75,7 +75,7 @@ export function NotificationRow({ notification }: { readonly notification: Notif
         <div className="flex items-start justify-between gap-3">
           <p
             className={cn(
-              "text-sm text-foreground",
+              "wrap-anywhere text-sm text-foreground",
               notification.unread ? "font-semibold" : "font-medium",
             )}
           >
@@ -88,7 +88,7 @@ export function NotificationRow({ notification }: { readonly notification: Notif
           )}
         </div>
         {notification.body !== null && (
-          <p className="text-sm text-muted-foreground mt-px">{notification.body}</p>
+          <p className="wrap-anywhere text-sm text-muted-foreground mt-px">{notification.body}</p>
         )}
         <time
           dateTime={isoAttr(notification.occurredAt)}

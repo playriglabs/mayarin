@@ -38,7 +38,6 @@ import { useEffect, useState } from "react";
 import { match } from "ts-pattern";
 import { AssetAmount, AssetLabel, AssetStack } from "@/components/asset-logo";
 import { ChainLabel } from "@/components/chain-logo";
-import { MfaStepUpHost } from "@/components/mfa-step-up";
 import { TransactionLink } from "@/components/transaction-link";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -1085,7 +1084,6 @@ function Wallets() {
 
   return (
     <section className="flex flex-col gap-4">
-      <MfaStepUpHost />
       <Tabs.Root value={activeTab} onValueChange={(value) => setActiveTab(value as WalletTab)}>
         <Tabs.List
           aria-label="Wallet sections"
