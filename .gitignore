@@ -52,3 +52,6 @@ packages/*/npm/
 
 # MCP config holds a bearer token
 .mcp.json
+
+# Echidna / crytic-compile
+crytic-export/

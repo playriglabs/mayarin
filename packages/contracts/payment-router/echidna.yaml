@@ -1,0 +1,25 @@
+# Echidna on the router's stateful invariant (the same harness Foundry runs).
+#
+#   echidna . --contract InvariantsTest --config echidna.yaml
+#
+# `foundry` test mode runs the `invariant_*` functions of InvariantsTest while the
+# PayHandler's payments and donations are fuzzed, so the zero-resting-balance
+# property is checked by a second engine with a different search strategy.
+#
+# Only the stateful invariant is whitelisted. The suite's `test_fuzz_*` functions
+# use `assertTrue(bool, string)`, a cheatcode Echidna's hevm does not implement
+# (BadCheatCode), so under Echidna they fail for a reason that says nothing about
+# the contract; Foundry runs them.
+testMode: foundry
+testLimit: 200000
+seqLen: 30
+shrinkLimit: 5000
+allContracts: true
+cryticArgs: ["--foundry-compile-all"]
+filterBlacklist: false
+filterFunctions:
+  - "InvariantsTest.invariant_no_custody_beyond_donations()"
+  - "PayHandler.payEth(uint256,uint256,uint256,uint256,bool)"
+  - "PayHandler.payERC20Cross(uint256,uint256,uint256,uint256,bool)"
+  - "PayHandler.payERC20Same(uint256,uint256,uint256,uint256,bool)"
+  - "PayHandler.donate(uint256,uint256)"
