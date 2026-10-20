@@ -29,7 +29,7 @@ function dispute(overrides: Partial<EscrowDispute> = {}): EscrowDispute {
     paymentIntentId: "pi_1",
     merchantId: "mrc_1",
     chain: "arbitrum-sepolia",
-    factory: "0x545a2c8dd1fc765c61ea5dc2105427be89c24a45",
+    factory: "0xcb6dd0781d36fe95a5ff69248498e48909bb4e1b",
     payer: "0x000000000000000000000000000000000000cafe",
     payee: "0x000000000000000000000000000000000000beef",
     arbiter: ARBITER,

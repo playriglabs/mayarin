@@ -305,7 +305,7 @@ neither**:
   that `transferFrom`s every row straight from the sender to its recipient.
   The batcher holds nothing and has no owner, admin, pause or upgrade. It is
   deployed with CREATE2 through the canonical deterministic deployer, so it
-  lives at `0xfAd1c3EC064aE52676Ce874C2bA4d644FF2Ad0b9` on every chain
+  lives at `0x78F0C40E1Aa5a63DD71E58334586461eB3EB6312` on every chain
   (`scripts/DeployPayoutBatcher.s.sol`).
 - **Managed wallet** — the Safe Mayarin settles into. The managed signer's
   Turnkey policy still admits only withdrawals to the merchant's own verified

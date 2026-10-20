@@ -562,7 +562,7 @@ describe.skipIf(TEST_DATABASE_URL === undefined)("Drizzle repositories", () => {
       paymentIntentId: intent.id,
       merchantId: intent.merchant.id,
       chain: "arbitrum-sepolia",
-      factory: "0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45",
+      factory: "0xCB6dd0781D36FE95a5ff69248498E48909BB4e1B",
       payer: "0x000000000000000000000000000000000000CAFE",
       payee: "0x000000000000000000000000000000000000BEEF",
       arbiter: "0x00000000000000000000000000000000000000A1",

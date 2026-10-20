@@ -670,6 +670,55 @@ A redeploy changes the EIP-712 domain — `verifyingContract` is part of it — 
 every previously signed order becomes invalid, not merely aimed at the old
 address. Cheap on testnet, a migration on mainnet.
 
+## Redeploy of 20 October 2026 (solc 0.8.37)
+
+Every contract was rebuilt with solc 0.8.37 and redeployed, because the 0.8.28
+build carries seven entries of the Solidity bug list that explorers show on each
+contract (none applies: the source has no transient storage). One low-severity
+entry remains on 0.8.37 and is fixed only in the unreleased 0.8.38. The router
+now includes the settlement destination registry ([#425](./destination-registry.md)),
+enforcement off.
+
+The bytecode changed, so the forwarder `INIT_CODE_HASH` is
+`0xa219c31ae3224565c3296b082213133ede259accd1343948460ce1987b315e79` and
+`DEPOSIT_FORWARDER_INIT_CODE_HASH` carries it. Addresses issued under the old
+hash (`0xee05…be89`) still have to be monitored and swept by the old factories.
+
+| Chain              | `PaymentRouter`                              | `TimelockController`                         | `DepositForwarderFactory`                    | Start block |
+| ------------------ | -------------------------------------------- | -------------------------------------------- | -------------------------------------------- | ----------- |
+| `polygon-amoy`     | `0xca83514c0bef26b642f7a69b2ab529c2ab5d7958` | `0xe54e800bffd1fbb5756b7c5e6a4aa40dd09210e7` | `0x6cced8eeb0230f7078cff7408fd31d250dfacd54` | 50644188    |
+| `bsc-testnet`      | `0xca83514c0bef26b642f7a69b2ab529c2ab5d7958` | `0xe54e800bffd1fbb5756b7c5e6a4aa40dd09210e7` | `0x6cced8eeb0230f7078cff7408fd31d250dfacd54` | 137816590   |
+| `base-sepolia`     | `0x5def4dc27a499644c1d2945c78c23aa4f3c15223` | `0xfc883d71375a15d3d3819ae6b21c063f432532a5` | `0x480989f9f3551e64ffbb88dc97f403667b51ba1a` | 48349576    |
+| `arbitrum-sepolia` | `0x96fd082f5bbcfec3cfb234f26b347429ecc3f13e` | `0xdd7ba6115c0273f68b25264655f8cc8eaf6647e6` | `0x09dc25cd37e181604b6aba21003b41c9ca781110` | 320934968   |
+| `arc-testnet`      | `0x4dd50ba4205e3bcd933067c07b41aaafa478cdd2` | `0x5df26ee8c83f0bbfa4252a8229e08c2e70a89ff8` | `0x7c736def2a82ac8c20a7d1fa63cea19563ae67b1` | 68117930    |
+
+Amoy and BSC share addresses, as do the escrow and batcher contracts below,
+because the deployer and nonce match and the others use CREATE2: read the chain
+key, not the address. Checked on chain after the deploy: the timelock holds
+`CONFIG_ROLE` and `DEFAULT_ADMIN_ROLE`, the deployer holds neither, the guardian
+holds `GUARDIAN_ROLE`, and `signer()` equals `SIGNER`. Polygon Amoy and BSC
+testnet have no swap venue, so they settle same-asset payments only. Base Sepolia
+carries two further routers from failed attempts (`0xef5e…2e64`, `0x0e8e…773c`);
+nothing refers to them.
+
+Deterministic singletons, one address on `arbitrum-sepolia`, `base-sepolia` and
+`arc-testnet`:
+
+| Contract          | Address                                      | `INIT_CODE_HASH`                                                     |
+| ----------------- | -------------------------------------------- | -------------------------------------------------------------------- |
+| `EscrowFactory`   | `0xCB6dd0781D36FE95a5ff69248498E48909BB4e1B` | `0x58a2031708a2ba67cb2ff7c005b2e84f308e2ca4b28031ff0859886e71ea75fc` |
+| `EscrowFactoryV2` | `0xB14EEab74d84F900132632ff9dAcDe26C5043cad` | `0x8e127716e7db0e6c441573aef490ba60d27dffdbe1c8538c8908b760f9e24c5f` |
+| `PayoutBatcher`   | `0x78F0C40E1Aa5a63DD71E58334586461eB3EB6312` | n/a                                                                  |
+
+**Ethereum Sepolia is not redeployed.** Its router, forwarder factory and escrow
+factories are still the 0.8.28 build. Its deposit addresses derive from the old
+hash, so the shared `DEPOSIT_FORWARDER_INIT_CODE_HASH` no longer matches them and a
+deposit-match payment there would go to an address nothing can sweep; it is also
+removed from `ESCROW_CHAINS`. The cause is the chain: `eth_estimateGas` for the
+same timelock creation returns 18.5M gas there against 2.7M on Base Sepolia, so
+forge's estimate (even at 300%) runs out of gas. Redeploy it with an explicit gas
+limit, or retire the chain.
+
 ## Related
 
 - [Clearing Engine](./clearing-engine.md)

@@ -65,8 +65,8 @@ releaseAfter, resolveBy)`, `salt = keccak256(abi.encode(terms))`, address =
   carried value) so status is one call rather than a log scan.
 - **Whole balance.** A move transfers everything the vault holds.
 - Deterministic deployer (`scripts/DeployEscrowFactory.s.sol`): one address on
-  every chain, `0x545a2C8DD1fc765c61ea5dc2105427Be89c24A45` — deployed on Arbitrum
-  Sepolia, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_CHAINS` in
+  every chain, `0xCB6dd0781D36FE95a5ff69248498E48909BB4e1B` — deployed on Arbitrum
+  Sepolia, Base Sepolia and Arc testnet. `ESCROW_CHAINS` in
   `packages/providers/evm/src/escrow.ts` lists where it is deployed.
 
 ## No router change
@@ -275,7 +275,7 @@ A payer who disputes and then releases has conceded, so the bond goes to the
 payee with the payment.
 
 - **Address.** Same deterministic deployer, salt `mayarin.escrow-factory.v2`:
-  `0x309bDD9aF097BF0F3FaafF718c5C6c9A7f511B18` on every chain
+  `0xB14EEab74d84F900132632ff9dAcDe26C5043cad` on every chain
   (`scripts/DeployEscrowFactoryV2.s.sol`), deployed 2 Oct 2026 on Arbitrum
   Sepolia, Base Sepolia, Ethereum Sepolia and Arc testnet. `ESCROW_V2_CHAINS` in
   `packages/providers/evm/src/escrow.ts` lists where it is deployed; a new

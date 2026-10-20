@@ -28,7 +28,7 @@ describe("escrow", () => {
     expect(escrowSalt(TERMS)).toBe(
       "0x4c1c5f961e0b5b762a988b064da027b1bf41ed19c8421ee22cc2528ee84a271d",
     );
-    expect(escrowAddress(TERMS)).toBe("0x6263F75B7315EE30c9AEe4d924AD62D8c9D42dCd");
+    expect(escrowAddress(TERMS)).toBe("0xc6bAb80457268D9aDBeDd1c1467f2A2344416bd4");
   });
 
   test("every term moves the address", () => {
@@ -63,7 +63,7 @@ describe("escrow v2 (#315)", () => {
     expect(escrowSalt(TERMS_V2)).toBe(
       "0x31a7745462d7e8f26c7d9d57e2da3265f01e994e32fe1ad173065632c5f777f8",
     );
-    expect(escrowAddress(TERMS_V2)).toBe("0x62EE3F108D48E77E1BCA2Ae18e81342AE713EFd7");
+    expect(escrowAddress(TERMS_V2)).toBe("0xA357ED08c61A767CD6Ff411E6488bf814c1E45E4");
   });
 
   test("a zero bond is still v2 and still a different address from v1", () => {
