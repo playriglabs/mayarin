@@ -172,6 +172,24 @@ export interface EvmTreasuryExecutionPortOptions {
   readonly confirmations?: Readonly<Partial<Record<ChainId, number>>>;
   /** How long a signed Permit2 permit stays valid. Seconds. */
   readonly permitTtlSeconds?: number;
+  /**
+   * The settlement the indexer already recorded for an intent, if any.
+   *
+   * Read before the chain is searched: it answers however long ago the earlier
+   * transaction landed, where a log search reaches back a bounded distance.
+   */
+  readonly settledBefore?: (
+    chain: ChainId,
+    intentId: string,
+  ) => Promise<IndexedSettlement | undefined>;
+}
+
+/** A `PaymentCompleted` already indexed, in the domain's minor units. */
+export interface IndexedSettlement {
+  readonly txHash: string;
+  readonly settledAmount: bigint;
+  readonly fee: bigint;
+  readonly refundAmount: bigint;
 }
 
 export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
@@ -279,6 +297,26 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     };
     const signature = request.order.signature as Hex;
 
+    // Asked before anything is built or sent. The router consumes an intent once,
+    // so a payment this has already settled reverts in `eth_estimateGas` — which
+    // surfaces as a failed submission and is retried to exhaustion — rather than
+    // as the `AlreadyConsumed` the recovery below reads. Finishing it from what
+    // the earlier transaction did costs no gas and cannot double-pay.
+    if (await this.#consumed(request.chain, paymentRouter, order.intentId)) {
+      const earlier = await this.#settledEarlier(
+        request.chain,
+        paymentRouter,
+        order.intentId,
+        settlementAsset,
+      );
+      if (earlier !== undefined) return earlier;
+      throw new ProviderError(
+        `The router already consumed intent ${order.intentId}, and no earlier settlement could be found`,
+        { intentId: order.intentId, revert: "AlreadyConsumed" },
+        { retryable: false },
+      );
+    }
+
     // A same-asset deposit needs no route at all — the contract skips the
     // router entirely, which is the point of the criterion.
     const route = sameAsset
@@ -331,43 +369,62 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       // broadcast and the state change, or a pass that overlapped another's —
       // and failing it would report as lost what is already paid. The earlier
       // transaction's own log says what it did.
+      if (!(error instanceof ProviderError) || error.details.revert !== "AlreadyConsumed") {
+        throw error;
+      }
+      const revertedAt = error.details.blockNumber;
       const earlier = await this.#settledEarlier(
-        error,
         request.chain,
         paymentRouter,
         order.intentId,
         settlementAsset,
+        typeof revertedAt === "string" ? BigInt(revertedAt) : undefined,
       );
       if (earlier === undefined) throw error;
       return earlier;
     }
   }
 
+  /** Whether the router has consumed this intent — a settled payment, by the router's own word. */
+  async #consumed(chain: ChainId, paymentRouter: Address, intentId: Hex): Promise<boolean> {
+    const consumed = await this.#clientsFor(chain).publicClient.readContract({
+      address: paymentRouter,
+      abi: paymentRouterAbi,
+      functionName: "consumed",
+      args: [intentId],
+    });
+    return consumed === true;
+  }
+
   /**
-   * The result of the transaction that already settled this intent, read from
-   * its `PaymentCompleted` log, or `undefined` when `error` is not an
-   * `AlreadyConsumed` revert or the log is not within reach.
+   * The result of the transaction that already settled this intent, or
+   * `undefined` when nothing says what that transaction did.
    *
-   * Searched back a bounded distance from the revert: a provider caps the span
-   * of one `eth_getLogs`, and an earlier pass lands within minutes of this one.
-   * A miss leaves the original error to stand, as before.
+   * The indexer's record is read first. Failing that the router's
+   * `PaymentCompleted` log is searched back a bounded distance from `searchTo`
+   * (the latest block when there is none), since a provider caps the span of one
+   * `eth_getLogs`. A miss leaves the caller's error to stand.
    */
   async #settledEarlier(
-    error: unknown,
     chain: ChainId,
     paymentRouter: Address,
     intentId: Hex,
     settlementAsset: AssetCode,
+    searchTo?: bigint,
   ): Promise<ExecutionResult | undefined> {
-    if (!(error instanceof ProviderError) || error.details.revert !== "AlreadyConsumed") {
-      return undefined;
-    }
-    const revertedAt = error.details.blockNumber;
-    if (typeof revertedAt !== "string") return undefined;
-
-    const { publicClient } = this.#clientsFor(chain);
     try {
-      const toBlock = BigInt(revertedAt);
+      const indexed = await this.#options.settledBefore?.(chain, intentId);
+      if (indexed !== undefined) {
+        return await this.#earlierResult(
+          chain,
+          settlementAsset,
+          indexed.txHash as Hex,
+          indexed.settledAmount + indexed.fee + indexed.refundAmount,
+        );
+      }
+
+      const { publicClient } = this.#clientsFor(chain);
+      const toBlock = searchTo ?? (await publicClient.getBlockNumber());
       const logs = await publicClient.getLogs({
         address: paymentRouter,
         event: PAYMENT_COMPLETED_EVENT,
@@ -377,28 +434,41 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
       });
       const log = logs[0];
       if (log === undefined || log.transactionHash === null) return undefined;
-
-      const receipt = await publicClient.getTransactionReceipt({ hash: log.transactionHash });
-      const gasAsset = this.#options.nativeAssets[chain];
       const { settledAmount, fee, refundAmount } = log.args;
       if (settledAmount === undefined || fee === undefined || refundAmount === undefined) {
         return undefined;
       }
-      return {
-        txHash: log.transactionHash,
-        output: money(
-          fromChainUnits(chain, settlementAsset, settledAmount + fee + refundAmount),
-          settlementAsset,
-        ),
-        ...(gasAsset === undefined
-          ? {}
-          : { gasCost: money(receipt.gasUsed * receipt.effectiveGasPrice, gasAsset) }),
-      };
+      return await this.#earlierResult(
+        chain,
+        settlementAsset,
+        log.transactionHash,
+        fromChainUnits(chain, settlementAsset, settledAmount + fee + refundAmount),
+      );
     } catch {
       // A provider that refuses the range, or a node that cannot answer: the
-      // original revert is the honest report.
+      // caller's error is the honest report.
       return undefined;
     }
+  }
+
+  /** What the earlier transaction delivered, in domain units, with the gas it cost. */
+  async #earlierResult(
+    chain: ChainId,
+    settlementAsset: AssetCode,
+    txHash: Hex,
+    output: bigint,
+  ): Promise<ExecutionResult> {
+    const receipt = await this.#clientsFor(chain).publicClient.getTransactionReceipt({
+      hash: txHash,
+    });
+    const gasAsset = this.#options.nativeAssets[chain];
+    return {
+      txHash,
+      output: money(output, settlementAsset),
+      ...(gasAsset === undefined
+        ? {}
+        : { gasCost: money(receipt.gasUsed * receipt.effectiveGasPrice, gasAsset) }),
+    };
   }
 
   /**

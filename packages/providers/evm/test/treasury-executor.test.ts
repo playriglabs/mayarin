@@ -94,6 +94,10 @@ function harness(
     revert?: "ExpiredOrder" | "AlreadyConsumed" | "InvalidSigner" | "MinOutNotMet";
     /** What a search for the transaction that consumed the intent finds. */
     earlier?: "found" | "none" | "refused";
+    /** What the router says about the intent before anything is sent. */
+    consumed?: boolean;
+    /** What the settlement indexer already holds for the intent. */
+    indexed?: { txHash: string; settledAmount: bigint; fee: bigint; refundAmount: bigint };
   } = {},
 ) {
   const sent: Sent[] = [];
@@ -112,6 +116,7 @@ function harness(
     async readContract({ functionName }: { functionName: string }) {
       // ERC-20 allowance: already approved, so no extra approve transaction.
       if (functionName === "allowance") return [0n, 0, 7] as unknown;
+      if (functionName === "consumed") return options.consumed ?? false;
       return 0n;
     },
     async waitForTransactionReceipt() {
@@ -122,6 +127,9 @@ function harness(
         effectiveGasPrice: 6_000_000n,
         logs: options.logs ?? [paymentCompletedLog(2_990_000n, 10_000n, 80_000n)],
       };
+    },
+    async getBlockNumber() {
+      return 200n;
     },
     async getLogs() {
       if (options.earlier === "refused") throw new Error("query exceeds max block range");
@@ -186,6 +194,7 @@ function harness(
       "base-sepolia": { publicClient: publicClient as any, walletClient: walletClient as any },
     },
     account: ACCOUNT,
+    ...(options.indexed === undefined ? {} : { settledBefore: async () => options.indexed }),
     lookup: {
       async indexFor() {
         return options.index === undefined && !("index" in options) ? 3 : options.index;
@@ -348,6 +357,56 @@ describe("executing a native deposit", () => {
     expect(result.txHash).toBe(`0x${"aa".repeat(32)}`);
     expect(result.output).toEqual(money(3_000_000n, "USDC"));
     expect(result.gasCost).toEqual(money(70_000n * 5_000_000n, "ETH"));
+  });
+
+  test("AlreadyConsumed is settled from the indexer's record, however long ago it landed", async () => {
+    // The log search reaches back a bounded distance; the indexer's row does not,
+    // so a retry hours later still finds the transaction. The search is not made.
+    const { port } = harness({
+      status: "reverted",
+      revert: "AlreadyConsumed",
+      earlier: "refused",
+      indexed: {
+        txHash: `0x${"bb".repeat(32)}`,
+        settledAmount: 2_232_488n,
+        fee: 13_476n,
+        refundAmount: 0n,
+      },
+    });
+
+    const result = await port.execute(EXECUTE);
+
+    expect(result.txHash).toBe(`0x${"bb".repeat(32)}`);
+    expect(result.output).toEqual(money(2_245_964n, "USDC"));
+  });
+
+  test("a payment the router already consumed is finished before anything is sent", async () => {
+    // A retry hours later: estimating gas for a second submission would revert,
+    // and the executor would retry that to exhaustion. The router is asked first.
+    const { port, sent } = harness({
+      consumed: true,
+      indexed: {
+        txHash: `0x${"cc".repeat(32)}`,
+        settledAmount: 2_232_488n,
+        fee: 13_476n,
+        refundAmount: 0n,
+      },
+    });
+
+    const result = await port.execute(EXECUTE);
+
+    expect(result.txHash).toBe(`0x${"cc".repeat(32)}`);
+    expect(sent).toHaveLength(0);
+  });
+
+  test("consumed, with no earlier settlement to be found, fails terminally and sends nothing", async () => {
+    const { port, sent } = harness({ consumed: true, earlier: "none" });
+
+    await expect(port.execute(EXECUTE)).rejects.toMatchObject({
+      retryable: false,
+      details: { revert: "AlreadyConsumed" },
+    });
+    expect(sent).toHaveLength(0);
   });
 
   test.each(["none", "refused"] as const)(

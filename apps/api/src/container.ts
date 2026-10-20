@@ -608,6 +608,8 @@ function createTreasuryExecutor(deps: {
   /** The runtime pool set (#95), read per swap so execution matches pricing. */
   uniswapPools: () => Promise<Config["uniswapPools"]>;
   nonces: NonceSequencer;
+  /** What the settlement indexer has recorded, for a payment the router already settled. */
+  settlements: DrizzleSettlementEventRepository;
 }):
   | {
       executor: TreasuryExecutor;
@@ -615,7 +617,8 @@ function createTreasuryExecutor(deps: {
       chains: Set<ChainId>;
     }
   | undefined {
-  const { config, ledger, depositAddresses, solanaRuntime, uniswapPools, nonces } = deps;
+  const { config, ledger, depositAddresses, solanaRuntime, uniswapPools, nonces, settlements } =
+    deps;
 
   if (!config.treasuryExecutionEnabled) return undefined;
   if (depositAddresses === undefined) return undefined;
@@ -670,6 +673,13 @@ function createTreasuryExecutor(deps: {
           tokens: config.chainAssets,
           nativeAssets: config.chainNativeAssets,
           ...(config.chain === undefined ? {} : { confirmations: config.chain.confirmations }),
+          // A reorged settlement says nothing about what is on chain now.
+          settledBefore: async (chain, intentId) => {
+            const event = await settlements.findByIntentId(intentId);
+            return event === null || event.chain !== chain || event.status === "ORPHANED"
+              ? undefined
+              : event;
+          },
         });
   const solanaConfig = config.contract?.solana;
   const depositSeed = config.chain?.solanaDepositSeed;
@@ -1080,6 +1090,7 @@ export function createContainer({
     depositAddresses,
     solanaRuntime,
     uniswapPools: async () => (await market.uniswapPools()) as Config["uniswapPools"],
+    settlements: new DrizzleSettlementEventRepository(handle.db),
   });
   const treasuryExecutor = treasury?.executor;
 
