@@ -55,3 +55,6 @@ packages/*/npm/
 
 # Echidna / crytic-compile
 crytic-export/
+
+# Mainnet addresses written by scripts/mainnet-wallets.sh
+mainnet-addresses.json
