@@ -24,7 +24,7 @@ import type {
   SweepRequest,
   TreasuryExecutionPort,
 } from "@mayarin/clearing";
-import { paymentRouterAbi } from "@mayarin/contracts";
+import { type PaymentCompletedEvent, paymentRouterAbi } from "@mayarin/contracts";
 import type { SwapRouteSource } from "@mayarin/execution";
 import {
   type AssetCode,
@@ -320,10 +320,85 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
             ...(route === undefined ? {} : { route }),
           });
 
-    return this.#submit(request.chain, call.to, call.data, call.value, {
-      paymentRouter,
-      settlementAsset,
-    });
+    try {
+      return await this.#submit(request.chain, call.to, call.data, call.value, {
+        paymentRouter,
+        settlementAsset,
+      });
+    } catch (error) {
+      // The router consumes an intent once. `AlreadyConsumed` therefore means an
+      // earlier transaction of ours settled this payment — a crash between the
+      // broadcast and the state change, or a pass that overlapped another's —
+      // and failing it would report as lost what is already paid. The earlier
+      // transaction's own log says what it did.
+      const earlier = await this.#settledEarlier(
+        error,
+        request.chain,
+        paymentRouter,
+        order.intentId,
+        settlementAsset,
+      );
+      if (earlier === undefined) throw error;
+      return earlier;
+    }
+  }
+
+  /**
+   * The result of the transaction that already settled this intent, read from
+   * its `PaymentCompleted` log, or `undefined` when `error` is not an
+   * `AlreadyConsumed` revert or the log is not within reach.
+   *
+   * Searched back a bounded distance from the revert: a provider caps the span
+   * of one `eth_getLogs`, and an earlier pass lands within minutes of this one.
+   * A miss leaves the original error to stand, as before.
+   */
+  async #settledEarlier(
+    error: unknown,
+    chain: ChainId,
+    paymentRouter: Address,
+    intentId: Hex,
+    settlementAsset: AssetCode,
+  ): Promise<ExecutionResult | undefined> {
+    if (!(error instanceof ProviderError) || error.details.revert !== "AlreadyConsumed") {
+      return undefined;
+    }
+    const revertedAt = error.details.blockNumber;
+    if (typeof revertedAt !== "string") return undefined;
+
+    const { publicClient } = this.#clientsFor(chain);
+    try {
+      const toBlock = BigInt(revertedAt);
+      const logs = await publicClient.getLogs({
+        address: paymentRouter,
+        event: PAYMENT_COMPLETED_EVENT,
+        args: { intentId },
+        fromBlock: toBlock > SETTLED_EARLIER_LOOKBACK ? toBlock - SETTLED_EARLIER_LOOKBACK : 0n,
+        toBlock,
+      });
+      const log = logs[0];
+      if (log === undefined || log.transactionHash === null) return undefined;
+
+      const receipt = await publicClient.getTransactionReceipt({ hash: log.transactionHash });
+      const gasAsset = this.#options.nativeAssets[chain];
+      const { settledAmount, fee, refundAmount } = log.args;
+      if (settledAmount === undefined || fee === undefined || refundAmount === undefined) {
+        return undefined;
+      }
+      return {
+        txHash: log.transactionHash,
+        output: money(
+          fromChainUnits(chain, settlementAsset, settledAmount + fee + refundAmount),
+          settlementAsset,
+        ),
+        ...(gasAsset === undefined
+          ? {}
+          : { gasCost: money(receipt.gasUsed * receipt.effectiveGasPrice, gasAsset) }),
+      };
+    } catch {
+      // A provider that refuses the range, or a node that cannot answer: the
+      // original revert is the honest report.
+      return undefined;
+    }
   }
 
   /**
@@ -504,7 +579,12 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
           const retryable = !TERMINAL_ROUTER_ERRORS.has(decoded.errorName);
           return new ProviderError(
             `Transaction ${request.hash} reverted with ${decoded.errorName}`,
-            { hash: request.hash, to: request.to, revert: decoded.errorName },
+            {
+              hash: request.hash,
+              to: request.to,
+              revert: decoded.errorName,
+              blockNumber: request.blockNumber.toString(),
+            },
             { cause: error, retryable },
           );
         } catch {
@@ -601,6 +681,14 @@ export class EvmTreasuryExecutionPort implements TreasuryExecutionPort {
     });
   }
 }
+
+/** How far back from a revert to look for the transaction that consumed the intent. */
+const SETTLED_EARLIER_LOOKBACK = 2_000n;
+
+const PAYMENT_COMPLETED_EVENT = paymentRouterAbi.find(
+  (entry): entry is PaymentCompletedEvent =>
+    entry.type === "event" && entry.name === "PaymentCompleted",
+) as PaymentCompletedEvent;
 
 const TERMINAL_ROUTER_ERRORS: ReadonlySet<string> = new Set([
   "AlreadyConsumed",

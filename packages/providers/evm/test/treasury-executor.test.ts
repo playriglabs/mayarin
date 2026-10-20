@@ -92,6 +92,8 @@ function harness(
     logs?: readonly { address: string; topics: readonly string[]; data: string }[];
     status?: "success" | "reverted";
     revert?: "ExpiredOrder" | "AlreadyConsumed" | "InvalidSigner" | "MinOutNotMet";
+    /** What a search for the transaction that consumed the intent finds. */
+    earlier?: "found" | "none" | "refused";
   } = {},
 ) {
   const sent: Sent[] = [];
@@ -120,6 +122,19 @@ function harness(
         effectiveGasPrice: 6_000_000n,
         logs: options.logs ?? [paymentCompletedLog(2_990_000n, 10_000n, 80_000n)],
       };
+    },
+    async getLogs() {
+      if (options.earlier === "refused") throw new Error("query exceeds max block range");
+      if (options.earlier !== "found") return [];
+      return [
+        {
+          transactionHash: `0x${"aa".repeat(32)}`,
+          args: { settledAmount: 2_990_000n, fee: 10_000n, refundAmount: 0n },
+        },
+      ];
+    },
+    async getTransactionReceipt() {
+      return { gasUsed: 70_000n, effectiveGasPrice: 5_000_000n };
     },
     async call() {
       if (options.revert === undefined) return { data: undefined };
@@ -322,6 +337,38 @@ describe("executing a native deposit", () => {
       });
     },
   );
+
+  test("AlreadyConsumed is settled when the transaction that consumed it can be found", async () => {
+    // Two passes over one payment, or a crash after the broadcast: the first
+    // transaction paid, the second reverted. What the first did is the result.
+    const { port } = harness({ status: "reverted", revert: "AlreadyConsumed", earlier: "found" });
+
+    const result = await port.execute(EXECUTE);
+
+    expect(result.txHash).toBe(`0x${"aa".repeat(32)}`);
+    expect(result.output).toEqual(money(3_000_000n, "USDC"));
+    expect(result.gasCost).toEqual(money(70_000n * 5_000_000n, "ETH"));
+  });
+
+  test.each(["none", "refused"] as const)(
+    "AlreadyConsumed still fails when the earlier transaction is %s",
+    async (earlier) => {
+      const { port } = harness({ status: "reverted", revert: "AlreadyConsumed", earlier });
+
+      await expect(port.execute(EXECUTE)).rejects.toMatchObject({
+        retryable: false,
+        details: { revert: "AlreadyConsumed" },
+      });
+    },
+  );
+
+  test("only AlreadyConsumed goes looking for an earlier transaction", async () => {
+    const { port } = harness({ status: "reverted", revert: "InvalidSigner", earlier: "found" });
+
+    await expect(port.execute(EXECUTE)).rejects.toMatchObject({
+      details: { revert: "InvalidSigner" },
+    });
+  });
 
   test("MinOutNotMet remains retryable", async () => {
     const { port } = harness({ status: "reverted", revert: "MinOutNotMet" });
